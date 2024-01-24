@@ -156,36 +156,32 @@ pub(crate) fn expire_publisher_keys(
     let possibly_relevant_keys = keymgr.list_matching(&arti_pat)?;
 
     for (key_path, key_type) in possibly_relevant_keys {
+        // Remove the key identified by `spec` if it's no longer relevant
+        let remove_if_expired = |spec: &dyn HsTimePeriodKeySpecifier| {
+            if spec.nickname() != nickname {
+                return Err(internal!(
+                    "keymgr gave us key {spec:?} that doesn't match our pattern {arti_pat:?}"
+                )
+                .into());
+            }
+            let is_expired = relevant_periods
+                .iter()
+                .all(|p| &p.time_period() != spec.period());
+            // TODO: make the keystore selector
+            // configurable
+            let selector = Default::default();
+
+            if is_expired {
+                keymgr.remove_with_type(&key_path, &key_type, selector)?;
+            }
+
+            tor_keymgr::Result::Ok(())
+        };
+
         /// Remove the specified key, if it's no longer relevant.
         macro_rules! remove_if_expired {
             ($K:ty) => {{
                 if let Ok(spec) = <$K>::try_from(&key_path) {
-
-                    // Remove the key identified by `spec` if it's no longer relevant
-                  let remove_if_expired = |spec: &dyn HsTimePeriodKeySpecifier| {
-                    if spec.nickname() != nickname {
-                        return Err(internal!(
- "keymgr gave us key {spec:?} that doesn't match our pattern {arti_pat:?}"
-                        ).into());
-                    }
-                        let is_expired = relevant_periods
-                            .iter()
-                            .all(|p| &p.time_period() != spec.period());
-                        // TODO: make the keystore selector
-                        // configurable
-                        let selector = Default::default();
-
-                        if is_expired {
-                            keymgr.remove_with_type(
-                                &key_path,
-                                &key_type,
-                                selector
-                            )?;
-                        }
-
-                        tor_keymgr::Result::Ok(())
-                  };
-
                     remove_if_expired(&spec)?;
                 }
             }};
