@@ -620,6 +620,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let rt = self.imm.runtime.clone();
         let status_tx = self.imm.status_tx.clone();
         // Spawn the task that will remind us to retry any rate-limited uploads.
+        //
+        // This task will shut down when the reactor is dropped (dropping
+        // reattempt_upload_tx closes the channel).
         let _ = self.imm.runtime.spawn(async move {
             // The sender tells us how long to wait until to schedule the upload
             while let Some(scheduled_time) = reattempt_upload_rx.next().await {
@@ -1136,6 +1139,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             );
 
             let params = period_ctx.params.clone();
+
+            // Spawn a task to upload the descriptor to all HsDirs of this time period.
+            //
+            // XXX: shut down any pending upload tasks when the reactor is dropped.
             let _handle: () = self
                 .imm
                 .runtime
