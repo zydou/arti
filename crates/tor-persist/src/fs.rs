@@ -3,6 +3,7 @@
 mod clean;
 
 use crate::err::{Action, ErrorSource, Resource};
+use crate::load_store;
 use crate::{Error, LockStatus, Result, StateMgr};
 use fs_mistrust::anon_home::PathExt as _;
 use fs_mistrust::CheckedDir;
@@ -147,6 +148,19 @@ impl FsStateMgr {
         }
     }
 
+    /// Operate using a `load_store::Target` for `key` in this state dir
+    fn with_load_store_target<T, F>(&self, key: &str, action: Action, f: F) -> Result<T>
+    where
+        F: FnOnce(load_store::Target<'_>) -> std::result::Result<T, ErrorSource>,
+    {
+        let rel_fname = self.rel_filename(key);
+        f(load_store::Target {
+            dir: &self.inner.statepath,
+            rel_fname: &rel_fname,
+        })
+        .map_err(|source| Error::new(source, action, self.err_resource(key)))
+    }
+
     /// Return a `Resource` object representing the file with a given key.
     fn err_resource(&self, key: &str) -> Resource {
         Resource::File {
@@ -208,17 +222,7 @@ impl StateMgr for FsStateMgr {
     where
         D: DeserializeOwned,
     {
-        let rel_fname = self.rel_filename(key);
-
-        let string = match self.inner.statepath.read_to_string(rel_fname) {
-            Ok(string) => string,
-            Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
-            Err(e) => return Err(Error::new(e, Action::Loading, self.err_resource(key))),
-        };
-
-        Ok(Some(serde_json::from_str(&string).map_err(|source| {
-            Error::new(source, Action::Loading, self.err_resource(key))
-        })?))
+        self.with_load_store_target(key, Action::Loading, |t| t.load())
     }
 
     fn store<S>(&self, key: &str, val: &S) -> Result<()>
@@ -233,17 +237,7 @@ impl StateMgr for FsStateMgr {
             ));
         }
 
-        let rel_fname = self.rel_filename(key);
-
-        let output = serde_json::to_string_pretty(val)
-            .map_err(|e| Error::new(e, Action::Storing, self.err_resource(key)))?;
-
-        self.inner
-            .statepath
-            .write_and_replace(rel_fname, output)
-            .map_err(|e| Error::new(e, Action::Storing, self.err_resource(key)))?;
-
-        Ok(())
+        self.with_load_store_target(key, Action::Storing, |t| t.store(val))
     }
 }
 
