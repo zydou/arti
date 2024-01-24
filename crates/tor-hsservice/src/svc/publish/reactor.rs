@@ -71,7 +71,7 @@ const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 // We should try to decouple this value from the TP parameters.
 const MAX_CONCURRENT_UPLOADS: usize = 16;
 
-/// The maximum time allowed for uploading a descriptor to a single HSDirs,
+/// The maximum time allowed for uploading a descriptor to a single HSDir,
 /// across all attempts.
 const OVERALL_UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
@@ -1332,7 +1332,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// upload a descriptor to the specified HSDir.
+    /// Upload a descriptor to the specified HSDir.
     ///
     /// If an upload fails, this returns an `Err`. This function does not handle retries. It is up
     /// to the caller to retry on failure.
