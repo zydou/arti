@@ -286,6 +286,11 @@ mod test {
             }
             .into())
         }
+
+        fn estimate_upload_timeout(&self) -> Duration {
+            // chosen arbitrarily for testing.
+            Duration::from_secs(30)
+        }
     }
 
     #[derive(Debug, Clone)]

@@ -2,6 +2,7 @@
 //!
 //! TODO (#1216): write the docs
 
+use std::cmp::max;
 use std::fmt::Debug;
 use std::iter;
 use std::sync::{Arc, Mutex};
@@ -73,10 +74,6 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 /// The maximum time allowed for uploading a descriptor to a single HSDirs,
 /// across all attempts.
 const OVERALL_UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
-
-/// The maximum time allowed for a single attempt to upload a descriptor to a
-/// single HSDir.
-const SINGLE_UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
@@ -250,6 +247,13 @@ pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
     ) -> Result<Arc<Self::ClientCirc>, tor_circmgr::Error>
     where
         T: CircTarget + Send + Sync;
+
+    /// Return an estimate-based value for how long we should allow a single
+    /// directory upload operation to complete.
+    ///
+    /// Includes circuit construction, stream opening, upload, and waiting for a
+    /// response.
+    fn estimate_upload_timeout(&self) -> Duration;
 }
 
 /// Mockable client circuit
@@ -295,6 +299,19 @@ impl<R: Runtime> Mockable for Real<R> {
         T: CircTarget + Send + Sync,
     {
         self.0.get_or_launch_specific(netdir, kind, target).await
+    }
+
+    fn estimate_upload_timeout(&self) -> Duration {
+        use tor_circmgr::timeouts::Action;
+        let est_build = self.0.estimate_timeout(&Action::BuildCircuit { length: 4 });
+        let est_roundtrip = self.0.estimate_timeout(&Action::RoundTrip { length: 4 });
+        // We assume that in the worst case we'll have to wait for an entire
+        // circuit construction and two round-trips to the hsdir.
+        let est_total = est_build + est_roundtrip * 2;
+        // We always allow _at least_ this much time, in case our estimate is
+        // ridiculously low.
+        let min_timeout = Duration::from_secs(30);
+        max(est_total, min_timeout)
     }
 }
 
@@ -1390,10 +1407,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             )
         };
 
+        let single_upload_timeout = imm.mockable.estimate_upload_timeout();
+
         let fallible_op = || async {
             imm.runtime
                 .timeout(
-                    SINGLE_UPLOAD_TIMEOUT,
+                    single_upload_timeout,
                     Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)),
                 )
                 .await
