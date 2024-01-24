@@ -107,14 +107,7 @@ impl ReplayLog {
                 ));
             }
 
-            // If the file's length is not an even multiple of HASH_LEN, truncate
-            // it.
-            {
-                let excess = (file_len - MAGIC.len() as u64) % (HASH_LEN as u64);
-                if excess != 0 {
-                    file.set_len(file_len - excess)?;
-                }
-            }
+            Self::truncate_to_multiple(&mut file, file_len)?;
         }
 
         // Now read the rest of the file.
@@ -138,6 +131,18 @@ impl ReplayLog {
             log: Some(BufWriter::new(file)),
             lock: Some(lock),
         })
+    }
+
+    /// Truncate `file` to contain a whole number of records
+    ///
+    /// `current_len` should have come from `file.metadata()`.
+    // If the file's length is not an even multiple of HASH_LEN after the MAGIC, truncate it.
+    fn truncate_to_multiple(file: &mut File, current_len: u64) -> io::Result<()> {
+        let excess = (current_len - MAGIC.len() as u64) % (HASH_LEN as u64);
+        if excess != 0 {
+            file.set_len(current_len - excess)?;
+        }
+        Ok(())
     }
 
     /// Test whether we have already seen `introduce`.
