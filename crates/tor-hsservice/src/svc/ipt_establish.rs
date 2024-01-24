@@ -665,8 +665,9 @@ impl<R: Runtime> Reactor<R> {
                     // The network directory didn't include this relay.  Wait
                     // until it does.
                     //
-                    // TODO (#1237): Perhaps we should distinguish possible error cases
-                    // here?  See notes in `wait_for_netdir_to_list`.
+                    // Note that this `note_error` will necessarily mark the
+                    // ipt as Faulty. That's important, since we may be about to
+                    // wait indefinitely when we call wait_for_netdir_to_list.
                     status_tx.borrow_mut().note_error(&e);
                     wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
                 }
