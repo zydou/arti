@@ -89,7 +89,8 @@ const config = {
         style: 'light',
         copyright: `Copyright © ${new Date().getFullYear()} Arti, TorProject.org.`,
         //copyright: 'Trademark, copyright notices, and rules for use by third parties can be found in our https://www.torproject.org/about/trademark/.'
-      }, 
+      },
+ 
       
       prism: {
         theme: lightTheme,

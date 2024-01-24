@@ -37,7 +37,7 @@ If you're seeing this kind of error from inside the native_tls crate
 arti[62370]: segfault at 0 ip 0000000000000000 sp 00007fff9fa01128 error 14
 ```
 
-then you might be hitting a [known issue](https://githubmemory.com/repo/sfackler/rust-native-tls/issues/190) on native_tls on Alpine linux.
+then you might be hitting a [known issue](https://github.com/sfackler/rust-native-tls/issues/190) on native_tls on Alpine linux.
 
 You can solve this by building with `RUSTFLAGS=-Ctarget-feature=-crt-static`.
 

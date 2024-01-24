@@ -115,7 +115,7 @@ Please do not to rebase and squash MRs during the review cycle. If you want to m
 
 ## Getting started
 
-You might want to begin by looking around the [codebase](https://gitlab.torproject.org/tpo/core/arti/), or getting to know our [architecture](/for-developers/architecture).
+You might want to begin by looking around the [codebase](https://gitlab.torproject.org/tpo/core/arti/), or getting to know our [architecture](/contributing/for-developers/architecture).
 
 - More tests would always be great. You can look at the [coverage reports](https://tpo.pages.torproject.net/core/arti/coverage/) to find out what parts need the more love.
 - Parsing more Tor document types would be neat.
