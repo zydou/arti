@@ -1,4 +1,13 @@
 //! Helper module for loading and storing via serde
+//!
+//! Utilities to load or store a serde-able object,
+//! in JSON format,
+//! to/from a disk file at a caller-specified filename.
+//!
+//! The caller is supposed to do any necessary locking.
+//!
+//! The entrypoints are methods on `[Target]`,
+//! which the caller is supposed to construct.
 
 use std::path::Path;
 
@@ -15,11 +24,14 @@ pub(crate) struct Target<'r> {
     /// Filename relative to `dir`
     ///
     /// Might be a leafname; must be relative
+    /// Should include the `.json` function.
     pub(crate) rel_fname: &'r Path,
 }
 
 impl Target<'_> {
-    /// Load
+    /// Load and deserialize a `D` from the file specified by `self`
+    ///
+    /// Returns `None` if the file doesn't exist.
     pub(crate) fn load<D: DeserializeOwned>(&self) -> Result<Option<D>, ErrorSource> {
         let string = match self.dir.read_to_string(self.rel_fname) {
             Ok(string) => string,
@@ -30,7 +42,21 @@ impl Target<'_> {
         Ok(Some(serde_json::from_str(&string)?))
     }
 
-    /// Store
+    /// Serialise and store an `S` to the file specified by `self`
+    ///
+    /// Concurrent readers (using `load`) will see either the old data,
+    /// or the new data,
+    /// not corruption or a mixture.
+    ///
+    /// Likewise, if something fails, the old data will remain.
+    /// (But, we do *not* use `fsync`.)
+    ///
+    /// It is a serious bug to make several concurrent calls to `store`
+    /// for the same file.
+    /// That might result in corrupted files.
+    ///
+    /// See [`fs_mistrust::CheckedDir::write_and_replace`]
+    /// for more details about the semantics.
     pub(crate) fn store<S: Serialize>(&self, val: &S) -> Result<(), ErrorSource> {
         let output = serde_json::to_string_pretty(val)?;
 
@@ -39,7 +65,7 @@ impl Target<'_> {
         Ok(())
     }
 
-    /// Delete
+    /// Delete the file specified by `self`
     pub(crate) fn delete(&self) -> Result<(), ErrorSource> {
         self.dir.remove_file(self.rel_fname)?;
 
