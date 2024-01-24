@@ -38,4 +38,11 @@ impl Target<'_> {
 
         Ok(())
     }
+
+    /// Delete
+    pub(crate) fn delete(&self) -> Result<(), ErrorSource> {
+        self.dir.remove_file(self.rel_fname)?;
+
+        Ok(())
+    }
 }
