@@ -65,6 +65,7 @@ tor-linkspec = { version = "0.10.0", path = "../tor-linkspec", features = ["deco
 tor-llcrypto = { version = "0.6.1", path = "../tor-llcrypto" }
 tor-netdir = { version = "0.11.0", path = "../tor-netdir", features = ["hs-client"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.11.0", features = ["hs-client"] }
+tor-persist = { path = "../tor-persist", version = "0.9.0" }
 tor-proto = { version = "0.15.0", path = "../tor-proto", features = ["hs-client", "send-control-msg"] }
 tor-rtcompat = { version = "0.9.7", path = "../tor-rtcompat" }
 tracing = "0.1.36"

@@ -7,18 +7,20 @@
 
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
 use tor_keymgr::{
-    derive_adhoc_template_KeySpecifier, ArtiPathComponent, ArtiPathSyntaxError,
+    derive_adhoc_template_KeySpecifier, ArtiPathSyntaxError,
     KeySpecifierComponentViaDisplayFromStr,
 };
 
 use derive_adhoc::Adhoc;
 use derive_more::Constructor;
+use tor_persist::slug::{Slug, BadSlug};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -151,6 +153,13 @@ impl HsClientSecretKeysBuilder {
 ///
 /// Distinguishes different "clients" or "users" of this Arti instance,
 /// so that they can have different sets of HS client authentication keys.
+///
+/// An `HsClientSpecifier` must be a valid [`Slug`].
+/// See [slug](tor_persist::slug) for the syntactic requirements.
+///
+// TODO: rename `HsClientSpecifier` to `HsClientNickname`
+// TODO: we should forbid empty strings, like we do for `HsNickname`
+// (should we have a single FooNickname struct instead of the two?)
 #[derive(
     Clone,
     Debug,
@@ -158,9 +167,16 @@ impl HsClientSecretKeysBuilder {
     derive_more::Display,
     derive_more::Into,
     derive_more::AsRef,
-    derive_more::FromStr,
 )]
-pub struct HsClientSpecifier(ArtiPathComponent);
+pub struct HsClientSpecifier(Slug);
+
+impl FromStr for HsClientSpecifier {
+    type Err = BadSlug;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Slug::try_from(s.to_string()).map(HsClientSpecifier)
+    }
+}
 
 impl KeySpecifierComponentViaDisplayFromStr for HsClientSpecifier {}
 
@@ -169,7 +185,7 @@ impl HsClientSpecifier {
     ///
     /// The `inner` string **must** be a valid [`ArtiPathComponent`].
     pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
-        ArtiPathComponent::new(inner).map(Self)
+        Ok(Slug::new(inner).map(Self)?)
     }
 }
 
