@@ -668,7 +668,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 }
             }
 
-            debug!(nickname=%nickname, "reupload task channel closed!");
+            trace!(
+                nickname=%nickname,
+                "reupload reminder task shutting down (the reactor has shut down)"
+            );
         });
 
         loop {
