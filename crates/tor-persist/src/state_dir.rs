@@ -56,8 +56,9 @@
 //! ```
 //! use std::{collections::HashSet, fmt, time::Duration};
 //! use tor_error::{into_internal, Bug};
+//! use tor_persist::slug::SlugRef;
 //! use tor_persist::state_dir;
-//! use state_dir::{InstanceIdString, InstanceIdentity, InstancePurgeHandler};
+//! use state_dir::{InstanceIdentity, InstancePurgeHandler};
 //! use state_dir::{InstancePurgeInfo, InstanceStateHandle, StateDirectory, StorageHandle};
 //! #
 //! # // fake up some things; we do this rather than using real ones
@@ -92,15 +93,14 @@
 //!
 //! struct PurgeHandler<'h>(&'h HashSet<&'h str>, Duration);
 //! impl InstancePurgeHandler for PurgeHandler<'_> {
-//!     fn name_filter(&mut self, id: &InstanceIdString)
-//!                    -> state_dir::Result<state_dir::Liveness> {
+//!     fn name_filter(&mut self, id: &SlugRef) -> state_dir::Result<state_dir::Liveness> {
 //!         Ok(if self.0.contains(id.as_str()) {
 //!             state_dir::Liveness::Live
 //!         } else {
 //!             state_dir::Liveness::PossiblyUnused
 //!         })
 //!     }
-//!     fn retain_unused_for(&mut self, id: &InstanceIdString) -> state_dir::Result<Duration> {
+//!     fn retain_unused_for(&mut self, id: &SlugRef) -> state_dir::Result<Duration> {
 //!         Ok(self.1)
 //!     }
 //!     fn dispose(&mut self, _info: &InstancePurgeInfo, handle: InstanceStateHandle)
@@ -144,7 +144,6 @@
 //!    with whatever is appropriate for the platform.
 
 #![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
-#![allow(unreachable_pub)] // TODO this module will hopefully move to tor-persist and be pub
 
 use std::cell::Cell;
 use std::fmt;
@@ -165,6 +164,7 @@ use tor_error::Bug;
 pub use crate::Error;
 use crate::load_store;
 use crate::err::{Action, ErrorSource, Resource};
+use crate::slug::{self, Slug, SlugRef, TryIntoSlug};
 
 /// TODO HSS remove
 type Todo = Void;
@@ -216,17 +216,15 @@ pub struct StateDirectory {
 ///
 /// For example, `HsNickname` implements `state_dir::InstanceIdentity`.
 ///
-/// The kind and identity are strings from a restricted character set:
-/// Only lowercase ASCII alphanumerics, `_` , and `+`, are permitted,
-/// and the first character must be an ASCII alphanumeric.
-///
-/// (The output from `write_identity` will be converted to an [`InstanceIdString`].)
+/// The kind and identity are [`slug`]s.
 pub trait InstanceIdentity {
     /// Return the kind.  For example `hss` for a Tor Hidden Service.
     ///
     /// This must return a fixed string,
     /// since usually all instances represented the same Rust type
     /// are also the same kind.
+    ///
+    /// The returned value must be valid as a [`slug`].
     //
     // This precludes dynamically chosen instance kind identifiers.
     // If we ever want that, we'd need an InstanceKind trait that is implemented
@@ -238,6 +236,8 @@ pub trait InstanceIdentity {
     /// The instance identity distinguishes different instances of the same kind.
     ///
     /// For example, for a Tor Hidden Service the identity is the nickname.
+    ///
+    /// The generated string must be valid as a [`slug`].
     //
     // Throws Bug rather than fmt::Error so that in case of problems we can dump a stack trace.
     fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
@@ -251,14 +251,14 @@ pub trait InstanceIdentity {
 /// See [`purge_instances`](StateDirectory::purge_instances) for full documentation.
 pub trait InstancePurgeHandler {
     /// Can we tell by its name that this instance is still live ?
-    fn name_filter(&mut self, identity: &InstanceIdString) -> Result<Liveness>;
+    fn name_filter(&mut self, identity: &SlugRef) -> Result<Liveness>;
 
     /// How long should we retain an unused instance for ?
     ///
     /// Many implementations won't need to use `identity`.
     /// To pass every possibly-unused instance
     /// through to `dispose`, return `Duration::ZERO`.
-    fn retain_unused_for(&mut self, identity: &InstanceIdString) -> Result<Duration>;
+    fn retain_unused_for(&mut self, identity: &SlugRef) -> Result<Duration>;
 
     /// Decide whether to keep this instance
     ///
@@ -280,7 +280,7 @@ pub trait InstancePurgeHandler {
 pub struct InstancePurgeInfo<'i> {
     /// The instance's identity string
     #[as_ref]
-    identity: &'i InstanceIdString,
+    identity: &'i SlugRef,
 
     /// When the instance state was last updated, according to the filesystem timestamps
     ///
@@ -288,76 +288,6 @@ pub struct InstancePurgeInfo<'i> {
     /// for details of what kinds of events count as modifications.
     last_modified: SystemTime,
 }
-
-/// String identifying an instance, within its kind
-///
-/// Instance identities are from a restricted character set.
-/// See [`InstanceIdentity`].
-#[derive(Into, derive_more::Display)]
-pub struct InstanceIdString(String);
-
-impl InstanceIdString {
-    /// Obtain this `InstanceIdString` as a `&str`
-    pub fn as_str(&self) -> &str {
-        self.as_ref()
-    }
-}
-impl AsRef<str> for InstanceIdString {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl TryFrom<String> for InstanceIdString {
-    // TODO this should probably be a general InvalidSlug from a lower-level Slug type
-    type Error = Bug;
-    fn try_from(s: String) -> StdResult<Self, Self::Error> {
-        todo!()
-    }
-}
-
-/// Types which can be used as a `slug`
-///
-/// "Slugs" are used to distinguish different pieces of state within an instance.
-/// Typically, each call site that needs to provide an `impl Slug`
-/// will provide a fixed `&'static str`.
-///
-/// Slugs have the same character set restrictions as kinds and instance identities;
-/// see [`InstanceIdentity`].
-/// (This is checked at runtime by the `state_dir` implementation.)
-///
-/// Slugs may not be the same as the reserved device filenames on Windows,
-/// (eg, `con`, `lpr`).
-/// (This is not checked by the `state_dir` implementation,
-/// but violation of this rule will result in code that doesn't work at all on Windows.)
-///
-/// It is important that slugs are distinct within an instance.
-/// Specifically,
-/// each slug provided to a method on the same [`InstanceStateHandle`]
-/// (or a clone of it)
-/// must be different.
-/// Violating this rule does not result in memory-unsafety,
-/// but might result in incorrect operation due to concurrent filesystem access,
-/// including possible data loss and corruption.
-/// (Typically, the slug is fixed, and the [`StorageHandle`]s are usually
-/// obtained during instance construction, so ensuring this is straightforward.)
-// We could implement a runtime check for this by retaining a table of in-use slugs,
-// possibly only with `cfg(debug_assertions)`.  However I think this isn't worth the code:
-// it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
-// and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
-// unless it returned a Drop newtype around CheckedDir).
-//
-// TODO #1192 for now we are using the name Slug here.
-// When we implement this we may wish to unify parts of the implementation
-// with any general facility that arises from #1192.
-//
-// This is a trait implemented by `str` for convenience of call sites.
-// The implementing Functions here that take slugs will do a runtime syntax check.
-// Doing it this way avoids error handling and newtype boilerplate at call sites,
-// which I think is overkill for an error case that's not at all likely to happen.
-pub trait Slug: ToString {}
-
-impl<T: ToString + ?Sized> Slug for T {}
 
 /// Is an instance still relevant?
 ///
@@ -384,9 +314,6 @@ impl StateDirectory {
     ///
     /// Ensures the existence and suitability of a subdirectory named `kind_identity`,
     /// and locks it for exclusive access.
-    ///
-    /// `kind` and `identity` have syntactic restrictions -
-    /// see [`InstanceIdString`].
     pub fn acquire_instance<I: InstanceIdentity>(
         &self,
         identity: &I,
@@ -410,7 +337,7 @@ impl StateDirectory {
     #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
     pub fn list_instances<I: InstanceIdentity>(
         &self
-    ) -> impl Iterator<Item = Result<InstanceIdString>> {
+    ) -> impl Iterator<Item = Result<Slug>> {
         let _: &Void = &self.path;
         iter::empty()
     }
@@ -472,7 +399,7 @@ impl StateDirectory {
     pub fn instance_peek_storage<I: InstanceIdentity, T>(
         &self,
         identity: &I,
-        slug: &(impl Slug + ?Sized),
+        slug: &(impl TryIntoSlug + ?Sized),
     ) -> Result<Option<T>> {
         todo!()
     }
@@ -489,7 +416,29 @@ impl StateDirectory {
 /// Users of the `InstanceStateHandle` must ensure that functions like
 /// `storage_handle` and `raw_directory` are only called once with each `slug`.
 /// (Typically, the slug is fixed, so this is straightforward.)
-/// See [`Slug`] for more details.
+///
+/// # Slug uniqueness and syntactic restrictions
+///
+/// Methods on `InstanceStateHandle` typically take a [`TryIntoSlug`].
+///
+/// **It is important that slugs are distinct within an instance.**
+///
+/// Specifically:
+/// each slug provided to a method on the same [`InstanceStateHandle`]
+/// (or a clone of it)
+/// must be different.
+/// Violating this rule does not result in memory-unsafety,
+/// but might result in incorrect operation due to concurrent filesystem access,
+/// including possible data loss and corruption.
+/// (Typically, the slug is fixed, and the [`StorageHandle`]s are usually
+/// obtained during instance construction, so ensuring this is straightforward.)
+///
+/// There are also syntactic restrictions on slugs.  See [slug].
+// We could implement a runtime check for this by retaining a table of in-use slugs,
+// possibly only with `cfg(debug_assertions)`.  However I think this isn't worth the code:
+// it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
+// and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
+// unless it returned a Drop newtype around CheckedDir).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 pub struct InstanceStateHandle {
     flock_guard: Arc<LockFileGuard>,
@@ -498,8 +447,8 @@ pub struct InstanceStateHandle {
 impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
-    /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn storage_handle<T>(&self, slug: &(impl Slug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
+    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
+    pub fn storage_handle<T>(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -508,8 +457,8 @@ impl InstanceStateHandle {
     /// where we're happy to not to support such platforms (eg WASM without WASI)
     /// without substantial further work.
     ///
-    /// `slug` has syntactic restrictions - see [`InstanceIdString`].
-    pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
+    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
+    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
@@ -530,7 +479,7 @@ impl InstanceStateHandle {
 ///
 /// Rust mutability-xor-sharing rules enforce proper synchronisation,
 /// unless multiple `StorageHandle`s are created
-/// using the same [`InstanceStateHandle`] and `slug`.
+/// using the same [`InstanceStateHandle`] and slug.
 pub struct StorageHandle<T> {
     /// The directory and leafname
     instance_dir: CheckedDir,
