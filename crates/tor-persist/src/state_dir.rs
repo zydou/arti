@@ -144,7 +144,6 @@
 //!    with whatever is appropriate for the platform.
 
 #![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
-#![allow(unreachable_pub)] // TODO this module will hopefully move to tor-persist and be pub
 
 use std::cell::Cell;
 use std::fmt;
