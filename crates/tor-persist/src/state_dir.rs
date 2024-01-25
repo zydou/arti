@@ -56,8 +56,9 @@
 //! ```
 //! use std::{collections::HashSet, fmt, time::Duration};
 //! use tor_error::{into_internal, Bug};
+//! use tor_persist::slug::SlugRef;
 //! use tor_persist::state_dir;
-//! use state_dir::{InstanceIdString, InstanceIdentity, InstancePurgeHandler};
+//! use state_dir::{InstanceIdentity, InstancePurgeHandler};
 //! use state_dir::{InstancePurgeInfo, InstanceStateHandle, StateDirectory, StorageHandle};
 //! #
 //! # // fake up some things; we do this rather than using real ones
@@ -92,15 +93,14 @@
 //!
 //! struct PurgeHandler<'h>(&'h HashSet<&'h str>, Duration);
 //! impl InstancePurgeHandler for PurgeHandler<'_> {
-//!     fn name_filter(&mut self, id: &InstanceIdString)
-//!                    -> state_dir::Result<state_dir::Liveness> {
+//!     fn name_filter(&mut self, id: &SlugRef) -> state_dir::Result<state_dir::Liveness> {
 //!         Ok(if self.0.contains(id.as_str()) {
 //!             state_dir::Liveness::Live
 //!         } else {
 //!             state_dir::Liveness::PossiblyUnused
 //!         })
 //!     }
-//!     fn retain_unused_for(&mut self, id: &InstanceIdString) -> state_dir::Result<Duration> {
+//!     fn retain_unused_for(&mut self, id: &SlugRef) -> state_dir::Result<Duration> {
 //!         Ok(self.1)
 //!     }
 //!     fn dispose(&mut self, _info: &InstancePurgeInfo, handle: InstanceStateHandle)
@@ -165,7 +165,7 @@ use tor_error::Bug;
 pub use crate::Error;
 use crate::load_store;
 use crate::err::{Action, ErrorSource, Resource};
-use crate::slug::{self, TryIntoSlug};
+use crate::slug::{self, Slug, SlugRef, TryIntoSlug};
 
 /// TODO HSS remove
 type Todo = Void;
@@ -217,17 +217,15 @@ pub struct StateDirectory {
 ///
 /// For example, `HsNickname` implements `state_dir::InstanceIdentity`.
 ///
-/// The kind and identity are strings from a restricted character set:
-/// Only lowercase ASCII alphanumerics, `_` , and `+`, are permitted,
-/// and the first character must be an ASCII alphanumeric.
-///
-/// (The output from `write_identity` will be converted to an [`InstanceIdString`].)
+/// The kind and identity are [`slug`]s.
 pub trait InstanceIdentity {
     /// Return the kind.  For example `hss` for a Tor Hidden Service.
     ///
     /// This must return a fixed string,
     /// since usually all instances represented the same Rust type
     /// are also the same kind.
+    ///
+    /// The returned value must be valid as a [`slug`].
     //
     // This precludes dynamically chosen instance kind identifiers.
     // If we ever want that, we'd need an InstanceKind trait that is implemented
@@ -239,6 +237,8 @@ pub trait InstanceIdentity {
     /// The instance identity distinguishes different instances of the same kind.
     ///
     /// For example, for a Tor Hidden Service the identity is the nickname.
+    ///
+    /// The generated string must be valid as a [`slug`].
     //
     // Throws Bug rather than fmt::Error so that in case of problems we can dump a stack trace.
     fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
@@ -252,14 +252,14 @@ pub trait InstanceIdentity {
 /// See [`purge_instances`](StateDirectory::purge_instances) for full documentation.
 pub trait InstancePurgeHandler {
     /// Can we tell by its name that this instance is still live ?
-    fn name_filter(&mut self, identity: &InstanceIdString) -> Result<Liveness>;
+    fn name_filter(&mut self, identity: &SlugRef) -> Result<Liveness>;
 
     /// How long should we retain an unused instance for ?
     ///
     /// Many implementations won't need to use `identity`.
     /// To pass every possibly-unused instance
     /// through to `dispose`, return `Duration::ZERO`.
-    fn retain_unused_for(&mut self, identity: &InstanceIdString) -> Result<Duration>;
+    fn retain_unused_for(&mut self, identity: &SlugRef) -> Result<Duration>;
 
     /// Decide whether to keep this instance
     ///
@@ -281,40 +281,13 @@ pub trait InstancePurgeHandler {
 pub struct InstancePurgeInfo<'i> {
     /// The instance's identity string
     #[as_ref]
-    identity: &'i InstanceIdString,
+    identity: &'i SlugRef,
 
     /// When the instance state was last updated, according to the filesystem timestamps
     ///
     /// See `[InstanceStateHandle::purge_instances]`
     /// for details of what kinds of events count as modifications.
     last_modified: SystemTime,
-}
-
-/// String identifying an instance, within its kind
-///
-/// Instance identities are from a restricted character set.
-/// See [`InstanceIdentity`].
-#[derive(Into, derive_more::Display)]
-pub struct InstanceIdString(String);
-
-impl InstanceIdString {
-    /// Obtain this `InstanceIdString` as a `&str`
-    pub fn as_str(&self) -> &str {
-        self.as_ref()
-    }
-}
-impl AsRef<str> for InstanceIdString {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl TryFrom<String> for InstanceIdString {
-    // TODO this should probably be a general InvalidSlug from a lower-level Slug type
-    type Error = Bug;
-    fn try_from(s: String) -> StdResult<Self, Self::Error> {
-        todo!()
-    }
 }
 
 /// Is an instance still relevant?
@@ -342,9 +315,6 @@ impl StateDirectory {
     ///
     /// Ensures the existence and suitability of a subdirectory named `kind_identity`,
     /// and locks it for exclusive access.
-    ///
-    /// `kind` and `identity` have syntactic restrictions -
-    /// see [`InstanceIdString`].
     pub fn acquire_instance<I: InstanceIdentity>(
         &self,
         identity: &I,
@@ -368,7 +338,7 @@ impl StateDirectory {
     #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
     pub fn list_instances<I: InstanceIdentity>(
         &self
-    ) -> impl Iterator<Item = Result<InstanceIdString>> {
+    ) -> impl Iterator<Item = Result<Slug>> {
         let _: &Void = &self.path;
         iter::empty()
     }
