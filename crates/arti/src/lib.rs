@@ -212,11 +212,17 @@ async fn run<R: Runtime>(
         reconfigurable_modules.push(Arc::new(onion_services));
     }
 
+    // We weak references here to prevent the thread spawned by watch_for_config_changes from
+    // keeping these modules alive after this function exits.
+    //
+    // NOTE: reconfigurable_modules stores the only strong references to these modules,
+    // so we must keep the variable alive until the end of the function
+    let weak_modules = reconfigurable_modules.iter().map(Arc::downgrade).collect();
     reload_cfg::watch_for_config_changes(
         config_sources,
         &arti_config,
         &client,
-        reconfigurable_modules,
+        weak_modules
     )?;
 
     #[cfg(all(feature = "rpc", feature = "tokio"))]
@@ -287,6 +293,9 @@ async fn run<R: Runtime>(
         }.fuse()
             => r.context("bootstrap"),
     )?;
+
+    // The modules can be dropped now, because we are exiting.
+    drop(reconfigurable_modules);
 
     Ok(())
 }

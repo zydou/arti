@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel as std_channel, Sender};
-use std::sync::Arc;
+use std::sync::Weak;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -55,12 +55,15 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 /// If current configuration requires it, watch for changes in `sources`
 /// and try to reload our configuration. On unix platforms, also watch
 /// for SIGHUP and reload configuration then.
+///
+/// The modules are `Weak` references to prevent this background task
+/// from keeping them alive.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
     sources: ConfigurationSources,
     config: &ArtiConfig,
     client: &TorClient<R>,
-    modules: Vec<Arc<dyn ReconfigurableModule>>,
+    modules: Vec<Weak<dyn ReconfigurableModule>>,
 ) -> anyhow::Result<()> {
     let watch_file = config.application().watch_configuration;
 
@@ -239,14 +242,19 @@ impl ReconfigurableModule for Application {
 // pass it down as appropriate. See issue #1156.
 fn reconfigure(
     found_files: FoundConfigFiles<'_>,
-    reconfigurable: &[Arc<dyn ReconfigurableModule>],
+    reconfigurable: &[Weak<dyn ReconfigurableModule>],
 ) -> anyhow::Result<bool> {
     let _ = reconfigurable;
     let config = found_files.load()?;
     let config = tor_config::resolve::<ArtiCombinedConfig>(config)?;
 
     for module in reconfigurable {
-        module.reconfigure(&config)?;
+        if let Some(module) = Weak::upgrade(module) {
+            module.reconfigure(&config)?;
+        } else {
+            // We are shutting down
+            return Ok(false);
+        }
     }
 
     Ok(config.0.application().watch_configuration)
