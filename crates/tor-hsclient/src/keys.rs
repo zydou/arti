@@ -14,13 +14,12 @@ use std::sync::Arc;
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
 use tor_keymgr::{
-    derive_adhoc_template_KeySpecifier, ArtiPathSyntaxError,
-    KeySpecifierComponentViaDisplayFromStr,
+    derive_adhoc_template_KeySpecifier, ArtiPathSyntaxError, KeySpecifierComponentViaDisplayFromStr,
 };
 
 use derive_adhoc::Adhoc;
 use derive_more::Constructor;
-use tor_persist::slug::{Slug, BadSlug};
+use tor_persist::slug::{BadSlug, Slug};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -160,14 +159,7 @@ impl HsClientSecretKeysBuilder {
 // TODO: rename `HsClientSpecifier` to `HsClientNickname`
 // TODO: we should forbid empty strings, like we do for `HsNickname`
 // (should we have a single FooNickname struct instead of the two?)
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    derive_more::Display,
-    derive_more::Into,
-    derive_more::AsRef,
-)]
+#[derive(Clone, Debug, PartialEq, derive_more::Display, derive_more::Into, derive_more::AsRef)]
 pub struct HsClientSpecifier(Slug);
 
 impl FromStr for HsClientSpecifier {
