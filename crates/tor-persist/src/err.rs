@@ -2,9 +2,10 @@
 
 use std::sync::Arc;
 
+use crate::slug::BadSlug;
 use crate::FsMistrustErrorExt as _;
 use fs_mistrust::anon_home::PathExt as _;
-use tor_error::ErrorKind;
+use tor_error::{into_bad_api_usage, Bug, ErrorKind};
 
 /// A resource that we failed to access or where we found a problem.
 #[derive(Debug, Clone, derive_more::Display)]
@@ -84,6 +85,27 @@ pub enum ErrorSource {
     /// Problem when serializing or deserializing JSON data.
     #[error("JSON error")]
     Serde(#[from] Arc<serde_json::Error>),
+
+    /// Programming error
+    #[error("Programming error")]
+    Bug(#[from] Bug),
+}
+
+impl From<BadSlug> for ErrorSource {
+    fn from(bs: BadSlug) -> ErrorSource {
+        into_bad_api_usage!("bad slug")(bs).into()
+    }
+}
+/// [`BadSlug`] errors autoi-convert to a [`BadApiUsage`](tor_error::ErrorKind::BadApiUsage)
+///
+/// (Users of `tor-persist` ought to have newtypes for user-supplied slugs,
+/// and thereby avoid passing syntactically invalid slugs to `tor-persist`.)
+impl From<BadSlug> for Error {
+    fn from(bs: BadSlug) -> Error {
+        // This metadata is approximate, but better information isn't readily available
+        // and this shouldn't really happen.
+        Error::new(bs, Action::Initializing, Resource::Manager)
+    }
 }
 
 /// An error that occurred while manipulating persistent state.
@@ -129,6 +151,7 @@ impl tor_error::HasKind for Error {
             E::IoError(..)     => K::PersistentStateAccessFailed,
             E::Permissions(e)  => e.state_error_kind(),
             E::NoLock          => K::BadApiUsage,
+            E::Bug(e)          => e.kind(),
             E::Serde(..) if self.action == Action::Storing  => K::Internal,
             E::Serde(..) => K::PersistentStateCorrupted,
         }
