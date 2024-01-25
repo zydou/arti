@@ -200,6 +200,13 @@ impl ReplayLog {
                 // and clear it again afterwards.
                 //
                 // But, first, we need to deal with any previous note we left ourselves.
+
+                // (With the current implementation of std::io::BufWriter, this is
+                // unnecessary, because if the argument to write_all is smaller than
+                // the buffer size, BufWriter::write_all always just copies to the buffer,
+                // flushing first if necessary; and when it flushes, it uses write,
+                // not write_all.  So the use of write_all never causes "lost" data.
+                // However, this is not a documented guarantee.)
                 match f.needs_resynch {
                     Ok(()) => {}
                     Err(()) => {
@@ -504,7 +511,7 @@ mod test {
                     .env(ENV_NAME, "1")
                     .status()
                     .unwrap();
-                eprintln!("reaped actual test process {st:?}");
+                eprintln!("reaped actual test process {st:?} (expecting signal {GOOD_SIGNAL})");
                 assert_eq!(st.signal(), Some(GOOD_SIGNAL));
                 return;
             }
@@ -514,7 +521,112 @@ mod test {
 
         // Now we are in our own process, and can mess about with ulimit etc.
 
-        // XXXX actual test will arrive here
+        use std::fs;
+        use std::mem::MaybeUninit;
+        use std::ptr;
+
+        fn set_ulimit(size: usize) {
+            unsafe {
+                const RLIM: libc::__rlimit_resource_t = libc::RLIMIT_FSIZE;
+                let mut rlim = libc::rlimit {
+                    rlim_cur: 0,
+                    rlim_max: 0,
+                };
+                let r = libc::getrlimit(RLIM, (&mut rlim) as _);
+                assert_eq!(r, 0);
+                rlim.rlim_cur = size.try_into().unwrap();
+                let r = libc::setrlimit(RLIM, (&rlim) as _);
+                assert_eq!(r, 0);
+            }
+        }
+
+        test_temp_dir!().used_by(|dir| {
+            let path = dir.join("test.log");
+            let mut lock = fslock::LockFile::open(&dir.join("dummy.lock")).unwrap();
+            lock.lock().unwrap(); // for form's sake, we don't really need this
+            let lock = Arc::new(lock);
+            let mut rl = ReplayLog::new_logged(&path, lock.clone()).unwrap();
+
+            const BUF: usize = 8192; // BufWriter default; if that changes, test will break
+            const ALLOW: usize = BUF + 37;
+
+            unsafe {
+                let mut set = MaybeUninit::uninit();
+                libc::sigemptyset(set.as_mut_ptr());
+                let sa = libc::sigaction {
+                    sa_sigaction: libc::SIG_IGN,
+                    sa_mask: set.assume_init(),
+                    sa_flags: 0,
+                    sa_restorer: None,
+                };
+                let r = libc::sigaction(libc::SIGXFSZ, (&sa) as _, ptr::null_mut());
+                assert_eq!(r, 0);
+            }
+
+            let demand_efbig = |e| match e {
+                // MSRV:: io::ErrorKind::FileTooLarge is still unstable
+                ReplayError::Log(e) if e.raw_os_error() == Some(libc::EFBIG) => {}
+                other => panic!("expected EFBUG, got {other:?}"),
+            };
+
+            #[allow(clippy::identity_op)]
+            let mk_h = |phase: u8, i: usize| {
+                let i = u32::try_from(i).unwrap();
+                let mut h = [0_u8; HASH_LEN];
+                h[0] = phase;
+                h[1] = phase;
+                h[4] = (i >> 24) as _;
+                h[5] = (i >> 16) as _;
+                h[6] = (i >> 8) as _;
+                h[7] = (i >> 0) as _;
+                H(h)
+            };
+
+            const CAN_DO: usize = (ALLOW + BUF - MAGIC.len()) / HASH_LEN;
+            dbg!(MAGIC.len(), HASH_LEN, BUF, ALLOW, CAN_DO);
+
+            let mut gave_ok = Vec::new();
+
+            set_ulimit(ALLOW);
+
+            for i in 0..CAN_DO {
+                let h = mk_h(b'y', i);
+                rl.check_inner(&h).unwrap();
+                gave_ok.push(h);
+            }
+
+            let md = fs::metadata(&path).unwrap();
+            dbg!(md.len(), &rl.file);
+
+            for i in 0..2 {
+                eprintln!("expecting EFBIG {i}");
+                demand_efbig(rl.check_inner(&mk_h(b'n', i)).unwrap_err());
+                let md = fs::metadata(&path).unwrap();
+                assert_eq!(md.len(), u64::try_from(ALLOW).unwrap());
+            }
+
+            set_ulimit(ALLOW * 10);
+
+            for i in 0..2 {
+                eprintln!("recovering {i}");
+                let h = mk_h(b'r', i);
+                rl.check_inner(&h).unwrap();
+                gave_ok.push(h);
+            }
+
+            rl.flush().unwrap();
+            drop(rl);
+
+            let mut rl = ReplayLog::new_logged(&path, lock.clone()).unwrap();
+            for h in &gave_ok {
+                match rl.check_inner(h) {
+                    Err(ReplayError::AlreadySeen) => {}
+                    other => panic!("expected AlreadySeen, got {other:?}"),
+                }
+            }
+
+            eprintln!("recovered file contents checked, all good");
+        });
 
         unsafe {
             libc::raise(libc::SIGUSR2);
