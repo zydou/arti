@@ -1225,6 +1225,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             #[error("No IPTs")]
             NoIpts,
 
+            /// The reactor has shut down
+            #[error("The reactor has shut down")]
+            Shutdown,
+
             /// An fatal error.
             #[error("{0}")]
             Fatal(#[from] FatalError),
@@ -1375,6 +1379,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 debug!(
                     nickname=%imm.nickname, time_period=?time_period,
                      "no introduction points; skipping upload"
+                );
+
+                return Ok(());
+            },
+            Err(PublishError::Shutdown) => {
+                debug!(
+                    nickname=%imm.nickname, time_period=?time_period,
+                     "the reactor has shut down; aborting upload"
                 );
 
                 return Ok(());
