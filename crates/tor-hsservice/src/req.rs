@@ -6,7 +6,6 @@
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
-use tor_persist::slug::Slug;
 use std::sync::Arc;
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 use tor_hscrypto::{
@@ -14,9 +13,8 @@ use tor_hscrypto::{
     time::TimePeriod,
     Subcredential,
 };
-use tor_keymgr::{
-    KeyMgr, KeyPath, KeyPathRange, KeySpecifierComponent, KeySpecifierPattern,
-};
+use tor_keymgr::{KeyMgr, KeyPath, KeyPathRange, KeySpecifierComponent, KeySpecifierPattern};
+use tor_persist::slug::Slug;
 
 use tor_error::{internal, Bug};
 use tor_proto::{
