@@ -12,8 +12,9 @@ use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
 use tor_hscrypto::time::TimePeriod;
+use tor_persist::slug::Slug;
 
-use crate::{ArtiPath, ArtiPathComponent, ArtiPathSyntaxError};
+use crate::{ArtiPath, ArtiPathSyntaxError};
 
 // #[doc(hidden)] applied at crate toplevel
 #[macro_use]
@@ -148,7 +149,7 @@ pub enum KeyPathError {
         /// Should be valid Rust identifier syntax.
         key: String,
         /// The substring of the `ArtiPath` that couldn't be parsed.
-        value: ArtiPathComponent,
+        value: Slug,
     },
 
     /// An internal error.
@@ -297,11 +298,11 @@ pub trait KeySpecifier {
     fn ctor_path(&self) -> Option<CTorPath>;
 }
 
-/// A trait for serializing and deserializing specific types of [`ArtiPathComponent`]s.
+/// A trait for serializing and deserializing specific types of [`Slug`]s.
 ///
-/// A `KeySpecifierComponent` is a specific kind of `ArtiPathComponent`. `KeySpecifierComponent` is
-/// always a valid `ArtiPathComponent`, but may have a more restricted charset, or more specific
-/// validation rules. An `ArtiPathComponent` is not always a valid `KeySpecifierComponent`
+/// A `KeySpecifierComponent` is a specific kind of `Slug`. A `KeySpecifierComponent` is
+/// always a valid `Slug`, but may have a more restricted charset, or more specific
+/// validation rules. A `Slug` is not always a valid `KeySpecifierComponent`
 /// instance.
 ///
 /// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier) for a
@@ -310,10 +311,10 @@ pub trait KeySpecifier {
 /// If you are implementing [`KeySpecifier`] and [`KeyInfoExtractor`] manually rather than by
 /// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
-    /// Return the [`ArtiPathComponent`] representation of this type.
-    fn to_component(&self) -> Result<ArtiPathComponent, Bug>;
+    /// Return the [`Slug`] representation of this type.
+    fn to_component(&self) -> Result<Slug, Bug>;
     /// Try to convert `c` into an object of this type.
-    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn from_component(c: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized;
     /// Display the value in a human-meaningful representation
@@ -378,8 +379,8 @@ impl KeySpecifier for KeyPath {
 }
 
 impl KeySpecifierComponent for TimePeriod {
-    fn to_component(&self) -> Result<ArtiPathComponent, Bug> {
-        ArtiPathComponent::new(format!(
+    fn to_component(&self) -> Result<Slug, Bug> {
+        Slug::new(format!(
             "{}_{}_{}",
             self.interval_num(),
             self.length(),
@@ -388,7 +389,7 @@ impl KeySpecifierComponent for TimePeriod {
         .map_err(into_internal!("TP formatting went wrong"))
     }
 
-    fn from_component(c: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn from_component(c: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
@@ -425,12 +426,12 @@ impl KeySpecifierComponent for TimePeriod {
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
 pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
 impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
-    fn to_component(&self) -> Result<ArtiPathComponent, Bug> {
+    fn to_component(&self) -> Result<Slug, Bug> {
         self.to_string()
             .try_into()
-            .map_err(into_internal!("Display generated bad ArtiPathComponent"))
+            .map_err(into_internal!("Display generated bad Slug"))
     }
-    fn from_component(s: &ArtiPathComponent) -> Result<Self, InvalidKeyPathComponentValue>
+    fn from_component(s: &Slug) -> Result<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
@@ -444,7 +445,7 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
 }
 
 impl KeySpecifierComponent for HsId {
-    fn to_component(&self) -> StdResult<ArtiPathComponent, Bug> {
+    fn to_component(&self) -> StdResult<Slug, Bug> {
         // We can't implement KeySpecifierComponentViaDisplayFromStr for HsId,
         // because its Display impl contains the `.onion` suffix, and Slugs can't
         // contain `.`.
@@ -455,10 +456,10 @@ impl KeySpecifierComponent for HsId {
         hsid_slug
             .to_owned()
             .try_into()
-            .map_err(into_internal!("Display generated bad ArtiPathComponent"))
+            .map_err(into_internal!("Display generated bad Slug"))
     }
 
-    fn from_component(s: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn from_component(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
@@ -511,7 +512,7 @@ mod test {
     macro_rules! assert_err {
         ($ty:ident, $inner:expr, $error_kind:pat) => {{
             let path = $ty::new($inner.to_string());
-            let path_fromstr: Result<$ty, _> = $inner.parse();
+            let path_fromstr: Result<$ty, _> = $ty::try_from($inner.to_string());
             let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
             assert!(path.is_err(), "{} should be invalid", $inner);
             assert!(
@@ -527,7 +528,7 @@ mod test {
     macro_rules! assert_ok {
         ($ty:ident, $inner:expr) => {{
             let path = $ty::new($inner.to_string());
-            let path_fromstr: Result<$ty, _> = $inner.parse();
+            let path_fromstr: Result<$ty, _> = $ty::try_from($inner.to_string());
             let path_tryfrom: Result<$ty, _> = $inner.to_string().try_into();
             assert!(path.is_ok(), "{} should be valid", $inner);
             assert_eq!(path.as_ref().unwrap().to_string(), *$inner);
@@ -587,7 +588,7 @@ mod test {
             assert_ok!(ArtiPath, path);
         }
         for path in VALID_ARTI_PATH_COMPONENTS {
-            assert_ok!(ArtiPathComponent, path);
+            assert_ok!(Slug, path);
         }
 
         for path in DISALLOWED_CHAR_ARTI_PATHS {
@@ -597,9 +598,9 @@ mod test {
                 ArtiPathSyntaxError::Slug(BadSlug::BadCharacter(_))
             );
             assert_err!(
-                ArtiPathComponent,
+                Slug,
                 path,
-                ArtiPathSyntaxError::Slug(BadSlug::BadCharacter(_))
+                BadSlug::BadCharacter(_)
             );
         }
 
@@ -610,20 +611,20 @@ mod test {
                 ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
             );
             assert_err!(
-                ArtiPathComponent,
+                Slug,
                 path,
-                ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('/'))
+                BadSlug::BadCharacter('/')
             );
         }
 
         const SEP: char = PATH_SEP;
-        // This is a valid ArtiPath, but not a valid ArtiPathComponent
+        // This is a valid ArtiPath, but not a valid Slug
         let path = format!("a{SEP}client{SEP}key+private");
         assert_ok!(ArtiPath, &path);
         assert_err!(
-            ArtiPathComponent,
+            Slug,
             &path,
-            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('/'))
+            BadSlug::BadCharacter('/')
         );
 
         const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
@@ -633,9 +634,9 @@ mod test {
             ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
         );
         assert_err!(
-            ArtiPathComponent,
+            Slug,
             PATH_WITH_TRAVERSAL,
-            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('/'))
+            BadSlug::BadCharacter('/')
         );
 
         const REL_PATH: &str = "./bob";
@@ -645,9 +646,9 @@ mod test {
             ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
         );
         assert_err!(
-            ArtiPathComponent,
+            Slug,
             REL_PATH,
-            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
+            BadSlug::BadCharacter('.')
         );
 
         const EMPTY_DENOTATOR: &str = "c++";
@@ -657,9 +658,9 @@ mod test {
             ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
         );
         assert_err!(
-            ArtiPathComponent,
+            Slug,
             EMPTY_DENOTATOR,
-            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('+'))
+            BadSlug::BadCharacter('+')
         );
     }
 
@@ -680,7 +681,7 @@ mod test {
         for denotator in VALID_ARTI_DENOTATORS {
             let path = format!("foo/bar/qux+{denotator}");
             assert_ok!(ArtiPath, path);
-            assert_ok!(ArtiPathComponent, denotator);
+            assert_ok!(Slug, denotator);
         }
 
         // An ArtiPath with multiple denotators
@@ -710,7 +711,7 @@ mod test {
         // validated string newtypes, or something
         #[derive(Serialize, Deserialize, Debug)]
         struct T {
-            n: ArtiPathComponent,
+            n: Slug,
         }
         let j = serde_json::from_str(r#"{ "n": "x" }"#).unwrap();
         let t: T = serde_json::from_value(j).unwrap();
@@ -995,7 +996,7 @@ KeyPathInfo {
         assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
 
         assert!(TimePeriod::from_component(
-            &ArtiPathComponent::new("invalid_tp".to_string()).unwrap()
+            &Slug::new("invalid_tp".to_string()).unwrap()
         )
         .is_err());
     }

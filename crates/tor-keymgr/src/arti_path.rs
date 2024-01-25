@@ -1,11 +1,11 @@
-//! [`ArtiPath`] and [`ArtiPathComponent`]
+//! [`ArtiPath`] and its associated helpers.
 
 use std::str::FromStr;
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
-use tor_persist::slug::{self, BadSlug, Slug};
+use tor_persist::slug::{self, BadSlug};
 
 use crate::{ArtiPathSyntaxError, KeyPathRange};
 
@@ -54,9 +54,9 @@ define_derive_adhoc! {
 /// In an [`ArtiNativeKeystore`](crate::ArtiNativeKeystore), this also represents the path of the
 /// key relative to the root of the keystore, minus the file extension.
 ///
-/// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
-/// components may contain UTF-8 alphanumerics, and (except as the first or last character) `-`,
-/// `_`, or  `.`.
+/// An `ArtiPath` is a nonempty sequence of [`Slug`](tor_persist::slug::Slug)s, separated by `/`.  Path
+/// components may contain lowercase ASCII alphanumerics, and  `-` or `_`.
+/// See [slug] for the full syntactic requirements.
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
@@ -69,7 +69,7 @@ define_derive_adhoc! {
 /// [`KeySpecifierComponent::to_component`](crate::KeySpecifierComponent::to_component)
 /// implementation.
 /// The denotators **must** come after all the other fields.
-/// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
+/// Denotator strings are validated in the same way as [`Slug`](tor-persist::slug::Slug)s.
 ///
 /// For example, the last component of the path `"foo/bar/bax+denotator_example+1"`
 /// is `"bax+denotator_example+1"`.
@@ -107,7 +107,7 @@ impl ArtiPath {
                 if d.is_empty() {
                     return Err(BadSlug::EmptySlugNotAllowed.into());
                 }
-                let () = ArtiPathComponent::validate_str(d)?;
+                let () = slug::check_syntax(d)?;
             }
 
             main_part
@@ -154,55 +154,5 @@ impl ArtiPath {
     /// ```
     pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
         self.0.get(range.0.clone())
-    }
-}
-
-/// A component of an [`ArtiPath`].
-///
-/// An `ArtiPathComponent` must be a valid [`Slug`].
-/// See [slug] for the syntactic requirements.
-//
-// TODO: we should abolish ArtiPathComponent in favour of Slug
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Into, Display)] //
-#[derive(Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct ArtiPathComponent(Slug);
-
-impl ArtiPathComponent {
-    /// Create a new [`ArtiPathComponent`].
-    pub fn new(s: String) -> Result<Self, ArtiPathSyntaxError> {
-        Ok(Slug::new(s).map(Self)?)
-    }
-
-    /// Return a view of this `ArtiPathComponent` as a string slice.
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    /// Validate the underlying representation of an `ArtiPathComponent`.
-    fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
-        Ok(Slug::new(inner.to_string()).map(|_| ())?)
-    }
-}
-
-impl TryFrom<String> for ArtiPathComponent {
-    type Error = ArtiPathSyntaxError;
-
-    fn try_from(s: String) -> Result<Self, ArtiPathSyntaxError> {
-        Self::new(s)
-    }
-}
-
-impl From<ArtiPathComponent> for String {
-    fn from(c: ArtiPathComponent) -> Self {
-        c.0.to_string()
-    }
-}
-
-impl FromStr for ArtiPathComponent {
-    type Err = ArtiPathSyntaxError;
-
-    fn from_str(s: &str) -> Result<Self, ArtiPathSyntaxError> {
-        Self::new(s.to_string())
     }
 }

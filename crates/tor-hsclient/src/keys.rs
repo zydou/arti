@@ -175,7 +175,7 @@ impl KeySpecifierComponentViaDisplayFromStr for HsClientSpecifier {}
 impl HsClientSpecifier {
     /// Create a new [`HsClientSpecifier`].
     ///
-    /// The `inner` string **must** be a valid [`ArtiPathComponent`].
+    /// The `inner` string **must** be a valid [`Slug`].
     pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
         Ok(Slug::new(inner).map(Self)?)
     }

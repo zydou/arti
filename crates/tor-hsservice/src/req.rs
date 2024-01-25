@@ -6,6 +6,7 @@
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
+use tor_persist::slug::Slug;
 use std::sync::Arc;
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 use tor_hscrypto::{
@@ -14,7 +15,7 @@ use tor_hscrypto::{
     Subcredential,
 };
 use tor_keymgr::{
-    ArtiPathComponent, KeyMgr, KeyPath, KeyPathRange, KeySpecifierComponent, KeySpecifierPattern,
+    KeyMgr, KeyPath, KeyPathRange, KeySpecifierComponent, KeySpecifierPattern,
 };
 
 use tor_error::{internal, Bug};
@@ -171,8 +172,8 @@ impl RendRequestContext {
             return Err(internal!("captured substring out of range?!").into());
         };
 
-        let comp = ArtiPathComponent::new(denotator.to_string())
-            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e)))?;
+        let comp = Slug::new(denotator.to_string())
+            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e.into())))?;
         let tp = TimePeriod::from_component(&comp).map_err(|error| {
             KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
                 key: "time_period".to_owned(),
