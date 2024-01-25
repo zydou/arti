@@ -84,9 +84,6 @@ pub struct OnionServiceConfig {
     // see also #1028
     //
     // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
-    //
-    // TODO (#1210): Do we want a "descriptor_lifetime" setting? C tor doesn't have
-    // one. See TODOS on IPT_PUBLISH_{,UN}CERTAIN.
 }
 
 impl OnionServiceConfig {
