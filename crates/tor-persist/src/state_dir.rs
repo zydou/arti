@@ -167,8 +167,6 @@ use crate::load_store;
 use crate::err::{Action, ErrorSource, Resource};
 use crate::slug::{self, TryIntoSlug};
 
-use TryIntoSlug as Slug; // XXXX change references here, and remove this alias
-
 /// TODO HSS remove
 type Todo = Void;
 
@@ -432,7 +430,7 @@ impl StateDirectory {
     pub fn instance_peek_storage<I: InstanceIdentity, T>(
         &self,
         identity: &I,
-        slug: &(impl Slug + ?Sized),
+        slug: &(impl TryIntoSlug + ?Sized),
     ) -> Result<Option<T>> {
         todo!()
     }
@@ -481,7 +479,7 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn storage_handle<T>(&self, slug: &(impl Slug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
+    pub fn storage_handle<T>(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -491,7 +489,7 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
+    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
 
     /// Unconditionally delete this instance directory
     ///
