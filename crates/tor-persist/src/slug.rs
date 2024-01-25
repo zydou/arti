@@ -80,6 +80,25 @@ pub enum BadSlug {
     ForbiddenOnWindows(ForbiddenOnWindows),
 }
 
+/// Types which can perhaps be used as a slug
+///
+/// This is a trait implemented by `str`, `std::fmt::Arguments`,
+/// and other implementors of `ToString`, for the convenience of call sites:
+/// APIs can have functions taking an `&(impl TryIntoSlug + ?Sized)` or `&dyn TryIntoSlug`
+/// and callers then don't need error-handling boilerplate.
+///
+/// Functions that take a `TryIntoSlug` will need to do a runtime syntax check.
+pub trait TryIntoSlug {
+    /// Convert `self` into a `Slug`, if it has the right syntax
+    fn try_into_slug(&self) -> Result<Slug, BadSlug>;
+}
+
+impl<T: ToString + ?Sized> TryIntoSlug for T {
+    fn try_into_slug(&self) -> Result<Slug, BadSlug> {
+        self.to_string().try_into()
+    }
+}
+
 impl Slug {
     /// Make a Slug out of an owned `String`, if it has the correct syntax
     pub fn new(s: String) -> Result<Slug, BadSlug> {

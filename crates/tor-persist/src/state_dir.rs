@@ -165,6 +165,9 @@ use tor_error::Bug;
 pub use crate::Error;
 use crate::load_store;
 use crate::err::{Action, ErrorSource, Resource};
+use crate::slug::{self, TryIntoSlug};
+
+use TryIntoSlug as Slug; // XXXX change references here, and remove this alias
 
 /// TODO HSS remove
 type Todo = Void;
@@ -316,49 +319,6 @@ impl TryFrom<String> for InstanceIdString {
     }
 }
 
-/// Types which can be used as a `slug`
-///
-/// "Slugs" are used to distinguish different pieces of state within an instance.
-/// Typically, each call site that needs to provide an `impl Slug`
-/// will provide a fixed `&'static str`.
-///
-/// Slugs have the same character set restrictions as kinds and instance identities;
-/// see [`InstanceIdentity`].
-/// (This is checked at runtime by the `state_dir` implementation.)
-///
-/// Slugs may not be the same as the reserved device filenames on Windows,
-/// (eg, `con`, `lpr`).
-/// (This is not checked by the `state_dir` implementation,
-/// but violation of this rule will result in code that doesn't work at all on Windows.)
-///
-/// It is important that slugs are distinct within an instance.
-/// Specifically,
-/// each slug provided to a method on the same [`InstanceStateHandle`]
-/// (or a clone of it)
-/// must be different.
-/// Violating this rule does not result in memory-unsafety,
-/// but might result in incorrect operation due to concurrent filesystem access,
-/// including possible data loss and corruption.
-/// (Typically, the slug is fixed, and the [`StorageHandle`]s are usually
-/// obtained during instance construction, so ensuring this is straightforward.)
-// We could implement a runtime check for this by retaining a table of in-use slugs,
-// possibly only with `cfg(debug_assertions)`.  However I think this isn't worth the code:
-// it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
-// and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
-// unless it returned a Drop newtype around CheckedDir).
-//
-// TODO #1192 for now we are using the name Slug here.
-// When we implement this we may wish to unify parts of the implementation
-// with any general facility that arises from #1192.
-//
-// This is a trait implemented by `str` for convenience of call sites.
-// The implementing Functions here that take slugs will do a runtime syntax check.
-// Doing it this way avoids error handling and newtype boilerplate at call sites,
-// which I think is overkill for an error case that's not at all likely to happen.
-pub trait Slug: ToString {}
-
-impl<T: ToString + ?Sized> Slug for T {}
-
 /// Is an instance still relevant?
 ///
 /// Returned by [`InstancePurgeHandler::name_filter`].
@@ -489,7 +449,29 @@ impl StateDirectory {
 /// Users of the `InstanceStateHandle` must ensure that functions like
 /// `storage_handle` and `raw_directory` are only called once with each `slug`.
 /// (Typically, the slug is fixed, so this is straightforward.)
-/// See [`Slug`] for more details.
+///
+/// # Slug uniqueness and syntactic restrictions
+///
+/// Methods on `InstanceStateHandle` typically take a [`TryIntoSlug`].
+///
+/// **It is important that slugs are distinct within an instance.**
+///
+/// Specifically:
+/// each slug provided to a method on the same [`InstanceStateHandle`]
+/// (or a clone of it)
+/// must be different.
+/// Violating this rule does not result in memory-unsafety,
+/// but might result in incorrect operation due to concurrent filesystem access,
+/// including possible data loss and corruption.
+/// (Typically, the slug is fixed, and the [`StorageHandle`]s are usually
+/// obtained during instance construction, so ensuring this is straightforward.)
+///
+/// There are also syntactic restrictions on slugs.  See [slug].
+// We could implement a runtime check for this by retaining a table of in-use slugs,
+// possibly only with `cfg(debug_assertions)`.  However I think this isn't worth the code:
+// it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
+// and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
+// unless it returned a Drop newtype around CheckedDir).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 pub struct InstanceStateHandle {
     flock_guard: Arc<LockFileGuard>,
@@ -498,7 +480,7 @@ pub struct InstanceStateHandle {
 impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
-    /// `slug` has syntactic restrictions - see [`InstanceIdString`].
+    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
     pub fn storage_handle<T>(&self, slug: &(impl Slug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
@@ -508,7 +490,7 @@ impl InstanceStateHandle {
     /// where we're happy to not to support such platforms (eg WASM without WASI)
     /// without substantial further work.
     ///
-    /// `slug` has syntactic restrictions - see [`InstanceIdString`].
+    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
     pub fn raw_subdir(&self, slug: &(impl Slug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
 
     /// Unconditionally delete this instance directory
@@ -530,7 +512,7 @@ impl InstanceStateHandle {
 ///
 /// Rust mutability-xor-sharing rules enforce proper synchronisation,
 /// unless multiple `StorageHandle`s are created
-/// using the same [`InstanceStateHandle`] and `slug`.
+/// using the same [`InstanceStateHandle`] and slug.
 pub struct StorageHandle<T> {
     /// The directory and leafname
     instance_dir: CheckedDir,
