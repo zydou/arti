@@ -577,7 +577,7 @@ pub(crate) mod test {
 
     /// Make a fresh `KeyMgr` (containing no keys) using files in `temp_dir`
     pub(crate) fn create_keymgr(temp_dir: &TestTempDir) -> TestTempDirGuard<Arc<KeyMgr>> {
-        temp_dir.used_by("keystore", |keystore_dir| {
+        temp_dir.subdir_used_by("keystore", |keystore_dir| {
             let keystore = ArtiNativeKeystore::from_path_and_mistrust(
                 keystore_dir,
                 &Mistrust::new_dangerously_trust_everyone(),
