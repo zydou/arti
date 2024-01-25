@@ -204,6 +204,11 @@ macro_rules! impl_as_ref { { $ty:ty } => { paste!{
             self.0.as_ref()
         }
     }
+    impl AsRef<$ty> for Slug {
+        fn as_ref(&self) -> &$ty {
+            self.deref().as_ref()
+        }
+    }
 } } }
 
 impl_as_with_inherent!(str);
