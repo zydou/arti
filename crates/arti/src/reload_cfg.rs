@@ -248,16 +248,17 @@ fn reconfigure(
     let config = found_files.load()?;
     let config = tor_config::resolve::<ArtiCombinedConfig>(config)?;
 
+    // Filter out the modules that have been dropped
+    let reconfigurable = reconfigurable.iter().flat_map(Weak::upgrade);
+    // If there are no more modules, we should exit.
+    let mut has_modules = false;
+
     for module in reconfigurable {
-        if let Some(module) = Weak::upgrade(module) {
-            module.reconfigure(&config)?;
-        } else {
-            // We are shutting down
-            return Ok(false);
-        }
+        has_modules = true;
+        module.reconfigure(&config)?;
     }
 
-    Ok(config.0.application().watch_configuration)
+    Ok(has_modules && config.0.application().watch_configuration)
 }
 
 /// A wrapper around `notify::RecommendedWatcher` to watch a set of parent
