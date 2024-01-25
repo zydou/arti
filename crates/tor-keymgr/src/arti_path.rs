@@ -9,6 +9,8 @@ use tor_persist::slug::{self, BadSlug};
 
 use crate::{ArtiPathSyntaxError, KeyPathRange};
 
+// TODO: this is only used for ArtiPaths (we should consider turning this
+// intro a regular impl ArtiPath {} and removing the macro).
 define_derive_adhoc! {
     /// Implement `new()`, `TryFrom<String>` in terms of `validate_str`, and `as_ref<str>`
     //
