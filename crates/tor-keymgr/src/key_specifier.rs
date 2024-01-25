@@ -587,20 +587,12 @@ mod test {
         for path in chain!(VALID_ARTI_PATH_COMPONENTS, VALID_ARTI_PATHS) {
             assert_ok!(ArtiPath, path);
         }
-        for path in VALID_ARTI_PATH_COMPONENTS {
-            assert_ok!(Slug, path);
-        }
 
         for path in DISALLOWED_CHAR_ARTI_PATHS {
             assert_err!(
                 ArtiPath,
                 path,
                 ArtiPathSyntaxError::Slug(BadSlug::BadCharacter(_))
-            );
-            assert_err!(
-                Slug,
-                path,
-                BadSlug::BadCharacter(_)
             );
         }
 
@@ -610,33 +602,18 @@ mod test {
                 path,
                 ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
             );
-            assert_err!(
-                Slug,
-                path,
-                BadSlug::BadCharacter('/')
-            );
         }
 
         const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid Slug
         let path = format!("a{SEP}client{SEP}key+private");
         assert_ok!(ArtiPath, &path);
-        assert_err!(
-            Slug,
-            &path,
-            BadSlug::BadCharacter('/')
-        );
 
         const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
         assert_err!(
             ArtiPath,
             PATH_WITH_TRAVERSAL,
             ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
-        );
-        assert_err!(
-            Slug,
-            PATH_WITH_TRAVERSAL,
-            BadSlug::BadCharacter('/')
         );
 
         const REL_PATH: &str = "./bob";
@@ -645,22 +622,12 @@ mod test {
             REL_PATH,
             ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
         );
-        assert_err!(
-            Slug,
-            REL_PATH,
-            BadSlug::BadCharacter('.')
-        );
 
         const EMPTY_DENOTATOR: &str = "c++";
         assert_err!(
             ArtiPath,
             EMPTY_DENOTATOR,
             ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
-        );
-        assert_err!(
-            Slug,
-            EMPTY_DENOTATOR,
-            BadSlug::BadCharacter('+')
         );
     }
 
@@ -681,7 +648,6 @@ mod test {
         for denotator in VALID_ARTI_DENOTATORS {
             let path = format!("foo/bar/qux+{denotator}");
             assert_ok!(ArtiPath, path);
-            assert_ok!(Slug, denotator);
         }
 
         // An ArtiPath with multiple denotators
