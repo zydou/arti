@@ -254,9 +254,9 @@ impl CheckedDir {
         Ok(())
     }
 
-    /// Helper: create a [`Verifier`] with the appropriate rules for this
+    /// Create a [`Verifier`] with the appropriate rules for this
     /// `CheckedDir`.
-    fn verifier(&self) -> Verifier<'_> {
+    pub fn verifier(&self) -> Verifier<'_> {
         let mut v = self.mistrust.verifier();
         if self.readable_okay {
             v = v.permit_readable();
