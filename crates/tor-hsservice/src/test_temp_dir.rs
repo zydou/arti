@@ -265,30 +265,53 @@ impl TestTempDir {
 
     /// Obtain a `T` which uses paths in `self`
     ///
-    /// Within `f`, construct `T` using the supplied filesystem path.
-    ///
-    /// The directory `subdir` will be created, if it doesn't already exist.
+    /// Within `f`, construct `T` using the supplied filesystem path,
+    /// which is the full path to the test's temporary directory.
     ///
     /// Do not store or copy the path anywhere other than the return value;
     /// such copies would not be protected by Rust lifetimes against early deletion.
     ///
     /// Rust lifetime tracking ensures that the temporary directory
     /// won't be cleaned up until the `T` is destroyed.
+    #[allow(clippy::needless_lifetimes)] // explicit lifetimes for clarity (and symmetry)
     pub fn used_by<'d, T>(
+        &'d self,
+        f: impl FnOnce(&Path) -> T,
+    ) -> TestTempDirGuard<'d, T> {
+        let thing = f(self.as_path_untracked());
+        TestTempDirGuard::with_path(thing, self.as_path_untracked())
+    }
+
+    /// Obtain a `T` which uses paths in a subdir of `self`
+    ///
+    /// The directory `subdir` will be created,
+    /// within the test's temporary directory,
+    /// if it doesn't already exist.
+    ///
+    /// Within `f`, construct `T` using the supplied filesystem path,
+    /// which is the fuill path to the subdirectory.
+    ///
+    /// Do not store or copy the path anywhere other than the return value;
+    /// such copies would not be protected by Rust lifetimes against early deletion.
+    ///
+    /// Rust lifetime tracking ensures that the temporary directory
+    /// won't be cleaned up until the `T` is destroyed.
+    pub fn subdir_used_by<'d, T>(
         &'d self,
         subdir: &str,
         f: impl FnOnce(PathBuf) -> T,
     ) -> TestTempDirGuard<'d, T> {
-        let dir = self.subdir_untracked(subdir);
+        self.used_by(|dir| {
+            let dir = dir.join(subdir);
 
-        match fs::create_dir(&dir) {
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => Ok(()),
-            other => other,
-        }
-        .expect("create subdir");
+            match fs::create_dir(&dir) {
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => Ok(()),
+                other => other,
+            }
+            .expect("create subdir");
 
-        let thing = f(dir);
-        TestTempDirGuard::with_path(thing, self.as_path_untracked())
+            f(dir)
+        })
     }
 }
 

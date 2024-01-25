@@ -393,7 +393,7 @@ mod test {
     const TEST_TEMP_SUBDIR: &str = "replaylog";
 
     fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<ReplayLog> {
-        dir.used_by(TEST_TEMP_SUBDIR, |dir| {
+        dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
             let lock = LockFile::open(&dir.join("lock")).unwrap();
             // Really ReplayLog::new should take a lock file type that guarantees the
             // returned value has actually been locked.  But it doesn't.  Because
@@ -449,7 +449,7 @@ mod test {
         }
         drop(log);
         // Truncate the file by 7 bytes.
-        dir.used_by(TEST_TEMP_SUBDIR, |dir| {
+        dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
             let file = OpenOptions::new()
                 .write(true)
                 .open(dir.join("logfile"))
