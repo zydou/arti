@@ -33,7 +33,7 @@ pub struct OnionServiceConfig {
     pub(crate) anonymity: crate::Anonymity,
 
     /// Number of intro points; defaults to 3; max 20.
-    #[builder(default = "3")]
+    #[builder(default = "DEFAULT_NUM_INTRO_POINTS")]
     pub(crate) num_intro_points: u8,
 
     /// A rate-limit on the acceptable rate of introduction requests.
@@ -83,6 +83,9 @@ pub struct OnionServiceConfig {
     //
     // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
 }
+
+/// Default number of introduction points.
+const DEFAULT_NUM_INTRO_POINTS: u8 = 3;
 
 impl OnionServiceConfig {
     /// Return a reference to this configuration's nickname.
@@ -139,17 +142,24 @@ impl OnionServiceConfig {
 impl OnionServiceConfigBuilder {
     /// Builder helper: check whether the options in this builder are consistent.
     fn validate(&self) -> Result<(), ConfigBuildError> {
-        /// Largest supported number of introduction points
-        //
-        // TODO (#1210) Is this a consensus parameter or anything?  What does C tor do?
-        const MAX_INTRO_POINTS: u8 = 20;
+        /// Largest number of introduction points supported.
+        ///
+        /// (This is not a very principled value; it's just copied from the C
+        /// implementation.)
+        const MAX_NUM_INTRO_POINTS: u8 = 20;
+        /// Supported range of numbers of intro points.
+        const ALLOWED_NUM_INTRO_POINTS: std::ops::RangeInclusive<u8> =
+            DEFAULT_NUM_INTRO_POINTS..=MAX_NUM_INTRO_POINTS;
 
         // Make sure MAX_INTRO_POINTS is in range.
         if let Some(ipts) = self.num_intro_points {
-            if !(1..=MAX_INTRO_POINTS).contains(&ipts) {
+            if !ALLOWED_NUM_INTRO_POINTS.contains(&ipts) {
                 return Err(ConfigBuildError::Invalid {
                     field: "num_intro_points".into(),
-                    problem: "Out of range 1..20".into(),
+                    problem: format!(
+                        "out of range {}-{}",
+                        DEFAULT_NUM_INTRO_POINTS, MAX_NUM_INTRO_POINTS
+                    ),
                 });
             }
         }
