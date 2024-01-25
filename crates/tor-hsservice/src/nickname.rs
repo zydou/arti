@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
-use tor_persist::slug::{Slug, BadSlug};
+use tor_persist::slug::{BadSlug, Slug};
 
 /// Nickname (local identifier) for a Tor hidden service
 ///
@@ -23,18 +23,7 @@ use tor_persist::slug::{Slug, BadSlug};
 // should return an error if the specified string is a valid Slug, but not a valid
 // HsNickname).
 #[derive(
-    Clone,
-    Debug,
-    Hash,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Display,
-    From,
-    Into,
-    Serialize,
-    Deserialize,
+    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Display, From, Into, Serialize, Deserialize,
 )]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(Slug);

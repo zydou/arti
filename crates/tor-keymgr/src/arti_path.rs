@@ -5,7 +5,7 @@ use std::str::FromStr;
 use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
-use tor_persist::slug::{self, Slug, BadSlug};
+use tor_persist::slug::{self, BadSlug, Slug};
 
 use crate::{ArtiPathSyntaxError, KeyPathRange};
 
@@ -117,7 +117,13 @@ impl ArtiPath {
 
         if let Some(e) = path
             .split(PATH_SEP)
-            .map(|s| if s.is_empty() { Err(BadSlug::EmptySlugNotAllowed.into()) } else { Ok(slug::check_syntax(s)?) })
+            .map(|s| {
+                if s.is_empty() {
+                    Err(BadSlug::EmptySlugNotAllowed.into())
+                } else {
+                    Ok(slug::check_syntax(s)?)
+                }
+            })
             .find(|e| e.is_err())
         {
             return e;
