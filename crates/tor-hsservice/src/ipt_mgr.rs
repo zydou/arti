@@ -1548,9 +1548,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Maximum number of concurrent intro point relays
     pub(crate) fn max_n_intro_relays(&self) -> usize {
-        // TODO #1210 max_n_intro_relays should be configurable
-        // TODO #1210 consider default, in context of intro point forcing attacks
-        self.target_n_intro_points() * 2
+        let params = self.imm.dirprovider.params();
+        let num_extra = (*params).as_ref().hs_intro_num_extra_intropoints.get() as usize;
+        self.target_n_intro_points() + num_extra
     }
 }
 
