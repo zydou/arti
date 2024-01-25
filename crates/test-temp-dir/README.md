@@ -1,6 +1,6 @@
 Temp directories in tests
 
-This module improves on
+Improves on
 [`tempdir`](https://docs.rs/tempfile/latest/tempfile/fn.tempdir.html)
 by adding several new features for testing:
 
@@ -30,12 +30,12 @@ The behaviour is influenced by `TEST_TEMP_RETAIN`:
 
 # stdout printing
 
-This is a module for use in tests.
+This is a crate for use in tests.
 When invoked, it will print a message to stdout about the test directory.
 
 # Hazards of too-early deletion of temporary directories
 
-When using raw [`tempfile`], or the `untracked` methods in this module,
+When using raw [`tempfile`], or the `untracked` methods in this crate,
 it is easy to write test cases where the temporary directory might be deleted
 while paths referring to it are still stored and ready for use
 (for example in objects such as `tor_keymgr::KeyMgr` or from `tor_persist`).
@@ -50,12 +50,12 @@ The problem might even go undetected if the test case is such that
 
 This can only happen if the [`TempDir`](tempfile::TempDir)
 or [`TestTempDir`] object is dropped too early.
-The principal APIs in this module use Rust lifetimes to help prevent that:
+The principal APIs in this crate use Rust lifetimes to help prevent that:
 the temporary directory path is not directly accessible in `'static` form.
 
 # Panics
 
-This is a module for use in tests.
+This is a crate for use in tests.
 Most error conditions will cause a panic.
 
 # Other crates
