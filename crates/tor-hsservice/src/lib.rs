@@ -51,10 +51,6 @@ use thiserror::Error;
 use tor_basic_utils::impl_debug_hex;
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
 
-#[cfg(test)]
-#[macro_use]
-mod test_temp_dir;
-
 #[macro_use] // SerdeStringOrTransparent
 mod time_store;
 

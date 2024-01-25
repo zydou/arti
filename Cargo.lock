@@ -4579,6 +4579,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-temp-dir"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "derive_more",
+ "educe",
+ "tempfile",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5423,6 +5433,7 @@ dependencies = [
  "slotmap",
  "strum",
  "tempfile",
+ "test-temp-dir",
  "thiserror",
  "tor-async-utils",
  "tor-basic-utils",

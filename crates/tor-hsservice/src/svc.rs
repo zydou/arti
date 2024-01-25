@@ -563,13 +563,13 @@ pub(crate) mod test {
     use std::fmt::Display;
 
     use fs_mistrust::Mistrust;
+    use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::IptSetStorageHandle;
-    use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use crate::{HsIdKeypairSpecifier, HsIdPublicKeySpecifier};
 
     /// The nickname of the test service.
