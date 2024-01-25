@@ -147,6 +147,7 @@
 
 use std::cell::Cell;
 use std::fmt;
+use std::fs;
 use std::iter;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -159,12 +160,12 @@ use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use fslock_guard::LockFileGuard;
-use tor_error::Bug;
+use tor_error::{Bug, bad_api_usage};
 
 pub use crate::Error;
 use crate::load_store;
 use crate::err::{Action, ErrorSource, Resource};
-use crate::slug::{self, Slug, SlugRef, TryIntoSlug};
+use crate::slug::{self, BadSlug, Slug, SlugRef, TryIntoSlug};
 
 /// TODO HSS remove
 type Todo = Void;
@@ -440,7 +441,11 @@ impl StateDirectory {
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
 // unless it returned a Drop newtype around CheckedDir).
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
+#[derive(Debug)]
 pub struct InstanceStateHandle {
+    /// The directory
+    dir: CheckedDir,
+    /// Lock guard
     flock_guard: Arc<LockFileGuard>,
 }
 
@@ -448,7 +453,27 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn storage_handle<T>(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
+    pub fn storage_handle<T>(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> {
+        /// Implementation, not generic over `slug` and `T`
+        fn inner(
+            ih: &InstanceStateHandle,
+            slug: StdResult<Slug, BadSlug>,
+        ) -> Result<(CheckedDir, String, Arc<LockFileGuard>)> {
+            let slug = slug?;
+            let instance_dir = ih.dir.clone();
+            let leafname = format!("{slug}.json");
+            let flock_guard = ih.flock_guard.clone();
+            Ok((instance_dir, leafname, flock_guard))
+        }
+
+        let (instance_dir, leafname, flock_guard) = inner(self, slug.try_into_slug())?;
+        Ok(StorageHandle {
+            instance_dir,
+            leafname,
+            marker: PhantomData,
+            flock_guard,
+        })
+    }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -458,7 +483,31 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
+    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> {
+        /// Implementation, not generic over `slug`
+        fn inner(
+            ih: &InstanceStateHandle,
+            slug: StdResult<Slug, BadSlug>,
+        ) -> Result<InstanceRawSubdir> {
+            let slug = slug?;
+            (|| {
+                trace!("ensuring/using {:?}/{:?}", ih.dir.as_path(), slug.as_str());
+                let dir = ih.dir.make_secure_directory(&slug)?;
+                let flock_guard = ih.flock_guard.clone();
+                Ok::<_, ErrorSource>(InstanceRawSubdir { dir, flock_guard })
+            })()
+            .map_err(|source| {
+                Error::new(
+                    source,
+                    Action::Initializing,
+                    Resource::Directory {
+                        dir: ih.dir.as_path().join(slug),
+                    },
+                )
+            })
+        }
+        inner(self, slug.try_into_slug())
+    }
 
     /// Unconditionally delete this instance directory
     ///
@@ -467,9 +516,35 @@ impl InstanceStateHandle {
     ///
     /// Will return a `BadAPIUsage` if other clones of this `InstanceStateHandle` exist.
     pub fn purge(self) -> Result<()> {
-        // use Arc::into_inner on the lock object,
-        // to make sure we're actually the only surviving InstanceStateHandle
-        todo!()
+        let dir = self.dir.as_path();
+
+        (|| {
+            // use Arc::into_inner on the lock object,
+            // to make sure we're actually the only surviving InstanceStateHandle
+            let flock_guard = Arc::into_inner(self.flock_guard).ok_or_else(|| {
+                bad_api_usage!(
+ "InstanceStateHandle::purge called for {:?}, but other clones of the handle exist",
+                    self.dir.as_path(),
+                )
+            })?;
+
+            trace!("purging {:?} (and .lock)", dir);
+            fs::remove_dir_all(dir)?;
+            flock_guard.delete_lock_file(
+                // dir.with_extension is right because the last component of dir
+                // is KIND+ID which doesn't contain `.` so no extension will be stripped
+                dir.with_extension("lock"),
+            )?;
+
+            Ok::<_, ErrorSource>(())
+        })()
+        .map_err(|source| {
+            Error::new(
+                source,
+                Action::Deleting,
+                Resource::Directory { dir: dir.into() },
+            )
+        })
     }
 }
 
@@ -515,7 +590,13 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
         f(load_store::Target {
             dir: &self.instance_dir,
             rel_fname: self.leafname.as_ref(),
-        }).map_err(|source| crate::Error::new(source, action, self.err_resource()))
+        }).map_err(self.map_err(action))
+    }
+
+    /// Helper to convert an `ErrorSource` to an `Error`, if we were performing `action`
+    fn map_err(&self, action: Action) -> impl FnOnce(ErrorSource) -> Error {
+        let resource = self.err_resource();
+        move |source| crate::Error::new(source, action, resource)
     }
 
     /// Return the proper `Resource` for reporting errors
