@@ -540,6 +540,17 @@ mod test {
             }
         }
 
+        // This test is quite complicated.
+        //
+        // We want to test partial writes.  We could perhaps have done this by
+        // parameterising ReplayLog so it could have something other than File,
+        // but that would probably leak into the public API.
+        //
+        // Instead, we cause *actual* partial writes.  We use the Unix setrlimit
+        // call to limit the size of files our process is allowed to write.
+        // This causes the underlying write(2) calls to (i) generate SIGXFSZ
+        // (ii) if that doesn't kill the process, return partial writes.
+
         test_temp_dir!().used_by(|dir| {
             let path = dir.join("test.log");
             let mut lock = fslock::LockFile::open(&dir.join("dummy.lock")).unwrap();
@@ -548,8 +559,11 @@ mod test {
             let mut rl = ReplayLog::new_logged(&path, lock.clone()).unwrap();
 
             const BUF: usize = 8192; // BufWriter default; if that changes, test will break
+
+            // We let ourselves write one whole buffer plus an odd amount of extra
             const ALLOW: usize = BUF + 37;
 
+            // Ignore SIGXFSZ (default disposition is for exceeding the rlimit to kill us)
             unsafe {
                 let mut set = MaybeUninit::uninit();
                 libc::sigemptyset(set.as_mut_ptr());
@@ -569,6 +583,7 @@ mod test {
                 other => panic!("expected EFBUG, got {other:?}"),
             };
 
+            // Generate a distinct Hash given a phase and a counter
             #[allow(clippy::identity_op)]
             let mk_h = |phase: u8, i: usize| {
                 let i = u32::try_from(i).unwrap();
@@ -582,9 +597,12 @@ mod test {
                 H(h)
             };
 
+            // Number of hashes we can write to the file before failure occurs
             const CAN_DO: usize = (ALLOW + BUF - MAGIC.len()) / HASH_LEN;
             dbg!(MAGIC.len(), HASH_LEN, BUF, ALLOW, CAN_DO);
 
+            // Record of the hashes that ReplayLog tells us were OK and not replays;
+            // ie, which it therefore ought to have recorded.
             let mut gave_ok = Vec::new();
 
             set_ulimit(ALLOW);
@@ -598,6 +616,9 @@ mod test {
             let md = fs::metadata(&path).unwrap();
             dbg!(md.len(), &rl.file);
 
+            // Now we have written what we can.  The next two calls will fail,
+            // since the BufWriter buffer is full and can't be flushed.
+
             for i in 0..2 {
                 eprintln!("expecting EFBIG {i}");
                 demand_efbig(rl.check_inner(&mk_h(b'n', i)).unwrap_err());
@@ -605,8 +626,10 @@ mod test {
                 assert_eq!(md.len(), u64::try_from(ALLOW).unwrap());
             }
 
+            // Enough that we don't get any further file size exceedances
             set_ulimit(ALLOW * 10);
 
+            // Now we should be able to recover.  We write two more hashes.
             for i in 0..2 {
                 eprintln!("recovering {i}");
                 let h = mk_h(b'r', i);
@@ -614,8 +637,14 @@ mod test {
                 gave_ok.push(h);
             }
 
+            // flush explicitly just so we catch any error
+            // (drop would flush, but it can't report errors)
             rl.flush().unwrap();
             drop(rl);
+
+            // Reopen the log - reading in the written data.
+            // We can then check that everything the earlier ReplayLog
+            // claimed to have written, is indeed recorded.
 
             let mut rl = ReplayLog::new_logged(&path, lock.clone()).unwrap();
             for h in &gave_ok {
