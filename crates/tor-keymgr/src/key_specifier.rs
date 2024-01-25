@@ -434,7 +434,7 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
     where
         Self: Sized,
     {
-        s.parse().map_err(|_| InvalidKeyPathComponentValue::new())
+        s.as_str().parse().map_err(|_| InvalidKeyPathComponentValue::new())
     }
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
@@ -460,7 +460,7 @@ impl KeySpecifierComponent for HsId {
     where
         Self: Sized,
     {
-        s.parse().map_err(|_| InvalidKeyPathComponentValue::new())
+        s.as_str().parse().map_err(|_| InvalidKeyPathComponentValue::new())
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -499,6 +499,7 @@ mod test {
     use humantime::parse_rfc3339;
     use itertools::{chain, Itertools};
     use serde::{Deserialize, Serialize};
+    use tor_persist::slug::BadSlug;
     use std::fmt::Debug;
     use std::time::Duration;
 
@@ -564,27 +565,23 @@ mod test {
         const VALID_ARTI_PATH_COMPONENTS: &[&str] = &[
             "my-hs-client-2",
             "hs_client",
-            "client٣¾",
-            "clientß",
-            "client.key",
         ];
         const VALID_ARTI_PATHS: &[&str] = &[
-            "path/to/client+sub.value+fish",
-            //
-        ];
-
-        const BAD_OUTER_CHAR_ARTI_PATHS: &[&str] = &[
+            "path/to/client+subvalue+fish",
             "-hs_client",
             "_hs_client",
             "hs_client-",
             "hs_client_",
-            ".client",
-            "client.",
             "-",
             "_",
         ];
 
-        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] = &["client?", "no spaces please"];
+        const DISALLOWED_CHAR_ARTI_PATHS: &[&str] = &[
+            "client?",
+            "no spaces please",
+            "client٣¾",
+            "clientß",
+        ];
 
         const EMPTY_PATH_COMPONENT: &[&str] =
             &["/////", "/alice/bob", "alice//bob", "alice/bob/", "/"];
@@ -597,103 +594,72 @@ mod test {
         }
 
         for path in DISALLOWED_CHAR_ARTI_PATHS {
-            assert_err!(ArtiPath, path, ArtiPathSyntaxError::DisallowedChar(_));
+            assert_err!(ArtiPath, path, ArtiPathSyntaxError::Slug(BadSlug::BadCharacter(_)));
             assert_err!(
                 ArtiPathComponent,
                 path,
-                ArtiPathSyntaxError::DisallowedChar(_)
-            );
-        }
-
-        for path in BAD_OUTER_CHAR_ARTI_PATHS {
-            assert_err!(ArtiPath, path, ArtiPathSyntaxError::BadOuterChar(_));
-            assert_err!(
-                ArtiPathComponent,
-                path,
-                ArtiPathSyntaxError::BadOuterChar(_)
+                ArtiPathSyntaxError::Slug(BadSlug::BadCharacter(_))
             );
         }
 
         for path in EMPTY_PATH_COMPONENT {
-            assert_err!(ArtiPath, path, ArtiPathSyntaxError::EmptyPathComponent);
+            assert_err!(ArtiPath, path, ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed));
             assert_err!(
                 ArtiPathComponent,
                 path,
-                ArtiPathSyntaxError::DisallowedChar('/')
+                ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('/'))
             );
         }
 
         const SEP: char = PATH_SEP;
         // This is a valid ArtiPath, but not a valid ArtiPathComponent
-        let path = format!("a{SEP}client{SEP}key.private");
+        let path = format!("a{SEP}client{SEP}key+private");
         assert_ok!(ArtiPath, &path);
         assert_err!(
             ArtiPathComponent,
             &path,
-            ArtiPathSyntaxError::DisallowedChar('/')
+            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('/'))
         );
 
         const PATH_WITH_TRAVERSAL: &str = "alice/../bob";
         assert_err!(
             ArtiPath,
             PATH_WITH_TRAVERSAL,
-            ArtiPathSyntaxError::PathTraversal
+            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
         );
         assert_err!(
             ArtiPathComponent,
             PATH_WITH_TRAVERSAL,
-            ArtiPathSyntaxError::DisallowedChar('/')
+            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('/'))
         );
 
         const REL_PATH: &str = "./bob";
-        assert_err!(ArtiPath, REL_PATH, ArtiPathSyntaxError::BadOuterChar('.'));
+        assert_err!(ArtiPath, REL_PATH, ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.')));
         assert_err!(
             ArtiPathComponent,
             REL_PATH,
-            ArtiPathSyntaxError::DisallowedChar('/')
+            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('.'))
         );
 
         const EMPTY_DENOTATOR: &str = "c++";
-        assert_err!(
-            ArtiPath,
-            EMPTY_DENOTATOR,
-            ArtiPathSyntaxError::EmptyPathComponent
-        );
+        assert_err!(ArtiPath, EMPTY_DENOTATOR, ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed));
         assert_err!(
             ArtiPathComponent,
             EMPTY_DENOTATOR,
-            ArtiPathSyntaxError::DisallowedChar('+')
+            ArtiPathSyntaxError::Slug(BadSlug::BadCharacter('+'))
         );
     }
 
     #[test]
     #[allow(clippy::cognitive_complexity)]
     fn arti_path_with_denotator() {
-        const VALID_ARTI_DENOTATORS: &[&str] = &["foo", "one_two_three-f0ur"];
-
-        const BAD_OUTER_CHAR_DENOTATORS: &[&str] =
-            &["1-2-3-", "1-2-3_", "1-2-3.", "-1-2-3", "_1-2-3", ".1-2-3"];
+        const VALID_ARTI_DENOTATORS: &[&str] = &["foo", "one_two_three-f0ur",
+            "1-2-3-", "1-2-3_", "1-2-3", "-1-2-3", "_1-2-3", "1-2-3"];
 
         for denotator in VALID_ARTI_DENOTATORS {
             let path = format!("foo/bar/qux+{denotator}");
             assert_ok!(ArtiPath, path);
             assert_ok!(ArtiPathComponent, denotator);
-        }
-
-        for denotator in BAD_OUTER_CHAR_DENOTATORS {
-            let path = format!("hs_client+{denotator}");
-
-            assert_err!(ArtiPath, path, ArtiPathSyntaxError::BadOuterChar(_));
-            assert_err!(
-                ArtiPathComponent,
-                denotator,
-                ArtiPathSyntaxError::BadOuterChar(_)
-            );
-            assert_err!(
-                ArtiPathComponent,
-                path,
-                ArtiPathSyntaxError::DisallowedChar('+')
-            );
         }
 
         // An ArtiPath with multiple denotators
@@ -709,7 +675,7 @@ mod test {
             "foo/bar/qux+{}+{}+foo+",
             VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
         );
-        assert_err!(ArtiPath, path, ArtiPathSyntaxError::EmptyPathComponent);
+        assert_err!(ArtiPath, path, ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed));
     }
 
     #[test]
@@ -730,7 +696,7 @@ mod test {
         let j = serde_json::from_str(r#"{ "n": "!" }"#).unwrap();
         let e = serde_json::from_value::<T>(j).unwrap_err();
         assert!(
-            e.to_string().contains("Found disallowed char"),
+            e.to_string().contains("character '!' (U+0021) is not allowed"),
             "wrong msg {e:?}"
         );
     }
