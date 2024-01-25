@@ -1,65 +1,45 @@
-//! Temp directories in tests
-//!
-//! Helpers for:
-//!
-//! This module improves on [`tempdir`] by adding several new features for testing:
-//!
-//!  * Allowing the user to cause the tests to use predictable paths
-//!  * Allowing the user to cause the tests to leave their temporary directories behind
-//!  * Helping ensure that test directories are not deleted
-//!    before everything that uses them has been torn down
-//!    (via Rust lifetimes)
-//!
-//! The principal entrypoint is [`test_temp_dir!`]
-//! which returns a `TestTempDir`.
-//!
-//! # Environment variables
-//!
-//! The behaviour is influenced by `TEST_TEMP_RETAIN`:
-//!
-//!  * `0` (or unset): use a temporary directory in `TMPDIR` or `/tmp`
-//!    and try to delete it after the test completes.
-//!    (equivalent to using [`tempdir::TempDir`].
-//!
-//!  * `1`: use the directory `target/test/crate::module::function`.
-//!    Delete and recreate it *on entry to the test*, but do not delete it afterwards.
-//!    On Windows, `,` is used to replace `::` since `::` cannot appear in filenames.
-//!
-//!  * Pathname starting with `/` or `.`: like `1`,
-//!    but the supplied path is used instead of `target/test`.
-//!
-//! # stdout printing
-//!
-//! This is a module for use in tests.
-//! When invoked, it will print a message to stdout about the test directory.
-//!
-//! # Hazards of too-early deletion of temporary directories
-//!
-//! When using raw [`tempdir`], or the `untracked` methods in this module,
-//! it is easy to write test cases where the temporary directory might be deleted
-//! while paths referring to it are still stored and ready for use
-//! (for example in objects such as `tor_keymgr::KeyMgr` or from `tor_persist`.)
-//!
-//! Consequences would include the tests trying to refer to the now-deleted directory;
-//! in principle, this might even constitute a vulnerability,
-//! since an attacker might be able to replace the deleted directory with malicious data,
-//! and then the test case might read it!
-//!
-//! The problem might even go undetected if the test case is such that
-//! "file not found" counts as a pass.
-//!
-//! This can only happen if the [`TempDir`] or [`TestTempDir`] object is dropped too early.
-//! The principal APIs in this module use Rust lifetimes to help prevent that:
-//! the temporary directory path is not directly accessible in `'static` form.
-//!
-//! # Panics
-//!
-//! This is a module for use in tests.
-//! Most error conditions will cause a panic.
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
+#![doc = include_str!("../README.md")]
+// @@ begin lint list maintained by maint/add_warning @@
+#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
+#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
+#![warn(missing_docs)]
+#![warn(noop_method_call)]
+#![warn(unreachable_pub)]
+#![warn(clippy::all)]
+#![deny(clippy::await_holding_lock)]
+#![deny(clippy::cargo_common_metadata)]
+#![deny(clippy::cast_lossless)]
+#![deny(clippy::checked_conversions)]
+#![warn(clippy::cognitive_complexity)]
+#![deny(clippy::debug_assert_with_mut_call)]
+#![deny(clippy::exhaustive_enums)]
+#![deny(clippy::exhaustive_structs)]
+#![deny(clippy::expl_impl_clone_on_copy)]
+#![deny(clippy::fallible_impl_from)]
+#![deny(clippy::implicit_clone)]
+#![deny(clippy::large_stack_arrays)]
+#![warn(clippy::manual_ok_or)]
+#![deny(clippy::missing_docs_in_private_items)]
+#![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
+#![deny(clippy::print_stderr)]
+#![deny(clippy::print_stdout)]
+#![warn(clippy::rc_buffer)]
+#![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
+#![warn(clippy::trait_duplication_in_bounds)]
+#![deny(clippy::unnecessary_wraps)]
+#![warn(clippy::unseparated_literal_suffix)]
+#![deny(clippy::unwrap_used)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
+#![allow(clippy::result_large_err)] // temporary workaround for arti#587
+#![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-// TODO make this into a pub module somewhere, perhaps tor-basic-utils
-// When we do that, add a proper tested example
-#![allow(unreachable_pub)]
 // We have a nonstandard test lint block
 #![allow(clippy::print_stdout)]
 
@@ -80,6 +60,7 @@ const RETAIN_VAR: &str = "TEST_TEMP_RETAIN";
 ///
 /// Automatically deleted (if appropriate) when dropped.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum TestTempDir {
     /// An ephemeral directory
     Ephemeral(tempfile::TempDir),
@@ -345,5 +326,5 @@ impl<'d, T> TestTempDirGuard<'d, T> {
 /// **`fn test_temp_dir() -> TestTempDir;`**
 #[macro_export]
 macro_rules! test_temp_dir { {} => {
-    $crate::test_temp_dir::TestTempDir::from_module_path_and_thread(module_path!())
+    $crate::TestTempDir::from_module_path_and_thread(module_path!())
 } }

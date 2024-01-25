@@ -1652,11 +1652,11 @@ mod test {
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::svc::ipt_establish::GoodIptDetails;
     use crate::svc::test::{create_keymgr, create_storage_handles_from_state_mgr};
-    use crate::test_temp_dir::TestTempDir;
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
     use std::collections::BTreeMap;
     use std::sync::Mutex;
+    use test_temp_dir::{test_temp_dir, TestTempDir};
     use tor_basic_utils::test_rng::TestingRng;
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;

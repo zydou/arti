@@ -358,9 +358,8 @@ mod test {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::test_temp_dir;
-    use crate::test_temp_dir::{TestTempDir, TestTempDirGuard};
     use rand::Rng;
+    use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
 
     fn rand_h<R: Rng>(rng: &mut R) -> H {
         H(rng.gen())
