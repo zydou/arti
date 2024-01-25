@@ -122,7 +122,7 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 
 /// The maximum time allowed for uploading a descriptor to a single HSDir,
 /// across all attempts.
-const OVERALL_UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+pub(crate) const OVERALL_UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
