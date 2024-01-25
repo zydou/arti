@@ -50,6 +50,7 @@
 //! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
 //! status for reporting fatal errors (crashes).
 
+use std::cmp::max;
 use std::fmt::Debug;
 use std::iter;
 use std::sync::{Arc, Mutex};
@@ -88,7 +89,7 @@ use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
 use crate::status::{PublisherStatusSender, State};
 use crate::svc::netdir::wait_for_netdir;
-use crate::svc::publish::backoff::{BackoffSchedule, RetriableError, Runner};
+use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::ShutdownStatus;
 use crate::{
@@ -103,12 +104,14 @@ use crate::{
 /// need it. If not, it schedules the upload to happen `UPLOAD_RATE_LIM_THRESHOLD` seconds from the
 /// current time.
 //
-// TODO (#1121): this value is probably not right.
+// TODO: We may someday need to tune this value; it was chosen more or less arbitrarily.
 const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 
 /// The maximum number of concurrent upload tasks per time period.
 //
-// TODO (#1121): this value was arbitrarily chosen and may not be optimal.
+// TODO: this value was arbitrarily chosen and may not be optimal.  For now, it
+// will have no effect, since the current number of replicas is far less than
+// this value.
 //
 // The uploads for all TPs happen in parallel.  As a result, the actual limit for the maximum
 // number of concurrent upload tasks is multiplied by a number which depends on the TP parameters
@@ -117,10 +120,9 @@ const UPLOAD_RATE_LIM_THRESHOLD: Duration = Duration::from_secs(60);
 // We should try to decouple this value from the TP parameters.
 const MAX_CONCURRENT_UPLOADS: usize = 16;
 
-/// The maximum time allowed for uploading a descriptor to an HSDirs.
-//
-// TODO (#1121): this value is probably not right.
-const UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+/// The maximum time allowed for uploading a descriptor to a single HSDir,
+/// across all attempts.
+const OVERALL_UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// A reactor for the HsDir [`Publisher`](super::Publisher).
 ///
@@ -296,6 +298,13 @@ pub(crate) trait Mockable: Clone + Send + Sync + Sized + 'static {
     ) -> Result<Arc<Self::ClientCirc>, tor_circmgr::Error>
     where
         T: CircTarget + Send + Sync;
+
+    /// Return an estimate-based value for how long we should allow a single
+    /// directory upload operation to complete.
+    ///
+    /// Includes circuit construction, stream opening, upload, and waiting for a
+    /// response.
+    fn estimate_upload_timeout(&self) -> Duration;
 }
 
 /// Mockable client circuit
@@ -341,6 +350,19 @@ impl<R: Runtime> Mockable for Real<R> {
         T: CircTarget + Send + Sync,
     {
         self.0.get_or_launch_specific(netdir, kind, target).await
+    }
+
+    fn estimate_upload_timeout(&self) -> Duration {
+        use tor_circmgr::timeouts::Action;
+        let est_build = self.0.estimate_timeout(&Action::BuildCircuit { length: 4 });
+        let est_roundtrip = self.0.estimate_timeout(&Action::RoundTrip { length: 4 });
+        // We assume that in the worst case we'll have to wait for an entire
+        // circuit construction and two round-trips to the hsdir.
+        let est_total = est_build + est_roundtrip * 2;
+        // We always allow _at least_ this much time, in case our estimate is
+        // ridiculously low.
+        let min_timeout = Duration::from_secs(30);
+        max(est_total, min_timeout)
     }
 }
 
@@ -503,6 +525,10 @@ pub enum UploadError {
     /// Failed to establish stream to hidden service directory
     #[error("stream failed")]
     Stream(#[source] tor_proto::Error),
+
+    /// The operation timed out before it could complete.
+    #[error("operation timed out")]
+    Timeout,
 
     /// An internal error.
     #[error("Internal error")]
@@ -1039,12 +1065,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Try to upload our descriptor to the HsDirs that need it.
     ///
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
-    /// to happen N minutes from now.
+    /// to happen after [`UPLOAD_RATE_LIM_THRESHOLD`].
     ///
     /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
     /// implement it, as well as in what cases this will return an error).
-    //
-    // TODO (#1121): what is N?
     async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
@@ -1056,6 +1080,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 trace!("we are rate-limited; deferring descriptor upload");
+                // TODO: Possibly we will someday instead schedule the upload to
+                // happen at `ts + UPLOAD_RATE_LIM_THRESHOLD` instead, to get a
+                // true rate limit.  This logic is, however, enough to achieve
+                // our current purposes.
                 return self
                     .schedule_pending_upload(UPLOAD_RATE_LIM_THRESHOLD)
                     .await;
@@ -1090,8 +1118,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
 
             let time_period = period_ctx.params.time_period();
-
-            let worst_case_end = self.imm.runtime.now() + UPLOAD_TIMEOUT;
             // This scope exists because rng is not Send, so it needs to fall out of scope before we
             // await anything.
             let netdir = Arc::clone(
@@ -1238,7 +1264,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     };
 
                     // How long until we're supposed to time out?
-                    let worst_case_end = imm.runtime.now() + UPLOAD_TIMEOUT;
+                    let worst_case_end = imm.runtime.now() + OVERALL_UPLOAD_TIMEOUT;
                     // We generate a new descriptor before _each_ HsDir upload. This means each
                     // HsDir could, in theory, receive a different descriptor (not just in terms of
                     // revision-counters, but also with a different set of IPTs). It may seem like
@@ -1315,21 +1341,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         "generated new descriptor for time period",
                     );
 
-                    let upload_res = match imm
-                        .runtime
-                        .timeout(UPLOAD_TIMEOUT, run_upload(desc.clone()))
-                        .await
-                    {
-                        Ok(res) => res,
-                        Err(_e) => {
-                            warn!(
-                                nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
-                                "descriptor upload timed out",
-                            );
-
-                            UploadStatus::Failure
-                        }
-                    };
+                    // (Actually launch the upload attempt. No timeout is needed
+                    // here, since the backoff::Runner code will handle that for us.)
+                    let upload_res = run_upload(desc.clone()).await;
 
                     // Note: UploadStatus::Failure is only returned when
                     // upload_descriptor_with_retries fails, i.e. if all our retry
@@ -1390,6 +1404,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// If an upload fails, this returns an `Err`. This function does not handle retries. It is up
     /// to the caller to retry on failure.
+    ///
+    /// This function does not handle timeouts.
     async fn upload_descriptor(
         hsdesc: String,
         netdir: &Arc<NetDir>,
@@ -1459,12 +1475,21 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             )
         };
 
+        let single_upload_timeout = imm.mockable.estimate_upload_timeout();
+
         let fallible_op = || async {
-            Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)).await
+            imm.runtime
+                .timeout(
+                    single_upload_timeout,
+                    Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)),
+                )
+                .await
+                .map_err(|_t: tor_rtcompat::TimeoutError| UploadError::Timeout)?
         };
 
-        match runner.run(fallible_op).await {
-            Ok(res) => {
+        let outcome: Result<(), BackoffError<UploadError>> = runner.run(fallible_op).await;
+        match outcome {
+            Ok(()) => {
                 debug!(
                     nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
                     "successfully uploaded descriptor to HSDir",
@@ -1555,8 +1580,7 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
     }
 
     fn timeout(&self) -> Option<Duration> {
-        // TODO (#1121): pick a less arbitrary timeout
-        Some(Duration::from_secs(30))
+        Some(OVERALL_UPLOAD_TIMEOUT)
     }
 
     fn next_delay<E: RetriableError>(&mut self, _error: &E) -> Option<Duration> {
@@ -1567,7 +1591,10 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
 impl RetriableError for UploadError {
     fn should_retry(&self) -> bool {
         match self {
-            UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
+            UploadError::Request(_)
+            | UploadError::Circuit(_)
+            | UploadError::Stream(_)
+            | UploadError::Timeout => true,
             UploadError::Bug(_) => false,
         }
     }
