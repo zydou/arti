@@ -46,6 +46,7 @@ mod fs;
 mod fs_mistrust_error_ext;
 mod handle;
 mod load_store;
+pub mod slug;
 #[cfg(feature = "testing")]
 mod testing;
 
