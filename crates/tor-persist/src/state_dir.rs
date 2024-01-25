@@ -106,7 +106,7 @@
 //!     fn dispose(&mut self, _info: &InstancePurgeInfo, handle: InstanceStateHandle)
 //!                -> state_dir::Result<()> {
 //!         // here might be a good place to delete keys too
-//!         handle.delete()
+//!         handle.purge()
 //!     }
 //! }
 //! pub fn expire_hidden_services(
@@ -466,7 +466,7 @@ impl InstanceStateHandle {
     /// and then call this in the `dispose` method.
     ///
     /// Will return a `BadAPIUsage` if other clones of this `InstanceStateHandle` exist.
-    pub fn delete(self) -> Result<()> {
+    pub fn purge(self) -> Result<()> {
         // use Arc::into_inner on the lock object,
         // to make sure we're actually the only surviving InstanceStateHandle
         todo!()
