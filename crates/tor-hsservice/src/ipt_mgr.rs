@@ -59,11 +59,14 @@ mod persist;
 pub(crate) use persist::IptStorageHandle;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
-// TODO #1210 IPT_PUBLISH_UNCERTAIN configure? get from netdir?
-const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(30 * 60); // 30 mins
+///
+/// (Note that we use the same value in both cases, since it doesn't actually do
+/// much good to have a short expiration time. This expiration time only affects
+/// caches, and we can supersede an old descriptor just by publishing it. Thus,
+/// we pick a uniform publication time as done by the C tor implementation.)
+const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(3 * 60 * 60); // 3 hours
 /// Expiry time to put on a final descriptor (IPT publication set Certain
-// TODO #1210 IPT_PUBLISH_CERTAIN configure? get from netdir?
-const IPT_PUBLISH_CERTAIN: Duration = Duration::from_secs(12 * 3600); // 12 hours
+const IPT_PUBLISH_CERTAIN: Duration = IPT_PUBLISH_UNCERTAIN;
 
 /// IPT Manager (for one hidden service)
 #[derive(Educe)]
@@ -1884,7 +1887,7 @@ mod test {
             match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), 1);
-                    assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
+                    assert_eq!(pub_view.lifetime, IPT_PUBLISH_UNCERTAIN);
                 }
             };
 
@@ -1898,7 +1901,7 @@ mod test {
             match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
-                    assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));
+                    assert_eq!(pub_view.lifetime, IPT_PUBLISH_CERTAIN);
                 }
             };
 
