@@ -1203,13 +1203,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 })
                 .min()?;
 
-            // TODO #1210 is this the right guess for IPT establishment?
+            // Rationale:
             // we could use circuit timings etc., but arguably the actual time to establish
             // our fastest IPT is a better estimator here (and we want an optimistic,
             // rather than pessimistic estimate).
             //
-            // TODO #1210 fastest_good_establish_time factor 1 should be tuneable
-            let wait_more = fastest_good_establish_time;
+            // This algorithm has potential to publish too early and frequently,
+            // but our overall rate-limiting should keep it from getting out of hand.
+            //
+            // TODO: We might want to make this "1" tuneable, and/or tune the
+            // algorithm as a whole based on experience.
+            let wait_more = fastest_good_establish_time * 1;
             let very_recently = fastest_good_establish_time.checked_add(wait_more)?;
 
             let very_recently = now.checked_sub(very_recently)?;
