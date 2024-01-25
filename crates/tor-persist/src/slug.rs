@@ -35,6 +35,7 @@ use paste::paste;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+#[cfg(target_family = "windows")]
 pub use os::ForbiddenOnWindows;
 
 /// An owned slug, checked for syntax
@@ -74,7 +75,8 @@ pub enum BadSlug {
     BadCharacter(char),
     /// We are on Windows and the slug is one of the forbidden ones
     ///
-    /// On Unix, the field is an unhinhabited enum, so this is then an uninhabited variant.
+    /// On platforms other than Windows, this variant is absent.
+    #[cfg(target_family = "windows")]
     ForbiddenOnWindows(ForbiddenOnWindows),
 }
 
@@ -227,7 +229,7 @@ pub fn check_syntax(s: &str) -> Result<(), BadSlug> {
         }?;
     }
 
-    os::check_forbidden(s).map_err(BadSlug::ForbiddenOnWindows)?;
+    os::check_forbidden(s)?;
 
     Ok(())
 }
@@ -239,6 +241,7 @@ impl Display for BadSlug {
                 let num = u32::from(*c);
                 write!(f, "character {c:?} (U+{num:04X}) is not allowed")
             }
+            #[cfg(target_family = "windows")]
             BadSlug::ForbiddenOnWindows(e) => os::fmt_error(e, f),
         }
     }
@@ -251,7 +254,7 @@ mod os {
 
     /// A slug which is forbidden because we are on Windows (as found in an invalid slug error)
     ///
-    /// (On Unix this is an uninhabited enum.)
+    /// This type is available only on Windows platforms.
     //
     // Double reference so that BadSlug has to contain only one word, not two
     pub type ForbiddenOnWindows = &'static &'static str;
@@ -264,10 +267,10 @@ mod os {
     ];
 
     /// Check whether this slug is forbidden here
-    pub(super) fn check_forbidden(s: &str) -> Result<(), ForbiddenOnWindows> {
+    pub(super) fn check_forbidden(s: &str) -> Result<(), BadSlug> {
         for bad in FORBIDDEN {
             if s == *bad {
-                return Err(bad);
+                return Err(BadSlug::ForbiddenOnWindows(bad));
             }
         }
         Ok(())
@@ -283,25 +286,10 @@ mod os {
 mod os {
     use super::*;
 
-    /// A slug which is forbidden because we are on Windows (as found in an invalid slug error)
-    ///
-    /// But this is the non-Windows build,
-    /// so here this is an unhinhabited enum.
-    ///
-    /// On Windows this is `&'static &'static str`.
-    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, derive_more::Display)]
-    #[allow(clippy::exhaustive_enums)] // uninhabitedness is indeed an API guarantee on Unix
-    pub enum ForbiddenOnWindows {}
-
     /// Check whether this slug is forbidden here
     #[allow(clippy::unnecessary_wraps)]
-    pub(super) fn check_forbidden(_s: &str) -> Result<(), ForbiddenOnWindows> {
+    pub(super) fn check_forbidden(_s: &str) -> Result<(), BadSlug> {
         Ok(())
-    }
-
-    /// Display a forbidden slug error
-    pub(super) fn fmt_error(s: &ForbiddenOnWindows, _: &mut fmt::Formatter) -> fmt::Result {
-        match *s {}
     }
 }
 
