@@ -1,10 +1,13 @@
 //! `HsNickname` module itself is private, but `HsNickname` etc. are re-exported
 
+use std::str::FromStr;
+
 use derive_more::{Display, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use tor_keymgr::{ArtiPathComponent, KeySpecifierComponentViaDisplayFromStr};
+use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
+use tor_persist::slug::{Slug, BadSlug};
 
 /// Nickname (local identifier) for a Tor hidden service
 ///
@@ -12,16 +15,12 @@ use tor_keymgr::{ArtiPathComponent, KeySpecifierComponentViaDisplayFromStr};
 /// keys, state, configuration, etc,
 /// and distinguish them from other services.
 ///
-/// Must be a nonempty valid unicode string containing only alphanumerics
-/// (possibly non-ASCII ones)
-/// plus the punctuation characters `_` `-` and `.`
-/// (but punctuation is not allowed at the start or end).
-///
-/// (These are the same rules as [`tor_keymgr::ArtiPathComponent`]
+/// An `HsNickname` is a non-empty [`Slug`].
+/// See [slug](tor_persist::slug) for the syntactic requirements.
 //
 // NOTE: if at some point we decide HsNickname should have a more restrictive syntax/charset than
-// ArtiPathComponent, we should remember to also update `KeySpecifierComponent::from_component` (it
-// should return an error if the specified string is a valid ArtiPathComponent, but not a valid
+// Slug, we should remember to also update `KeySpecifierComponent::from_component` (it
+// should return an error if the specified string is a valid Slug, but not a valid
 // HsNickname).
 #[derive(
     Clone,
@@ -36,10 +35,17 @@ use tor_keymgr::{ArtiPathComponent, KeySpecifierComponentViaDisplayFromStr};
     Into,
     Serialize,
     Deserialize,
-    derive_more::FromStr,
 )]
 #[serde(try_from = "String", into = "String")]
-pub struct HsNickname(ArtiPathComponent);
+pub struct HsNickname(Slug);
+
+impl FromStr for HsNickname {
+    type Err = BadSlug;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Slug::try_from(s.to_string()).map(HsNickname)
+    }
+}
 
 impl KeySpecifierComponentViaDisplayFromStr for HsNickname {}
 
@@ -54,6 +60,11 @@ impl HsNickname {
     ///
     /// Returns an error if the syntax is not valid
     fn new(s: String) -> Result<HsNickname, InvalidNickname> {
+        // Slugs can be empty, but HS nicknames cannot.
+        if s.is_empty() {
+            return Err(InvalidNickname {});
+        }
+
         Ok(Self(s.try_into().map_err(|_| InvalidNickname {})?))
     }
 }
@@ -77,12 +88,6 @@ impl AsRef<str> for HsNickname {
     }
 }
 
-impl AsRef<ArtiPathComponent> for HsNickname {
-    fn as_ref(&self) -> &ArtiPathComponent {
-        &self.0
-    }
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -102,9 +107,9 @@ mod test {
     #[test]
     fn mk() {
         assert_eq!(HsNickname::new("".into()), Err(InvalidNickname {}));
-        assert_eq!(HsNickname::new("-a".into()), Err(InvalidNickname {}));
+        assert_eq!(HsNickname::new("-a".into()).unwrap().to_string(), "-a");
         assert_eq!(HsNickname::new("b.".into()), Err(InvalidNickname {}));
-        assert_eq!(HsNickname::new("_c".into()), Err(InvalidNickname {}));
+        assert_eq!(HsNickname::new("_c".into()).unwrap().to_string(), "_c");
         assert_eq!(&HsNickname::new("x".into()).unwrap().to_string(), "x");
     }
 
