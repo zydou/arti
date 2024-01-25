@@ -347,11 +347,11 @@ pub struct NetParameters {
         from "hs_intro_max_introduce2",
 
     /// Lower bound on the lifetime of an introduction circuit.
-    pub hs_introcirc_lifetime_min: IntegerSeconds<BoundedInt32<0, {i32::MAX}>> = (18 * 60 * 60)
+    pub hs_intro_lifetime_min: IntegerSeconds<BoundedInt32<0, {i32::MAX}>> = (18 * 60 * 60)
         from "hs_intro_min_lifetime",
 
     /// Upper bound on the lifetime of an introduction circuit.
-    pub hs_introcirc_lifetime_max: IntegerSeconds<BoundedInt32<0, {i32::MAX}>> = (24 * 60 * 60)
+    pub hs_intro_lifetime_max: IntegerSeconds<BoundedInt32<0, {i32::MAX}>> = (24 * 60 * 60)
         from "hs_intro_max_lifetime",
 
     /// Number of "extra" introduction points that an onion service is allowed
