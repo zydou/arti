@@ -274,10 +274,7 @@ impl TestTempDir {
     /// Rust lifetime tracking ensures that the temporary directory
     /// won't be cleaned up until the `T` is destroyed.
     #[allow(clippy::needless_lifetimes)] // explicit lifetimes for clarity (and symmetry)
-    pub fn used_by<'d, T>(
-        &'d self,
-        f: impl FnOnce(&Path) -> T,
-    ) -> TestTempDirGuard<'d, T> {
+    pub fn used_by<'d, T>(&'d self, f: impl FnOnce(&Path) -> T) -> TestTempDirGuard<'d, T> {
         let thing = f(self.as_path_untracked());
         TestTempDirGuard::with_path(thing, self.as_path_untracked())
     }
