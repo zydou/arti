@@ -5693,9 +5693,11 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "test-temp-dir",
  "thiserror",
  "tor-error",
  "tracing",
+ "tracing-test",
  "void",
 ]
 

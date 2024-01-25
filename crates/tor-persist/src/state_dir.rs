@@ -774,3 +774,109 @@ pub struct InstanceRawSubdir {
     /// Clone of the InstanceStateHandle's lock
     flock_guard: Arc<LockFileGuard>,
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    use std::fmt::Display;
+    use std::io;
+    use test_temp_dir::test_temp_dir;
+    use tor_error::{into_internal, HasKind as _};
+    use tracing_test::traced_test;
+
+    use tor_error::ErrorKind as TEK;
+
+    struct Garlic(Slug);
+
+    impl InstanceIdentity for Garlic {
+        fn kind() -> &'static str {
+            "garlic"
+        }
+        fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&self.0, f)
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+    struct StoredData {
+        some_value: i32,
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_api() {
+        test_temp_dir!().used_by(|dir| {
+            let sd = StateDirectory::new(
+                dir,
+                &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+            )
+            .unwrap();
+
+            let garlic = Garlic("wild".try_into_slug().unwrap());
+
+            let acquire_instance = || sd.acquire_instance(&garlic);
+
+            let ih = acquire_instance().unwrap();
+            let inst_path = dir.join("garlic+wild");
+            assert!(fs::metadata(&inst_path).unwrap().is_dir());
+
+            assert_eq!(
+                acquire_instance().unwrap_err().kind(),
+                TEK::LocalResourceAlreadyInUse,
+            );
+
+            let irsd = ih.raw_subdir("raw").unwrap();
+            assert!(fs::metadata(irsd.as_path()).unwrap().is_dir());
+            assert_eq!(irsd.as_path(), dir.join("garlic+wild/raw"));
+
+            let mut sh = ih.storage_handle::<StoredData>("stored_data").unwrap();
+            let storage_path = dir.join("garlic+wild/stored_data.json");
+
+            let peek = || sd.instance_peek_storage(&garlic, "stored_data");
+
+            let expect_load = |sh: &StorageHandle<_>, expect| {
+                let check_loaded = |what, loaded: Result<Option<StoredData>>| {
+                    assert_eq!(loaded.unwrap().as_ref(), expect, "{what}");
+                };
+                check_loaded("load", sh.load());
+                check_loaded("peek", peek());
+            };
+
+            expect_load(&sh, None);
+
+            let to_store = StoredData { some_value: 42 };
+            sh.store(&to_store).unwrap();
+            assert!(fs::metadata(storage_path).unwrap().is_file());
+
+            expect_load(&sh, Some(&to_store));
+
+            sh.delete().unwrap();
+
+            expect_load(&sh, None);
+
+            drop(sh);
+            drop(irsd);
+            ih.purge().unwrap();
+
+            assert_eq!(peek().unwrap(), None);
+            assert_eq!(
+                fs::metadata(&inst_path).unwrap_err().kind(),
+                io::ErrorKind::NotFound
+            );
+        });
+    }
+}
