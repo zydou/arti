@@ -481,4 +481,44 @@ mod test {
             assert!(log.check_inner(h).is_err());
         }
     }
+
+    /// Test for a partial write
+    #[test]
+    #[cfg(target_family = "unix")] // no idea how to do elsewhere, hopefully this is enough
+    fn test_partial_write() {
+        use std::env;
+        use std::os::unix::process::ExitStatusExt;
+        use std::process::Command;
+
+        // TODO this contraption should perhaps be productised and put somewhere else
+
+        const ENV_NAME: &str = "TOR_HSSERVICE_TEST_PARTIAL_WRITE_SUBPROCESS";
+        // for a wait status different from any of libtest's
+        const GOOD_SIGNAL: i32 = libc::SIGUSR2;
+
+        match env::var(ENV_NAME) {
+            Err(env::VarError::NotPresent) => {
+                eprintln!("in test runner process, forking..,");
+                let st = Command::new(env::current_exe().unwrap())
+                    .args(["--nocapture", "replay::test::test_partial_write"])
+                    .env(ENV_NAME, "1")
+                    .status()
+                    .unwrap();
+                eprintln!("reaped actual test process {st:?}");
+                assert_eq!(st.signal(), Some(GOOD_SIGNAL));
+                return;
+            }
+            Ok(y) if y == "1" => {}
+            other => panic!("bad env var {ENV_NAME:?} {other:?}"),
+        };
+
+        // Now we are in our own process, and can mess about with ulimit etc.
+
+        // XXXX actual test will arrive here
+
+        unsafe {
+            libc::raise(libc::SIGUSR2);
+        }
+        panic!("we survived raise SIGUSR2");
+    }
 }
