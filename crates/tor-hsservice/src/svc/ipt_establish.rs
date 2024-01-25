@@ -28,6 +28,7 @@ use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_keymgr::KeyMgr;
 use tor_linkspec::CircTarget;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
+use tor_log_ratelim::log_ratelim;
 use tor_netdir::NetDirProvider;
 use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
 use tor_rtcompat::{Runtime, SleepProviderExt as _};
@@ -664,8 +665,9 @@ impl<R: Runtime> Reactor<R> {
                     // The network directory didn't include this relay.  Wait
                     // until it does.
                     //
-                    // TODO (#1237): Perhaps we should distinguish possible error cases
-                    // here?  See notes in `wait_for_netdir_to_list`.
+                    // Note that this `note_error` will necessarily mark the
+                    // ipt as Faulty. That's important, since we may be about to
+                    // wait indefinitely when we call wait_for_netdir_to_list.
                     status_tx.borrow_mut().note_error(&e);
                     wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
                 }
@@ -839,7 +841,6 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
         _conversation: ConversationInHandler<'_, '_, '_>,
         any_msg: AnyRelayMsg,
     ) -> tor_proto::Result<MetaCellDisposition> {
-        // TODO (#1237): Is CircProto right or should this be a new error type?
         let msg: IptMsg = any_msg.try_into().map_err(|m: AnyRelayMsg| {
             if let Some(tx) = self.established_tx.take() {
                 let _ = tx.send(Err(IptError::BadMessage(format!(
@@ -847,7 +848,18 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                     m.cmd()
                 ))));
             }
-            tor_proto::Error::CircProto(format!("Invalid message type {}", m.cmd()))
+            // TODO: It's not completely clear whether CircProto is the right
+            // type for use in this function (here and elsewhere);
+            // possibly, we should add a different tor_proto::Error type
+            // for protocol violations at a higher level than the circuit
+            // protocol.
+            //
+            // For now, however, this error type is fine: it will cause the
+            // circuit to be shut down, which is what we want.
+            tor_proto::Error::CircProto(format!(
+                "Invalid message type {} on introduction circuit",
+                m.cmd()
+            ))
         })?;
 
         if match msg {
@@ -913,7 +925,20 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                 }
 
                 let request = RendRequest::new(self.lid, introduce2, self.request_context.clone());
-                match self.introduce_tx.try_send(request) {
+                let send_outcome = self.introduce_tx.try_send(request);
+
+                // We only want to report full-stream problems as errors here.
+                // Disconnected streams are expected.
+                let report_outcome = match &send_outcome {
+                    Err(e) if e.is_full() => Err(StreamWasFull {}),
+                    _ => Ok(()),
+                };
+                // TODO: someday we might want to start tracking this by
+                // introduction or service point separately, though we would
+                // expect their failures to be correlated.
+                log_ratelim!("sending rendezvous request to handler task"; report_outcome);
+
+                match send_outcome {
                     Ok(()) => Ok(()),
                     Err(e) => {
                         if e.is_disconnected() {
@@ -928,8 +953,6 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                             //
                             // See discussion at
                             // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1465#note_2928349
-                            //
-                            // TODO (#1237): record when this happens.
                             Ok(())
                         }
                     }
@@ -946,3 +969,11 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
         Ok(MetaCellDisposition::Consumed)
     }
 }
+
+/// We failed to send a rendezvous request onto the handler test that should
+/// have handled it, because it was not handling requests fast enough.
+///
+/// (This is a separate type so that we can have it implement Clone.)
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Could not send request; stream was full.")]
+struct StreamWasFull {}
