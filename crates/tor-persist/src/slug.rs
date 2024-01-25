@@ -36,6 +36,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[cfg(target_family = "windows")]
+#[cfg_attr(docsrs, doc(cfg(target_family = "windows")))]
 pub use os::ForbiddenOnWindows;
 
 /// An owned slug, checked for syntax
@@ -76,6 +77,7 @@ pub enum BadSlug {
     /// We are on Windows and the slug is one of the forbidden ones
     ///
     /// On platforms other than Windows, this variant is absent.
+    #[cfg_attr(docsrs, doc(cfg(target_family = "windows")))]
     #[cfg(target_family = "windows")]
     ForbiddenOnWindows(ForbiddenOnWindows),
 }
