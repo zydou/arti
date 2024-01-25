@@ -767,9 +767,21 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             })
             .ok_or(ChooseIptError::TooFewUsableRelays)?;
 
+        let lifetime_low = netdir
+            .params()
+            .hs_intro_lifetime_min
+            .try_into()
+            .expect("Could not convert param to duration.");
+        let lifetime_high = netdir
+            .params()
+            .hs_intro_lifetime_max
+            .try_into()
+            .expect("Could not convert param to duration.");
+        let lifetime_range: std::ops::RangeInclusive<Duration> = lifetime_low..=lifetime_high;
         let retirement = rng
-            .gen_range_checked(self.current_config.ipt_relay_rotation_time())
-            .ok_or_else(|| internal!("IPT_RELAY_ROTATION_TIME range was empty!"))?;
+            .gen_range_checked(lifetime_range)
+            // If the range from the consensus is invalid, just pick the high-bound.
+            .unwrap_or(lifetime_high);
         let retirement = now
             .checked_add(retirement)
             .ok_or(ChooseIptError::TimeOverflow)?;

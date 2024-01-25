@@ -4,9 +4,7 @@ use base64ct::{Base64Unpadded, Encoding as _};
 use derive_adhoc::Adhoc;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use std::ops::RangeInclusive;
 use std::path::PathBuf;
-use std::time::Duration;
 use tor_cell::relaycell::hs::est_intro;
 use tor_config::ConfigBuildError;
 use tor_error::into_internal;
@@ -135,14 +133,6 @@ impl OnionServiceConfig {
             .map_err(into_internal!(
                 "somehow built an un-validated rate-limit-at-intro"
             ))?)
-    }
-
-    /// Time for which we'll use an IPT relay before selecting a new relay to be our IPT
-    pub(crate) fn ipt_relay_rotation_time(&self) -> RangeInclusive<Duration> {
-        // TODO (#1210) ipt_relay_rotation_time should be tuneable.  And, is default correct?
-        /// gosh this is clumsy
-        const DAY: u64 = 86400;
-        Duration::from_secs(DAY * 4)..=Duration::from_secs(DAY * 7)
     }
 }
 
