@@ -5,7 +5,7 @@
 //! designate the kind of a thing, or which of various things this is.
 //!
 //! Slugs have a restricted character set:
-//! Lowercase ASCII alphanumerics and underscore.
+//! Lowercase ASCII alphanumerics, underscore, hyphen.
 //! We may extend this to allow additional characters in the future,
 //! but /, +, and . (the slug separators) will never be valid slug characters.
 //!
@@ -257,7 +257,7 @@ pub fn check_syntax(s: &str) -> Result<(), BadSlug> {
     for c in s.chars() {
         if c.is_ascii_alphanumeric() {
             Ok(())
-        } else if c == '_' {
+        } else if c == '_' || c == '-' {
             Ok(())
         } else {
             Err(BadSlug::BadCharacter(c))
@@ -369,6 +369,7 @@ mod test {
             b'a'..=b'z', //
             b'0'..=b'9',
             [b'_'],
+            [b'-'],
         )
         .map(char::from);
 
