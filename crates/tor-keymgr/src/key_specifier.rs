@@ -9,8 +9,8 @@ use std::str::FromStr;
 use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use thiserror::Error;
-use tor_error::{into_internal, Bug};
-use tor_hscrypto::pk::HsId;
+use tor_error::{internal, into_internal, Bug};
+use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
 use tor_hscrypto::time::TimePeriod;
 
 use crate::{ArtiPath, ArtiPathComponent, ArtiPathSyntaxError};
@@ -441,7 +441,32 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
     }
 }
 
-impl KeySpecifierComponentViaDisplayFromStr for HsId {}
+impl KeySpecifierComponent for HsId {
+    fn to_component(&self) -> StdResult<ArtiPathComponent, Bug> {
+        // We can't implement KeySpecifierComponentViaDisplayFromStr for HsId,
+        // because its Display impl contains the `.onion` suffix, and Slugs can't
+        // contain `.`.
+        let hsid = self.to_string();
+        let hsid_slug = hsid
+            .strip_suffix(HSID_ONION_SUFFIX)
+            .ok_or_else(|| internal!("HsId Display impl missing .onion suffix?!"))?;
+        hsid_slug
+            .to_owned()
+            .try_into()
+            .map_err(into_internal!("Display generated bad ArtiPathComponent"))
+    }
+
+    fn from_component(s: &ArtiPathComponent) -> StdResult<Self, InvalidKeyPathComponentValue>
+    where
+        Self: Sized,
+    {
+        s.parse().map_err(|_| InvalidKeyPathComponentValue::new())
+    }
+
+    fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(self, f)
+    }
+}
 
 /// Wrapper for `KeySpecifierComponent` that `Displays` via `fmt_pretty`
 struct KeySpecifierComponentPrettyHelper<'c>(&'c dyn KeySpecifierComponent);
