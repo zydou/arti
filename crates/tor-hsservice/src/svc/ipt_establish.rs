@@ -9,6 +9,7 @@
 //! for details of our algorithm.
 
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use educe::Educe;
 use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
@@ -178,9 +179,6 @@ impl IptError {
             IE::IntroPointNotListed => true,
             // This _might_ be the introduction point's fault, but it might not.
             // We can't be certain.
-            //
-            // TODO (#1248): Make sure that we attempt to use another intro
-            // point eventually even if the introduction point is not to blame.
             IE::BuildCircuit(_) => false,
             IE::EstablishTimeout => false,
             IE::ClosedWithoutAck => false,
@@ -489,12 +487,23 @@ pub(crate) struct IptStatus {
     /// The current status of whether this introduction point circuit wants to be
     /// retired based on having processed too many requests.
     pub(crate) wants_to_retire: Result<(), IptWantsToRetire>,
+
+    /// If Some, a time after which all attempts have been unsuccessful.
+    pub(crate) failing_since: Option<Instant>,
 }
+
+/// We declare an introduction point to be faulty if all of the attempts to
+/// reach it fail, over this much time.
+///
+/// TODO: This value is more or less arbitrary; we may want to tune it in the
+/// future.
+const FAULTY_IPT_THRESHOLD: Duration = Duration::from_secs(15 * 60);
 
 impl IptStatus {
     /// Record that we have successfully connected to an introduction point.
     fn note_open(&mut self, ipt_details: GoodIptDetails) {
         self.status = IptStatusStatus::Good(ipt_details);
+        self.failing_since = None;
     }
 
     /// Record that we are trying to connect to an introduction point.
@@ -507,9 +516,15 @@ impl IptStatus {
     }
 
     /// Record that an error has occurred.
-    fn note_error(&mut self, err: &IptError) {
+    fn note_error(&mut self, err: &IptError, now: Instant) {
         use IptStatusStatus::*;
+        let failing_since = *self.failing_since.get_or_insert(now);
+        #[allow(clippy::if_same_then_else)]
         if err.is_ipt_failure() {
+            // This error always indicates a faulty introduction point.
+            self.status = Faulty;
+        } else if now.saturating_duration_since(failing_since) >= FAULTY_IPT_THRESHOLD {
+            // This introduction point has gone too long without a success.
             self.status = Faulty;
         }
     }
@@ -520,6 +535,7 @@ impl IptStatus {
         Self {
             status: IptStatusStatus::Establishing,
             wants_to_retire: Ok(()),
+            failing_since: None,
         }
     }
 
@@ -530,6 +546,7 @@ impl IptStatus {
             // If we're broken, we simply tell the manager that that is the case.
             // It will decide for itself whether it wants to replace us.
             wants_to_retire: Ok(()),
+            failing_since: None,
         }
     }
 }
@@ -668,11 +685,11 @@ impl<R: Runtime> Reactor<R> {
                     // Note that this `note_error` will necessarily mark the
                     // ipt as Faulty. That's important, since we may be about to
                     // wait indefinitely when we call wait_for_netdir_to_list.
-                    status_tx.borrow_mut().note_error(&e);
+                    status_tx.borrow_mut().note_error(&e, self.runtime.now());
                     wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
                 }
                 Err(e) => {
-                    status_tx.borrow_mut().note_error(&e);
+                    status_tx.borrow_mut().note_error(&e, self.runtime.now());
                     debug_report!(
                         e,
                         "{}: Problem establishing introduction point with {}",
