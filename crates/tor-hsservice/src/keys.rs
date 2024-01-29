@@ -221,11 +221,11 @@ mod test {
         let key_spec = HsIdPublicKeySpecifier::new(nickname.clone());
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KP_hs_id"
+            "hs/shallot/kp_hs_id"
         );
 
         let key_spec = HsIdKeypairSpecifier::new(nickname);
-        check_key_specifier(&key_spec, "hs/shallot/KS_hs_id");
+        check_key_specifier(&key_spec, "hs/shallot/ks_hs_id");
     }
 
     #[test]
@@ -235,11 +235,11 @@ mod test {
         let key_spec = BlindIdPublicKeySpecifier::new(nickname.clone(), period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/KP_hs_blind_id+2_1_3"
+            "hs/shallot/kp_hs_blind_id+2_1_3"
         );
 
         let key_spec = BlindIdKeypairSpecifier::new(nickname, period);
-        check_key_specifier(&key_spec, "hs/shallot/KS_hs_blind_id+2_1_3");
+        check_key_specifier(&key_spec, "hs/shallot/ks_hs_blind_id+2_1_3");
     }
 
     #[test]
@@ -247,7 +247,7 @@ mod test {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
         let key_spec = DescSigningKeypairSpecifier::new(nickname, period);
-        check_key_specifier(&key_spec, "hs/shallot/KS_hs_desc_sign+2_1_3");
+        check_key_specifier(&key_spec, "hs/shallot/ks_hs_desc_sign+2_1_3");
     }
 
     #[test]

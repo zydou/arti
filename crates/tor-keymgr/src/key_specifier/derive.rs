@@ -307,7 +307,7 @@ define_derive_adhoc! {
     /// The `prefix` is the first component of the [`ArtiPath`] of the [`KeySpecifier`].
     ///
     /// The role should be the name of the key in the Tor Specifications.
-    /// The `role` is used as the _prefix of the last component_
+    /// The **lowercased** `role` is used as the _prefix of the last component_
     /// of the [`ArtiPath`] of the specifier.
     /// The `role` is followed by the denotators of the key.
     ///
@@ -353,13 +353,6 @@ define_derive_adhoc! {
     ///  * **`#[adhoc(role = "...")]`** (toplevel):
     ///    Specifies the role - the initial portion of the leafname.
     ///    This should be the name of the key in the Tor Specifications.
-    //     TODO (#1195): casing/syntax anomalies for key role:
-    //        Some keys in tor-hsservice have roles like k_..., and some KP_... or KS_...
-    //        Maybe we should use `KS_...` in #[adhoc(role)], but lowercase in ArtiPaths.
-    //        It'll have to become the responsibility of code here to convert.
-    //        (We should include the S or P in KS_ or KP, because we might in the future
-    //        want to store public keys too; actually we even do store KP_hs_id right now,
-    //        but that is wrong according to the design docs.)
     ///    Must be a literal string.
     ///    This or the field-level `#[adhoc(role)]` must be specified.
     ///
@@ -458,7 +451,7 @@ define_derive_adhoc! {
     ${define ARTI_LEAF_COMPONENTS {
         ${if tmeta(role) {
             // #[adhoc(role = ...)] on the toplevel
-            ${define LIT { ${tmeta(role) as str} }}
+            ${define LIT { stringify!(${snake_case ${tmeta(role)}}) }}
             $DO_ROLE_LITERAL
         }}
         ${for fields {
