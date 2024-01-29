@@ -206,7 +206,6 @@ pub type Result<T> = StdResult<T, Error>;
 /// since the automatic file cleaner might remove an in-use lockfile,
 /// effectively unlocking the instance state
 /// even while a process exists that thinks it still has the lock.
-#[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 #[derive(Debug)]
 pub struct StateDirectory {
     /// The actual directory, including mistrust config
@@ -313,7 +312,6 @@ type InstanceIdWriter<'i> = &'i dyn Fn(&mut fmt::Formatter) -> fmt::Result;
 
 impl StateDirectory {
     /// Create a new `StateDirectory` from a directory and mistrust configuration
-    #[allow(clippy::needless_pass_by_value)] // TODO HSS remove
     pub fn new(state_dir: impl AsRef<Path>, mistrust: &Mistrust) -> Result<Self> {
         /// Implementation, taking non-generic path
         fn inner(path: &Path, mistrust: &Mistrust) -> Result<StateDirectory> {
@@ -585,7 +583,6 @@ impl StateDirectory {
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
 // unless it returned a Drop newtype around CheckedDir).
-#[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
 #[derive(Debug)]
 pub struct InstanceStateHandle {
     /// The directory
