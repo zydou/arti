@@ -1028,6 +1028,26 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .for_each(|tp| tp.mark_all_dirty());
     }
 
+    /// Mark the descriptor dirty for the specified time period.
+    ///
+    /// Returns `true` if the specified period is still relevant, and `false` otherwise.
+    fn mark_dirty(&self, period: &TimePeriod) -> bool {
+        let mut inner = self.inner.lock().expect("poisoned lock");
+        let period_ctx = inner
+            .time_periods
+            .iter_mut()
+            .find(|tp| tp.params.time_period() == *period);
+
+        match period_ctx {
+            Some(ctx) => {
+                trace!(time_period=?period, "marking the descriptor dirty");
+                ctx.mark_all_dirty();
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Try to upload our descriptor to the HsDirs that need it.
     ///
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
