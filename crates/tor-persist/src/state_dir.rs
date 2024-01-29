@@ -72,8 +72,8 @@
 //!
 //! impl InstanceIdentity for HsNickname {
 //!     fn kind() -> &'static str { "hss" }
-//!     fn write_identity(&self, f: &mut fmt::Formatter) -> Result<(), Bug> {
-//!         write!(f, "{self}").map_err(into_internal!("failed to write HS nickname"))
+//!     fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//!         write!(f, "{self}")
 //!     }
 //! }
 //!
@@ -238,9 +238,9 @@ pub trait InstanceIdentity {
     /// For example, for a Tor Hidden Service the identity is the nickname.
     ///
     /// The generated string must be valid as a [`slug`].
-    //
-    // Throws Bug rather than fmt::Error so that in case of problems we can dump a stack trace.
-    fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
+    /// If it is not, the functions in this module will throw `Bug` errors.
+    /// (Returning `fmt::Error` will cause a panic, as is usual with the fmt API.)
+    fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
 /// For a facility to be expired using [`purge_instances`](StateDirectory::purge_instances) (caller-provided impl)
