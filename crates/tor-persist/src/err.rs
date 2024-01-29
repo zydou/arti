@@ -86,6 +86,10 @@ pub enum ErrorSource {
     #[error("JSON error")]
     Serde(#[from] Arc<serde_json::Error>),
 
+    /// Another task or process holds this persistent state lock, but we need exclusive access
+    #[error("State already lockedr")]
+    AlreadyLocked,
+
     /// Programming error
     #[error("Programming error")]
     Bug(#[from] Bug),
@@ -151,6 +155,7 @@ impl tor_error::HasKind for Error {
             E::IoError(..)     => K::PersistentStateAccessFailed,
             E::Permissions(e)  => e.state_error_kind(),
             E::NoLock          => K::BadApiUsage,
+            E::AlreadyLocked   => K::LocalResourceAlreadyInUse,
             E::Bug(e)          => e.kind(),
             E::Serde(..) if self.action == Action::Storing  => K::Internal,
             E::Serde(..) => K::PersistentStateCorrupted,
