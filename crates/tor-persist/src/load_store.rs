@@ -24,7 +24,7 @@ pub(crate) struct Target<'r> {
     /// Filename relative to `dir`
     ///
     /// Might be a leafname; must be relative
-    /// Should include the `.json` function.
+    /// Should include the `.json` extension.
     pub(crate) rel_fname: &'r Path,
 }
 
