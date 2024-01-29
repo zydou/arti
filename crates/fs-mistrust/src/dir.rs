@@ -71,6 +71,19 @@ impl CheckedDir {
         self.verifier().make_directory(self.location.join(path))
     }
 
+    /// Construct a new `CheckedDir` within this `CheckedDir`
+    ///
+    /// Creates the directory if it does not already exist.
+    ///
+    /// `path` must be a relative path to the new directory, containing no `..`
+    /// components.
+    pub fn make_secure_directory<P: AsRef<Path>>(&self, path: P) -> Result<CheckedDir> {
+        let path = path.as_ref();
+        self.make_directory(path)?;
+        // TODO I think this rechecks parents, but it need not, since we already did that.
+        self.verifier().secure_dir(self.location.join(path))
+    }
+
     /// Open a file within this CheckedDir, using a set of [`OpenOptions`].
     ///
     /// `path` must be a relative path to the new directory, containing no `..`
@@ -405,6 +418,11 @@ mod test {
         let s2 = checked.read("foo.txt").unwrap();
         assert_eq!(s1, "this is incredibly silly");
         assert_eq!(s1.as_bytes(), &s2[..]);
+
+        // Checked subdirectory
+        let sub = "sub";
+        let sub_checked = checked.make_secure_directory(sub).unwrap();
+        assert_eq!(sub_checked.as_path(), checked.as_path().join(sub));
 
         // Trickier: write when the preferred temporary already has content.
         checked
