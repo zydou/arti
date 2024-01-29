@@ -1003,7 +1003,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 debug!(nickname=%self.imm.nickname, "the introduction points have changed");
 
                 self.mark_all_dirty();
-                self.update_publish_status(should_upload).await?;
+                self.update_publish_status_unless_rate_lim(should_upload)
+                    .await?;
                 Ok(ShutdownStatus::Continue)
             }
             Some(Err(e)) => Err(e),
@@ -1028,20 +1029,36 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Update the `PublishStatus` of the reactor with `new_state`.
+    /// Update the `PublishStatus` of the reactor with `new_state`,
+    /// unless the current state is `RateLimited`.
+    async fn update_publish_status_unless_rate_lim(
+        &mut self,
+        new_state: PublishStatus,
+    ) -> Result<(), FatalError> {
+        // We can't exit this state until the rate-limit expires.
+        if !matches!(self.status(), PublishStatus::RateLimited(_)) {
+            self.update_publish_status(new_state).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Unconditionally update the `PublishStatus` of the reactor with `new_state`.
     async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), FatalError> {
+        let onion_status = match new_state {
+            PublishStatus::Idle => State::Running,
+            PublishStatus::UploadScheduled
+            | PublishStatus::AwaitingIpts
+            | PublishStatus::RateLimited(_) => State::Bootstrapping,
+        };
+
+        self.imm.status_tx.note_status(onion_status, None);
+
         trace!(
             "publisher reactor status change: {:?} -> {:?}",
             self.status(),
             new_state
         );
-
-        let onion_status = match new_state {
-            PublishStatus::Idle => State::Running,
-            PublishStatus::UploadScheduled | PublishStatus::AwaitingIpts => State::Bootstrapping,
-        };
-
-        self.imm.status_tx.note_status(onion_status, None);
 
         self.publish_status_tx
             .send(new_state)
@@ -1192,6 +1209,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Tell the "upload reminder" task to remind us to retry an upload that failed or was rate-limited.
     async fn schedule_pending_upload(&mut self, delay: Duration) -> Result<(), FatalError> {
+        let until = self.imm.runtime.now() + delay;
+        self.update_publish_status(PublishStatus::RateLimited(until))
+            .await?;
+
         if let Err(e) = self
             .reattempt_upload_tx
             .as_mut()
@@ -1612,6 +1633,12 @@ pub(super) fn read_blind_id_keypair(
 enum PublishStatus {
     /// We need to call upload_all.
     UploadScheduled,
+    /// We are rate-limited until the specified [`Instant`].
+    ///
+    /// We have tried to schedule multiple uploads in a short time span,
+    /// and we are rate-limited. We are waiting for a signal from the schedule_upload_tx
+    /// channel to unblock us.
+    RateLimited(Instant),
     /// We are idle and waiting for external events.
     ///
     /// We have enough information to build the descriptor, but since we have already called
