@@ -315,7 +315,23 @@ type InstanceIdWriter<'i> = &'i dyn Fn(&mut fmt::Formatter) -> fmt::Result;
 impl StateDirectory {
     /// Create a new `StateDirectory` from a directory and mistrust configuration
     #[allow(clippy::needless_pass_by_value)] // TODO HSS remove
-    pub fn new(state_dir: impl AsRef<Path>, mistrust: &Mistrust) -> Result<Self> { todo!() }
+    pub fn new(state_dir: impl AsRef<Path>, mistrust: &Mistrust) -> Result<Self> {
+        /// Implementation, taking non-generic path
+        fn inner(path: &Path, mistrust: &Mistrust) -> Result<StateDirectory> {
+            let resource = || Resource::Directory {
+                dir: path.to_owned(),
+            };
+            let handle_err = |source| Error::new(source, Action::Initializing, resource());
+
+            let dir = mistrust
+                .verifier()
+                .make_secure_dir(path)
+                .map_err(handle_err)?;
+
+            Ok(StateDirectory { dir })
+        }
+        inner(state_dir.as_ref(), mistrust)
+    }
 
     /// Acquires (creates and locks) a storage for an instance
     ///
