@@ -34,6 +34,21 @@ pub(crate) enum Resource {
         /// The key for the scratch item
         key: String,
     },
+    /// An instance state directory
+    #[display(
+        fmt = "instance {}+{} in {}",
+        "kind",
+        "identity",
+        "state_dir.anonymize_home()"
+    )]
+    InstanceState {
+        /// The path to the top-level state directory.
+        state_dir: std::path::PathBuf,
+        /// The instance's kind
+        kind: String,
+        /// The instance's identity
+        identity: String,
+    },
 }
 
 /// An action that we were trying to perform when an error occurred.

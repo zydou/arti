@@ -146,7 +146,7 @@
 #![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
 
 use std::cell::Cell;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::fs;
 use std::iter;
 use std::marker::PhantomData;
@@ -160,7 +160,9 @@ use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use fslock_guard::LockFileGuard;
-use tor_error::{Bug, bad_api_usage};
+use tor_error::{Bug, bad_api_usage, into_bad_api_usage};
+use tor_error::ErrorReport as _;
+use tracing::trace;
 
 pub use crate::Error;
 use crate::load_store;
@@ -205,9 +207,10 @@ pub type Result<T> = StdResult<T, Error>;
 /// effectively unlocking the instance state
 /// even while a process exists that thinks it still has the lock.
 #[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
+#[derive(Debug)]
 pub struct StateDirectory {
-    path: Todo,
-    mistrust: Todo,
+    /// The actual directory, including mistrust config
+    dir: CheckedDir,
 }
 
 /// An instance of a facility that wants to save persistent state (caller-provided impl)
@@ -306,6 +309,9 @@ pub enum Liveness {
     Live,
 }
 
+/// Instance identity string formatter, type-erased
+type InstanceIdWriter<'i> = &'i dyn Fn(&mut fmt::Formatter) -> fmt::Result;
+
 impl StateDirectory {
     /// Create a new `StateDirectory` from a directory and mistrust configuration
     #[allow(clippy::needless_pass_by_value)] // TODO HSS remove
@@ -319,7 +325,94 @@ impl StateDirectory {
         &self,
         identity: &I,
     ) -> Result<InstanceStateHandle> {
-        todo!()
+        /// Implementation, taking non-generic values for identity
+        fn inner(
+            sd: &StateDirectory,
+            kind_str: &'static str,
+            id_writer: InstanceIdWriter,
+        ) -> Result<InstanceStateHandle> {
+            sd.with_instance_path_pieces(kind_str, id_writer, |kind, id, resource| {
+                let handle_err =
+                    |action, source: ErrorSource| Error::new(source, action, resource());
+
+                // ---- obtain the lock ----
+
+                let lock_path = sd
+                    .dir
+                    .join(format!("{kind}+{id}.lock"))
+                    .map_err(|source| handle_err(Action::Initializing, source.into()))?;
+
+                let flock_guard = match LockFileGuard::try_lock(&lock_path) {
+                    Ok(Some(y)) => {
+                        trace!("locked {lock_path:?}");
+                        y.into()
+                    }
+                    Err(source) => {
+                        trace!("locking {lock_path:?}, error {}", source.report());
+                        return Err(handle_err(Action::Locking, source.into()));
+                    }
+                    Ok(None) => {
+                        trace!("locking {lock_path:?}, in use",);
+                        return Err(handle_err(Action::Locking, ErrorSource::AlreadyLocked));
+                    }
+                };
+
+                // ---- we have the lock, calculate the directory (creating it if need be) ----
+
+                let dir = sd
+                    .dir
+                    .make_secure_directory(format!("{kind}+{id}"))
+                    .map_err(|source| handle_err(Action::Initializing, source.into()))?;
+
+                Ok(InstanceStateHandle { dir, flock_guard })
+            })
+        }
+
+        inner(self, I::kind(), &|f| identity.write_identity(f))
+    }
+
+    /// Given a kind and id, obtain pieces of its path and call a "doing work" callback
+    ///
+    /// This function factors out common functionality needed by
+    /// [`StateDirectory::acquire_instance`] and [StateDirectory::peek_storage_handle`],
+    /// particularly relating to instance kind and id, and errors.
+    ///
+    /// `kind` and `id` are from an `InstanceIdentity`.
+    fn with_instance_path_pieces<T>(
+        self: &StateDirectory,
+        kind_str: &'static str,
+        id_writer: InstanceIdWriter,
+        call: impl FnOnce(&SlugRef, &SlugRef, &dyn Fn() -> Resource) -> Result<T>,
+    ) -> Result<T> {
+        /// Struct that impls `Display` for formatting an instance id
+        //
+        // This exists because we want implementors of InstanceIdentity to be able to
+        // use write! to format their identity string.
+        struct InstanceIdDisplay<'i>(InstanceIdWriter<'i>);
+
+        impl Display for InstanceIdDisplay<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                (self.0)(f)
+            }
+        }
+        let id_string = InstanceIdDisplay(id_writer).to_string();
+
+        // Both we and caller use this for our error reporting
+        let resource = || Resource::InstanceState {
+            state_dir: self.dir.as_path().to_owned(),
+            kind: kind_str.to_string(),
+            identity: id_string.clone(),
+        };
+
+        let handle_bad_slug = |source| Error::new(source, Action::Initializing, resource());
+
+        if kind_str.is_empty() {
+            return Err(handle_bad_slug(BadSlug::EmptySlugNotAllowed));
+        }
+        let kind = SlugRef::new(kind_str).map_err(handle_bad_slug)?;
+        let id = SlugRef::new(&id_string).map_err(handle_bad_slug)?;
+
+        call(kind, id, &resource)
     }
 
     /// List the instances of a particular kind
@@ -336,10 +429,11 @@ impl StateDirectory {
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
     #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
+    #[allow(unreachable_code)] // TODO HSS remove
     pub fn list_instances<I: InstanceIdentity>(
         &self
     ) -> impl Iterator<Item = Result<Slug>> {
-        let _: &Void = &self.path;
+        todo!();
         iter::empty()
     }
 
@@ -402,7 +496,48 @@ impl StateDirectory {
         identity: &I,
         slug: &(impl TryIntoSlug + ?Sized),
     ) -> Result<Option<T>> {
-        todo!()
+        self.with_instance_path_pieces(
+            I::kind(),
+            &|f| identity.write_identity(f),
+            // This closure is generic over T, so with_instance_path_pieces will be too;
+            // this isn't desirable (code bloat) but avoiding it would involves some contortions.
+            |kind_slug: &SlugRef, id_slug: &SlugRef, _resource| {
+                // Throwing this error here will give a slightly wrong Error for this Bug
+                // (because with_instance_path_pieces has its own notion of Action & Resource)
+                // but that seems OK.
+                let storage_slug = slug.try_into_slug()?;
+
+                let rel_fname = format!(
+                    "{}+{}{}{}.json",
+                    kind_slug,
+                    id_slug,
+                    std::path::MAIN_SEPARATOR,
+                    storage_slug,
+                );
+
+                let target = load_store::Target {
+                    dir: &self.dir,
+                    rel_fname: rel_fname.as_ref(),
+                };
+
+                target
+                    .load()
+                    // This Resource::File isn't consistent with those from StorageHandle:
+                    // StorageHandle's `container` is the instance directory;
+                    // here `container` is the top-level `state_dir`,
+                    // and `file` is `KIND+INSTANCE/STORAGE.json".
+                    .map_err(|source| {
+                        Error::new(
+                            source,
+                            Action::Loading,
+                            Resource::File {
+                                container: self.dir.as_path().to_owned(),
+                                file: rel_fname.into(),
+                            },
+                        )
+                    })
+            },
+        )
     }
 }
 
