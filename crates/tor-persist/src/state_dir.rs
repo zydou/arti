@@ -160,14 +160,14 @@ use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use fslock_guard::LockFileGuard;
-use tor_error::{Bug, bad_api_usage, into_bad_api_usage};
 use tor_error::ErrorReport as _;
+use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
 use tracing::trace;
 
-pub use crate::Error;
-use crate::load_store;
 use crate::err::{Action, ErrorSource, Resource};
+use crate::load_store;
 use crate::slug::{self, BadSlug, Slug, SlugRef, TryIntoSlug};
+pub use crate::Error;
 
 /// TODO HSS remove
 type Todo = Void;
@@ -279,8 +279,7 @@ pub trait InstancePurgeHandler {
 }
 
 /// Information about an instance, passed to [`InstancePurgeHandler::dispose`]
-#[derive(amplify::Getters)]
-#[derive(AsRef)]
+#[derive(amplify::Getters, AsRef)]
 pub struct InstancePurgeInfo<'i> {
     /// The instance's identity string
     #[as_ref]
@@ -446,9 +445,7 @@ impl StateDirectory {
     /// serialisation is not guaranteed across different instances.
     #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
     #[allow(unreachable_code)] // TODO HSS remove
-    pub fn list_instances<I: InstanceIdentity>(
-        &self
-    ) -> impl Iterator<Item = Result<Slug>> {
+    pub fn list_instances<I: InstanceIdentity>(&self) -> impl Iterator<Item = Result<Slug>> {
         todo!();
         iter::empty()
     }
@@ -491,10 +488,7 @@ impl StateDirectory {
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
-    pub fn purge_instances<I: InstancePurgeHandler>(
-        &self,
-        filter: &mut I,
-    ) -> Result<()> {
+    pub fn purge_instances<I: InstancePurgeHandler>(&self, filter: &mut I) -> Result<()> {
         todo!()
     }
 
@@ -604,7 +598,10 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn storage_handle<T>(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> {
+    pub fn storage_handle<T>(
+        &self,
+        slug: &(impl TryIntoSlug + ?Sized),
+    ) -> Result<StorageHandle<T>> {
         /// Implementation, not generic over `slug` and `T`
         fn inner(
             ih: &InstanceStateHandle,
@@ -736,12 +733,14 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
 
     /// Operate using a `load_store::Target`
     fn with_load_store_target<R, F>(&self, action: Action, f: F) -> Result<R>
-    where F: FnOnce(load_store::Target<'_>) -> std::result::Result<R, ErrorSource>
+    where
+        F: FnOnce(load_store::Target<'_>) -> std::result::Result<R, ErrorSource>,
     {
         f(load_store::Target {
             dir: &self.instance_dir,
             rel_fname: self.leafname.as_ref(),
-        }).map_err(self.map_err(action))
+        })
+        .map_err(self.map_err(action))
     }
 
     /// Helper to convert an `ErrorSource` to an `Error`, if we were performing `action`
