@@ -308,7 +308,7 @@ pub enum Liveness {
 impl StateDirectory {
     /// Create a new `StateDirectory` from a directory and mistrust configuration
     #[allow(clippy::needless_pass_by_value)] // TODO HSS remove
-    pub fn new(state_dir: impl AsRef<Path>, mistrust: Mistrust) -> Result<Self> { todo!() }
+    pub fn new(state_dir: impl AsRef<Path>, mistrust: &Mistrust) -> Result<Self> { todo!() }
 
     /// Acquires (creates and locks) a storage for an instance
     ///
@@ -396,7 +396,7 @@ impl StateDirectory {
     /// So the operation is atomic, but there is no further synchronisation.
     //
     // Not sure if we need this, but it's logically permissible
-    pub fn instance_peek_storage<I: InstanceIdentity, T>(
+    pub fn instance_peek_storage<I: InstanceIdentity, T: DeserializeOwned>(
         &self,
         identity: &I,
         slug: &(impl TryIntoSlug + ?Sized),
