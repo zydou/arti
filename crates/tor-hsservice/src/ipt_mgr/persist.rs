@@ -170,11 +170,11 @@ impl IptRecord {
                 cause,
             },
             CreateIptError::OpenReplayLog { file, error } => {
-                StartupError::StateDirectoryInaccessible(fs_mistrust::Error::Io {
-                    action: "opening intro req replay log",
-                    filename: file,
-                    err: error,
-                })
+                StartupError::StateDirectoryInaccessibleIo {
+                    source: error,
+                    action: "opening",
+                    path: file,
+                }
             }
         })?;
 

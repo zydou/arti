@@ -1,5 +1,7 @@
 //! Declare an error type for the `tor-hsservice` crate.
 
+use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -50,6 +52,24 @@ pub enum StartupError {
     #[error("Unable to access on-disk state")]
     StateDirectoryInaccessible(#[source] fs_mistrust::Error),
 
+    /// Unable to access on-disk state using underlying IO operations
+    #[error("Unable to access on-disk state: {action} {}", path.display())]
+    // TODO ideally we'd like to use StateDirectoryInaccessiblePersist and tor_persist::Error
+    // for this too, but tor_persist::Error is quite awkward.
+    StateDirectoryInaccessibleIo {
+        /// What happened
+        #[source]
+        source: Arc<io::Error>,
+
+        /// What filesystem path we were trying to access
+        path: PathBuf,
+
+        /// What we were trying to do to it
+        //
+        // TODO this should be an enum, not a static string, but see above
+        action: &'static str,
+    },
+
     /// Failed to lock the on-disk state
     #[error("HS service state locked (concurrent HS service processes are not supported")]
     StateLocked,
@@ -96,6 +116,7 @@ impl HasKind for StartupError {
             E::StateLocked => EK::LocalResourceAlreadyInUse,
             E::LoadState(e) => e.kind(),
             E::StateDirectoryInaccessible(e) => e.state_error_kind(),
+            E::StateDirectoryInaccessibleIo { .. } => EK::PersistentStateAccessFailed,
             E::Fatal(e) => e.kind(),
         }
     }
