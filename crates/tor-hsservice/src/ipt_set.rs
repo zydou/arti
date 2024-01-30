@@ -473,7 +473,7 @@ struct IptRecord {
 
 impl PublishIptSet {
     /// Save the publication times to the persistent state
-    fn save(&self, runtime: &impl SleepProvider) -> Result<(), IptStoreError> {
+    fn save(&mut self, runtime: &impl SleepProvider) -> Result<(), IptStoreError> {
         // Throughout, we use exhaustive struct patterns on the in-memory data,
         // so we avoid missing any of the data.
         let PublishIptSet {
