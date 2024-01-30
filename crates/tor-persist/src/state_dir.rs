@@ -174,6 +174,8 @@ type Todo = Void;
 
 use std::result::Result as StdResult;
 
+use std::path::MAIN_SEPARATOR as PATH_SEPARATOR;
+
 /// [`Result`](StdResult) throwing a [`state_dir::Error`](Error)
 pub type Result<T> = StdResult<T, Error>;
 
@@ -516,10 +518,9 @@ impl StateDirectory {
                 let storage_slug = slug.try_into_slug()?;
 
                 let rel_fname = format!(
-                    "{}+{}{}{}.json",
+                    "{}+{}{PATH_SEPARATOR}{}.json",
                     kind_slug,
                     id_slug,
-                    std::path::MAIN_SEPARATOR,
                     storage_slug,
                 );
 
