@@ -43,8 +43,8 @@ fslock = { version = "0.2.0" }
 [dev-dependencies]
 anyhow = { version = "1.0.23" }
 itertools = "0.12.0"
-test-temp-dir = { version = "0.1.0", path = "../test-temp-dir" }
 tempfile = "3"
+test-temp-dir = { version = "0.1.0", path = "../test-temp-dir" }
 tracing-test = "0.2"
 
 [package.metadata.docs.rs]
