@@ -35,8 +35,8 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use {
     tor_config::BoolOrAuto,
     tor_hsclient::{
-        HsClientConnector, HsClientDescEncKeypairSpecifier, HsClientSecretKeysBuilder,
-        HsClientNickname,
+        HsClientConnector, HsClientDescEncKeypairSpecifier, HsClientNickname,
+        HsClientSecretKeysBuilder,
     },
     tor_hscrypto::pk::HsClientDescEncKeypair,
     tor_netdir::DirEvent,
