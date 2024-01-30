@@ -527,9 +527,7 @@ impl StateDirectory {
 
                 let rel_fname = format!(
                     "{}{PATH_SEPARATOR}{}{PATH_SEPARATOR}{}.json",
-                    kind_slug,
-                    id_slug,
-                    storage_slug,
+                    kind_slug, id_slug, storage_slug,
                 );
 
                 let target = load_store::Target {
