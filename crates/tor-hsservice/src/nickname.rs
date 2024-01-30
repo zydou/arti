@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
-use tor_persist::slug::{BadSlug, Slug};
+use tor_persist::slug::Slug;
 
 /// Nickname (local identifier) for a Tor hidden service
 ///
@@ -29,10 +29,10 @@ use tor_persist::slug::{BadSlug, Slug};
 pub struct HsNickname(Slug);
 
 impl FromStr for HsNickname {
-    type Err = BadSlug;
+    type Err = InvalidNickname;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Slug::try_from(s.to_string()).map(HsNickname)
+        Self::new(s.to_string())
     }
 }
 
@@ -50,6 +50,9 @@ impl HsNickname {
     /// Returns an error if the syntax is not valid
     fn new(s: String) -> Result<HsNickname, InvalidNickname> {
         // Slugs can be empty, but HS nicknames cannot.
+        //
+        // TODO: don't check for empty strings here. Instead, add a new `Slug::new_nonempty`
+        // function (and possibly, a corresponding NonEmptySlug type), and use it here.
         if s.is_empty() {
             return Err(InvalidNickname {});
         }
@@ -118,5 +121,18 @@ mod test {
         let j = serde_json::from_str(r#"{ "n": "!" }"#).unwrap();
         let e = serde_json::from_value::<T>(j).unwrap_err();
         assert!(e.to_string().contains("Invalid syntax"), "wrong msg {e:?}");
+    }
+
+    #[test]
+    fn empty_nickname() {
+        assert_eq!(
+            HsNickname::new("".to_string()).unwrap_err(),
+            InvalidNickname {}
+        );
+        assert_eq!(
+            HsNickname::try_from("".to_string()).unwrap_err(),
+            InvalidNickname {}
+        );
+        assert_eq!(HsNickname::from_str("").unwrap_err(), InvalidNickname {});
     }
 }
