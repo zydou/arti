@@ -258,12 +258,10 @@ pub fn check_syntax(s: &str) -> Result<(), BadSlug> {
 
     // check legal character set
     for c in s.chars() {
-        if c.is_ascii_alphanumeric() {
-            if c.is_ascii_alphabetic() && !c.is_ascii_lowercase() {
-                Err(BadSlug::BadCharacter(c))
-            } else {
-                Ok(())
-            }
+        if c.is_ascii_lowercase() {
+            Ok(())
+        } else if c.is_ascii_digit() {
+            Ok(())
         } else if c == '_' || c == '-' {
             Ok(())
         } else {
