@@ -196,11 +196,11 @@ impl<S: StateMgr + Send + Sync + 'static> OnionServiceStateMgr for S {
         }
     }
 
-    fn ipt_storage_handle(&self, nickname: &HsNickname) -> Arc<IptStorageHandle> {
+    fn ipt_storage_handle(&self, nickname: &HsNickname) -> IptStorageHandle {
         self.clone().create_handle(format!("hs_ipts_{}", nickname))
     }
 
-    fn ipt_set_storage_handle(&self, nickname: &HsNickname) -> Arc<IptSetStorageHandle> {
+    fn ipt_set_storage_handle(&self, nickname: &HsNickname) -> IptSetStorageHandle {
         self.clone()
             .create_handle(format!("hs_iptpub_{}", nickname))
     }
@@ -216,10 +216,10 @@ pub(crate) trait OnionServiceStateMgr: Send + Sync {
     fn try_lock(&self) -> Result<(), StartupError>;
 
     /// Make a new [`StorageHandle`](tor_persist::StorageHandle) for IPT `RelayRecord` storage.
-    fn ipt_storage_handle(&self, nickname: &HsNickname) -> Arc<IptStorageHandle>;
+    fn ipt_storage_handle(&self, nickname: &HsNickname) -> IptStorageHandle;
 
     /// Make a new [`StorageHandle`](tor_persist::StorageHandle) for `IptRecord` storage.
-    fn ipt_set_storage_handle(&self, nickname: &HsNickname) -> Arc<IptSetStorageHandle>;
+    fn ipt_set_storage_handle(&self, nickname: &HsNickname) -> IptSetStorageHandle;
 }
 
 impl OnionService {
@@ -594,14 +594,14 @@ pub(crate) mod test {
     }
 
     pub(crate) fn create_storage_handles(
-    ) -> (tor_persist::TestingStateMgr, Arc<IptSetStorageHandle>) {
+    ) -> (tor_persist::TestingStateMgr, IptSetStorageHandle) {
         create_storage_handles_from_state_mgr(tor_persist::TestingStateMgr::new(), &"dummy")
     }
 
     pub(crate) fn create_storage_handles_from_state_mgr<S>(
         state_mgr: S,
         nick: &dyn Display,
-    ) -> (S, Arc<IptSetStorageHandle>)
+    ) -> (S, IptSetStorageHandle)
     where
         S: tor_persist::StateMgr + Send + Sync + 'static,
     {

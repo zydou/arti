@@ -110,7 +110,7 @@ pub(crate) struct Immutable<R> {
 
     /// The on-disk state storage handle.
     #[educe(Debug(ignore))]
-    storage: Arc<IptStorageHandle>,
+    storage: IptStorageHandle,
 
     /// The key manager.
     #[educe(Debug(ignore))]

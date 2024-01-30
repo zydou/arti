@@ -23,7 +23,7 @@ use tor_log_ratelim::log_ratelim;
 use tor_rtcompat::SleepProvider;
 
 /// Handle for a suitable persistent storage manager
-pub(crate) type IptSetStorageHandle = dyn tor_persist::StorageHandle<StateRecord> + Sync + Send;
+pub(crate) type IptSetStorageHandle = Arc<dyn tor_persist::StorageHandle<StateRecord> + Sync + Send>;
 
 /// Information shared between the IPT manager and the IPT publisher
 ///
@@ -94,7 +94,7 @@ pub(crate) struct PublishIptSet {
 
     /// The on-disk state storage handle.
     #[educe(Debug(ignore))]
-    storage: Arc<IptSetStorageHandle>,
+    storage: IptSetStorageHandle,
 }
 
 /// A set of introduction points for publication
@@ -230,7 +230,7 @@ struct NotifyingBorrow<'v, R: SleepProvider> {
 /// Create a new shared state channel for the publication instructions
 pub(crate) fn ipts_channel(
     runtime: &impl SleepProvider,
-    storage: Arc<IptSetStorageHandle>,
+    storage: IptSetStorageHandle,
 ) -> Result<(IptsManagerView, IptsPublisherView), StartupError> {
     let initial_state = PublishIptSet::load(storage, runtime)?;
     let shared = Arc::new(Mutex::new(initial_state));
@@ -506,7 +506,7 @@ impl PublishIptSet {
 
     /// Load the publication times from the persistent state
     fn load(
-        storage: Arc<IptSetStorageHandle>,
+        storage: IptSetStorageHandle,
         runtime: &impl SleepProvider,
     ) -> Result<PublishIptSet, StartupError> {
         let on_disk = storage.load().map_err(StartupError::LoadState)?;
