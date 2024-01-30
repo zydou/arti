@@ -15,7 +15,7 @@ use tor_persist::slug::Slug;
 /// keys, state, configuration, etc,
 /// and distinguish them from other services.
 ///
-/// An `HsNickname` is a non-empty [`Slug`].
+/// An `HsNickname` must be a valid [`Slug`].
 /// See [slug](tor_persist::slug) for the syntactic requirements.
 //
 // NOTE: if at some point we decide HsNickname should have a more restrictive syntax/charset than
@@ -49,14 +49,6 @@ impl HsNickname {
     ///
     /// Returns an error if the syntax is not valid
     fn new(s: String) -> Result<HsNickname, InvalidNickname> {
-        // Slugs can be empty, but HS nicknames cannot.
-        //
-        // TODO: don't check for empty strings here. Instead, add a new `Slug::new_nonempty`
-        // function (and possibly, a corresponding NonEmptySlug type), and use it here.
-        if s.is_empty() {
-            return Err(InvalidNickname {});
-        }
-
         Ok(Self(s.try_into().map_err(|_| InvalidNickname {})?))
     }
 }

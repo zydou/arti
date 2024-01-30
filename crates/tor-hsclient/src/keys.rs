@@ -157,8 +157,6 @@ impl HsClientSecretKeysBuilder {
 /// See [slug](tor_persist::slug) for the syntactic requirements.
 ///
 // TODO: rename `HsClientSpecifier` to `HsClientNickname`
-// TODO: we should forbid empty strings, like we do for `HsNickname`
-// (should we have a single FooNickname struct instead of the two?)
 #[derive(Clone, Debug, PartialEq, derive_more::Display, derive_more::Into, derive_more::AsRef)]
 pub struct HsClientSpecifier(Slug);
 
