@@ -512,7 +512,11 @@ mod test {
     /// obtain the total expected number of uploads (this works because the test "HSDirs" all
     /// behave the same, so the number of uploads is the number of HSDirs multiplied by the number
     /// of retries).
-    fn publish_after_ipt_change<I: PollReadIter>(temp_dir: &Path, poll_read_responses: I, multiplier: usize) {
+    fn publish_after_ipt_change<I: PollReadIter>(
+        temp_dir: &Path,
+        poll_read_responses: I,
+        multiplier: usize,
+    ) {
         let runtime = MockRuntime::new();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let config = build_test_config(nickname.clone());
