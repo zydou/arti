@@ -24,7 +24,7 @@ itertools = "0.12.0"
 pin-project = "1"
 priority-queue = "1.3.2"
 slotmap = "1.0.6"
-strum = { version = "0.25", features = ["derive"] }
+strum = { version = "0.26", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-error = { version = "0.6.0", path = "../tor-error", features = ["tracing"] }
