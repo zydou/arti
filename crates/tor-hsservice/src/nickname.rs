@@ -96,7 +96,7 @@ mod test {
     #[test]
     fn mk() {
         assert_eq!(HsNickname::new("".into()), Err(InvalidNickname {}));
-        assert_eq!(HsNickname::new("-a".into()).unwrap().to_string(), "-a");
+        assert_eq!(HsNickname::new("-a".into()), Err(InvalidNickname {}));
         assert_eq!(HsNickname::new("b.".into()), Err(InvalidNickname {}));
         assert_eq!(HsNickname::new("_c".into()).unwrap().to_string(), "_c");
         assert_eq!(&HsNickname::new("x".into()).unwrap().to_string(), "x");

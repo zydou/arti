@@ -570,13 +570,13 @@ mod test {
         const VALID_ARTI_PATH_COMPONENTS: &[&str] = &["my-hs-client-2", "hs_client"];
         const VALID_ARTI_PATHS: &[&str] = &[
             "path/to/client+subvalue+fish",
-            "-hs_client",
             "_hs_client",
             "hs_client-",
             "hs_client_",
-            "-",
             "_",
         ];
+
+        const BAD_FIRST_CHAR_ARTI_PATHS: &[&str] = &["-hs_client", "-"];
 
         const DISALLOWED_CHAR_ARTI_PATHS: &[&str] =
             &["client?", "no spaces please", "client٣¾", "clientß"];
@@ -593,6 +593,14 @@ mod test {
                 ArtiPath,
                 path,
                 ArtiPathSyntaxError::Slug(BadSlug::BadCharacter(_))
+            );
+        }
+
+        for path in BAD_FIRST_CHAR_ARTI_PATHS {
+            assert_err!(
+                ArtiPath,
+                path,
+                ArtiPathSyntaxError::Slug(BadSlug::BadFirstCharacter(_))
             );
         }
 
@@ -640,14 +648,25 @@ mod test {
             "1-2-3-",
             "1-2-3_",
             "1-2-3",
-            "-1-2-3",
             "_1-2-3",
             "1-2-3",
         ];
 
+        const BAD_OUTER_CHAR_DENOTATORS: &[&str] = &["-1-2-3"];
+
         for denotator in VALID_ARTI_DENOTATORS {
             let path = format!("foo/bar/qux+{denotator}");
             assert_ok!(ArtiPath, path);
+        }
+
+        for denotator in BAD_OUTER_CHAR_DENOTATORS {
+            let path = format!("foo/bar/qux+{denotator}");
+
+            assert_err!(
+                ArtiPath,
+                path,
+                ArtiPathSyntaxError::Slug(BadSlug::BadFirstCharacter(_))
+            );
         }
 
         // An ArtiPath with multiple denotators
