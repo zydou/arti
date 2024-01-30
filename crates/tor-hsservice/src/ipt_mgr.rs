@@ -454,12 +454,12 @@ impl Ipt {
             let replay_leaf = format!("{lid}.bin");
             let replay_log = imm.replay_log_dir.as_path().join(replay_leaf);
 
-            ReplayLog::new_logged(&replay_log, imm.replay_log_dir.raw_lock_guard()).map_err(|error| {
-                CreateIptError::OpenReplayLog {
+            ReplayLog::new_logged(&replay_log, imm.replay_log_dir.raw_lock_guard()).map_err(
+                |error| CreateIptError::OpenReplayLog {
                     file: replay_log,
                     error: error.into(),
-                }
-            })?
+                },
+            )?
         };
 
         let params = IptParameters {
@@ -567,10 +567,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // are reading watches.
         let (status_send, status_recv) = mpsc::channel(0);
 
-        let storage = state_handle.storage_handle("ipts")
+        let storage = state_handle
+            .storage_handle("ipts")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
-        let replay_log_dir = state_handle.raw_subdir("iptreplay")
+        let replay_log_dir = state_handle
+            .raw_subdir("iptreplay")
             // TODO #1198 something should expire these! (and our keys too, obviously)
             // (see also #1067 re expiring a whole service)
             .map_err(StartupError::StateDirectoryInaccessible)?;
@@ -1751,8 +1753,8 @@ mod test {
                 // untracked is OK because our return value captures 'd
                 .subdir_untracked("state_dir");
 
-            let (state_handle, iptpub_state_handle)
-                = create_storage_handles_from_state_dir(&state_dir, &nick);
+            let (state_handle, iptpub_state_handle) =
+                create_storage_handles_from_state_dir(&state_dir, &nick);
 
             let (mgr_view, pub_view) =
                 ipt_set::ipts_channel(&runtime, iptpub_state_handle).unwrap();

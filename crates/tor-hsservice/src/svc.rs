@@ -236,12 +236,15 @@ impl OnionService {
 
         let nickname = state.nickname.clone();
 
-        let state_handle = state.state_dir.acquire_instance(&nickname)
+        let state_handle = state
+            .state_dir
+            .acquire_instance(&nickname)
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
         // We pass the "cooked" handle, with the storage key embedded, to ipt_set,
         // since the ipt_set code doesn't otherwise have access to the HS nickname.
-        let iptpub_storage_handle = state_handle.storage_handle("iptpub")
+        let iptpub_storage_handle = state_handle
+            .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
@@ -552,7 +555,10 @@ pub(crate) mod test {
 
     pub(crate) fn create_storage_handles(
         dir: &Path,
-    ) -> (tor_persist::state_dir::InstanceStateHandle, IptSetStorageHandle) {
+    ) -> (
+        tor_persist::state_dir::InstanceStateHandle,
+        IptSetStorageHandle,
+    ) {
         let nick = HsNickname::try_from("allium".to_owned()).unwrap();
         create_storage_handles_from_state_dir(dir, &nick)
     }
@@ -560,7 +566,10 @@ pub(crate) mod test {
     pub(crate) fn create_storage_handles_from_state_dir(
         state_dir: &Path,
         nick: &HsNickname,
-    ) -> (tor_persist::state_dir::InstanceStateHandle, IptSetStorageHandle) {
+    ) -> (
+        tor_persist::state_dir::InstanceStateHandle,
+        IptSetStorageHandle,
+    ) {
         let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
         let state_dir = StateDirectory::new(state_dir, &mistrust).unwrap();
         let instance = state_dir.acquire_instance(nick).unwrap();
@@ -737,14 +746,10 @@ pub(crate) mod test {
         let state_dir = StateDirectory::new(
             temp_dir.as_path_untracked(),
             &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
-        ).unwrap();
-
-        let service = OnionService::new(
-            config,
-            Arc::clone(&*keymgr),
-            &state_dir,
         )
         .unwrap();
+
+        let service = OnionService::new(config, Arc::clone(&*keymgr), &state_dir).unwrap();
 
         let hsid = HsId::from(hsid_public);
         assert_eq!(service.onion_name().unwrap(), hsid);
