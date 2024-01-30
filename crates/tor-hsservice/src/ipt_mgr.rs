@@ -12,7 +12,7 @@ use std::hash::Hash;
 use std::io;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 

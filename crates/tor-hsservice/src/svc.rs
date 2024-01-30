@@ -2,10 +2,8 @@
 pub(crate) mod netdir;
 
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use fs_mistrust::Mistrust;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::Stream;
@@ -23,12 +21,11 @@ use tor_llcrypto::pk::curve25519;
 use tor_llcrypto::pk::ed25519;
 use tor_netdir::NetDirProvider;
 use tor_persist::state_dir::StateDirectory;
-use tor_persist::StateMgr;
 use tor_rtcompat::Runtime;
 use tracing::{info, warn};
 
-use crate::ipt_mgr::{IptManager, IptStorageHandle};
-use crate::ipt_set::{IptSetStorageHandle, IptsManagerView};
+use crate::ipt_mgr::IptManager;
+use crate::ipt_set::IptsManagerView;
 use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
 use crate::svc::publish::Publisher;
 use crate::HsIdKeypairSpecifier;
@@ -520,7 +517,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    use std::fmt::Display;
+    use std::path::Path;
 
     use fs_mistrust::Mistrust;
     use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};

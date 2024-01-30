@@ -11,7 +11,6 @@ use thiserror::Error;
 
 use tor_error::error_report;
 use tor_error::{Bug, ErrorKind, HasKind};
-use tor_persist::FsMistrustErrorExt as _;
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
 use crate::{HsNickname, NetdirProviderShutdown};
