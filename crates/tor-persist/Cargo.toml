@@ -25,6 +25,7 @@ __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"], optional = true }
+derive-adhoc = "0.8"
 derive_more = "0.99.3"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.6", features = ["walkdir"] }
 fslock-guard = { path = "../fslock-guard", version = "0.0.1", optional = true }
