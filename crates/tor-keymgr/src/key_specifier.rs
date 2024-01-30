@@ -463,7 +463,17 @@ impl KeySpecifierComponent for HsId {
     where
         Self: Sized,
     {
-        s.as_str()
+        // Note: HsId::from_str expects the string to have a .onion suffix,
+        // but the string representation of our slug doesn't have it
+        // (because we manually strip it away, see to_component()).
+        //
+        // We have to manually add it for this to work.
+        //
+        // TODO: HsId should have some facilities for converting base32 HsIds (sans suffix)
+        // to and from string.
+        let onion = format!("{}{HSID_ONION_SUFFIX}", s.as_str());
+
+        onion
             .parse()
             .map_err(|_| InvalidKeyPathComponentValue::new())
     }
@@ -973,6 +983,17 @@ KeyPathInfo {
         assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
 
         assert!(TimePeriod::from_component(&Slug::new("invalid_tp".to_string()).unwrap()).is_err());
+    }
+
+    #[test]
+    fn encode_hsid() {
+        let b32 = "eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad";
+        let onion = format!("{b32}.onion");
+        let hsid = HsId::from_str(&onion).unwrap();
+        let hsid_slug = hsid.to_component().unwrap();
+
+        assert_eq!(hsid_slug.to_string(), b32);
+        assert_eq!(hsid, HsId::from_component(&hsid_slug).unwrap());
     }
 
     #[test]
