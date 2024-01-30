@@ -6,7 +6,6 @@ mod reactor;
 
 use futures::task::SpawnExt;
 use postage::watch;
-use std::path::Path;
 use std::sync::Arc;
 use tor_keymgr::KeyMgr;
 use tracing::warn;
@@ -171,6 +170,7 @@ mod test {
 
     use std::collections::HashMap;
     use std::io;
+    use std::path::Path;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
