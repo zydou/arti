@@ -70,7 +70,7 @@ pub use err::FailedAttemptError;
 pub use err::{ConnError, DescriptorError, DescriptorErrorDetail, StartupError};
 pub use keys::{
     HsClientDescEncKeypairSpecifier, HsClientSecretKeys, HsClientSecretKeysBuilder,
-    HsClientSpecifier,
+    HsClientNickname,
 };
 pub use relay_info::InvalidTarget;
 pub use state::HsClientConnectorConfig;

@@ -153,25 +153,23 @@ impl HsClientSecretKeysBuilder {
 /// Distinguishes different "clients" or "users" of this Arti instance,
 /// so that they can have different sets of HS client authentication keys.
 ///
-/// An `HsClientSpecifier` must be a valid [`Slug`].
+/// An `HsClientNickname` must be a valid [`Slug`].
 /// See [slug](tor_persist::slug) for the syntactic requirements.
-///
-// TODO: rename `HsClientSpecifier` to `HsClientNickname`
 #[derive(Clone, Debug, PartialEq, derive_more::Display, derive_more::Into, derive_more::AsRef)]
-pub struct HsClientSpecifier(Slug);
+pub struct HsClientNickname(Slug);
 
-impl FromStr for HsClientSpecifier {
+impl FromStr for HsClientNickname {
     type Err = BadSlug;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Slug::try_from(s.to_string()).map(HsClientSpecifier)
+        Slug::try_from(s.to_string()).map(HsClientNickname)
     }
 }
 
-impl KeySpecifierComponentViaDisplayFromStr for HsClientSpecifier {}
+impl KeySpecifierComponentViaDisplayFromStr for HsClientNickname {}
 
-impl HsClientSpecifier {
-    /// Create a new [`HsClientSpecifier`].
+impl HsClientNickname {
+    /// Create a new [`HsClientNickname`].
     ///
     /// The `inner` string **must** be a valid [`Slug`].
     pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
@@ -187,7 +185,7 @@ impl HsClientSpecifier {
 /// A key for deriving keys for decrypting HS descriptors (KS_hsc_desc_enc).
 pub struct HsClientDescEncKeypairSpecifier {
     /// The client associated with this key.
-    pub(crate) client_id: HsClientSpecifier,
+    pub(crate) client_id: HsClientNickname,
     /// The hidden service this authorization key is for.
     pub(crate) hs_id: HsId,
 }
