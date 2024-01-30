@@ -632,10 +632,7 @@ mod test {
         );
 
         const EMPTY_DENOTATOR: &str = "c++";
-        assert_ok!(
-            ArtiPath,
-            EMPTY_DENOTATOR
-        );
+        assert_ok!(ArtiPath, EMPTY_DENOTATOR);
     }
 
     #[test]
@@ -681,10 +678,7 @@ mod test {
             "foo/bar/qux+{}+{}+foo+",
             VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
         );
-        assert_ok!(
-            ArtiPath,
-            path
-        );
+        assert_ok!(ArtiPath, path);
     }
 
     #[test]
