@@ -790,5 +790,7 @@ pub(crate) mod test {
 
         let hsid = HsId::from(hsid_public);
         assert_eq!(service.onion_name().unwrap(), hsid);
+
+        drop(temp_dir); // prove that this is still live
     }
 }
