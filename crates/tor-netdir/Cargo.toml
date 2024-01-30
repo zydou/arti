@@ -60,7 +60,7 @@ rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 static_assertions = "1"
-strum = { version = "0.25", features = ["derive"] }
+strum = { version = "0.26", features = ["derive"] }
 thiserror = "1"
 time = { version = "0.3.17", features = ["macros"], optional = true }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }

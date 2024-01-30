@@ -42,7 +42,7 @@ itertools = "0.12.0"
 safelog = { path = "../safelog", version = "0.3.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
-strum = { version = "0.25", features = ["derive"] }
+strum = { version = "0.26", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.9.0" }

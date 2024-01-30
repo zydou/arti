@@ -48,7 +48,7 @@ rand_core = "0.6.2"
 retry-error = { path = "../retry-error", version = "0.5.0" }
 safelog = { path = "../safelog", version = "0.3.2" }
 slotmap = "1.0.6"
-strum = { version = "0.25", features = ["derive"] }
+strum = { version = "0.26", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
