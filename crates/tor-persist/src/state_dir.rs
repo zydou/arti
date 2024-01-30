@@ -847,7 +847,7 @@ mod test {
 
             let irsd = ih.raw_subdir("raw").unwrap();
             assert!(fs::metadata(irsd.as_path()).unwrap().is_dir());
-            assert_eq!(irsd.as_path(), dir.join("garlic/wild/raw"));
+            assert_eq!(irsd.as_path(), dir.join("garlic").join("wild").join("raw"));
 
             let mut sh = ih.storage_handle::<StoredData>("stored_data").unwrap();
             let storage_path = dir.join("garlic/wild/stored_data.json");
