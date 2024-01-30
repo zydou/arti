@@ -362,9 +362,10 @@ impl StateDirectory {
 
                 // ---- obtain the lock ----
 
-                let lock_path = sd
-                    .dir
-                    .join(format!("{kind}+{id}.lock"))
+                let kind_dir = make_secure_directory(&sd.dir, kind)?;
+
+                let lock_path = kind_dir
+                    .join(format!("{id}.lock"))
                     .map_err(|source| handle_err(Action::Initializing, source.into()))?;
 
                 let flock_guard = match LockFileGuard::try_lock(&lock_path) {
@@ -384,7 +385,7 @@ impl StateDirectory {
 
                 // ---- we have the lock, calculate the directory (creating it if need be) ----
 
-                let dir = make_secure_directory(&sd.dir, &format!("{kind}+{id}"))?;
+                let dir = make_secure_directory(&kind_dir, id)?;
 
                 Ok(InstanceStateHandle { dir, flock_guard })
             })
@@ -525,7 +526,7 @@ impl StateDirectory {
                 let storage_slug = slug.try_into_slug()?;
 
                 let rel_fname = format!(
-                    "{}+{}{PATH_SEPARATOR}{}.json",
+                    "{}{PATH_SEPARATOR}{}{PATH_SEPARATOR}{}.json",
                     kind_slug,
                     id_slug,
                     storage_slug,
@@ -836,7 +837,7 @@ mod test {
             let acquire_instance = || sd.acquire_instance(&garlic);
 
             let ih = acquire_instance().unwrap();
-            let inst_path = dir.join("garlic+wild");
+            let inst_path = dir.join("garlic/wild");
             assert!(fs::metadata(&inst_path).unwrap().is_dir());
 
             assert_eq!(
@@ -846,10 +847,10 @@ mod test {
 
             let irsd = ih.raw_subdir("raw").unwrap();
             assert!(fs::metadata(irsd.as_path()).unwrap().is_dir());
-            assert_eq!(irsd.as_path(), dir.join("garlic+wild/raw"));
+            assert_eq!(irsd.as_path(), dir.join("garlic/wild/raw"));
 
             let mut sh = ih.storage_handle::<StoredData>("stored_data").unwrap();
-            let storage_path = dir.join("garlic+wild/stored_data.json");
+            let storage_path = dir.join("garlic/wild/stored_data.json");
 
             let peek = || sd.instance_peek_storage(&garlic, "stored_data");
 
