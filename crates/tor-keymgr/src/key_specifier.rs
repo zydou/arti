@@ -632,10 +632,9 @@ mod test {
         );
 
         const EMPTY_DENOTATOR: &str = "c++";
-        assert_err!(
+        assert_ok!(
             ArtiPath,
-            EMPTY_DENOTATOR,
-            ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
+            EMPTY_DENOTATOR
         );
     }
 
@@ -676,16 +675,15 @@ mod test {
         );
         assert_ok!(ArtiPath, path);
 
-        // An invalid ArtiPath with multiple valid denotators and
-        // an invalid (empty) denotator
+        // An valid ArtiPath with multiple valid denotators and
+        // an empty denotator
         let path = format!(
             "foo/bar/qux+{}+{}+foo+",
             VALID_ARTI_DENOTATORS[0], VALID_ARTI_DENOTATORS[1]
         );
-        assert_err!(
+        assert_ok!(
             ArtiPath,
-            path,
-            ArtiPathSyntaxError::Slug(BadSlug::EmptySlugNotAllowed)
+            path
         );
     }
 
