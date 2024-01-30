@@ -350,6 +350,16 @@ impl StateDirectory {
                 let handle_err =
                     |action, source: ErrorSource| Error::new(source, action, resource());
 
+                // Obtain (creating if necessary) a subdir for a Checked
+                let make_secure_directory = |parent: &CheckedDir, subdir| {
+                    let resource = || Resource::Directory {
+                        dir: parent.as_path().join(subdir),
+                    };
+                    parent
+                        .make_secure_directory(subdir)
+                        .map_err(|source| Error::new(source, Action::Initializing, resource()))
+                };
+
                 // ---- obtain the lock ----
 
                 let lock_path = sd
@@ -374,10 +384,7 @@ impl StateDirectory {
 
                 // ---- we have the lock, calculate the directory (creating it if need be) ----
 
-                let dir = sd
-                    .dir
-                    .make_secure_directory(format!("{kind}+{id}"))
-                    .map_err(|source| handle_err(Action::Initializing, source.into()))?;
+                let dir = make_secure_directory(&sd.dir, &format!("{kind}+{id}"))?;
 
                 Ok(InstanceStateHandle { dir, flock_guard })
             })
