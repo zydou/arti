@@ -67,10 +67,6 @@ pub enum StartupError {
         action: &'static str,
     },
 
-    /// Failed to lock the on-disk state
-    #[error("HS service state locked (concurrent HS service processes are not supported")]
-    StateLocked,
-
     /// Fatal error (during startup)
     #[error("fatal error")]
     Fatal(#[from] FatalError),
@@ -110,7 +106,6 @@ impl HasKind for StartupError {
             E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
-            E::StateLocked => EK::LocalResourceAlreadyInUse,
             E::LoadState(e) => e.kind(),
             E::StateDirectoryInaccessible(e) => e.kind(),
             E::StateDirectoryInaccessibleIo { .. } => EK::PersistentStateAccessFailed,
