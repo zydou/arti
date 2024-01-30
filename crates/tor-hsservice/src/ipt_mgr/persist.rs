@@ -7,7 +7,7 @@ use super::*;
 use crate::time_store;
 
 /// Handle for a suitable persistent storage manager
-pub(crate) type IptStorageHandle = Arc<dyn tor_persist::StorageHandle<StateRecord> + Sync + Send>;
+pub(crate) type IptStorageHandle = tor_persist::state_dir::StorageHandle<StateRecord>;
 
 //---------- On disk data structures, done with serde ----------
 

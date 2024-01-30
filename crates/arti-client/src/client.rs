@@ -22,7 +22,7 @@ use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{error_report, internal, Bug};
 use tor_guardmgr::GuardMgr;
 use tor_netdir::{params::NetParameters, NetDirProvider};
-use tor_persist::{FsStateMgr, StateMgr};
+use tor_persist::{state_dir::StateDirectory, FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 #[cfg(all(
@@ -135,6 +135,7 @@ pub struct TorClient<R: Runtime> {
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
     /// Location on disk where we store persistent data (raw directory).
+    // TODO replace this and storage_mistrust with tor_persist::state_dir::StateDirectory?
     #[cfg(feature = "onion-service-service")]
     state_dir: PathBuf,
     /// Permissions `Mistrust` configuration for all our on-disk storage
@@ -1349,15 +1350,14 @@ impl<R: Runtime> TorClient<R> {
                 action: "launch onion service",
             })?
             .clone();
+        let state_dir = self::StateDirectory::new(&self.state_dir, &self.storage_mistrust)
+            .map_err(ErrorDetail::StateAccess)?;
         let service = tor_hsservice::OnionService::new(
             config,
             // TODO #1186: Allow override of KeyMgr for "ephemeral" operation?
             keymgr,
             // TODO #1186: Allow override of StateMgr for "ephemeral" operation?
-            self.statemgr.clone(),
-            // TODO #1186: Allow override of state_dir for "ephemeral" operation?
-            &self.state_dir,
-            &self.storage_mistrust,
+            &state_dir,
         )
         .map_err(ErrorDetail::LaunchOnionService)?;
         let (service, stream) = service
@@ -1387,11 +1387,11 @@ impl<R: Runtime> TorClient<R> {
         })?;
 
         let (state_dir, mistrust) = Self::state_dir(config)?;
-        let statemgr = FsStateMgr::from_path_and_mistrust(&state_dir, mistrust)
-            .map_err(ErrorDetail::StateMgrSetup)?;
+        let state_dir = self::StateDirectory::new(state_dir, mistrust)
+            .map_err(ErrorDetail::StateAccess)?;
 
         Ok(
-            tor_hsservice::OnionService::new(svc_config, keymgr, statemgr, &state_dir, mistrust)
+            tor_hsservice::OnionService::new(svc_config, keymgr, &state_dir)
                 // TODO: do we need an ErrorDetail::CreateOnionService?
                 .map_err(ErrorDetail::LaunchOnionService)?,
         )

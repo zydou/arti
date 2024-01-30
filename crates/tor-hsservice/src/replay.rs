@@ -21,6 +21,7 @@ use std::{
     sync::Arc,
 };
 use tor_cell::relaycell::msg::Introduce2;
+use tor_persist::state_dir::LockFileGuard;
 
 /// A probabilistic data structure to record fingerprints of observed Introduce2
 /// messages.
@@ -60,7 +61,7 @@ pub(crate) struct PersistFile {
     ///
     /// Must come last so that the drop order is correct
     #[allow(dead_code)] // Held just so we unlock on drop
-    lock: Arc<LockFile>,
+    lock: Arc<LockFileGuard>,
 }
 
 /// A magic string that we put at the start of each log file, to make sure that
@@ -89,7 +90,7 @@ impl ReplayLog {
     /// It is the caller's responsibility to make sure that there are never two
     /// `ReplayLogs` open at once for the same path, or for two paths that
     /// resolve to the same file.
-    pub(crate) fn new_logged(path: impl AsRef<Path>, lock: Arc<LockFile>) -> io::Result<Self> {
+    pub(crate) fn new_logged(path: impl AsRef<Path>, lock: Arc<LockFileGuard>) -> io::Result<Self> {
         let mut file = {
             let mut options = OpenOptions::new();
             options.read(true).write(true).create(true);
@@ -400,7 +401,7 @@ mod test {
 
     fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<ReplayLog> {
         dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
-            let lock = LockFile::open(&dir.join("lock")).unwrap();
+            let lock = LockFileGuard::lock(dir.join("lock")).unwrap();
             // Really ReplayLog::new should take a lock file type that guarantees the
             // returned value has actually been locked.  But it doesn't.  Because
             // the LockFile API is defective and doesn't provide such a type.
@@ -552,8 +553,7 @@ mod test {
 
         test_temp_dir!().used_by(|dir| {
             let path = dir.join("test.log");
-            let mut lock = fslock::LockFile::open(&dir.join("dummy.lock")).unwrap();
-            lock.lock().unwrap(); // for form's sake, we don't really need this
+            let lock = LockFileGuard::lock(dir.join("dummy.lock")).unwrap();
             let lock = Arc::new(lock);
             let mut rl = ReplayLog::new_logged(&path, lock.clone()).unwrap();
 

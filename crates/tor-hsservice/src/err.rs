@@ -46,11 +46,8 @@ pub enum StartupError {
     LoadState(#[source] tor_persist::Error),
 
     /// Unable to access on-disk state
-    // We use fs_mistrust::Error since (1) we use mstrust to make the directory,
-    // so we might have one of those anyway and (2) it has a nice variant for our
-    // own io::Error.
     #[error("Unable to access on-disk state")]
-    StateDirectoryInaccessible(#[source] fs_mistrust::Error),
+    StateDirectoryInaccessible(#[source] tor_persist::Error),
 
     /// Unable to access on-disk state using underlying IO operations
     #[error("Unable to access on-disk state: {action} {}", path.display())]
@@ -115,7 +112,7 @@ impl HasKind for StartupError {
             E::AlreadyLaunched => EK::BadApiUsage,
             E::StateLocked => EK::LocalResourceAlreadyInUse,
             E::LoadState(e) => e.kind(),
-            E::StateDirectoryInaccessible(e) => e.state_error_kind(),
+            E::StateDirectoryInaccessible(e) => e.kind(),
             E::StateDirectoryInaccessibleIo { .. } => EK::PersistentStateAccessFailed,
             E::Fatal(e) => e.kind(),
         }

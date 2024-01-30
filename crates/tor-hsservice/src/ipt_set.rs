@@ -23,7 +23,7 @@ use tor_log_ratelim::log_ratelim;
 use tor_rtcompat::SleepProvider;
 
 /// Handle for a suitable persistent storage manager
-pub(crate) type IptSetStorageHandle = Arc<dyn tor_persist::StorageHandle<StateRecord> + Sync + Send>;
+pub(crate) type IptSetStorageHandle = tor_persist::state_dir::StorageHandle<StateRecord>;
 
 /// Information shared between the IPT manager and the IPT publisher
 ///
