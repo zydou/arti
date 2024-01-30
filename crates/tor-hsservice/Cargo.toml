@@ -47,7 +47,6 @@ derive_more = "0.99.17"
 digest = "0.10.0"
 educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.6" }
-fslock = { version = "0.2.0" }
 futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
 hex = "0.4"

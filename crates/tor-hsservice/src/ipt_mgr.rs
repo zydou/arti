@@ -22,7 +22,6 @@ use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
-use fslock::LockFile;
 use itertools::Itertools as _;
 use postage::{broadcast, watch};
 use rand::Rng;

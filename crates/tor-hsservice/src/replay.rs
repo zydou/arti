@@ -12,7 +12,6 @@
 //! make sure that our replay logs are already persistent.  We do this by using
 //! a file on disk.
 
-use fslock::LockFile;
 use hash::{hash, H, HASH_LEN};
 use std::{
     fs::{File, OpenOptions},
