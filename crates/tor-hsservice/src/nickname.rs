@@ -1,5 +1,6 @@
 //! `HsNickname` module itself is private, but `HsNickname` etc. are re-exported
 
+use std::fmt::{self, Display};
 use std::str::FromStr;
 
 use derive_more::{Display, From, Into};
@@ -69,6 +70,15 @@ impl TryFrom<String> for HsNickname {
 impl AsRef<str> for HsNickname {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
+    }
+}
+
+impl tor_persist::state_dir::InstanceIdentity for HsNickname {
+    fn kind() -> &'static str {
+        "hss"
+    }
+    fn write_identity(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(self, f)
     }
 }
 
