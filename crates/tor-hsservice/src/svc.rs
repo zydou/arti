@@ -594,6 +594,7 @@ pub(crate) mod test {
     }
 
     pub(crate) fn create_storage_handles(
+        _dir: &Path,
     ) -> (tor_persist::TestingStateMgr, IptSetStorageHandle) {
         create_storage_handles_from_state_mgr(tor_persist::TestingStateMgr::new(), &"dummy")
     }

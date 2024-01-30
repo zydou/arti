@@ -552,6 +552,7 @@ mod test {
     use crate::FatalError;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
+    use test_temp_dir::test_temp_dir;
     use tor_rtcompat::BlockOn as _;
 
     fn test_intro_point() -> Ipt {
@@ -596,10 +597,14 @@ mod test {
         // We don't bother with MockRuntime::test_with_various
         // since this test case doesn't spawn tasks
         let runtime = tor_rtmock::MockRuntime::new();
+
+        let temp_dir_owned = test_temp_dir!();
+        let temp_dir = temp_dir_owned.as_path_untracked();
+
         runtime.clone().block_on(async move {
             // make a channel; it should have no updates yet
 
-            let (_state_mgr, iptpub_state_handle) = create_storage_handles();
+            let (_state_mgr, iptpub_state_handle) = create_storage_handles(temp_dir);
             let (mut mv, mut pv) = ipts_channel(&runtime, iptpub_state_handle).unwrap();
             assert!(pv_poll_await_update(&mut pv).await.is_pending());
 
@@ -660,5 +665,7 @@ mod test {
             pv_note_publication_attempt(&runtime, &pv, runtime.now() - Duration::from_secs(10));
             assert_eq!(mv_get_0_expiry(&mut mv), expected_expiry);
         });
+
+        drop(temp_dir_owned); // prove it's still live
     }
 }
