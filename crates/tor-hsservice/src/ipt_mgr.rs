@@ -108,10 +108,6 @@ pub(crate) struct Immutable<R> {
     /// its status updates to arrive, appropriately tagged, via `status_recv`
     status_send: mpsc::Sender<(IptLocalId, IptStatus)>,
 
-    /// The on-disk state storage handle.
-    #[educe(Debug(ignore))]
-    storage: IptStorageHandle,
-
     /// The key manager.
     #[educe(Debug(ignore))]
     keymgr: Arc<KeyMgr>,
@@ -173,6 +169,10 @@ pub(crate) struct State<R, M> {
 
     /// Signal for us to shut down
     shutdown: broadcast::Receiver<Void>,
+
+    /// The on-disk state storage handle.
+    #[educe(Debug(ignore))]
+    storage: IptStorageHandle,
 
     /// Mockable state, normally [`Real`]
     ///
@@ -617,7 +617,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_send,
             output_rend_reqs,
             keymgr,
-            storage,
             replay_log_dir,
             replay_log_lock,
             status_tx,
@@ -628,6 +627,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             current_config,
             new_configs: config,
             status_recv,
+            storage,
             mockable,
             shutdown,
             irelays,
@@ -649,6 +649,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         assert!(self.state.irelays.is_empty());
         self.state.irelays = persist::load(
             &self.imm,
+            &self.state.storage,
             &self.state.new_configs,
             &mut self.state.mockable,
             &publisher.borrow_for_read(),
@@ -1290,7 +1291,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         //---------- store persistent state ----------
 
-        persist::store(&self.imm, &self.state)?;
+        persist::store(&self.imm, &mut self.state)?;
 
         Ok(())
     }

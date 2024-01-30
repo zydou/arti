@@ -46,7 +46,7 @@ struct IptRecord {
 /// Store the IPTs in the persistent state
 pub(super) fn store<R: Runtime, M: Mockable<R>>(
     imm: &Immutable<R>,
-    state: &State<R, M>,
+    state: &mut State<R, M>,
 ) -> Result<(), IptStoreError> {
     let tstoring = time_store::Storing::start(&imm.runtime);
 
@@ -81,7 +81,7 @@ pub(super) fn store<R: Runtime, M: Mockable<R>>(
         ipt_relays,
         stored: tstoring.store_ref(),
     };
-    imm.storage.store(&on_disk)?;
+    state.storage.store(&on_disk)?;
     Ok(())
 }
 
@@ -92,11 +92,12 @@ pub(super) fn store<R: Runtime, M: Mockable<R>>(
 /// `publish_set` should already have been loaded from its persistent state.
 pub(super) fn load<R: Runtime, M: Mockable<R>>(
     imm: &Immutable<R>,
+    storage: &IptStorageHandle,
     config: &watch::Receiver<Arc<OnionServiceConfig>>,
     mockable: &mut M,
     publish_set: &PublishIptSet,
 ) -> Result<Vec<IptRelay>, StartupError> {
-    let on_disk = imm.storage.load().map_err(StartupError::LoadState)?;
+    let on_disk = storage.load().map_err(StartupError::LoadState)?;
 
     let Some(on_disk) = on_disk else {
         return Ok(vec![]);
