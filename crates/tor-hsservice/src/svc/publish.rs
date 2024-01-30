@@ -8,7 +8,7 @@ use futures::task::SpawnExt;
 use postage::watch;
 use std::sync::Arc;
 use tor_keymgr::KeyMgr;
-use tracing::warn;
+use tracing::debug;
 
 use tor_error::warn_report;
 use tor_netdir::NetDirProvider;
@@ -114,7 +114,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         runtime
             .spawn(async move {
                 match reactor.run().await {
-                    Ok(()) => warn!("the publisher reactor has shut down"),
+                    Ok(()) => debug!("the publisher reactor has shut down"),
                     Err(e) => warn_report!(e, "the publisher reactor has shut down"),
                 }
             })
