@@ -221,7 +221,7 @@ pub type Result<T> = StdResult<T, Error>;
 /// since the automatic file cleaner might remove an in-use lockfile,
 /// effectively unlocking the instance state
 /// even while a process exists that thinks it still has the lock.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StateDirectory {
     /// The actual directory, including mistrust config
     dir: CheckedDir,
@@ -293,7 +293,7 @@ pub trait InstancePurgeHandler {
 }
 
 /// Information about an instance, passed to [`InstancePurgeHandler::dispose`]
-#[derive(amplify::Getters, AsRef)]
+#[derive(Debug, Clone, amplify::Getters, AsRef)]
 pub struct InstancePurgeInfo<'i> {
     /// The instance's identity string
     #[as_ref]
@@ -617,7 +617,7 @@ impl StateDirectory {
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
 // unless it returned a Drop newtype around CheckedDir).
-#[derive(Debug, Adhoc)]
+#[derive(Debug, Clone, Adhoc)]
 #[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct InstanceStateHandle {
     /// The directory
@@ -735,7 +735,7 @@ impl InstanceStateHandle {
 /// Rust mutability-xor-sharing rules enforce proper synchronisation,
 /// unless multiple `StorageHandle`s are created
 /// using the same [`InstanceStateHandle`] and slug.
-#[derive(Adhoc)]
+#[derive(Adhoc, Debug)] // not Clone, to enforce mutability rules (see above)
 #[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct StorageHandle<T> {
     /// The directory and leafname
@@ -807,7 +807,7 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
 /// If you need to manage the lock, and the directory path, separately,
 /// [`raw_lock_guard`](ContainsInstanceStateGuard::raw_lock_guard)
 ///  will help.
-#[derive(Deref, Clone, Adhoc)]
+#[derive(Deref, Clone, Debug, Adhoc)]
 #[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct InstanceRawSubdir {
     /// The actual directory, as a [`fs_mistrust::CheckedDir`]
