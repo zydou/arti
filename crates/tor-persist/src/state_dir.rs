@@ -712,8 +712,11 @@ pub struct StorageHandle<T> {
     instance_dir: CheckedDir,
     /// `SLUG.json`
     leafname: String,
-    /// We're not sync, and we can load and store a `T`
-    marker: PhantomData<Cell<T>>,
+    /// We can load and store a `T`.
+    ///
+    /// Invariant in `T`.  But we're `Sync` and `Send` regardless of `T`.
+    /// (From the Table of PhantomData patterns in the Nomicon.)
+    marker: PhantomData<fn(T) -> T>,
     /// Clone of the InstanceStateHandle's lock
     flock_guard: Arc<LockFileGuard>,
 }
