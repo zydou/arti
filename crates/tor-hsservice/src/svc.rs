@@ -452,48 +452,47 @@ fn maybe_generate_hsid(
 
     let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
 
+    let kp = keymgr
+        .get::<HsIdKeypair>(&hsid_spec)
+        .map_err(|cause| StartupError::Keystore {
+            action: "read",
+            cause,
+        })?;
 
-        let kp = keymgr
-            .get::<HsIdKeypair>(&hsid_spec)
-            .map_err(|cause| StartupError::Keystore {
-                action: "read",
-                cause,
-            })?;
+    // TODO (#1106): make this configurable
+    let selector = KeystoreSelector::Default;
+    let mut rng = rand::thread_rng();
+    let (keypair, generated) = match kp {
+        Some(kp) => (kp, false),
+        None => {
+            // Note: there is a race here. If the HsId is generated through some other means
+            // (e.g. via the CLI) at some point between the time we looked up the keypair and
+            // now, we will return an error.
+            let kp = keymgr
+                .generate::<HsIdKeypair>(&hsid_spec, selector, &mut rng, false /* overwrite */)
+                .map_err(|cause| StartupError::Keystore {
+                    action: "generate",
+                    cause,
+                })?;
 
-        // TODO (#1106): make this configurable
-        let selector = KeystoreSelector::Default;
-        let mut rng = rand::thread_rng();
-        let (keypair, generated) = match kp {
-            Some(kp) => (kp, false),
-            None => {
-                // Note: there is a race here. If the HsId is generated through some other means
-                // (e.g. via the CLI) at some point between the time we looked up the keypair and
-                // now, we will return an error.
-                let kp = keymgr
-                    .generate::<HsIdKeypair>(&hsid_spec, selector, &mut rng, false /* overwrite */)
-                    .map_err(|cause| StartupError::Keystore {
-                        action: "generate",
-                        cause,
-                    })?;
-
-                (kp, true)
-            }
-        };
-
-        let hsid: HsId = HsIdKey::from(&keypair).id();
-        if generated {
-            info!(
-                "Generated a new identity for service {nickname}: {}",
-                sensitive(hsid)
-            );
-        } else {
-            // TODO: We may want to downgrade this to trace once we have a CLI
-            // for extracting it.
-            info!(
-                "Using existing identity for service {nickname}: {}",
-                sensitive(hsid)
-            );
+            (kp, true)
         }
+    };
+
+    let hsid: HsId = HsIdKey::from(&keypair).id();
+    if generated {
+        info!(
+            "Generated a new identity for service {nickname}: {}",
+            sensitive(hsid)
+        );
+    } else {
+        // TODO: We may want to downgrade this to trace once we have a CLI
+        // for extracting it.
+        info!(
+            "Using existing identity for service {nickname}: {}",
+            sensitive(hsid)
+        );
+    }
 
     Ok(())
 }
@@ -630,10 +629,7 @@ pub(crate) mod test {
 
             maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
 
-            let keypair = keymgr
-                .get::<HsIdKeypair>(&hsid_spec)
-                .unwrap()
-                .unwrap();
+            let keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
             let pk: HsIdKey = (&keypair).into();
 
             assert_eq!(pk.as_ref(), existing_hsid_public.as_ref());
