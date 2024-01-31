@@ -258,7 +258,9 @@ pub fn check_syntax(s: &str) -> Result<(), BadSlug> {
 
     // check legal character set
     for c in s.chars() {
-        if c.is_ascii_alphanumeric() {
+        if c.is_ascii_lowercase() {
+            Ok(())
+        } else if c.is_ascii_digit() {
             Ok(())
         } else if c == '_' || c == '-' {
             Ok(())
@@ -419,6 +421,7 @@ mod test {
             "-",
             "character '-' (U+002D) is not allowed as the first character",
         );
+        chk("A", "character 'A' (U+0041) is not allowed");
     }
 
     #[test]
