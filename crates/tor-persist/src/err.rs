@@ -72,6 +72,9 @@ pub(crate) enum Action {
     /// We were trying to validate the storage and initialize the manager.
     #[display(fmt = "constructing storage manager")]
     Initializing,
+    /// We were trying to enumerate state objects
+    #[display(fmt = "enumerating stater")]
+    Enumerating,
 }
 
 /// An underlying error manipulating persistent state.

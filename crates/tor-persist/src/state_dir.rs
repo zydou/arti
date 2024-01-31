@@ -146,8 +146,10 @@
 #![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
 
 use std::cell::Cell;
+use std::collections::HashSet;
 use std::fmt::{self, Display};
-use std::fs;
+use std::fs::{self, DirEntry};
+use std::io;
 use std::iter;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -156,6 +158,7 @@ use std::time::{Duration, SystemTime};
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::{AsRef, Deref, Into};
+use itertools::{chain, Itertools};
 use serde::{de::DeserializeOwned, Serialize};
 use void::Void;
 
@@ -478,11 +481,71 @@ impl StateDirectory {
     /// on different instances,
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
-    #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
-    #[allow(unreachable_code)] // TODO HSS remove
+    ///
+    /// It *is* guaranteed to list each instance only once.
     pub fn list_instances<I: InstanceIdentity>(&self) -> impl Iterator<Item = Result<Slug>> {
-        todo!();
-        iter::empty()
+        self.list_instances_inner(I::kind())
+    }
+
+    /// List the instances of a kind, where the kind is supplied as a value
+    ///
+    /// Used by `list_instances` and `purge_instances`.
+    ///
+    /// *Includes* instances that exists only as a stale lockfile.
+    #[allow(clippy::blocks_in_conditions)] // TODO #1176 this wants to be global
+    #[allow(clippy::redundant_closure_call)] // false positive, re handle_err
+    fn list_instances_inner(&self, kind: &'static str) -> impl Iterator<Item = Result<Slug>> {
+        // We collect the output into these
+        let mut out = HashSet::new();
+        let mut errs = Vec::new();
+
+        // Error handling
+
+        let resource = || Resource::InstanceState {
+            state_dir: self.dir.as_path().into(),
+            kind: kind.into(),
+            identity: "*".into(),
+        };
+
+        /// `fn handle_err!()(source: impl Into<ErrorSource>) -> Error`
+        //
+        // (Generic, so can't be a closure.  Uses local bindings, so can't be a fn.)
+        macro_rules! handle_err { { } => {
+            |source| Error::new(source, Action::Enumerating, resource())
+        } }
+
+        // Obtain an iterator of Result<DirEntry>
+        match (|| {
+            let kind = SlugRef::new(kind).map_err(handle_err!())?;
+            self.dir.read_directory(kind).map_err(handle_err!())
+        })() {
+            Err(e) => errs.push(e),
+            Ok(ents) => {
+                for ent in ents {
+                    match ent {
+                        Err(e) => errs.push(handle_err!()(e)),
+                        Ok(ent) => {
+                            // Actually handle a directory entry!
+
+                            let Some(id) = (|| {
+                                // look for either SLUG or SLUG.lock
+                                let id = ent.file_name();
+                                let id = id.to_str()?; // ignore non-UTF-8
+                                let id = id.strip_suffix(".lock").unwrap_or(id);
+                                let id = SlugRef::new(id).ok()?; // ignore other things
+                                Some(id.to_owned())
+                            })() else {
+                                continue;
+                            };
+
+                            out.insert(id);
+                        }
+                    }
+                }
+            }
+        }
+
+        chain!(errs.into_iter().map(Err), out.into_iter().map(Ok),)
     }
 
     /// Delete instances according to selections made by the caller
