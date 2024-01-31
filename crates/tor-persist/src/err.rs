@@ -198,3 +198,41 @@ impl From<fs_mistrust::Error> for ErrorSource {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use std::io;
+    use tor_error::ErrorReport as _;
+
+    #[test]
+    fn error_display() {
+        assert_eq!(
+            Error::new(
+                io::Error::from(io::ErrorKind::PermissionDenied),
+                Action::Initializing,
+                Resource::InstanceState {
+                    state_dir: "/STATE_DIR".into(),
+                    kind: "KIND".into(),
+                    identity: "IDENTY".into(),
+                }
+            )
+            .report()
+            .to_string(),
+            r#"error: IO error while constructing storage manager on instance "KIND"/"IDENTY" in /STATE_DIR: permission denied"#
+        );
+    }
+}
