@@ -17,18 +17,16 @@ use tor_hscrypto::pk::HsIdKeypair;
 use tor_keymgr::KeyMgr;
 use tor_keymgr::KeystoreSelector;
 use tor_llcrypto::pk::curve25519;
-use tor_llcrypto::pk::ed25519;
 use tor_netdir::NetDirProvider;
 use tor_persist::state_dir::StateDirectory;
 use tor_rtcompat::Runtime;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
 use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
 use crate::svc::publish::Publisher;
 use crate::HsIdKeypairSpecifier;
-use crate::HsIdPublicKeySpecifier;
 use crate::HsNickname;
 use crate::OnionServiceConfig;
 use crate::RendRequest;
@@ -441,74 +439,48 @@ impl RunningOnionService {
 }
 
 /// Generate the identity key of the service, unless it already exists or `offline_hsid` is `true`.
+//
+// TODO (#1194): we don't support offline_hsid yet.
 fn maybe_generate_hsid(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
     offline_hsid: bool,
 ) -> Result<(), StartupError> {
+    if offline_hsid {
+        unimplemented!("offline hsid mode");
+    }
+
     let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
-    let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
-    let has_hsid_kp = keymgr
-        .get::<HsIdKeypair>(&hsid_spec)
-        .map_err(|cause| StartupError::Keystore {
-            action: "read",
-            cause,
-        })?
-        .is_some();
 
-    let has_hsid_pub = keymgr
-        .get::<HsIdKey>(&pub_hsid_spec)
-        .map_err(|cause| StartupError::Keystore {
-            action: "read",
-            cause,
-        })?
-        .is_some();
-
-    // If KS_hs_id is missing (and not stored offline), generate a new keypair.
-    //
-    // TODO (#1230): if the hsid is missing but the service key directory exists, should we remove
-    // any preexisting keys from it?
-    if !offline_hsid {
-        if !has_hsid_kp && has_hsid_pub {
-            // The hsid keypair is missing, but the hsid public key is not, so we can't
-            // generate a fresh keypair. We also cannot proceed, because the hsid is not
-            // supposed to be offline
-            warn!("offline_hsid is false, but KS_hs_id missing!");
-
-            return Err(StartupError::KeystoreCorrupted);
-        }
-
-        // TODO HSS: make the selector configurable
-        let keystore_sel = KeystoreSelector::Default;
-        let mut rng = rand::thread_rng();
-
-        // NOTE: KeyMgr::generate will generate a new hsid keypair and corresponding public
-        // key.
-        let generated = keymgr
-            .generate_with_derived::<HsIdKeypair, ed25519::PublicKey>(
-                &hsid_spec,
-                &pub_hsid_spec,
-                keystore_sel,
-                |sk| *sk.public(),
-                &mut rng,
-                false, /* overwrite */
-            )
-            .map_err(|cause| StartupError::Keystore {
-                action: "generate key",
-                cause,
-            })?
-            .is_some();
-
-        let pk = keymgr
-            .get::<HsIdKey>(&pub_hsid_spec)
+        let kp = keymgr
+            .get::<HsIdKeypair>(&hsid_spec)
             .map_err(|cause| StartupError::Keystore {
                 action: "read",
                 cause,
-            })?
-            .ok_or(StartupError::KeystoreCorrupted)?;
+            })?;
 
-        let hsid: HsId = pk.id();
+        // TODO (#1106): make this configurable
+        let selector = KeystoreSelector::Default;
+        let mut rng = rand::thread_rng();
+        let (keypair, generated) = match kp {
+            Some(kp) => (kp, false),
+            None => {
+                // Note: there is a race here. If the HsId is generated through some other means
+                // (e.g. via the CLI) at some point between the time we looked up the keypair and
+                // now, we will return an error.
+                let kp = keymgr
+                    .generate::<HsIdKeypair>(&hsid_spec, selector, &mut rng, false /* overwrite */)
+                    .map_err(|cause| StartupError::Keystore {
+                        action: "generate",
+                        cause,
+                    })?;
+
+                (kp, true)
+            }
+        };
+
+        let hsid: HsId = HsIdKey::from(&keypair).id();
         if generated {
             info!(
                 "Generated a new identity for service {nickname}: {}",
@@ -522,7 +494,6 @@ fn maybe_generate_hsid(
                 sensitive(hsid)
             );
         }
-    }
 
     Ok(())
 }
@@ -550,6 +521,7 @@ pub(crate) mod test {
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
+    use tor_llcrypto::pk::ed25519;
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::IptSetStorageHandle;
@@ -631,15 +603,10 @@ pub(crate) mod test {
 
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname);
 
+        assert!(keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().is_none());
         maybe_generate_hsid!(keymgr, false /* offline_hsid */);
-
-        let hsid_public = keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().unwrap();
-        let hsid_keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
-
-        let keypair: ed25519::ExpandedKeypair = hsid_keypair.into();
-        assert_eq!(hsid_public.as_ref(), keypair.public());
+        assert!(keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().is_some());
     }
 
     #[test]
@@ -655,41 +622,26 @@ pub(crate) mod test {
             // Insert the preexisting hsid keypair.
             let (existing_hsid_keypair, existing_hsid_public) = create_hsid();
             let existing_keypair: ed25519::ExpandedKeypair = existing_hsid_keypair.into();
-            // Expanded keypairs are not clone, so we have to extract the private key bytes here to use
-            // them in an assertion that comes after the insert()
-            let existing_keypair_secret = existing_keypair.to_secret_key_bytes();
-
             let existing_hsid_keypair = HsIdKeypair::from(existing_keypair);
 
             keymgr
                 .insert(existing_hsid_keypair, &hsid_spec, KeystoreSelector::Default)
                 .unwrap();
 
-            // Maybe the public key already exists too (in which case maybe_generate_hsid
-            // doesn't need to insert it into the keystore).
-            if hsid_pub_missing {
-                keymgr
-                    .insert(
-                        existing_hsid_public.clone(),
-                        &pub_hsid_spec,
-                        KeystoreSelector::Default,
-                    )
-                    .unwrap();
-            }
             maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
 
-            let hsid_public = keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().unwrap();
-            let hsid_keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
+            let keypair = keymgr
+                .get::<HsIdKeypair>(&hsid_spec)
+                .unwrap()
+                .unwrap();
+            let pk: HsIdKey = (&keypair).into();
 
-            let keypair: ed25519::ExpandedKeypair = hsid_keypair.into();
-
-            // The keypair was not overwritten. The public key matches the existing keypair.
-            assert_eq!(hsid_public.as_ref(), existing_hsid_public.as_ref());
-            assert_eq!(keypair.to_secret_key_bytes(), existing_keypair_secret);
+            assert_eq!(pk.as_ref(), existing_hsid_public.as_ref());
         }
     }
 
     #[test]
+    #[ignore] // TODO (#1194): Revisit when we add support for offline hsid mode
     fn generate_hsid_offline_hsid() {
         let temp_dir = test_temp_dir!();
         let keymgr = create_keymgr(&temp_dir);
@@ -705,25 +657,7 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn generate_hsid_missing_keypair() {
-        let temp_dir = test_temp_dir!();
-        let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
-
-        let keymgr = create_keymgr(&temp_dir);
-
-        let (_hsid_keypair, hsid_public) = create_hsid();
-
-        keymgr
-            .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Default)
-            .unwrap();
-
-        // We're running with an online hsid, but the keypair is missing! The public part
-        // of the key exists in the keystore, so we can't generate a new keypair.
-        assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).is_err());
-    }
-
-    #[test]
+    #[ignore] // TODO (#1194): Revisit when we add support for offline hsid mode
     fn generate_hsid_corrupt_keystore() {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
