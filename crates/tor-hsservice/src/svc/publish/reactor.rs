@@ -892,22 +892,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), period);
 
-                // TODO (#1106): make this configurable
-                let keystore_selector = Default::default();
-                let blind_id_kp = self
-                    .imm
-                    .keymgr
-                    .get_or_generate_with_derived::<HsBlindIdKeypair>(
-                        &svc_key_spec,
-                        keystore_selector,
-                        || {
-                            let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
-                                .compute_blinded_key(period)
-                                .map_err(|_| internal!("failed to compute blinded key"))?;
-
-                            Ok(hs_blind_id_kp)
-                        },
-                    )?;
+                let blind_id_kp =
+                    read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)?
+                        // Note: for now, read_blind_id_keypair cannot return Ok(None).
+                        // It's supposed to return Ok(None) if we're in offline hsid mode,
+                        // but that might change when we do #1194
+                        .ok_or_else(|| internal!("offline hsid mode not supported"))?;
 
                 let blind_id: HsBlindIdKey = (&blind_id_kp).into();
 
