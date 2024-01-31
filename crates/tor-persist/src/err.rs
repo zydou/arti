@@ -36,7 +36,7 @@ pub(crate) enum Resource {
     },
     /// An instance state directory
     #[display(
-        fmt = "instance {}/{} in {}",
+        fmt = "instance {:?}/{:?} in {}",
         "kind",
         "identity",
         "state_dir.anonymize_home()"
