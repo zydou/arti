@@ -745,9 +745,7 @@ impl<R: Runtime> DirMgr<R> {
 
     /// Get a reference to the circuit manager, if we have one.
     fn circmgr(&self) -> Result<Arc<CircMgr<R>>> {
-        self.circmgr
-            .clone()
-            .ok_or(Error::NoDownloadSupport)
+        self.circmgr.clone().ok_or(Error::NoDownloadSupport)
     }
 
     /// Try to change our configuration to `new_config`.
