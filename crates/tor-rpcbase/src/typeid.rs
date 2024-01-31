@@ -85,6 +85,7 @@ mod test {
 
     use assert_impl::assert_impl;
 
+    #[allow(dead_code)]
     struct Foo(usize);
     struct Bar {}
 

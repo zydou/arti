@@ -330,7 +330,7 @@ impl ObjMap {
     pub(crate) fn lookup(&self, idx: GenIdx) -> Option<Arc<dyn rpc::Object>> {
         match idx {
             GenIdx::Weak(idx) => self.weak_arena.get(idx).and_then(WeakArenaEntry::strong),
-            GenIdx::Strong(idx) => self.strong_arena.get(idx).map(Arc::clone),
+            GenIdx::Strong(idx) => self.strong_arena.get(idx).cloned(),
         }
     }
 

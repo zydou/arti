@@ -35,6 +35,7 @@ enum Possibly<T> {
     /// The value was deserialized as expected.
     Good(T),
     /// The value could not be deserialized as expected.
+    #[allow(dead_code)] // deserialize the Value; we may use it for error reporting some day
     Bad(serde_json::Value),
 }
 

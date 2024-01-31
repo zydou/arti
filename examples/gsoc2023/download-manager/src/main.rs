@@ -360,6 +360,7 @@ async fn main() -> anyhow::Result<()> {
     let mut fd = OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(&download_file_name)?;
     debug!("Created file, now writing downloaded content to disk...");
     fd.write_all(&file_vec)?;
