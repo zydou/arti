@@ -23,6 +23,10 @@ pub enum Error {
     #[error("{0}")]
     Keystore(#[from] Arc<dyn KeystoreError>),
 
+    /// An error returned when the [`KeyMgr`] is asked to generate a key that already exists.
+    #[error("Key already exists")]
+    KeyAlreadyExists,
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -42,6 +46,7 @@ impl HasKind for Error {
         match self {
             E::Keystore(e) => e.kind(),
             E::Corruption(_) => EK::KeystoreCorrupted,
+            E::KeyAlreadyExists => EK::BadApiUsage, // TODO: not strictly right
             E::Bug(e) => e.kind(),
         }
     }
