@@ -769,12 +769,12 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
 
         let lifetime_low = netdir
             .params()
-            .hs_intro_lifetime_min
+            .hs_intro_min_lifetime
             .try_into()
             .expect("Could not convert param to duration.");
         let lifetime_high = netdir
             .params()
-            .hs_intro_lifetime_max
+            .hs_intro_max_lifetime
             .try_into()
             .expect("Could not convert param to duration.");
         let lifetime_range: std::ops::RangeInclusive<Duration> = lifetime_low..=lifetime_high;
