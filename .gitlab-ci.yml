@@ -179,6 +179,8 @@ rust-nightly:
     - cargo clean
 
 coverage:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
   image: rust:bookworm
   script:
