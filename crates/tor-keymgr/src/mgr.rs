@@ -21,8 +21,7 @@ use tor_error::{bad_api_usage, internal};
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
 ///
-/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type),
-/// [`get_or_generate_with_derived`](KeyMgr::get_or_generate_with_derived) -
+/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type) -
 /// search the configured key stores in order: first the default key store,
 /// and then the secondary stores, in order.
 ///
@@ -131,40 +130,6 @@ impl KeyMgr {
         key_type: &KeyType,
     ) -> Result<Option<K>> {
         self.get_from_store(key_spec, key_type, self.all_stores())
-    }
-
-    /// Read the key identified by `key_spec`.
-    ///
-    /// The key returned is retrieved from the first key store that contains an entry for the given
-    /// specifier.
-    ///
-    /// If the requested key does not exist in any of the key stores, this generates a new key of
-    /// type `K` computed using the provided `derive` function and inserts it into the specified
-    /// keystore, returning the newly inserted value.
-    pub fn get_or_generate_with_derived<K: ToEncodableKey>(
-        &self,
-        key_spec: &dyn KeySpecifier,
-        selector: KeystoreSelector,
-        derive: impl FnOnce() -> Result<K>,
-    ) -> Result<K> {
-        let key_type = K::Key::key_type();
-
-        match self.get_from_store(key_spec, &key_type, self.all_stores())? {
-            Some(key) => Ok(key),
-            None => {
-                let key = derive()?;
-
-                self.insert(key, key_spec, selector)?;
-                // The key is not Clone so we have to look it up to return it.
-                let key = self
-                    .get_from_store(key_spec, &key_type, self.all_stores())?
-                    .ok_or_else(|| internal!("key is missing but we've just inserted it?!"))?;
-
-                // TODO: assert the key was retrieved from the keystore we put it in?
-
-                Ok(key)
-            }
-        }
     }
 
     /// Read the key identified by `key_spec`.
@@ -839,28 +804,6 @@ mod tests {
             "generated_test_key".to_string()
         );
 
-        // The key already exists in keystore 2 so it won't be auto-generated.
-        assert_eq!(
-            mgr.get_or_generate_with_derived::<TestKey>(
-                &TestKeySpecifier1,
-                KeystoreSelector::Default,
-                || Ok("turtle_dove".to_string())
-            )
-            .unwrap(),
-            "keystore2_coot".to_string()
-        );
-
-        // This key doesn't exist in any of the keystores, so it will be auto-generated and
-        // inserted into the default keystore.
-        assert_eq!(
-            mgr.get_or_generate_with_derived::<TestKey>(
-                &TestKeySpecifier3,
-                KeystoreSelector::Default,
-                || Ok("rock_dove".to_string())
-            )
-            .unwrap(),
-            "keystore1_rock_dove".to_string()
-        );
 
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
