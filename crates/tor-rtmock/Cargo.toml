@@ -30,7 +30,7 @@ tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-error = { version = "0.6.0", path = "../tor-error", features = ["tracing"] }
 tor-rtcompat = { version = "0.9.7", path = "../tor-rtcompat" }
 tracing = "0.1.36"
-tracing-test = "0.2"
+tracing-test = "0.2.2"
 void = "1"
 
 [dev-dependencies]
