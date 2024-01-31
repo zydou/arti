@@ -9,7 +9,7 @@
 //! We may extend this to allow additional characters in the future,
 //! but /, +, and . (the slug separators) will never be valid slug characters.
 //!
-//! Slugs may not be empty.
+//! Slugs may not be empty, and they may not start with a hyphen.
 //!
 //! Slugs can be concatenated to build file names.
 //! When concatenating slugs to make filenames,
