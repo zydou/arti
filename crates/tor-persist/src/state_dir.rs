@@ -268,7 +268,7 @@ pub trait InstancePurgeHandler {
     /// Decide whether to keep this instance
     ///
     /// When it has made its decision, `dispose` should
-    /// either call [`delete`](InstanceStateHandle::delete),
+    /// either call [`delete`](InstanceStateHandle::purge),
     /// or simply drop `handle`.
     ///
     /// Called only after `name_filter` returned [`Liveness::PossiblyUnused`]
