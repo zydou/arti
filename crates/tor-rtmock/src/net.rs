@@ -215,7 +215,7 @@ impl MockNetwork {
     ) -> IoResult<Option<Vec<u8>>> {
         let entry = {
             let listener_map = self.listening.lock().expect("Poisoned lock for listener");
-            listener_map.get(&target_addr).map(Clone::clone)
+            listener_map.get(&target_addr).cloned()
         };
         match entry {
             Some(AddrBehavior::Listener(mut entry)) => {

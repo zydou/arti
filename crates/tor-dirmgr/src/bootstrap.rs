@@ -444,7 +444,7 @@ async fn download_attempt<R: Runtime>(
     let fetched = fetch_multiple(Arc::clone(dirmgr), attempt_id, &missing, parallelism).await?;
     let mut n_errors = 0;
     for (client_req, dir_response) in fetched {
-        let source = dir_response.source().map(Clone::clone);
+        let source = dir_response.source().cloned();
         let text = match String::from_utf8(dir_response.into_output_unchecked())
             .map_err(Error::BadUtf8FromDirectory)
         {
