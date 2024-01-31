@@ -22,7 +22,9 @@ use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{error_report, internal, Bug};
 use tor_guardmgr::GuardMgr;
 use tor_netdir::{params::NetParameters, NetDirProvider};
-use tor_persist::{state_dir::StateDirectory, FsStateMgr, StateMgr};
+#[cfg(feature = "onion-service-service")]
+use tor_persist::state_dir::StateDirectory;
+use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 #[cfg(all(
