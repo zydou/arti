@@ -334,7 +334,7 @@ impl StateDirectory {
 
     /// Acquires (creates and locks) a storage for an instance
     ///
-    /// Ensures the existence and suitability of a subdirectory named `kind_identity`,
+    /// Ensures the existence and suitability of a subdirectory named `kind/identity`,
     /// and locks it for exclusive access.
     pub fn acquire_instance<I: InstanceIdentity>(
         &self,
