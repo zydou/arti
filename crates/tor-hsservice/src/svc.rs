@@ -613,9 +613,6 @@ pub(crate) mod test {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
-        let pub_hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
-
-        for hsid_pub_missing in [false, true] {
             let keymgr = create_keymgr(&temp_dir);
 
             // Insert the preexisting hsid keypair.
@@ -633,7 +630,6 @@ pub(crate) mod test {
             let pk: HsIdKey = (&keypair).into();
 
             assert_eq!(pk.as_ref(), existing_hsid_public.as_ref());
-        }
     }
 
     #[test]
