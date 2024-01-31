@@ -59,11 +59,14 @@ mod persist;
 pub(crate) use persist::IptStorageHandle;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
-// TODO #1210 IPT_PUBLISH_UNCERTAIN configure? get from netdir?
-const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(30 * 60); // 30 mins
+///
+/// (Note that we use the same value in both cases, since it doesn't actually do
+/// much good to have a short expiration time. This expiration time only affects
+/// caches, and we can supersede an old descriptor just by publishing it. Thus,
+/// we pick a uniform publication time as done by the C tor implementation.)
+const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(3 * 60 * 60); // 3 hours
 /// Expiry time to put on a final descriptor (IPT publication set Certain
-// TODO #1210 IPT_PUBLISH_CERTAIN configure? get from netdir?
-const IPT_PUBLISH_CERTAIN: Duration = Duration::from_secs(12 * 3600); // 12 hours
+const IPT_PUBLISH_CERTAIN: Duration = IPT_PUBLISH_UNCERTAIN;
 
 /// IPT Manager (for one hidden service)
 #[derive(Educe)]
@@ -764,9 +767,21 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
             })
             .ok_or(ChooseIptError::TooFewUsableRelays)?;
 
+        let lifetime_low = netdir
+            .params()
+            .hs_intro_min_lifetime
+            .try_into()
+            .expect("Could not convert param to duration.");
+        let lifetime_high = netdir
+            .params()
+            .hs_intro_max_lifetime
+            .try_into()
+            .expect("Could not convert param to duration.");
+        let lifetime_range: std::ops::RangeInclusive<Duration> = lifetime_low..=lifetime_high;
         let retirement = rng
-            .gen_range_checked(self.current_config.ipt_relay_rotation_time())
-            .ok_or_else(|| internal!("IPT_RELAY_ROTATION_TIME range was empty!"))?;
+            .gen_range_checked(lifetime_range)
+            // If the range from the consensus is invalid, just pick the high-bound.
+            .unwrap_or(lifetime_high);
         let retirement = now
             .checked_add(retirement)
             .ok_or(ChooseIptError::TimeOverflow)?;
@@ -1189,13 +1204,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 })
                 .min()?;
 
-            // TODO #1210 is this the right guess for IPT establishment?
+            // Rationale:
             // we could use circuit timings etc., but arguably the actual time to establish
             // our fastest IPT is a better estimator here (and we want an optimistic,
             // rather than pessimistic estimate).
             //
-            // TODO #1210 fastest_good_establish_time factor 1 should be tuneable
-            let wait_more = fastest_good_establish_time;
+            // This algorithm has potential to publish too early and frequently,
+            // but our overall rate-limiting should keep it from getting out of hand.
+            //
+            // TODO: We might want to make this "1" tuneable, and/or tune the
+            // algorithm as a whole based on experience.
+            let wait_more = fastest_good_establish_time * 1;
             let very_recently = fastest_good_establish_time.checked_add(wait_more)?;
 
             let very_recently = now.checked_sub(very_recently)?;
@@ -1546,9 +1565,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
     /// Maximum number of concurrent intro point relays
     pub(crate) fn max_n_intro_relays(&self) -> usize {
-        // TODO #1210 max_n_intro_relays should be configurable
-        // TODO #1210 consider default, in context of intro point forcing attacks
-        self.target_n_intro_points() * 2
+        let params = self.imm.dirprovider.params();
+        let num_extra = (*params).as_ref().hs_intro_num_extra_intropoints.get() as usize;
+        self.target_n_intro_points() + num_extra
     }
 }
 
@@ -1885,7 +1904,7 @@ mod test {
             match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), 1);
-                    assert_eq!(pub_view.lifetime, ms(30 * 60 * 1000));
+                    assert_eq!(pub_view.lifetime, IPT_PUBLISH_UNCERTAIN);
                 }
             };
 
@@ -1899,7 +1918,7 @@ mod test {
             match m.pub_view.borrow_for_publish().ipts.as_mut().unwrap() {
                 pub_view => {
                     assert_eq!(pub_view.ipts.len(), EXPECT_N_IPTS);
-                    assert_eq!(pub_view.lifetime, ms(12 * 3600 * 1000));
+                    assert_eq!(pub_view.lifetime, IPT_PUBLISH_CERTAIN);
                 }
             };
 

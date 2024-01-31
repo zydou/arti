@@ -149,9 +149,12 @@ pub(crate) type Ipt = tor_netdoc::doc::hsdesc::IntroPointDesc;
 ///     since what matters is the client's latency)
 ///
 ///   - Clock skew
+///
+// TODO: This is something we might want to tune based on experience.
 //
-// TODO #1210 IPT_PUBLISH_EXPIRY_SLOP configure?
-pub(crate) const IPT_PUBLISH_EXPIRY_SLOP: Duration = Duration::from_secs(300); // 5 minutes
+// TODO: We'd like to use "+" here, but it isn't const yet.
+const IPT_PUBLISH_EXPIRY_SLOP: Duration =
+    Duration::from_secs(10 * 60).saturating_add(crate::svc::publish::OVERALL_UPLOAD_TIMEOUT);
 
 /// Shared view of introduction points - IPT manager's view
 ///
