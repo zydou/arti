@@ -52,6 +52,7 @@ doc-features:
 # But it should run before any deployument.
 blocking-todos:
   stage: test
+  needs: []
   image: debian:bookworm-slim
   script:
     - apt update && apt install -y git
@@ -203,6 +204,7 @@ coverage:
 minimal-versions:
   stage: test
   image: rust:1.70
+  needs: ["rust-checks"]
   script:
     - rustup install nightly
     - ./maint/downgrade_dependencies
