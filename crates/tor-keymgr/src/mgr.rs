@@ -33,7 +33,7 @@ use tor_error::{bad_api_usage, internal};
 /// order to implement this safely without locking, the key store operations (get,
 /// insert, remove) will need to be atomic.
 ///
-/// **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
+/// **Note**: [`KeyMgr::generate`] and [`Keymgr::get_or_generate`] should **not** be used
 /// concurrently with any other `KeyMgr` operation that mutates the same key
 /// (i.e. a key with the same `ArtiPath`), because
 /// their outcome depends on whether the selected key store
@@ -175,6 +175,9 @@ impl KeyMgr {
     /// If the requested key does not exist in any of the key stores, this generates a new key of
     /// type `K` from the key created using using `K::Key`'s [`Keygen`] implementation, and inserts
     /// it into the specified keystore, returning the newly inserted value.
+    ///
+    /// This is a convenience wrapper around [`get()`](KeyMgr::get) and
+    /// [`generate()`](KeyMgr::generate).
     pub fn get_or_generate<K>(
         &self,
         key_spec: &dyn KeySpecifier,
@@ -185,9 +188,10 @@ impl KeyMgr {
         K: ToEncodableKey,
         K::Key: Keygen,
     {
-        self.get_or_generate_with_derived(key_spec, selector, || {
-            Ok(K::from_encodable_key(K::Key::generate(rng)?))
-        })
+        match self.get(key_spec)? {
+            Some(k) => Ok(k),
+            None => self.generate(key_spec, selector, rng, false),
+        }
     }
 
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
@@ -779,7 +783,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(key, "keystore1_generated_test_key".to_string());
+        assert_eq!(key, "generated_test_key".to_string());
 
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
@@ -832,7 +836,7 @@ mod tests {
                 &mut testing_rng()
             )
             .unwrap(),
-            "keystore3_generated_test_key".to_string()
+            "generated_test_key".to_string()
         );
 
         // The key already exists in keystore 2 so it won't be auto-generated.
@@ -856,6 +860,11 @@ mod tests {
             )
             .unwrap(),
             "keystore1_rock_dove".to_string()
+        );
+
+        assert_eq!(
+            mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
+            Some("keystore3_generated_test_key".to_string())
         );
     }
 }
