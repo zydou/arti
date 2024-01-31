@@ -83,4 +83,4 @@ tor-netdoc = { path = "../tor-netdoc", version = "0.11.0", features = ["testing"
 tor-persist = { path = "../tor-persist", version = "0.9.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.12.0" }
-tracing-test = "0.2.2"
+tracing-test = "0.2.4"
