@@ -200,6 +200,8 @@ coverage:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+  tags:
+    - tpa
 
 minimal-versions:
   stage: test
