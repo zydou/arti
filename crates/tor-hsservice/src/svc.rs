@@ -139,7 +139,11 @@ impl From<oneshot::Canceled> for ShutdownStatus {
     }
 }
 
-/// A handle to an instance of an onion service.
+/// A handle to an instance of an onion service, which may or may not be running.
+///
+/// To construct an `OnionService`, call [`OnionService::new`].
+/// It will not start handling requests until you call its
+/// [``.launch()``](OnionService::launch) method.
 //
 // TODO (#1228): Write more.
 // TODO (#1247): Choose a better name for this struct
@@ -152,6 +156,9 @@ pub struct OnionService {
 }
 
 /// The state of an instance of an onion service.
+///
+/// This type is shared between [`OnionService`] and [`RunningOnionService`],
+/// and is used to
 //
 // TODO (#1228): Write more.
 // TODO (#1247): Choose a better name for this struct
@@ -170,6 +177,9 @@ pub struct OnionServiceState {
 
 impl OnionServiceState {
     /// Return the onion address of this service.
+    ///
+    /// Clients must know the service's onion address in order to discover or
+    /// connect to it.
     ///
     /// Returns `None` if the HsId of the service could not be found in any of the configured
     /// keystores.
@@ -224,6 +234,14 @@ pub(crate) trait OnionServiceStateMgr: Send + Sync {
 
 impl OnionService {
     /// Create (but do not launch) a new onion service.
+    ///
+    /// The onion service's behavior and local nickname will be determined by
+    /// the provided configuration.
+    ///
+    /// The onion service's keys will be kept in `keymgr`.
+    /// Its non-key state information will be stored persistently in a location
+    /// and manner controlled by `state_mgr`, `state_dir`, and `state_mistrust`.
+    ///
     // TODO (#1228): document.
     //
     // TODO (#1228): Document how we handle the case where somebody tries to launch two
