@@ -9,8 +9,8 @@ manager.
 
 | Key                  | Type             | Description                                                             | `ArtiPath`                                                                |
 |----------------------|------------------|-------------------------------------------------------------------------|---------------------------------------------------------------------------|
-| `KS_hsc_desc_enc`    | x25519           | Client authorization key, used for onion descriptor decryption.         | `client/<client_id>/<hsid>.onion/KS_hsc_desc_enc.x25519_private`          |
-| `KS_hsc_intro_auth`  | ed25519          | Client authorization key, used for the introduction protocol.           | `client/<client_id>/<hsid>.onion/KS_hsc_intro_auth.ed25519_private`       |
+| `KS_hsc_desc_enc`    | x25519           | Client authorization key, used for onion descriptor decryption.         | `client/<client_id>/<hsid>/KS_hsc_desc_enc.x25519_private`                |
+| `KS_hsc_intro_auth`  | ed25519          | Client authorization key, used for the introduction protocol.           | `client/<client_id>/<hsid>/KS_hsc_intro_auth.ed25519_private`             |
 | `KS_hs_id`           | expanded ed25519 | Service identity keypair.                                               | `hs/<svc_nickname>/KS_hs_id.expanded_ed25519_private`                     |
 | `KP_hs_id`           | ed25519          | Service identity public key.                                            | `hs/<svc_nickname>/KS_hs_id.ed25519_public`                               |
 | `KS_blind_id`        | expanded ed25519 | Blinded service identity keypair.                                       | `hs/<svc_nickname>/KS_hs_blind_id+<TIME_PERIOD>.expanded_ed25519_private` |

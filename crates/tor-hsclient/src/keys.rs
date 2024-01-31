@@ -7,18 +7,19 @@
 
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
 use tor_keymgr::{
-    derive_adhoc_template_KeySpecifier, ArtiPathComponent, ArtiPathSyntaxError,
-    KeySpecifierComponentViaDisplayFromStr,
+    derive_adhoc_template_KeySpecifier, ArtiPathSyntaxError, KeySpecifierComponentViaDisplayFromStr,
 };
 
 use derive_adhoc::Adhoc;
 use derive_more::Constructor;
+use tor_persist::slug::{BadSlug, Slug};
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
@@ -151,25 +152,28 @@ impl HsClientSecretKeysBuilder {
 ///
 /// Distinguishes different "clients" or "users" of this Arti instance,
 /// so that they can have different sets of HS client authentication keys.
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    derive_more::Display,
-    derive_more::Into,
-    derive_more::AsRef,
-    derive_more::FromStr,
-)]
-pub struct HsClientSpecifier(ArtiPathComponent);
+///
+/// An `HsClientNickname` must be a valid [`Slug`].
+/// See [slug](tor_persist::slug) for the syntactic requirements.
+#[derive(Clone, Debug, PartialEq, derive_more::Display, derive_more::Into, derive_more::AsRef)]
+pub struct HsClientNickname(Slug);
 
-impl KeySpecifierComponentViaDisplayFromStr for HsClientSpecifier {}
+impl FromStr for HsClientNickname {
+    type Err = BadSlug;
 
-impl HsClientSpecifier {
-    /// Create a new [`HsClientSpecifier`].
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Slug::try_from(s.to_string()).map(HsClientNickname)
+    }
+}
+
+impl KeySpecifierComponentViaDisplayFromStr for HsClientNickname {}
+
+impl HsClientNickname {
+    /// Create a new [`HsClientNickname`].
     ///
-    /// The `inner` string **must** be a valid [`ArtiPathComponent`].
+    /// The `inner` string **must** be a valid [`Slug`].
     pub fn new(inner: String) -> Result<Self, ArtiPathSyntaxError> {
-        ArtiPathComponent::new(inner).map(Self)
+        Ok(Slug::new(inner).map(Self)?)
     }
 }
 
@@ -181,7 +185,7 @@ impl HsClientSpecifier {
 /// A key for deriving keys for decrypting HS descriptors (KS_hsc_desc_enc).
 pub struct HsClientDescEncKeypairSpecifier {
     /// The client associated with this key.
-    pub(crate) client_id: HsClientSpecifier,
+    pub(crate) client_id: HsClientNickname,
     /// The hidden service this authorization key is for.
     pub(crate) hs_id: HsId,
 }

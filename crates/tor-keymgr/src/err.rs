@@ -3,6 +3,7 @@
 use tor_error::HasKind;
 
 use dyn_clone::DynClone;
+use tor_persist::slug::BadSlug;
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -57,21 +58,9 @@ impl HasKind for Error {
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
 pub enum ArtiPathSyntaxError {
-    /// Found an empty path component.
-    #[error("Empty path component")]
-    EmptyPathComponent,
-
-    /// The path contains a disallowed char.
-    #[error("Found disallowed char {0}")]
-    DisallowedChar(char),
-
-    /// The path contains the `..` pattern.
-    #[error("Found `..` pattern")]
-    PathTraversal,
-
-    /// The path starts with a disallowed char.
-    #[error("Path starts or ends with disallowed char {0}")]
-    BadOuterChar(char),
+    /// One of the path slugs was invalid.
+    #[error("{0}")]
+    Slug(#[from] BadSlug),
 }
 
 /// An error caused by keystore corruption.

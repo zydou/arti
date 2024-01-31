@@ -140,11 +140,11 @@ use RawComponentParseResult as RCPR;
 /// (and, doesn't modify `*self`).
 pub trait RawKeySpecifierComponentParser {
     /// Check that `comp` is as expected, and store any results in `self`.
-    fn parse(&mut self, comp: &ArtiPathComponent) -> RawComponentParseResult;
+    fn parse(&mut self, comp: &Slug) -> RawComponentParseResult;
 }
 
 impl<T: KeySpecifierComponent> RawKeySpecifierComponentParser for Option<T> {
-    fn parse(&mut self, comp: &ArtiPathComponent) -> RawComponentParseResult {
+    fn parse(&mut self, comp: &Slug) -> RawComponentParseResult {
         let v = match T::from_component(comp) {
             Ok(v) => v,
             Err(e) => return RCPR::Invalid(e),
@@ -154,7 +154,7 @@ impl<T: KeySpecifierComponent> RawKeySpecifierComponentParser for Option<T> {
     }
 }
 impl<'s> RawKeySpecifierComponentParser for &'s str {
-    fn parse(&mut self, comp: &ArtiPathComponent) -> RawComponentParseResult {
+    fn parse(&mut self, comp: &Slug) -> RawComponentParseResult {
         if comp.as_str() == *self {
             RCPR::MatchedLiteral
         } else {
@@ -227,8 +227,8 @@ pub fn parse_key_path(
             };
 
             // TODO would be nice to avoid allocating again here,
-            // but I think that needs an `ArtiPathComponentRef`.
-            let comp = ArtiPathComponent::new(comp.to_owned())?;
+            // but I think that needs an `SlugRef`.
+            let comp = Slug::new(comp.to_owned()).map_err(ArtiPathSyntaxError::Slug)?;
 
             let missing_keys = || internal!("keys list too short, bad args to parse_key_path");
 

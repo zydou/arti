@@ -1,13 +1,16 @@
-//! [`ArtiPath`] and [`ArtiPathComponent`]
+//! [`ArtiPath`] and its associated helpers.
 
 use std::str::FromStr;
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
+use tor_persist::slug::{self, BadSlug};
 
 use crate::{ArtiPathSyntaxError, KeyPathRange};
 
+// TODO: this is only used for ArtiPaths (we should consider turning this
+// intro a regular impl ArtiPath {} and removing the macro).
 define_derive_adhoc! {
     /// Implement `new()`, `TryFrom<String>` in terms of `validate_str`, and `as_ref<str>`
     //
@@ -43,7 +46,7 @@ define_derive_adhoc! {
 
     impl AsRef<str> for $ttype {
         fn as_ref(&self) -> &str {
-            &self.0
+            &self.0.as_str()
         }
     }
 }
@@ -53,9 +56,9 @@ define_derive_adhoc! {
 /// In an [`ArtiNativeKeystore`](crate::ArtiNativeKeystore), this also represents the path of the
 /// key relative to the root of the keystore, minus the file extension.
 ///
-/// An `ArtiPath` is a nonempty sequence of [`ArtiPathComponent`]s, separated by `/`.  Path
-/// components may contain UTF-8 alphanumerics, and (except as the first or last character) `-`,
-/// `_`, or  `.`.
+/// An `ArtiPath` is a nonempty sequence of [`Slug`](tor_persist::slug::Slug)s, separated by `/`.  Path
+/// components may contain lowercase ASCII alphanumerics, and  `-` or `_`.
+/// See [slug] for the full syntactic requirements.
 /// Consequently, leading or trailing or duplicated / are forbidden.
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
@@ -68,7 +71,7 @@ define_derive_adhoc! {
 /// [`KeySpecifierComponent::to_component`](crate::KeySpecifierComponent::to_component)
 /// implementation.
 /// The denotators **must** come after all the other fields.
-/// Denotator strings are validated in the same way as [`ArtiPathComponent`]s.
+/// Denotator strings are validated in the same way as [`Slug`](tor-persist::slug::Slug)s.
 ///
 /// For example, the last component of the path `"foo/bar/bax+denotator_example+1"`
 /// is `"bax+denotator_example+1"`.
@@ -103,7 +106,7 @@ impl ArtiPath {
         // Validate the denotators, if there are any.
         let path = if let Some((main_part, denotators)) = inner.split_once(DENOTATOR_SEP) {
             for d in denotators.split(DENOTATOR_SEP) {
-                let () = ArtiPathComponent::validate_str(d)?;
+                let () = slug::check_syntax(d)?;
             }
 
             main_part
@@ -113,9 +116,16 @@ impl ArtiPath {
 
         if let Some(e) = path
             .split(PATH_SEP)
-            .find_map(|s| ArtiPathComponent::validate_str(s).err())
+            .map(|s| {
+                if s.is_empty() {
+                    Err(BadSlug::EmptySlugNotAllowed.into())
+                } else {
+                    Ok(slug::check_syntax(s)?)
+                }
+            })
+            .find(|e| e.is_err())
         {
-            return Err(e);
+            return e;
         }
 
         Ok(())
@@ -143,49 +153,5 @@ impl ArtiPath {
     /// ```
     pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
         self.0.get(range.0.clone())
-    }
-}
-
-/// A component of an [`ArtiPath`].
-///
-/// Path components may contain UTF-8 alphanumerics, and (except as the first or last character)
-/// `-`,  `_`, or `.`.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, Into, Display)] //
-#[derive(Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
-#[derive(Adhoc)]
-#[derive_adhoc(ValidatedString)]
-pub struct ArtiPathComponent(String);
-
-impl ArtiPathComponent {
-    /// Check whether `c` can be used within an `ArtiPathComponent`.
-    fn is_allowed_char(c: char) -> bool {
-        c.is_alphanumeric() || c == '_' || c == '-' || c == '.'
-    }
-
-    /// Validate the underlying representation of an `ArtiPathComponent`.
-    fn validate_str(inner: &str) -> Result<(), ArtiPathSyntaxError> {
-        /// These cannot be the first or last chars of an `ArtiPath` or `ArtiPathComponent`.
-        const MIDDLE_ONLY: &[char] = &['-', '_', '.'];
-
-        if inner.is_empty() {
-            return Err(ArtiPathSyntaxError::EmptyPathComponent);
-        }
-
-        if let Some(c) = inner.chars().find(|c| !Self::is_allowed_char(*c)) {
-            return Err(ArtiPathSyntaxError::DisallowedChar(c));
-        }
-
-        if inner.contains("..") {
-            return Err(ArtiPathSyntaxError::PathTraversal);
-        }
-
-        for c in MIDDLE_ONLY {
-            if inner.starts_with(*c) || inner.ends_with(*c) {
-                return Err(ArtiPathSyntaxError::BadOuterChar(*c));
-            }
-        }
-
-        Ok(())
     }
 }

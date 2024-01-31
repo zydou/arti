@@ -60,7 +60,7 @@ mod mgr;
 #[cfg(not(feature = "keymgr"))]
 mod dummy;
 
-pub use arti_path::{ArtiPath, ArtiPathComponent, DENOTATOR_SEP};
+pub use arti_path::{ArtiPath, DENOTATOR_SEP};
 pub use err::{ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
     ArtiPathUnavailableError, CTorPath, KeyInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
