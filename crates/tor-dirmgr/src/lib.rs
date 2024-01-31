@@ -746,8 +746,7 @@ impl<R: Runtime> DirMgr<R> {
     /// Get a reference to the circuit manager, if we have one.
     fn circmgr(&self) -> Result<Arc<CircMgr<R>>> {
         self.circmgr
-            .as_ref()
-            .map(Arc::clone)
+            .clone()
             .ok_or(Error::NoDownloadSupport)
     }
 
