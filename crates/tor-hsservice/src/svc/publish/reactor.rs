@@ -1596,19 +1596,29 @@ pub(super) fn read_blind_id_keypair(
 
     // TODO: make the keystore selector configurable
     let keystore_selector = Default::default();
-    let blind_id_kp = keymgr.get_or_generate_with_derived::<HsBlindIdKeypair>(
-        &blind_id_key_spec,
-        keystore_selector,
-        || {
+    match keymgr.get::<HsBlindIdKeypair>(&blind_id_key_spec)? {
+        Some(kp) => Ok(Some(kp)),
+        None => {
             let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
                 .compute_blinded_key(period)
                 .map_err(|_| internal!("failed to compute blinded key"))?;
 
-            Ok(hs_blind_id_kp)
-        },
-    )?;
+            // Note: we can't use KeyMgr::generate because this key is derived from the HsId
+            // (KeyMgr::generate uses the tor_keymgr::Keygen trait under the hood,
+            // which assumes keys are randomly generated, rather than derived from existing keys).
 
-    Ok(Some(blind_id_kp))
+            keymgr.insert(hs_blind_id_kp, &blind_id_key_spec, keystore_selector)?;
+
+            Ok(Some(
+                keymgr
+                    .get::<HsBlindIdKeypair>(&blind_id_key_spec)?
+                    // TODO: Bug is not the right error type here
+                    //
+                    // We need an error type for errors due to concurrent keystore access.
+                    .ok_or_else(|| internal!("the key we've just inserted was removed?!"))?,
+            ))
+        }
+    }
 }
 
 /// Whether the reactor should initiate an upload.
