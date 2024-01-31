@@ -105,7 +105,7 @@ impl Default for RustlsProvider {
     }
 }
 
-/// A [`rustls_crate::client::ServerCertVerifier`] based on the [`x509_signature`] crate.
+/// A [`rustls::client::danger::ServerCertVerifier`] based on the [`x509_signature`] crate.
 ///
 /// This verifier is necessary since Tor relays doesn't participate in the web
 /// browser PKI, and as such their certificates won't check out as valid ones.
