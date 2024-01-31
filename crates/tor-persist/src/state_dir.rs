@@ -397,7 +397,7 @@ impl StateDirectory {
     /// Given a kind and id, obtain pieces of its path and call a "doing work" callback
     ///
     /// This function factors out common functionality needed by
-    /// [`StateDirectory::acquire_instance`] and [StateDirectory::peek_storage_handle`],
+    /// [`StateDirectory::acquire_instance`] and [StateDirectory::instance_peek_storage`],
     /// particularly relating to instance kind and id, and errors.
     ///
     /// `kind` and `id` are from an `InstanceIdentity`.
