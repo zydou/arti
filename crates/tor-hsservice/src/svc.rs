@@ -181,11 +181,14 @@ impl OnionServiceState {
     // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
     // ArtiHss.
     fn onion_name(&self) -> Option<HsId> {
-        let hsid_spec = HsIdPublicKeySpecifier::new(self.nickname.clone());
+        let hsid_spec = HsIdKeypairSpecifier::new(self.nickname.clone());
+
+        // TODO (#1194): This will need to be revisited when we implement offline hsid mode,
+        // (the HsId keypair won't be in the keystore)
         self.keymgr
-            .get::<HsIdKey>(&hsid_spec)
+            .get::<HsIdKeypair>(&hsid_spec)
             .ok()?
-            .map(|hsid| hsid.id())
+            .map(|hsid| HsIdKey::from(&hsid).id())
     }
 }
 
