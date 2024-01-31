@@ -613,23 +613,23 @@ pub(crate) mod test {
         let temp_dir = test_temp_dir!();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
-            let keymgr = create_keymgr(&temp_dir);
+        let keymgr = create_keymgr(&temp_dir);
 
-            // Insert the preexisting hsid keypair.
-            let (existing_hsid_keypair, existing_hsid_public) = create_hsid();
-            let existing_keypair: ed25519::ExpandedKeypair = existing_hsid_keypair.into();
-            let existing_hsid_keypair = HsIdKeypair::from(existing_keypair);
+        // Insert the preexisting hsid keypair.
+        let (existing_hsid_keypair, existing_hsid_public) = create_hsid();
+        let existing_keypair: ed25519::ExpandedKeypair = existing_hsid_keypair.into();
+        let existing_hsid_keypair = HsIdKeypair::from(existing_keypair);
 
-            keymgr
-                .insert(existing_hsid_keypair, &hsid_spec, KeystoreSelector::Default)
-                .unwrap();
+        keymgr
+            .insert(existing_hsid_keypair, &hsid_spec, KeystoreSelector::Default)
+            .unwrap();
 
-            maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
+        maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
 
-            let keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
-            let pk: HsIdKey = (&keypair).into();
+        let keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
+        let pk: HsIdKey = (&keypair).into();
 
-            assert_eq!(pk.as_ref(), existing_hsid_public.as_ref());
+        assert_eq!(pk.as_ref(), existing_hsid_public.as_ref());
     }
 
     #[test]
