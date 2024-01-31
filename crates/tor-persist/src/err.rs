@@ -115,7 +115,7 @@ impl From<BadSlug> for ErrorSource {
         into_bad_api_usage!("bad slug")(bs).into()
     }
 }
-/// [`BadSlug`] errors autoi-convert to a [`BadApiUsage`](tor_error::ErrorKind::BadApiUsage)
+/// [`BadSlug`] errors auto-convert to a [`BadApiUsage`](tor_error::ErrorKind::BadApiUsage)
 ///
 /// (Users of `tor-persist` ought to have newtypes for user-supplied slugs,
 /// and thereby avoid passing syntactically invalid slugs to `tor-persist`.)
