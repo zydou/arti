@@ -13,10 +13,14 @@ use std::path::Path;
 
 use fs_mistrust::CheckedDir;
 use serde::{de::DeserializeOwned, Serialize};
+use tor_error::ErrorReport as _;
+use tracing::trace;
 
 use crate::err::ErrorSource;
 
 /// Common arguments to load/store operations
+#[derive(derive_more::Display)]
+#[display(fmt = "{:?}/{:?}", "dir.as_path()", "rel_fname")]
 pub(crate) struct Target<'r> {
     /// Directory
     pub(crate) dir: &'r CheckedDir,
@@ -24,7 +28,7 @@ pub(crate) struct Target<'r> {
     /// Filename relative to `dir`
     ///
     /// Might be a leafname; must be relative
-    /// Should include the `.json` function.
+    /// Should include the `.json` extension.
     pub(crate) rel_fname: &'r Path,
 }
 
@@ -35,11 +39,20 @@ impl Target<'_> {
     pub(crate) fn load<D: DeserializeOwned>(&self) -> Result<Option<D>, ErrorSource> {
         let string = match self.dir.read_to_string(self.rel_fname) {
             Ok(string) => string,
-            Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
-            Err(e) => return Err(e.into()),
+            Err(fs_mistrust::Error::NotFound(_)) => {
+                trace!("loading {self} (not found)");
+                return Ok(None);
+            }
+            Err(e) => {
+                trace!("loading {self}, error {}", e.report());
+                return Err(e.into());
+            }
         };
 
-        Ok(Some(serde_json::from_str(&string)?))
+        let r = serde_json::from_str(&string)?;
+        trace!("loaded {self}");
+
+        Ok(Some(r))
     }
 
     /// Serialise and store an `S` to the file specified by `self`
@@ -58,6 +71,7 @@ impl Target<'_> {
     /// See [`fs_mistrust::CheckedDir::write_and_replace`]
     /// for more details about the semantics.
     pub(crate) fn store<S: Serialize>(&self, val: &S) -> Result<(), ErrorSource> {
+        trace!("storing {self}");
         let output = serde_json::to_string_pretty(val)?;
 
         self.dir.write_and_replace(self.rel_fname, output)?;
@@ -67,6 +81,7 @@ impl Target<'_> {
 
     /// Delete the file specified by `self`
     pub(crate) fn delete(&self) -> Result<(), ErrorSource> {
+        trace!("deleting {self}");
         self.dir.remove_file(self.rel_fname)?;
 
         Ok(())

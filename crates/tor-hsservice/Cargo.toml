@@ -105,4 +105,4 @@ tor-netdir = { version = "0.11.0", path = "../tor-netdir", features = ["hs-servi
 tor-netdoc = { path = "../tor-netdoc", version = "0.11.0", features = ["testing"] }
 tor-persist = { version = "0.9.0", path = "../tor-persist", features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.12.0" }
-tracing-test = "0.2"
+tracing-test = "0.2.4"

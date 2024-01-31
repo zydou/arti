@@ -2,9 +2,10 @@
 
 use std::sync::Arc;
 
+use crate::slug::BadSlug;
 use crate::FsMistrustErrorExt as _;
 use fs_mistrust::anon_home::PathExt as _;
-use tor_error::ErrorKind;
+use tor_error::{into_bad_api_usage, Bug, ErrorKind};
 
 /// A resource that we failed to access or where we found a problem.
 #[derive(Debug, Clone, derive_more::Display)]
@@ -32,6 +33,21 @@ pub(crate) enum Resource {
     Temporary {
         /// The key for the scratch item
         key: String,
+    },
+    /// An instance state directory
+    #[display(
+        fmt = "instance {:?}/{:?} in {}",
+        "kind",
+        "identity",
+        "state_dir.anonymize_home()"
+    )]
+    InstanceState {
+        /// The path to the top-level state directory.
+        state_dir: std::path::PathBuf,
+        /// The instance's kind
+        kind: String,
+        /// The instance's identity
+        identity: String,
     },
 }
 
@@ -84,6 +100,31 @@ pub enum ErrorSource {
     /// Problem when serializing or deserializing JSON data.
     #[error("JSON error")]
     Serde(#[from] Arc<serde_json::Error>),
+
+    /// Another task or process holds this persistent state lock, but we need exclusive access
+    #[error("State already lockedr")]
+    AlreadyLocked,
+
+    /// Programming error
+    #[error("Programming error")]
+    Bug(#[from] Bug),
+}
+
+impl From<BadSlug> for ErrorSource {
+    fn from(bs: BadSlug) -> ErrorSource {
+        into_bad_api_usage!("bad slug")(bs).into()
+    }
+}
+/// [`BadSlug`] errors auto-convert to a [`BadApiUsage`](tor_error::ErrorKind::BadApiUsage)
+///
+/// (Users of `tor-persist` ought to have newtypes for user-supplied slugs,
+/// and thereby avoid passing syntactically invalid slugs to `tor-persist`.)
+impl From<BadSlug> for Error {
+    fn from(bs: BadSlug) -> Error {
+        // This metadata is approximate, but better information isn't readily available
+        // and this shouldn't really happen.
+        Error::new(bs, Action::Initializing, Resource::Manager)
+    }
 }
 
 /// An error that occurred while manipulating persistent state.
@@ -129,6 +170,8 @@ impl tor_error::HasKind for Error {
             E::IoError(..)     => K::PersistentStateAccessFailed,
             E::Permissions(e)  => e.state_error_kind(),
             E::NoLock          => K::BadApiUsage,
+            E::AlreadyLocked   => K::LocalResourceAlreadyInUse,
+            E::Bug(e)          => e.kind(),
             E::Serde(..) if self.action == Action::Storing  => K::Internal,
             E::Serde(..) => K::PersistentStateCorrupted,
         }
@@ -153,5 +196,43 @@ impl From<fs_mistrust::Error> for ErrorSource {
             fs_mistrust::Error::Io { err, .. } => ErrorSource::IoError(err),
             other => ErrorSource::Permissions(other),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use std::io;
+    use tor_error::ErrorReport as _;
+
+    #[test]
+    fn error_display() {
+        assert_eq!(
+            Error::new(
+                io::Error::from(io::ErrorKind::PermissionDenied),
+                Action::Initializing,
+                Resource::InstanceState {
+                    state_dir: "/STATE_DIR".into(),
+                    kind: "KIND".into(),
+                    identity: "IDENTY".into(),
+                }
+            )
+            .report()
+            .to_string(),
+            r#"error: IO error while constructing storage manager on instance "KIND"/"IDENTY" in /STATE_DIR: permission denied"#
+        );
     }
 }

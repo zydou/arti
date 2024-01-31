@@ -72,8 +72,8 @@
 //!
 //! impl InstanceIdentity for HsNickname {
 //!     fn kind() -> &'static str { "hss" }
-//!     fn write_identity(&self, f: &mut fmt::Formatter) -> Result<(), Bug> {
-//!         write!(f, "{self}").map_err(into_internal!("failed to write HS nickname"))
+//!     fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//!         write!(f, "{self}")
 //!     }
 //! }
 //!
@@ -106,7 +106,7 @@
 //!     fn dispose(&mut self, _info: &InstancePurgeInfo, handle: InstanceStateHandle)
 //!                -> state_dir::Result<()> {
 //!         // here might be a good place to delete keys too
-//!         handle.delete()
+//!         handle.purge()
 //!     }
 //! }
 //! pub fn expire_hidden_services(
@@ -146,7 +146,8 @@
 #![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
 
 use std::cell::Cell;
-use std::fmt;
+use std::fmt::{self, Display};
+use std::fs;
 use std::iter;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -159,17 +160,21 @@ use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use fslock_guard::LockFileGuard;
-use tor_error::Bug;
+use tor_error::ErrorReport as _;
+use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
+use tracing::trace;
 
-pub use crate::Error;
-use crate::load_store;
 use crate::err::{Action, ErrorSource, Resource};
-use crate::slug::{self, Slug, SlugRef, TryIntoSlug};
+use crate::load_store;
+use crate::slug::{self, BadSlug, Slug, SlugRef, TryIntoSlug};
+pub use crate::Error;
 
 /// TODO HSS remove
 type Todo = Void;
 
 use std::result::Result as StdResult;
+
+use std::path::MAIN_SEPARATOR as PATH_SEPARATOR;
 
 /// [`Result`](StdResult) throwing a [`state_dir::Error`](Error)
 pub type Result<T> = StdResult<T, Error>;
@@ -203,10 +208,10 @@ pub type Result<T> = StdResult<T, Error>;
 /// since the automatic file cleaner might remove an in-use lockfile,
 /// effectively unlocking the instance state
 /// even while a process exists that thinks it still has the lock.
-#[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
+#[derive(Debug)]
 pub struct StateDirectory {
-    path: Todo,
-    mistrust: Todo,
+    /// The actual directory, including mistrust config
+    dir: CheckedDir,
 }
 
 /// An instance of a facility that wants to save persistent state (caller-provided impl)
@@ -238,9 +243,9 @@ pub trait InstanceIdentity {
     /// For example, for a Tor Hidden Service the identity is the nickname.
     ///
     /// The generated string must be valid as a [`slug`].
-    //
-    // Throws Bug rather than fmt::Error so that in case of problems we can dump a stack trace.
-    fn write_identity(&self, f: &mut fmt::Formatter) -> StdResult<(), Bug>;
+    /// If it is not, the functions in this module will throw `Bug` errors.
+    /// (Returning `fmt::Error` will cause a panic, as is usual with the fmt API.)
+    fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
 /// For a facility to be expired using [`purge_instances`](StateDirectory::purge_instances) (caller-provided impl)
@@ -263,7 +268,7 @@ pub trait InstancePurgeHandler {
     /// Decide whether to keep this instance
     ///
     /// When it has made its decision, `dispose` should
-    /// either call [`delete`](InstanceStateHandle::delete),
+    /// either call [`delete`](InstanceStateHandle::purge),
     /// or simply drop `handle`.
     ///
     /// Called only after `name_filter` returned [`Liveness::PossiblyUnused`]
@@ -275,8 +280,7 @@ pub trait InstancePurgeHandler {
 }
 
 /// Information about an instance, passed to [`InstancePurgeHandler::dispose`]
-#[derive(amplify::Getters)]
-#[derive(AsRef)]
+#[derive(amplify::Getters, AsRef)]
 pub struct InstancePurgeInfo<'i> {
     /// The instance's identity string
     #[as_ref]
@@ -305,20 +309,133 @@ pub enum Liveness {
     Live,
 }
 
+/// Instance identity string formatter, type-erased
+type InstanceIdWriter<'i> = &'i dyn Fn(&mut fmt::Formatter) -> fmt::Result;
+
 impl StateDirectory {
     /// Create a new `StateDirectory` from a directory and mistrust configuration
-    #[allow(clippy::needless_pass_by_value)] // TODO HSS remove
-    pub fn new(state_dir: impl AsRef<Path>, mistrust: Mistrust) -> Result<Self> { todo!() }
+    pub fn new(state_dir: impl AsRef<Path>, mistrust: &Mistrust) -> Result<Self> {
+        /// Implementation, taking non-generic path
+        fn inner(path: &Path, mistrust: &Mistrust) -> Result<StateDirectory> {
+            let resource = || Resource::Directory {
+                dir: path.to_owned(),
+            };
+            let handle_err = |source| Error::new(source, Action::Initializing, resource());
+
+            let dir = mistrust
+                .verifier()
+                .make_secure_dir(path)
+                .map_err(handle_err)?;
+
+            Ok(StateDirectory { dir })
+        }
+        inner(state_dir.as_ref(), mistrust)
+    }
 
     /// Acquires (creates and locks) a storage for an instance
     ///
-    /// Ensures the existence and suitability of a subdirectory named `kind_identity`,
+    /// Ensures the existence and suitability of a subdirectory named `kind/identity`,
     /// and locks it for exclusive access.
     pub fn acquire_instance<I: InstanceIdentity>(
         &self,
         identity: &I,
     ) -> Result<InstanceStateHandle> {
-        todo!()
+        /// Implementation, taking non-generic values for identity
+        fn inner(
+            sd: &StateDirectory,
+            kind_str: &'static str,
+            id_writer: InstanceIdWriter,
+        ) -> Result<InstanceStateHandle> {
+            sd.with_instance_path_pieces(kind_str, id_writer, |kind, id, resource| {
+                let handle_err =
+                    |action, source: ErrorSource| Error::new(source, action, resource());
+
+                // Obtain (creating if necessary) a subdir for a Checked
+                let make_secure_directory = |parent: &CheckedDir, subdir| {
+                    let resource = || Resource::Directory {
+                        dir: parent.as_path().join(subdir),
+                    };
+                    parent
+                        .make_secure_directory(subdir)
+                        .map_err(|source| Error::new(source, Action::Initializing, resource()))
+                };
+
+                // ---- obtain the lock ----
+
+                let kind_dir = make_secure_directory(&sd.dir, kind)?;
+
+                let lock_path = kind_dir
+                    .join(format!("{id}.lock"))
+                    .map_err(|source| handle_err(Action::Initializing, source.into()))?;
+
+                let flock_guard = match LockFileGuard::try_lock(&lock_path) {
+                    Ok(Some(y)) => {
+                        trace!("locked {lock_path:?}");
+                        y.into()
+                    }
+                    Err(source) => {
+                        trace!("locking {lock_path:?}, error {}", source.report());
+                        return Err(handle_err(Action::Locking, source.into()));
+                    }
+                    Ok(None) => {
+                        trace!("locking {lock_path:?}, in use",);
+                        return Err(handle_err(Action::Locking, ErrorSource::AlreadyLocked));
+                    }
+                };
+
+                // ---- we have the lock, calculate the directory (creating it if need be) ----
+
+                let dir = make_secure_directory(&kind_dir, id)?;
+
+                Ok(InstanceStateHandle { dir, flock_guard })
+            })
+        }
+
+        inner(self, I::kind(), &|f| identity.write_identity(f))
+    }
+
+    /// Given a kind and id, obtain pieces of its path and call a "doing work" callback
+    ///
+    /// This function factors out common functionality needed by
+    /// [`StateDirectory::acquire_instance`] and [StateDirectory::instance_peek_storage`],
+    /// particularly relating to instance kind and id, and errors.
+    ///
+    /// `kind` and `id` are from an `InstanceIdentity`.
+    fn with_instance_path_pieces<T>(
+        self: &StateDirectory,
+        kind_str: &'static str,
+        id_writer: InstanceIdWriter,
+        call: impl FnOnce(&SlugRef, &SlugRef, &dyn Fn() -> Resource) -> Result<T>,
+    ) -> Result<T> {
+        /// Struct that impls `Display` for formatting an instance id
+        //
+        // This exists because we want implementors of InstanceIdentity to be able to
+        // use write! to format their identity string.
+        struct InstanceIdDisplay<'i>(InstanceIdWriter<'i>);
+
+        impl Display for InstanceIdDisplay<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                (self.0)(f)
+            }
+        }
+        let id_string = InstanceIdDisplay(id_writer).to_string();
+
+        // Both we and caller use this for our error reporting
+        let resource = || Resource::InstanceState {
+            state_dir: self.dir.as_path().to_owned(),
+            kind: kind_str.to_string(),
+            identity: id_string.clone(),
+        };
+
+        let handle_bad_slug = |source| Error::new(source, Action::Initializing, resource());
+
+        if kind_str.is_empty() {
+            return Err(handle_bad_slug(BadSlug::EmptySlugNotAllowed));
+        }
+        let kind = SlugRef::new(kind_str).map_err(handle_bad_slug)?;
+        let id = SlugRef::new(&id_string).map_err(handle_bad_slug)?;
+
+        call(kind, id, &resource)
     }
 
     /// List the instances of a particular kind
@@ -335,10 +452,9 @@ impl StateDirectory {
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
     #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
-    pub fn list_instances<I: InstanceIdentity>(
-        &self
-    ) -> impl Iterator<Item = Result<Slug>> {
-        let _: &Void = &self.path;
+    #[allow(unreachable_code)] // TODO HSS remove
+    pub fn list_instances<I: InstanceIdentity>(&self) -> impl Iterator<Item = Result<Slug>> {
+        todo!();
         iter::empty()
     }
 
@@ -380,10 +496,7 @@ impl StateDirectory {
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
-    pub fn purge_instances<I: InstancePurgeHandler>(
-        &self,
-        filter: &mut I,
-    ) -> Result<()> {
+    pub fn purge_instances<I: InstancePurgeHandler>(&self, filter: &mut I) -> Result<()> {
         todo!()
     }
 
@@ -396,12 +509,50 @@ impl StateDirectory {
     /// So the operation is atomic, but there is no further synchronisation.
     //
     // Not sure if we need this, but it's logically permissible
-    pub fn instance_peek_storage<I: InstanceIdentity, T>(
+    pub fn instance_peek_storage<I: InstanceIdentity, T: DeserializeOwned>(
         &self,
         identity: &I,
         slug: &(impl TryIntoSlug + ?Sized),
     ) -> Result<Option<T>> {
-        todo!()
+        self.with_instance_path_pieces(
+            I::kind(),
+            &|f| identity.write_identity(f),
+            // This closure is generic over T, so with_instance_path_pieces will be too;
+            // this isn't desirable (code bloat) but avoiding it would involves some contortions.
+            |kind_slug: &SlugRef, id_slug: &SlugRef, _resource| {
+                // Throwing this error here will give a slightly wrong Error for this Bug
+                // (because with_instance_path_pieces has its own notion of Action & Resource)
+                // but that seems OK.
+                let storage_slug = slug.try_into_slug()?;
+
+                let rel_fname = format!(
+                    "{}{PATH_SEPARATOR}{}{PATH_SEPARATOR}{}.json",
+                    kind_slug, id_slug, storage_slug,
+                );
+
+                let target = load_store::Target {
+                    dir: &self.dir,
+                    rel_fname: rel_fname.as_ref(),
+                };
+
+                target
+                    .load()
+                    // This Resource::File isn't consistent with those from StorageHandle:
+                    // StorageHandle's `container` is the instance directory;
+                    // here `container` is the top-level `state_dir`,
+                    // and `file` is `KIND+INSTANCE/STORAGE.json".
+                    .map_err(|source| {
+                        Error::new(
+                            source,
+                            Action::Loading,
+                            Resource::File {
+                                container: self.dir.as_path().to_owned(),
+                                file: rel_fname.into(),
+                            },
+                        )
+                    })
+            },
+        )
     }
 }
 
@@ -439,8 +590,11 @@ impl StateDirectory {
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
 // unless it returned a Drop newtype around CheckedDir).
-#[allow(clippy::missing_docs_in_private_items)] // TODO HSS remove
+#[derive(Debug)]
 pub struct InstanceStateHandle {
+    /// The directory
+    dir: CheckedDir,
+    /// Lock guard
     flock_guard: Arc<LockFileGuard>,
 }
 
@@ -448,7 +602,30 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn storage_handle<T>(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> { todo!() }
+    pub fn storage_handle<T>(
+        &self,
+        slug: &(impl TryIntoSlug + ?Sized),
+    ) -> Result<StorageHandle<T>> {
+        /// Implementation, not generic over `slug` and `T`
+        fn inner(
+            ih: &InstanceStateHandle,
+            slug: StdResult<Slug, BadSlug>,
+        ) -> Result<(CheckedDir, String, Arc<LockFileGuard>)> {
+            let slug = slug?;
+            let instance_dir = ih.dir.clone();
+            let leafname = format!("{slug}.json");
+            let flock_guard = ih.flock_guard.clone();
+            Ok((instance_dir, leafname, flock_guard))
+        }
+
+        let (instance_dir, leafname, flock_guard) = inner(self, slug.try_into_slug())?;
+        Ok(StorageHandle {
+            instance_dir,
+            leafname,
+            marker: PhantomData,
+            flock_guard,
+        })
+    }
 
     /// Obtain a raw filesystem subdirectory, within the directory for this instance
     ///
@@ -458,7 +635,31 @@ impl InstanceStateHandle {
     /// without substantial further work.
     ///
     /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> { todo!() }
+    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> {
+        /// Implementation, not generic over `slug`
+        fn inner(
+            ih: &InstanceStateHandle,
+            slug: StdResult<Slug, BadSlug>,
+        ) -> Result<InstanceRawSubdir> {
+            let slug = slug?;
+            (|| {
+                trace!("ensuring/using {:?}/{:?}", ih.dir.as_path(), slug.as_str());
+                let dir = ih.dir.make_secure_directory(&slug)?;
+                let flock_guard = ih.flock_guard.clone();
+                Ok::<_, ErrorSource>(InstanceRawSubdir { dir, flock_guard })
+            })()
+            .map_err(|source| {
+                Error::new(
+                    source,
+                    Action::Initializing,
+                    Resource::Directory {
+                        dir: ih.dir.as_path().join(slug),
+                    },
+                )
+            })
+        }
+        inner(self, slug.try_into_slug())
+    }
 
     /// Unconditionally delete this instance directory
     ///
@@ -466,10 +667,36 @@ impl InstanceStateHandle {
     /// and then call this in the `dispose` method.
     ///
     /// Will return a `BadAPIUsage` if other clones of this `InstanceStateHandle` exist.
-    pub fn delete(self) -> Result<()> {
-        // use Arc::into_inner on the lock object,
-        // to make sure we're actually the only surviving InstanceStateHandle
-        todo!()
+    pub fn purge(self) -> Result<()> {
+        let dir = self.dir.as_path();
+
+        (|| {
+            // use Arc::into_inner on the lock object,
+            // to make sure we're actually the only surviving InstanceStateHandle
+            let flock_guard = Arc::into_inner(self.flock_guard).ok_or_else(|| {
+                bad_api_usage!(
+ "InstanceStateHandle::purge called for {:?}, but other clones of the handle exist",
+                    self.dir.as_path(),
+                )
+            })?;
+
+            trace!("purging {:?} (and .lock)", dir);
+            fs::remove_dir_all(dir)?;
+            flock_guard.delete_lock_file(
+                // dir.with_extension is right because the last component of dir
+                // is KIND+ID which doesn't contain `.` so no extension will be stripped
+                dir.with_extension("lock"),
+            )?;
+
+            Ok::<_, ErrorSource>(())
+        })()
+        .map_err(|source| {
+            Error::new(
+                source,
+                Action::Deleting,
+                Resource::Directory { dir: dir.into() },
+            )
+        })
     }
 }
 
@@ -510,12 +737,20 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
 
     /// Operate using a `load_store::Target`
     fn with_load_store_target<R, F>(&self, action: Action, f: F) -> Result<R>
-    where F: FnOnce(load_store::Target<'_>) -> std::result::Result<R, ErrorSource>
+    where
+        F: FnOnce(load_store::Target<'_>) -> std::result::Result<R, ErrorSource>,
     {
         f(load_store::Target {
             dir: &self.instance_dir,
             rel_fname: self.leafname.as_ref(),
-        }).map_err(|source| crate::Error::new(source, action, self.err_resource()))
+        })
+        .map_err(self.map_err(action))
+    }
+
+    /// Helper to convert an `ErrorSource` to an `Error`, if we were performing `action`
+    fn map_err(&self, action: Action) -> impl FnOnce(ErrorSource) -> Error {
+        let resource = self.err_resource();
+        move |source| crate::Error::new(source, action, resource)
     }
 
     /// Return the proper `Resource` for reporting errors
@@ -542,4 +777,110 @@ pub struct InstanceRawSubdir {
     dir: CheckedDir,
     /// Clone of the InstanceStateHandle's lock
     flock_guard: Arc<LockFileGuard>,
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    use std::fmt::Display;
+    use std::io;
+    use test_temp_dir::test_temp_dir;
+    use tor_error::{into_internal, HasKind as _};
+    use tracing_test::traced_test;
+
+    use tor_error::ErrorKind as TEK;
+
+    struct Garlic(Slug);
+
+    impl InstanceIdentity for Garlic {
+        fn kind() -> &'static str {
+            "garlic"
+        }
+        fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Display::fmt(&self.0, f)
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+    struct StoredData {
+        some_value: i32,
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_api() {
+        test_temp_dir!().used_by(|dir| {
+            let sd = StateDirectory::new(
+                dir,
+                &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+            )
+            .unwrap();
+
+            let garlic = Garlic("wild".try_into_slug().unwrap());
+
+            let acquire_instance = || sd.acquire_instance(&garlic);
+
+            let ih = acquire_instance().unwrap();
+            let inst_path = dir.join("garlic/wild");
+            assert!(fs::metadata(&inst_path).unwrap().is_dir());
+
+            assert_eq!(
+                acquire_instance().unwrap_err().kind(),
+                TEK::LocalResourceAlreadyInUse,
+            );
+
+            let irsd = ih.raw_subdir("raw").unwrap();
+            assert!(fs::metadata(irsd.as_path()).unwrap().is_dir());
+            assert_eq!(irsd.as_path(), dir.join("garlic").join("wild").join("raw"));
+
+            let mut sh = ih.storage_handle::<StoredData>("stored_data").unwrap();
+            let storage_path = dir.join("garlic/wild/stored_data.json");
+
+            let peek = || sd.instance_peek_storage(&garlic, "stored_data");
+
+            let expect_load = |sh: &StorageHandle<_>, expect| {
+                let check_loaded = |what, loaded: Result<Option<StoredData>>| {
+                    assert_eq!(loaded.unwrap().as_ref(), expect, "{what}");
+                };
+                check_loaded("load", sh.load());
+                check_loaded("peek", peek());
+            };
+
+            expect_load(&sh, None);
+
+            let to_store = StoredData { some_value: 42 };
+            sh.store(&to_store).unwrap();
+            assert!(fs::metadata(storage_path).unwrap().is_file());
+
+            expect_load(&sh, Some(&to_store));
+
+            sh.delete().unwrap();
+
+            expect_load(&sh, None);
+
+            drop(sh);
+            drop(irsd);
+            ih.purge().unwrap();
+
+            assert_eq!(peek().unwrap(), None);
+            assert_eq!(
+                fs::metadata(&inst_path).unwrap_err().kind(),
+                io::ErrorKind::NotFound
+            );
+        });
+    }
 }
