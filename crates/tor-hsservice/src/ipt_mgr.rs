@@ -438,7 +438,7 @@ impl Ipt {
             match res {
                 Ok(k) => Ok::<_, CreateIptError>(Arc::new(k)),
                 Err(tor_keymgr::Error::KeyAlreadyExists) => {
-                    Err(FatalError::IptKeysFoundUnexpectedly(arti_path()?).into())
+                    Err(FatalError::KeystoreRace { action: "generate", path: arti_path()? }.into() )
                 },
                 Err(e) => Err(e.into()),
             }

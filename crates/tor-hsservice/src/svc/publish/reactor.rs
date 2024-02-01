@@ -66,7 +66,7 @@ use postage::{broadcast, watch};
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
-use tor_keymgr::KeyMgr;
+use tor_keymgr::{KeyMgr, KeySpecifier};
 use tor_llcrypto::pk::ed25519;
 use tracing::{debug, error, trace, warn};
 
@@ -1599,13 +1599,14 @@ pub(super) fn read_blind_id_keypair(
 
             keymgr.insert(hs_blind_id_kp, &blind_id_key_spec, keystore_selector)?;
 
+            let arti_path = |spec: &dyn KeySpecifier| {
+                spec.arti_path().map_err(into_internal!("invalid key specifier?!"))
+            };
+
             Ok(Some(
                 keymgr
                     .get::<HsBlindIdKeypair>(&blind_id_key_spec)?
-                    // TODO: Bug is not the right error type here
-                    //
-                    // We need an error type for errors due to concurrent keystore access.
-                    .ok_or_else(|| internal!("the key we've just inserted was removed?!"))?,
+                    .ok_or(FatalError::KeystoreRace { action: "read", path: arti_path(&blind_id_key_spec)? })?,
             ))
         }
     }
