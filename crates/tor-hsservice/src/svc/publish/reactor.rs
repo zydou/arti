@@ -1600,13 +1600,17 @@ pub(super) fn read_blind_id_keypair(
             keymgr.insert(hs_blind_id_kp, &blind_id_key_spec, keystore_selector)?;
 
             let arti_path = |spec: &dyn KeySpecifier| {
-                spec.arti_path().map_err(into_internal!("invalid key specifier?!"))
+                spec.arti_path()
+                    .map_err(into_internal!("invalid key specifier?!"))
             };
 
             Ok(Some(
-                keymgr
-                    .get::<HsBlindIdKeypair>(&blind_id_key_spec)?
-                    .ok_or(FatalError::KeystoreRace { action: "read", path: arti_path(&blind_id_key_spec)? })?,
+                keymgr.get::<HsBlindIdKeypair>(&blind_id_key_spec)?.ok_or(
+                    FatalError::KeystoreRace {
+                        action: "read",
+                        path: arti_path(&blind_id_key_spec)?,
+                    },
+                )?,
             ))
         }
     }
