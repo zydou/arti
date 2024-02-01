@@ -1591,6 +1591,28 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
     }
+
+    /// Stop publishing descriptors until the specified delay elapses.
+    async fn start_rate_limit(&mut self, delay: Duration) -> Result<(), FatalError> {
+        if !matches!(self.status(), PublishStatus::RateLimited(_)) {
+            debug!(
+                "We are rate-limited for {}; pausing descriptor publication",
+                humantime::format_duration(delay)
+            );
+            let until = self.imm.runtime.now() + delay;
+            self.update_publish_status(PublishStatus::RateLimited(until))
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle the upload rate-limit being lifted.
+    async fn expire_rate_limit(&mut self) -> Result<(), FatalError> {
+        debug!("We are no longer rate-limited; resuming descriptor publication");
+        self.update_publish_status(PublishStatus::UploadScheduled).await?;
+        Ok(())
+    }
 }
 
 /// Try to read the blinded identity key for a given `TimePeriod`.
