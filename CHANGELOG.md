@@ -23,8 +23,8 @@ for actual use.
   Renamed `HsClientSpecifier` to `HsClientNickname`.
 - [`tor-hscrypto`]\:
   `AesOpeKey::encrypt` now takes a `SrvPeriodOffset`;
-  Replaced `TimePeriodOffset` `TimePeriod::offset_within_period`
-  with `SrvPeriodOffset`.
+  Replaced `TimePeriodOffset` with `SrvPeriodOffset`;
+  Removed `TimePeriod::offset_within_period`
 - [`tor-netdir`]\:
   `hs_dirs_download` parameters changed;
   `hs_intro_*_lifetime` parameters renamed.
@@ -137,7 +137,7 @@ for actual use.
 
 ### Other major new features in our Rust APIs
 
-- New `fslock-guard` crate for on-disk lockfiles which can be ever deleted,
+- New `fslock-guard` crate for on-disk lockfiles which can be deleted,
   and which have a Rust API that returns a guard object.
   [fslock!15](https://github.com/brunoczim/fslock/pull/15)
   !1900 
