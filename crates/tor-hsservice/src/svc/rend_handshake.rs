@@ -51,7 +51,7 @@ pub enum IntroRequestError {
     InvalidLinkSpecs(#[source] tor_linkspec::decode::ChanTargetDecodeError),
 
     /// We weren't able to obtain the subcredentials for decrypting the Introduce2 message.
-    #[error("Could not obtain subcredebtials")]
+    #[error("Could not obtain subcredentials")]
     Subcredentials(#[source] crate::FatalError),
 }
 
