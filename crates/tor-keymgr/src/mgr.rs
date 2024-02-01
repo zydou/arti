@@ -195,7 +195,10 @@ impl KeyMgr {
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
     /// decide whether to overwrite it with a newly generated key.
     ///
-    /// Returns `Ok(Some(())` if a new key was created, and `Ok(None)` otherwise.
+    /// On success, this function returns the newly generated key.
+    ///
+    /// Returns [`Error::KeyAlreadyExists`](crate::Error::KeyAlreadyExists)
+    /// if the key already exists in the specified key store and `overwrite` is `false`.
     ///
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
@@ -204,13 +207,16 @@ impl KeyMgr {
     //
     // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
+    //
+    // TODO: consider replacing the overwrite boolean with a GenerateOptions type
+    // (sort of like std::fs::OpenOptions)
     pub fn generate<K>(
         &self,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
         rng: &mut dyn KeygenRng,
         overwrite: bool,
-    ) -> Result<Option<()>>
+    ) -> Result<K>
     where
         K: ToEncodableKey,
         K::Key: Keygen,
@@ -220,9 +226,11 @@ impl KeyMgr {
 
         if overwrite || !store.contains(key_spec, &key_type)? {
             let key = K::Key::generate(rng)?;
-            store.insert(&key, key_spec, &key_type).map(Some)
+            store.insert(&key, key_spec, &key_type)?;
+
+            Ok(K::from_encodable_key(key))
         } else {
-            Ok(None)
+            Err(crate::Error::KeyAlreadyExists)
         }
     }
 
