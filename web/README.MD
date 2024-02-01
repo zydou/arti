@@ -73,7 +73,7 @@ To add a new file to the docs,
     	]
     };
     ```
-    
+[Watch video instructions](https://www.loom.com/share/3f10033a270a40afab3fb8c79830c86c?sid=263c4d7f-19cd-4324-b2dc-8357852de3e8) for adding new content.
 
 ## Making changes and updates
 
