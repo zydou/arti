@@ -77,7 +77,7 @@ release?" above.
 3. Write a changelog.
 
    I start by running
-   `git log --reverse arti-v${LAST_VERSION}..`,
+   `git log --topo-order --reverse arti-v${LAST_VERSION}..`,
    and writing a short summary of everything I find into
    new sections of the changelog.
    I try to copy the list of sections
