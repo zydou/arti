@@ -33,6 +33,9 @@ running a secure, private onion service.  Notably these include:
  * Vanguard relays for resistance to path discovery
  * Descriptor encryption keys,
    so that only certain clients to connect to the service.
+  * Removal of old keys and state information.
+    (Currently, the on-disk state will grow slowly but without bound,
+    with sensitive information retained indefinitely.)
 
 ## Reference
 
