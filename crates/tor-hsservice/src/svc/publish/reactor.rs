@@ -1102,10 +1102,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 trace!("we are rate-limited; deferring descriptor upload");
-                // TODO: Possibly we will someday instead schedule the upload to
-                // happen at `ts + UPLOAD_RATE_LIM_THRESHOLD` instead, to get a
-                // true rate limit.  This logic is, however, enough to achieve
-                // our current purposes.
                 return self
                     .schedule_pending_upload(UPLOAD_RATE_LIM_THRESHOLD)
                     .await;
