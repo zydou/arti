@@ -804,7 +804,6 @@ mod tests {
             "generated_test_key".to_string()
         );
 
-
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
             Some("keystore3_generated_test_key".to_string())
