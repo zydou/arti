@@ -170,6 +170,7 @@ mod test {
 
     use std::collections::HashMap;
     use std::io;
+    use std::path::Path;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
@@ -180,6 +181,7 @@ mod test {
     use fs_mistrust::Mistrust;
     use futures::{AsyncRead, AsyncWrite};
     use tempfile::{tempdir, TempDir};
+    use test_temp_dir::test_temp_dir;
 
     use tor_basic_utils::test_rng::{testing_rng, TestingRng};
     use tor_circmgr::hspool::HsCircKind;
@@ -510,13 +512,17 @@ mod test {
     /// obtain the total expected number of uploads (this works because the test "HSDirs" all
     /// behave the same, so the number of uploads is the number of HSDirs multiplied by the number
     /// of retries).
-    fn publish_after_ipt_change<I: PollReadIter>(poll_read_responses: I, multiplier: usize) {
+    fn publish_after_ipt_change<I: PollReadIter>(
+        temp_dir: &Path,
+        poll_read_responses: I,
+        multiplier: usize,
+    ) {
         let runtime = MockRuntime::new();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let config = build_test_config(nickname.clone());
         let (config_tx, config_rx) = watch::channel_with(Arc::new(config));
 
-        let (mut mv, pv) = ipts_channel(&runtime, create_storage_handles().1).unwrap();
+        let (mut mv, pv) = ipts_channel(&runtime, create_storage_handles(temp_dir).1).unwrap();
         let update_ipts = || {
             let ipts: Vec<IptInSet> = test_data::test_parsed_hsdesc()
                 .unwrap()
@@ -573,7 +579,7 @@ mod test {
         // The HSDirs always respond with 200 OK, so we expect to publish hsdir_count times.
         let poll_reads = [Ok(OK_RESPONSE.into())].into_iter();
 
-        publish_after_ipt_change(poll_reads, 1);
+        test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1));
     }
 
     #[test]
@@ -597,7 +603,7 @@ mod test {
             ]
             .into_iter();
 
-            publish_after_ipt_change(poll_reads, 2);
+            test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 2));
         }
     }
 

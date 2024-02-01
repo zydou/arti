@@ -1,5 +1,7 @@
 //! Declare an error type for the `tor-hsservice` crate.
 
+use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,7 +11,6 @@ use thiserror::Error;
 
 use tor_error::error_report;
 use tor_error::{Bug, ErrorKind, HasKind};
-use tor_persist::FsMistrustErrorExt as _;
 
 pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
 use crate::{HsNickname, NetdirProviderShutdown};
@@ -44,15 +45,26 @@ pub enum StartupError {
     LoadState(#[source] tor_persist::Error),
 
     /// Unable to access on-disk state
-    // We use fs_mistrust::Error since (1) we use mstrust to make the directory,
-    // so we might have one of those anyway and (2) it has a nice variant for our
-    // own io::Error.
     #[error("Unable to access on-disk state")]
-    StateDirectoryInaccessible(#[source] fs_mistrust::Error),
+    StateDirectoryInaccessible(#[source] tor_persist::Error),
 
-    /// Failed to lock the on-disk state
-    #[error("HS service state locked (concurrent HS service processes are not supported")]
-    StateLocked,
+    /// Unable to access on-disk state using underlying IO operations
+    #[error("Unable to access on-disk state: {action} {}", path.display())]
+    // TODO ideally we'd like to use StateDirectoryInaccessiblePersist and tor_persist::Error
+    // for this too, but tor_persist::Error is quite awkward.
+    StateDirectoryInaccessibleIo {
+        /// What happened
+        #[source]
+        source: Arc<io::Error>,
+
+        /// What filesystem path we were trying to access
+        path: PathBuf,
+
+        /// What we were trying to do to it
+        //
+        // TODO this should be an enum, not a static string, but see above
+        action: &'static str,
+    },
 
     /// Fatal error (during startup)
     #[error("fatal error")]
@@ -93,9 +105,9 @@ impl HasKind for StartupError {
             E::KeystoreCorrupted => EK::KeystoreCorrupted,
             E::Spawn { cause, .. } => cause.kind(),
             E::AlreadyLaunched => EK::BadApiUsage,
-            E::StateLocked => EK::LocalResourceAlreadyInUse,
             E::LoadState(e) => e.kind(),
-            E::StateDirectoryInaccessible(e) => e.state_error_kind(),
+            E::StateDirectoryInaccessible(e) => e.kind(),
+            E::StateDirectoryInaccessibleIo { .. } => EK::PersistentStateAccessFailed,
             E::Fatal(e) => e.kind(),
         }
     }

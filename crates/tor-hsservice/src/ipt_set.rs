@@ -23,7 +23,7 @@ use tor_log_ratelim::log_ratelim;
 use tor_rtcompat::SleepProvider;
 
 /// Handle for a suitable persistent storage manager
-pub(crate) type IptSetStorageHandle = dyn tor_persist::StorageHandle<StateRecord> + Sync + Send;
+pub(crate) type IptSetStorageHandle = tor_persist::state_dir::StorageHandle<StateRecord>;
 
 /// Information shared between the IPT manager and the IPT publisher
 ///
@@ -94,7 +94,7 @@ pub(crate) struct PublishIptSet {
 
     /// The on-disk state storage handle.
     #[educe(Debug(ignore))]
-    storage: Arc<IptSetStorageHandle>,
+    storage: IptSetStorageHandle,
 }
 
 /// A set of introduction points for publication
@@ -230,7 +230,7 @@ struct NotifyingBorrow<'v, R: SleepProvider> {
 /// Create a new shared state channel for the publication instructions
 pub(crate) fn ipts_channel(
     runtime: &impl SleepProvider,
-    storage: Arc<IptSetStorageHandle>,
+    storage: IptSetStorageHandle,
 ) -> Result<(IptsManagerView, IptsPublisherView), StartupError> {
     let initial_state = PublishIptSet::load(storage, runtime)?;
     let shared = Arc::new(Mutex::new(initial_state));
@@ -473,7 +473,7 @@ struct IptRecord {
 
 impl PublishIptSet {
     /// Save the publication times to the persistent state
-    fn save(&self, runtime: &impl SleepProvider) -> Result<(), IptStoreError> {
+    fn save(&mut self, runtime: &impl SleepProvider) -> Result<(), IptStoreError> {
         // Throughout, we use exhaustive struct patterns on the in-memory data,
         // so we avoid missing any of the data.
         let PublishIptSet {
@@ -506,7 +506,7 @@ impl PublishIptSet {
 
     /// Load the publication times from the persistent state
     fn load(
-        storage: Arc<IptSetStorageHandle>,
+        storage: IptSetStorageHandle,
         runtime: &impl SleepProvider,
     ) -> Result<PublishIptSet, StartupError> {
         let on_disk = storage.load().map_err(StartupError::LoadState)?;
@@ -552,6 +552,7 @@ mod test {
     use crate::FatalError;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
+    use test_temp_dir::test_temp_dir;
     use tor_rtcompat::BlockOn as _;
 
     fn test_intro_point() -> Ipt {
@@ -596,10 +597,14 @@ mod test {
         // We don't bother with MockRuntime::test_with_various
         // since this test case doesn't spawn tasks
         let runtime = tor_rtmock::MockRuntime::new();
+
+        let temp_dir_owned = test_temp_dir!();
+        let temp_dir = temp_dir_owned.as_path_untracked();
+
         runtime.clone().block_on(async move {
             // make a channel; it should have no updates yet
 
-            let (_state_mgr, iptpub_state_handle) = create_storage_handles();
+            let (_state_mgr, iptpub_state_handle) = create_storage_handles(temp_dir);
             let (mut mv, mut pv) = ipts_channel(&runtime, iptpub_state_handle).unwrap();
             assert!(pv_poll_await_update(&mut pv).await.is_pending());
 
@@ -660,5 +665,7 @@ mod test {
             pv_note_publication_attempt(&runtime, &pv, runtime.now() - Duration::from_secs(10));
             assert_eq!(mv_get_0_expiry(&mut mv), expected_expiry);
         });
+
+        drop(temp_dir_owned); // prove it's still live
     }
 }

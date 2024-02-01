@@ -102,7 +102,7 @@ dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 onion-service-client = ["tor-hsclient", "tor-hscrypto"]
-onion-service-service = ["tor-hsservice", "tor-hscrypto", "keymgr", "__is_experimental"]
+onion-service-service = ["tor-hsservice", "tor-hscrypto", "tor-persist/state-dir", "keymgr", "__is_experimental"]
 rpc = ["tor-rpcbase", "__is_experimental"]
 
 keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr", "__is_experimental"]

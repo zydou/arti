@@ -12,7 +12,7 @@ use std::hash::Hash;
 use std::io;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -22,7 +22,6 @@ use futures::{future, select_biased};
 use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
 
 use educe::Educe;
-use fslock::LockFile;
 use itertools::Itertools as _;
 use postage::{broadcast, watch};
 use rand::Rng;
@@ -40,13 +39,14 @@ use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
 use tor_netdir::NetDirProvider;
+use tor_persist::state_dir::ContainsInstanceStateGuard as _;
 use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier};
 use crate::replay::ReplayLog;
 use crate::status::IptMgrStatusSender;
-use crate::svc::{ipt_establish, OnionServiceStateMgr, ShutdownStatus};
+use crate::svc::{ipt_establish, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
 use crate::{HsNickname, IptLocalId, OnionServiceConfig, RendRequest};
@@ -108,10 +108,6 @@ pub(crate) struct Immutable<R> {
     /// its status updates to arrive, appropriately tagged, via `status_recv`
     status_send: mpsc::Sender<(IptLocalId, IptStatus)>,
 
-    /// The on-disk state storage handle.
-    #[educe(Debug(ignore))]
-    storage: Arc<IptStorageHandle>,
-
     /// The key manager.
     #[educe(Debug(ignore))]
     keymgr: Arc<KeyMgr>,
@@ -120,15 +116,7 @@ pub(crate) struct Immutable<R> {
     ///
     /// Files are named after the (bare) IptLocalId
     #[educe(Debug(ignore))]
-    replay_log_dir: fs_mistrust::CheckedDir,
-
-    /// Lockfile on the replay log directory
-    ///
-    /// `lock` in `replay_log_dir`.
-    ///
-    /// **Must have been locked** and this cannot be assured by the type system.
-    #[educe(Debug(ignore))]
-    replay_log_lock: Arc<LockFile>,
+    replay_log_dir: tor_persist::state_dir::InstanceRawSubdir,
 
     /// A sender for updating the status of the onion service.
     //
@@ -173,6 +161,10 @@ pub(crate) struct State<R, M> {
 
     /// Signal for us to shut down
     shutdown: broadcast::Receiver<Void>,
+
+    /// The on-disk state storage handle.
+    #[educe(Debug(ignore))]
+    storage: IptStorageHandle,
 
     /// Mockable state, normally [`Real`]
     ///
@@ -458,14 +450,15 @@ impl Ipt {
 
         // TODO #1186 Support ephemeral services (without persistent replay log)
         let replay_log = {
-            let replay_log = imm.replay_log_dir.as_path().join(format!("{lid}.bin"));
+            let replay_leaf = format!("{lid}.bin");
+            let replay_log = imm.replay_log_dir.as_path().join(replay_leaf);
 
-            ReplayLog::new_logged(&replay_log, imm.replay_log_lock.clone()).map_err(|error| {
-                CreateIptError::OpenReplayLog {
+            ReplayLog::new_logged(&replay_log, imm.replay_log_dir.raw_lock_guard()).map_err(
+                |error| CreateIptError::OpenReplayLog {
                     file: replay_log,
                     error: error.into(),
-                }
-            })?
+                },
+            )?
         };
 
         let params = IptParameters {
@@ -562,11 +555,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         config: watch::Receiver<Arc<OnionServiceConfig>>,
         output_rend_reqs: mpsc::Sender<RendRequest>,
         shutdown: broadcast::Receiver<Void>,
-        storage: &dyn OnionServiceStateMgr,
+        state_handle: &tor_persist::state_dir::InstanceStateHandle,
         mockable: M,
         keymgr: Arc<KeyMgr>,
-        state_dir: &Path,
-        state_mistrust: &fs_mistrust::Mistrust,
         status_tx: IptMgrStatusSender,
     ) -> Result<Self, StartupError> {
         let irelays = vec![]; // See TODO near persist::load call, in launch_background_tasks
@@ -575,40 +566,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // are reading watches.
         let (status_send, status_recv) = mpsc::channel(0);
 
-        let storage = storage.ipt_storage_handle(&nick);
+        let storage = state_handle
+            .storage_handle("ipts")
+            .map_err(StartupError::StateDirectoryInaccessible)?;
 
-        let (replay_log_dir, replay_log_lock) = {
+        let replay_log_dir = state_handle
+            .raw_subdir("iptreplay")
             // TODO #1198 something should expire these! (and our keys too, obviously)
             // (see also #1067 re expiring a whole service)
-            let dir = state_dir.join(format!("hss_iptreplay/{nick}"));
-            let dir = state_mistrust
-                .verifier()
-                .make_secure_dir(dir)
-                .map_err(StartupError::StateDirectoryInaccessible)?;
-            let lock_path = dir.as_path().join("lock");
-            let handle_lockfile_io_error = |action| {
-                let lock_path = lock_path.clone();
-                move |error| {
-                    StartupError::StateDirectoryInaccessible(fs_mistrust::Error::Io {
-                        action,
-                        filename: lock_path,
-                        err: Arc::new(error),
-                    })
-                }
-            };
-            let mut lock =
-                LockFile::open(&lock_path).map_err(handle_lockfile_io_error("opening lockfile"))?;
-            // Lockfile::try_lock is a beartrap which returns Result<bool, ..>
-            let () = lock
-                .try_lock()
-                .map_err(handle_lockfile_io_error("locking lockfile"))?
-                .then_some(())
-                .ok_or_else(|| StartupError::StateLocked)?;
-
-            let lock = Arc::new(lock);
-
-            (dir, lock)
-        };
+            .map_err(StartupError::StateDirectoryInaccessible)?;
 
         let imm = Immutable {
             runtime,
@@ -617,9 +583,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             status_send,
             output_rend_reqs,
             keymgr,
-            storage,
             replay_log_dir,
-            replay_log_lock,
             status_tx,
         };
         let current_config = config.borrow().clone();
@@ -628,6 +592,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             current_config,
             new_configs: config,
             status_recv,
+            storage,
             mockable,
             shutdown,
             irelays,
@@ -649,6 +614,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         assert!(self.state.irelays.is_empty());
         self.state.irelays = persist::load(
             &self.imm,
+            &self.state.storage,
             &self.state.new_configs,
             &mut self.state.mockable,
             &publisher.borrow_for_read(),
@@ -1290,7 +1256,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         //---------- store persistent state ----------
 
-        persist::store(&self.imm, &self.state)?;
+        persist::store(&self.imm, &mut self.state)?;
 
         Ok(())
     }
@@ -1671,7 +1637,7 @@ mod test {
     use crate::config::OnionServiceConfigBuilder;
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::svc::ipt_establish::GoodIptDetails;
-    use crate::svc::test::{create_keymgr, create_storage_handles_from_state_mgr};
+    use crate::svc::test::{create_keymgr, create_storage_handles_from_state_dir};
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
     use std::collections::BTreeMap;
@@ -1781,18 +1747,13 @@ mod test {
                 estabs: estabs.clone(),
             };
 
-            let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
-
             // Don't provide a subdir; the ipt_mgr is supposed to add any needed subdirs
             let state_dir = temp_dir
                 // untracked is OK because our return value captures 'd
                 .subdir_untracked("state_dir");
 
-            let state_mgr =
-                tor_persist::FsStateMgr::from_path_and_mistrust(&state_dir, &mistrust).unwrap();
-
-            let (state_mgr, iptpub_state_handle) =
-                create_storage_handles_from_state_mgr(state_mgr, &nick);
+            let (state_handle, iptpub_state_handle) =
+                create_storage_handles_from_state_dir(&state_dir, &nick);
 
             let (mgr_view, pub_view) =
                 ipt_set::ipts_channel(&runtime, iptpub_state_handle).unwrap();
@@ -1807,11 +1768,9 @@ mod test {
                 cfg_rx,
                 rend_tx,
                 shut_rx,
-                &state_mgr,
+                &state_handle,
                 mocks,
                 keymgr,
-                &state_dir,
-                &mistrust,
                 status_tx,
             )
             .unwrap();

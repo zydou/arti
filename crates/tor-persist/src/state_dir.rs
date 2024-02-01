@@ -154,12 +154,12 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+use derive_adhoc::{define_derive_adhoc, Adhoc};
 use derive_more::{AsRef, Deref, Into};
 use serde::{de::DeserializeOwned, Serialize};
 use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
-use fslock_guard::LockFileGuard;
 use tor_error::ErrorReport as _;
 use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
 use tracing::trace;
@@ -168,6 +168,19 @@ use crate::err::{Action, ErrorSource, Resource};
 use crate::load_store;
 use crate::slug::{self, BadSlug, Slug, SlugRef, TryIntoSlug};
 pub use crate::Error;
+
+define_derive_adhoc! {
+    ContainsInstanceStateGuard =
+
+    impl<$tgens> ContainsInstanceStateGuard for $ttype where $twheres {
+        fn raw_lock_guard(&self) -> Arc<LockFileGuard> {
+            self.flock_guard.clone()
+        }
+    }
+}
+
+/// Re-export of the lock guard type, as obtained via [`ContainsInstanceStateGuard`]
+pub use fslock_guard::LockFileGuard;
 
 /// TODO HSS remove
 type Todo = Void;
@@ -208,7 +221,7 @@ pub type Result<T> = StdResult<T, Error>;
 /// since the automatic file cleaner might remove an in-use lockfile,
 /// effectively unlocking the instance state
 /// even while a process exists that thinks it still has the lock.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StateDirectory {
     /// The actual directory, including mistrust config
     dir: CheckedDir,
@@ -280,7 +293,7 @@ pub trait InstancePurgeHandler {
 }
 
 /// Information about an instance, passed to [`InstancePurgeHandler::dispose`]
-#[derive(amplify::Getters, AsRef)]
+#[derive(Debug, Clone, amplify::Getters, AsRef)]
 pub struct InstancePurgeInfo<'i> {
     /// The instance's identity string
     #[as_ref]
@@ -307,6 +320,20 @@ pub enum Liveness {
     PossiblyUnused,
     /// This instance is still wanted
     Live,
+}
+
+/// Objects that co-own a lock on an instance
+///
+/// Each type implementing this trait mutually excludes independently-acquired
+/// [`InstanceStateHandle`]s, and anything derived from them
+/// (including, therefore, `ContainsInstanceStateGuard` implementors
+/// with independent provenance.)
+pub trait ContainsInstanceStateGuard {
+    /// Obtain a raw clone of the underlying filesystem lock
+    ///
+    /// This lock (and clones of it) will mutually exclude
+    /// re-acquisition of the same instance.
+    fn raw_lock_guard(&self) -> Arc<LockFileGuard>;
 }
 
 /// Instance identity string formatter, type-erased
@@ -590,7 +617,8 @@ impl StateDirectory {
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
 // unless it returned a Drop newtype around CheckedDir).
-#[derive(Debug)]
+#[derive(Debug, Clone, Adhoc)]
+#[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct InstanceStateHandle {
     /// The directory
     dir: CheckedDir,
@@ -707,13 +735,18 @@ impl InstanceStateHandle {
 /// Rust mutability-xor-sharing rules enforce proper synchronisation,
 /// unless multiple `StorageHandle`s are created
 /// using the same [`InstanceStateHandle`] and slug.
+#[derive(Adhoc, Debug)] // not Clone, to enforce mutability rules (see above)
+#[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct StorageHandle<T> {
     /// The directory and leafname
     instance_dir: CheckedDir,
     /// `SLUG.json`
     leafname: String,
-    /// We're not sync, and we can load and store a `T`
-    marker: PhantomData<Cell<T>>,
+    /// We can load and store a `T`.
+    ///
+    /// Invariant in `T`.  But we're `Sync` and `Send` regardless of `T`.
+    /// (From the Table of PhantomData patterns in the Nomicon.)
+    marker: PhantomData<fn(T) -> T>,
     /// Clone of the InstanceStateHandle's lock
     flock_guard: Arc<LockFileGuard>,
 }
@@ -770,7 +803,12 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
 /// Obtained from [`InstanceStateHandle::raw_subdir`].
 ///
 /// Existence of this value implies exclusive access to the instance.
-#[derive(Deref, Clone)]
+///
+/// If you need to manage the lock, and the directory path, separately,
+/// [`raw_lock_guard`](ContainsInstanceStateGuard::raw_lock_guard)
+///  will help.
+#[derive(Deref, Clone, Debug, Adhoc)]
+#[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct InstanceRawSubdir {
     /// The actual directory, as a [`fs_mistrust::CheckedDir`]
     #[deref]
