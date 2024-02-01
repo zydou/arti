@@ -1,7 +1,6 @@
 //! Principal types for onion services.
 pub(crate) mod netdir;
 
-use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
@@ -160,7 +159,7 @@ pub struct OnionService {
 //
 // TODO (#1228): Write more.
 // TODO (#1247): Choose a better name for this struct
-pub struct OnionServiceState {
+pub(crate) struct OnionServiceState {
     /// The nickname of this service.
     nickname: HsNickname,
     /// The key manager, used for accessing the underlying key stores.
@@ -181,7 +180,7 @@ impl OnionServiceState {
     // TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
     // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
     // ArtiHss.
-    pub fn onion_name(&self) -> Option<HsId> {
+    fn onion_name(&self) -> Option<HsId> {
         let hsid_spec = HsIdPublicKeySpecifier::new(self.nickname.clone());
         self.keymgr
             .get::<HsIdKey>(&hsid_spec)
@@ -323,6 +322,17 @@ impl OnionService {
         let stream = svc.launch()?;
         Ok((svc, stream))
     }
+
+    /// Return the onion address of this service.
+    ///
+    /// Clients must know the service's onion address in order to discover or
+    /// connect to it.
+    ///
+    /// Returns `None` if the HsId of the service could not be found in any of the configured
+    /// keystores.
+    pub fn onion_name(&self) -> Option<HsId> {
+        self.state.onion_name()
+    }
 }
 
 impl RunningOnionService {
@@ -414,21 +424,16 @@ impl RunningOnionService {
         todo!() // TODO (#1231)
     }
     */
-}
 
-impl Deref for OnionService {
-    type Target = OnionServiceState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl Deref for RunningOnionService {
-    type Target = OnionServiceState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.state
+    /// Return the onion address of this service.
+    ///
+    /// Clients must know the service's onion address in order to discover or
+    /// connect to it.
+    ///
+    /// Returns `None` if the HsId of the service could not be found in any of the configured
+    /// keystores.
+    pub fn onion_name(&self) -> Option<HsId> {
+        self.state.onion_name()
     }
 }
 
