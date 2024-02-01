@@ -66,7 +66,7 @@ use postage::{broadcast, watch};
 use tor_basic_utils::retry::RetryDelay;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
-use tor_keymgr::KeyMgr;
+use tor_keymgr::{KeyMgr, KeySpecifier};
 use tor_llcrypto::pk::ed25519;
 use tracing::{debug, error, trace, warn};
 
@@ -829,22 +829,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
                 let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), period);
 
-                // TODO (#1106): make this configurable
-                let keystore_selector = Default::default();
-                let blind_id_kp = self
-                    .imm
-                    .keymgr
-                    .get_or_generate_with_derived::<HsBlindIdKeypair>(
-                        &svc_key_spec,
-                        keystore_selector,
-                        || {
-                            let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
-                                .compute_blinded_key(period)
-                                .map_err(|_| internal!("failed to compute blinded key"))?;
-
-                            Ok(hs_blind_id_kp)
-                        },
-                    )?;
+                let blind_id_kp =
+                    read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)?
+                        // Note: for now, read_blind_id_keypair cannot return Ok(None).
+                        // It's supposed to return Ok(None) if we're in offline hsid mode,
+                        // but that might change when we do #1194
+                        .ok_or_else(|| internal!("offline hsid mode not supported"))?;
 
                 let blind_id: HsBlindIdKey = (&blind_id_kp).into();
 
@@ -1549,19 +1539,34 @@ pub(super) fn read_blind_id_keypair(
 
     // TODO: make the keystore selector configurable
     let keystore_selector = Default::default();
-    let blind_id_kp = keymgr.get_or_generate_with_derived::<HsBlindIdKeypair>(
-        &blind_id_key_spec,
-        keystore_selector,
-        || {
+    match keymgr.get::<HsBlindIdKeypair>(&blind_id_key_spec)? {
+        Some(kp) => Ok(Some(kp)),
+        None => {
             let (_hs_blind_id_key, hs_blind_id_kp, _subcredential) = hsid_kp
                 .compute_blinded_key(period)
                 .map_err(|_| internal!("failed to compute blinded key"))?;
 
-            Ok(hs_blind_id_kp)
-        },
-    )?;
+            // Note: we can't use KeyMgr::generate because this key is derived from the HsId
+            // (KeyMgr::generate uses the tor_keymgr::Keygen trait under the hood,
+            // which assumes keys are randomly generated, rather than derived from existing keys).
 
-    Ok(Some(blind_id_kp))
+            keymgr.insert(hs_blind_id_kp, &blind_id_key_spec, keystore_selector)?;
+
+            let arti_path = |spec: &dyn KeySpecifier| {
+                spec.arti_path()
+                    .map_err(into_internal!("invalid key specifier?!"))
+            };
+
+            Ok(Some(
+                keymgr.get::<HsBlindIdKeypair>(&blind_id_key_spec)?.ok_or(
+                    FatalError::KeystoreRace {
+                        action: "read",
+                        path: arti_path(&blind_id_key_spec)?,
+                    },
+                )?,
+            ))
+        }
+    }
 }
 
 /// Whether the reactor should initiate an upload.

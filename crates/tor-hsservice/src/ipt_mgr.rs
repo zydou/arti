@@ -406,8 +406,6 @@ impl Ipt {
             //     And we could recover by creating fresh keys, although maybe some clients
             //     would find the previous keys in old descriptors.
             //     So if the keys are missing, make and store new ones, logging an error msg.
-            // TODO #1074: The current keymgr API doesn't make this easy
-            // Tidy this code up when the API is better.
             let k: Option<$Keypair> = imm.keymgr.get(&spec)?;
             let arti_path = || {
                 spec
@@ -418,8 +416,9 @@ impl Ipt {
                         )
                     })
             };
-            match (expect_existing_keys, &k) {
-                (None, None) | (Some(_), Some(_)) => {}
+            match (expect_existing_keys, k) {
+                (None, None) => { }
+                (Some(_), Some(k)) => return Ok(Arc::new(k)),
                 (None, Some(_)) => {
                     return Err(FatalError::IptKeysFoundUnexpectedly(arti_path()?).into())
                 },
@@ -427,16 +426,22 @@ impl Ipt {
                     error!("HS service {} missing previous key {:?}, regenerating",
                            &imm.nick, arti_path()?);
                 }
+             }
+
+            let res = imm.keymgr.generate::<$Keypair>(
+                &spec,
+                tor_keymgr::KeystoreSelector::Default,
+                &mut rng,
+                false, /* overwrite */
+            );
+
+            match res {
+                Ok(k) => Ok::<_, CreateIptError>(Arc::new(k)),
+                Err(tor_keymgr::Error::KeyAlreadyExists) => {
+                    Err(FatalError::KeystoreRace { action: "generate", path: arti_path()? }.into() )
+                },
+                Err(e) => Err(e.into()),
             }
-            let k = k.map(Ok).unwrap_or_else(|| {
-                // TODO #1074 get_or_generate is strictly speaking a bit wrong here, see above
-                imm.keymgr.get_or_generate(
-                    &spec,
-                    tor_keymgr::KeystoreSelector::Default,
-                    &mut rng,
-                )
-            })?;
-            Ok::<_, CreateIptError>(Arc::new(k))
         })() } }
 
         let k_hss_ntor = get_or_gen_key!(HsSvcNtorKeypair, KHssNtor)?;

@@ -21,8 +21,7 @@ use tor_error::{bad_api_usage, internal};
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
 ///
-/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type),
-/// [`get_or_generate_with_derived`](KeyMgr::get_or_generate_with_derived) -
+/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type) -
 /// search the configured key stores in order: first the default key store,
 /// and then the secondary stores, in order.
 ///
@@ -33,7 +32,7 @@ use tor_error::{bad_api_usage, internal};
 /// order to implement this safely without locking, the key store operations (get,
 /// insert, remove) will need to be atomic.
 ///
-/// **Note**: [`KeyMgr::generate`] and [`KeyMgr::generate_with_derived`] should **not** be used
+/// **Note**: [`KeyMgr::generate`] and [`Keymgr::get_or_generate`] should **not** be used
 /// concurrently with any other `KeyMgr` operation that mutates the same key
 /// (i.e. a key with the same `ArtiPath`), because
 /// their outcome depends on whether the selected key store
@@ -139,42 +138,11 @@ impl KeyMgr {
     /// specifier.
     ///
     /// If the requested key does not exist in any of the key stores, this generates a new key of
-    /// type `K` computed using the provided `derive` function and inserts it into the specified
-    /// keystore, returning the newly inserted value.
-    pub fn get_or_generate_with_derived<K: ToEncodableKey>(
-        &self,
-        key_spec: &dyn KeySpecifier,
-        selector: KeystoreSelector,
-        derive: impl FnOnce() -> Result<K>,
-    ) -> Result<K> {
-        let key_type = K::Key::key_type();
-
-        match self.get_from_store(key_spec, &key_type, self.all_stores())? {
-            Some(key) => Ok(key),
-            None => {
-                let key = derive()?;
-
-                self.insert(key, key_spec, selector)?;
-                // The key is not Clone so we have to look it up to return it.
-                let key = self
-                    .get_from_store(key_spec, &key_type, self.all_stores())?
-                    .ok_or_else(|| internal!("key is missing but we've just inserted it?!"))?;
-
-                // TODO: assert the key was retrieved from the keystore we put it in?
-
-                Ok(key)
-            }
-        }
-    }
-
-    /// Read the key identified by `key_spec`.
-    ///
-    /// The key returned is retrieved from the first key store that contains an entry for the given
-    /// specifier.
-    ///
-    /// If the requested key does not exist in any of the key stores, this generates a new key of
     /// type `K` from the key created using using `K::Key`'s [`Keygen`] implementation, and inserts
     /// it into the specified keystore, returning the newly inserted value.
+    ///
+    /// This is a convenience wrapper around [`get()`](KeyMgr::get) and
+    /// [`generate()`](KeyMgr::generate).
     pub fn get_or_generate<K>(
         &self,
         key_spec: &dyn KeySpecifier,
@@ -185,9 +153,10 @@ impl KeyMgr {
         K: ToEncodableKey,
         K::Key: Keygen,
     {
-        self.get_or_generate_with_derived(key_spec, selector, || {
-            Ok(K::from_encodable_key(K::Key::generate(rng)?))
-        })
+        match self.get(key_spec)? {
+            Some(k) => Ok(k),
+            None => self.generate(key_spec, selector, rng, false),
+        }
     }
 
     /// Generate a new key of type `K`, and insert it into the key store specified by `selector`.
@@ -195,7 +164,10 @@ impl KeyMgr {
     /// If the key already exists in the specified key store, the `overwrite` flag is used to
     /// decide whether to overwrite it with a newly generated key.
     ///
-    /// Returns `Ok(Some(())` if a new key was created, and `Ok(None)` otherwise.
+    /// On success, this function returns the newly generated key.
+    ///
+    /// Returns [`Error::KeyAlreadyExists`](crate::Error::KeyAlreadyExists)
+    /// if the key already exists in the specified key store and `overwrite` is `false`.
     ///
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
@@ -204,13 +176,16 @@ impl KeyMgr {
     //
     // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
+    //
+    // TODO: consider replacing the overwrite boolean with a GenerateOptions type
+    // (sort of like std::fs::OpenOptions)
     pub fn generate<K>(
         &self,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
         rng: &mut dyn KeygenRng,
         overwrite: bool,
-    ) -> Result<Option<()>>
+    ) -> Result<K>
     where
         K: ToEncodableKey,
         K::Key: Keygen,
@@ -220,126 +195,11 @@ impl KeyMgr {
 
         if overwrite || !store.contains(key_spec, &key_type)? {
             let key = K::Key::generate(rng)?;
-            store.insert(&key, key_spec, &key_type).map(Some)
+            store.insert(&key, key_spec, &key_type)?;
+
+            Ok(K::from_encodable_key(key))
         } else {
-            Ok(None)
-        }
-    }
-
-    /// Generate a new keypair of type `SK` and the corresponding public key of type `PK`, and
-    /// insert them into the key store specified by `selector`.
-    ///
-    /// If the keypair already exists in the specified key store, the `overwrite` flag is used to
-    /// decide whether to overwrite it with a newly generated key.
-    ///
-    /// If `overwrite` is `false` and the keypair already exists in the keystore, but the
-    /// corresponding public key does not, ththe public key will be derived from the existing
-    /// keypair and inserted into the keystore.
-    ///
-    /// If `overwrite` is `false` and the keypair does not exist in the keystore, but its
-    /// corresponding public key does, this will **not** generate a fresh keypair.
-    ///
-    /// Returns `Ok(Some(())` if a new keypair was created, and `Ok(None)` otherwise.
-    ///
-    /// **NOTE**: If the keypair and its corresponding public key already exist in the keystore,
-    /// this function checks if they match. If they do not, it returns an error.
-    ///
-    /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
-    /// mutates the key store state is **not** recommended, as it can yield surprising results! The
-    /// outcome of [`KeyMgr::generate_with_derived`] depends on whether the selected key store
-    /// [`contains`][crate::Keystore::contains] the specified keypair, and thus suffers from a
-    /// TOCTOU race.
-    //
-    // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
-    // overwrite any existing keys.
-    pub fn generate_with_derived<SK, PK>(
-        &self,
-        keypair_key_spec: &dyn KeySpecifier,
-        public_key_spec: &dyn KeySpecifier,
-        selector: KeystoreSelector,
-        mut derive_pub: impl FnMut(&SK::Key) -> PK,
-        rng: &mut dyn KeygenRng,
-        overwrite: bool,
-    ) -> Result<Option<()>>
-    where
-        SK: ToEncodableKey,
-        SK::Key: Keygen,
-        PK: EncodableKey + PartialEq,
-    {
-        // TODO (#1194): at some point we may want to support putting the keypair and public key in
-        // different keystores.
-        let store = self.select_keystore(&selector)?;
-        let keypair = store.get(keypair_key_spec, &SK::Key::key_type())?;
-        let public_key = store.get(public_key_spec, &PK::key_type())?;
-
-        let generate_key = match (keypair, public_key) {
-            (Some(keypair), None) if !overwrite => {
-                // The keypair exists, but its corresponding public key entry does not, so we derive
-                // the public key and create a new entry for it.
-                let keypair: SK::Key = keypair
-                    .downcast::<SK::Key>()
-                    .map(|k| *k)
-                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
-                let public_key = derive_pub(&keypair);
-
-                let _ = store.insert(&public_key, public_key_spec, &PK::key_type())?;
-
-                false
-            }
-            (Some(_), None) => {
-                // overwrite = true, so we don't need to extract the public key from the existing
-                // keypair, as we're about to replace the keypair with a newly generated one
-                true
-            }
-            (Some(keypair), Some(public)) => {
-                let keypair: SK::Key = keypair
-                    .downcast::<SK::Key>()
-                    .map(|k| *k)
-                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
-
-                let public: PK = public
-                    .downcast::<PK>()
-                    .map(|k| *k)
-                    .map_err(|_| internal!("failed to downcast key to requested type"))?;
-
-                // Check that the existing public key matches the keypair
-                //
-                // TODO: I'm not sure this validation belongs here.
-                let expected_public = derive_pub(&keypair);
-
-                if expected_public != public {
-                    // TODO (#1194): internal! is not right, create an error type for KeyMgr errors and
-                    // add context
-                    return Err(internal!(
-                        "keystore corruption: public key does not match keypair"
-                    )
-                    .into());
-                }
-
-                // Both keys exist, so we only need to generate new keys if overwrite = true
-                overwrite
-            }
-            (None, None) => {
-                // Both keys are missing, so we have to generate them.
-                true
-            }
-            (None, Some(_)) => {
-                // The public key exists, but its corresponding keypair is missing. We can't
-                // generate a new keypair, as that would have a different public key entry.
-                false
-            }
-        };
-
-        if generate_key {
-            let keypair = SK::Key::generate(rng)?;
-            let _ = store.insert(&keypair, keypair_key_spec, &SK::Key::key_type())?;
-
-            let public_key = derive_pub(&keypair);
-            let _ = store.insert(&public_key, public_key_spec, &PK::key_type())?;
-
-            Ok(Some(()))
-        } else {
-            Ok(None)
+            Err(crate::Error::KeyAlreadyExists)
         }
     }
 
@@ -855,15 +715,16 @@ mod tests {
         );
 
         // Try to generate a new key (overwrite = false)
-        mgr.generate_with_derived::<TestKey, TestPublicKey>(
-            &TestKeySpecifier1,
-            &TestPublicKeySpecifier1,
-            KeystoreSelector::Default,
-            |sk| TestKey::from(sk),
-            &mut testing_rng(),
-            false,
-        )
-        .unwrap();
+        let err = mgr
+            .generate::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Default,
+                &mut testing_rng(),
+                false,
+            )
+            .unwrap_err();
+
+        assert!(matches!(err, crate::Error::KeyAlreadyExists));
 
         // The previous entry was not overwritten because overwrite = false
         assert_eq!(
@@ -871,48 +732,33 @@ mod tests {
             Some("keystore1_coot".to_string())
         );
 
-        // Because overwrite = false and the keypair already exists in the keystore,
-        // generate() creates a new public key entry derived from the existing keypair.
+        // We don't store public keys in the keystore
         assert_eq!(
             mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
-            Some("keystore1_keystore1_coot".to_string())
+            None,
         );
 
         // Try to generate a new key (overwrite = true)
-        mgr.generate_with_derived::<TestKey, TestPublicKey>(
-            &TestKeySpecifier1,
-            &TestPublicKeySpecifier1,
-            KeystoreSelector::Default,
-            // We prefix the "key" with the id of the keystore it was retrieved from, because its
-            // value needs to match that of the public key that already exists in the keystore (the
-            // get() implementations of our test keystores prefix the keys with their keystore ID,
-            // for testing purposes).
-            //
-            // TODO(gabi): knowing which keystore a key came from is useful, because it enables us
-            // to check that KeyMgr::get works as expected (i.e. reads from the correct keystore),
-            // but encoding this information in the key itself makes these tests rather confusing
-            // to read. We should make the keystores return a (TestKey, KeystoreID) instead.
-            |sk| format!("keystore1_{sk}"),
-            &mut testing_rng(),
-            true,
-        )
-        .unwrap();
+        let key = mgr
+            .generate::<TestKey>(
+                &TestKeySpecifier1,
+                KeystoreSelector::Default,
+                &mut testing_rng(),
+                true,
+            )
+            .unwrap();
+
+        assert_eq!(key, "generated_test_key".to_string());
 
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
             Some("keystore1_generated_test_key".to_string())
         );
 
-        // The public part of the key was overwritten too
-        //
-        // TODO: instead of making the keys Strings, we should create a real test key type.
-        // This will enable us to test that the public key is indeed derived from the keypair using
-        // its From impl (as this assertion shows, the retrieved public key,
-        // keystore1_generated_test_key, looks the same as the keyapir, because it's using the
-        // From<String> impl for String).
+        // We don't store public keys in the keystore
         assert_eq!(
             mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
-            Some("keystore1_keystore1_generated_test_key".to_string())
+            None,
         );
     }
 
@@ -955,30 +801,12 @@ mod tests {
                 &mut testing_rng()
             )
             .unwrap(),
-            "keystore3_generated_test_key".to_string()
+            "generated_test_key".to_string()
         );
 
-        // The key already exists in keystore 2 so it won't be auto-generated.
         assert_eq!(
-            mgr.get_or_generate_with_derived::<TestKey>(
-                &TestKeySpecifier1,
-                KeystoreSelector::Default,
-                || Ok("turtle_dove".to_string())
-            )
-            .unwrap(),
-            "keystore2_coot".to_string()
-        );
-
-        // This key doesn't exist in any of the keystores, so it will be auto-generated and
-        // inserted into the default keystore.
-        assert_eq!(
-            mgr.get_or_generate_with_derived::<TestKey>(
-                &TestKeySpecifier3,
-                KeystoreSelector::Default,
-                || Ok("rock_dove".to_string())
-            )
-            .unwrap(),
-            "keystore1_rock_dove".to_string()
+            mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
+            Some("keystore3_generated_test_key".to_string())
         );
     }
 }

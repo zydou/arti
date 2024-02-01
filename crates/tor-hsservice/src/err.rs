@@ -228,6 +228,18 @@ pub enum FatalError {
     #[error("failed to access keystore")]
     Keystore(#[from] tor_keymgr::Error),
 
+    /// Failed to access the keystore due to incompatible concurrent access.
+    ///
+    /// This can only happen if someone is modifying the contents of the keystore
+    /// just as we are trying to access it.
+    #[error("keystore {action} failed for {path} (someone else is writing to the keystore?!)")]
+    KeystoreRace {
+        /// What action we were trying to perform
+        action: &'static str,
+        /// The ArtiPath we were trying to access
+        path: tor_keymgr::ArtiPath,
+    },
+
     /// The identity keypair of the service could not be found in the keystore.
     #[error("Hidden service identity key not found: {0}")]
     MissingHsIdKeypair(HsNickname),
@@ -270,6 +282,7 @@ impl HasKind for FatalError {
             FE::Spawn { cause, .. } => cause.kind(),
             FE::Keystore(e) => e.kind(),
             FE::MissingHsIdKeypair(_) => EK::Internal, // TODO (#1256) This is not always right.
+            FE::KeystoreRace { .. } => EK::KeystoreAccessFailed,
             FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::NetdirProviderShutdown(e) => e.kind(),
             FE::Bug(e) => e.kind(),

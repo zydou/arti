@@ -9,7 +9,7 @@ use itertools::Itertools;
 use std::sync::Arc;
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 use tor_hscrypto::{
-    pk::{HsBlindIdKeypair, HsIdKey, HsIntroPtSessionIdKey, HsSvcNtorKeypair},
+    pk::{HsBlindIdKeypair, HsIdKey, HsIdKeypair, HsIntroPtSessionIdKey, HsSvcNtorKeypair},
     time::TimePeriod,
     Subcredential,
 };
@@ -25,7 +25,7 @@ use tor_proto::{
 use crate::{
     keys::BlindIdKeypairSpecifierPattern,
     svc::rend_handshake::{self, RendCircConnector},
-    ClientError, FatalError, HsIdPublicKeySpecifier, HsNickname, IptLocalId,
+    ClientError, FatalError, HsIdKeypairSpecifier, HsNickname, IptLocalId,
 };
 
 /// Request to complete an introduction/rendezvous handshake.
@@ -105,12 +105,15 @@ impl RendRequestContext {
     /// Obtain the all current `Subcredential`s of `nickname`
     /// from the `K_hs_blind_id` read from the keystore.
     pub(crate) fn compute_subcredentials(&self) -> Result<Vec<Subcredential>, FatalError> {
-        let hsid_key_spec = HsIdPublicKeySpecifier::new(self.nickname.clone());
+        let hsid_key_spec = HsIdKeypairSpecifier::new(self.nickname.clone());
 
-        let hsid = self
+        // TODO (#1194): Revisit when we add support for offline hsid mode
+        let keypair = self
             .keymgr
-            .get::<HsIdKey>(&hsid_key_spec)?
+            .get::<HsIdKeypair>(&hsid_key_spec)?
             .ok_or_else(|| FatalError::MissingHsIdKeypair(self.nickname.clone()))?;
+
+        let hsid = HsIdKey::from(&keypair);
 
         let pattern = BlindIdKeypairSpecifierPattern {
             nickname: Some(self.nickname.clone()),
