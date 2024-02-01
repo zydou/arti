@@ -3,6 +3,181 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# UNRELEASED
+
+Arti 1.1.12 continues work on support for running onion services.
+You can now launch an onion service and expect it to run.
+We have fixed a number of bugs.  The user experience is still not
+great, and the onion-service-server feature is still experimental.
+We have reorganised the on-disk state and key storage, to make it more
+sensible; hope (but don't promise!) it's now the final layout.
+Don't rely on this onion service implementation for security yet;
+there are a number of [missing security features]
+we will need to develop before we can recommend them
+for actual use.
+
+### Breaking changes in lower-level crates
+
+- [`tor-hsclient`]\: Replaced `HsClientKeyRole`, `HsClientSecretKeySpecifier`
+  with `HsClientDescEncKeypairSpecifier`.
+  Renamed `HsClientSpecifier` to `HsClientNickname`.
+- [`tor-hscrypto`]\:
+  `AesOpeKey::encrypt` now takes a `SrvPeriodOffset`;
+  Replaced `TimePeriodOffset` `TimePeriod::offset_within_period`
+  with `SrvPeriodOffset`.
+- [`tor-netdir`]\:
+  `hs_dirs_download` parameters changed;
+  `hs_intro_*_lifetime` parameters renamed.
+
+### Onion service development
+
+- Complete overhaul of the way the hidden service code stores
+  non-key persistent state.
+  Pathnames have changed as a result.
+  !1853 #1183 !1941
+- Fix important bugs
+  * "service fails after approx 12 hours" 
+    #1242
+    !1901
+  * `HSS: "internal error" "current wallclock time not within TP?!"` etc.
+    #1155
+	#1166
+	#1254
+	!1903
+	!1904
+	!1914
+- Fixes to services shutdown.
+  !1875
+  !1895
+  !1897
+  #1236
+  !1899
+  !1917
+  !1921
+- Improve error and corner case handling in descriptor publisher
+  !1861
+- Work on expiring keys: we expire descriptor keyw now
+  (although we don't actually properly delete all keys when we need to, yet)
+  !1909
+- Many improvements to keystore, key and `KeySpecifier` handling
+  !1864
+  !1863
+  !1883
+- Only choose Stable relays for introduction points.
+  !1884
+  #1240
+  #1211
+- Better handling of introduction point establishment failures
+  !1889
+  !1915
+- Better handling of anomalous situations (including excessive requests)
+  on introduction circuits
+  #1188
+  #1189
+  !1892
+  !1916
+- Tolerate INTRO_ESTABLISHED messages with (unknown) extensions
+  !1898
+- Correct and improve various timing and tuning parameters
+  !1911
+  !1924
+- Improve status reporting from hidden services
+  !1902
+- Public API of `tor-hsservice` crate overhauled
+  #1227
+  #1220
+  !1887
+- Mark lower-level hs-service features non-experimental.
+  !1908
+- Defend against partial writes of introduction point replay log
+  entries
+  !1920
+- Fix some error types and `ErrorKind`s
+  !1906
+  #1237
+  #1225
+  #1255
+- Detect and reject configurations with onion services,
+  when onion-service-server support has been compiled out.
+  !1885
+  #1184
+- Temporarily disable parsing of AF_UNIX socket addresses
+  (which aren't implemented right now anyway)
+  !1886
+- Minor bugfixes to logging
+  1869
+- Docs improvements
+  !1918
+- Many internal cleanups including much triage of TODO comments in the code
+  !1859
+  !1862
+  !1861
+  !1868
+  !1866
+  !1863
+  !1870
+  !1874
+  !1872
+  !1869
+  !1876
+  !1867 
+  !1873
+  !1877
+  !1878
+  !1875
+  !1879
+  !1882
+  !1881
+  !1880
+  !1894
+  !1888
+  !1887
+  !1896
+  !1864
+
+### Other major new features in our Rust APIs
+
+- New `fslock-guard` crate for on-disk lockfiles which can be ever deleted,
+  and which have a Rust API that returns a guard object.
+  [fslock!15](https://github.com/brunoczim/fslock/pull/15)
+  !1900 
+  !1910 
+- `tor-persist` has
+  a `Slug` type which is used for nicknames, key paths, etc.,
+  unifying the rules used for different kinds of name
+  !1912 #1092 #1193 !1926 !1929 !1922 !1933 #1092 !1931 !1934
+- `tor-persist` has
+  `StateDirectory` for handling persistent state
+  relating to particular instances of a facility (used for hidden
+  serivces)
+  !1853 #1205 !1913 #1163 !1935
+
+### Documentation and examples
+
+- New examples using `hyper v1`
+  !1845
+- Minor fixes 
+  !1938
+
+### Testing
+
+- New `test-temp-dir` crate for convenient handling of temporary files in tests
+  !1925
+
+### Cleanups, minor features, and bugfixes
+
+- `fs-mistrust`: Expose `CheckedDir::verifier`
+  !1928
+  and provide `CheckedDir::make_secure_dir`
+  !1927
+- Instructions for building `arti-extra` in `tests/shadow/README.md`.
+  !1891
+
+### Acknowledgments
+
+TODO
+
+
 # Arti 1.1.12 — 9 January 2024
 
 Arti 1.1.12 continues work on support for running onion services.
