@@ -8,16 +8,16 @@
 //!
 //! ```ignore
 //!
-//!                 update_publish_status(UploadScheduled|AwaitingIpts)  +---------------+
-//!                +---------------------------------------------------->| Bootstrapping |
-//!                |                                                     +---------------+
-//! +----------+   | update_publish_status(Idle)        +---------+             |
-//! | Shutdown |-- +----------------------------------->| Running |----+        |
-//! +----------+   |                                    +---------+    |        |
-//!                |                                                   |        |
-//!                |                                                   |        |
-//!                | run_once() returns an error  +--------+           |        |
-//!                +----------------------------->| Broken |<----------+--------+
+//!                 update_publish_status(UploadScheduled|AwaitingIpts|RateLimited) +---------------+
+//!                +--------------------------------------------------------------->| Bootstrapping |
+//!                |                                                                +---------------+
+//! +----------+   | update_publish_status(Idle)        +---------+                         |
+//! | Shutdown |-- +----------------------------------->| Running |----+                    |
+//! +----------+   |                                    +---------+    |                    |
+//!                |                                                   |                    |
+//!                |                                                   |                    |
+//!                | run_once() returns an error  +--------+           |                    |
+//!                +----------------------------->| Broken |<----------+--------------------+
 //!                                               +--------+ run_once() returns an error
 //! ```
 //!
@@ -93,6 +93,7 @@ use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::ShutdownStatus;
+use crate::timeout_track::TrackingNow;
 use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,
     HsNickname,
@@ -157,27 +158,6 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// When our [`PublishStatus`] changes to [`UploadScheduled`](PublishStatus::UploadScheduled),
     /// we can start publishing descriptors.
     publish_status_tx: watch::Sender<PublishStatus>,
-    /// A channel for the telling the upload reminder task (spawned in [`Reactor::run`]) when to
-    /// remind us that we need to retry a failed or rate-limited upload.
-    ///
-    /// The [`Instant`] sent on this channel represents the earliest time when the upload can be
-    /// rescheduled. The receiving end of this channel will initially observe `None` (the default
-    /// value of the inner type), which indicates there are no pending uploads to reschedule.
-    ///
-    /// Note: this can't be a non-optional `Instant` because:
-    ///   * [`postage::watch`] channels require an inner type that implements `Default`, which
-    ///   `Instant` does not implement
-    ///   * `Receiver`s are always observe an initial value, even if nothing was sent on the
-    ///   channel. Since we don't want to reschedule the upload until we receive a notification
-    ///   from the sender, we `None` as a special value that tells the upload reminder task to
-    ///   block until it receives a non-default value
-    ///
-    /// This field is initialized in [`Reactor::run`].
-    ///
-    /// Closing this channel will cause the upload reminder task to exit.
-    ///
-    // TODO: decide if this is the right approach for implementing rate-limiting
-    reattempt_upload_tx: Option<watch::Sender<Option<Instant>>>,
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
@@ -600,7 +580,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             config_rx,
             publish_status_rx,
             publish_status_tx,
-            reattempt_upload_tx: None,
             upload_task_complete_rx,
             upload_task_complete_tx,
             shutdown_tx,
@@ -626,56 +605,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             inner.time_periods = time_periods;
         }
 
-        // There will be at most one pending upload.
-        let (reattempt_upload_tx, mut reattempt_upload_rx) = watch::channel();
-        let (mut schedule_upload_tx, mut schedule_upload_rx) = watch::channel();
-
-        self.reattempt_upload_tx = Some(reattempt_upload_tx);
-
         let nickname = self.imm.nickname.clone();
         let rt = self.imm.runtime.clone();
         let status_tx = self.imm.status_tx.clone();
-        // Spawn the task that will remind us to retry any rate-limited uploads.
-        //
-        // This task will shut down when the reactor is dropped (dropping
-        // reattempt_upload_tx closes the channel).
-        let _ = self.imm.runtime.spawn(async move {
-            // The sender tells us how long to wait until to schedule the upload
-            while let Some(scheduled_time) = reattempt_upload_rx.next().await {
-                let Some(scheduled_time) = scheduled_time else {
-                    // `None` is the initially observed, default value of this postage::watch
-                    // channel, and it means there are no pending uploads to reschedule.
-                    continue;
-                };
-
-                // Check how long we have to sleep until we're no longer rate-limited.
-                let duration = scheduled_time.checked_duration_since(rt.now());
-
-                // If duration is `None`, it means we're past `scheduled_time`, so we don't need to
-                // sleep at all.
-                if let Some(duration) = duration {
-                    rt.sleep(duration).await;
-                }
-
-                // Enough time has elapsed. Remind the reactor to retry the upload.
-                if let Err(e) = schedule_upload_tx.send(()).await {
-                    debug!(nickname=%nickname, "failed to notify reactor to reattempt upload");
-                    status_tx.note_shutdown();
-                    // This can only happen if the reactor exited (or crashed), so it's safe to
-                    // stop looping at this point (we will break on the next iteration anyway,
-                    // because `reattempt_upload_tx` is also dropped when the reactor is dropped).
-                    break;
-                }
-            }
-
-            trace!(
-                nickname=%nickname,
-                "reupload reminder task shutting down (the reactor has shut down)"
-            );
-        });
 
         loop {
-            match self.run_once(&mut schedule_upload_rx).await {
+            match self.run_once().await {
                 Ok(ShutdownStatus::Continue) => continue,
                 Ok(ShutdownStatus::Terminate) => {
                     debug!(nickname=%self.imm.nickname, "descriptor publisher is shutting down!");
@@ -699,11 +634,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Run one iteration of the reactor loop.
-    async fn run_once(
-        &mut self,
-        schedule_upload_rx: &mut watch::Receiver<()>,
-    ) -> Result<ShutdownStatus, FatalError> {
+    async fn run_once(&mut self) -> Result<ShutdownStatus, FatalError> {
         let mut netdir_events = self.dir_provider.events();
+
+        // Note: TrackingNow tracks the values it is compared with.
+        // This is equivalent to sleeping for (until - now) units of time,
+        let upload_rate_lim: TrackingNow = TrackingNow::now(&self.imm.runtime);
+        if let PublishStatus::RateLimited(until) = self.status() {
+            if upload_rate_lim > until {
+                // We are no longer rate-limited
+                self.expire_rate_limit().await?;
+            }
+        }
 
         select_biased! {
             res = self.upload_task_complete_rx.next().fuse() => {
@@ -712,7 +654,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 };
 
                 self.handle_upload_results(upload_res);
-            }
+            },
+            () = upload_rate_lim.wait_for_earliest(&self.imm.runtime).fuse() => {
+                self.expire_rate_limit().await?;
+            },
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
                 let netdir = match self.dir_provider.netdir(Timeliness::Timely) {
@@ -755,15 +700,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 self.handle_svc_config_change(config).await?;
             },
-            res = schedule_upload_rx.next().fuse() => {
-                let Some(()) = res else {
-                    return Ok(ShutdownStatus::Terminate);
-                };
 
-                // Unless we're waiting for IPTs, reattempt the rate-limited upload in the next
-                // iteration.
-                self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled).await?;
-            },
             should_upload = self.publish_status_rx.next().fuse() => {
                 let Some(should_upload) = should_upload else {
                     return Ok(ShutdownStatus::Terminate);
@@ -1003,7 +940,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 debug!(nickname=%self.imm.nickname, "the introduction points have changed");
 
                 self.mark_all_dirty();
-                self.update_publish_status(should_upload).await?;
+                self.update_publish_status_unless_rate_lim(should_upload)
+                    .await?;
                 Ok(ShutdownStatus::Continue)
             }
             Some(Err(e)) => Err(e),
@@ -1028,20 +966,36 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Update the `PublishStatus` of the reactor with `new_state`.
+    /// Update the `PublishStatus` of the reactor with `new_state`,
+    /// unless the current state is `RateLimited`.
+    async fn update_publish_status_unless_rate_lim(
+        &mut self,
+        new_state: PublishStatus,
+    ) -> Result<(), FatalError> {
+        // We can't exit this state until the rate-limit expires.
+        if !matches!(self.status(), PublishStatus::RateLimited(_)) {
+            self.update_publish_status(new_state).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Unconditionally update the `PublishStatus` of the reactor with `new_state`.
     async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), FatalError> {
+        let onion_status = match new_state {
+            PublishStatus::Idle => State::Running,
+            PublishStatus::UploadScheduled
+            | PublishStatus::AwaitingIpts
+            | PublishStatus::RateLimited(_) => State::Bootstrapping,
+        };
+
+        self.imm.status_tx.note_status(onion_status, None);
+
         trace!(
             "publisher reactor status change: {:?} -> {:?}",
             self.status(),
             new_state
         );
-
-        let onion_status = match new_state {
-            PublishStatus::Idle => State::Running,
-            PublishStatus::UploadScheduled | PublishStatus::AwaitingIpts => State::Bootstrapping,
-        };
-
-        self.imm.status_tx.note_status(onion_status, None);
 
         self.publish_status_tx
             .send(new_state)
@@ -1101,14 +1055,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let duration_since_upload = now.duration_since(ts);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
-                trace!("we are rate-limited; deferring descriptor upload");
-                // TODO: Possibly we will someday instead schedule the upload to
-                // happen at `ts + UPLOAD_RATE_LIM_THRESHOLD` instead, to get a
-                // true rate limit.  This logic is, however, enough to achieve
-                // our current purposes.
-                return self
-                    .schedule_pending_upload(UPLOAD_RATE_LIM_THRESHOLD)
-                    .await;
+                return self.start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD).await;
             }
         }
 
@@ -1189,23 +1136,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     }
                 })
                 .map_err(|e| FatalError::from_spawn("upload_for_time_period task", e))?;
-        }
-
-        Ok(())
-    }
-
-    /// Tell the "upload reminder" task to remind us to retry an upload that failed or was rate-limited.
-    async fn schedule_pending_upload(&mut self, delay: Duration) -> Result<(), FatalError> {
-        if let Err(e) = self
-            .reattempt_upload_tx
-            .as_mut()
-            .ok_or(internal!(
-                "channel not initialized (schedule_pending_upload called before run?!)"
-            ))?
-            .send(Some(self.imm.runtime.now() + delay))
-            .await
-        {
-            return Err(into_internal!("failed to schedule upload reattempt")(e).into());
         }
 
         Ok(())
@@ -1574,6 +1504,29 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
     }
+
+    /// Stop publishing descriptors until the specified delay elapses.
+    async fn start_rate_limit(&mut self, delay: Duration) -> Result<(), FatalError> {
+        if !matches!(self.status(), PublishStatus::RateLimited(_)) {
+            debug!(
+                "We are rate-limited for {}; pausing descriptor publication",
+                humantime::format_duration(delay)
+            );
+            let until = self.imm.runtime.now() + delay;
+            self.update_publish_status(PublishStatus::RateLimited(until))
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle the upload rate-limit being lifted.
+    async fn expire_rate_limit(&mut self) -> Result<(), FatalError> {
+        debug!("We are no longer rate-limited; resuming descriptor publication");
+        self.update_publish_status(PublishStatus::UploadScheduled)
+            .await?;
+        Ok(())
+    }
 }
 
 /// Try to read the blinded identity key for a given `TimePeriod`.
@@ -1616,6 +1569,12 @@ pub(super) fn read_blind_id_keypair(
 enum PublishStatus {
     /// We need to call upload_all.
     UploadScheduled,
+    /// We are rate-limited until the specified [`Instant`].
+    ///
+    /// We have tried to schedule multiple uploads in a short time span,
+    /// and we are rate-limited. We are waiting for a signal from the schedule_upload_tx
+    /// channel to unblock us.
+    RateLimited(Instant),
     /// We are idle and waiting for external events.
     ///
     /// We have enough information to build the descriptor, but since we have already called
