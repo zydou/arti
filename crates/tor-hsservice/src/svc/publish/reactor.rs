@@ -88,6 +88,7 @@ use void::Void;
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
+use crate::timeout_track::TrackingNow;
 use crate::status::{PublisherStatusSender, State};
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
@@ -705,6 +706,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<ShutdownStatus, FatalError> {
         let mut netdir_events = self.dir_provider.events();
 
+        // Note: TrackingNow tracks the values it is compared with.
+        // This is equivalent to sleeping for (until - now) units of time,
+        let upload_rate_lim: TrackingNow = TrackingNow::now(&self.imm.runtime);
+        if let PublishStatus::RateLimited(until) = self.status() {
+            if upload_rate_lim > until {
+                // We are no longer rate-limited
+                self.expire_rate_limit().await?;
+            }
+        }
+
         select_biased! {
             res = self.upload_task_complete_rx.next().fuse() => {
                 let Some(upload_res) = res else {
@@ -712,7 +723,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 };
 
                 self.handle_upload_results(upload_res);
-            }
+            },
+            () = upload_rate_lim.wait_for_earliest(&self.imm.runtime).fuse() => {
+                self.expire_rate_limit().await?;
+            },
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
                 let netdir = match self.dir_provider.netdir(Timeliness::Timely) {
@@ -1120,7 +1134,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
                 trace!("we are rate-limited; deferring descriptor upload");
                 return self
-                    .schedule_pending_upload(UPLOAD_RATE_LIM_THRESHOLD)
+                    .start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD)
                     .await;
             }
         }
