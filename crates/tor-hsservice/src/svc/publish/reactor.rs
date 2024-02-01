@@ -88,12 +88,12 @@ use void::Void;
 use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
-use crate::timeout_track::TrackingNow;
 use crate::status::{PublisherStatusSender, State};
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::ShutdownStatus;
+use crate::timeout_track::TrackingNow;
 use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,
     HsNickname,
@@ -634,9 +634,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Run one iteration of the reactor loop.
-    async fn run_once(
-        &mut self,
-    ) -> Result<ShutdownStatus, FatalError> {
+    async fn run_once(&mut self) -> Result<ShutdownStatus, FatalError> {
         let mut netdir_events = self.dir_provider.events();
 
         // Note: TrackingNow tracks the values it is compared with.
@@ -1057,9 +1055,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let duration_since_upload = now.duration_since(ts);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
-                return self
-                    .start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD)
-                    .await;
+                return self.start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD).await;
             }
         }
 
@@ -1527,7 +1523,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Handle the upload rate-limit being lifted.
     async fn expire_rate_limit(&mut self) -> Result<(), FatalError> {
         debug!("We are no longer rate-limited; resuming descriptor publication");
-        self.update_publish_status(PublishStatus::UploadScheduled).await?;
+        self.update_publish_status(PublishStatus::UploadScheduled)
+            .await?;
         Ok(())
     }
 }
