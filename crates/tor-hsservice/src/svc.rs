@@ -240,7 +240,7 @@ impl OnionService {
     ///
     /// The onion service's keys will be kept in `keymgr`.
     /// Its non-key state information will be stored persistently in a location
-    /// and manner controlled by `state_mgr`, `state_dir`, and `state_mistrust`.
+    /// and manner controlled by `state_dir`.
     ///
     // TODO (#1228): document.
     //
