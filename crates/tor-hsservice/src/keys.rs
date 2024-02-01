@@ -53,7 +53,7 @@ define_derive_adhoc! {
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
-#[adhoc(prefix = "hs")]
+#[adhoc(prefix = "hss")]
 #[adhoc(role = "KP_hs_id")]
 #[adhoc(summary = "Public part of the identity key")]
 /// The public part of the identity key of the service.
@@ -64,7 +64,7 @@ pub struct HsIdPublicKeySpecifier {
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier)]
-#[adhoc(prefix = "hs")]
+#[adhoc(prefix = "hss")]
 #[adhoc(role = "KS_hs_id")]
 #[adhoc(summary = "Long-term identity keypair")]
 /// The long-term identity keypair of the service.
@@ -75,7 +75,7 @@ pub struct HsIdKeypairSpecifier {
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
-#[adhoc(prefix = "hs")]
+#[adhoc(prefix = "hss")]
 #[adhoc(role = "KS_hs_blind_id")]
 #[adhoc(summary = "Blinded signing keypair")]
 /// The blinded signing keypair.
@@ -89,7 +89,7 @@ pub struct BlindIdKeypairSpecifier {
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
-#[adhoc(prefix = "hs")]
+#[adhoc(prefix = "hss")]
 #[adhoc(role = "KP_hs_blind_id")]
 #[adhoc(summary = "Blinded public key")]
 /// The blinded public key.
@@ -103,7 +103,7 @@ pub struct BlindIdPublicKeySpecifier {
 
 #[derive(Adhoc, PartialEq, Debug, Constructor)]
 #[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
-#[adhoc(prefix = "hs")]
+#[adhoc(prefix = "hss")]
 #[adhoc(role = "KS_hs_desc_sign")]
 #[adhoc(summary = "Descriptor signing key")]
 /// The descriptor signing key.
@@ -130,7 +130,7 @@ impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 /// Specifies an intro point key
 #[derive(Debug, Adhoc, Eq, PartialEq)]
 #[derive_adhoc(KeySpecifier)]
-#[adhoc(prefix = "hs")]
+#[adhoc(prefix = "hss")]
 #[adhoc(summary = "introduction point key")]
 pub(crate) struct IptKeySpecifier {
     /// nick
@@ -152,7 +152,7 @@ pub(crate) fn expire_publisher_keys(
 ) -> tor_keymgr::Result<()> {
     // Only remove the keys of the hidden service
     // that concerns us
-    let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hs/{}/*", &nickname));
+    let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hss/{}/*", &nickname));
     let possibly_relevant_keys = keymgr.list_matching(&arti_pat)?;
 
     for (key_path, key_type) in possibly_relevant_keys {
@@ -221,11 +221,11 @@ mod test {
         let key_spec = HsIdPublicKeySpecifier::new(nickname.clone());
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/kp_hs_id"
+            "hss/shallot/kp_hs_id"
         );
 
         let key_spec = HsIdKeypairSpecifier::new(nickname);
-        check_key_specifier(&key_spec, "hs/shallot/ks_hs_id");
+        check_key_specifier(&key_spec, "hss/shallot/ks_hs_id");
     }
 
     #[test]
@@ -235,11 +235,11 @@ mod test {
         let key_spec = BlindIdPublicKeySpecifier::new(nickname.clone(), period);
         assert_eq!(
             key_spec.arti_path().unwrap().as_str(),
-            "hs/shallot/kp_hs_blind_id+2_1_3"
+            "hss/shallot/kp_hs_blind_id+2_1_3"
         );
 
         let key_spec = BlindIdKeypairSpecifier::new(nickname, period);
-        check_key_specifier(&key_spec, "hs/shallot/ks_hs_blind_id+2_1_3");
+        check_key_specifier(&key_spec, "hss/shallot/ks_hs_blind_id+2_1_3");
     }
 
     #[test]
@@ -247,7 +247,7 @@ mod test {
         let nickname = HsNickname::try_from("shallot".to_string()).unwrap();
         let period = TimePeriod::from_parts(1, 2, 3);
         let key_spec = DescSigningKeypairSpecifier::new(nickname, period);
-        check_key_specifier(&key_spec, "hs/shallot/ks_hs_desc_sign+2_1_3");
+        check_key_specifier(&key_spec, "hss/shallot/ks_hs_desc_sign+2_1_3");
     }
 
     #[test]
@@ -262,11 +262,11 @@ mod test {
         let lid_s = "0101010101010101010101010101010101010101010101010101010101010101";
         check_key_specifier(
             &spec(IptKeyRole::KHssNtor),
-            &format!("hs/shallot/ipts/k_hss_ntor+{lid_s}"),
+            &format!("hss/shallot/ipts/k_hss_ntor+{lid_s}"),
         );
         check_key_specifier(
             &spec(IptKeyRole::KSid),
-            &format!("hs/shallot/ipts/k_sid+{lid_s}"),
+            &format!("hss/shallot/ipts/k_sid+{lid_s}"),
         );
     }
 }
