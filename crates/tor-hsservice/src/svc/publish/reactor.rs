@@ -1057,7 +1057,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let duration_since_upload = now.duration_since(ts);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
-                trace!("we are rate-limited; deferring descriptor upload");
                 return self
                     .start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD)
                     .await;
