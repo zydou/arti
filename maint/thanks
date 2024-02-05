@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# maint/exclude_contributors.txt is currently sorted in a locale-specific way
+# we should probably change this to sort by code unit (LC_COLLATE=C.UTF-8)
+export LC_COLLATE=en_US.UTF-8
+
 if [ -z "${1-}" ]; then
 	echo "Usage: $0 [revision]"
 	echo "Script will print thanks for all contributors since [revision]."
