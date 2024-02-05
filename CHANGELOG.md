@@ -35,17 +35,17 @@ for actual use.
   non-key persistent state.
   Pathnames have changed as a result.
   !1853 #1183 !1941
-- Fix important bugs
-  * "service fails after approx 12 hours" 
-    #1242
-    !1901
-  * `HSS: "internal error" "current wallclock time not within TP?!"` etc.
-    #1155
-	#1166
-	#1254
-	!1903
-	!1904
-	!1914
+- Fix "service fails after approx 12 hours" bug
+  #1242
+  !1901
+- Fix time period processing bugs
+  (`HSS: "internal error" "current wallclock time not within TP?!"` etc.)
+  #1155
+  #1166
+  #1254
+  !1903
+  !1904
+  !1914
 - Fixes to services shutdown.
   !1875
   !1895
