@@ -3,7 +3,7 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    BoxedKeystore, EncodableKey, KeyPathInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
+    BoxedKeystore, EncodableKey, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor,
     KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, KeystoreId, KeystoreSelector, Result,
     ToEncodableKey,
 };
