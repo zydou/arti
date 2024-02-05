@@ -42,7 +42,7 @@ for actual use.
   non-key persistent state.
   Pathnames have changed as a result.
   !1853 #1183 !1941
-- Fix "service fails after approx 12 hours" bug
+- Fix "service fails after approx 12 hours" bug.
   #1242
   !1901
 - Fix time period processing bugs including
@@ -61,12 +61,12 @@ for actual use.
   !1899
   !1917
   !1921
-- Improve error and corner case handling in descriptor publisher
+- Improve error and corner case handling in descriptor publisher.
   !1861
 - Work on expiring keys: we expire descriptor keys now
-  (although we don't actually properly delete all keys when we need to, yet)
+  (although we don't actually properly delete all keys when we need to, yet).
   !1909
-- Many improvements to keystore, key and `KeySpecifier` handling
+- Many improvements to keystore, key and `KeySpecifier` handling.
   !1864
   !1863
   !1883
@@ -74,30 +74,30 @@ for actual use.
   !1884
   #1240
   #1211
-- Better handling of introduction point establishment failures
+- Better handling of introduction point establishment failures.
   !1889
   !1915
 - Better handling of anomalous situations (including excessive requests)
-  on introduction circuits
+  on introduction circuits.
   #1188
   #1189
   !1892
   !1916
 - Tolerate `INTRO_ESTABLISHED` messages with (unknown) extensions.
   !1898
-- Correct and improve various timing and tuning parameters
+- Correct and improve various timing and tuning parameters.
   !1911
   !1924
-- Improve status reporting from hidden services
+- Improve status reporting from hidden services.
   !1902
-- Public API of `tor-hsservice` crate overhauled
+- Public API of `tor-hsservice` crate overhauled.
   #1227
   #1220
   !1887
 - Mark lower-level hs-service features non-experimental.
   !1908
 - Defend against partial writes of introduction point replay log
-  entries
+  entries.
   !1920
 - Corrections to error handling, including to handling of
   introduction point failures,
@@ -111,13 +111,13 @@ for actual use.
   !1885
   #1184
 - Temporarily disable parsing of AF_UNIX socket addresses
-  (which aren't implemented right now anyway)
+  (which aren't implemented right now anyway).
   !1886
-- Rate limit one log message
+- Rate limit one log message.
   !1871
-- Fix a broken docs link
+- Fix a broken docs link.
   !1918
-- Many internal cleanups including much triage of TODO comments in the code
+- Many internal cleanups including much triage of TODO comments in the code.
   !1859
   !1862
   !1861
@@ -153,24 +153,24 @@ for actual use.
   !1910 
 - `tor-persist` has
   a `Slug` type which is used for nicknames, key paths, etc.,
-  unifying the rules used for different kinds of name
+  unifying the rules used for different kinds of name.
   !1912 #1092 #1193 !1926 !1929 !1922 !1933 #1092 !1931 !1934
 - `tor-persist` has
   `StateDirectory` for handling persistent state
   relating to particular instances of a facility (used for hidden
-  serivces)
+  serivces).
   !1853 #1205 !1913 #1163 !1935
 
 ### Documentation and examples
 
-- New examples using `hyper v1`
+- New examples using `hyper v1`.
   !1845
-- Fix a broken link
+- Fix a broken link.
   !1938
 
 ### Testing
 
-- New `test-temp-dir` crate for convenient handling of temporary files in tests
+- New `test-temp-dir` crate for convenient handling of temporary files in tests.
   !1925
 
 ### Cleanups, minor features, and bugfixes
@@ -178,7 +178,7 @@ for actual use.
 - `fs-mistrust`: Expose `CheckedDir::verifier`
   !1928
   and provide `CheckedDir::make_secure_dir`
-  !1927
+  !1927.
 - Instructions for building `arti-extra` in `tests/shadow/README.md`.
   !1891
 
