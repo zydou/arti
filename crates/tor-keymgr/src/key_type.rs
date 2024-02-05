@@ -119,14 +119,6 @@ macro_rules! declare_key_type {
 
 declare_key_type! {
     /// A type of key stored in the key store.
-    //
-    // TODO (#1115): rewrite this enum as
-    // ```
-    // pub enum KeyType {
-    //     Private(Algorithm),
-    //     Public(Algorithm),
-    // }
-    // ```
     #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     #[non_exhaustive]
     pub enum KeyType {
