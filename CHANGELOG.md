@@ -99,7 +99,9 @@ for actual use.
 - Defend against partial writes of introduction point replay log
   entries
   !1920
-- Fix some error types and `ErrorKind`s
+- Corrections to error handling, including to handling of
+  introduction point failures,
+  and attempts to launch the same service concurrently.
   !1906
   #1237
   #1225
@@ -111,9 +113,9 @@ for actual use.
 - Temporarily disable parsing of AF_UNIX socket addresses
   (which aren't implemented right now anyway)
   !1886
-- Minor bugfixes to logging
-  1869
-- Docs improvements
+- Rate limit one log message
+  !1871
+- Fix a broken docs link
   !1918
 - Many internal cleanups including much triage of TODO comments in the code
   !1859
@@ -163,7 +165,7 @@ for actual use.
 
 - New examples using `hyper v1`
   !1845
-- Minor fixes 
+- Fix a broken link
   !1938
 
 ### Testing
