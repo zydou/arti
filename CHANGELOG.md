@@ -3,7 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED
+# Arti 1.1.13 — 5th February 2024
 
 Arti 1.1.13 continues work on support for running onion services.
 You can now launch an onion service and expect it to run.
