@@ -224,7 +224,7 @@ pub fn parse_key_path(
         ) {
             let EitherOrBoth::Both(comp, parser) = ent else {
                 // wrong number of components
-                return Err(KeyPathError::PatternNotMatched);
+                return Err(KeyPathError::PatternNotMatched(arti_path.clone()));
             };
 
             // TODO would be nice to avoid allocating again here,
@@ -239,7 +239,7 @@ pub fn parse_key_path(
             let missing_keys = || internal!("keys list too short, bad args to parse_key_path");
 
             match parser.parse(&comp) {
-                RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched),
+                RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched(arti_path.clone())),
                 RCPR::Invalid(error) => Err(KeyPathError::InvalidKeyPathComponentValue {
                     error,
                     key: keys.first().ok_or_else(missing_keys)?.to_string(),

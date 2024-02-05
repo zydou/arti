@@ -111,15 +111,12 @@ pub trait KeySpecifierPattern {
 ///
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
-//
-// TODO (#1115): places where this error is embedded should include the actual filename,
-// for reporting purposes.  (Or abn ArtiPath if they don't have filesystem filenames.)
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
     /// The path did not match the expected pattern.
     #[error("Path does not match expected pattern")]
-    PatternNotMatched,
+    PatternNotMatched(ArtiPath),
 
     /// The path is not recognized.
     ///
