@@ -53,6 +53,8 @@ for actual use.
   !1903
   !1904
   !1914
+- Correctly rate limit descriptor publication.
+  !1951
 - Fixes to services shutdown.
   !1875
   !1895
@@ -66,10 +68,15 @@ for actual use.
 - Work on expiring keys: we expire descriptor keys now
   (although we don't actually properly delete all keys when we need to, yet).
   !1909
-- Many improvements to keystore, key and `KeySpecifier` handling.
+- Many improvements to keystore, key and `KeySpecifier` handling,
+  including incompatible changes to on-disk key paths.
   !1864
   !1863
   !1883
+  #1260
+  !1949
+  #1074
+  !1948
 - Only choose Stable relays for introduction points.
   !1884
   #1240
@@ -113,10 +120,15 @@ for actual use.
 - Temporarily disable parsing of AF_UNIX socket addresses
   (which aren't implemented right now anyway).
   !1886
-- Rate limit one log message.
+- Rate limit one log message, downgrade one, and remove another
   !1871
-- Fix a broken docs link.
+  !1951
+- Add higher-level documentation to tor-hsservice (and fix a broken docs link).
   !1918
+  !1945
+- Hide the `OnionServiceState` type.
+  !1946
+  #1261
 - Many internal cleanups including much triage of TODO comments in the code.
   !1859
   !1862
@@ -143,6 +155,7 @@ for actual use.
   !1887
   !1896
   !1864
+  !1951
 
 ### Other major new features in our Rust APIs
 
