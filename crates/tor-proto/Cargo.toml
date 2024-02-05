@@ -33,7 +33,7 @@ full = [
     "tor-rtcompat/full",
     "tor-rtmock/full",
     "tor-units/full",
-    "tor-hscrypto?/full",
+    "tor-hscrypto?/full", "tor-log-ratelim/full",
 ]
 
 experimental = ["experimental-api", "ntor_v3", "stream-ctrl", "testing"]

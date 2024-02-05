@@ -20,7 +20,7 @@ default = []
 
 keymgr = ["__is_experimental"]
 __is_experimental = []
-full = ["fs-mistrust/full", "tor-error/full", "tor-hscrypto/full", "tor-llcrypto/full", "tor-config/full"]
+full = ["fs-mistrust/full", "tor-error/full", "tor-hscrypto/full", "tor-llcrypto/full", "tor-config/full", "tor-persist/full"]
 experimental = ["keymgr", "testing"]
 
 testing = ["__is_experimental"]
