@@ -18,7 +18,7 @@ state-dir = ["__is_experimental", "amplify", "fslock-guard", "void"]
 # covered by semver.
 testing = ["__is_experimental"]
 
-full = ["fs-mistrust/full", "tor-error/full"]
+full = ["fs-mistrust/full", "tor-error/full", "fslock-guard?/full"]
 
 experimental = ["state-dir", "testing"]
 __is_experimental = []
