@@ -27,7 +27,7 @@ pub use tor_error::{internal, into_internal, Bug};
 pub trait RawKeySpecifierComponent {
     /// Append `self`s `KeySpecifierComponent` string representation to `s`
     //
-    // This is not quite like `KeySpecifierComponent::to_component`,
+    // This is not quite like `KeySpecifierComponent::to_slug`,
     // since that *returns* a String (effectively) and we *append*.
     // At some future point we may change KeySpecifierComponent,
     // although the current API has the nice feature that
@@ -36,7 +36,7 @@ pub trait RawKeySpecifierComponent {
 }
 impl<T: KeySpecifierComponent> RawKeySpecifierComponent for T {
     fn append_to(&self, s: &mut String) -> Result<(), Bug> {
-        self.to_component()?.as_str().append_to(s)
+        self.to_slug()?.as_str().append_to(s)
     }
 }
 impl<T: KeySpecifierComponent> RawKeySpecifierComponent for Option<T> {
@@ -145,7 +145,7 @@ pub trait RawKeySpecifierComponentParser {
 
 impl<T: KeySpecifierComponent> RawKeySpecifierComponentParser for Option<T> {
     fn parse(&mut self, comp: &Slug) -> RawComponentParseResult {
-        let v = match T::from_component(comp) {
+        let v = match T::from_slug(comp) {
             Ok(v) => v,
             Err(e) => return RCPR::Invalid(e),
         };

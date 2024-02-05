@@ -68,7 +68,7 @@ define_derive_adhoc! {
 /// They are separated from the rest of the component, and from each other,
 /// by [`DENOTATOR_SEP`] characters.
 /// Denotators are encoded using their
-/// [`KeySpecifierComponent::to_component`](crate::KeySpecifierComponent::to_component)
+/// [`KeySpecifierComponent::to_slug`](crate::KeySpecifierComponent::to_slug)
 /// implementation.
 /// The denotators **must** come after all the other fields.
 /// Denotator strings are validated in the same way as [`Slug`](tor-persist::slug::Slug)s.

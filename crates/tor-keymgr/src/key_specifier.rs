@@ -157,7 +157,7 @@ pub enum KeyPathError {
     Bug(#[from] tor_error::Bug),
 }
 
-/// Error to be returned by `KeySpecifierComponent::from_component` implementations
+/// Error to be returned by `KeySpecifierComponent::from_slug` implementations
 ///
 /// Currently this error contains little information,
 /// but the context and value are provided in
@@ -310,9 +310,9 @@ pub trait KeySpecifier {
 /// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
     /// Return the [`Slug`] representation of this type.
-    fn to_component(&self) -> Result<Slug, Bug>;
-    /// Try to convert `c` into an object of this type.
-    fn from_component(c: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn to_slug(&self) -> Result<Slug, Bug>;
+    /// Try to convert `s` into an object of this type.
+    fn from_slug(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized;
     /// Display the value in a human-meaningful representation
@@ -377,7 +377,7 @@ impl KeySpecifier for KeyPath {
 }
 
 impl KeySpecifierComponent for TimePeriod {
-    fn to_component(&self) -> Result<Slug, Bug> {
+    fn to_slug(&self) -> Result<Slug, Bug> {
         Slug::new(format!(
             "{}_{}_{}",
             self.interval_num(),
@@ -387,11 +387,11 @@ impl KeySpecifierComponent for TimePeriod {
         .map_err(into_internal!("TP formatting went wrong"))
     }
 
-    fn from_component(c: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn from_slug(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
-        let s = c.to_string();
+        let s = s.to_string();
         let (interval_num, length, offset_in_sec) = (|| {
             let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
             let [interval, len, offset]: [&str; 3] = parts.into_inner().ok()?;
@@ -424,12 +424,12 @@ impl KeySpecifierComponent for TimePeriod {
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
 pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
 impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
-    fn to_component(&self) -> Result<Slug, Bug> {
+    fn to_slug(&self) -> Result<Slug, Bug> {
         self.to_string()
             .try_into()
             .map_err(into_internal!("Display generated bad Slug"))
     }
-    fn from_component(s: &Slug) -> Result<Self, InvalidKeyPathComponentValue>
+    fn from_slug(s: &Slug) -> Result<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
@@ -443,7 +443,7 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
 }
 
 impl KeySpecifierComponent for HsId {
-    fn to_component(&self) -> StdResult<Slug, Bug> {
+    fn to_slug(&self) -> StdResult<Slug, Bug> {
         // We can't implement KeySpecifierComponentViaDisplayFromStr for HsId,
         // because its Display impl contains the `.onion` suffix, and Slugs can't
         // contain `.`.
@@ -457,13 +457,13 @@ impl KeySpecifierComponent for HsId {
             .map_err(into_internal!("Display generated bad Slug"))
     }
 
-    fn from_component(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn from_slug(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
         // Note: HsId::from_str expects the string to have a .onion suffix,
         // but the string representation of our slug doesn't have it
-        // (because we manually strip it away, see to_component()).
+        // (because we manually strip it away, see to_slug()).
         //
         // We have to manually add it for this to work.
         //
@@ -983,12 +983,12 @@ KeyPathInfo {
     #[test]
     fn encode_time_period() {
         let period = TimePeriod::from_parts(1, 2, 3);
-        let encoded_period = period.to_component().unwrap();
+        let encoded_period = period.to_slug().unwrap();
 
         assert_eq!(encoded_period.to_string(), "2_1_3");
-        assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
+        assert_eq!(period, TimePeriod::from_slug(&encoded_period).unwrap());
 
-        assert!(TimePeriod::from_component(&Slug::new("invalid_tp".to_string()).unwrap()).is_err());
+        assert!(TimePeriod::from_slug(&Slug::new("invalid_tp".to_string()).unwrap()).is_err());
     }
 
     #[test]
@@ -996,10 +996,10 @@ KeyPathInfo {
         let b32 = "eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad";
         let onion = format!("{b32}.onion");
         let hsid = HsId::from_str(&onion).unwrap();
-        let hsid_slug = hsid.to_component().unwrap();
+        let hsid_slug = hsid.to_slug().unwrap();
 
         assert_eq!(hsid_slug.to_string(), b32);
-        assert_eq!(hsid, HsId::from_component(&hsid_slug).unwrap());
+        assert_eq!(hsid, HsId::from_slug(&hsid_slug).unwrap());
     }
 
     #[test]
