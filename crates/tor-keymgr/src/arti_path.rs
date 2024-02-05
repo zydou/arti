@@ -80,8 +80,6 @@ define_derive_adhoc! {
 /// NOTE: There is a 1:1 mapping between a value that implements `KeySpecifier` and its
 /// corresponding `ArtiPath`. A `KeySpecifier` can be converted to an `ArtiPath`, but the reverse
 /// conversion is not supported.
-///
-// But this should be done _after_ we rewrite define_key_specifier using d-a
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, Into, Display)] //
 #[derive(Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
