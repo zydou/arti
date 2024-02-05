@@ -42,6 +42,15 @@ for actual use.
   non-key persistent state.
   Pathnames have changed as a result.
   !1853 #1183 !1941
+- Many improvements to keystore, key and `KeySpecifier` handling,
+  including incompatible changes to on-disk key paths.
+  !1864
+  !1863
+  !1883
+  #1260
+  !1949
+  #1074
+  !1948
 - Fix "service fails after approx 12 hours" bug.
   #1242
   !1901
@@ -68,15 +77,6 @@ for actual use.
 - Work on expiring keys: we expire descriptor keys now
   (although we don't actually properly delete all keys when we need to, yet).
   !1909
-- Many improvements to keystore, key and `KeySpecifier` handling,
-  including incompatible changes to on-disk key paths.
-  !1864
-  !1863
-  !1883
-  #1260
-  !1949
-  #1074
-  !1948
 - Only choose Stable relays for introduction points.
   !1884
   #1240
