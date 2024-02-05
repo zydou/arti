@@ -1,6 +1,6 @@
 [package]
 name = "tor-rpcbase"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.70"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]

@@ -1,6 +1,6 @@
 [package]
 name = "arti-bench"
-version = "0.8.9"
+version = "0.9.0"
 edition = "2021"
 rust-version = "1.70"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
@@ -18,7 +18,7 @@ publish = false
 [dependencies]
 anyhow = "1.0.23"
 arti = { path = "../arti", version = "1.1.12" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.13.0" }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.14.0" }
 clap = { version = "4.3.24", features = ["wrap_help"] }
 float-ord = "0.3"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.6" }
@@ -29,7 +29,7 @@ serde_json = "1.0.50"
 tokio = { version = "1.7", features = ["full"] }
 tokio-socks = "0.5"
 tor-config = { path = "../tor-config", version = "0.10.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.10.0", features = ["tokio", "native-tls"] }
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 
