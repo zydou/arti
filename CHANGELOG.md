@@ -10,7 +10,7 @@ You can now launch an onion service and expect it to run.
 We have fixed a number of bugs.  The user experience is still not
 great, and the onion-service-server feature is still experimental.
 We have reorganised the on-disk state and key storage, to make it more
-sensible; hope (but don't promise!) it's now the final layout.
+sensible; we hope (but don't promise!) it's now the final layout.
 Don't rely on this onion service implementation for security yet;
 there are a number of [missing security features]
 we will need to develop before we can recommend them
@@ -56,7 +56,7 @@ for actual use.
   !1921
 - Improve error and corner case handling in descriptor publisher
   !1861
-- Work on expiring keys: we expire descriptor keyw now
+- Work on expiring keys: we expire descriptor keys now
   (although we don't actually properly delete all keys when we need to, yet)
   !1909
 - Many improvements to keystore, key and `KeySpecifier` handling
@@ -76,7 +76,7 @@ for actual use.
   #1189
   !1892
   !1916
-- Tolerate INTRO_ESTABLISHED messages with (unknown) extensions
+- Tolerate `INTRO_ESTABLISHED` messages with (unknown) extensions.
   !1898
 - Correct and improve various timing and tuning parameters
   !1911
