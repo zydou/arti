@@ -148,6 +148,8 @@ pub enum KeyPathError {
         ///
         /// Should be valid Rust identifier syntax.
         key: String,
+        /// The `ArtiPath` of the key.
+        path: ArtiPath,
         /// The substring of the `ArtiPath` that couldn't be parsed.
         value: Slug,
     },

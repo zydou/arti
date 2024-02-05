@@ -195,8 +195,8 @@ pub fn parse_key_path(
     path_parsers: &mut Parsers,
     leaf_parsers: &mut Parsers,
 ) -> Result<(), KeyPathError> {
-    let path = match path {
-        KeyPath::Arti(path) => path.as_str(),
+    let (path, arti_path) = match path {
+        KeyPath::Arti(path) => (path.as_str(), path),
         KeyPath::CTor(_path) => {
             // TODO (#858): support ctor stores
             return Err(internal!("not implemented").into());
@@ -212,6 +212,7 @@ pub fn parse_key_path(
 
     /// Split a string into components and parse each one
     fn extract(
+        arti_path: &ArtiPath,
         input: Option<&str>,
         delim: char,
         parsers: &mut Parsers,
@@ -237,6 +238,7 @@ pub fn parse_key_path(
                 RCPR::Invalid(error) => Err(KeyPathError::InvalidKeyPathComponentValue {
                     error,
                     key: keys.first().ok_or_else(missing_keys)?.to_string(),
+                    path: arti_path.clone(),
                     value: comp,
                 }),
                 RCPR::ParsedField => {
@@ -249,8 +251,8 @@ pub fn parse_key_path(
         Ok(())
     }
 
-    extract(path, '/', path_parsers, &mut keys)?;
-    extract(Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
+    extract(arti_path, path, '/', path_parsers, &mut keys)?;
+    extract(arti_path, Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
     Ok(())
 }
 

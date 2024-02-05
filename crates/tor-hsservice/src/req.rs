@@ -179,6 +179,7 @@ impl RendRequestContext {
         let tp = TimePeriod::from_slug(&slug).map_err(|error| {
             KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
                 key: "time_period".to_owned(),
+                path: path.clone(),
                 value: slug,
                 error,
             })
