@@ -44,7 +44,9 @@ See `doc/OnionService.md` for instructions and caveats.
 - Complete overhaul of the way the hidden service code stores
   non-key persistent state.
   Pathnames have changed as a result.
-  !1853 #1183 !1941
+  !1853
+  #1183
+  !1941
 - Many improvements to keystore, key and `KeySpecifier` handling,
   including incompatible changes to on-disk key paths.
   !1864
@@ -170,12 +172,25 @@ See `doc/OnionService.md` for instructions and caveats.
 - `tor-persist` has
   a `Slug` type which is used for nicknames, key paths, etc.,
   unifying the rules used for different kinds of name.
-  !1912 #1092 #1193 !1926 !1929 !1922 !1933 #1092 !1931 !1934
+  !1912
+  #1092
+  #1193
+  !1926
+  !1929
+  !1922
+  !1933
+  #1092
+  !1931
+  !1934
 - `tor-persist` has
   `StateDirectory` for handling persistent state
   relating to particular instances of a facility (used for hidden
   serivces).
-  !1853 #1205 !1913 #1163 !1935
+  !1853
+  #1205
+  !1913
+  #1163
+  !1935
 
 ### Documentation and examples
 
