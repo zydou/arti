@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # UNRELEASED
 
-Arti 1.1.12 continues work on support for running onion services.
+Arti 1.1.13 continues work on support for running onion services.
 You can now launch an onion service and expect it to run.
 We have fixed a number of bugs.  The user experience is still not
 great, and the onion-service-service feature is still experimental.
