@@ -142,7 +142,11 @@ See `doc/OnionService.md` for instructions and caveats.
 
 ### Acknowledgments
 
-TODO
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Jim Newsome, and ramidzkh.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
 
 
 # Arti 1.1.12 — 9 January 2024
