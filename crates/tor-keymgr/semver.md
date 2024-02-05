@@ -1,0 +1,1 @@
+ADDED: getters for `KeyPathInfo`

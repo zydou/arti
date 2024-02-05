@@ -179,10 +179,8 @@ impl InvalidKeyPathComponentValue {
 /// The information is extracted from the [`KeyPath`] itself
 /// (_not_ from the key data) by a [`KeyInfoExtractor`].
 //
-// TODO (#1115): This should have getters or something; currently you can build it but not inspect
-// it
 // TODO  maybe the getters should be combined with the builder, or something?
-#[derive(Debug, Clone, PartialEq, derive_builder::Builder)]
+#[derive(Debug, Clone, PartialEq, derive_builder::Builder, amplify::Getters)]
 pub struct KeyPathInfo {
     /// A human-readable summary string describing what the [`KeyPath`] is for.
     ///
