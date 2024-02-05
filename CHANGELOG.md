@@ -21,23 +21,17 @@ See `doc/OnionService.md` for instructions and caveats.
 
 ### Breaking changes in lower-level crates
 
-- [`tor-hsclient`]\: Replaced `HsClientKeyRole`, `HsClientSecretKeySpecifier`
-  with `HsClientDescEncKeypairSpecifier`.
+- [`tor-hsclient`]\: Replaced `HsClientKeyRole`,
+  `HsClientSecretKeySpecifier` with `HsClientDescEncKeypairSpecifier`.
   Renamed `HsClientSpecifier` to `HsClientNickname`.
-  [!1864]
-  [!1931]
-- [`tor-hscrypto`]\:
-  `AesOpeKey::encrypt` now takes a `SrvPeriodOffset`;
-  Replaced `TimePeriodOffset` with `SrvPeriodOffset`;
-  Removed `TimePeriod::offset_within_period`.
-  [!1904]
-  [#1166]
-- [`tor-netdir`]\:
-  `hs_dirs_download` parameters changed;
+  [!1864] [!1931]
+- [`tor-hscrypto`]\: `AesOpeKey::encrypt` now takes a
+  `SrvPeriodOffset`; Replaced `TimePeriodOffset` with
+  `SrvPeriodOffset`; Removed `TimePeriod::offset_within_period`.
+  [!1904] [#1166]
+- [`tor-netdir`]\: `hs_dirs_download` parameters changed;
   `hs_intro_*_lifetime` parameters renamed.
-  [!1903]
-  [!1904]
-  [#1254]
+  [!1903] [!1904] [#1254]
 
 ### Onion service development
 
