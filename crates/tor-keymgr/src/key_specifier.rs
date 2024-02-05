@@ -177,16 +177,19 @@ pub enum KeyPathError {
 /// Currently this error contains little information,
 /// but the context and value are provided in
 /// [`KeyPathError::InvalidKeyPathComponentValue`].
-#[derive(Error, Clone, Debug, Hash)]
+#[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-#[error("invalid key denotator")]
-pub struct InvalidKeyPathComponentValue {}
+pub enum InvalidKeyPathComponentValue {
+    /// Found an invalid slug.
+    #[error("{0}")]
+    Slug(&'static str),
 
-impl InvalidKeyPathComponentValue {
-    /// Create an `InvalidDenotator` error with no further information about the problem
-    fn new() -> Self {
-        InvalidKeyPathComponentValue {}
-    }
+    /// An internal error.
+    ///
+    /// The [`KeySpecifierComponentViaDisplayFromStr`] trait maps any errors returned by the
+    /// [`FromStr`] implementation of the implementing type to this variant.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 /// Information about a [`KeyPath`].
@@ -417,7 +420,7 @@ impl KeySpecifierComponent for TimePeriod {
 
             Some((interval_num, length, offset_in_sec))
         })()
-        .ok_or_else(InvalidKeyPathComponentValue::new)?;
+        .ok_or(InvalidKeyPathComponentValue::Slug("invalid key denotator"))?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
@@ -437,6 +440,12 @@ impl KeySpecifierComponent for TimePeriod {
 }
 
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
+///
+/// The default [`from_slug`](KeySpecifierComponent::from_slug) implementation maps any errors
+/// returned from [`FromStr`] to [`InvalidKeyPathComponentValue::Bug`].
+/// Key specifier components that cannot readily be parsed from a string should have a bespoke
+/// [`from_slug`](KeySpecifierComponent::from_slug) implementation, and
+/// return more descriptive errors through [`InvalidKeyPathComponentValue::Slug`].
 pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
 impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
     fn to_slug(&self) -> Result<Slug, Bug> {
@@ -450,7 +459,7 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
     {
         s.as_str()
             .parse()
-            .map_err(|_| InvalidKeyPathComponentValue::new())
+            .map_err(|_| internal!("slug cannot be parsed as component").into())
     }
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
@@ -488,7 +497,7 @@ impl KeySpecifierComponent for HsId {
 
         onion
             .parse()
-            .map_err(|_| InvalidKeyPathComponentValue::new())
+            .map_err(|_| InvalidKeyPathComponentValue::Slug("invalid HsId"))
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
