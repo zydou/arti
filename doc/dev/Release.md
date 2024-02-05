@@ -199,6 +199,10 @@ before you continue!
 
    `; for crate in $(./maint/list_crates_publish); do cargo publish -p "$crate"; done`
 
+   Ideally you would run this in a `set -e`, so it would fail on
+   errors, but doing that involves filtering the list of crates to
+   only list those that have changed (and therefore have had their
+   versions bumped).
 
 2. We tag the repository with `arti-v${THIS_VERSION}`
 
