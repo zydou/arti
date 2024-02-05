@@ -187,10 +187,10 @@ See `doc/OnionService.md` for instructions and caveats.
   relating to particular instances of a facility (used for hidden
   serivces).
   [!1853]
- #1205
- !1913
- #1163
- !1935
+  [#1205]
+  [!1913]
+  [#1163]
+  [!1935]
 
 ### Documentation and examples
 
