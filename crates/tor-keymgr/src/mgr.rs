@@ -3,7 +3,7 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    BoxedKeystore, EncodableKey, KeyInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
+    BoxedKeystore, EncodableKey, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor,
     KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, KeystoreId, KeystoreSelector, Result,
     ToEncodableKey,
 };
@@ -51,7 +51,7 @@ pub struct KeyMgr {
     /// These are initialized internally by [`KeyMgrBuilder::build`], using the values collected
     /// using `inventory`.
     #[builder(default, setter(skip))]
-    key_info_extractors: Vec<&'static dyn KeyInfoExtractor>,
+    key_info_extractors: Vec<&'static dyn KeyPathInfoExtractor>,
 }
 
 impl KeyMgrBuilder {
@@ -59,7 +59,7 @@ impl KeyMgrBuilder {
     pub fn build(self) -> StdResult<KeyMgr, KeyMgrBuilderError> {
         let mut keymgr = self.build_unvalidated()?;
 
-        keymgr.key_info_extractors = inventory::iter::<&'static dyn KeyInfoExtractor>
+        keymgr.key_info_extractors = inventory::iter::<&'static dyn KeyPathInfoExtractor>
             .into_iter()
             .copied()
             .collect();
@@ -103,7 +103,7 @@ impl KeyMgrBuilder {
     }
 }
 
-inventory::collect!(&'static dyn crate::KeyInfoExtractor);
+inventory::collect!(&'static dyn crate::KeyPathInfoExtractor);
 
 impl KeyMgr {
     /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
@@ -205,22 +205,26 @@ impl KeyMgr {
 
     /// Insert `key` into the [`Keystore`](crate::Keystore) specified by `selector`.
     ///
-    /// If the key already exists, it is overwritten.
+    /// If this key is not already in the keystore, `None` is returned.
+    ///
+    /// If this key already exists in the keystore, its value is updated
+    /// and the old value is returned.
     ///
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
-    ///
-    // TODO (#1115): would it be useful for this API to return a Result<Option<K>> here (i.e. the old key)?
     pub fn insert<K: ToEncodableKey>(
         &self,
         key: K,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
-    ) -> Result<()> {
+    ) -> Result<Option<K>> {
         let key = key.to_encodable_key();
         let store = self.select_keystore(&selector)?;
+        let key_type = K::Key::key_type();
+        let old_key: Option<K> = self.get_from_store(key_spec, &key_type, [store].into_iter())?;
+        let () = store.insert(&key, key_spec, &key_type)?;
 
-        store.insert(&key, key_spec, &K::Key::key_type())
+        Ok(old_key)
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`](crate::Keystore)
@@ -229,18 +233,22 @@ impl KeyMgr {
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
     ///
-    /// Returns `Ok(None)` if the key does not exist in the requested keystore.
-    /// Returns `Ok(Some(())` if the key was successfully removed.
+    /// Returns the the value of the removed key,
+    /// or `Ok(None)` if the key does not exist in the requested keystore.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
     pub fn remove<K: ToEncodableKey>(
         &self,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
-    ) -> Result<Option<()>> {
+    ) -> Result<Option<K>> {
         let store = self.select_keystore(&selector)?;
+        let key_type = K::Key::key_type();
+        let old_key: Option<K> = self.get_from_store(key_spec, &key_type, [store].into_iter())?;
 
-        store.remove(key_spec, &K::Key::key_type())
+        store.remove(key_spec, &key_type)?;
+
+        Ok(old_key)
     }
 
     /// Remove the key identified by `key_spec` and `key_type` from the
@@ -279,9 +287,9 @@ impl KeyMgr {
     /// Describe the specified key.
     ///
     /// Returns [`KeyPathError::Unrecognized`] if none of the registered
-    /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
+    /// [`KeyPathInfoExtractor`]s is able to parse the specified [`KeyPath`].
     ///
-    /// This function uses the [`KeyInfoExtractor`]s registered using
+    /// This function uses the [`KeyPathInfoExtractor`]s registered using
     /// [`register_key_info_extractor`](crate::register_key_info_extractor),
     /// or by [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier).
     pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
@@ -321,9 +329,7 @@ impl KeyMgr {
                 }
                 Ok(Some(k)) => k,
                 Err(e) => {
-                    // TODO (#1115): we immediately return if one of the keystores is inaccessible.
-                    // Perhaps we should ignore any errors and simply poll the next store in the
-                    // list?
+                    // Note: we immediately return if one of the keystores is inaccessible.
                     return Err(e);
                 }
             };
@@ -563,24 +569,29 @@ mod tests {
         let mgr = builder.build().unwrap();
 
         // Insert a key into Keystore2
-        mgr.insert(
-            "coot".to_string(),
-            &TestKeySpecifier1,
-            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
-        )
-        .unwrap();
+        let old_key = mgr
+            .insert(
+                "coot".to_string(),
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+            )
+            .unwrap();
+
+        assert!(old_key.is_none());
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
             Some("keystore2_coot".to_string())
         );
 
         // Insert a different key using the _same_ key specifier.
-        mgr.insert(
-            "gull".to_string(),
-            &TestKeySpecifier1,
-            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
-        )
-        .unwrap();
+        let old_key = mgr
+            .insert(
+                "gull".to_string(),
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+            )
+            .unwrap();
+        assert_eq!(old_key, Some("keystore2_coot".to_string()));
         // Check that the original value was overwritten:
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
@@ -588,12 +599,14 @@ mod tests {
         );
 
         // Insert a key into the default keystore
-        mgr.insert(
-            "moorhen".to_string(),
-            &TestKeySpecifier2,
-            KeystoreSelector::Default,
-        )
-        .unwrap();
+        let old_key = mgr
+            .insert(
+                "moorhen".to_string(),
+                &TestKeySpecifier2,
+                KeystoreSelector::Default,
+            )
+            .unwrap();
+        assert!(old_key.is_none());
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
             Some("keystore1_moorhen".to_string())
@@ -606,12 +619,14 @@ mod tests {
         // (otherwise KeyMgr::get will return the key from the default store for each iteration and
         // we won't be able to see the key was actually inserted in each store).
         for store in ["keystore3", "keystore2", "keystore1"] {
-            mgr.insert(
-                "cormorant".to_string(),
-                &TestKeySpecifier3,
-                KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
-            )
-            .unwrap();
+            let old_key = mgr
+                .insert(
+                    "cormorant".to_string(),
+                    &TestKeySpecifier3,
+                    KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
+                )
+                .unwrap();
+            assert!(old_key.is_none());
 
             // Ensure the key now exists in `store`.
             assert_eq!(
@@ -685,7 +700,7 @@ mod tests {
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap())
             )
             .unwrap(),
-            Some(())
+            Some("keystore2_coot".to_string())
         );
 
         // The key doesn't exist in Keystore2 anymore

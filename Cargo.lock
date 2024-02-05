@@ -5486,6 +5486,7 @@ dependencies = [
 name = "tor-keymgr"
 version = "0.7.0"
 dependencies = [
+ "amplify",
  "arrayvec",
  "derive-adhoc 0.8.1",
  "derive_builder_fork_arti",

@@ -26,6 +26,7 @@ experimental = ["keymgr", "testing"]
 testing = ["__is_experimental"]
 
 [dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
 arrayvec = "0.7.3"
 derive-adhoc = "0.8"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }

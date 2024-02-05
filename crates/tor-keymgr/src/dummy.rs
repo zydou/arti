@@ -86,7 +86,7 @@ pub struct KeyType;
 impl KeyType {
     /// The file extension for a key of this type.
     //
-    // TODO (#1115): maybe this function should return an error instead
+    // TODO: maybe this function should return an error instead
     pub fn arti_extension(&self) -> &'static str {
         "dummy_extension"
     }
@@ -127,16 +127,16 @@ impl KeyMgr {
     /// A dummy `insert` implementation that always fails.
     ///
     /// This function always returns an error.
-    pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<()> {
+    pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<Option<K>> {
         Err(crate::Error::Keystore(Arc::new(Error)))
     }
 
     /// A dummy `remove` implementation that always fails.
     ///
     /// This function always returns an error.
-    pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
+    pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<K>> {
         Err(crate::Error::Keystore(Arc::new(Error)))
     }
 }
 
-inventory::collect!(&'static dyn crate::KeyInfoExtractor);
+inventory::collect!(&'static dyn crate::KeyPathInfoExtractor);
