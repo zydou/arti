@@ -951,7 +951,7 @@ KeyPathInfo {
 
         impl TestSpecifier {
             fn ctp(&self) -> CTorPath {
-                // TODO #1115 this ought to use CTorPath's public constructor
+                // TODO this ought to use CTorPath's public constructor
                 // but it doesn't have one
                 CTorPath(self.i.to_string())
             }
