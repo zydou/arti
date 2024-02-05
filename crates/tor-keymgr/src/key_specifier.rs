@@ -107,7 +107,7 @@ pub trait KeySpecifierPattern {
 
 /// An error while attempting to extract information about a key given its path
 ///
-/// For example, from a [`KeyInfoExtractor`].
+/// For example, from a [`KeyPathInfoExtractor`].
 ///
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
@@ -124,7 +124,7 @@ pub enum KeyPathError {
     /// The path is not recognized.
     ///
     /// Returned by [`KeyMgr::describe`](crate::KeyMgr::describe) when none of its
-    /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
+    /// [`KeyPathInfoExtractor`]s is able to parse the specified [`KeyPath`].
     #[error("Unrecognized path: {0}")]
     Unrecognized(KeyPath),
 
@@ -177,7 +177,7 @@ impl InvalidKeyPathComponentValue {
 /// Information about a [`KeyPath`].
 ///
 /// The information is extracted from the [`KeyPath`] itself
-/// (_not_ from the key data) by a [`KeyInfoExtractor`].
+/// (_not_ from the key data) by a [`KeyPathInfoExtractor`].
 //
 // TODO  maybe the getters should be combined with the builder, or something?
 #[derive(Debug, Clone, PartialEq, derive_builder::Builder, amplify::Getters)]
@@ -235,16 +235,16 @@ impl KeyPathInfoBuilder {
 ///
 /// This trait is used by [`KeyMgr::describe`](crate::KeyMgr::describe)
 /// to extract information out of [`KeyPath`]s.
-pub trait KeyInfoExtractor: Send + Sync {
+pub trait KeyPathInfoExtractor: Send + Sync {
     /// Describe the specified `path`.
     fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError>;
 }
 
-/// Register a [`KeyInfoExtractor`] for use with [`KeyMgr`](crate::KeyMgr).
+/// Register a [`KeyPathInfoExtractor`] for use with [`KeyMgr`](crate::KeyMgr).
 #[macro_export]
 macro_rules! register_key_info_extractor {
     ($kv:expr) => {{
-        $crate::inventory::submit!(&$kv as &dyn $crate::KeyInfoExtractor);
+        $crate::inventory::submit!(&$kv as &dyn $crate::KeyPathInfoExtractor);
     }};
 }
 
@@ -306,7 +306,7 @@ pub trait KeySpecifier {
 /// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier) for a
 /// struct, all of its fields must implement this trait.
 ///
-/// If you are implementing [`KeySpecifier`] and [`KeyInfoExtractor`] manually rather than by
+/// If you are implementing [`KeySpecifier`] and [`KeyPathInfoExtractor`] manually rather than by
 /// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
     /// Return the [`Slug`] representation of this type.

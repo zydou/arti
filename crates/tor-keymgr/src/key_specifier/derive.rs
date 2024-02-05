@@ -341,7 +341,7 @@ define_derive_adhoc! {
     ///    `None` in the pattern means "any".
     ///  * `impl `[`KeySpecifierPattern`]` for SomeKeySpecPattern`
     ///  * `impl TryFrom<`[`KeyPath`]> for SomeKeySpec`
-    ///  * Registration of an impl of [`KeyInfoExtractor`]
+    ///  * Registration of an impl of [`KeyPathInfoExtractor`]
     ///    (on a private unit struct `SomeKeySpecInfoExtractor`)
     ///
     /// ### Custom attributes
@@ -520,7 +520,7 @@ define_derive_adhoc! {
 
     struct $< $tname InfoExtractor >;
 
-    impl<$tgens> $crate::KeyInfoExtractor for $< $tname InfoExtractor >
+    impl<$tgens> $crate::KeyPathInfoExtractor for $< $tname InfoExtractor >
     where $twheres
     {
         fn describe(
@@ -607,5 +607,5 @@ define_derive_adhoc! {
     }
 
     // Register the info extractor with `KeyMgr`.
-    $crate::inventory::submit!(&$< $tname InfoExtractor > as &dyn $crate::KeyInfoExtractor);
+    $crate::inventory::submit!(&$< $tname InfoExtractor > as &dyn $crate::KeyPathInfoExtractor);
 }

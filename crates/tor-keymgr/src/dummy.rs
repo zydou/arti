@@ -139,4 +139,4 @@ impl KeyMgr {
     }
 }
 
-inventory::collect!(&'static dyn crate::KeyInfoExtractor);
+inventory::collect!(&'static dyn crate::KeyPathInfoExtractor);

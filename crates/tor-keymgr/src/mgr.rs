@@ -3,7 +3,7 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    BoxedKeystore, EncodableKey, KeyInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
+    BoxedKeystore, EncodableKey, KeyPathInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
     KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, KeystoreId, KeystoreSelector, Result,
     ToEncodableKey,
 };
@@ -51,7 +51,7 @@ pub struct KeyMgr {
     /// These are initialized internally by [`KeyMgrBuilder::build`], using the values collected
     /// using `inventory`.
     #[builder(default, setter(skip))]
-    key_info_extractors: Vec<&'static dyn KeyInfoExtractor>,
+    key_info_extractors: Vec<&'static dyn KeyPathInfoExtractor>,
 }
 
 impl KeyMgrBuilder {
@@ -59,7 +59,7 @@ impl KeyMgrBuilder {
     pub fn build(self) -> StdResult<KeyMgr, KeyMgrBuilderError> {
         let mut keymgr = self.build_unvalidated()?;
 
-        keymgr.key_info_extractors = inventory::iter::<&'static dyn KeyInfoExtractor>
+        keymgr.key_info_extractors = inventory::iter::<&'static dyn KeyPathInfoExtractor>
             .into_iter()
             .copied()
             .collect();
@@ -103,7 +103,7 @@ impl KeyMgrBuilder {
     }
 }
 
-inventory::collect!(&'static dyn crate::KeyInfoExtractor);
+inventory::collect!(&'static dyn crate::KeyPathInfoExtractor);
 
 impl KeyMgr {
     /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
@@ -279,9 +279,9 @@ impl KeyMgr {
     /// Describe the specified key.
     ///
     /// Returns [`KeyPathError::Unrecognized`] if none of the registered
-    /// [`KeyInfoExtractor`]s is able to parse the specified [`KeyPath`].
+    /// [`KeyPathInfoExtractor`]s is able to parse the specified [`KeyPath`].
     ///
-    /// This function uses the [`KeyInfoExtractor`]s registered using
+    /// This function uses the [`KeyPathInfoExtractor`]s registered using
     /// [`register_key_info_extractor`](crate::register_key_info_extractor),
     /// or by [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier).
     pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {

@@ -63,7 +63,7 @@ mod dummy;
 pub use arti_path::{ArtiPath, DENOTATOR_SEP};
 pub use err::{ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
-    ArtiPathUnavailableError, CTorPath, KeyInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
+    ArtiPathUnavailableError, CTorPath, KeyPathInfoExtractor, KeyPath, KeyPathError, KeyPathInfo,
     KeyPathInfoBuilder, KeyPathPattern, KeyPathRange, KeySpecifier, KeySpecifierComponent,
     KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
