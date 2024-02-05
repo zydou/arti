@@ -86,7 +86,7 @@ pub struct KeyType;
 impl KeyType {
     /// The file extension for a key of this type.
     //
-    // TODO (#1115): maybe this function should return an error instead
+    // TODO: maybe this function should return an error instead
     pub fn arti_extension(&self) -> &'static str {
         "dummy_extension"
     }
