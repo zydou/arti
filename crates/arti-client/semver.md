@@ -1,1 +1,0 @@
-ADDED: `ErrorDetail::KeystoreRequired`
