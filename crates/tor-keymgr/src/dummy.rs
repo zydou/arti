@@ -127,7 +127,7 @@ impl KeyMgr {
     /// A dummy `insert` implementation that always fails.
     ///
     /// This function always returns an error.
-    pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<()> {
+    pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<Option<K>> {
         Err(crate::Error::Keystore(Arc::new(Error)))
     }
 
