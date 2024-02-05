@@ -569,12 +569,13 @@ mod tests {
         let mgr = builder.build().unwrap();
 
         // Insert a key into Keystore2
-        let old_key = mgr.insert(
-            "coot".to_string(),
-            &TestKeySpecifier1,
-            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
-        )
-        .unwrap();
+        let old_key = mgr
+            .insert(
+                "coot".to_string(),
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+            )
+            .unwrap();
 
         assert!(old_key.is_none());
         assert_eq!(
@@ -583,12 +584,13 @@ mod tests {
         );
 
         // Insert a different key using the _same_ key specifier.
-        let old_key = mgr.insert(
-            "gull".to_string(),
-            &TestKeySpecifier1,
-            KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
-        )
-        .unwrap();
+        let old_key = mgr
+            .insert(
+                "gull".to_string(),
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+            )
+            .unwrap();
         assert_eq!(old_key, Some("keystore2_coot".to_string()));
         // Check that the original value was overwritten:
         assert_eq!(
@@ -597,12 +599,13 @@ mod tests {
         );
 
         // Insert a key into the default keystore
-        let old_key = mgr.insert(
-            "moorhen".to_string(),
-            &TestKeySpecifier2,
-            KeystoreSelector::Default,
-        )
-        .unwrap();
+        let old_key = mgr
+            .insert(
+                "moorhen".to_string(),
+                &TestKeySpecifier2,
+                KeystoreSelector::Default,
+            )
+            .unwrap();
         assert!(old_key.is_none());
         assert_eq!(
             mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
@@ -616,12 +619,13 @@ mod tests {
         // (otherwise KeyMgr::get will return the key from the default store for each iteration and
         // we won't be able to see the key was actually inserted in each store).
         for store in ["keystore3", "keystore2", "keystore1"] {
-            let old_key = mgr.insert(
-                "cormorant".to_string(),
-                &TestKeySpecifier3,
-                KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
-            )
-            .unwrap();
+            let old_key = mgr
+                .insert(
+                    "cormorant".to_string(),
+                    &TestKeySpecifier3,
+                    KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
+                )
+                .unwrap();
             assert!(old_key.is_none());
 
             // Ensure the key now exists in `store`.
