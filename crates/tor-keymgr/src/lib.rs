@@ -63,9 +63,10 @@ mod dummy;
 pub use arti_path::{ArtiPath, DENOTATOR_SEP};
 pub use err::{ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
-    ArtiPathUnavailableError, CTorPath, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoBuilder,
-    KeyPathInfoExtractor, KeyPathPattern, KeyPathRange, KeySpecifier, KeySpecifierComponent,
-    KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
+    ArtiPathUnavailableError, CTorPath, InvalidKeyPathComponentValue, KeyPath, KeyPathError,
+    KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeyPathRange,
+    KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
+    KeySpecifierPattern,
 };
 
 #[cfg(feature = "keymgr")]
