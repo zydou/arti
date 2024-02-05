@@ -321,9 +321,7 @@ impl KeyMgr {
                 }
                 Ok(Some(k)) => k,
                 Err(e) => {
-                    // TODO (#1115): we immediately return if one of the keystores is inaccessible.
-                    // Perhaps we should ignore any errors and simply poll the next store in the
-                    // list?
+                    // Note: we immediately return if one of the keystores is inaccessible.
                     return Err(e);
                 }
             };
