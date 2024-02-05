@@ -1,6 +1,6 @@
 [package]
 name = "arti-testing"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -26,8 +26,8 @@ full = [
 
 [dependencies]
 anyhow = "1.0.23"
-arti = { package = "arti", path = "../arti", version = "1.1.12" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.13.0", features = ["dirfilter"] }
+arti = { package = "arti", path = "../arti", version = "1.1.13" }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.14.0", features = ["dirfilter"] }
 async-trait = "0.1.54"
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["wrap_help"] }
@@ -38,15 +38,15 @@ rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 tokio = { version = "1.7", features = ["signal", "macros"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.6.1", features = ["experimental-api"] }
+tor-checkable = { path = "../tor-checkable", version = "0.7.0", features = ["experimental-api"] }
 tor-config = { path = "../tor-config", version = "0.10.0" }
-tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.14.0", features = ["dirfilter"] }
+tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.15.0", features = ["dirfilter"] }
 tor-error = { path = "../tor-error", version = "0.6.0" }
-tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.11.0", features = [
+tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.12.0", features = [
     "experimental-api",
     "dangerous-expose-struct-fields",
 ] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.9.7" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.10.0" }
 tracing = "0.1.36"
 tracing-appender = "0.2.0"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }

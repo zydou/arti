@@ -1,6 +1,6 @@
 [package]
 name = "tor-llcrypto"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
