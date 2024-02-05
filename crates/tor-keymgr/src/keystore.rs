@@ -31,10 +31,6 @@ pub trait KeygenRng: RngCore + CryptoRng {}
 impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
 
 /// A generic key store.
-//
-// TODO (#1115): eventually this will be able to store items that aren't keys (such as certificates and
-// perhaps other types of sensitive data). We should consider renaming this (and other Key* types)
-// to something more generic (such as `SecretStore` or `Vault`).
 pub trait Keystore: Send + Sync + 'static {
     /// An identifier for this key store instance.
     ///
