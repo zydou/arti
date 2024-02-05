@@ -49,21 +49,21 @@ pub trait Keystore: Send + Sync + 'static {
 
     /// Write `key` to the key store.
     //
-    // TODO (#1115): the key_type argument here might seem redundant: `key` implements `EncodableKey`,
+    // Note: the key_type argument here might seem redundant: `key` implements `EncodableKey`,
     // which has a `key_type` function. However:
     //   * `key_type` is an associated function on `EncodableKey`, not a method, which means we
     //   can't call it on `key: &dyn EncodableKey` (you can't call an associated function of trait
     //   object). The caller of `Keystore::insert` (i.e. `KeyMgr`) OTOH _can_ call `K::key_type()`
     //   on the `EncodableKey` because the concrete type `K` that implements `EncodableKey` is
     //   known.
-    //  * one argue I should make `key_type` a `&self` method rather than an associated function,
+    //  * one could argue I should make `key_type` a `&self` method rather than an associated function,
     //   which would fix this problem (and enable us to remove the additional `key_type` param).
     //   However, that would break `KeyMgr::remove`, which calls
     //   `store.remove(key_spec, K::Key::key_type())`, where `K` is a type parameter specified by
     //   the caller (in `KeyMgr::remove` we don't have a `value: K`, so we can't call `key_type` if
     //   `key_type` is a `&self` method)...
     //
-    // Maybe we can refactor this API and remove the "redundant" param somehow.
+    // TODO: Maybe we can refactor this API and remove the "redundant" param somehow.
     fn insert(
         &self,
         key: &dyn EncodableKey,
