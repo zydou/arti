@@ -129,8 +129,14 @@ pub enum KeyPathError {
     Unrecognized(KeyPath),
 
     /// Found an invalid [`ArtiPath`], which is syntactically invalid on its face
-    #[error("{0}")]
-    InvalidArtiPath(#[from] ArtiPathSyntaxError),
+    #[error("ArtiPath {path} is invalid")]
+    InvalidArtiPath {
+        /// What was wrong with the value
+        #[source]
+        error: ArtiPathSyntaxError,
+        /// The offending `ArtiPath`.
+        path: ArtiPath,
+    },
 
     /// An invalid key path component value string was encountered
     ///

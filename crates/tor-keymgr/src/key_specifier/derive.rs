@@ -229,7 +229,8 @@ pub fn parse_key_path(
 
             // TODO would be nice to avoid allocating again here,
             // but I think that needs an `SlugRef`.
-            let comp = Slug::new(comp.to_owned()).map_err(ArtiPathSyntaxError::Slug)?;
+            let comp = Slug::new(comp.to_owned()).map_err(ArtiPathSyntaxError::Slug)
+                .map_err(|error| KeyPathError::InvalidArtiPath { error, path: arti_path.clone() })?;
 
             let missing_keys = || internal!("keys list too short, bad args to parse_key_path");
 

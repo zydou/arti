@@ -175,7 +175,7 @@ impl RendRequestContext {
         };
 
         let slug = Slug::new(denotator.to_string())
-            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e.into())))?;
+            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath { path: path.clone(), error: e.into() }))?;
         let tp = TimePeriod::from_slug(&slug).map_err(|error| {
             KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
                 key: "time_period".to_owned(),
