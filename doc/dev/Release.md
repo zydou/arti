@@ -197,7 +197,7 @@ before you continue!
    a list of crates from lowest- to highest-level, see the top-level
    Cargo.toml.
 
-   `; for crate in $(./maint/list_crates); do cargo publish -p "$crate"; done`
+   `; for crate in $(./maint/list_crates_publish); do cargo publish -p "$crate"; done`
 
 
 2. We tag the repository with `arti-v${THIS_VERSION}`

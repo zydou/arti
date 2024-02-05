@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 #
 # List our crates as they appear in Cargo.toml.  Useful for scripting.
+#
+# NB you may want list_crates_publish instead
+# *This* script excludes crates according to an ad-hoc criterion
 
 import toml.decoder
 import sys
