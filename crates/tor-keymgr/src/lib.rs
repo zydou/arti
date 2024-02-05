@@ -40,7 +40,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-// TODO (#1115): write more comprehensive documentation when the API is a bit more
+// TODO: write more comprehensive documentation when the API is a bit more
 // stable
 
 mod arti_path;
