@@ -23,7 +23,7 @@ pub enum Error {
     #[error("{0}")]
     Keystore(#[from] Arc<dyn KeystoreError>),
 
-    /// An error returned when the [`KeyMgr`] is asked to generate a key that already exists.
+    /// An error returned when the [`KeyMgr`](crate::KeyMgr) is asked to generate a key that already exists.
     ///
     /// Note that because there is no locking of the keystore,
     /// this situation is not reliably detected

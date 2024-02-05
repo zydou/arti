@@ -32,7 +32,7 @@ use tor_error::{bad_api_usage, internal};
 /// order to implement this safely without locking, the key store operations (get,
 /// insert, remove) will need to be atomic.
 ///
-/// **Note**: [`KeyMgr::generate`] and [`Keymgr::get_or_generate`] should **not** be used
+/// **Note**: [`KeyMgr::generate`] and [`KeyMgr::get_or_generate`] should **not** be used
 /// concurrently with any other `KeyMgr` operation that mutates the same key
 /// (i.e. a key with the same `ArtiPath`), because
 /// their outcome depends on whether the selected key store
