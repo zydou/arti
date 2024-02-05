@@ -7,6 +7,8 @@
 
 set -euo pipefail
 
+: "${CARGO:=cargo}"
+
 if [ -z "${1-}" ]; then
 	echo "Usage: $0 [git-tag]"
 	echo "Script will run cargo-semver-checks on changes since [git-tag]."
@@ -14,7 +16,7 @@ if [ -z "${1-}" ]; then
 fi
 LAST_VERSION="$1"
 
-cargo semver-checks \
+$CARGO semver-checks \
       --only-explicit-features \
       --workspace \
       --features full \
