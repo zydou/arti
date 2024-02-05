@@ -26,7 +26,7 @@ for actual use.
 - [`tor-hscrypto`]\:
   `AesOpeKey::encrypt` now takes a `SrvPeriodOffset`;
   Replaced `TimePeriodOffset` with `SrvPeriodOffset`;
-  Removed `TimePeriod::offset_within_period`
+  Removed `TimePeriod::offset_within_period`.
   !1904
   #1166
 - [`tor-netdir`]\:
@@ -62,7 +62,7 @@ for actual use.
   !1903
   !1904
   !1914
-- Correctly rate limit descriptor publication.
+- Correctly rate-limit descriptor publication.
   !1951
 - Fixes to services shutdown.
   !1875
@@ -120,7 +120,7 @@ for actual use.
 - Temporarily disable parsing of AF_UNIX socket addresses
   (which aren't implemented right now anyway).
   !1886
-- Rate limit one log message, downgrade one, and remove another
+- Rate limit one log message, downgrade one, and remove another.
   !1871
   !1951
 - Add higher-level documentation to tor-hsservice (and fix a broken docs link).
@@ -189,9 +189,9 @@ for actual use.
 ### Cleanups, minor features, and bugfixes
 
 - `fs-mistrust`: Expose `CheckedDir::verifier`
+  and provide `CheckedDir::make_secure_dir`.
+  !1927
   !1928
-  and provide `CheckedDir::make_secure_dir`
-  !1927.
 - Instructions for building `arti-extra` in `tests/shadow/README.md`.
   !1891
 
