@@ -45,8 +45,8 @@ for actual use.
 - Fix "service fails after approx 12 hours" bug
   #1242
   !1901
-- Fix time period processing bugs
-  (`HSS: "internal error" "current wallclock time not within TP?!"` etc.)
+- Fix time period processing bugs including
+  `HSS: "internal error" "current wallclock time not within TP?!"`.
   #1155
   #1166
   #1254
