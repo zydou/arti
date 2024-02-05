@@ -134,7 +134,7 @@ impl KeyMgr {
     /// A dummy `remove` implementation that always fails.
     ///
     /// This function always returns an error.
-    pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<()>> {
+    pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<K>> {
         Err(crate::Error::Keystore(Arc::new(Error)))
     }
 }

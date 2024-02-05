@@ -233,18 +233,22 @@ impl KeyMgr {
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
     ///
-    /// Returns `Ok(None)` if the key does not exist in the requested keystore.
-    /// Returns `Ok(Some(())` if the key was successfully removed.
+    /// Returns the the value of the removed key,
+    /// or `Ok(None)` if the key does not exist in the requested keystore.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
     pub fn remove<K: ToEncodableKey>(
         &self,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
-    ) -> Result<Option<()>> {
+    ) -> Result<Option<K>> {
         let store = self.select_keystore(&selector)?;
+        let key_type = K::Key::key_type();
+        let old_key: Option<K> = self.get_from_store(key_spec, &key_type, [store].into_iter())?;
 
-        store.remove(key_spec, &K::Key::key_type())
+        store.remove(key_spec, &key_type)?;
+
+        Ok(old_key)
     }
 
     /// Remove the key identified by `key_spec` and `key_type` from the
@@ -692,7 +696,7 @@ mod tests {
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap())
             )
             .unwrap(),
-            Some(())
+            Some("keystore2_coot".to_string())
         );
 
         // The key doesn't exist in Keystore2 anymore
