@@ -7,6 +7,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 Arti 1.1.13 continues work on support for running onion services.
 You can now launch an onion service and expect it to run.
+
 We have fixed a number of bugs.  The user experience is still not
 great, and the onion-service-service feature is still experimental.
 We have reorganised the on-disk state and key storage, to make it more
@@ -15,6 +16,8 @@ Don't rely on this onion service implementation for security yet;
 there are a number of [missing security features]
 we will need to develop before we can recommend them
 for actual use.
+
+See `doc/OnionService.md` for instructions and caveats.
 
 ### Breaking changes in lower-level crates
 
