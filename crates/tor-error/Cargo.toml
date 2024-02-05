@@ -1,6 +1,6 @@
 [package]
 name = "tor-error"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Ian Jackson <iwj@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
