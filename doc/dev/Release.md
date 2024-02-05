@@ -94,6 +94,11 @@ release?" above.
    When the changelog is done, pipe it into
    `maint/gen_md_links` to auto-generate markdown links
    to our gitlab repositories.
+   (Note you need to feed `maint/gen_md_links` only the
+   *new* part of the changelog, since it doesn't
+   remove from its output links that are already defined;
+   and then of course it will report some missing links
+   that are indeed defined elsewhere.)
    Then, fill in the URLs for any links that the script
    couldn't find.
 
