@@ -8,7 +8,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 Arti 1.1.12 continues work on support for running onion services.
 You can now launch an onion service and expect it to run.
 We have fixed a number of bugs.  The user experience is still not
-great, and the onion-service-server feature is still experimental.
+great, and the onion-service-service feature is still experimental.
 We have reorganised the on-disk state and key storage, to make it more
 sensible; we hope (but don't promise!) it's now the final layout.
 Don't rely on this onion service implementation for security yet;
