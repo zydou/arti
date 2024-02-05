@@ -245,7 +245,8 @@ for funding the development of Arti!
 [#1255]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1255
 [#1260]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1260
 [#1261]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1261
-
+[`tor-hscrypto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hscrypto/index.html
+[`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
 
 # Arti 1.1.12 — 9 January 2024
 
