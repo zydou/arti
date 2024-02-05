@@ -100,7 +100,7 @@ clap = { version = "4.3.24", features = ["string", "wrap_help"] }
 config = { version = "0.13.4", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.6" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.7" }
 futures = "0.3.14"
 humantime = "2"
 humantime-serde = "1.1.1"

@@ -114,7 +114,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 directories = "5"
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.6", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.7", features = ["serde"] }
 futures = "0.3.14"
 hostname-validator = "1.1.1"
 humantime-serde = "1.1.1"

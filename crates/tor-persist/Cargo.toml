@@ -27,7 +27,7 @@ __is_experimental = []
 amplify = { version = "4", default-features = false, features = ["derive"], optional = true }
 derive-adhoc = "0.8"
 derive_more = "0.99.3"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.6", features = ["walkdir"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.7", features = ["walkdir"] }
 fslock-guard = { path = "../fslock-guard", version = "0.1.0", optional = true }
 paste = "1"
 sanitize-filename = "0.5.0"

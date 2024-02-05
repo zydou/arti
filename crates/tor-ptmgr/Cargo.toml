@@ -32,7 +32,7 @@ __is_experimental = []
 [dependencies]
 async-trait = "0.1.54"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-fs-mistrust = { version = "0.7.6", path = "../fs-mistrust" }
+fs-mistrust = { version = "0.7.7", path = "../fs-mistrust" }
 futures = "0.3.14"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
