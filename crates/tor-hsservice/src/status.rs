@@ -84,6 +84,19 @@ pub enum State {
     /// We are trying to build introduction points and publish a descriptor,
     /// and haven't hit any significant problems yet.
     Bootstrapping,
+    /// The service is running in a degraded state.
+    ///
+    /// Specifically, we are not satisfied with our introduction points, but
+    /// we do have a number of working introduction points,
+    /// and our descriptor is up-to-date.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is reachable.
+    ///
+    // TODO: this variant is only used by the IptManager.
+    // We should split this enum into IptManagerState and PublisherState.
+    Degraded,
     /// The service is running.
     ///
     /// Specifically, we are satisfied with our introduction points, and our
@@ -139,6 +152,7 @@ impl OnionServiceStatus {
             (Running, Running) => Running,
             (Recovering, _) | (_, Recovering) => Recovering,
             (Broken, _) | (_, Broken) => Broken,
+            (Degraded, Running) | (Running, Degraded) | (Degraded, Degraded) => Degraded,
         }
     }
 
