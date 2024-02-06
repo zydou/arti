@@ -77,12 +77,20 @@ pub enum State {
     ///
     /// Either [`OnionService::launch`](crate::OnionService::launch) has not
     /// been called, or the service has been shut down.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is not reachable.
     Shutdown,
     /// The service is bootstrapping.
     ///
     /// Specifically, we have been offline, or we just initialized:
     /// We are trying to build introduction points and publish a descriptor,
     /// and haven't hit any significant problems yet.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is not reachable.
     Bootstrapping,
     /// The service is running in a degraded state.
     ///
@@ -101,6 +109,10 @@ pub enum State {
     ///
     /// Specifically, we are satisfied with our introduction points, and our
     /// descriptor is up-to-date.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is reachable.
     Running,
     /// The service is trying to recover from a minor interruption.
     ///
@@ -109,12 +121,30 @@ pub enum State {
     ///     intermittent failure to upload a descriptor)
     ///   * We are trying to recover from the problem.
     ///   * We have not yet failed.
+    ///
+    /// ## Reachability
+    ///
+    /// The service may or may not be reachable.
+    ///
+    /// It will be unreachable if it has not:
+    ///   * established any introduction points; or
+    ///   * published its descriptor to any HsDirs
+    ///
+    /// It will be intermittently reachable by clients, if the descriptor
+    /// was published to some (but not all) necessary HsDirs.
+    ///
+    /// It will be reachable by some (but not all) clients, if the descriptor
+    /// was only published to a subset of the necessary HsDir rings.
     Recovering,
     /// The service is not working.
     ///
     /// Specifically, there is a problem with this onion service, and either it
     /// is one we cannot recover from, or we have tried for a while to recover
     /// and have failed.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is not reachable and about to shut down.
     Broken,
 }
 
