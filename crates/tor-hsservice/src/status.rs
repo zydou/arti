@@ -9,7 +9,7 @@ use futures::StreamExt as _;
 use retry_error::RetryError;
 use tor_async_utils::PostageWatchSenderExt;
 
-use crate::{DescUploadError, FatalError};
+use crate::{DescUploadError, FatalError, IptError};
 
 /// The current reported status of an onion service.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -157,6 +157,9 @@ pub enum Problem {
 
     /// We failed to upload a descriptor.
     DescriptorUpload(RetryError<DescUploadError>),
+
+    /// We failed to establish one or more introduction points.
+    Ipt(IptError),
     // TODO: add variants for other transient errors?
 }
 

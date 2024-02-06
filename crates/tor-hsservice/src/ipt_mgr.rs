@@ -835,6 +835,16 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
     }
 }
 
+/// A problem encountered when trying to establish an introduction point.
+#[derive(Clone, Debug, derive_more::From)]
+#[non_exhaustive]
+pub enum IptError {
+    /// We encountered a faulty introduction point.
+    // TODO: should we obtain the errors from IptEstablisher,
+    // and include all of them here (e.g. in a Vec<>)?
+    FaultyIpt,
+}
+
 // TODO #1212: Combine this block with the other impl IptManager<R, M>
 // We probably want to make sure this whole file is in a sensible order.
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {

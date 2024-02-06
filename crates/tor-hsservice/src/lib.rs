@@ -89,6 +89,7 @@ pub mod time_store_for_doctests_unstable_no_semver_guarantees {
 pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
+pub use ipt_mgr::IptError;
 pub use keys::{
     BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
     HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
