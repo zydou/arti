@@ -1136,15 +1136,19 @@ mod test {
         some_value: i32,
     }
 
+    fn mk_state_dir(dir: &Path) -> StateDirectory {
+        StateDirectory::new(
+            dir,
+            &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+        )
+        .unwrap()
+    }
+
     #[test]
     #[traced_test]
     fn test_api() {
         test_temp_dir!().used_by(|dir| {
-            let sd = StateDirectory::new(
-                dir,
-                &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
-            )
-            .unwrap();
+            let sd = mk_state_dir(dir);
 
             let garlic = Garlic("wild".try_into_slug().unwrap());
 
