@@ -590,7 +590,7 @@ impl StateDirectory {
     /// If `name_filter` returns `Live`,
     /// further consideration is skipped and the instance is retained.
     ///
-    /// Secondly, the last time the instance was written to is calculated,
+    /// Secondly, the last time the instance was written to is determined,
     // This must be done with the lock held, for correctness
     // but the lock must be acquired in a way that doesn't itself update the modification time.
     // On Unix this is straightforward because opening for write doesn't update the mtime.
@@ -632,6 +632,7 @@ impl StateDirectory {
     /// progressing monotonically through the methods in the order listed.
     /// But `name_filter` and `age_filter` might each be called
     /// more than once for the same instance.
+    // We don't actually call name_filter more than once.
     ///
     /// Between each stage,
     /// the purge implementation may discover that the instance
@@ -643,7 +644,137 @@ impl StateDirectory {
         now: SystemTime,
         filter: &mut (dyn InstancePurgeHandler + '_),
     ) -> Result<()> {
-        todo!()
+        let kind = filter.kind();
+
+        for id in self.list_instances_inner(kind) {
+            let id = id?;
+            self.with_instance_path_pieces(
+                kind,
+                &|f| write!(f, "{id}"),
+                |kind, id, resource| self.maybe_purge_instance(now, kind, id, resource, filter),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// Consider whether to purge an instance
+    ///
+    /// Performs all the necessary steps, including liveness checks,
+    /// passing an InstanceStateHandle to filter.dispose,
+    /// and deleting stale lockfiles without associated state.
+    fn maybe_purge_instance(
+        &self,
+        now: SystemTime,
+        kind: &SlugRef,
+        id: &SlugRef,
+        resource: &dyn Fn() -> Resource,
+        filter: &mut (dyn InstancePurgeHandler + '_),
+    ) -> Result<()> {
+        /// If `$l` is `Liveness::Live`, returns early with `Ok(())`.
+        macro_rules! check_liveness { { $l:expr } => {
+            match $l {
+                Liveness::Live => return Ok(()),
+                Liveness::PossiblyUnused => {},
+            }
+        } }
+
+        check_liveness!(filter.name_filter(id)?);
+
+        let dir_path = self.dir.as_path().join(kind).join(id);
+
+        // Checks whether it should be kept due to being recently modified.
+        // None::<SystemTime> means the instance directory is ENOENT
+        // (which must mean that the instance exists only as a stale lockfile).
+        let mut age_check = || -> Result<(Liveness, Option<SystemTime>)> {
+            let handle_io_error = |source| Error::new(source, Action::Enumerating, resource());
+
+            // 1. stat the instance dir
+            let md = match fs::metadata(&dir_path) {
+                // If instance dir is ENOENT, treat as old (maybe there was just a lockfile)
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    return Ok((Liveness::PossiblyUnused, None))
+                }
+                other => other.map_err(handle_io_error)?,
+            };
+            let mtime = md.modified().map_err(handle_io_error)?;
+
+            // 2. calculate the age
+            let age = now.duration_since(mtime).unwrap_or(Duration::ZERO);
+
+            // 3. do the age check
+            let liveness = filter.age_filter(id, age)?;
+
+            Ok((liveness, Some(mtime)))
+        };
+
+        // preliminary check, without locking yet
+        check_liveness!(age_check()?.0);
+
+        // ok we're probably doing to pass it to dispose (for possible deletion)
+
+        let lock_path = dir_path.with_extension("lock");
+        let flock_guard = match LockFileGuard::try_lock(&lock_path) {
+            Ok(Some(y)) => {
+                trace!("locked {lock_path:?} (for purge)");
+                y
+            }
+            Err(source) if source.kind() == io::ErrorKind::NotFound => {
+                // We couldn't open the lockfile due to ENOENT
+                // (Presumably) a containing directory is gone, so we don't need to do anything.
+                trace!("locking {lock_path:?} (for purge), not found");
+                return Ok(());
+            }
+            Ok(None) => {
+                // Someone else has it locked.  Skip purging it.
+                trace!("locking {lock_path:?} (for purge), in use");
+                return Ok(());
+            }
+            Err(source) => {
+                trace!(
+                    "locking {lock_path:?} (for purge), error {}",
+                    source.report()
+                );
+                return Err(Error::new(source, Action::Locking, resource()));
+            }
+        };
+
+        // recheck to see if anyone has updated it
+        let (age, mtime) = age_check()?;
+        check_liveness!(age);
+
+        // We have locked it and the filters say to maybe purge it.
+
+        match mtime {
+            None => {
+                // And it doesn't even exist!  All we have is a leftover lockfile.  Delete it.
+                let lockfile_rsrc = || Resource::File {
+                    container: lock_path.parent().expect("no /!").into(),
+                    file: lock_path.file_name().expect("no /!").into(),
+                };
+                flock_guard
+                    .delete_lock_file(&lock_path)
+                    .map_err(|source| Error::new(source, Action::Deleting, lockfile_rsrc()))?;
+            }
+            Some(last_modified) => {
+                // Construct a state handle.
+                let dir = self
+                    .dir
+                    .make_secure_directory(format!("{kind}/{id}"))
+                    .map_err(|source| Error::new(source, Action::Enumerating, resource()))?;
+                let flock_guard = Arc::new(flock_guard);
+
+                filter.dispose(
+                    &InstancePurgeInfo {
+                        identity: id,
+                        last_modified,
+                    },
+                    InstanceStateHandle { dir, flock_guard },
+                )?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Tries to peek at something written by [`StorageHandle::store`]
