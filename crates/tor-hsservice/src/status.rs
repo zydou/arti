@@ -219,8 +219,8 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_broken(&self, err: impl Into<Problem>) {
-                self.note_status(State::Broken, Some(err.into()));
+            pub(crate) fn send_broken(&self, err: impl Into<Problem>) {
+                self.send(State::Broken, Some(err.into()));
             }
 
             /// Update `latest_error` and set the underlying state to `Recovering`.
@@ -228,8 +228,8 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_recovering(&self, err: impl Into<Problem>) {
-                self.note_status(State::Recovering, Some(err.into()));
+            pub(crate) fn send_recovering(&self, err: impl Into<Problem>) {
+                self.send(State::Recovering, Some(err.into()));
             }
 
             /// Set `latest_error` to `None` and the underlying state to `Shutdown`.
@@ -237,8 +237,8 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_shutdown(&self) {
-                self.note_status(State::Shutdown, None);
+            pub(crate) fn send_shutdown(&self) {
+                self.send(State::Shutdown, None);
             }
 
             /// Update the underlying state and latest_error.
@@ -246,7 +246,7 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_status(&self, state: State, err: Option<Problem>) {
+            pub(crate) fn send(&self, state: State, err: Option<Problem>) {
                 let sender = &self.0;
                 let mut tx = sender.0.lock().expect("Poisoned lock");
                 let mut svc_status = tx.borrow().clone();

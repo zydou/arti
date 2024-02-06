@@ -1624,12 +1624,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 Err(crash) => {
                     error!("HS service {} crashed! {}", &self.imm.nick, crash);
 
-                    self.imm.status_tx.note_broken(crash);
+                    self.imm.status_tx.send_broken(crash);
                     break;
                 }
                 Ok(ShutdownStatus::Continue) => continue,
                 Ok(ShutdownStatus::Terminate) => {
-                    self.imm.status_tx.note_shutdown();
+                    self.imm.status_tx.send_shutdown();
 
                     break;
                 }
