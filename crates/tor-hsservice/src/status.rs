@@ -78,7 +78,6 @@ pub enum State {
     /// Either [`OnionService::launch`](crate::OnionService::launch) has not
     /// been called, or the service has been shut down.
     Shutdown,
-
     /// The service is bootstrapping.
     ///
     /// Specifically, we have been offline, or we just initialized:
