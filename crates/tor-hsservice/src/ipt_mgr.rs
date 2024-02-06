@@ -626,6 +626,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         self.state.ipt_removal_cleanup_needed = true;
 
         let runtime = self.imm.runtime.clone();
+
+        self.imm.status_tx.send(IptMgrState::Bootstrapping, None);
+
         // This task will shut down when the RunningOnionService is dropped, causing
         // self.state.shutdown to become ready.
         runtime
