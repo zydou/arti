@@ -94,6 +94,11 @@ release?" above.
    When the changelog is done, pipe it into
    `maint/gen_md_links` to auto-generate markdown links
    to our gitlab repositories.
+   (Note you need to feed `maint/gen_md_links` only the
+   *new* part of the changelog, since it doesn't
+   remove from its output links that are already defined;
+   and then of course it will report some missing links
+   that are indeed defined elsewhere.)
    Then, fill in the URLs for any links that the script
    couldn't find.
 
@@ -192,8 +197,12 @@ before you continue!
    a list of crates from lowest- to highest-level, see the top-level
    Cargo.toml.
 
-   `; for crate in $(./maint/list_crates); do cargo publish -p "$crate"; done`
+   `; for crate in $(./maint/list_crates_publish); do cargo publish -p "$crate"; done`
 
+   Ideally you would run this in a `set -e`, so it would fail on
+   errors, but doing that involves filtering the list of crates to
+   only list those that have changed (and therefore have had their
+   versions bumped).
 
 2. We tag the repository with `arti-v${THIS_VERSION}`
 

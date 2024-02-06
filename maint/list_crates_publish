@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+#
+# List our crates as they appear in Cargo.toml.
+# Prints the crate names *except* for the ones with publish=false.
+# Useful for scripting.
+
+import toml.decoder
+import sys
+import os.path
+
+TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
+WORKSPACE_TOML = os.path.join(TOPDIR, "Cargo.toml")
+
+
+def print_crates():
+    t = toml.decoder.load(WORKSPACE_TOML)
+    for path in t['workspace']['members']:
+        pt = toml.decoder.load(path + "/Cargo.toml")
+        publish = pt["package"].get("publish")
+        if publish != False:
+            print(pt["package"]["name"])
+
+if __name__ == '__main__':
+    print_crates()
