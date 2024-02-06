@@ -111,6 +111,16 @@ pub trait KeySpecifierPattern {
 ///
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
+///
+// Note: Currently, all KeyPathErrors (except Unrecognized and Bug) are only returned from
+// functions that parse ArtiPaths and/or ArtiPath denotators, so their context contains an
+// `ArtiPath` rather than a `KeyPath` (i.e. PatternNotMatched, InvalidArtiPath,
+// InvalidKeyPathComponent value can only happen if we're dealing with an ArtiPath).
+//
+// For now this is alright, but we might want to rethink this error enum (for example, a better
+// idea might be to create an ArtiPathError { path: ArtiPath, kind: ArtiPathErrorKind } error type
+// and move PatternNotMatched, InvalidArtiPath, InvalidKeyPathComponentValue to the new
+// ArtiPathErrorKind enum.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
