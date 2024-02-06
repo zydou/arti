@@ -449,6 +449,8 @@ impl StateDirectory {
 
                 let dir = make_secure_directory(&kind_dir, id)?;
 
+                touch_instance_dir(&dir)?;
+
                 Ok(InstanceStateHandle { dir, flock_guard })
             })
         }
@@ -594,7 +596,7 @@ impl StateDirectory {
     // On Unix this is straightforward because opening for write doesn't update the mtime.
     // If this is hard on another platform, we'll need a separate stamp file updated
     // by an explicit Acquire operation.
-    // We should have a test to check that this all works as expected.
+    // We should have a test to check that this all works as expected. XXXX
     /// and passed to
     /// [`age_filter`](InstancePurgeHandler::age_filter).
     /// Again, this might mean ensure the instance is retained.
@@ -782,7 +784,7 @@ impl InstanceStateHandle {
             slug: StdResult<Slug, BadSlug>,
         ) -> Result<InstanceRawSubdir> {
             let slug = slug?;
-            (|| {
+            let irs = (|| {
                 trace!("ensuring/using {:?}/{:?}", ih.dir.as_path(), slug.as_str());
                 let dir = ih.dir.make_secure_directory(&slug)?;
                 let flock_guard = ih.flock_guard.clone();
@@ -796,7 +798,9 @@ impl InstanceStateHandle {
                         dir: ih.dir.as_path().join(slug),
                     },
                 )
-            })
+            })?;
+            touch_instance_dir(&ih.dir)?;
+            Ok(irs)
         }
         inner(self, slug.try_into_slug())
     }
@@ -864,6 +868,15 @@ impl InstanceStateHandle {
     }
 }
 
+/// Touch an instance the state directory, `dir`, for expiry purposes
+fn touch_instance_dir(dir: &CheckedDir) -> Result<()> {
+    let dir = dir.as_path();
+    let resource = || Resource::Directory { dir: dir.into() };
+
+    filetime::set_file_mtime(dir, filetime::FileTime::now())
+        .map_err(|source| Error::new(source, Action::Initializing, resource()))
+}
+
 /// A place in the state or cache directory, where we can load/store a serialisable type
 ///
 /// Implies exclusive access.
@@ -897,10 +910,12 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
     }
     /// Store this persistent state
     pub fn store(&mut self, v: &T) -> Result<()> {
+        // The renames will cause a directory mtime update
         self.with_load_store_target(Action::Storing, |t| t.store(v))
     }
     /// Delete this persistent state
     pub fn delete(&mut self) -> Result<()> {
+        // Only counts as a recent modification if this state *did* exist
         self.with_load_store_target(Action::Deleting, |t| t.delete())
     }
 

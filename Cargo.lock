@@ -5685,6 +5685,7 @@ dependencies = [
  "anyhow",
  "derive-adhoc 0.8.1",
  "derive_more",
+ "filetime",
  "fs-mistrust",
  "fslock",
  "fslock-guard",
