@@ -153,6 +153,10 @@ pub(crate) enum IptError {
     /// protocol.
     #[error("Invalid message: {0}")]
     BadMessage(String),
+
+    /// This introduction point has gone too long without a success.
+    #[error("introduction point has gone too long without a success")]
+    Timeout,
 }
 
 impl tor_error::HasKind for IptEstablisherError {
@@ -180,36 +184,37 @@ impl tor_error::HasKind for IptError {
             E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1255) Not correct kind.
             E::BadEstablished => EK::RemoteProtocolViolation,
             E::BadMessage(_) => EK::RemoteProtocolViolation,
+            E::Timeout => EK::RemoteProtocolViolation, // TODO: this is not necessarily correct
         }
     }
 }
 
 impl IptEstablisherError {
-    /// Return true if this error appears to be the introduction point's fault.
+    /// Return the underlying [`IptError`] if this error appears to be the introduction point's fault.
     ///
-    /// This corresponds to [`IptStatusStatus::Faulty`]`: when we return true,
+    /// This corresponds to [`IptStatusStatus::Faulty`]`: when we return `Some`,
     /// it means that we should try another relay as an introduction point,
     /// though we don't necessarily need to give up on this one.
     ///
-    /// Note that the intro point may be to blame even if we return `false`;
+    /// Note that the intro point may be to blame even if we return `None`;
     /// we only return `true` when we are certain that the intro point is
     /// unlisted, unusable, or misbehaving.
-    fn is_ipt_failure(&self) -> bool {
+    fn ipt_failure(&self) -> Option<&IptError> {
         use IptEstablisherError as IE;
         match self {
             // If we don't have a netdir, then no intro point is better than any other.
-            IE::NetdirProviderShutdown(_) => false,
-            IE::Ipt(_) => true,
+            IE::NetdirProviderShutdown(_) => None,
+            IE::Ipt(e) => Some(e),
             // This _might_ be the introduction point's fault, but it might not.
             // We can't be certain.
-            IE::BuildCircuit(_) => false,
-            IE::EstablishTimeout => false,
-            IE::ClosedWithoutAck => false,
+            IE::BuildCircuit(_) => None,
+            IE::EstablishTimeout => None,
+            IE::ClosedWithoutAck => None,
             // These are, most likely, not the introduction point's fault,
             // though they might or might not be survivable.
-            IE::CreateEstablishIntro(_) => false,
-            IE::SendEstablishIntro(_) => false,
-            IE::Bug(_) => false,
+            IE::CreateEstablishIntro(_) => None,
+            IE::SendEstablishIntro(_) => None,
+            IE::Bug(_) => None,
         }
     }
 }
@@ -401,7 +406,7 @@ impl IptEstablisher {
 /// `hssvc-ipt-algorithms.md`.
 ///
 /// TODO (#1235) Make that file unneeded.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum IptStatusStatus {
     /// We are (re)establishing our connection to the IPT
     ///
@@ -427,7 +432,7 @@ pub(crate) enum IptStatusStatus {
     /// The IPT manager should *not* arrange to include this in descriptors.
     /// If this persists, the IPT manager should replace this IPT
     /// with a new IPT at a different relay.
-    Faulty,
+    Faulty(Option<IptError>),
 }
 
 /// Details of a good introduction point
@@ -492,7 +497,7 @@ pub(crate) enum RequestDisposition {
 }
 
 /// The current status of an introduction point.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct IptStatus {
     /// The current state of this introduction point as defined by
     /// `hssvc-ipt-algorithms.md`.
@@ -525,9 +530,9 @@ impl IptStatus {
     /// Record that we are trying to connect to an introduction point.
     fn note_attempt(&mut self) {
         use IptStatusStatus::*;
-        self.status = match self.status {
+        self.status = match &self.status {
             Establishing | Good(..) => Establishing,
-            Faulty => Faulty, // We don't change status if we think we're broken.
+            Faulty(e) => Faulty(e.clone()), // We don't change status if we think we're broken.
         }
     }
 
@@ -536,12 +541,12 @@ impl IptStatus {
         use IptStatusStatus::*;
         let failing_since = *self.failing_since.get_or_insert(now);
         #[allow(clippy::if_same_then_else)]
-        if err.is_ipt_failure() {
+        if let Some(ipt_err) = err.ipt_failure() {
             // This error always indicates a faulty introduction point.
-            self.status = Faulty;
+            self.status = Faulty(Some(ipt_err.clone()));
         } else if now.saturating_duration_since(failing_since) >= FAULTY_IPT_THRESHOLD {
             // This introduction point has gone too long without a success.
-            self.status = Faulty;
+            self.status = Faulty(Some(IptError::Timeout));
         }
     }
 
@@ -558,7 +563,7 @@ impl IptStatus {
     /// Produce an `IptStatus` representing a shut down or crashed establisher
     fn new_terminated() -> Self {
         IptStatus {
-            status: IptStatusStatus::Faulty,
+            status: IptStatusStatus::Faulty(None),
             // If we're broken, we simply tell the manager that that is the case.
             // It will decide for itself whether it wants to replace us.
             wants_to_retire: Ok(()),

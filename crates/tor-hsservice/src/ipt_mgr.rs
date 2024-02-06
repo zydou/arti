@@ -831,7 +831,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                     details,
                 }
             }
-            ISS::Faulty => TS::Faulty { started },
+            ISS::Faulty(..) => TS::Faulty { started },
         };
     }
 }
