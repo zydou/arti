@@ -526,15 +526,15 @@ mod test {
 
         fn set_ulimit(size: usize) {
             unsafe {
-                const RLIM: libc::__rlimit_resource_t = libc::RLIMIT_FSIZE;
+                use libc::RLIMIT_FSIZE;
                 let mut rlim = libc::rlimit {
                     rlim_cur: 0,
                     rlim_max: 0,
                 };
-                let r = libc::getrlimit(RLIM, (&mut rlim) as _);
+                let r = libc::getrlimit(RLIMIT_FSIZE, (&mut rlim) as _);
                 assert_eq!(r, 0);
                 rlim.rlim_cur = size.try_into().unwrap();
-                let r = libc::setrlimit(RLIM, (&rlim) as _);
+                let r = libc::setrlimit(RLIMIT_FSIZE, (&rlim) as _);
                 assert_eq!(r, 0);
             }
         }
