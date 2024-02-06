@@ -103,8 +103,14 @@
 //!             state_dir::Liveness::PossiblyUnused
 //!         })
 //!     }
-//!     fn retain_unused_for(&mut self, id: &SlugRef) -> state_dir::Result<Duration> {
-//!         Ok(self.1)
+//!     fn age_filter(&mut self, id: &SlugRef, age: Duration)
+//!              -> state_dir::Result<state_dir::Liveness>
+//!     {
+//!         Ok(if age > self.1 {
+//!             state_dir::Liveness::PossiblyUnused
+//!         } else {
+//!             state_dir::Liveness::Live
+//!         })
 //!     }
 //!     fn dispose(&mut self, _info: &InstancePurgeInfo, handle: InstanceStateHandle)
 //!                -> state_dir::Result<()> {
@@ -283,12 +289,10 @@ pub trait InstancePurgeHandler {
     /// Can we tell by its name that this instance is still live ?
     fn name_filter(&mut self, identity: &SlugRef) -> Result<Liveness>;
 
-    /// How long should we retain an unused instance for ?
+    /// Can we tell by recent modification that this instance is still live ?
     ///
     /// Many implementations won't need to use `identity`.
-    /// To pass every possibly-unused instance
-    /// through to `dispose`, return `Duration::ZERO`.
-    fn retain_unused_for(&mut self, identity: &SlugRef) -> Result<Duration>;
+    fn age_filter(&mut self, identity: &SlugRef, age: Duration) -> Result<Liveness>;
 
     /// Decide whether to keep this instance
     ///
@@ -296,8 +300,8 @@ pub trait InstancePurgeHandler {
     /// either call [`delete`](InstanceStateHandle::purge),
     /// or simply drop `handle`.
     ///
-    /// Called only after `name_filter` returned [`Liveness::PossiblyUnused`]
-    /// and only if the instance has not been acquired or modified recently.
+    /// Called only after `name_filter` and `age_filter`
+    /// both returned [`Liveness::PossiblyUnused`].
     ///
     /// `info` includes the instance name and other useful information
     /// such as the last modification time.
@@ -572,8 +576,8 @@ impl StateDirectory {
     // If this is hard on another platform, we'll need a separate stamp file updated
     // by an explicit Acquire operation.
     // We should have a test to check that this all works as expected.
-    /// and compared to the return value from
-    /// [`retain_unused_for`](InstancePurgeHandler::retain_unused_for).
+    /// and passed to
+    /// [`age_filter`](InstancePurgeHandler::age_filter).
     /// Again, this might mean ensure the instance is retained.
     ///
     /// Thirdly, the resulting `InstanceStateHandle` is passed to
@@ -587,10 +591,6 @@ impl StateDirectory {
     /// by another task.
     /// `dispose` will be properly serialised with other activities on the same instance,
     /// as implied by it receiving an `InstanceStateHandle`.
-    ///
-    /// Instances which have been acquired
-    /// or modified more recently than `retain_unused_for`
-    /// will not be offered to `dispose`.
     ///
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
