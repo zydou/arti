@@ -122,8 +122,6 @@ pub(crate) struct Immutable<R> {
     replay_log_dir: tor_persist::state_dir::InstanceRawSubdir,
 
     /// A sender for updating the status of the onion service.
-    //
-    // TODO (#1083): Set the status to Running/Bootstrapping/Recovering where appropriate
     #[educe(Debug(ignore))]
     status_tx: IptMgrStatusSender,
 }
