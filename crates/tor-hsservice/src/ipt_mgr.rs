@@ -48,7 +48,7 @@ use crate::err::StateExpiryError;
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
-use crate::status::IptMgrStatusSender;
+use crate::status::{IptMgrStatusSender, State as IptMgrState};
 use crate::svc::{ipt_establish, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
@@ -1240,12 +1240,20 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 n_good_ipts,
                 self.target_n_intro_points()
             );
+
+            self.imm.status_tx.send(IptMgrState::Running, None);
+
             Some(IPT_PUBLISH_CERTAIN)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
             // "Unknown" - we have no idea which IPTs to publish.
             debug!("HS service {}: no good IPTs", &self.imm.nick);
+
+            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
+            // and include it in the onion svc status.
+            self.imm.status_tx.send_recovering(IptError::FaultyIpt);
+
             None
         } else if let Some((wait_for, wait_more)) = started_establishing_very_recently() {
             // "Unknown" - we say have no idea which IPTs to publish:
@@ -1260,6 +1268,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 wait_more.as_millis(),
                 wait_for
             );
+
+            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
+            // and include it in the onion svc status.
+            self.imm.status_tx.send_recovering(IptError::FaultyIpt);
+
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
@@ -1269,6 +1282,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 n_good_ipts,
                 self.target_n_intro_points()
             );
+
+            // We are close to being Running -- we just need more IPTs!
+            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
+            // and include it in the onion svc status.
+            self.imm
+                .status_tx
+                .send(IptMgrState::Degraded, Some(IptError::FaultyIpt.into()));
+
             Some(IPT_PUBLISH_UNCERTAIN)
         };
 
