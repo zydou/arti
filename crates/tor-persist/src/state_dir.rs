@@ -312,6 +312,11 @@ pub trait InstancePurgeHandler {
     ///
     /// `info` includes the instance name and other useful information
     /// such as the last modification time.
+    ///
+    /// Note that although the existence of `handle` implies
+    /// there can be no other `InstanceStateHandle`s for this instance,
+    /// the last modification time of this instance has *not* been updated,
+    /// as it would be by [`acquire_instance`](StateDirectory::acquire_instance).
     fn dispose(&mut self, info: &InstancePurgeInfo, handle: InstanceStateHandle) -> Result<()>;
 }
 
@@ -602,6 +607,10 @@ impl StateDirectory {
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
+    ///
+    /// Instances that are currently locked by another task will not be purged,
+    /// but the expiry time is *not* reset by *unlocking* an instance
+    /// (dropping the last clone of an `InstanceStateHandle`).
     pub fn purge_instances(
         &self,
         now: SystemTime,
