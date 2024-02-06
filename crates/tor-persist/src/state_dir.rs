@@ -93,6 +93,9 @@
 //!
 //! struct PurgeHandler<'h>(&'h HashSet<&'h str>, Duration);
 //! impl InstancePurgeHandler for PurgeHandler<'_> {
+//!     fn kind(&self) -> &'static str {
+//!         <HsNickname as InstanceIdentity>::kind()
+//!     }
 //!     fn name_filter(&mut self, id: &SlugRef) -> state_dir::Result<state_dir::Liveness> {
 //!         Ok(if self.0.contains(id.as_str()) {
 //!             state_dir::Liveness::Live
@@ -271,6 +274,9 @@ pub trait InstanceIdentity {
 ///
 /// See [`purge_instances`](StateDirectory::purge_instances) for full documentation.
 pub trait InstancePurgeHandler {
+    /// What kind to iterate over
+    fn kind(&self) -> &'static str;
+
     /// Can we tell by its name that this instance is still live ?
     fn name_filter(&mut self, identity: &SlugRef) -> Result<Liveness>;
 
