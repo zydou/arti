@@ -54,7 +54,7 @@
 //! ### Comprehensive example
 //!
 //! ```
-//! use std::{collections::HashSet, fmt, time::Duration};
+//! use std::{collections::HashSet, fmt, time::{Duration, SystemTime}};
 //! use tor_error::{into_internal, Bug};
 //! use tor_persist::slug::SlugRef;
 //! use tor_persist::state_dir;
@@ -117,7 +117,10 @@
 //!     currently_configured_nicks: &HashSet<&str>,
 //!     retain_for: Duration,
 //! ) -> Result<(), Error> {
-//!     state_dir.purge_instances(&mut PurgeHandler(currently_configured_nicks, retain_for))?;
+//!     state_dir.purge_instances(
+//!         SystemTime::now(),
+//!         &mut PurgeHandler(currently_configured_nicks, retain_for),
+//!     )?;
 //!     Ok(())
 //! }
 //! ```
@@ -592,7 +595,11 @@ impl StateDirectory {
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
-    pub fn purge_instances<I: InstancePurgeHandler>(&self, filter: &mut I) -> Result<()> {
+    pub fn purge_instances(
+        &self,
+        now: SystemTime,
+        filter: &mut (dyn InstancePurgeHandler + '_),
+    ) -> Result<()> {
         todo!()
     }
 
