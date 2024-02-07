@@ -298,7 +298,14 @@ pub trait InstancePurgeHandler {
 
     /// Can we tell by recent modification that this instance is still live ?
     ///
-    /// Many implementations won't need to use `identity`.
+    /// Many implementations won't need to use the `identity` parameter.
+    ///
+    /// ### Concurrency
+    ///
+    /// The `age` passed to this callback might
+    /// sometimes not be the most recent modification time of the instance.
+    /// But. before calling `dispose`, `purge_instances` will call this
+    /// function at least once with a fully up-to-date modification time.
     fn age_filter(&mut self, identity: &SlugRef, age: Duration) -> Result<Liveness>;
 
     /// Decide whether to keep this instance
@@ -611,6 +618,24 @@ impl StateDirectory {
     /// Instances that are currently locked by another task will not be purged,
     /// but the expiry time is *not* reset by *unlocking* an instance
     /// (dropping the last clone of an `InstanceStateHandle`).
+    ///
+    /// ### Sequencing of `InstancePurgeHandler` callbacks
+    ///
+    /// Each instance will be processed
+    /// (and callbacks made for it) at most once;
+    /// and calls for different instances will not be interleaved.
+    ///
+    /// During the processing of a particular instance
+    /// The callbacks will be made in order,
+    /// progressing monotonically through the methods in the order listed.
+    /// But `name_filter` and `age_filter` might each be called
+    /// more than once for the same instance.
+    ///
+    /// Between each stage,
+    /// the purge implementation may discover that the instance
+    /// ought not to be processed further.
+    /// So returning `Liveness::PossiblyUnused` from a filter does not
+    /// guarantee that the next callback will be made.
     pub fn purge_instances(
         &self,
         now: SystemTime,
