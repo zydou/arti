@@ -248,7 +248,7 @@ mod test {
         /// The responses that will be returned by each test HSDir (identified by its RsaIdentity).
         ///
         /// Used for testing whether the reactor correctly retries on failure.
-        responses_for_hsdir: Arc<Mutex<HashMap<rsa::RsaIdentity, Arc<Mutex<I>>>>>,
+        responses_for_hsdir: Arc<Mutex<HashMap<rsa::RsaIdentity, I>>>,
     }
 
     #[async_trait]
@@ -276,11 +276,11 @@ mod test {
             let mut map = self.responses_for_hsdir.lock().unwrap();
             let poll_read_responses = map
                 .entry(*id)
-                .or_insert_with(|| Arc::new(Mutex::new(self.poll_read_responses.clone())));
+                .or_insert_with(|| self.poll_read_responses.clone());
 
             Ok(MockClientCirc {
                 publish_count: Arc::clone(&self.publish_count),
-                poll_read_responses: Arc::clone(poll_read_responses),
+                poll_read_responses: poll_read_responses.clone(),
             }
             .into())
         }
@@ -298,7 +298,7 @@ mod test {
         /// The values to return from `poll_read`.
         ///
         /// Used for testing whether the reactor correctly retries on failure.
-        poll_read_responses: Arc<Mutex<I>>,
+        poll_read_responses: I,
     }
 
     #[async_trait]
@@ -310,7 +310,7 @@ mod test {
                 publish_count: Arc::clone(&self.publish_count),
                 // TODO: this will need to change when we start reusing circuits (currently,
                 // we only ever create one data stream per circuit).
-                poll_read_responses: Arc::clone(&self.poll_read_responses),
+                poll_read_responses: self.poll_read_responses.clone(),
             })
         }
     }
@@ -322,16 +322,16 @@ mod test {
         /// The values to return from `poll_read`.
         ///
         /// Used for testing whether the reactor correctly retries on failure.
-        poll_read_responses: Arc<Mutex<I>>,
+        poll_read_responses: I,
     }
 
     impl<I: PollReadIter> AsyncRead for MockDataStream<I> {
         fn poll_read(
-            self: Pin<&mut Self>,
+            mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<io::Result<usize>> {
-            match self.poll_read_responses.lock().unwrap().next() {
+            match self.as_mut().poll_read_responses.next() {
                 Some(res) => {
                     match res {
                         Ok(res) => {
