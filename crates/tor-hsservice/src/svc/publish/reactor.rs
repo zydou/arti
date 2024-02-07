@@ -65,11 +65,12 @@ use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamEx
 use postage::sink::SendError;
 use postage::{broadcast, watch};
 use tor_basic_utils::retry::RetryDelay;
+use tor_basic_utils::RngExt;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeySpecifier};
 use tor_llcrypto::pk::ed25519;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
@@ -771,6 +772,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
     fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().expect("poisoned lock");
+        let inner = &mut *inner;
 
         // Check which time period these uploads pertain to.
         let period = inner
@@ -783,6 +785,28 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             // can ignore the result.
             return;
         };
+
+        // We will need to reupload this descriptor at at some point, so we pick
+        // a random time between 60 minutes and 120 minutes in the future.
+        //
+        // See https://spec.torproject.org/rend-spec/deriving-keys.html#WHEN-HSDESC
+        let mut rng = self.imm.mockable.thread_rng();
+        // TODO SPEC: Control republish period using a consensus parameter?
+        let minutes = rng.gen_range_checked(60..=120).expect("low > high?!");
+        let duration = Duration::from_secs(minutes * 60);
+        let reupload_when = self.imm.runtime.now() + duration;
+        let time_period = period.params.time_period();
+
+        info!(
+            time_period=?time_period,
+            "reuploading descriptor in {}",
+            humantime::format_duration(duration),
+        );
+
+        inner.reupload_timers.push(ReuploadTimer {
+            period: time_period,
+            when: reupload_when,
+        });
 
         for upload_res in results.hsdir_result {
             let relay = period

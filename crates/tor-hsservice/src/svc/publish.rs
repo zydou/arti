@@ -491,14 +491,19 @@ mod test {
             );
 
             publisher.launch().unwrap();
-            runtime.advance_until_stalled().await;
+            runtime.progress_until_stalled().await;
 
             // Check that we haven't published anything yet
             assert_eq!(publish_count.load(Ordering::SeqCst), 0);
 
             reactor_event();
 
-            runtime.advance_until_stalled().await;
+            runtime.progress_until_stalled().await;
+            // We need to manually advance the time, because some of our tests check that the
+            // failed uploads are retried, and there's a sleep() between the retries
+            // (see BackoffSchedule::next_delay).
+            runtime.advance_by(Duration::from_secs(1)).await;
+            runtime.progress_until_stalled().await;
 
             assert_eq!(publish_count.load(Ordering::SeqCst), expected_upload_count);
         });
