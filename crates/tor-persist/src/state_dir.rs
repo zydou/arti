@@ -590,7 +590,7 @@ impl StateDirectory {
         todo!()
     }
 
-    /// Tries to peek at something written by `StorageHandle::store`
+    /// Tries to peek at something written by [`StorageHandle::store`]
     ///
     /// It is guaranteed that this will return either the `T` that was stored,
     /// or `None` if `store` was never called,
