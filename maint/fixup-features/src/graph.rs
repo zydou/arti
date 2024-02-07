@@ -41,9 +41,7 @@ fn invert<K: Hash + Eq + PartialEq + Clone>(
     let mut out: HashMap<K, HashSet<K>> = HashMap::new();
     for (k, vs) in inp.iter() {
         for v in vs {
-            out.entry(v.clone())
-                .or_default()
-                .insert(k.clone());
+            out.entry(v.clone()).or_default().insert(k.clone());
         }
     }
     out
