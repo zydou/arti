@@ -51,6 +51,13 @@
 //! (The lockfile is outside the instance directory to facilitate
 //! concurrency-correct deletion.)
 //!
+// Specifically:
+//
+// The situation where there is only the lockfile, is an out-of-course but legal one.
+// Likewise, a lockfile plus a *partially* deleted instance state, is also legal.
+// Having an existing directory without associated lockfile is forbidden,
+// but if it should occur we handle it properly.
+//
 //! ### Comprehensive example
 //!
 //! ```
@@ -766,6 +773,30 @@ impl InstanceStateHandle {
     /// and then call this in the `dispose` method.
     ///
     /// Will return a `BadAPIUsage` if other clones of this `InstanceStateHandle` exist.
+    ///
+    /// ### Deletion is *not* atomic
+    ///
+    /// If a deletion operation doesn't complete for any reason
+    /// (maybe it was interrupted, or there was a filesystem access problem),
+    /// *part* of the instance contents may remain.
+    ///
+    /// After such an interrupted deletion,
+    /// storage items ([`StorageHandle`]) are might each independently
+    /// be deleted ([`load`](StorageHandle::load) returns `None`)
+    /// or retained (`Some`).
+    ///
+    /// Deletion of the contents of raw subdirectories
+    /// ([`InstanceStateHandle::raw_subdir`])
+    /// is done with `std::fs::remove_dir_all`.
+    /// If deletion is interrupted, the raw subdirectory may contain partial contents.
+    //
+    // In principle we could provide atomic deletion, but it would lead to instances
+    // that were in "limbo": they exist, but wouldn't appear in list_instances,
+    // and the deletion would need to be completed next time they were acquired
+    // (or during a purge_instances run).
+    //
+    // In practice we expect that callers will not try to use a partially-deleted instance,
+    // and that if they do they will fail with a "state corrupted" error, which would be fine.
     pub fn purge(self) -> Result<()> {
         let dir = self.dir.as_path();
 
