@@ -649,11 +649,9 @@ impl StateDirectory {
 
         for id in self.list_instances_inner(kind) {
             let id = id?;
-            self.with_instance_path_pieces(
-                kind,
-                &|f| write!(f, "{id}"),
-                |kind, id, resource| self.maybe_purge_instance(now, kind, id, resource, filter),
-            )?;
+            self.with_instance_path_pieces(kind, &|f| write!(f, "{id}"), |kind, id, resource| {
+                self.maybe_purge_instance(now, kind, id, resource, filter)
+            })?;
         }
 
         Ok(())
@@ -876,10 +874,7 @@ impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
     /// [`key` has syntactic and uniqueness restrictions.](InstanceStateHandle#key-uniqueness-and-syntactic-restrictions)
-    pub fn storage_handle<T>(
-        &self,
-        key: &(impl TryIntoSlug + ?Sized),
-    ) -> Result<StorageHandle<T>> {
+    pub fn storage_handle<T>(&self, key: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> {
         /// Implementation, not generic over `slug` and `T`
         fn inner(
             ih: &InstanceStateHandle,
