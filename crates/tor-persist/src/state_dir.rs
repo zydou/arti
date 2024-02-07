@@ -177,8 +177,8 @@ use itertools::chain;
 use serde::{de::DeserializeOwned, Serialize};
 
 use fs_mistrust::{CheckedDir, Mistrust};
-use tor_error::ErrorReport as _;
 use tor_error::bad_api_usage;
+use tor_error::ErrorReport as _;
 use tracing::trace;
 
 use crate::err::{Action, ErrorSource, Resource};
