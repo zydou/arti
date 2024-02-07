@@ -59,6 +59,8 @@ members = [
     "crates/arti-bench",
     "crates/arti-testing",
 
+    "maint/fixup-features",
+
     "examples/gsoc2023/connection-checker",
     "examples/gsoc2023/dns-resolver",
     "examples/gsoc2023/download-manager",
