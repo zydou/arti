@@ -468,6 +468,7 @@ mod test {
         reactor_event: impl FnOnce(),
         poll_read_responses: I,
         expected_upload_count: usize,
+        republish_count: usize,
     ) {
         runtime.clone().block_on(async move {
             let netdir_provider: Arc<dyn NetDirProvider> =
@@ -505,7 +506,32 @@ mod test {
             runtime.advance_by(Duration::from_secs(1)).await;
             runtime.progress_until_stalled().await;
 
-            assert_eq!(publish_count.load(Ordering::SeqCst), expected_upload_count);
+            let initial_publish_count = publish_count.load(Ordering::SeqCst);
+            assert_eq!(initial_publish_count, expected_upload_count);
+
+            if republish_count > 0 {
+                /// The earliest time the descriptor can be republished.
+                const MIN_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+                /// The latest time the descriptor can be republished.
+                const MAX_TIMEOUT: Duration = Duration::from_secs(60 * 120);
+
+                // Wait until the reactor triggers the necessary number of reuploads.
+                runtime
+                    .advance_by(MAX_TIMEOUT * (republish_count as u32))
+                    .await;
+                runtime.progress_until_stalled().await;
+
+                let min_upload_count = expected_upload_count * republish_count;
+                // There will be twice as many reuploads if the publisher happens
+                // to reupload every hour (as opposed to every 2h).
+                let max_upload_count = 2 * min_upload_count;
+                let publish_count_now = publish_count.load(Ordering::SeqCst);
+                // This is the total number of reuploads (i.e. the number of times
+                // we published the descriptor to an HsDir).
+                let actual_reupload_count = publish_count_now - initial_publish_count;
+
+                assert!((min_upload_count..=max_upload_count).contains(&actual_reupload_count));
+            }
         });
     }
 
@@ -522,6 +548,7 @@ mod test {
         temp_dir: &Path,
         poll_read_responses: I,
         multiplier: usize,
+        republish_count: usize,
     ) {
         let runtime = MockRuntime::new();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
@@ -577,6 +604,7 @@ mod test {
             update_ipts,
             poll_read_responses,
             expected_upload_count,
+            republish_count,
         );
     }
 
@@ -585,7 +613,7 @@ mod test {
         // The HSDirs always respond with 200 OK, so we expect to publish hsdir_count times.
         let poll_reads = [Ok(OK_RESPONSE.into())].into_iter();
 
-        test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1));
+        test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1, 0));
     }
 
     #[test]
@@ -609,8 +637,18 @@ mod test {
             ]
             .into_iter();
 
-            test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 2));
+            test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 2, 0));
         }
+    }
+
+    #[test]
+    fn reupload_after_publishing() {
+        let poll_reads = [Ok(OK_RESPONSE.into())].into_iter();
+        // Test that 4 reuploads happen after the initial upload
+        const REUPLOAD_COUNT: usize = 4;
+
+        test_temp_dir!()
+            .used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1, REUPLOAD_COUNT));
     }
 
     // TODO (#1120): test that the descriptor is republished when the config changes
