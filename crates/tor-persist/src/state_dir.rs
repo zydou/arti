@@ -1111,14 +1111,28 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use derive_adhoc::{derive_adhoc, Adhoc};
+    use itertools::iproduct;
     use serde::{Deserialize, Serialize};
+    use std::collections::BTreeSet;
     use std::fmt::Display;
     use std::io;
+    use std::str::FromStr;
     use test_temp_dir::test_temp_dir;
     use tor_error::{into_internal, HasKind as _};
     use tracing_test::traced_test;
 
     use tor_error::ErrorKind as TEK;
+
+    type AgeDays = i8;
+
+    fn days(days: AgeDays) -> Duration {
+        Duration::from_secs(86400 * u64::try_from(days).unwrap())
+    }
+
+    fn now() -> SystemTime {
+        SystemTime::now()
+    }
 
     struct Garlic(Slug);
 
@@ -1202,5 +1216,247 @@ mod test {
                 io::ErrorKind::NotFound
             );
         });
+    }
+
+    #[test]
+    #[traced_test]
+    #[allow(clippy::comparison_chain)]
+    #[allow(clippy::expect_fun_call)]
+    fn test_iter() {
+        // Tests list_instances and purge_instances.
+        //
+        //  1. Set up a single state directory containing a number of instances,
+        //    enumerating all the possible situations that purge_instance might find.
+        //    The instance is identified by a `Which` which specifies its properties,
+        //    and which is representable as the instance id slug.
+        //
+        //  2. Call list_instances and check that we see what we expect.
+        //
+        //  3. Call purge_instances and check that all the callbacks happen as we expect.
+        //
+        //  4. Call list_instances again and check that we see what we now expect.
+
+        let temp_dir = test_temp_dir!();
+        let state_dir = temp_dir.used_by(mk_state_dir);
+
+        /// Reified test case spec for expiry
+        //
+        // For non-`bool` fields, `#[adhoc(test = )]` gives the set of values to test.
+        #[derive(Adhoc, Eq, PartialEq, Debug)]
+        struct Which {
+            /// Does `name_filter` return `Live`?
+            namefilter_live: bool,
+            /// What is the oldest does `age_filter` will return `Live` for?
+            #[adhoc(test = "0, 2")]
+            max_age: AgeDays,
+            /// How long ago was the instance dir actually modified?
+            #[adhoc(test = "-1, 1, 3")]
+            age: AgeDays,
+            /// Does the instance dir exist?
+            dir: bool,
+            /// Does the instance !lockfile exist?
+            lockfile: bool,
+        }
+
+        /// Ad-hoc (de)serialisation scheme of `Which` as an instance id (a `Slug`)
+        ///
+        /// The serialisation is `n<namefilter_live>_m<max_age>_...`,
+        /// ie, for each field, the initial letter of its name, followed by the value.
+        /// (We don't bother suppressing the trailiong `_`).
+        impl Display for Which {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                derive_adhoc! {
+                    Which:
+                    $(
+                        write!(
+                            f, "{}{}_",
+                            stringify!($fname).chars().next().unwrap(),
+                            self.$fname,
+                        )?;
+                    )
+                }
+                Ok(())
+            }
+        }
+        impl FromStr for Which {
+            type Err = Error;
+            fn from_str(s: &str) -> Result<Self> {
+                let mut fields = s.split('_');
+                derive_adhoc! {
+                    Which:
+                    Ok(Which { $(
+                        $fname: fields.next().unwrap()
+                            .split_at(1).1
+                            .parse().unwrap(),
+                    )})
+                }
+            }
+        }
+
+        impl InstanceIdentity for Which {
+            fn kind() -> &'static str {
+                "which"
+            }
+            fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                Display::fmt(self, f)
+            }
+        }
+
+        // 0. Calculate all possible whiches
+
+        let whiches = {
+            derive_adhoc!(
+                Which:
+                iproduct!(
+                    $(
+                        ${if fmeta(test) { [ ${fmeta(test)} ] } else { [false, true] }},
+                    )
+                    // iproduct hates a trailing comma, so add a dummy element
+                    // https://github.com/rust-itertools/itertools/issues/868
+                    [()]
+                )
+            )
+            .map(derive_adhoc!(
+                Which:
+                //
+                |($( $fname, ) ())| Which { $( $fname, ) }
+            ))
+            // if you want to debug one test case, you can do this:
+            // .filter(|wh| wh.to_string() == "nfalse_r2_a3_lfalse_dtrue_")
+            .collect_vec()
+        };
+
+        // 1. Create all the test instances, according to the specifications
+
+        for which in &whiches {
+            let s = which.to_string();
+            println!("{s}");
+            assert_eq!(&s.parse::<Which>().unwrap(), which);
+
+            let inst = state_dir.acquire_instance(which).unwrap();
+
+            if !which.dir {
+                fs::remove_dir_all(inst.dir.as_path()).unwrap();
+            } else {
+                let now = now();
+                let set_mtime = |mtime: SystemTime| {
+                    filetime::set_file_mtime(inst.dir.as_path(), mtime.into()).unwrap();
+                };
+                if which.age > 0 {
+                    set_mtime(now - days(which.age));
+                } else if which.age < 0 {
+                    set_mtime(now + days(-which.age));
+                };
+            }
+
+            if !which.lockfile {
+                let lock_path = inst.dir.as_path().with_extension("lock");
+                let flock_guard = Arc::into_inner(inst.flock_guard).unwrap();
+                flock_guard
+                    .delete_lock_file(&lock_path)
+                    .expect(&lock_path.display().to_string());
+            }
+        }
+
+        // 2. Checxk that we see the ones we expect
+
+        let list_instances = || {
+            state_dir
+                .list_instances::<Which>()
+                .map(Result::unwrap)
+                .collect::<BTreeSet<_>>()
+        };
+
+        let found = list_instances();
+
+        let expected: BTreeSet<_> = whiches
+            .iter()
+            .filter(|which| which.dir || which.lockfile)
+            .map(|which| Slug::new(which.to_string()).unwrap())
+            .collect();
+
+        itertools::assert_equal(&found, &expected);
+
+        // 3. Run a purge and check that we see the expected callbacks
+
+        struct PurgeHandler<'r> {
+            expected: &'r BTreeSet<Slug>,
+        }
+
+        impl Which {
+            fn old_enough_to_vanish(&self) -> bool {
+                self.age > self.max_age
+            }
+        }
+
+        impl InstancePurgeHandler for PurgeHandler<'_> {
+            fn kind(&self) -> &'static str {
+                "which"
+            }
+            fn name_filter(&mut self, id: &SlugRef) -> Result<Liveness> {
+                eprintln!("{id} - name_filter");
+                assert!(self.expected.contains(id));
+                let which: Which = id.as_str().parse().unwrap();
+                Ok(if which.namefilter_live {
+                    Liveness::Live
+                } else {
+                    Liveness::PossiblyUnused
+                })
+            }
+            fn age_filter(&mut self, id: &SlugRef, age: Duration) -> Result<Liveness> {
+                eprintln!("{id} - age_filter({age:?})");
+                let which: Which = id.as_str().parse().unwrap();
+                assert!(!which.namefilter_live);
+                Ok(if age <= days(which.max_age) {
+                    Liveness::Live
+                } else {
+                    Liveness::PossiblyUnused
+                })
+            }
+            fn dispose(
+                &mut self,
+                info: &InstancePurgeInfo,
+                handle: InstanceStateHandle,
+            ) -> Result<()> {
+                let id = info.identity();
+                eprintln!("{id} - dispose");
+                let which: Which = id.as_str().parse().unwrap();
+                assert!(!which.namefilter_live);
+                assert!(which.old_enough_to_vanish());
+                assert!(which.dir);
+                handle.purge()
+            }
+        }
+
+        state_dir
+            .purge_instances(
+                now(),
+                &mut PurgeHandler {
+                    expected: &expected,
+                },
+            )
+            .unwrap();
+
+        // 4. List the instances again and check the results
+
+        let found = list_instances();
+
+        let expected: BTreeSet<_> = whiches
+            .iter()
+            .filter(|which| {
+                if which.namefilter_live {
+                    // things filtered by the name filter are left alone;
+                    // we see them if any bits of them existed, even a stale lockfile
+                    which.dir || which.lockfile
+                } else {
+                    // things *not* filtered by the name filter are retained
+                    // iff the directory exists and is new enough
+                    which.dir && !which.old_enough_to_vanish()
+                }
+            })
+            .map(|which| Slug::new(which.to_string()).unwrap())
+            .collect();
+
+        itertools::assert_equal(&found, &expected);
     }
 }
