@@ -26,7 +26,8 @@ def strip_prefix(s, prefix):
 
 def crate_list():
     t = toml.decoder.load(WORKSPACE_TOML)
-    return list(strip_prefix(name, "crates/") for name in t['workspace']['members'] if not name.startswith("examples/"))
+    return list(strip_prefix(name, "crates/") for name in t['workspace']['members']
+                if not (name.startswith("examples/") or name.startswith("maint/")))
 
 
 CRATE_LIST = crate_list()
