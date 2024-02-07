@@ -597,7 +597,7 @@ impl StateDirectory {
     // On Unix this is straightforward because opening for write doesn't update the mtime.
     // If this is hard on another platform, we'll need a separate stamp file updated
     // by an explicit Acquire operation.
-    // We should have a test to check that this all works as expected. XXXX
+    // This is tested by `test_reset_expiry`.
     /// and passed to
     /// [`age_filter`](InstancePurgeHandler::age_filter).
     /// Again, this might mean ensure the instance is retained.
@@ -1116,6 +1116,7 @@ mod test {
     use serde::{Deserialize, Serialize};
     use std::collections::BTreeSet;
     use std::fmt::Display;
+    use std::fs::File;
     use std::io;
     use std::str::FromStr;
     use test_temp_dir::test_temp_dir;
@@ -1458,5 +1459,187 @@ mod test {
             .collect();
 
         itertools::assert_equal(&found, &expected);
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_reset_expiry() {
+        // Tests that things that should update the instance mtime do so,
+        // and that things that shouldhn't, don't.
+        //
+        // For each test case, we:
+        //   1. create a new subdirectory of our temp dir, making a new StateDirectory.
+        //   2. (optionally) set up one instance within it, containing one pre-prepared
+        //      existing storage file and one pre-prepared (empty) raw subdir
+        //   3. perform test-case specific actions on the instance
+        //   4. run a stunt `purge_instances` call that merely checks
+        //      that the right value was passed to age_filter
+
+        let temp_dir = test_temp_dir!();
+
+        const KIND: &str = "kind";
+
+        // keys for various sub-objects
+        const S_EXISTS: &str = "state-existing";
+        const S_ABSENT: &str = "state-initially-absent";
+        const R_EXISTS: &str = "raw-subdir-existing";
+        const R_ABSENT: &str = "raw-subdir-initially-absent";
+
+        struct FixedId;
+        impl InstanceIdentity for FixedId {
+            fn kind() -> &'static str {
+                KIND
+            }
+            fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "id")
+            }
+        }
+
+        /// Did we expect this test case's actions to change the mtime?
+        #[derive(PartialEq, Debug)]
+        enum Expect {
+            /// mtime should be updated
+            New,
+            /// mtime should be unchanged
+            Old,
+        }
+        use Expect as Ex;
+
+        /// Callbacks for stunt purge
+        ///
+        /// `self == None` means we've called `age_filter` already.
+        impl InstancePurgeHandler for Option<&'_ Expect> {
+            fn kind(&self) -> &'static str {
+                KIND
+            }
+            fn name_filter(&mut self, _identity: &SlugRef) -> Result<Liveness> {
+                Ok(Liveness::PossiblyUnused)
+            }
+            fn age_filter(&mut self, _identity: &SlugRef, age: Duration) -> Result<Liveness> {
+                let did_reset = if age < days(1) { Ex::New } else { Ex::Old };
+                assert_eq!(&did_reset, self.unwrap());
+                *self = None;
+                // Stop processing the instance
+                Ok(Liveness::Live)
+            }
+            fn dispose(
+                &mut self,
+                _info: &InstancePurgeInfo<'_>,
+                _handle: InstanceStateHandle,
+            ) -> Result<()> {
+                panic!("disposed live")
+            }
+        }
+
+        /// Helper for test that purge iteration doesn't itself update the mtime
+        ///
+        /// Says `PossiblyUnused` so that `dispose` gets called,
+        /// but then just drops the handle and doesn't delete.
+        struct ExamineAll;
+        impl InstancePurgeHandler for ExamineAll {
+            fn kind(&self) -> &'static str {
+                KIND
+            }
+            fn name_filter(&mut self, _identity: &SlugRef) -> Result<Liveness> {
+                Ok(Liveness::PossiblyUnused)
+            }
+            fn age_filter(&mut self, _identity: &SlugRef, _age: Duration) -> Result<Liveness> {
+                Ok(Liveness::PossiblyUnused)
+            }
+            fn dispose(
+                &mut self,
+                _info: &InstancePurgeInfo<'_>,
+                _handle: InstanceStateHandle,
+            ) -> Result<()> {
+                Ok(())
+            }
+        }
+
+        // Run a check (raw - doesn't creating an initial instance state)
+        let chk_without_create = |exp: Expect, which: &str, acts: &dyn Fn(&StateDirectory)| {
+            temp_dir.subdir_used_by(which, |dir| {
+                let state_dir = mk_state_dir(&dir);
+                acts(&state_dir);
+
+                let mut exp = Some(&exp);
+                state_dir.purge_instances(now(), &mut exp).unwrap();
+                assert!(exp.is_none(), "age_filter not called, instance missing?");
+            });
+        };
+
+        // Run a check with a prepared instance state
+        //
+        // The preprepared instance:
+        //  - has an existing storage at key S_EXISTS
+        //  - has an existing empty raw subdir at key R_EXISTS
+        //  - has been acquired, so `acts` gets an handle
+        //  - but all of this (looks like it) happened 2 days ago
+        let chk =
+            |exp: Expect, which: &str, acts: &dyn Fn(&StateDirectory, InstanceStateHandle)| {
+                chk_without_create(exp, which, &|state_dir| {
+                    let inst = state_dir.acquire_instance(&FixedId).unwrap();
+
+                    inst.storage_handle(S_EXISTS)
+                        .unwrap()
+                        .store(&StoredData { some_value: 1 })
+                        .unwrap();
+                    inst.raw_subdir(R_EXISTS).unwrap();
+
+                    let mtime = now() - days(2);
+                    filetime::set_file_mtime(inst.dir.as_path(), mtime.into()).unwrap();
+
+                    acts(state_dir, inst);
+                });
+            };
+
+        // Test things that shouldn't count for keeping an instance alive
+
+        chk(Ex::Old, "just-releasing-acquired", &|_, inst| {
+            drop(inst);
+        });
+        chk(Ex::Old, "loading", &|_, inst| {
+            let load = |key| {
+                inst.storage_handle::<StoredData>(key)
+                    .unwrap()
+                    .load()
+                    .unwrap()
+            };
+            assert!(load(S_EXISTS).is_some());
+            assert!(load(S_ABSENT).is_none());
+        });
+        chk(Ex::Old, "messing-in-subdir", &|_, inst| {
+            // we don't have a raw subdir path here, but we know what it is
+            let in_raw = inst.dir.as_path().join(R_EXISTS).join("new");
+            let _: File = File::create(in_raw).unwrap();
+        });
+        chk(Ex::Old, "purge-iter-no-delete", &|state_dir, inst| {
+            drop(inst);
+            // ExamineAll looks at everything but never calls InstanceStateHandle::purge.
+            // It it causes every instance to be locked, but not mtime-updated.
+            state_dir.purge_instances(now(), &mut ExamineAll).unwrap();
+        });
+
+        // Test things that *should* count for keeping an instance alive
+
+        chk_without_create(Ex::New, "acquire-new-instance", &|state_dir| {
+            state_dir.acquire_instance(&FixedId).unwrap();
+        });
+        chk(Ex::New, "acquire-existing-instance", &|state_dir, inst| {
+            drop(inst);
+            state_dir.acquire_instance(&FixedId).unwrap();
+        });
+        for storage_key in [S_EXISTS, S_ABSENT] {
+            chk(Ex::New, &format!("store-{}", storage_key), &|_, inst| {
+                inst.storage_handle(storage_key)
+                    .unwrap()
+                    .store(&StoredData { some_value: 2 })
+                    .unwrap();
+            });
+        }
+        for raw_dir in [R_EXISTS, R_ABSENT] {
+            chk(Ex::New, &format!("raw_subdir-{}", raw_dir), &|_, inst| {
+                let _: InstanceRawSubdir = inst.raw_subdir(raw_dir).unwrap();
+            });
+        }
     }
 }
