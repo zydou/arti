@@ -51,6 +51,7 @@
 //! status for reporting fatal errors (crashes).
 
 use std::cmp::max;
+use std::collections::BinaryHeap;
 use std::fmt::Debug;
 use std::iter;
 use std::sync::{Arc, Mutex};
@@ -92,6 +93,7 @@ use crate::status::{PublisherStatusSender, State};
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use crate::svc::publish::reupload_timer::ReuploadTimer;
 use crate::svc::ShutdownStatus;
 use crate::timeout_track::TrackingNow;
 use crate::{
@@ -388,6 +390,8 @@ struct Inner {
     /// used for retrying failed uploads (these are handled internally by
     /// [`Reactor::upload_descriptor_with_retries`]).
     last_uploaded: Option<Instant>,
+    /// A max-heap containing the time periods for which we need to reupload the descriptor.
+    reupload_timers: BinaryHeap<ReuploadTimer>,
 }
 
 /// The part of the reactor state that changes with every time period.
@@ -570,6 +574,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             config,
             netdir: None,
             last_uploaded: None,
+            reupload_timers: Default::default(),
         };
 
         Self {
@@ -647,6 +652,39 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
+        let reupload_tracking = TrackingNow::now(&self.imm.runtime);
+        let mut reupload_periods = vec![];
+        {
+            let mut inner = self.inner.lock().expect("poisoned lock");
+            let inner = &mut *inner;
+            while let Some(reupload) = inner.reupload_timers.peek().copied() {
+                // First, extract all the timeouts that already elapsed.
+                if reupload.when <= reupload_tracking {
+                    inner.reupload_timers.pop();
+                    reupload_periods.push(reupload.period);
+                } else {
+                    // We are not ready schedule any more reuploads.
+                    //
+                    // How much we need to sleep is implicitly
+                    // tracked in reupload_tracking (through
+                    // the TrackingNow implementation)
+                    break;
+                }
+            }
+        }
+
+        // Check if it's time to schedule any reuploads.
+        for period in reupload_periods {
+            if self.mark_dirty(&period) {
+                debug!(
+                    time_period=?period,
+                    "descriptor reupload timer elapsed; scheduling reupload",
+                );
+                self.update_publish_status_unless_rate_lim(PublishStatus::UploadScheduled)
+                    .await?;
+            }
+        }
+
         select_biased! {
             res = self.upload_task_complete_rx.next().fuse() => {
                 let Some(upload_res) = res else {
@@ -657,6 +695,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             },
             () = upload_rate_lim.wait_for_earliest(&self.imm.runtime).fuse() => {
                 self.expire_rate_limit().await?;
+            },
+            () = reupload_tracking.wait_for_earliest(&self.imm.runtime).fuse() => {
+                // Run another iteration, executing run_once again. This time, we will remove the
+                // expired reupload from self.reupload_timers, mark the descriptor dirty for all
+                // relevant HsDirs, and schedule the upload by setting our status to
+                // UploadScheduled.
+                return Ok(ShutdownStatus::Continue);
             },
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
