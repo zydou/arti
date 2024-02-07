@@ -392,6 +392,13 @@ struct Inner {
     /// [`Reactor::upload_descriptor_with_retries`]).
     last_uploaded: Option<Instant>,
     /// A max-heap containing the time periods for which we need to reupload the descriptor.
+    // TODO: we are currently reuploading more than nececessary.
+    // Ideally, this shouldn't contain contain duplicate TimePeriods,
+    // because we only need to retain the latest reupload time for each time period.
+    //
+    // Currently, if, for some reason, we upload the descriptor multiple times for the same TP,
+    // we will end up with multiple ReuploadTimer entries for that TP,
+    // each of which will (eventually) result in a reupload.
     reupload_timers: BinaryHeap<ReuploadTimer>,
 }
 
