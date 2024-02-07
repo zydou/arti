@@ -657,6 +657,7 @@ impl StateDirectory {
     /// Performs all the necessary steps, including liveness checks,
     /// passing an InstanceStateHandle to filter.dispose,
     /// and deleting stale lockfiles without associated state.
+    #[allow(clippy::cognitive_complexity)] // splitting this would be more, not less, confusing
     fn maybe_purge_instance(
         &self,
         now: SystemTime,
