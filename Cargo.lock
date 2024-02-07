@@ -5700,7 +5700,6 @@ dependencies = [
  "tor-error",
  "tracing",
  "tracing-test",
- "void",
 ]
 
 [[package]]
