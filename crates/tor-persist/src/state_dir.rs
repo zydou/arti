@@ -162,34 +162,32 @@
 //!    Use `#[cfg]` at call sites to replace the `raw_subdir`
 //!    with whatever is appropriate for the platform.
 
-#![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
-
-use std::cell::Cell;
 use std::collections::HashSet;
 use std::fmt::{self, Display};
-use std::fs::{self, DirEntry};
+use std::fs;
 use std::io;
-use std::iter;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
-use derive_more::{AsRef, Deref, Into};
-use itertools::{chain, Itertools};
+use derive_more::{AsRef, Deref};
+use itertools::chain;
 use serde::{de::DeserializeOwned, Serialize};
-use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use tor_error::ErrorReport as _;
-use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
+use tor_error::bad_api_usage;
 use tracing::trace;
 
 use crate::err::{Action, ErrorSource, Resource};
 use crate::load_store;
-use crate::slug::{self, BadSlug, Slug, SlugRef, TryIntoSlug};
+use crate::slug::{BadSlug, Slug, SlugRef, TryIntoSlug};
 pub use crate::Error;
+
+#[allow(unused_imports)] // Simplifies a lot of references in our docs
+use crate::slug;
 
 define_derive_adhoc! {
     ContainsInstanceStateGuard =
@@ -203,9 +201,6 @@ define_derive_adhoc! {
 
 /// Re-export of the lock guard type, as obtained via [`ContainsInstanceStateGuard`]
 pub use fslock_guard::LockFileGuard;
-
-/// TODO HSS remove
-type Todo = Void;
 
 use std::result::Result as StdResult;
 
@@ -1112,7 +1107,7 @@ mod test {
 
     use super::*;
     use derive_adhoc::{derive_adhoc, Adhoc};
-    use itertools::iproduct;
+    use itertools::{iproduct, Itertools};
     use serde::{Deserialize, Serialize};
     use std::collections::BTreeSet;
     use std::fmt::Display;
@@ -1120,7 +1115,7 @@ mod test {
     use std::io;
     use std::str::FromStr;
     use test_temp_dir::test_temp_dir;
-    use tor_error::{into_internal, HasKind as _};
+    use tor_error::HasKind as _;
     use tracing_test::traced_test;
 
     use tor_error::ErrorKind as TEK;
