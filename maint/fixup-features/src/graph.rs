@@ -42,7 +42,7 @@ fn invert<K: Hash + Eq + PartialEq + Clone>(
     for (k, vs) in inp.iter() {
         for v in vs {
             out.entry(v.clone())
-                .or_insert_with(Default::default)
+                .or_default()
                 .insert(k.clone());
         }
     }
