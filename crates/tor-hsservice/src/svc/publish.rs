@@ -3,6 +3,7 @@
 mod backoff;
 mod descriptor;
 mod reactor;
+mod reupload_timer;
 
 use futures::task::SpawnExt;
 use postage::watch;
