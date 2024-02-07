@@ -653,11 +653,6 @@ impl StateDirectory {
 /// across any number of processes, tasks, and threads,
 /// for the same instance.
 ///
-/// But this type is `Clone` and the exclusive access is shared across all clones.
-/// Users of the `InstanceStateHandle` must ensure that functions like
-/// `storage_handle` and `raw_directory` are only called once with each `slug`.
-/// (Typically, the slug is fixed, so this is straightforward.)
-///
 /// # Slug uniqueness and syntactic restrictions
 ///
 /// Methods on `InstanceStateHandle` typically take a [`TryIntoSlug`].
