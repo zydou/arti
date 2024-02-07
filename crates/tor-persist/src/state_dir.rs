@@ -35,9 +35,9 @@
 //! STATE_DIR/
 //! STATE_DIR/KIND/INSTANCE/
 //! STATE_DIR/KIND/INSTANCE/lock
-//! STATE_DIR/KIND/INSTANCE/SLUG.json
-//! STATE_DIR/KIND/INSTANCE/SLUG.new
-//! STATE_DIR/KIND/INSTANCE/SLUG/
+//! STATE_DIR/KIND/INSTANCE/KEY.json
+//! STATE_DIR/KIND/INSTANCE/KEY.new
+//! STATE_DIR/KIND/INSTANCE/KEY/
 //!
 //! eg
 //!
@@ -469,6 +469,7 @@ impl StateDirectory {
         self: &StateDirectory,
         kind_str: &'static str,
         id_writer: InstanceIdWriter,
+        // fn call(kind: &SlugRef, id: &SlugRef, resource_for_error: &impl Fn) -> _
         call: impl FnOnce(&SlugRef, &SlugRef, &dyn Fn() -> Resource) -> Result<T>,
     ) -> Result<T> {
         /// Struct that impls `Display` for formatting an instance id
@@ -562,7 +563,7 @@ impl StateDirectory {
                             // Actually handle a directory entry!
 
                             let Some(id) = (|| {
-                                // look for either SLUG or SLUG.lock
+                                // look for either ID or ID.lock
                                 let id = ent.file_name();
                                 let id = id.to_str()?; // ignore non-UTF-8
                                 let id = id.strip_suffix(".lock").unwrap_or(id);
@@ -789,7 +790,7 @@ impl StateDirectory {
     pub fn instance_peek_storage<I: InstanceIdentity, T: DeserializeOwned>(
         &self,
         identity: &I,
-        slug: &(impl TryIntoSlug + ?Sized),
+        key: &(impl TryIntoSlug + ?Sized),
     ) -> Result<Option<T>> {
         self.with_instance_path_pieces(
             I::kind(),
@@ -800,11 +801,11 @@ impl StateDirectory {
                 // Throwing this error here will give a slightly wrong Error for this Bug
                 // (because with_instance_path_pieces has its own notion of Action & Resource)
                 // but that seems OK.
-                let storage_slug = slug.try_into_slug()?;
+                let key_slug = key.try_into_slug()?;
 
                 let rel_fname = format!(
                     "{}{PATH_SEPARATOR}{}{PATH_SEPARATOR}{}.json",
-                    kind_slug, id_slug, storage_slug,
+                    kind_slug, id_slug, key_slug,
                 );
 
                 let target = load_store::Target {
@@ -840,24 +841,24 @@ impl StateDirectory {
 /// across any number of processes, tasks, and threads,
 /// for the same instance.
 ///
-/// # Slug uniqueness and syntactic restrictions
+/// # Key uniqueness and syntactic restrictions
 ///
 /// Methods on `InstanceStateHandle` typically take a [`TryIntoSlug`].
 ///
-/// **It is important that slugs are distinct within an instance.**
+/// **It is important that keys are distinct within an instance.**
 ///
 /// Specifically:
-/// each slug provided to a method on the same [`InstanceStateHandle`]
+/// each key provided to a method on the same [`InstanceStateHandle`]
 /// (or a clone of it)
 /// must be different.
 /// Violating this rule does not result in memory-unsafety,
 /// but might result in incorrect operation due to concurrent filesystem access,
 /// including possible data loss and corruption.
-/// (Typically, the slug is fixed, and the [`StorageHandle`]s are usually
+/// (Typically, the key is fixed, and the [`StorageHandle`]s are usually
 /// obtained during instance construction, so ensuring this is straightforward.)
 ///
-/// There are also syntactic restrictions on slugs.  See [slug].
-// We could implement a runtime check for this by retaining a table of in-use slugs,
+/// There are also syntactic restrictions on keys.  See [slug].
+// We could implement a runtime check for this by retaining a table of in-use keys,
 // possibly only with `cfg(debug_assertions)`.  However I think this isn't worth the code:
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
@@ -874,24 +875,24 @@ pub struct InstanceStateHandle {
 impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
-    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
+    /// [`key` has syntactic and uniqueness restrictions.](InstanceStateHandle#key-uniqueness-and-syntactic-restrictions)
     pub fn storage_handle<T>(
         &self,
-        slug: &(impl TryIntoSlug + ?Sized),
+        key: &(impl TryIntoSlug + ?Sized),
     ) -> Result<StorageHandle<T>> {
         /// Implementation, not generic over `slug` and `T`
         fn inner(
             ih: &InstanceStateHandle,
-            slug: StdResult<Slug, BadSlug>,
+            key: StdResult<Slug, BadSlug>,
         ) -> Result<(CheckedDir, String, Arc<LockFileGuard>)> {
-            let slug = slug?;
+            let key = key?;
             let instance_dir = ih.dir.clone();
-            let leafname = format!("{slug}.json");
+            let leafname = format!("{key}.json");
             let flock_guard = ih.flock_guard.clone();
             Ok((instance_dir, leafname, flock_guard))
         }
 
-        let (instance_dir, leafname, flock_guard) = inner(self, slug.try_into_slug())?;
+        let (instance_dir, leafname, flock_guard) = inner(self, key.try_into_slug())?;
         Ok(StorageHandle {
             instance_dir,
             leafname,
@@ -907,17 +908,17 @@ impl InstanceStateHandle {
     /// where we're happy to not to support such platforms (eg WASM without WASI)
     /// without substantial further work.
     ///
-    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> {
+    /// [`key` has syntactic and uniqueness restrictions.](InstanceStateHandle#key-uniqueness-and-syntactic-restrictions)
+    pub fn raw_subdir(&self, key: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> {
         /// Implementation, not generic over `slug`
         fn inner(
             ih: &InstanceStateHandle,
-            slug: StdResult<Slug, BadSlug>,
+            key: StdResult<Slug, BadSlug>,
         ) -> Result<InstanceRawSubdir> {
-            let slug = slug?;
+            let key = key?;
             let irs = (|| {
-                trace!("ensuring/using {:?}/{:?}", ih.dir.as_path(), slug.as_str());
-                let dir = ih.dir.make_secure_directory(&slug)?;
+                trace!("ensuring/using {:?}/{:?}", ih.dir.as_path(), key.as_str());
+                let dir = ih.dir.make_secure_directory(&key)?;
                 let flock_guard = ih.flock_guard.clone();
                 Ok::<_, ErrorSource>(InstanceRawSubdir { dir, flock_guard })
             })()
@@ -926,14 +927,14 @@ impl InstanceStateHandle {
                     source,
                     Action::Initializing,
                     Resource::Directory {
-                        dir: ih.dir.as_path().join(slug),
+                        dir: ih.dir.as_path().join(key),
                     },
                 )
             })?;
             touch_instance_dir(&ih.dir)?;
             Ok(irs)
         }
-        inner(self, slug.try_into_slug())
+        inner(self, key.try_into_slug())
     }
 
     /// Unconditionally delete this instance directory
@@ -1014,13 +1015,13 @@ fn touch_instance_dir(dir: &CheckedDir) -> Result<()> {
 ///
 /// Rust mutability-xor-sharing rules enforce proper synchronisation,
 /// unless multiple `StorageHandle`s are created
-/// using the same [`InstanceStateHandle`] and slug.
+/// using the same [`InstanceStateHandle`] and key.
 #[derive(Adhoc, Debug)] // not Clone, to enforce mutability rules (see above)
 #[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct StorageHandle<T> {
     /// The directory and leafname
     instance_dir: CheckedDir,
-    /// `SLUG.json`
+    /// `KEY.json`
     leafname: String,
     /// We can load and store a `T`.
     ///
