@@ -24,7 +24,7 @@ final hop as our rendezvous point.
 Here's our schema:
 ```
      Client hsdir:  STUB+ -> HsDir
-     Client intro:  STUB+ -> Rpt
+     Client intro:  STUB+ -> Ipt
      Client rend:   STUB
      Service hsdir: STUB  -> HsDir      (*)
      Service intro: STUB  -> Ipt
