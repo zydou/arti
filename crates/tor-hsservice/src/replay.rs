@@ -505,11 +505,22 @@ mod test {
         match env::var(ENV_NAME) {
             Err(env::VarError::NotPresent) => {
                 eprintln!("in test runner process, forking..,");
-                let st = Command::new(env::current_exe().unwrap())
+                let output = Command::new(env::current_exe().unwrap())
                     .args(["--nocapture", "replay::test::test_partial_write"])
                     .env(ENV_NAME, "1")
-                    .status()
+                    .output()
                     .unwrap();
+                let print_output = |prefix, data| match std::str::from_utf8(data) {
+                    Ok(s) => {
+                        for l in s.split("\n") {
+                            eprintln!(" {prefix} {l}");
+                        }
+                    }
+                    Err(e) => eprintln!(" UTF-8 ERROR {prefix} {e}"),
+                };
+                print_output("!", &output.stdout);
+                print_output(">", &output.stderr);
+                let st = output.status;
                 eprintln!("reaped actual test process {st:?} (expecting signal {GOOD_SIGNAL})");
                 assert_eq!(st.signal(), Some(GOOD_SIGNAL));
                 return;
