@@ -1373,7 +1373,7 @@ mod test {
         let junk = {
             let mut junk = Vec::new();
             let base = state_dir.dir.as_path();
-            for rhs in ["+bad", "+bad.lock", ".tmp"] {
+            for rhs in ["+bad", &format!("+bad{DOT_LOCK}"), ".tmp"] {
                 let mut mk = |lhs, is_dir| {
                     let p = base.join(format!("{lhs}{rhs}"));
                     junk.push((p.clone(), is_dir));
