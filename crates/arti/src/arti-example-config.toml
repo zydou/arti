@@ -387,9 +387,11 @@
 # Configuration for an onion service.  You can include multiple
 # `[onion_services]` sections in order to configure multiple onion services.
 #
-# The second part of this section's name is a local nickname for this onion service.
-# This is saved on disk, and used to tell onion services apart; it is not
-# visible outside your own Arti instance.
+# The second part of this section's name ("allum-cepa") is a local nickname
+# for this onion service.
+#
+# This nickname is saved on disk, and used to tell onion services apart;
+# it is not visible outside your own Arti instance.
 #
 #    [onion_services."allium-cepa"]
 

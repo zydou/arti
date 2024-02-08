@@ -26,11 +26,14 @@ cargo build -p arti --release \
 
 ## Configuring your onion service(s)
 
-Add a block like this to your arti configuration:
+Add a block like this to your arti configuration.
+
+(You will probably want to customize it,
+unless you want this exact behavior.)
 
 ```
-# The second part of this section's name is a local nickname for this
-# onion service.
+# The second part of this section's name ("allum-cepa") is a local nickname
+# for this onion service.
 #
 # This is saved on disk, and used to tell onion services apart; it is not
 # visible outside your own Arti instance.
