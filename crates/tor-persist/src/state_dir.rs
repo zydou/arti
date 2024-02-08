@@ -212,6 +212,8 @@ use std::path::MAIN_SEPARATOR as PATH_SEPARATOR;
 /// [`Result`](StdResult) throwing a [`state_dir::Error`](Error)
 pub type Result<T> = StdResult<T, Error>;
 
+/// Extension for lockfiles
+const LOCK_EXTN: &str = "lock";
 /// The whole program's state directory
 ///
 /// Representation of `[storage] state_dir` and `permissions`
@@ -425,7 +427,7 @@ impl StateDirectory {
                 let kind_dir = make_secure_directory(&sd.dir, kind)?;
 
                 let lock_path = kind_dir
-                    .join(format!("{id}.lock"))
+                    .join(format!("{id}.{LOCK_EXTN}"))
                     .map_err(|source| handle_err(Action::Initializing, source.into()))?;
 
                 let flock_guard = match LockFileGuard::try_lock(&lock_path) {
@@ -711,7 +713,7 @@ impl StateDirectory {
 
         // ok we're probably doing to pass it to dispose (for possible deletion)
 
-        let lock_path = dir_path.with_extension("lock");
+        let lock_path = dir_path.with_extension(LOCK_EXTN);
         let flock_guard = match LockFileGuard::try_lock(&lock_path) {
             Ok(Some(y)) => {
                 trace!("locked {lock_path:?} (for purge)");
@@ -979,7 +981,7 @@ impl InstanceStateHandle {
             flock_guard.delete_lock_file(
                 // dir.with_extension is right because the last component of dir
                 // is KIND+ID which doesn't contain `.` so no extension will be stripped
-                dir.with_extension("lock"),
+                dir.with_extension(LOCK_EXTN),
             )?;
 
             Ok::<_, ErrorSource>(())
@@ -1353,7 +1355,7 @@ mod test {
             }
 
             if !which.lockfile {
-                let lock_path = inst.dir.as_path().with_extension("lock");
+                let lock_path = inst.dir.as_path().with_extension(LOCK_EXTN);
                 let flock_guard = Arc::into_inner(inst.flock_guard).unwrap();
                 flock_guard
                     .delete_lock_file(&lock_path)
