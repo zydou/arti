@@ -9,7 +9,6 @@ license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Tool used by arti to enforce certain properties in our Cargo features"
 
-
 [dependencies]
 anyhow = "1.0.69"
 itertools = "0.10.1"
