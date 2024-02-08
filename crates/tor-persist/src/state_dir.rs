@@ -214,6 +214,11 @@ pub type Result<T> = StdResult<T, Error>;
 
 /// Extension for lockfiles
 const LOCK_EXTN: &str = "lock";
+/// Suffix for lockfiles, precisely `"." + LOCK_EXTN`
+// There's no way to concatenate constant strings with names!
+// We could use the const_format crate maybe?
+const DOT_LOCK: &str = ".lock";
+
 /// The whole program's state directory
 ///
 /// Representation of `[storage] state_dir` and `permissions`
@@ -566,7 +571,7 @@ impl StateDirectory {
                                 // look for either ID or ID.lock
                                 let id = ent.file_name();
                                 let id = id.to_str()?; // ignore non-UTF-8
-                                let id = id.strip_suffix(".lock").unwrap_or(id);
+                                let id = id.strip_suffix(DOT_LOCK).unwrap_or(id);
                                 let id = SlugRef::new(id).ok()?; // ignore other things
                                 Some(id.to_owned())
                             })() else {
@@ -976,7 +981,7 @@ impl InstanceStateHandle {
                 )
             })?;
 
-            trace!("purging {:?} (and .lock)", dir);
+            trace!("purging {:?} (and {})", dir, DOT_LOCK);
             fs::remove_dir_all(dir)?;
             flock_guard.delete_lock_file(
                 // dir.with_extension is right because the last component of dir
