@@ -48,6 +48,9 @@
 //! STATE_DIR/hss/allium-cepa/iptreplay/9aa9517e6901c280a550911d3a3c679630403db1c622eedefbdf1715297f795f.bin
 //! ```
 //!
+// The instance's last modification time (see `purge_instances`) is the mtime of
+// the INSTANCE_ID directory.  The lockfile mtime is not meaningful.
+//
 //! (The lockfile is outside the instance directory to facilitate
 //! concurrency-correct deletion.)
 //!
