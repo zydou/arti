@@ -508,6 +508,41 @@ mod test {
             set.assume_init()
         };
 
+        // Check that SIGUSR2 starts out as SIG_DFL and unblocked
+        //
+        // We *reject* such situations, rather than fixing them up, because this is an
+        // irregular and broken environment that can cause arbitrarily weird behaviours.
+        // Programs on Unix are entitled to assume that their signal dispositions are
+        // SIG_DFL on entry, with signals unblocked.  (With a few exceptions.)
+        //
+        // So we want to detect and report any such environment, not let it slide.
+        unsafe {
+            let mut sa = MaybeUninit::uninit();
+            let r = libc::sigaction(GOOD_SIGNAL, ptr::null(), sa.as_mut_ptr());
+            assert_eq!(r, 0);
+            let sa = sa.assume_init();
+            assert_eq!(
+                sa.sa_sigaction,
+                libc::SIG_DFL,
+                "tests running in broken environment (SIGUSR2 not SIG_DFL)"
+            );
+
+            let empty_set = sigemptyset();
+            let mut current_set = MaybeUninit::uninit();
+            let r = libc::sigprocmask(
+                libc::SIG_UNBLOCK,
+                (&empty_set) as _,
+                current_set.as_mut_ptr(),
+            );
+            assert_eq!(r, 0);
+            let current_set = current_set.assume_init();
+            let blocked = libc::sigismember((&current_set) as _, GOOD_SIGNAL);
+            assert_eq!(
+                blocked, 0,
+                "tests running in broken environment (SIGUSR2 blocked)"
+            );
+        }
+
         match env::var(ENV_NAME) {
             Err(env::VarError::NotPresent) => {
                 eprintln!("in test runner process, forking..,");
