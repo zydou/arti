@@ -502,6 +502,12 @@ mod test {
         // for a wait status different from any of libtest's
         const GOOD_SIGNAL: i32 = libc::SIGUSR2;
 
+        let sigemptyset = || unsafe {
+            let mut set = MaybeUninit::uninit();
+            libc::sigemptyset(set.as_mut_ptr());
+            set.assume_init()
+        };
+
         match env::var(ENV_NAME) {
             Err(env::VarError::NotPresent) => {
                 eprintln!("in test runner process, forking..,");
@@ -574,11 +580,9 @@ mod test {
 
             // Ignore SIGXFSZ (default disposition is for exceeding the rlimit to kill us)
             unsafe {
-                let mut set = MaybeUninit::uninit();
-                libc::sigemptyset(set.as_mut_ptr());
                 let sa = libc::sigaction {
                     sa_sigaction: libc::SIG_IGN,
-                    sa_mask: set.assume_init(),
+                    sa_mask: sigemptyset(),
                     sa_flags: 0,
                     sa_restorer: None,
                 };
