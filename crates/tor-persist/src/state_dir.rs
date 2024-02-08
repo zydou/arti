@@ -33,11 +33,11 @@
 //!
 //! ```text
 //! STATE_DIR/
-//! STATE_DIR/KIND/INSTANCE/
-//! STATE_DIR/KIND/INSTANCE/lock
-//! STATE_DIR/KIND/INSTANCE/SLUG.json
-//! STATE_DIR/KIND/INSTANCE/SLUG.new
-//! STATE_DIR/KIND/INSTANCE/SLUG/
+//! STATE_DIR/KIND/INSTANCE_ID/
+//! STATE_DIR/KIND/INSTANCE_ID/lock
+//! STATE_DIR/KIND/INSTANCE_ID/KEY.json
+//! STATE_DIR/KIND/INSTANCE_ID/KEY.new
+//! STATE_DIR/KIND/INSTANCE_ID/KEY/
 //!
 //! eg
 //!
@@ -48,13 +48,23 @@
 //! STATE_DIR/hss/allium-cepa/iptreplay/9aa9517e6901c280a550911d3a3c679630403db1c622eedefbdf1715297f795f.bin
 //! ```
 //!
+// The instance's last modification time (see `purge_instances`) is the mtime of
+// the INSTANCE_ID directory.  The lockfile mtime is not meaningful.
+//
 //! (The lockfile is outside the instance directory to facilitate
 //! concurrency-correct deletion.)
 //!
+// Specifically:
+//
+// The situation where there is only the lockfile, is an out-of-course but legal one.
+// Likewise, a lockfile plus a *partially* deleted instance state, is also legal.
+// Having an existing directory without associated lockfile is forbidden,
+// but if it should occur we handle it properly.
+//
 //! ### Comprehensive example
 //!
 //! ```
-//! use std::{collections::HashSet, fmt, time::Duration};
+//! use std::{collections::HashSet, fmt, time::{Duration, SystemTime}};
 //! use tor_error::{into_internal, Bug};
 //! use tor_persist::slug::SlugRef;
 //! use tor_persist::state_dir;
@@ -93,6 +103,9 @@
 //!
 //! struct PurgeHandler<'h>(&'h HashSet<&'h str>, Duration);
 //! impl InstancePurgeHandler for PurgeHandler<'_> {
+//!     fn kind(&self) -> &'static str {
+//!         <HsNickname as InstanceIdentity>::kind()
+//!     }
 //!     fn name_filter(&mut self, id: &SlugRef) -> state_dir::Result<state_dir::Liveness> {
 //!         Ok(if self.0.contains(id.as_str()) {
 //!             state_dir::Liveness::Live
@@ -100,8 +113,14 @@
 //!             state_dir::Liveness::PossiblyUnused
 //!         })
 //!     }
-//!     fn retain_unused_for(&mut self, id: &SlugRef) -> state_dir::Result<Duration> {
-//!         Ok(self.1)
+//!     fn age_filter(&mut self, id: &SlugRef, age: Duration)
+//!              -> state_dir::Result<state_dir::Liveness>
+//!     {
+//!         Ok(if age > self.1 {
+//!             state_dir::Liveness::PossiblyUnused
+//!         } else {
+//!             state_dir::Liveness::Live
+//!         })
 //!     }
 //!     fn dispose(&mut self, _info: &InstancePurgeInfo, handle: InstanceStateHandle)
 //!                -> state_dir::Result<()> {
@@ -114,7 +133,10 @@
 //!     currently_configured_nicks: &HashSet<&str>,
 //!     retain_for: Duration,
 //! ) -> Result<(), Error> {
-//!     state_dir.purge_instances(&mut PurgeHandler(currently_configured_nicks, retain_for))?;
+//!     state_dir.purge_instances(
+//!         SystemTime::now(),
+//!         &mut PurgeHandler(currently_configured_nicks, retain_for),
+//!     )?;
 //!     Ok(())
 //! }
 //! ```
@@ -143,31 +165,32 @@
 //!    Use `#[cfg]` at call sites to replace the `raw_subdir`
 //!    with whatever is appropriate for the platform.
 
-#![allow(unused_variables, unused_imports, dead_code)] // TODO HSS remove
-
-use std::cell::Cell;
+use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
-use std::iter;
+use std::io;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use derive_adhoc::{define_derive_adhoc, Adhoc};
-use derive_more::{AsRef, Deref, Into};
+use derive_more::{AsRef, Deref};
+use itertools::chain;
 use serde::{de::DeserializeOwned, Serialize};
-use void::Void;
 
 use fs_mistrust::{CheckedDir, Mistrust};
+use tor_error::bad_api_usage;
 use tor_error::ErrorReport as _;
-use tor_error::{bad_api_usage, into_bad_api_usage, Bug};
 use tracing::trace;
 
 use crate::err::{Action, ErrorSource, Resource};
 use crate::load_store;
-use crate::slug::{self, BadSlug, Slug, SlugRef, TryIntoSlug};
+use crate::slug::{BadSlug, Slug, SlugRef, TryIntoSlug};
 pub use crate::Error;
+
+#[allow(unused_imports)] // Simplifies a lot of references in our docs
+use crate::slug;
 
 define_derive_adhoc! {
     ContainsInstanceStateGuard =
@@ -182,15 +205,19 @@ define_derive_adhoc! {
 /// Re-export of the lock guard type, as obtained via [`ContainsInstanceStateGuard`]
 pub use fslock_guard::LockFileGuard;
 
-/// TODO HSS remove
-type Todo = Void;
-
 use std::result::Result as StdResult;
 
 use std::path::MAIN_SEPARATOR as PATH_SEPARATOR;
 
 /// [`Result`](StdResult) throwing a [`state_dir::Error`](Error)
 pub type Result<T> = StdResult<T, Error>;
+
+/// Extension for lockfiles
+const LOCK_EXTN: &str = "lock";
+/// Suffix for lockfiles, precisely `"." + LOCK_EXTN`
+// There's no way to concatenate constant strings with names!
+// We could use the const_format crate maybe?
+const DOT_LOCK: &str = ".lock";
 
 /// The whole program's state directory
 ///
@@ -268,15 +295,23 @@ pub trait InstanceIdentity {
 ///
 /// See [`purge_instances`](StateDirectory::purge_instances) for full documentation.
 pub trait InstancePurgeHandler {
+    /// What kind to iterate over
+    fn kind(&self) -> &'static str;
+
     /// Can we tell by its name that this instance is still live ?
     fn name_filter(&mut self, identity: &SlugRef) -> Result<Liveness>;
 
-    /// How long should we retain an unused instance for ?
+    /// Can we tell by recent modification that this instance is still live ?
     ///
-    /// Many implementations won't need to use `identity`.
-    /// To pass every possibly-unused instance
-    /// through to `dispose`, return `Duration::ZERO`.
-    fn retain_unused_for(&mut self, identity: &SlugRef) -> Result<Duration>;
+    /// Many implementations won't need to use the `identity` parameter.
+    ///
+    /// ### Concurrency
+    ///
+    /// The `age` passed to this callback might
+    /// sometimes not be the most recent modification time of the instance.
+    /// But. before calling `dispose`, `purge_instances` will call this
+    /// function at least once with a fully up-to-date modification time.
+    fn age_filter(&mut self, identity: &SlugRef, age: Duration) -> Result<Liveness>;
 
     /// Decide whether to keep this instance
     ///
@@ -284,11 +319,16 @@ pub trait InstancePurgeHandler {
     /// either call [`delete`](InstanceStateHandle::purge),
     /// or simply drop `handle`.
     ///
-    /// Called only after `name_filter` returned [`Liveness::PossiblyUnused`]
-    /// and only if the instance has not been acquired or modified recently.
+    /// Called only after `name_filter` and `age_filter`
+    /// both returned [`Liveness::PossiblyUnused`].
     ///
     /// `info` includes the instance name and other useful information
     /// such as the last modification time.
+    ///
+    /// Note that although the existence of `handle` implies
+    /// there can be no other `InstanceStateHandle`s for this instance,
+    /// the last modification time of this instance has *not* been updated,
+    /// as it would be by [`acquire_instance`](StateDirectory::acquire_instance).
     fn dispose(&mut self, info: &InstancePurgeInfo, handle: InstanceStateHandle) -> Result<()>;
 }
 
@@ -392,7 +432,7 @@ impl StateDirectory {
                 let kind_dir = make_secure_directory(&sd.dir, kind)?;
 
                 let lock_path = kind_dir
-                    .join(format!("{id}.lock"))
+                    .join(format!("{id}.{LOCK_EXTN}"))
                     .map_err(|source| handle_err(Action::Initializing, source.into()))?;
 
                 let flock_guard = match LockFileGuard::try_lock(&lock_path) {
@@ -414,6 +454,8 @@ impl StateDirectory {
 
                 let dir = make_secure_directory(&kind_dir, id)?;
 
+                touch_instance_dir(&dir)?;
+
                 Ok(InstanceStateHandle { dir, flock_guard })
             })
         }
@@ -432,6 +474,7 @@ impl StateDirectory {
         self: &StateDirectory,
         kind_str: &'static str,
         id_writer: InstanceIdWriter,
+        // fn call(kind: &SlugRef, id: &SlugRef, resource_for_error: &impl Fn) -> _
         call: impl FnOnce(&SlugRef, &SlugRef, &dyn Fn() -> Resource) -> Result<T>,
     ) -> Result<T> {
         /// Struct that impls `Display` for formatting an instance id
@@ -478,11 +521,71 @@ impl StateDirectory {
     /// on different instances,
     /// is not guaranteed to provide a snapshot:
     /// serialisation is not guaranteed across different instances.
-    #[allow(clippy::extra_unused_type_parameters)] // TODO HSS remove if possible
-    #[allow(unreachable_code)] // TODO HSS remove
+    ///
+    /// It *is* guaranteed to list each instance only once.
     pub fn list_instances<I: InstanceIdentity>(&self) -> impl Iterator<Item = Result<Slug>> {
-        todo!();
-        iter::empty()
+        self.list_instances_inner(I::kind())
+    }
+
+    /// List the instances of a kind, where the kind is supplied as a value
+    ///
+    /// Used by `list_instances` and `purge_instances`.
+    ///
+    /// *Includes* instances that exists only as a stale lockfile.
+    #[allow(clippy::blocks_in_conditions)] // TODO #1176 this wants to be global
+    #[allow(clippy::redundant_closure_call)] // false positive, re handle_err
+    fn list_instances_inner(&self, kind: &'static str) -> impl Iterator<Item = Result<Slug>> {
+        // We collect the output into these
+        let mut out = HashSet::new();
+        let mut errs = Vec::new();
+
+        // Error handling
+
+        let resource = || Resource::InstanceState {
+            state_dir: self.dir.as_path().into(),
+            kind: kind.into(),
+            identity: "*".into(),
+        };
+
+        /// `fn handle_err!()(source: impl Into<ErrorSource>) -> Error`
+        //
+        // (Generic, so can't be a closure.  Uses local bindings, so can't be a fn.)
+        macro_rules! handle_err { { } => {
+            |source| Error::new(source, Action::Enumerating, resource())
+        } }
+
+        // Obtain an iterator of Result<DirEntry>
+        match (|| {
+            let kind = SlugRef::new(kind).map_err(handle_err!())?;
+            self.dir.read_directory(kind).map_err(handle_err!())
+        })() {
+            Err(e) => errs.push(e),
+            Ok(ents) => {
+                for ent in ents {
+                    match ent {
+                        Err(e) => errs.push(handle_err!()(e)),
+                        Ok(ent) => {
+                            // Actually handle a directory entry!
+
+                            let Some(id) = (|| {
+                                // look for either ID or ID.lock
+                                let id = ent.file_name();
+                                let id = id.to_str()?; // ignore non-UTF-8
+                                let id = id.strip_suffix(DOT_LOCK).unwrap_or(id);
+                                let id = SlugRef::new(id).ok()?; // ignore other things
+                                Some(id.to_owned())
+                            })() else {
+                                continue;
+                            };
+
+                            out.insert(id);
+                        }
+                    }
+                }
+            }
+        }
+
+        chain!(errs.into_iter().map(Err), out.into_iter().map(Ok),)
     }
 
     /// Delete instances according to selections made by the caller
@@ -493,15 +596,15 @@ impl StateDirectory {
     /// If `name_filter` returns `Live`,
     /// further consideration is skipped and the instance is retained.
     ///
-    /// Secondly, the last time the instance was written to is calculated,
+    /// Secondly, the last time the instance was written to is determined,
     // This must be done with the lock held, for correctness
     // but the lock must be acquired in a way that doesn't itself update the modification time.
     // On Unix this is straightforward because opening for write doesn't update the mtime.
     // If this is hard on another platform, we'll need a separate stamp file updated
     // by an explicit Acquire operation.
-    // We should have a test to check that this all works as expected.
-    /// and compared to the return value from
-    /// [`retain_unused_for`](InstancePurgeHandler::retain_unused_for).
+    // This is tested by `test_reset_expiry`.
+    /// and passed to
+    /// [`age_filter`](InstancePurgeHandler::age_filter).
     /// Again, this might mean ensure the instance is retained.
     ///
     /// Thirdly, the resulting `InstanceStateHandle` is passed to
@@ -516,18 +619,170 @@ impl StateDirectory {
     /// `dispose` will be properly serialised with other activities on the same instance,
     /// as implied by it receiving an `InstanceStateHandle`.
     ///
-    /// Instances which have been acquired
-    /// or modified more recently than `retain_unused_for`
-    /// will not be offered to `dispose`.
-    ///
     /// The expiry time is reset by calls to `acquire_instance`,
     /// `StorageHandle::store` and `InstanceStateHandle::raw_subdir`;
     /// it *may* be reset by calls to `StorageHandle::delete`.
-    pub fn purge_instances<I: InstancePurgeHandler>(&self, filter: &mut I) -> Result<()> {
-        todo!()
+    ///
+    /// Instances that are currently locked by another task will not be purged,
+    /// but the expiry time is *not* reset by *unlocking* an instance
+    /// (dropping the last clone of an `InstanceStateHandle`).
+    ///
+    /// ### Sequencing of `InstancePurgeHandler` callbacks
+    ///
+    /// Each instance will be processed
+    /// (and callbacks made for it) at most once;
+    /// and calls for different instances will not be interleaved.
+    ///
+    /// During the processing of a particular instance
+    /// The callbacks will be made in order,
+    /// progressing monotonically through the methods in the order listed.
+    /// But `name_filter` and `age_filter` might each be called
+    /// more than once for the same instance.
+    // We don't actually call name_filter more than once.
+    ///
+    /// Between each stage,
+    /// the purge implementation may discover that the instance
+    /// ought not to be processed further.
+    /// So returning `Liveness::PossiblyUnused` from a filter does not
+    /// guarantee that the next callback will be made.
+    pub fn purge_instances(
+        &self,
+        now: SystemTime,
+        filter: &mut (dyn InstancePurgeHandler + '_),
+    ) -> Result<()> {
+        let kind = filter.kind();
+
+        for id in self.list_instances_inner(kind) {
+            let id = id?;
+            self.with_instance_path_pieces(kind, &|f| write!(f, "{id}"), |kind, id, resource| {
+                self.maybe_purge_instance(now, kind, id, resource, filter)
+            })?;
+        }
+
+        Ok(())
     }
 
-    /// Tries to peek at something written by `StorageHandle::store`
+    /// Consider whether to purge an instance
+    ///
+    /// Performs all the necessary steps, including liveness checks,
+    /// passing an InstanceStateHandle to filter.dispose,
+    /// and deleting stale lockfiles without associated state.
+    #[allow(clippy::cognitive_complexity)] // splitting this would be more, not less, confusing
+    fn maybe_purge_instance(
+        &self,
+        now: SystemTime,
+        kind: &SlugRef,
+        id: &SlugRef,
+        resource: &dyn Fn() -> Resource,
+        filter: &mut (dyn InstancePurgeHandler + '_),
+    ) -> Result<()> {
+        /// If `$l` is `Liveness::Live`, returns early with `Ok(())`.
+        macro_rules! check_liveness { { $l:expr } => {
+            match $l {
+                Liveness::Live => return Ok(()),
+                Liveness::PossiblyUnused => {},
+            }
+        } }
+
+        check_liveness!(filter.name_filter(id)?);
+
+        let dir_path = self.dir.as_path().join(kind).join(id);
+
+        // Checks whether it should be kept due to being recently modified.
+        // None::<SystemTime> means the instance directory is ENOENT
+        // (which must mean that the instance exists only as a stale lockfile).
+        let mut age_check = || -> Result<(Liveness, Option<SystemTime>)> {
+            let handle_io_error = |source| Error::new(source, Action::Enumerating, resource());
+
+            // 1. stat the instance dir
+            let md = match fs::metadata(&dir_path) {
+                // If instance dir is ENOENT, treat as old (maybe there was just a lockfile)
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    return Ok((Liveness::PossiblyUnused, None))
+                }
+                other => other.map_err(handle_io_error)?,
+            };
+            let mtime = md.modified().map_err(handle_io_error)?;
+
+            // 2. calculate the age
+            let age = now.duration_since(mtime).unwrap_or(Duration::ZERO);
+
+            // 3. do the age check
+            let liveness = filter.age_filter(id, age)?;
+
+            Ok((liveness, Some(mtime)))
+        };
+
+        // preliminary check, without locking yet
+        check_liveness!(age_check()?.0);
+
+        // ok we're probably doing to pass it to dispose (for possible deletion)
+
+        let lock_path = dir_path.with_extension(LOCK_EXTN);
+        let flock_guard = match LockFileGuard::try_lock(&lock_path) {
+            Ok(Some(y)) => {
+                trace!("locked {lock_path:?} (for purge)");
+                y
+            }
+            Err(source) if source.kind() == io::ErrorKind::NotFound => {
+                // We couldn't open the lockfile due to ENOENT
+                // (Presumably) a containing directory is gone, so we don't need to do anything.
+                trace!("locking {lock_path:?} (for purge), not found");
+                return Ok(());
+            }
+            Ok(None) => {
+                // Someone else has it locked.  Skip purging it.
+                trace!("locking {lock_path:?} (for purge), in use");
+                return Ok(());
+            }
+            Err(source) => {
+                trace!(
+                    "locking {lock_path:?} (for purge), error {}",
+                    source.report()
+                );
+                return Err(Error::new(source, Action::Locking, resource()));
+            }
+        };
+
+        // recheck to see if anyone has updated it
+        let (age, mtime) = age_check()?;
+        check_liveness!(age);
+
+        // We have locked it and the filters say to maybe purge it.
+
+        match mtime {
+            None => {
+                // And it doesn't even exist!  All we have is a leftover lockfile.  Delete it.
+                let lockfile_rsrc = || Resource::File {
+                    container: lock_path.parent().expect("no /!").into(),
+                    file: lock_path.file_name().expect("no /!").into(),
+                };
+                flock_guard
+                    .delete_lock_file(&lock_path)
+                    .map_err(|source| Error::new(source, Action::Deleting, lockfile_rsrc()))?;
+            }
+            Some(last_modified) => {
+                // Construct a state handle.
+                let dir = self
+                    .dir
+                    .make_secure_directory(format!("{kind}/{id}"))
+                    .map_err(|source| Error::new(source, Action::Enumerating, resource()))?;
+                let flock_guard = Arc::new(flock_guard);
+
+                filter.dispose(
+                    &InstancePurgeInfo {
+                        identity: id,
+                        last_modified,
+                    },
+                    InstanceStateHandle { dir, flock_guard },
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Tries to peek at something written by [`StorageHandle::store`]
     ///
     /// It is guaranteed that this will return either the `T` that was stored,
     /// or `None` if `store` was never called,
@@ -539,7 +794,7 @@ impl StateDirectory {
     pub fn instance_peek_storage<I: InstanceIdentity, T: DeserializeOwned>(
         &self,
         identity: &I,
-        slug: &(impl TryIntoSlug + ?Sized),
+        key: &(impl TryIntoSlug + ?Sized),
     ) -> Result<Option<T>> {
         self.with_instance_path_pieces(
             I::kind(),
@@ -550,11 +805,11 @@ impl StateDirectory {
                 // Throwing this error here will give a slightly wrong Error for this Bug
                 // (because with_instance_path_pieces has its own notion of Action & Resource)
                 // but that seems OK.
-                let storage_slug = slug.try_into_slug()?;
+                let key_slug = key.try_into_slug()?;
 
                 let rel_fname = format!(
                     "{}{PATH_SEPARATOR}{}{PATH_SEPARATOR}{}.json",
-                    kind_slug, id_slug, storage_slug,
+                    kind_slug, id_slug, key_slug,
                 );
 
                 let target = load_store::Target {
@@ -590,29 +845,24 @@ impl StateDirectory {
 /// across any number of processes, tasks, and threads,
 /// for the same instance.
 ///
-/// But this type is `Clone` and the exclusive access is shared across all clones.
-/// Users of the `InstanceStateHandle` must ensure that functions like
-/// `storage_handle` and `raw_directory` are only called once with each `slug`.
-/// (Typically, the slug is fixed, so this is straightforward.)
-///
-/// # Slug uniqueness and syntactic restrictions
+/// # Key uniqueness and syntactic restrictions
 ///
 /// Methods on `InstanceStateHandle` typically take a [`TryIntoSlug`].
 ///
-/// **It is important that slugs are distinct within an instance.**
+/// **It is important that keys are distinct within an instance.**
 ///
 /// Specifically:
-/// each slug provided to a method on the same [`InstanceStateHandle`]
+/// each key provided to a method on the same [`InstanceStateHandle`]
 /// (or a clone of it)
 /// must be different.
 /// Violating this rule does not result in memory-unsafety,
 /// but might result in incorrect operation due to concurrent filesystem access,
 /// including possible data loss and corruption.
-/// (Typically, the slug is fixed, and the [`StorageHandle`]s are usually
+/// (Typically, the key is fixed, and the [`StorageHandle`]s are usually
 /// obtained during instance construction, so ensuring this is straightforward.)
 ///
-/// There are also syntactic restrictions on slugs.  See [slug].
-// We could implement a runtime check for this by retaining a table of in-use slugs,
+/// There are also syntactic restrictions on keys.  See [slug].
+// We could implement a runtime check for this by retaining a table of in-use keys,
 // possibly only with `cfg(debug_assertions)`.  However I think this isn't worth the code:
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
@@ -629,24 +879,21 @@ pub struct InstanceStateHandle {
 impl InstanceStateHandle {
     /// Obtain a [`StorageHandle`], usable for storing/retrieving a `T`
     ///
-    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn storage_handle<T>(
-        &self,
-        slug: &(impl TryIntoSlug + ?Sized),
-    ) -> Result<StorageHandle<T>> {
+    /// [`key` has syntactic and uniqueness restrictions.](InstanceStateHandle#key-uniqueness-and-syntactic-restrictions)
+    pub fn storage_handle<T>(&self, key: &(impl TryIntoSlug + ?Sized)) -> Result<StorageHandle<T>> {
         /// Implementation, not generic over `slug` and `T`
         fn inner(
             ih: &InstanceStateHandle,
-            slug: StdResult<Slug, BadSlug>,
+            key: StdResult<Slug, BadSlug>,
         ) -> Result<(CheckedDir, String, Arc<LockFileGuard>)> {
-            let slug = slug?;
+            let key = key?;
             let instance_dir = ih.dir.clone();
-            let leafname = format!("{slug}.json");
+            let leafname = format!("{key}.json");
             let flock_guard = ih.flock_guard.clone();
             Ok((instance_dir, leafname, flock_guard))
         }
 
-        let (instance_dir, leafname, flock_guard) = inner(self, slug.try_into_slug())?;
+        let (instance_dir, leafname, flock_guard) = inner(self, key.try_into_slug())?;
         Ok(StorageHandle {
             instance_dir,
             leafname,
@@ -662,17 +909,17 @@ impl InstanceStateHandle {
     /// where we're happy to not to support such platforms (eg WASM without WASI)
     /// without substantial further work.
     ///
-    /// [`slug` has syntactic and uniqueness restrictions.](InstanceStateHandle#slug-uniqueness-and-syntactic-restrictions)
-    pub fn raw_subdir(&self, slug: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> {
+    /// [`key` has syntactic and uniqueness restrictions.](InstanceStateHandle#key-uniqueness-and-syntactic-restrictions)
+    pub fn raw_subdir(&self, key: &(impl TryIntoSlug + ?Sized)) -> Result<InstanceRawSubdir> {
         /// Implementation, not generic over `slug`
         fn inner(
             ih: &InstanceStateHandle,
-            slug: StdResult<Slug, BadSlug>,
+            key: StdResult<Slug, BadSlug>,
         ) -> Result<InstanceRawSubdir> {
-            let slug = slug?;
-            (|| {
-                trace!("ensuring/using {:?}/{:?}", ih.dir.as_path(), slug.as_str());
-                let dir = ih.dir.make_secure_directory(&slug)?;
+            let key = key?;
+            let irs = (|| {
+                trace!("ensuring/using {:?}/{:?}", ih.dir.as_path(), key.as_str());
+                let dir = ih.dir.make_secure_directory(&key)?;
                 let flock_guard = ih.flock_guard.clone();
                 Ok::<_, ErrorSource>(InstanceRawSubdir { dir, flock_guard })
             })()
@@ -681,12 +928,14 @@ impl InstanceStateHandle {
                     source,
                     Action::Initializing,
                     Resource::Directory {
-                        dir: ih.dir.as_path().join(slug),
+                        dir: ih.dir.as_path().join(key),
                     },
                 )
-            })
+            })?;
+            touch_instance_dir(&ih.dir)?;
+            Ok(irs)
         }
-        inner(self, slug.try_into_slug())
+        inner(self, key.try_into_slug())
     }
 
     /// Unconditionally delete this instance directory
@@ -695,6 +944,30 @@ impl InstanceStateHandle {
     /// and then call this in the `dispose` method.
     ///
     /// Will return a `BadAPIUsage` if other clones of this `InstanceStateHandle` exist.
+    ///
+    /// ### Deletion is *not* atomic
+    ///
+    /// If a deletion operation doesn't complete for any reason
+    /// (maybe it was interrupted, or there was a filesystem access problem),
+    /// *part* of the instance contents may remain.
+    ///
+    /// After such an interrupted deletion,
+    /// storage items ([`StorageHandle`]) are might each independently
+    /// be deleted ([`load`](StorageHandle::load) returns `None`)
+    /// or retained (`Some`).
+    ///
+    /// Deletion of the contents of raw subdirectories
+    /// ([`InstanceStateHandle::raw_subdir`])
+    /// is done with `std::fs::remove_dir_all`.
+    /// If deletion is interrupted, the raw subdirectory may contain partial contents.
+    //
+    // In principle we could provide atomic deletion, but it would lead to instances
+    // that were in "limbo": they exist, but wouldn't appear in list_instances,
+    // and the deletion would need to be completed next time they were acquired
+    // (or during a purge_instances run).
+    //
+    // In practice we expect that callers will not try to use a partially-deleted instance,
+    // and that if they do they will fail with a "state corrupted" error, which would be fine.
     pub fn purge(self) -> Result<()> {
         let dir = self.dir.as_path();
 
@@ -708,12 +981,12 @@ impl InstanceStateHandle {
                 )
             })?;
 
-            trace!("purging {:?} (and .lock)", dir);
+            trace!("purging {:?} (and {})", dir, DOT_LOCK);
             fs::remove_dir_all(dir)?;
             flock_guard.delete_lock_file(
                 // dir.with_extension is right because the last component of dir
                 // is KIND+ID which doesn't contain `.` so no extension will be stripped
-                dir.with_extension("lock"),
+                dir.with_extension(LOCK_EXTN),
             )?;
 
             Ok::<_, ErrorSource>(())
@@ -728,19 +1001,28 @@ impl InstanceStateHandle {
     }
 }
 
+/// Touch an instance the state directory, `dir`, for expiry purposes
+fn touch_instance_dir(dir: &CheckedDir) -> Result<()> {
+    let dir = dir.as_path();
+    let resource = || Resource::Directory { dir: dir.into() };
+
+    filetime::set_file_mtime(dir, filetime::FileTime::now())
+        .map_err(|source| Error::new(source, Action::Initializing, resource()))
+}
+
 /// A place in the state or cache directory, where we can load/store a serialisable type
 ///
 /// Implies exclusive access.
 ///
 /// Rust mutability-xor-sharing rules enforce proper synchronisation,
 /// unless multiple `StorageHandle`s are created
-/// using the same [`InstanceStateHandle`] and slug.
+/// using the same [`InstanceStateHandle`] and key.
 #[derive(Adhoc, Debug)] // not Clone, to enforce mutability rules (see above)
 #[derive_adhoc(ContainsInstanceStateGuard)]
 pub struct StorageHandle<T> {
     /// The directory and leafname
     instance_dir: CheckedDir,
-    /// `SLUG.json`
+    /// `KEY.json`
     leafname: String,
     /// We can load and store a `T`.
     ///
@@ -761,10 +1043,12 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
     }
     /// Store this persistent state
     pub fn store(&mut self, v: &T) -> Result<()> {
+        // The renames will cause a directory mtime update
         self.with_load_store_target(Action::Storing, |t| t.store(v))
     }
     /// Delete this persistent state
     pub fn delete(&mut self) -> Result<()> {
+        // Only counts as a recent modification if this state *did* exist
         self.with_load_store_target(Action::Deleting, |t| t.delete())
     }
 
@@ -833,14 +1117,29 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use derive_adhoc::{derive_adhoc, Adhoc};
+    use itertools::{iproduct, Itertools};
     use serde::{Deserialize, Serialize};
+    use std::collections::BTreeSet;
     use std::fmt::Display;
+    use std::fs::File;
     use std::io;
+    use std::str::FromStr;
     use test_temp_dir::test_temp_dir;
-    use tor_error::{into_internal, HasKind as _};
+    use tor_error::HasKind as _;
     use tracing_test::traced_test;
 
     use tor_error::ErrorKind as TEK;
+
+    type AgeDays = i8;
+
+    fn days(days: AgeDays) -> Duration {
+        Duration::from_secs(86400 * u64::try_from(days).unwrap())
+    }
+
+    fn now() -> SystemTime {
+        SystemTime::now()
+    }
 
     struct Garlic(Slug);
 
@@ -858,15 +1157,19 @@ mod test {
         some_value: i32,
     }
 
+    fn mk_state_dir(dir: &Path) -> StateDirectory {
+        StateDirectory::new(
+            dir,
+            &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+        )
+        .unwrap()
+    }
+
     #[test]
     #[traced_test]
     fn test_api() {
         test_temp_dir!().used_by(|dir| {
-            let sd = StateDirectory::new(
-                dir,
-                &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
-            )
-            .unwrap();
+            let sd = mk_state_dir(dir);
 
             let garlic = Garlic("wild".try_into_slug().unwrap());
 
@@ -920,5 +1223,456 @@ mod test {
                 io::ErrorKind::NotFound
             );
         });
+    }
+
+    #[test]
+    #[traced_test]
+    #[allow(clippy::comparison_chain)]
+    #[allow(clippy::expect_fun_call)]
+    fn test_iter() {
+        // Tests list_instances and purge_instances.
+        //
+        //  1. Set up a single state directory containing a number of instances,
+        //    enumerating all the possible situations that purge_instance might find.
+        //    The instance is identified by a `Which` which specifies its properties,
+        //    and which is representable as the instance id slug.
+        //  1b. Put some junk in the state directory too, that we expect to be ignored.
+        //
+        //  2. Call list_instances and check that we see what we expect.
+        //
+        //  3. Call purge_instances and check that all the callbacks happen as we expect.
+        //
+        //  4. Call list_instances again and check that we see what we now expect.
+        //
+        //  5. Check that the junk is still present.
+
+        let temp_dir = test_temp_dir!();
+        let state_dir = temp_dir.used_by(mk_state_dir);
+
+        /// Reified test case spec for expiry
+        //
+        // For non-`bool` fields, `#[adhoc(test = )]` gives the set of values to test.
+        #[derive(Adhoc, Eq, PartialEq, Debug)]
+        struct Which {
+            /// Does `name_filter` return `Live`?
+            namefilter_live: bool,
+            /// What is the oldest does `age_filter` will return `Live` for?
+            #[adhoc(test = "0, 2")]
+            max_age: AgeDays,
+            /// How long ago was the instance dir actually modified?
+            #[adhoc(test = "-1, 1, 3")]
+            age: AgeDays,
+            /// Does the instance dir exist?
+            dir: bool,
+            /// Does the instance !lockfile exist?
+            lockfile: bool,
+        }
+
+        /// Ad-hoc (de)serialisation scheme of `Which` as an instance id (a `Slug`)
+        ///
+        /// The serialisation is `n<namefilter_live>_m<max_age>_...`,
+        /// ie, for each field, the initial letter of its name, followed by the value.
+        /// (We don't bother suppressing the trailiong `_`).
+        impl Display for Which {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                derive_adhoc! {
+                    Which:
+                    $(
+                        write!(
+                            f, "{}{}_",
+                            stringify!($fname).chars().next().unwrap(),
+                            self.$fname,
+                        )?;
+                    )
+                }
+                Ok(())
+            }
+        }
+        impl FromStr for Which {
+            type Err = Error;
+            fn from_str(s: &str) -> Result<Self> {
+                let mut fields = s.split('_');
+                derive_adhoc! {
+                    Which:
+                    Ok(Which { $(
+                        $fname: fields.next().unwrap()
+                            .split_at(1).1
+                            .parse().unwrap(),
+                    )})
+                }
+            }
+        }
+
+        impl InstanceIdentity for Which {
+            fn kind() -> &'static str {
+                "which"
+            }
+            fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                Display::fmt(self, f)
+            }
+        }
+
+        // 0. Calculate all possible whiches
+
+        let whiches = {
+            derive_adhoc!(
+                Which:
+                iproduct!(
+                    $(
+                        ${if fmeta(test) { [ ${fmeta(test)} ] } else { [false, true] }},
+                    )
+                    // iproduct hates a trailing comma, so add a dummy element
+                    // https://github.com/rust-itertools/itertools/issues/868
+                    [()]
+                )
+            )
+            .map(derive_adhoc!(
+                Which:
+                //
+                |($( $fname, ) ())| Which { $( $fname, ) }
+            ))
+            // if you want to debug one test case, you can do this:
+            // .filter(|wh| wh.to_string() == "nfalse_r2_a3_lfalse_dtrue_")
+            .collect_vec()
+        };
+
+        // 1. Create all the test instances, according to the specifications
+
+        for which in &whiches {
+            let s = which.to_string();
+            println!("{s}");
+            assert_eq!(&s.parse::<Which>().unwrap(), which);
+
+            let inst = state_dir.acquire_instance(which).unwrap();
+
+            if !which.dir {
+                fs::remove_dir_all(inst.dir.as_path()).unwrap();
+            } else {
+                let now = now();
+                let set_mtime = |mtime: SystemTime| {
+                    filetime::set_file_mtime(inst.dir.as_path(), mtime.into()).unwrap();
+                };
+                if which.age > 0 {
+                    set_mtime(now - days(which.age));
+                } else if which.age < 0 {
+                    set_mtime(now + days(-which.age));
+                };
+            }
+
+            if !which.lockfile {
+                let lock_path = inst.dir.as_path().with_extension(LOCK_EXTN);
+                let flock_guard = Arc::into_inner(inst.flock_guard).unwrap();
+                flock_guard
+                    .delete_lock_file(&lock_path)
+                    .expect(&lock_path.display().to_string());
+            }
+        }
+
+        // 1b. Create some junk that should be ignored
+
+        let junk = {
+            let mut junk = Vec::new();
+            let base = state_dir.dir.as_path();
+            for rhs in ["+bad", &format!("+bad{DOT_LOCK}"), ".tmp"] {
+                let mut mk = |lhs, is_dir| {
+                    let p = base.join(format!("{lhs}{rhs}"));
+                    junk.push((p.clone(), is_dir));
+                    p
+                };
+                File::create(mk("file", false)).unwrap();
+                fs::create_dir(mk("dir", true)).unwrap();
+            }
+            junk
+        };
+
+        // 2. Check that we see the ones we expect
+
+        let list_instances = || {
+            state_dir
+                .list_instances::<Which>()
+                .map(Result::unwrap)
+                .collect::<BTreeSet<_>>()
+        };
+
+        let found = list_instances();
+
+        let expected: BTreeSet<_> = whiches
+            .iter()
+            .filter(|which| which.dir || which.lockfile)
+            .map(|which| Slug::new(which.to_string()).unwrap())
+            .collect();
+
+        itertools::assert_equal(&found, &expected);
+
+        // 3. Run a purge and check that we see the expected callbacks
+
+        struct PurgeHandler<'r> {
+            expected: &'r BTreeSet<Slug>,
+        }
+
+        impl Which {
+            fn old_enough_to_vanish(&self) -> bool {
+                self.age > self.max_age
+            }
+        }
+
+        impl InstancePurgeHandler for PurgeHandler<'_> {
+            fn kind(&self) -> &'static str {
+                "which"
+            }
+            fn name_filter(&mut self, id: &SlugRef) -> Result<Liveness> {
+                eprintln!("{id} - name_filter");
+                assert!(self.expected.contains(id));
+                let which: Which = id.as_str().parse().unwrap();
+                Ok(if which.namefilter_live {
+                    Liveness::Live
+                } else {
+                    Liveness::PossiblyUnused
+                })
+            }
+            fn age_filter(&mut self, id: &SlugRef, age: Duration) -> Result<Liveness> {
+                eprintln!("{id} - age_filter({age:?})");
+                let which: Which = id.as_str().parse().unwrap();
+                assert!(!which.namefilter_live);
+                Ok(if age <= days(which.max_age) {
+                    Liveness::Live
+                } else {
+                    Liveness::PossiblyUnused
+                })
+            }
+            fn dispose(
+                &mut self,
+                info: &InstancePurgeInfo,
+                handle: InstanceStateHandle,
+            ) -> Result<()> {
+                let id = info.identity();
+                eprintln!("{id} - dispose");
+                let which: Which = id.as_str().parse().unwrap();
+                assert!(!which.namefilter_live);
+                assert!(which.old_enough_to_vanish());
+                assert!(which.dir);
+                handle.purge()
+            }
+        }
+
+        state_dir
+            .purge_instances(
+                now(),
+                &mut PurgeHandler {
+                    expected: &expected,
+                },
+            )
+            .unwrap();
+
+        // 4. List the instances again and check the results
+
+        let found = list_instances();
+
+        let expected: BTreeSet<_> = whiches
+            .iter()
+            .filter(|which| {
+                if which.namefilter_live {
+                    // things filtered by the name filter are left alone;
+                    // we see them if any bits of them existed, even a stale lockfile
+                    which.dir || which.lockfile
+                } else {
+                    // things *not* filtered by the name filter are retained
+                    // iff the directory exists and is new enough
+                    which.dir && !which.old_enough_to_vanish()
+                }
+            })
+            .map(|which| Slug::new(which.to_string()).unwrap())
+            .collect();
+
+        itertools::assert_equal(&found, &expected);
+
+        // 5. Check that the junk was ignored
+
+        for (p, is_dir) in junk {
+            let md = fs::metadata(&p).unwrap();
+            assert_eq!(md.is_dir(), is_dir, "{}", p.display());
+        }
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_reset_expiry() {
+        // Tests that things that should update the instance mtime do so,
+        // and that things that shouldhn't, don't.
+        //
+        // For each test case, we:
+        //   1. create a new subdirectory of our temp dir, making a new StateDirectory.
+        //   2. (optionally) set up one instance within it, containing one pre-prepared
+        //      existing storage file and one pre-prepared (empty) raw subdir
+        //   3. perform test-case specific actions on the instance
+        //   4. run a stunt `purge_instances` call that merely checks
+        //      that the right value was passed to age_filter
+
+        let temp_dir = test_temp_dir!();
+
+        const KIND: &str = "kind";
+
+        // keys for various sub-objects
+        const S_EXISTS: &str = "state-existing";
+        const S_ABSENT: &str = "state-initially-absent";
+        const R_EXISTS: &str = "raw-subdir-existing";
+        const R_ABSENT: &str = "raw-subdir-initially-absent";
+
+        struct FixedId;
+        impl InstanceIdentity for FixedId {
+            fn kind() -> &'static str {
+                KIND
+            }
+            fn write_identity(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "id")
+            }
+        }
+
+        /// Did we expect this test case's actions to change the mtime?
+        #[derive(PartialEq, Debug)]
+        enum Expect {
+            /// mtime should be updated
+            New,
+            /// mtime should be unchanged
+            Old,
+        }
+        use Expect as Ex;
+
+        /// Callbacks for stunt purge
+        ///
+        /// `self == None` means we've called `age_filter` already.
+        impl InstancePurgeHandler for Option<&'_ Expect> {
+            fn kind(&self) -> &'static str {
+                KIND
+            }
+            fn name_filter(&mut self, _identity: &SlugRef) -> Result<Liveness> {
+                Ok(Liveness::PossiblyUnused)
+            }
+            fn age_filter(&mut self, _identity: &SlugRef, age: Duration) -> Result<Liveness> {
+                let did_reset = if age < days(1) { Ex::New } else { Ex::Old };
+                assert_eq!(&did_reset, self.unwrap());
+                *self = None;
+                // Stop processing the instance
+                Ok(Liveness::Live)
+            }
+            fn dispose(
+                &mut self,
+                _info: &InstancePurgeInfo<'_>,
+                _handle: InstanceStateHandle,
+            ) -> Result<()> {
+                panic!("disposed live")
+            }
+        }
+
+        /// Helper for test that purge iteration doesn't itself update the mtime
+        ///
+        /// Says `PossiblyUnused` so that `dispose` gets called,
+        /// but then just drops the handle and doesn't delete.
+        struct ExamineAll;
+        impl InstancePurgeHandler for ExamineAll {
+            fn kind(&self) -> &'static str {
+                KIND
+            }
+            fn name_filter(&mut self, _identity: &SlugRef) -> Result<Liveness> {
+                Ok(Liveness::PossiblyUnused)
+            }
+            fn age_filter(&mut self, _identity: &SlugRef, _age: Duration) -> Result<Liveness> {
+                Ok(Liveness::PossiblyUnused)
+            }
+            fn dispose(
+                &mut self,
+                _info: &InstancePurgeInfo<'_>,
+                _handle: InstanceStateHandle,
+            ) -> Result<()> {
+                Ok(())
+            }
+        }
+
+        // Run a check (raw - doesn't creating an initial instance state)
+        let chk_without_create = |exp: Expect, which: &str, acts: &dyn Fn(&StateDirectory)| {
+            temp_dir.subdir_used_by(which, |dir| {
+                let state_dir = mk_state_dir(&dir);
+                acts(&state_dir);
+
+                let mut exp = Some(&exp);
+                state_dir.purge_instances(now(), &mut exp).unwrap();
+                assert!(exp.is_none(), "age_filter not called, instance missing?");
+            });
+        };
+
+        // Run a check with a prepared instance state
+        //
+        // The preprepared instance:
+        //  - has an existing storage at key S_EXISTS
+        //  - has an existing empty raw subdir at key R_EXISTS
+        //  - has been acquired, so `acts` gets an handle
+        //  - but all of this (looks like it) happened 2 days ago
+        let chk =
+            |exp: Expect, which: &str, acts: &dyn Fn(&StateDirectory, InstanceStateHandle)| {
+                chk_without_create(exp, which, &|state_dir| {
+                    let inst = state_dir.acquire_instance(&FixedId).unwrap();
+
+                    inst.storage_handle(S_EXISTS)
+                        .unwrap()
+                        .store(&StoredData { some_value: 1 })
+                        .unwrap();
+                    inst.raw_subdir(R_EXISTS).unwrap();
+
+                    let mtime = now() - days(2);
+                    filetime::set_file_mtime(inst.dir.as_path(), mtime.into()).unwrap();
+
+                    acts(state_dir, inst);
+                });
+            };
+
+        // Test things that shouldn't count for keeping an instance alive
+
+        chk(Ex::Old, "just-releasing-acquired", &|_, inst| {
+            drop(inst);
+        });
+        chk(Ex::Old, "loading", &|_, inst| {
+            let load = |key| {
+                inst.storage_handle::<StoredData>(key)
+                    .unwrap()
+                    .load()
+                    .unwrap()
+            };
+            assert!(load(S_EXISTS).is_some());
+            assert!(load(S_ABSENT).is_none());
+        });
+        chk(Ex::Old, "messing-in-subdir", &|_, inst| {
+            // we don't have a raw subdir path here, but we know what it is
+            let in_raw = inst.dir.as_path().join(R_EXISTS).join("new");
+            let _: File = File::create(in_raw).unwrap();
+        });
+        chk(Ex::Old, "purge-iter-no-delete", &|state_dir, inst| {
+            drop(inst);
+            // ExamineAll looks at everything but never calls InstanceStateHandle::purge.
+            // It it causes every instance to be locked, but not mtime-updated.
+            state_dir.purge_instances(now(), &mut ExamineAll).unwrap();
+        });
+
+        // Test things that *should* count for keeping an instance alive
+
+        chk_without_create(Ex::New, "acquire-new-instance", &|state_dir| {
+            state_dir.acquire_instance(&FixedId).unwrap();
+        });
+        chk(Ex::New, "acquire-existing-instance", &|state_dir, inst| {
+            drop(inst);
+            state_dir.acquire_instance(&FixedId).unwrap();
+        });
+        for storage_key in [S_EXISTS, S_ABSENT] {
+            chk(Ex::New, &format!("store-{}", storage_key), &|_, inst| {
+                inst.storage_handle(storage_key)
+                    .unwrap()
+                    .store(&StoredData { some_value: 2 })
+                    .unwrap();
+            });
+        }
+        for raw_dir in [R_EXISTS, R_ABSENT] {
+            chk(Ex::New, &format!("raw_subdir-{}", raw_dir), &|_, inst| {
+                let _: InstanceRawSubdir = inst.raw_subdir(raw_dir).unwrap();
+            });
+        }
     }
 }
