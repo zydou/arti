@@ -11,6 +11,7 @@ TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
 os.chdir(TOPDIR)
 CRATEDIRS = [
     os.path.join(TOPDIR, 'crates'),
+    os.path.join(TOPDIR, 'maint'),
     os.path.join(TOPDIR, 'examples/gsoc2023'),
     os.path.join(TOPDIR, 'examples/hyper'),
 ]
