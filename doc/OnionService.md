@@ -26,11 +26,14 @@ cargo build -p arti --release \
 
 ## Configuring your onion service(s)
 
-Add a block like this to your arti configuration:
+Add a block like this to your arti configuration.
+
+(You will probably want to customize it,
+unless you want this exact behavior.)
 
 ```
-# The second part of this section's name is a local nickname for this
-# onion service.
+# The second part of this section's name ("allum-cepa") is a local nickname
+# for this onion service.
 #
 # This is saved on disk, and used to tell onion services apart; it is not
 # visible outside your own Arti instance.
@@ -49,9 +52,6 @@ proxy_ports = [
      # ("ignore" is not generally a good idea for an anonymous service;
      #  "destroy" is safer.)
      ["265", "ignore"],
-     # Forward connections to other ports in range 1-1024 to
-     # a local UNIX-domain socket.  (Unix only)
-     ["1-1024", "unix:/var/run/allium-cepa/socket"],
      # Any other connection attempts will make us destroy the circuit.
      # (This is the default; you do not need to include this line.)
      ["*", "destroy"]
