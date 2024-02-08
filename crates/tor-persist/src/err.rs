@@ -73,7 +73,7 @@ pub(crate) enum Action {
     #[display(fmt = "constructing storage manager")]
     Initializing,
     /// We were trying to enumerate state objects
-    #[display(fmt = "enumerating stater")]
+    #[display(fmt = "enumerating instances")]
     Enumerating,
 }
 
