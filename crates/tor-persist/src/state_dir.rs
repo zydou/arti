@@ -1355,7 +1355,7 @@ mod test {
             }
         }
 
-        // 2. Checxk that we see the ones we expect
+        // 2. Check that we see the ones we expect
 
         let list_instances = || {
             state_dir
