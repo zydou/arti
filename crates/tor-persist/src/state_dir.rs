@@ -1226,12 +1226,15 @@ mod test {
         //    enumerating all the possible situations that purge_instance might find.
         //    The instance is identified by a `Which` which specifies its properties,
         //    and which is representable as the instance id slug.
+        //  1b. Put some junk in the state directory too, that we expect to be ignored.
         //
         //  2. Call list_instances and check that we see what we expect.
         //
         //  3. Call purge_instances and check that all the callbacks happen as we expect.
         //
         //  4. Call list_instances again and check that we see what we now expect.
+        //
+        //  5. Check that the junk is still present.
 
         let temp_dir = test_temp_dir!();
         let state_dir = temp_dir.used_by(mk_state_dir);
@@ -1355,6 +1358,23 @@ mod test {
             }
         }
 
+        // 1b. Create some junk that should be ignored
+
+        let junk = {
+            let mut junk = Vec::new();
+            let base = state_dir.dir.as_path();
+            for rhs in ["+bad", "+bad.lock", ".tmp"] {
+                let mut mk = |lhs, is_dir| {
+                    let p = base.join(format!("{lhs}{rhs}"));
+                    junk.push((p.clone(), is_dir));
+                    p
+                };
+                File::create(mk("file", false)).unwrap();
+                fs::create_dir(mk("dir", true)).unwrap();
+            }
+            junk
+        };
+
         // 2. Check that we see the ones we expect
 
         let list_instances = || {
@@ -1455,6 +1475,13 @@ mod test {
             .collect();
 
         itertools::assert_equal(&found, &expected);
+
+        // 5. Check that the junk was ignored
+
+        for (p, is_dir) in junk {
+            let md = fs::metadata(&p).unwrap();
+            assert_eq!(md.is_dir(), is_dir, "{}", p.display());
+        }
     }
 
     #[test]
