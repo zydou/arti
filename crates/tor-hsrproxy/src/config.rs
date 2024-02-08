@@ -168,11 +168,15 @@ impl FromStr for ProxyPattern {
         if s == "*" {
             Ok(Self::all_ports())
         } else if let Some((left, right)) = s.split_once('-') {
-            let left: u16 = left.parse().map_err(PCE::InvalidPort)?;
-            let right: u16 = right.parse().map_err(PCE::InvalidPort)?;
+            let left: u16 = left
+                .parse()
+                .map_err(|e| PCE::InvalidPort(left.to_string(), e))?;
+            let right: u16 = right
+                .parse()
+                .map_err(|e| PCE::InvalidPort(right.to_string(), e))?;
             Self::port_range(left, right)
         } else {
-            let port = s.parse().map_err(PCE::InvalidPort)?;
+            let port = s.parse().map_err(|e| PCE::InvalidPort(s.to_string(), e))?;
             Self::one_port(port)
         }
     }
@@ -301,12 +305,17 @@ impl FromStr for TargetAddr {
         } else
         */
         if let Some(addr) = s.strip_prefix("inet:") {
-            Ok(Self::Inet(addr.parse().map_err(PCE::InvalidTargetAddr)?))
+            Ok(Self::Inet(addr.parse().map_err(|e| {
+                PCE::InvalidTargetAddr(addr.to_string(), e)
+            })?))
         } else if looks_like_attempted_addr(s) {
             // We check 'looks_like_attempted_addr' before parsing this.
-            Ok(Self::Inet(s.parse().map_err(PCE::InvalidTargetAddr)?))
+            Ok(Self::Inet(
+                s.parse()
+                    .map_err(|e| PCE::InvalidTargetAddr(s.to_string(), e))?,
+            ))
         } else {
-            Err(PCE::UnrecognizedTargetType)
+            Err(PCE::UnrecognizedTargetType(s.to_string()))
         }
     }
 }
@@ -371,16 +380,16 @@ impl std::fmt::Display for ProxyAction {
 #[non_exhaustive]
 pub enum ProxyConfigError {
     /// We encountered a proxy target with an unrecognized type keyword.
-    #[error("Could not parse proxy target type.")]
-    UnrecognizedTargetType,
+    #[error("Could not parse onion service target type {0:?}")]
+    UnrecognizedTargetType(String),
 
     /// A socket address could not be parsed to be invalid.
-    #[error("Could not parse proxy target address.")]
-    InvalidTargetAddr(#[source] std::net::AddrParseError),
+    #[error("Could not parse onion service target address {0:?}")]
+    InvalidTargetAddr(String, #[source] std::net::AddrParseError),
 
     /// A socket rule had an source port that couldn't be parsed as a `u16`.
-    #[error("Could not parse proxy source port.")]
-    InvalidPort(#[source] std::num::ParseIntError),
+    #[error("Could not parse onion service source port {0:?}")]
+    InvalidPort(String, #[source] std::num::ParseIntError),
 
     /// A socket rule had a zero source port.
     #[error("Zero is not a valid port.")]
@@ -428,8 +437,11 @@ mod test {
     fn pattern_err() {
         use ProxyConfigError as PCE;
         use ProxyPattern as P;
-        assert!(matches!(P::from_str("fred"), Err(PCE::InvalidPort(_))));
-        assert!(matches!(P::from_str("100-fred"), Err(PCE::InvalidPort(_))));
+        assert!(matches!(P::from_str("fred"), Err(PCE::InvalidPort(_, _))));
+        assert!(matches!(
+            P::from_str("100-fred"),
+            Err(PCE::InvalidPort(_, _))
+        ));
         assert!(matches!(P::from_str("100-42"), Err(PCE::EmptyPortRange)));
     }
 
@@ -493,38 +505,38 @@ mod test {
 
         assert!(matches!(
             T::from_str("sdakljf"),
-            Err(PCE::UnrecognizedTargetType)
+            Err(PCE::UnrecognizedTargetType(_))
         ));
 
         assert!(matches!(
             T::from_str("inet:hello"),
-            Err(PCE::InvalidTargetAddr(_))
+            Err(PCE::InvalidTargetAddr(_, _))
         ));
         assert!(matches!(
             T::from_str("inet:wwww.example.com:80"),
-            Err(PCE::InvalidTargetAddr(_))
+            Err(PCE::InvalidTargetAddr(_, _))
         ));
 
         assert!(matches!(
             T::from_str("127.1:80"),
-            Err(PCE::InvalidTargetAddr(_))
+            Err(PCE::InvalidTargetAddr(_, _))
         ));
         assert!(matches!(
             T::from_str("inet:127.1:80"),
-            Err(PCE::InvalidTargetAddr(_))
+            Err(PCE::InvalidTargetAddr(_, _))
         ));
         assert!(matches!(
             T::from_str("127.1:80"),
-            Err(PCE::InvalidTargetAddr(_))
+            Err(PCE::InvalidTargetAddr(_, _))
         ));
         assert!(matches!(
             T::from_str("inet:2130706433:80"),
-            Err(PCE::InvalidTargetAddr(_))
+            Err(PCE::InvalidTargetAddr(_, _))
         ));
 
         assert!(matches!(
             T::from_str("128.256.cats.and.dogs"),
-            Err(PCE::InvalidTargetAddr(_))
+            Err(PCE::InvalidTargetAddr(_, _))
         ));
     }
 
