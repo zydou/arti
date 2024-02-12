@@ -1829,6 +1829,20 @@ impl<'a> Relay<'a> {
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
+    /// Return true if this relay has the "Fast" flag.
+    ///
+    /// Most relays have this flag.  It indicates that the relay is suitable for
+    /// circuits that need more than a minimal amount of bandwidth.
+    pub fn is_flagged_fast(&self) -> bool {
+        self.rs.is_flagged_fast()
+    }
+    /// Return true if this relay has the "Stable" flag.
+    ///
+    /// Most relays have this flag. It indicates that the relay is suitable for
+    /// long-lived circuits.
+    pub fn is_flagged_stable(&self) -> bool {
+        self.rs.is_flagged_stable()
+    }
     /// Return true if this relay is a potential HS introduction point
     pub fn is_hs_intro_point(&self) -> bool {
         self.rs.is_flagged_stable()
