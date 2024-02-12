@@ -905,14 +905,14 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // ---------- collect garbage ----------
 
         // Rotate out an old IPT(s)
-            for ir in &mut self.state.irelays {
-                if ir.should_retire(&now) {
-                    if let Some(ipt) = ir.current_ipt_mut() {
-                        ipt.is_current = None;
-                        return CONTINUE;
-                    }
+        for ir in &mut self.state.irelays {
+            if ir.should_retire(&now) {
+                if let Some(ipt) = ir.current_ipt_mut() {
+                    ipt.is_current = None;
+                    return CONTINUE;
                 }
             }
+        }
 
         // Forget old IPTs (after the last descriptor mentioning them has expired)
         for ir in &mut self.state.irelays {
