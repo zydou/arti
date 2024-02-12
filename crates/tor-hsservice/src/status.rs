@@ -158,7 +158,7 @@ pub enum Problem {
     DescriptorUpload(RetryError<DescUploadError>),
 
     /// We failed to establish one or more introduction points.
-    Ipt(IptError),
+    Ipt(Vec<IptError>),
     // TODO: add variants for other transient errors?
 }
 

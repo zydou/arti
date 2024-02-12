@@ -129,7 +129,8 @@ pub(crate) enum IptEstablisherError {
 
 /// An error caused by a faulty IPT.
 #[derive(Clone, Debug, thiserror::Error)]
-pub(crate) enum IptError {
+#[non_exhaustive]
+pub enum IptError {
     /// When we tried to establish this introduction point, we found that the
     /// netdir didn't list it.
     ///

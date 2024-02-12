@@ -61,6 +61,8 @@ use TrackedStatus as TS;
 mod persist;
 pub(crate) use persist::IptStorageHandle;
 
+pub use crate::svc::ipt_establish::IptError;
+
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 ///
 /// (Note that we use the same value in both cases, since it doesn't actually do
@@ -277,6 +279,9 @@ enum TrackedStatus {
         /// of the establishment time, which is fine.
         /// Or it might be `Err` meaning we don't know.
         started: Result<Instant, ()>,
+
+        /// The error, if any.
+        error: Option<IptError>,
     },
 
     /// Corresponds to [`IptStatusStatus::Establishing`]
@@ -532,6 +537,14 @@ impl Ipt {
         }
     }
 
+    /// Returns the error, if any, we are currently encountering at this IPT.
+    fn error(&self) -> Option<&IptError> {
+        match &self.status_last {
+            TS::Good { .. } | TS::Establishing { .. }  => None,
+            TS::Faulty { error, .. } => error.as_ref(),
+        }
+    }
+
     /// Construct the information needed by the publisher for this intro point
     fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<ipt_set::Ipt, Bug> {
         let k_sid: &ed25519::Keypair = (*self.k_sid).as_ref();
@@ -661,6 +674,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Iterate over the *current* IPTs in `Good` state
     fn good_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
         self.current_ipts().filter(|(_ir, ipt)| ipt.is_good())
+    }
+
+    /// Iterate over the current IPT errors.
+    ///
+    /// Used when reporting our state as [`Recovering`](crate::status::State::Recovering).
+    fn ipt_errors(&self) -> impl Iterator<Item = &IptError> {
+        self.current_ipts().filter_map(|(_ir, ipt)| ipt.error())
     }
 }
 
@@ -831,19 +851,9 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                     details,
                 }
             }
-            ISS::Faulty(..) => TS::Faulty { started },
+            ISS::Faulty(error) => TS::Faulty { started, error },
         };
     }
-}
-
-/// A problem encountered when trying to establish an introduction point.
-#[derive(Clone, Debug, derive_more::From)]
-#[non_exhaustive]
-pub enum IptError {
-    /// We encountered a faulty introduction point.
-    // TODO: should we obtain the errors from IptEstablisher,
-    // and include all of them here (e.g. in a Vec<>)?
-    FaultyIpt,
 }
 
 // TODO #1212: Combine this block with the other impl IptManager<R, M>
@@ -1253,7 +1263,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
             // and include it in the onion svc status.
-            self.imm.status_tx.send_recovering(IptError::FaultyIpt);
+            self.imm.status_tx.send_recovering(self.ipt_errors().cloned().collect_vec());
 
             None
         } else if let Some((wait_for, wait_more)) = started_establishing_very_recently() {
@@ -1272,7 +1282,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
             // and include it in the onion svc status.
-            self.imm.status_tx.send_recovering(IptError::FaultyIpt);
+            self.imm.status_tx.send_recovering(self.ipt_errors().cloned().collect_vec());
 
             None
         } else {
@@ -1285,11 +1295,16 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             );
 
             // We are close to being Running -- we just need more IPTs!
-            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
-            // and include it in the onion svc status.
+            let errors = self.ipt_errors().cloned().collect_vec();
+            let errors = if errors.is_empty() {
+                None
+            } else {
+                Some(errors)
+            };
+
             self.imm
                 .status_tx
-                .send(IptMgrState::Degraded, Some(IptError::FaultyIpt.into()));
+                .send(IptMgrState::Degraded, errors.map(|e| e.into()));
 
             Some(IPT_PUBLISH_UNCERTAIN)
         };
