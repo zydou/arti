@@ -68,6 +68,9 @@ const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(3 * 60 * 60); // 3 h
 /// Expiry time to put on a final descriptor (IPT publication set Certain
 const IPT_PUBLISH_CERTAIN: Duration = IPT_PUBLISH_UNCERTAIN;
 
+/// Replay log files are `<IPTLOCALID>.bin`
+const REPLAY_LOG_SUFFIX: &str = ".bin";
+
 /// IPT Manager (for one hidden service)
 #[derive(Educe)]
 #[educe(Debug(bound))]
@@ -455,7 +458,7 @@ impl Ipt {
 
         // TODO #1186 Support ephemeral services (without persistent replay log)
         let replay_log = {
-            let replay_leaf = format!("{lid}.bin");
+            let replay_leaf = format!("{lid}{REPLAY_LOG_SUFFIX}");
             let replay_log = imm.replay_log_dir.as_path().join(replay_leaf);
 
             ReplayLog::new_logged(&replay_log, imm.replay_log_dir.raw_lock_guard()).map_err(
