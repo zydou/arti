@@ -502,14 +502,66 @@ mod test {
         // for a wait status different from any of libtest's
         const GOOD_SIGNAL: i32 = libc::SIGUSR2;
 
+        let sigemptyset = || unsafe {
+            let mut set = MaybeUninit::uninit();
+            libc::sigemptyset(set.as_mut_ptr());
+            set.assume_init()
+        };
+
+        // Check that SIGUSR2 starts out as SIG_DFL and unblocked
+        //
+        // We *reject* such situations, rather than fixing them up, because this is an
+        // irregular and broken environment that can cause arbitrarily weird behaviours.
+        // Programs on Unix are entitled to assume that their signal dispositions are
+        // SIG_DFL on entry, with signals unblocked.  (With a few exceptions.)
+        //
+        // So we want to detect and report any such environment, not let it slide.
+        unsafe {
+            let mut sa = MaybeUninit::uninit();
+            let r = libc::sigaction(GOOD_SIGNAL, ptr::null(), sa.as_mut_ptr());
+            assert_eq!(r, 0);
+            let sa = sa.assume_init();
+            assert_eq!(
+                sa.sa_sigaction,
+                libc::SIG_DFL,
+                "tests running in broken environment (SIGUSR2 not SIG_DFL)"
+            );
+
+            let empty_set = sigemptyset();
+            let mut current_set = MaybeUninit::uninit();
+            let r = libc::sigprocmask(
+                libc::SIG_UNBLOCK,
+                (&empty_set) as _,
+                current_set.as_mut_ptr(),
+            );
+            assert_eq!(r, 0);
+            let current_set = current_set.assume_init();
+            let blocked = libc::sigismember((&current_set) as _, GOOD_SIGNAL);
+            assert_eq!(
+                blocked, 0,
+                "tests running in broken environment (SIGUSR2 blocked)"
+            );
+        }
+
         match env::var(ENV_NAME) {
             Err(env::VarError::NotPresent) => {
                 eprintln!("in test runner process, forking..,");
-                let st = Command::new(env::current_exe().unwrap())
+                let output = Command::new(env::current_exe().unwrap())
                     .args(["--nocapture", "replay::test::test_partial_write"])
                     .env(ENV_NAME, "1")
-                    .status()
+                    .output()
                     .unwrap();
+                let print_output = |prefix, data| match std::str::from_utf8(data) {
+                    Ok(s) => {
+                        for l in s.split("\n") {
+                            eprintln!(" {prefix} {l}");
+                        }
+                    }
+                    Err(e) => eprintln!(" UTF-8 ERROR {prefix} {e}"),
+                };
+                print_output("!", &output.stdout);
+                print_output(">", &output.stderr);
+                let st = output.status;
                 eprintln!("reaped actual test process {st:?} (expecting signal {GOOD_SIGNAL})");
                 assert_eq!(st.signal(), Some(GOOD_SIGNAL));
                 return;
@@ -563,11 +615,9 @@ mod test {
 
             // Ignore SIGXFSZ (default disposition is for exceeding the rlimit to kill us)
             unsafe {
-                let mut set = MaybeUninit::uninit();
-                libc::sigemptyset(set.as_mut_ptr());
                 let sa = libc::sigaction {
                     sa_sigaction: libc::SIG_IGN,
-                    sa_mask: set.assume_init(),
+                    sa_mask: sigemptyset(),
                     sa_flags: 0,
                     sa_restorer: None,
                 };
