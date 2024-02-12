@@ -6,13 +6,15 @@
 //! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
+use std::borrow::Cow;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::{self, Debug};
+use std::fs;
 use std::hash::Hash;
 use std::io;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -586,8 +588,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         let replay_log_dir = state_handle
             .raw_subdir("iptreplay")
-            // TODO #1198 something should expire these! (and our keys too, obviously)
-            // (see also #1067 re expiring a whole service)
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
         let imm = Immutable {
@@ -1393,6 +1393,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// those are one file for each service, so old data is removed as we rewrite them.
     ///
     /// Does *not* handle deletion of entire old hidden services.
+    ///
+    /// All that happens with errors from this function is that they are logged
+    /// (with a rate limit).
+    #[allow(clippy::blocks_in_conditions)]
     fn expire_old_ipts_external_persistent_state(
         &self,
     ) -> Result<(), impl tor_error::HasKind + std::error::Error + Clone + 'static> {
@@ -1402,15 +1406,28 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             /// Key expiry failed
             #[error("key(s)")]
             Key(#[from] tor_keymgr::Error),
+            /// Replay log expiry (or other things using `tor_persist`) failed
+            #[error("replay log(s): failed to {operation} {}", path.display())]
+            ReplayLog {
+                /// The actual error
+                #[source]
+                source: Arc<io::Error>,
+                /// The pathname
+                path: PathBuf,
+                /// What we were doing
+                operation: &'static str,
+            },
             /// Internal error
             #[error("internal error")]
             Bug(#[from] Bug),
         }
         impl HasKind for ExpiryError {
             fn kind(&self) -> ErrorKind {
+                use tor_error::ErrorKind as EK;
                 use ExpiryError as EE;
                 match self {
                     EE::Key(e) => e.kind(),
+                    EE::ReplayLog { .. } => EK::PersistentStateAccessFailed,
                     EE::Bug(e) => e.kind(),
                 }
             }
@@ -1451,7 +1468,43 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // IPT replay logs
 
-        // XXXX
+        let handle_rl_err = |operation, path: &Path| {
+            let path = path.to_owned();
+            move |source| ExpiryError::ReplayLog {
+                operation,
+                path,
+                source: Arc::new(source),
+            }
+        };
+
+        // fs-mistrust doesn't offer CheckedDir::read_this_directory.
+        // But, we probably don't mind that we're not doing many checks here.
+        let replay_logs = self.imm.replay_log_dir.as_path();
+        let replay_logs_dir =
+            fs::read_dir(replay_logs).map_err(handle_rl_err("open dir", replay_logs))?;
+
+        for ent in replay_logs_dir {
+            let ent = ent.map_err(handle_rl_err("read dir", replay_logs))?;
+            let leaf = ent.file_name();
+            match (|| {
+                let leaf = leaf.to_str().ok_or("not UTF-8")?;
+                let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
+                let lid: IptLocalId = lid
+                    .parse()
+                    .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
+                Ok::<_, Cow<str>>((leaf, lid))
+            })() {
+                Ok((_, lid)) if current_ipts.contains(&lid) => continue,
+                Ok((leaf, _lid)) => trace!("deleting replay log for old IPT: {leaf}"),
+                Err(bad) => info!(
+                    "deleting garbage in IPT replay log dir: {} ({})",
+                    leaf.to_string_lossy(),
+                    bad
+                ),
+            }
+            let path = ent.path();
+            fs::remove_file(&path).map_err(handle_rl_err("remove", &path))?;
+        }
 
         Ok::<_, ExpiryError>(())
     }
