@@ -13,6 +13,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_netdoc::types::policy::AddrPortPattern;
 
+use std::collections::HashSet;
 use std::time::Duration;
 
 /// Rules for building paths over the network.
@@ -41,6 +42,10 @@ pub struct PathConfig {
     /// IPv6 addresses share at least this many initial bits.
     #[builder(default = "ipv6_prefix_default()")]
     ipv6_subnet_family_prefix: u8,
+
+    /// A set of ports that need to be sent over Stable circuits.
+    #[builder(default = "long_lived_ports_default()")]
+    pub(crate) long_lived_ports: HashSet<u16>,
 
     /// The set of addresses to which we're willing to make direct connections.
     #[builder(sub_builder, setter(custom))]
@@ -78,6 +83,14 @@ fn ipv4_prefix_default() -> u8 {
 /// Default value for ipv6_subnet_family_prefix.
 fn ipv6_prefix_default() -> u8 {
     32
+}
+/// Default value for long_lived_ports.
+fn long_lived_ports_default() -> HashSet<u16> {
+    [
+        21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6523, 6667, 6697, 8300,
+    ]
+    .into_iter()
+    .collect()
 }
 
 impl PathConfig {

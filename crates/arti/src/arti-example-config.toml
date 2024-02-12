@@ -260,6 +260,13 @@
 # By default, all addresses and ports are permitted.
 #reachable_addrs = [ "*:*" ]
 
+# Which target (exit) ports may require long-lived connections?
+#
+# When we connect to a port on this list, we only consider relays that have the
+# Stable flag, indicating that they have a relatively high time between circuit
+# failures.
+#long_lived_ports = [ 21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6523, 6667, 6697, 8300 ]
+
 # Configure preemptive circuit construction.
 #
 # Preemptive circuits are built ahead of time, to anticipate client need. This
