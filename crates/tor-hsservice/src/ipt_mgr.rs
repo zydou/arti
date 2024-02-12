@@ -1877,7 +1877,7 @@ mod test {
     }
 
     impl<'d> MockedIptManager<'d> {
-        fn startup(runtime: MockRuntime, temp_dir: &'d TestTempDir) -> Self {
+        fn startup(runtime: MockRuntime, temp_dir: &'d TestTempDir, seed: u64) -> Self {
             let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
                 .unwrap_if_sufficient()
                 .unwrap()
@@ -1898,7 +1898,7 @@ mod test {
             let estabs: MockEstabs = Default::default();
 
             let mocks = Mocks {
-                rng: TestingRng::seed_from_u64(0),
+                rng: TestingRng::seed_from_u64(seed),
                 estabs: estabs.clone(),
             };
 
@@ -1977,7 +1977,7 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let temp_dir = test_temp_dir!();
 
-            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 0);
             runtime.progress_until_stalled().await;
 
             // We expect it to try to establish 3 IPTs
@@ -2046,7 +2046,7 @@ mod test {
             // ---------- restart! ----------
             info!("*** Restarting ***");
 
-            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 1);
             runtime.progress_until_stalled().await;
 
             assert_eq!(estabs_inventory, m.estabs_inventory());
