@@ -1802,6 +1802,7 @@ mod test {
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
+    use walkdir::WalkDir;
 
     slotmap::new_key_type! {
         struct MockEstabId;
@@ -2052,6 +2053,42 @@ mod test {
             assert_eq!(estabs_inventory, m.estabs_inventory());
 
             // TODO #1213 test that we have called start_accepting on all the old IPTs
+
+            // ---------- New IPT relay selection ----------
+
+            let old_lids: Vec<String> = m
+                .estabs
+                .lock()
+                .unwrap()
+                .values()
+                .map(|ess| ess.params.lid.to_string())
+                .collect();
+            eprintln!("IPTs to rotate out: {old_lids:?}");
+
+            let old_lid_files = || {
+                WalkDir::new(temp_dir.as_path_untracked())
+                    .into_iter()
+                    .map(|ent| {
+                        ent.unwrap()
+                            .into_path()
+                            .into_os_string()
+                            .into_string()
+                            .unwrap()
+                    })
+                    .filter(|path| old_lids.iter().any(|lid| path.contains(lid)))
+                    .collect_vec()
+            };
+
+            let no_files: [String; 0] = [];
+
+            assert_ne!(old_lid_files(), no_files);
+
+            // wait 2 days, > hs_intro_max_lifetime
+            runtime.advance_by(ms(48 * 60 * 60 * 1_000)).await;
+            runtime.progress_until_stalled().await;
+
+            // There should now be no files names after old IptLocalIds.
+            assert_eq!(old_lid_files(), no_files);
 
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;

@@ -5505,6 +5505,7 @@ dependencies = [
  "tracing",
  "tracing-test",
  "void",
+ "walkdir",
 ]
 
 [[package]]

@@ -105,3 +105,4 @@ tor-netdoc = { path = "../tor-netdoc", version = "0.12.0", features = ["testing"
 tor-persist = { version = "0.10.0", path = "../tor-persist", features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.13.0" }
 tracing-test = "0.2.4"
+walkdir = "2"
