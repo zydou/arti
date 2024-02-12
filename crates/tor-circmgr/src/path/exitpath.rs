@@ -373,6 +373,10 @@ impl<'a> ExitPathBuilder<'a> {
         let middle = netdir
             .pick_relay(rng, WeightRole::Middle, |r| {
                 r.is_flagged_fast()
+                    // TODO: if we intend to use this as an exit circuit, and
+                    // exit point only supports long-lived ports, we should
+                    // unconditionally require Stable here, since otherwise this
+                    // circuit isn't useful for exit purposes.
                     && (!self.require_stability || r.is_flagged_stable())
                     && can_share.count(
                         relays_can_share_circuit(r, &exit, subnet_config)

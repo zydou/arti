@@ -359,6 +359,8 @@ impl TargetCircUsage {
             } => {
                 let (path, mon, usable) =
                     ExitPathBuilder::for_any_compatible_with(compatible_with_target.clone())
+                        // TODO: We don't actually require stability if this is a
+                        // HsDir circuit: but at this point, we can't tell.
                         .require_stability(true)
                         .pick_path(rng, netdir, guards, config, now)?;
                 let usage = SupportedCircUsage::HsOnly;
