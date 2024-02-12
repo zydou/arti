@@ -50,7 +50,6 @@ mod mgr;
 mod testing;
 pub mod transport;
 
-use educe::Educe;
 use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
@@ -138,13 +137,12 @@ pub enum ChanProvenance {
 ///
 /// This is usually derived in higher layers from `arti_client::DormantMode`.
 #[non_exhaustive]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Educe)]
-#[educe(Default)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 pub enum Dormancy {
     /// Not dormant
     ///
     /// Channels will operate normally.
-    #[educe(Default)]
+    #[default]
     Active,
     /// Totally dormant
     ///

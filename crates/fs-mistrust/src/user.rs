@@ -118,8 +118,7 @@ fn cur_groups() -> io::Result<Vec<u32>> {
 ///
 /// Non-UTF8 usernames cannot currently be represented in all serde formats.
 /// Notably, toml doesn't support them.
-#[derive(Clone, Debug, educe::Educe, Eq, PartialEq, Hash)]
-#[educe(Default)]
+#[derive(Clone, Default, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
@@ -130,7 +129,7 @@ pub enum TrustedUser {
     /// We won't treat any user as trusted.
     None,
     /// Treat the current user as trusted.
-    #[educe(Default)]
+    #[default]
     Current,
     /// Treat the user with a particular UID as trusted.
     Id(u32),
@@ -206,8 +205,7 @@ impl TrustedUser {
 /// See the `serde support` section in [`TrustedUser`].  Additionally,
 /// you can represent `TrustedGroup::SelfNamed` with the string `":username"`
 /// or the map `{ special = ":username" }`.
-#[derive(Clone, Debug, educe::Educe, Eq, PartialEq, Hash)]
-#[educe(Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
@@ -222,7 +220,7 @@ pub enum TrustedGroup {
     /// If there is no such group, we trust no group.
     ///
     /// (This is the default.)
-    #[educe(Default)]
+    #[default]
     SelfNamed,
     /// We'll treat a specific group ID as trusted.
     Id(u32),

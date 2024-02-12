@@ -9,7 +9,6 @@ use std::iter;
 use std::net;
 use std::num::NonZeroU16;
 
-use educe::Educe;
 use either::Either;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -18,14 +17,12 @@ use strum::{Display, EnumString, IntoStaticStr};
 /// Boolean, but with additional `"auto"` option
 //
 // This slightly-odd interleaving of derives and attributes stops rustfmt doing a daft thing
-#[derive(Clone, Copy, Hash, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Clone, Copy, Hash, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
 #[derive(Serialize, Deserialize)]
 #[serde(try_from = "BoolOrAutoSerde", into = "BoolOrAutoSerde")]
-#[derive(Educe)]
-#[educe(Default)]
 pub enum BoolOrAuto {
-    #[educe(Default)]
+    #[default]
     /// Automatic
     Auto,
     /// Explicitly specified
@@ -108,15 +105,14 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
 #[serde(try_from = "PaddingLevelSerde", into = "PaddingLevelSerde")]
 #[derive(Display, EnumString, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
-#[derive(Educe)]
-#[educe(Default)]
+#[derive(Default)]
 pub enum PaddingLevel {
     /// Disable padding completely
     None,
     /// Reduced padding (eg for mobile)
     Reduced,
     /// Normal padding (the default)
-    #[educe(Default)]
+    #[default]
     Normal,
 }
 
@@ -169,8 +165,7 @@ impl TryFrom<PaddingLevelSerde> for PaddingLevel {
 /// Currently only IP (v6 and v4) is supported.
 #[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "ListenSerde", into = "ListenSerde")]
-#[derive(Educe)]
-#[educe(Default)]
+#[derive(Default)]
 pub struct Listen(Vec<ListenItem>);
 
 impl Listen {

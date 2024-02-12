@@ -570,13 +570,12 @@ define_list_builder_helper! {
 /// let lc = lc.build().unwrap();
 /// assert_eq!{ lc.winners, [4,5,6] }
 /// ```
-#[derive(Clone, Debug, Educe, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 #[serde(untagged)]
-#[educe(Default)]
 #[non_exhaustive]
 pub enum MultilineListBuilder<EB> {
     /// Config key not present
-    #[educe(Default)]
+    #[default]
     Unspecified,
 
     /// Config key was a string which is to be parsed line-by-line

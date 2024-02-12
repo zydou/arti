@@ -9,7 +9,6 @@ use crate::chancell::msg::{
 };
 use crate::chancell::CELL_DATA_LEN;
 use caret::caret_int;
-use educe::Educe;
 use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
@@ -139,14 +138,13 @@ impl From<u32> for BeginFlags {
 
 /// A preference for IPv4 vs IPv6 addresses; usable as a nicer frontend for
 /// BeginFlags.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Educe)]
+#[derive(Clone, Default, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
-#[educe(Default)]
 pub enum IpVersionPreference {
     /// Only IPv4 is allowed.
     Ipv4Only,
     /// IPv4 and IPv6 are both allowed, and IPv4 is preferred.
-    #[educe(Default)]
+    #[default]
     Ipv4Preferred,
     /// IPv4 and IPv6 are both allowed, and IPv6 is preferred.
     Ipv6Preferred,

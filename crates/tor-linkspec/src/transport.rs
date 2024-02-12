@@ -34,11 +34,10 @@ pub struct TransportId(Inner);
 /// Helper type to implement [`TransportId`].
 ///
 /// This is a separate type so that TransportId can be opaque.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, educe::Educe)]
-#[educe(Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 enum Inner {
     /// The built-in transport type.
-    #[educe(Default)]
+    #[default]
     BuiltIn,
 
     /// A pluggable transport type, specified by its name.
