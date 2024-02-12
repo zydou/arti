@@ -419,12 +419,18 @@ impl KeySpecifierComponent for TimePeriod {
         let s = s.to_string();
         #[allow(clippy::redundant_closure)] // the closure makes things slightly more readable
         let err_ctx = |s| InvalidKeyPathComponentValue::Slug(s);
-            let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
-            let [interval, len, offset]: [&str; 3] = parts.into_inner().map_err(|_| err_ctx("invalid number of subcomponents"))?;
+        let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
+        let [interval, len, offset]: [&str; 3] = parts
+            .into_inner()
+            .map_err(|_| err_ctx("invalid number of subcomponents"))?;
 
-            let length = len.parse().map_err(|_| err_ctx("invalid length"))?;
-            let interval_num = interval.parse().map_err(|_| err_ctx("invalid interval_num"))?;
-            let offset_in_sec = offset.parse().map_err(|_| err_ctx("invalid offset_in_sec"))?;
+        let length = len.parse().map_err(|_| err_ctx("invalid length"))?;
+        let interval_num = interval
+            .parse()
+            .map_err(|_| err_ctx("invalid interval_num"))?;
+        let offset_in_sec = offset
+            .parse()
+            .map_err(|_| err_ctx("invalid offset_in_sec"))?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
