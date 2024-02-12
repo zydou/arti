@@ -931,15 +931,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 // This is the only place in the manager where an IPT is dropped,
                 // other than when the whole service is dropped.
                 let mut all_kept = true;
-            ir.ipts.retain(|ipt| {
-                let keep = ipt.is_current.is_some()
-                    || match ipt.last_descriptor_expiry_including_slop {
-                        None => false,
-                        Some(last) => now < last,
-                    };
-                all_kept &= keep;
-                keep
-            });
+                ir.ipts.retain(|ipt| {
+                    let keep = ipt.is_current.is_some()
+                        || match ipt.last_descriptor_expiry_including_slop {
+                            None => false,
+                            Some(last) => now < last,
+                        };
+                    all_kept &= keep;
+                    keep
+                });
                 !all_kept
             })();
             // No need to return CONTINUE, since there is no other future work implied
