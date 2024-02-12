@@ -153,7 +153,8 @@ impl<'a> ExitPathBuilder<'a> {
         match &self.inner {
             ExitPathBuilderInner::AnyExit { strict } => {
                 let exit = netdir.pick_relay(rng, WeightRole::Exit, |r| {
-                    can_share.count(r.policies_allow_some_port())
+                    r.is_flagged_fast()
+                        && can_share.count(r.policies_allow_some_port())
                         && correct_ports.count(relays_can_share_circuit_opt(r, guard, config))
                 });
                 match (exit, strict) {
@@ -179,7 +180,8 @@ impl<'a> ExitPathBuilder<'a> {
                 // circuits.
                 netdir
                     .pick_relay(rng, WeightRole::Exit, |r| {
-                        can_share.count(relays_can_share_circuit_opt(r, guard, config))
+                        r.is_flagged_fast()
+                            && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                     })
                     .ok_or(Error::NoExit {
                         can_share,
@@ -190,7 +192,8 @@ impl<'a> ExitPathBuilder<'a> {
             #[cfg(feature = "geoip")]
             ExitPathBuilderInner::ExitInCountry { country, ports } => Ok(netdir
                 .pick_relay(rng, WeightRole::Exit, |r| {
-                    can_share.count(relays_can_share_circuit_opt(r, guard, config))
+                    r.is_flagged_fast()
+                        && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                         && correct_ports.count(ports.iter().all(|p| p.is_supported_by(r)))
                         && correct_country
                             .count(r.country_code().map(|x| x == *country).unwrap_or(false))
@@ -204,7 +207,8 @@ impl<'a> ExitPathBuilder<'a> {
             #[cfg(feature = "hs-common")]
             ExitPathBuilderInner::AnyRelay => netdir
                 .pick_relay(rng, WeightRole::Middle, |r| {
-                    can_share.count(relays_can_share_circuit_opt(r, guard, config))
+                    r.is_flagged_fast()
+                        && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                 })
                 .ok_or(Error::NoExit {
                     can_share,
@@ -214,7 +218,8 @@ impl<'a> ExitPathBuilder<'a> {
 
             ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
                 .pick_relay(rng, WeightRole::Exit, |r| {
-                    can_share.count(relays_can_share_circuit_opt(r, guard, config))
+                    r.is_flagged_fast()
+                        && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                         && correct_ports.count(wantports.iter().all(|p| p.is_supported_by(r)))
                 })
                 .ok_or(Error::NoExit {
@@ -347,10 +352,12 @@ impl<'a> ExitPathBuilder<'a> {
         let mut correct_usage = FilterCount::default();
         let middle = netdir
             .pick_relay(rng, WeightRole::Middle, |r| {
-                can_share.count(
-                    relays_can_share_circuit(r, &exit, subnet_config)
-                        && relays_can_share_circuit(r, &guard, subnet_config),
-                ) && correct_usage.count(true)
+                r.is_flagged_fast()
+                    && can_share.count(
+                        relays_can_share_circuit(r, &exit, subnet_config)
+                            && relays_can_share_circuit(r, &guard, subnet_config),
+                    )
+                    && correct_usage.count(true)
             })
             .ok_or(Error::NoPath {
                 role: "middle relay",
