@@ -90,7 +90,7 @@ the Proceedings of the 2003 IEEE Symposium on Security and
 Privacy.  (See <https://www.freehaven.net/anonbib/#wright03>)
 
 Tor's current guard selection algorithm is described in Tor's
-[`guard-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/raw/main/guard-spec.txt)
+[Guard Specification](https://spec.torproject.org/guard-spec/)
 document.
 
 ## Compile-time features
