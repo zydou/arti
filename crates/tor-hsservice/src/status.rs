@@ -144,7 +144,7 @@ pub enum State {
     ///
     /// ## Reachability
     ///
-    /// The service is not reachable and about to shut down.
+    /// The service is not fully reachable. It may temporarily be reachable by some clients.
     Broken,
 }
 
