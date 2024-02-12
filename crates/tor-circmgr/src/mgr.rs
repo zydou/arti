@@ -2257,6 +2257,7 @@ mod test {
                 policy: ep_none,
                 isolation: None,
                 country_code: None,
+                all_relays_stable: true,
             },
             fake_circ.clone(),
             expiration.clone(),
@@ -2267,6 +2268,7 @@ mod test {
                 policy: ep_web,
                 isolation: None,
                 country_code: None,
+                all_relays_stable: true,
             },
             fake_circ.clone(),
             expiration.clone(),
@@ -2277,6 +2279,7 @@ mod test {
                 policy: ep_full,
                 isolation: None,
                 country_code: None,
+                all_relays_stable: true,
             },
             fake_circ,
             expiration,
@@ -2287,6 +2290,7 @@ mod test {
             ports: vec![TargetPort::ipv4(80)],
             isolation: StreamIsolation::no_isolation(),
             country_code: None,
+            require_stability: false,
         };
         let empty: Vec<&mut OpenEntry<SupportedCircUsage, FakeCirc>> = vec![];
 
@@ -2320,10 +2324,12 @@ mod test {
         let usage_preemptive_web = TargetCircUsage::Preemptive {
             port: Some(TargetPort::ipv4(80)),
             circs: 2,
+            require_stability: false,
         };
         let usage_preemptive_dns = TargetCircUsage::Preemptive {
             port: None,
             circs: 2,
+            require_stability: false,
         };
 
         // shouldn't return anything unless there are >=2 circuits

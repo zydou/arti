@@ -1,6 +1,6 @@
 //! Tools for determining what circuits to preemptively build.
 
-use crate::{PreemptiveCircuitConfig, TargetCircUsage, TargetPort};
+use crate::{PathConfig, PreemptiveCircuitConfig, TargetCircUsage, TargetPort};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -53,7 +53,7 @@ impl PreemptiveCircuitPredictor {
     }
 
     /// Make some predictions for what circuits should be built.
-    pub(crate) fn predict(&self) -> Vec<TargetCircUsage> {
+    pub(crate) fn predict(&self, path_config: &PathConfig) -> Vec<TargetCircUsage> {
         let config = self.config();
         let now = Instant::now();
         let circs = config.min_exit_circs_for_port;
@@ -69,7 +69,12 @@ impl PreemptiveCircuitPredictor {
                         false
                     })
             })
-            .map(|(&port, _)| TargetCircUsage::Preemptive { port, circs })
+            .map(|(&port, _)| {
+                let require_stability = port.is_some_and(|p| path_config.long_lived_ports.contains(&p.port));
+                TargetCircUsage::Preemptive {
+                    port, circs, require_stability,
+                }
+            })
             .collect()
     }
 
@@ -98,23 +103,28 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use crate::{PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetCircUsage, TargetPort};
+    use crate::{
+        PathConfig, PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetCircUsage,
+        TargetPort,
+    };
     use std::time::{Duration, Instant};
 
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
 
     #[test]
     fn predicts_starting_ports() {
+        let path_config = PathConfig::default();
         let mut cfg = PreemptiveCircuitConfig::builder();
         cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
         assert_isoleq!(
-            predictor.predict(),
+            predictor.predict(&path_config),
             vec![TargetCircUsage::Preemptive {
                 port: None,
-                circs: 2
+                circs: 2,
+                require_stability: false,
             }]
         );
 
@@ -123,57 +133,64 @@ mod test {
         cfg.prediction_lifetime(Duration::from_secs(2));
         let predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
-        let results = predictor.predict();
+        let results = predictor.predict(&path_config);
         assert_eq!(results.len(), 2);
         assert!(results
             .iter()
             .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
                 port: None,
-                circs: 2
+                circs: 2,
+                require_stability: false,
             })));
         assert!(results
             .iter()
             .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
                 port: Some(TargetPort::ipv4(80)),
-                circs: 2
+                circs: 2,
+                require_stability: false,
             })));
     }
 
     #[test]
     fn predicts_used_ports() {
+        let path_config = PathConfig::default();
         let mut cfg = PreemptiveCircuitConfig::builder();
         cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let mut predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
         assert_isoleq!(
-            predictor.predict(),
+            predictor.predict(&path_config),
             vec![TargetCircUsage::Preemptive {
                 port: None,
-                circs: 2
+                circs: 2,
+                require_stability: false,
             }]
         );
 
         predictor.note_usage(Some(TargetPort::ipv4(1234)), Instant::now());
 
-        let results = predictor.predict();
+        let results = predictor.predict(&path_config);
         assert_eq!(results.len(), 2);
         assert!(results
             .iter()
             .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
                 port: None,
-                circs: 2
+                circs: 2,
+                require_stability: false,
             })));
         assert!(results
             .iter()
             .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
                 port: Some(TargetPort::ipv4(1234)),
-                circs: 2
+                circs: 2,
+                require_stability: false,
             })));
     }
 
     #[test]
     fn does_not_predict_old_ports() {
+        let path_config = PathConfig::default();
         let mut cfg = PreemptiveCircuitConfig::builder();
         cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
@@ -184,10 +201,11 @@ mod test {
         predictor.note_usage(Some(TargetPort::ipv4(2345)), three_seconds_ago);
 
         assert_isoleq!(
-            predictor.predict(),
+            predictor.predict(&path_config),
             vec![TargetCircUsage::Preemptive {
                 port: None,
-                circs: 2
+                circs: 2,
+                require_stability: false,
             }]
         );
     }
