@@ -10,7 +10,7 @@ use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
-use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
+use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
 use tor_hscrypto::time::TimePeriod;
 use tor_persist::slug::Slug;
 
@@ -189,7 +189,7 @@ pub enum InvalidKeyPathComponentValue {
     /// or where the information came from (the context is encoded in the
     /// enclosing [`KeyPathError::InvalidKeyPathComponentValue`] error).
     #[error("{0}")]
-    Slug(&'static str),
+    Slug(String),
 
     /// An internal error.
     ///
@@ -418,7 +418,7 @@ impl KeySpecifierComponent for TimePeriod {
     {
         let s = s.to_string();
         #[allow(clippy::redundant_closure)] // the closure makes things slightly more readable
-        let err_ctx = |s| InvalidKeyPathComponentValue::Slug(s);
+        let err_ctx = |s: &str| InvalidKeyPathComponentValue::Slug(s.to_string());
         let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
         let [interval, len, offset]: [&str; 3] = parts
             .into_inner()
@@ -507,8 +507,7 @@ impl KeySpecifierComponent for HsId {
 
         onion
             .parse()
-            // TODO: the error string should explain what was wrong with the hsid
-            .map_err(|_| InvalidKeyPathComponentValue::Slug("invalid HsId"))
+            .map_err(|e: HsIdParseError| InvalidKeyPathComponentValue::Slug(e.to_string()))
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
