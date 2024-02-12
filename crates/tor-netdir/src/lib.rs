@@ -1845,7 +1845,7 @@ impl<'a> Relay<'a> {
     }
     /// Return true if this relay is a potential HS introduction point
     pub fn is_hs_intro_point(&self) -> bool {
-        self.rs.is_flagged_stable()
+        self.is_flagged_fast() && self.rs.is_flagged_stable()
     }
     /// Return true if this relay is suitable for use as a newly sampled guard,
     /// or for continuing to use as a guard.
