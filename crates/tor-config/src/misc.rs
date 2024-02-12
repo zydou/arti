@@ -18,14 +18,12 @@ use strum::{Display, EnumString, IntoStaticStr};
 /// Boolean, but with additional `"auto"` option
 //
 // This slightly-odd interleaving of derives and attributes stops rustfmt doing a daft thing
-#[derive(Clone, Copy, Hash, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Clone, Copy, Hash, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
 #[derive(Serialize, Deserialize)]
 #[serde(try_from = "BoolOrAutoSerde", into = "BoolOrAutoSerde")]
-#[derive(Educe)]
-#[educe(Default)]
 pub enum BoolOrAuto {
-    #[educe(Default)]
+    #[default]
     /// Automatic
     Auto,
     /// Explicitly specified
@@ -108,15 +106,14 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
 #[serde(try_from = "PaddingLevelSerde", into = "PaddingLevelSerde")]
 #[derive(Display, EnumString, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
-#[derive(Educe)]
-#[educe(Default)]
+#[derive(Default)]
 pub enum PaddingLevel {
     /// Disable padding completely
     None,
     /// Reduced padding (eg for mobile)
     Reduced,
     /// Normal padding (the default)
-    #[educe(Default)]
+    #[default]
     Normal,
 }
 

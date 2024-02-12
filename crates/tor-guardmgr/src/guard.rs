@@ -2,7 +2,6 @@
 
 use tor_basic_utils::retry::RetryDelay;
 
-use educe::Educe;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -25,8 +24,7 @@ use tor_linkspec::{
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Educe)]
-#[educe(Default)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum Reachable {
     /// A guard is believed to be reachable, since we have successfully
@@ -37,7 +35,7 @@ pub(crate) enum Reachable {
     Unreachable,
     /// We have never (during the lifetime of the current guard manager)
     /// tried to connect to this guard.
-    #[educe(Default)]
+    #[default]
     Untried,
     /// The last time that we tried to connect to this guard, it failed,
     /// but enough time has elapsed that we think it is worth trying again.
@@ -72,8 +70,7 @@ impl CrateId {
 }
 
 /// What rule do we use when we're displaying information about a guard?
-#[derive(Clone, Debug, Educe)]
-#[educe(Default)]
+#[derive(Clone, Default, Debug)]
 pub(crate) enum DisplayRule {
     /// The guard is Sensitive; we should display it as "\[scrubbed\]".
     ///
@@ -83,7 +80,7 @@ pub(crate) enum DisplayRule {
     ///
     /// This should not be too much of a hit for UX (we hope), since the user is
     /// not typically expected to work around issues with these guards themself.
-    #[educe(Default)]
+    #[default]
     Sensitive,
     /// The guard should be Redacted; we display it as something like "192.x.x.x
     /// $ab...".

@@ -1,7 +1,6 @@
 //! Functionality for disabling `fs-mistrust` checks based on configuration or
 //! environment variables.
 
-use educe::Educe;
 use std::env::{self, VarError};
 
 /// Convenience type to indicate whether permission checks are disabled.
@@ -29,8 +28,7 @@ pub const GLOBAL_DISABLE_VAR: &str = "FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS";
 
 /// Value to configure when permission checks should be disabled.  This type is
 /// set in the builder, and converted to a bool in the `Mistrust`.
-#[derive(Clone, Debug, Educe, Eq, PartialEq)]
-#[educe(Default)]
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub(crate) enum Disable {
     /// Check a caller-provided environment variable, and honor it if it is set.
     /// If it is not set, fall back to checking
@@ -41,7 +39,7 @@ pub(crate) enum Disable {
     /// "0", "no", etc..
     ///
     /// This is the default.
-    #[educe(Default)]
+    #[default]
     OnGlobalEnvVar,
     /// Perform permissions checks regardless of any values in the environment.
     Never,

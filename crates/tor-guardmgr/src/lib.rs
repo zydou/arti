@@ -46,7 +46,6 @@
 //     confirmed
 //     filtered
 
-use educe::Educe;
 use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use serde::{Deserialize, Serialize};
@@ -217,13 +216,12 @@ struct GuardMgrInner {
 }
 
 /// A selector that tells us which [`GuardSet`] of several is currently in use.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Educe, strum::EnumIter)]
-#[educe(Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, strum::EnumIter)]
 enum GuardSetSelector {
     /// The default guard set is currently in use: that's the one that we use
     /// when we have no filter installed, or the filter permits most of the
     /// guards on the network.
-    #[educe(Default)]
+    #[default]
     Default,
     /// A "restrictive" guard set is currently in use: that's the one that we
     /// use when we have a filter that excludes a large fraction of the guards
@@ -1762,14 +1760,13 @@ impl tor_linkspec::ChanTarget for FirstHop {}
 /// The purpose for which we plan to use a guard.
 ///
 /// This can affect the guard selection algorithm.
-#[derive(Clone, Debug, Eq, PartialEq, Educe)]
-#[educe(Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum GuardUsageKind {
     /// We want to use this guard for a data circuit.
     ///
     /// (This encompasses everything except the `OneHopDirectory` case.)
-    #[educe(Default)]
+    #[default]
     Data,
     /// We want to use this guard for a one-hop, non-anonymous
     /// directory request.

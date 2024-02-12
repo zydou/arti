@@ -2,7 +2,6 @@
 
 use anyhow::{anyhow, Context, Result};
 use derive_builder::Builder;
-use educe::Educe;
 use fs_mistrust::Mistrust;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -120,8 +119,7 @@ pub struct LogfileConfig {
 impl_standard_builder! { LogfileConfig: !Default }
 
 /// How often to rotate a log file
-#[derive(Debug, Clone, Educe, Serialize, Deserialize, Copy, Eq, PartialEq)]
-#[educe(Default)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum LogRotation {
@@ -130,7 +128,7 @@ pub enum LogRotation {
     /// Rotate logs hourly
     Hourly,
     /// Never rotate the log
-    #[educe(Default)]
+    #[default]
     Never,
 }
 

@@ -297,11 +297,10 @@ pub struct DirBootstrapStatus(StatusEnum);
 /// The contents of a DirBootstrapStatus.
 ///
 /// This is a separate type since we don't want to make these variables public.
-#[derive(Clone, Debug, educe::Educe)]
-#[educe(Default)]
+#[derive(Clone, Debug, Default)]
 enum StatusEnum {
     /// There is no active attempt to load or fetch a directory.
-    #[educe(Default)]
+    #[default]
     NoActivity,
     /// We have only one attempt to fetch a directory.
     Single {

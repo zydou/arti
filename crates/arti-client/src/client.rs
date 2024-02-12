@@ -46,7 +46,6 @@ use {
 
 use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 
-use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
 use futures::StreamExt as _;
@@ -182,13 +181,12 @@ pub struct TorClient<R: Runtime> {
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Educe)]
-#[educe(Default)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BootstrapBehavior {
     /// Bootstrap the client automatically when requests are made that require the client to be
     /// bootstrapped.
-    #[educe(Default)]
+    #[default]
     OnDemand,
     /// Make no attempts to automatically bootstrap. [`TorClient::bootstrap`] must be manually
     /// invoked in order for the [`TorClient`] to become useful.
@@ -200,12 +198,11 @@ pub enum BootstrapBehavior {
 }
 
 /// What level of sleep to put a Tor client into.
-#[derive(Debug, Copy, Clone, Educe, PartialEq, Eq)]
-#[educe(Default)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DormantMode {
     /// The client functions as normal, and background tasks run periodically.
-    #[educe(Default)]
+    #[default]
     Normal,
     /// Background tasks are suspended, conserving CPU usage. Attempts to use the client will
     /// wake it back up again.
@@ -238,11 +235,10 @@ pub struct StreamPrefs {
 }
 
 /// Record of how we are isolating connections
-#[derive(Debug, Clone, Educe)]
-#[educe(Default)]
+#[derive(Debug, Default, Clone)]
 enum StreamIsolationPreference {
     /// No additional isolation
-    #[educe(Default)]
+    #[default]
     None,
     /// Isolation parameter to use for connections
     Explicit(Box<dyn Isolation>),
