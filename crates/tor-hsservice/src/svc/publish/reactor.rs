@@ -399,6 +399,10 @@ struct Inner {
     // Currently, if, for some reason, we upload the descriptor multiple times for the same TP,
     // we will end up with multiple ReuploadTimer entries for that TP,
     // each of which will (eventually) result in a reupload.
+    //
+    // TODO: maybe this should just be a HashMap<TimePeriod, Instant>
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1971#note_2994950
     reupload_timers: BinaryHeap<ReuploadTimer>,
 }
 
