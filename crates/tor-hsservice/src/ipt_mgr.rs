@@ -162,6 +162,10 @@ pub(crate) struct State<R, M> {
     /// This can only be caused (or triggered) by a busted netdir or config.
     last_irelay_selection_outcome: Result<(), ()>,
 
+    /// Have we removed any IPTs but not yet cleaned up keys and logfiles?
+    #[educe(Debug(ignore))]
+    ipt_removal_cleanup_needed: bool,
+
     /// Signal for us to shut down
     shutdown: broadcast::Receiver<Void>,
 
@@ -605,6 +609,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             shutdown,
             irelays,
             last_irelay_selection_outcome: Ok(()),
+            ipt_removal_cleanup_needed: false,
             runtime: PhantomData,
         };
         let mgr = IptManager { imm, state };
@@ -887,6 +892,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// it needs at most O(1) calls to progress that one IPT to its proper new state.
     ///
     /// See the performance note on [`run_once()`](Self::run_once).
+    #[allow(clippy::redundant_closure_call)]
     fn idempotently_progress_things_now(&mut self) -> Result<Option<TrackingNow>, FatalError> {
         /// Return value which means "we changed something, please run me again"
         ///
@@ -920,13 +926,22 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // Forget old IPTs (after the last descriptor mentioning them has expired)
         for ir in &mut self.state.irelays {
             // When we drop the Ipt we drop the IptEstablisher, withdrawing the intro point
+            self.state.ipt_removal_cleanup_needed |= (|| {
+                // IEFE prevents a non-local exit that fails to update removal_cleanup_needed
+                // This is the only place in the manager where an IPT is dropped,
+                // other than when the whole service is dropped.
+                let mut all_kept = true;
             ir.ipts.retain(|ipt| {
-                ipt.is_current.is_some()
+                let keep = ipt.is_current.is_some()
                     || match ipt.last_descriptor_expiry_including_slop {
                         None => false,
                         Some(last) => now < last,
-                    }
+                    };
+                all_kept &= keep;
+                keep
             });
+                !all_kept
+            })();
             // No need to return CONTINUE, since there is no other future work implied
             // by discarding a non-current IPT.
         }
