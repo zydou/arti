@@ -9,7 +9,6 @@ use std::iter;
 use std::net;
 use std::num::NonZeroU16;
 
-use educe::Educe;
 use either::Either;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -166,8 +165,7 @@ impl TryFrom<PaddingLevelSerde> for PaddingLevel {
 /// Currently only IP (v6 and v4) is supported.
 #[derive(Clone, Hash, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "ListenSerde", into = "ListenSerde")]
-#[derive(Educe)]
-#[educe(Default)]
+#[derive(Default)]
 pub struct Listen(Vec<ListenItem>);
 
 impl Listen {
