@@ -417,17 +417,14 @@ impl KeySpecifierComponent for TimePeriod {
         Self: Sized,
     {
         let s = s.to_string();
-        let (interval_num, length, offset_in_sec) = (|| {
+        #[allow(clippy::redundant_closure)] // the closure makes things slightly more readable
+        let err_ctx = |s| InvalidKeyPathComponentValue::Slug(s);
             let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
-            let [interval, len, offset]: [&str; 3] = parts.into_inner().ok()?;
+            let [interval, len, offset]: [&str; 3] = parts.into_inner().map_err(|_| err_ctx("invalid number of subcomponents"))?;
 
-            let length = len.parse().ok()?;
-            let interval_num = interval.parse().ok()?;
-            let offset_in_sec = offset.parse().ok()?;
-
-            Some((interval_num, length, offset_in_sec))
-        })()
-        .ok_or(InvalidKeyPathComponentValue::Slug("invalid key denotator"))?;
+            let length = len.parse().map_err(|_| err_ctx("invalid length"))?;
+            let interval_num = interval.parse().map_err(|_| err_ctx("invalid interval_num"))?;
+            let offset_in_sec = offset.parse().map_err(|_| err_ctx("invalid offset_in_sec"))?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
@@ -504,6 +501,7 @@ impl KeySpecifierComponent for HsId {
 
         onion
             .parse()
+            // TODO: the error string should explain what was wrong with the hsid
             .map_err(|_| InvalidKeyPathComponentValue::Slug("invalid HsId"))
     }
 
