@@ -51,6 +51,7 @@
 //! status for reporting fatal errors (crashes).
 
 use std::cmp::max;
+use std::collections::BinaryHeap;
 use std::fmt::Debug;
 use std::iter;
 use std::sync::{Arc, Mutex};
@@ -64,11 +65,12 @@ use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamEx
 use postage::sink::SendError;
 use postage::{broadcast, watch};
 use tor_basic_utils::retry::RetryDelay;
+use tor_basic_utils::RngExt;
 use tor_hscrypto::ope::AesOpeKey;
 use tor_hscrypto::RevisionCounter;
 use tor_keymgr::{KeyMgr, KeySpecifier};
 use tor_llcrypto::pk::ed25519;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_dirclient::request::HsDescUploadRequest;
@@ -92,6 +94,7 @@ use crate::status::{PublisherStatusSender, State};
 use crate::svc::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use crate::svc::publish::reupload_timer::ReuploadTimer;
 use crate::svc::ShutdownStatus;
 use crate::timeout_track::TrackingNow;
 use crate::{
@@ -388,6 +391,19 @@ struct Inner {
     /// used for retrying failed uploads (these are handled internally by
     /// [`Reactor::upload_descriptor_with_retries`]).
     last_uploaded: Option<Instant>,
+    /// A max-heap containing the time periods for which we need to reupload the descriptor.
+    // TODO: we are currently reuploading more than nececessary.
+    // Ideally, this shouldn't contain contain duplicate TimePeriods,
+    // because we only need to retain the latest reupload time for each time period.
+    //
+    // Currently, if, for some reason, we upload the descriptor multiple times for the same TP,
+    // we will end up with multiple ReuploadTimer entries for that TP,
+    // each of which will (eventually) result in a reupload.
+    //
+    // TODO: maybe this should just be a HashMap<TimePeriod, Instant>
+    //
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1971#note_2994950
+    reupload_timers: BinaryHeap<ReuploadTimer>,
 }
 
 /// The part of the reactor state that changes with every time period.
@@ -570,6 +586,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             config,
             netdir: None,
             last_uploaded: None,
+            reupload_timers: Default::default(),
         };
 
         Self {
@@ -647,6 +664,39 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
         }
 
+        let reupload_tracking = TrackingNow::now(&self.imm.runtime);
+        let mut reupload_periods = vec![];
+        {
+            let mut inner = self.inner.lock().expect("poisoned lock");
+            let inner = &mut *inner;
+            while let Some(reupload) = inner.reupload_timers.peek().copied() {
+                // First, extract all the timeouts that already elapsed.
+                if reupload.when <= reupload_tracking {
+                    inner.reupload_timers.pop();
+                    reupload_periods.push(reupload.period);
+                } else {
+                    // We are not ready to schedule any more reuploads.
+                    //
+                    // How much we need to sleep is implicitly
+                    // tracked in reupload_tracking (through
+                    // the TrackingNow implementation)
+                    break;
+                }
+            }
+        }
+
+        // Check if it's time to schedule any reuploads.
+        for period in reupload_periods {
+            if self.mark_dirty(&period) {
+                debug!(
+                    time_period=?period,
+                    "descriptor reupload timer elapsed; scheduling reupload",
+                );
+                self.update_publish_status_unless_rate_lim(PublishStatus::UploadScheduled)
+                    .await?;
+            }
+        }
+
         select_biased! {
             res = self.upload_task_complete_rx.next().fuse() => {
                 let Some(upload_res) = res else {
@@ -657,6 +707,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             },
             () = upload_rate_lim.wait_for_earliest(&self.imm.runtime).fuse() => {
                 self.expire_rate_limit().await?;
+            },
+            () = reupload_tracking.wait_for_earliest(&self.imm.runtime).fuse() => {
+                // Run another iteration, executing run_once again. This time, we will remove the
+                // expired reupload from self.reupload_timers, mark the descriptor dirty for all
+                // relevant HsDirs, and schedule the upload by setting our status to
+                // UploadScheduled.
+                return Ok(ShutdownStatus::Continue);
             },
             netidr_event = netdir_events.next().fuse() => {
                 // The consensus changed. Grab a new NetDir.
@@ -726,6 +783,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// possibly updating the status of the descriptor for the corresponding HSDirs.
     fn handle_upload_results(&self, results: TimePeriodUploadResult) {
         let mut inner = self.inner.lock().expect("poisoned lock");
+        let inner = &mut *inner;
 
         // Check which time period these uploads pertain to.
         let period = inner
@@ -738,6 +796,28 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             // can ignore the result.
             return;
         };
+
+        // We will need to reupload this descriptor at at some point, so we pick
+        // a random time between 60 minutes and 120 minutes in the future.
+        //
+        // See https://spec.torproject.org/rend-spec/deriving-keys.html#WHEN-HSDESC
+        let mut rng = self.imm.mockable.thread_rng();
+        // TODO SPEC: Control republish period using a consensus parameter?
+        let minutes = rng.gen_range_checked(60..=120).expect("low > high?!");
+        let duration = Duration::from_secs(minutes * 60);
+        let reupload_when = self.imm.runtime.now() + duration;
+        let time_period = period.params.time_period();
+
+        info!(
+            time_period=?time_period,
+            "reuploading descriptor in {}",
+            humantime::format_duration(duration),
+        );
+
+        inner.reupload_timers.push(ReuploadTimer {
+            period: time_period,
+            when: reupload_when,
+        });
 
         for upload_res in results.hsdir_result {
             let relay = period
@@ -1026,6 +1106,26 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .time_periods
             .iter_mut()
             .for_each(|tp| tp.mark_all_dirty());
+    }
+
+    /// Mark the descriptor dirty for the specified time period.
+    ///
+    /// Returns `true` if the specified period is still relevant, and `false` otherwise.
+    fn mark_dirty(&self, period: &TimePeriod) -> bool {
+        let mut inner = self.inner.lock().expect("poisoned lock");
+        let period_ctx = inner
+            .time_periods
+            .iter_mut()
+            .find(|tp| tp.params.time_period() == *period);
+
+        match period_ctx {
+            Some(ctx) => {
+                trace!(time_period=?period, "marking the descriptor dirty");
+                ctx.mark_all_dirty();
+                true
+            }
+            None => false,
+        }
     }
 
     /// Try to upload our descriptor to the HsDirs that need it.
