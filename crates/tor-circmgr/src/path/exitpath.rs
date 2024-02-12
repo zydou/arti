@@ -58,6 +58,8 @@ pub struct ExitPathBuilder<'a> {
     inner: ExitPathBuilderInner<'a>,
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
     compatible_with: Option<OwnedChanTarget>,
+    /// If true, all relays on this path must be Stable.
+    require_stability: bool,
 }
 
 impl<'a> ExitPathBuilder<'a> {
@@ -73,6 +75,7 @@ impl<'a> ExitPathBuilder<'a> {
         Self {
             inner: ExitPathBuilderInner::WantsPorts(ports),
             compatible_with: None,
+            require_stability: true,
         }
     }
 
@@ -91,6 +94,7 @@ impl<'a> ExitPathBuilder<'a> {
         Self {
             inner: ExitPathBuilderInner::ExitInCountry { country, ports },
             compatible_with: None,
+            require_stability: true,
         }
     }
 
@@ -100,6 +104,7 @@ impl<'a> ExitPathBuilder<'a> {
         Self {
             inner: ExitPathBuilderInner::ChosenExit(exit_relay),
             compatible_with: None,
+            require_stability: true,
         }
     }
 
@@ -108,6 +113,7 @@ impl<'a> ExitPathBuilder<'a> {
         Self {
             inner: ExitPathBuilderInner::AnyExit { strict: true },
             compatible_with: None,
+            require_stability: false,
         }
     }
 
@@ -126,6 +132,7 @@ impl<'a> ExitPathBuilder<'a> {
         Self {
             inner: ExitPathBuilderInner::AnyRelay,
             compatible_with,
+            require_stability: true,
         }
     }
 
@@ -135,7 +142,15 @@ impl<'a> ExitPathBuilder<'a> {
         Self {
             inner: ExitPathBuilderInner::AnyExit { strict: false },
             compatible_with: None,
+            require_stability: false,
         }
+    }
+
+    /// Indicate that middle and exit relays on this circuit need (or do not
+    /// need) to have the Stable flag.
+    pub(crate) fn require_stability(&mut self, require_stability: bool) -> &mut Self {
+        self.require_stability = require_stability;
+        self
     }
 
     /// Find a suitable exit node from either the chosen exit or from the network directory.
@@ -154,6 +169,7 @@ impl<'a> ExitPathBuilder<'a> {
             ExitPathBuilderInner::AnyExit { strict } => {
                 let exit = netdir.pick_relay(rng, WeightRole::Exit, |r| {
                     r.is_flagged_fast()
+                        && (!self.require_stability || r.is_flagged_stable())
                         && can_share.count(r.policies_allow_some_port())
                         && correct_ports.count(relays_can_share_circuit_opt(r, guard, config))
                 });
@@ -181,6 +197,7 @@ impl<'a> ExitPathBuilder<'a> {
                 netdir
                     .pick_relay(rng, WeightRole::Exit, |r| {
                         r.is_flagged_fast()
+                            && (!self.require_stability || r.is_flagged_stable())
                             && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                     })
                     .ok_or(Error::NoExit {
@@ -193,6 +210,7 @@ impl<'a> ExitPathBuilder<'a> {
             ExitPathBuilderInner::ExitInCountry { country, ports } => Ok(netdir
                 .pick_relay(rng, WeightRole::Exit, |r| {
                     r.is_flagged_fast()
+                        && (!self.require_stability || r.is_flagged_stable())
                         && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                         && correct_ports.count(ports.iter().all(|p| p.is_supported_by(r)))
                         && correct_country
@@ -208,6 +226,7 @@ impl<'a> ExitPathBuilder<'a> {
             ExitPathBuilderInner::AnyRelay => netdir
                 .pick_relay(rng, WeightRole::Middle, |r| {
                     r.is_flagged_fast()
+                        && (!self.require_stability || r.is_flagged_stable())
                         && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                 })
                 .ok_or(Error::NoExit {
@@ -219,6 +238,7 @@ impl<'a> ExitPathBuilder<'a> {
             ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
                 .pick_relay(rng, WeightRole::Exit, |r| {
                     r.is_flagged_fast()
+                        && (!self.require_stability || r.is_flagged_stable())
                         && can_share.count(relays_can_share_circuit_opt(r, guard, config))
                         && correct_ports.count(wantports.iter().all(|p| p.is_supported_by(r)))
                 })
@@ -353,6 +373,7 @@ impl<'a> ExitPathBuilder<'a> {
         let middle = netdir
             .pick_relay(rng, WeightRole::Middle, |r| {
                 r.is_flagged_fast()
+                    && (!self.require_stability || r.is_flagged_stable())
                     && can_share.count(
                         relays_can_share_circuit(r, &exit, subnet_config)
                             && relays_can_share_circuit(r, &guard, subnet_config),

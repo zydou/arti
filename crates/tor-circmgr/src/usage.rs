@@ -254,8 +254,11 @@ impl TargetCircUsage {
                 Ok((path, SupportedCircUsage::Dir, mon, usable))
             }
             TargetCircUsage::Preemptive { port, .. } => {
+                let require_stability =
+                    port.is_some_and(|p| config.long_lived_ports.contains(&p.port));
                 // FIXME(eta): this is copypasta from `TargetCircUsage::Exit`.
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(port.iter().copied())
+                    .require_stability(require_stability)
                     .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
                     .exit_policy()
@@ -281,14 +284,19 @@ impl TargetCircUsage {
                 isolation,
                 country_code,
             } => {
+                let require_stability = p
+                    .iter()
+                    .any(|port| config.long_lived_ports.contains(&port.port));
                 #[cfg(feature = "geoip")]
-                let builder = if let Some(cc) = country_code {
+                let mut builder = if let Some(cc) = country_code {
                     ExitPathBuilder::in_given_country(*cc, p.clone())
                 } else {
                     ExitPathBuilder::from_target_ports(p.clone())
                 };
                 #[cfg(not(feature = "geoip"))]
-                let builder = ExitPathBuilder::from_target_ports(p.clone());
+                let mut builder = ExitPathBuilder::from_target_ports(p.clone());
+
+                builder.require_stability(require_stability);
 
                 let (path, mon, usable) = builder.pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
@@ -321,6 +329,7 @@ impl TargetCircUsage {
             }
             TargetCircUsage::TimeoutTesting => {
                 let (path, mon, usable) = ExitPathBuilder::for_timeout_testing()
+                    .require_stability(false)
                     .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path.exit_policy();
                 #[cfg(feature = "geoip")]
@@ -350,6 +359,7 @@ impl TargetCircUsage {
             } => {
                 let (path, mon, usable) =
                     ExitPathBuilder::for_any_compatible_with(compatible_with_target.clone())
+                        .require_stability(true)
                         .pick_path(rng, netdir, guards, config, now)?;
                 let usage = SupportedCircUsage::HsOnly;
                 Ok((path, usage, mon, usable))
