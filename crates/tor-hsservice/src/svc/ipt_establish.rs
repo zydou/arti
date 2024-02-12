@@ -723,7 +723,9 @@ impl<R: Runtime> Reactor<R> {
     /// point there.
     ///
     /// Does not retry.  Does not time out except via `HsCircPool`.
-    async fn establish_intro_once(&self) -> Result<(IntroPtSession, GoodIptDetails), IptEstablisherError> {
+    async fn establish_intro_once(
+        &self,
+    ) -> Result<(IntroPtSession, GoodIptDetails), IptEstablisherError> {
         let (protovers, circuit, ipt_details) = {
             let netdir = wait_for_netdir(
                 self.netdir_provider.as_ref(),
@@ -879,7 +881,8 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                 let _ = tx.send(Err(IptError::BadMessage(format!(
                     "Invalid message type {}",
                     m.cmd()
-                )).into()));
+                ))
+                .into()));
             }
             // TODO: It's not completely clear whether CircProto is the right
             // type for use in this function (here and elsewhere);
@@ -914,7 +917,8 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                 if let Some(tx) = self.established_tx.take() {
                     let _ = tx.send(Err(IptError::BadMessage(
                         "INTRODUCE2 message without INTRO_ESTABLISHED.".to_string(),
-                    ).into()));
+                    )
+                    .into()));
                     return Err(tor_proto::Error::CircProto(
                         "Received an INTRODUCE2 message before INTRO_ESTABLISHED".into(),
                     ));
