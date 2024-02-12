@@ -6,7 +6,7 @@
 //! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::io;
@@ -34,16 +34,18 @@ use void::Void;
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{error_report, info_report};
-use tor_error::{internal, into_internal, Bug, ErrorKind, HasKind};
+use tor_error::{internal, into_internal, Bug, ErrorKind, ErrorReport as _, HasKind};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
+use tor_keymgr::KeySpecifierPattern as _;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
+use tor_log_ratelim::log_ratelim;
 use tor_netdir::NetDirProvider;
 use tor_persist::state_dir::ContainsInstanceStateGuard as _;
 use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
-use crate::keys::{IptKeyRole, IptKeySpecifier};
+use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
 use crate::status::IptMgrStatusSender;
 use crate::svc::{ipt_establish, ShutdownStatus};
@@ -1384,6 +1386,76 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(ipt_set::IptSet { ipts, lifetime })
     }
 
+    /// Scan persistent state, and delete any that doesn't correspond to current IPTs
+    ///
+    /// Does *not* handle deletion of data handled via storage handles
+    /// (`state_dir::StorageHandle`), `ipt_mgr/persist.rs` etc.;
+    /// those are one file for each service, so old data is removed as we rewrite them.
+    ///
+    /// Does *not* handle deletion of entire old hidden services.
+    fn expire_old_ipts_external_persistent_state(
+        &self,
+    ) -> Result<(), impl tor_error::HasKind + std::error::Error + Clone + 'static> {
+        /// Error occurring in this function
+        #[derive(Error, Clone, Debug)]
+        enum ExpiryError {
+            /// Key expiry failed
+            #[error("key(s)")]
+            Key(#[from] tor_keymgr::Error),
+            /// Internal error
+            #[error("internal error")]
+            Bug(#[from] Bug),
+        }
+        impl HasKind for ExpiryError {
+            fn kind(&self) -> ErrorKind {
+                use ExpiryError as EE;
+                match self {
+                    EE::Key(e) => e.kind(),
+                    EE::Bug(e) => e.kind(),
+                }
+            }
+        }
+
+        let current_ipts: HashSet<&'_ IptLocalId> = self
+            .state
+            .irelays
+            .iter()
+            .flat_map(|ir| &ir.ipts)
+            .map(|ipt| &ipt.lid)
+            .collect();
+
+        // Keys
+
+        let pat = IptKeySpecifierPattern {
+            nick: Some(self.imm.nick.clone()),
+            role: None,
+            lid: None,
+        }
+        .arti_pattern()?;
+
+        let found = self.imm.keymgr.list_matching(&pat)?;
+
+        for (path, ty) in found {
+            match IptKeySpecifier::try_from(&path) {
+                Ok(spec) if current_ipts.contains(&spec.lid) => continue,
+                Ok(_) => trace!("deleting key for old IPT: {path}"),
+                Err(bad) => info!("deleting unrecognised IPT key: {path} ({})", bad.report()),
+            };
+            self.imm.keymgr.remove_with_type(
+                &path,
+                &ty,
+                // TODO #1271 we should remove precisely the thing we just found
+                tor_keymgr::KeystoreSelector::Default,
+            )?;
+        }
+
+        // IPT replay logs
+
+        // XXXX
+
+        Ok::<_, ExpiryError>(())
+    }
+
     /// Run one iteration of the loop
     ///
     /// Either do some work, making changes to our state,
@@ -1466,6 +1538,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             self.expire_old_expiry_times(&mut publish_set, &now);
 
             drop(publish_set); // release lock, and notify publisher of any changes
+
+            if self.state.ipt_removal_cleanup_needed {
+                let outcome = self.expire_old_ipts_external_persistent_state();
+                log_ratelim!("removing state for old IPT(s)"; outcome);
+                match outcome {
+                    Ok(()) => self.state.ipt_removal_cleanup_needed = false,
+                    Err(_already_logged) => {}
+                }
+            }
 
             now
         };
