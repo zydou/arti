@@ -671,7 +671,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     inner.reupload_timers.pop();
                     reupload_periods.push(reupload.period);
                 } else {
-                    // We are not ready schedule any more reuploads.
+                    // We are not ready to schedule any more reuploads.
                     //
                     // How much we need to sleep is implicitly
                     // tracked in reupload_tracking (through
