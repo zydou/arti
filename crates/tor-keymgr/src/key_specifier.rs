@@ -181,6 +181,13 @@ pub enum KeyPathError {
 #[non_exhaustive]
 pub enum InvalidKeyPathComponentValue {
     /// Found an invalid slug.
+    ///
+    /// The inner string should be a description of what is wrong with the slug.
+    /// It should not say that the keystore was corrupted,
+    /// (keystore corruption errors are reported using higher level
+    /// [`KeystoreCorruptionError`s](crate::KeystoreCorruptionError)),
+    /// or where the information came from (the context is encoded in the
+    /// enclosing [`KeyPathError::InvalidKeyPathComponentValue`] error).
     #[error("{0}")]
     Slug(&'static str),
 
