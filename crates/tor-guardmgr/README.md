@@ -83,7 +83,7 @@ below) and comments and internal documentation in this crate.
 
 ## References
 
-Guard nodes were first proposes (as "helper nodes") in "Defending
+Guard nodes were first proposed (as "helper nodes") in "Defending
 Anonymous Communications Against Passive Logging Attacks" by
 Matthew Wright, Micah Adler, Brian N. Levine, and Clay Shields in
 the Proceedings of the 2003 IEEE Symposium on Security and
