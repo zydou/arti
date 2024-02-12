@@ -328,7 +328,7 @@ impl<'a> ExitPathBuilder<'a> {
                             r,
                             chosen_exit.as_ref(),
                             subnet_config,
-                        )) && correct_usage.count(r.is_flagged_guard())
+                        )) && correct_usage.count(r.is_suitable_as_guard())
                     })
                     .ok_or(Error::NoPath {
                         role: "entry relay",

@@ -1847,6 +1847,11 @@ impl<'a> Relay<'a> {
     pub fn is_hs_intro_point(&self) -> bool {
         self.rs.is_flagged_stable()
     }
+    /// Return true if this relay is suitable for use as a newly sampled guard,
+    /// or for continuing to use as a guard.
+    pub fn is_suitable_as_guard(&self) -> bool {
+        self.is_flagged_guard() && self.is_flagged_fast() && self.is_flagged_stable()
+    }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
     ///
