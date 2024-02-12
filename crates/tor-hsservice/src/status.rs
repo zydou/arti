@@ -90,7 +90,7 @@ pub enum State {
     ///
     /// ## Reachability
     ///
-    /// The service is not reachable.
+    /// The service is not fully reachable, but may be reachable by some clients.
     Bootstrapping,
     /// The service is running in a degraded state.
     ///
@@ -112,7 +112,7 @@ pub enum State {
     ///
     /// ## Reachability
     ///
-    /// The service is reachable.
+    /// The service is believed to be fully reachable.
     Running,
     /// The service is trying to recover from a minor interruption.
     ///
