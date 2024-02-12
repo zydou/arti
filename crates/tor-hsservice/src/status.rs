@@ -124,17 +124,16 @@ pub enum State {
     ///
     /// ## Reachability
     ///
-    /// The service may or may not be reachable.
+    /// The service is unlikely to be reachable.
     ///
-    /// It will be unreachable if it has not:
-    ///   * established any introduction points; or
-    ///   * published its descriptor to any HsDirs
-    ///
-    /// It will be intermittently reachable by clients, if the descriptor
-    /// was published to some (but not all) necessary HsDirs.
-    ///
-    /// It will be reachable by some (but not all) clients, if the descriptor
-    /// was only published to a subset of the necessary HsDir rings.
+    //
+    // NOTE: this status is currently only set by `IptManager` whenever:
+    //   * there are no good IPTs (so the service will be unreachable); or
+    //   * there aren't enough good IPTs to publish (AFAICT in this case the service
+    //   may be reachable, if the IPTs we _do_ have are have previously been published).
+    //
+    // TODO (#1270): split this state into 2 different states (one for the "service is
+    // still reachable" case, and another for the "unreachable" one).
     Recovering,
     /// The service is not working.
     ///
