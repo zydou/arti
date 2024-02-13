@@ -1405,10 +1405,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .mockable
             .expire_old_ipts_external_persistent_state_hook();
 
-        let all_ipts: HashSet<_> = self
-            .all_ipts()
-            .map(|(_, ipt)| &ipt.lid)
-            .collect();
+        let all_ipts: HashSet<_> = self.all_ipts().map(|(_, ipt)| &ipt.lid).collect();
 
         // Keys
 
