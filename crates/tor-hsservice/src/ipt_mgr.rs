@@ -637,7 +637,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(())
     }
 
-    /// Iterate over the current IPTs
+    /// Iterate over *all* the IPTs we know about
+    ///
+    /// Yields each `IptRelay` at most once.
+    fn all_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
+        self.state
+            .irelays
+            .iter()
+            .flat_map(|ir| ir.ipts.iter().map(move |ipt| (ir, ipt)))
+    }
+
+    /// Iterate over the *current* IPTs
     ///
     /// Yields each `IptRelay` at most once.
     fn current_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
@@ -647,7 +657,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .filter_map(|ir| Some((ir, ir.current_ipt()?)))
     }
 
-    /// Iterate over the current IPTs in `Good` state
+    /// Iterate over the *current* IPTs in `Good` state
     fn good_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
         self.current_ipts().filter(|(_ir, ipt)| ipt.is_good())
     }
@@ -1395,12 +1405,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .mockable
             .expire_old_ipts_external_persistent_state_hook();
 
-        let all_ipts: HashSet<&'_ IptLocalId> = self
-            .state
-            .irelays
-            .iter()
-            .flat_map(|ir| &ir.ipts)
-            .map(|ipt| &ipt.lid)
+        let all_ipts: HashSet<_> = self
+            .all_ipts()
+            .map(|(_, ipt)| &ipt.lid)
             .collect();
 
         // Keys
