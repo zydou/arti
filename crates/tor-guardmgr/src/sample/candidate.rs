@@ -130,7 +130,7 @@ impl Universe for NetDir {
         // universe we're willing to add.
         let maximum_weight = {
             let total_weight = self.total_weight(tor_netdir::WeightRole::Guard, |r| {
-                r.is_flagged_guard() && r.is_dir_cache()
+                r.is_suitable_as_guard() && r.is_dir_cache()
             });
             total_weight
                 .ratio(params.max_sample_bw_fraction)

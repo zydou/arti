@@ -1779,6 +1779,11 @@ impl<'a> UncheckedRelay<'a> {
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
+    /// Return true if this relay is suitable for use as a newly sampled guard,
+    /// or for continuing to use as a guard.
+    pub fn is_suitable_as_guard(&self) -> bool {
+        self.rs.is_flagged_guard() && self.rs.is_flagged_fast() && self.rs.is_flagged_stable()
+    }
     /// Return true if this relay is a potential directory cache.
     pub fn is_dir_cache(&self) -> bool {
         rs_is_dir_cache(self.rs)
