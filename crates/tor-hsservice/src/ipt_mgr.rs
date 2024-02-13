@@ -635,6 +635,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             &publisher.borrow_for_read(),
         )?;
 
+        // Now that we've populated `irelays` and its `ipts` from the on-disk state,
+        // we should check any leftover disk files from previous runs.  Make a note.
+        self.state.ipt_removal_cleanup_needed = true;
+
         let runtime = self.imm.runtime.clone();
         // This task will shut down when the RunningOnionService is dropped, causing
         // self.state.shutdown to become ready.
