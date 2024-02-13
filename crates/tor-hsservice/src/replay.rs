@@ -275,7 +275,7 @@ impl ReplayLog {
     pub(crate) fn parse_log_leafname(
         leaf: &OsStr,
     ) -> Result<(IptLocalId, &str), Cow<'static, str>> {
-        let leaf = leaf.to_str().ok_or("not UTF-8")?;
+        let leaf = leaf.to_str().ok_or("not proper unicode")?;
         let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
         let lid: IptLocalId = lid
             .parse()
