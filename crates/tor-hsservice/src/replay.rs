@@ -105,12 +105,10 @@ impl ReplayLog {
         let path = dir.as_path().join(leaf);
         let lock_guard = dir.raw_lock_guard();
 
-        Self::new_logged_inner(&path, lock_guard).map_err(
-            |error| CreateIptError::OpenReplayLog {
-                file: path,
-                error: error.into(),
-            },
-        )
+        Self::new_logged_inner(&path, lock_guard).map_err(|error| CreateIptError::OpenReplayLog {
+            file: path,
+            error: error.into(),
+        })
     }
 
     /// Inner function for `new_logged`, with reified arguments and raw error type
@@ -495,10 +493,7 @@ mod test {
         // Truncate the file by 7 bytes.
         dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
             let path = dir.join(format!("hss/allium/iptreplay/{}.bin", IptLocalId::dummy(1)));
-            let file = OpenOptions::new()
-                .write(true)
-                .open(path)
-                .unwrap();
+            let file = OpenOptions::new().write(true).open(path).unwrap();
             // Make sure that the file has the length we expect.
             let expected_len = MAGIC.len() + HASH_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
