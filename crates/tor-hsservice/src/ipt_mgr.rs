@@ -1398,8 +1398,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// See the comment in [`IptManager::import_new_expiry_times`].
     /// If that invariant is violated, we would delete on-disk files for the affected IPTs.
     /// That's fine since we couldn't re-establish them anyway.)
-    #[allow(clippy::blocks_in_conditions)]
-    #[allow(clippy::cognitive_complexity)] // TODO HSS improve this in followup MR
+    #[allow(clippy::cognitive_complexity)] // Splitting this up would make it worse
     fn expire_old_ipts_external_persistent_state(&self) -> Result<(), StateExpiryError> {
         self.state
             .mockable
