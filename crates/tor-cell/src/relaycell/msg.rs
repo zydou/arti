@@ -284,6 +284,8 @@ impl Body for Begin {
 #[derive(Debug, Clone)]
 pub struct Data {
     /// Contents of the cell, to be sent on a specific stream
+    ///
+    /// INVARIANT: Holds between 1 and [`Data::MAXLEN`] bytes, inclusive.
     //
     // TODO: There's a good case to be made that this should be a BoxedCellBody
     // instead, to avoid allocations and copies.  But first probably we should
@@ -303,6 +305,9 @@ impl Data {
         if inp.len() > Data::MAXLEN {
             return Err(crate::Error::CantEncode("Data message too long"));
         }
+        if inp.is_empty() {
+            return Err(crate::Error::CantEncode("Empty data message"));
+        }
         Ok(Self::new_unchecked(inp.into()))
     }
 
@@ -311,17 +316,37 @@ impl Data {
     ///
     /// Return the data cell, and a slice holding any bytes that
     /// wouldn't fit (if any).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `inp` is empty.
+    #[deprecated(since = "0.16.1", note = "Use try_split_from instead.")]
     pub fn split_from(inp: &[u8]) -> (Self, &[u8]) {
+        Self::try_split_from(inp).expect("Tried to split a Data message from an empty input.")
+    }
+
+    /// Construct a new data cell, taking as many bytes from `inp`
+    /// as possible.
+    ///
+    /// Return the data cell, and a slice holding any bytes that
+    /// wouldn't fit (if any).
+    ///
+    /// Returns None if the input was empty.
+    pub fn try_split_from(inp: &[u8]) -> Option<(Self, &[u8])> {
+        if inp.is_empty() {
+            return None;
+        }
         let len = std::cmp::min(inp.len(), Data::MAXLEN);
         let (data, remainder) = inp.split_at(len);
-        (Self::new_unchecked(data.into()), remainder)
+        Some((Self::new_unchecked(data.into()), remainder))
     }
 
     /// Construct a new data cell from a provided vector of bytes.
     ///
-    /// The vector _must_ not have more than [`Data::MAXLEN`] bytes.
+    /// The vector _must_ not have more than [`Data::MAXLEN`] bytes, and must
+    /// not be empty.
     fn new_unchecked(body: Vec<u8>) -> Self {
-        debug_assert!(body.len() <= Data::MAXLEN);
+        debug_assert!((1..=Data::MAXLEN).contains(&body.len()));
         Data { body }
     }
 }
