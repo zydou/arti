@@ -928,22 +928,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         // Forget old IPTs (after the last descriptor mentioning them has expired)
         for ir in &mut self.state.irelays {
             // When we drop the Ipt we drop the IptEstablisher, withdrawing the intro point
-            self.state.ipt_removal_cleanup_needed |= (|| {
-                // IEFE prevents a non-local exit that fails to update removal_cleanup_needed
+            ir.ipts.retain(|ipt| {
+                let keep = ipt.is_current.is_some()
+                    || match ipt.last_descriptor_expiry_including_slop {
+                        None => false,
+                        Some(last) => now < last,
+                    };
                 // This is the only place in the manager where an IPT is dropped,
                 // other than when the whole service is dropped.
-                let mut all_kept = true;
-                ir.ipts.retain(|ipt| {
-                    let keep = ipt.is_current.is_some()
-                        || match ipt.last_descriptor_expiry_including_slop {
-                            None => false,
-                            Some(last) => now < last,
-                        };
-                    all_kept &= keep;
-                    keep
-                });
-                !all_kept
-            })();
+                self.state.ipt_removal_cleanup_needed |= !keep;
+                keep
+            });
             // No need to return CONTINUE, since there is no other future work implied
             // by discarding a non-current IPT.
         }
