@@ -1325,7 +1325,9 @@ impl NetDir {
     /// Return the estimated fraction of possible paths that we have
     /// enough microdescriptors to build.
     fn frac_usable_paths(&self) -> f64 {
-        let f_g = self.frac_for_role(WeightRole::Guard, |u| u.rs.is_flagged_guard());
+        // TODO #504, TODO SPEC: We may want to add a set of is_flagged_fast() and/or
+        // is_flagged_stable() checks here.  This will require spec clarification.
+        let f_g = self.frac_for_role(WeightRole::Guard, |u| u.is_suitable_as_guard());
         let f_m = self.frac_for_role(WeightRole::Middle, |_| true);
         let f_e = if self.all_relays().any(|u| u.rs.is_flagged_exit()) {
             self.frac_for_role(WeightRole::Exit, |u| u.rs.is_flagged_exit())
