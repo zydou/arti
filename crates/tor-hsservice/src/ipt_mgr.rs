@@ -1393,6 +1393,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Does *not* deal with deletion of entire old hidden services.
     ///
+    /// (This function works on the basis of the invariant that every IPT
+    /// in [`ipt_set::PublishIptSet`] is also an [`Ipt`] in [`ipt_mgr::State`](State).
+    /// See the comment in [`IptManager::import_new_expiry_times`].
+    /// If that invariant is violated, we would delete on-disk files for the affected IPTs.
+    /// That's fine since we couldn't re-establish them anyway.)
+    ///
     /// All that happens with errors from this function is that they are logged
     /// (with a rate limit).
     #[allow(clippy::blocks_in_conditions)]
