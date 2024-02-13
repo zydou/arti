@@ -1381,13 +1381,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(ipt_set::IptSet { ipts, lifetime })
     }
 
-    /// Scan persistent state, and delete any that doesn't correspond to current IPTs
+    /// Delete persistent on-disk data (including keys) for old IPTs
     ///
-    /// Does *not* handle deletion of data handled via storage handles
+    /// More precisely, scan places where per-IPT data files live,
+    /// and delete anything that doesn't correspond to
+    /// one of the IPTs in our main in-memory data structure.
+    ///
+    /// Does *not* deal with deletion of data handled via storage handles
     /// (`state_dir::StorageHandle`), `ipt_mgr/persist.rs` etc.;
     /// those are one file for each service, so old data is removed as we rewrite them.
     ///
-    /// Does *not* handle deletion of entire old hidden services.
+    /// Does *not* deal with deletion of entire old hidden services.
     ///
     /// All that happens with errors from this function is that they are logged
     /// (with a rate limit).
