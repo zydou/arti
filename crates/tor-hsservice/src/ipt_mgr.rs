@@ -1442,6 +1442,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             }
         }
 
+        self.state
+            .mockable
+            .expire_old_ipts_external_persistent_state_hook();
+
         let current_ipts: HashSet<&'_ IptLocalId> = self
             .state
             .irelays
@@ -1750,6 +1754,13 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
 
     /// Call `IptEstablisher::start_accepting`
     fn start_accepting(&self, establisher: &ErasedIptEstablisher);
+
+    /// Allow tests to see when [`IptManager::expire_old_ipts_external_persistent_state`]
+    /// is called.
+    ///
+    /// This lets tests see that it gets called at the right times,
+    /// and not the wrong ones.
+    fn expire_old_ipts_external_persistent_state_hook(&self);
 }
 
 impl<R: Runtime> Mockable<R> for Real<R> {
@@ -1776,6 +1787,8 @@ impl<R: Runtime> Mockable<R> for Real<R> {
             .expect("upcast failure, ErasedIptEstablisher is not IptEstablisher!");
         establisher.start_accepting();
     }
+
+    fn expire_old_ipts_external_persistent_state_hook(&self) {}
 }
 
 // TODO #1213 add more unit tests for IptManager
@@ -1827,6 +1840,7 @@ mod test {
     struct Mocks {
         rng: TestingRng,
         estabs: MockEstabs,
+        expect_expire_ipts_calls: Arc<Mutex<usize>>,
     }
 
     #[derive(Debug)]
@@ -1865,6 +1879,12 @@ mod test {
         }
 
         fn start_accepting(&self, _establisher: &ErasedIptEstablisher) {}
+
+        fn expire_old_ipts_external_persistent_state_hook(&self) {
+            let mut expect = self.expect_expire_ipts_calls.lock().unwrap();
+            eprintln!("expire_old_ipts_external_persistent_state_hook, expect={expect}");
+            *expect = expect.checked_sub(1).expect("unexpected expiry");
+        }
     }
 
     impl Drop for MockEstab {
@@ -1884,6 +1904,7 @@ mod test {
         cfg_tx: watch::Sender<Arc<OnionServiceConfig>>,
         #[allow(dead_code)] // ensures temp dir lifetime; paths stored in self
         temp_dir: &'d TestTempDir,
+        expect_expire_ipts_calls: Arc<Mutex<usize>>, // use usize::MAX to not mind
     }
 
     impl<'d> MockedIptManager<'d> {
@@ -1906,10 +1927,12 @@ mod test {
             let (shut_tx, shut_rx) = broadcast::channel::<Void>(0);
 
             let estabs: MockEstabs = Default::default();
+            let expect_expire_ipts_calls = Arc::new(Mutex::new(usize::MAX));
 
             let mocks = Mocks {
                 rng: TestingRng::seed_from_u64(seed),
                 estabs: estabs.clone(),
+                expect_expire_ipts_calls: expect_expire_ipts_calls.clone(),
             };
 
             // Don't provide a subdir; the ipt_mgr is supposed to add any needed subdirs
@@ -1948,6 +1971,7 @@ mod test {
                 shut_tx,
                 cfg_tx,
                 temp_dir,
+                expect_expire_ipts_calls,
             }
         }
 
