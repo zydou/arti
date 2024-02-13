@@ -1406,6 +1406,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// All that happens with errors from this function is that they are logged
     /// (with a rate limit).
     #[allow(clippy::blocks_in_conditions)]
+    #[allow(clippy::cognitive_complexity)] // TODO HSS improve this in followup MR
     fn expire_old_ipts_external_persistent_state(
         &self,
     ) -> Result<(), impl tor_error::HasKind + std::error::Error + Clone + 'static> {
