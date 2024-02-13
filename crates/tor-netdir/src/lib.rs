@@ -1775,7 +1775,14 @@ impl<'a> UncheckedRelay<'a> {
             None
         }
     }
-    /// Return true if this relay has the guard flag.
+    /// Return true if this relay has the Guard flag.
+    ///
+    /// Note that this function _only_ checks for the presence of the Guard
+    /// flag. If you want to check for all the properties that indicate
+    /// suitability, use [`UncheckedRelay::is_suitable_as_guard`] instead.
+    //
+    // TODO #504: We may want to deprecate this function; its only users are
+    // test cases.
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
@@ -1831,6 +1838,13 @@ impl<'a> Relay<'a> {
         rs_is_dir_cache(self.rs)
     }
     /// Return true if this relay is marked as a potential Guard node.
+    ///
+    /// Note that this function _only_ checks for the presence of the Guard
+    /// flag. If you want to check for all the properties that indicate
+    /// suitability, use [`Relay::is_suitable_as_guard`] instead.
+    //
+    // TODO #504: We may want to deprecate this function; its only users are
+    // test cases.
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
