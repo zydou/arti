@@ -338,6 +338,9 @@ impl AsRef<[u8]> for Data {
 
 impl Body for Data {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        if r.remaining() == 0 {
+            return Err(Error::InvalidMessage("Empty DATA message".into()));
+        }
         Ok(Data {
             body: r.take(r.remaining())?.into(),
         })
