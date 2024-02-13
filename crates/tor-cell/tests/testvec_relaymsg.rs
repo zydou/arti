@@ -484,7 +484,7 @@ fn test_data() {
     let d = msg::Data::new(&b[..]);
     assert!(d.is_err());
 
-    let (d, rest) = msg::Data::split_from(&b[..]);
+    let (d, rest) = msg::Data::try_split_from(&b[..]).expect("Empty input?");
     assert_eq!(d.as_ref(), &b[0..498]);
     assert_eq!(rest, &b[498..]);
 }

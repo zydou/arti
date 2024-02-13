@@ -205,7 +205,7 @@ mod test {
         let begin = u(Begin::new("allium.example.com", 443, 0).unwrap().into());
         let begin_dir = u(BeginDir::default().into());
         let resolve = u(Resolve::new("allium.example.com").into());
-        let data = u(Data::new(&[]).unwrap().into());
+        let data = u(Data::new(&[1, 2, 3]).unwrap().into());
 
         {
             let mut cc_none = IncomingCmdChecker::new_any(&[]);

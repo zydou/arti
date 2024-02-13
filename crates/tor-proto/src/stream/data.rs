@@ -666,16 +666,16 @@ impl TokioAsyncWrite for DataWriter {
 impl DataWriterImpl {
     /// Try to flush the current buffer contents as a data cell.
     async fn flush_buf(mut self) -> (Self, Result<()>) {
-        let result = if self.n_pending != 0 {
-            let (cell, remainder) = Data::split_from(&self.buf[..self.n_pending]);
-            // TODO: Eventually we may want a larger buffer; if we do,
-            // this invariant will become false.
-            assert!(remainder.is_empty());
-            self.n_pending = 0;
-            self.s.send(cell.into()).await
-        } else {
-            Ok(())
-        };
+        let result =
+            if let Some((cell, remainder)) = Data::try_split_from(&self.buf[..self.n_pending]) {
+                // TODO: Eventually we may want a larger buffer; if we do,
+                // this invariant will become false.
+                assert!(remainder.is_empty());
+                self.n_pending = 0;
+                self.s.send(cell.into()).await
+            } else {
+                Ok(())
+            };
 
         (self, result)
     }
