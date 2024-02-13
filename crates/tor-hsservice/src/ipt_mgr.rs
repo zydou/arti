@@ -1419,11 +1419,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         let found = self.imm.keymgr.list_matching(&pat)?;
 
         for (path, ty) in found {
+            // Try to identify this key (including its IptLocalId)
             match IptKeySpecifier::try_from(&path) {
                 Ok(spec) if all_ipts.contains(&spec.lid) => continue,
                 Ok(_) => trace!("deleting key for old IPT: {path}"),
                 Err(bad) => info!("deleting unrecognised IPT key: {path} ({})", bad.report()),
             };
+            // Not known, remove it
             self.imm.keymgr.remove_with_type(
                 &path,
                 &ty,
@@ -1452,6 +1454,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ent in replay_logs_dir {
             let ent = ent.map_err(handle_rl_err("read dir", replay_logs))?;
             let leaf = ent.file_name();
+            // Try to identify this replay logfile (including its IptLocalId)
             match ReplayLog::parse_log_leafname(&leaf) {
                 Ok((lid, _)) if all_ipts.contains(&lid) => continue,
                 Ok((_lid, leaf)) => trace!("deleting replay log for old IPT: {leaf}"),
@@ -1461,6 +1464,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                     bad
                 ),
             }
+            // Not known, remove it
             let path = ent.path();
             fs::remove_file(&path).map_err(handle_rl_err("remove", &path))?;
         }
