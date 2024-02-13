@@ -318,11 +318,11 @@ pub(crate) enum StateExpiryError {
 impl HasKind for StateExpiryError {
     fn kind(&self) -> ErrorKind {
         use tor_error::ErrorKind as EK;
-        use StateExpiryError as EE;
+        use StateExpiryError as SEE;
         match self {
-            EE::Key(e) => e.kind(),
-            EE::ReplayLog { .. } => EK::PersistentStateAccessFailed,
-            EE::Bug(e) => e.kind(),
+            SEE::Key(e) => e.kind(),
+            SEE::ReplayLog { .. } => EK::PersistentStateAccessFailed,
+            SEE::Bug(e) => e.kind(),
         }
     }
 }
