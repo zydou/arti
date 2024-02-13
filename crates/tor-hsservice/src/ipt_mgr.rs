@@ -1390,9 +1390,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// That's fine since we couldn't re-establish them anyway.)
     #[allow(clippy::blocks_in_conditions)]
     #[allow(clippy::cognitive_complexity)] // TODO HSS improve this in followup MR
-    fn expire_old_ipts_external_persistent_state(
-        &self,
-    ) -> Result<(), StateExpiryError> {
+    fn expire_old_ipts_external_persistent_state(&self) -> Result<(), StateExpiryError> {
         self.state
             .mockable
             .expire_old_ipts_external_persistent_state_hook();
