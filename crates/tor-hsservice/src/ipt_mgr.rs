@@ -1908,7 +1908,12 @@ mod test {
     }
 
     impl<'d> MockedIptManager<'d> {
-        fn startup(runtime: MockRuntime, temp_dir: &'d TestTempDir, seed: u64) -> Self {
+        fn startup(
+            runtime: MockRuntime,
+            temp_dir: &'d TestTempDir,
+            seed: u64,
+            expect_expire_ipts_calls: usize,
+        ) -> Self {
             let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
                 .unwrap_if_sufficient()
                 .unwrap()
@@ -1927,7 +1932,7 @@ mod test {
             let (shut_tx, shut_rx) = broadcast::channel::<Void>(0);
 
             let estabs: MockEstabs = Default::default();
-            let expect_expire_ipts_calls = Arc::new(Mutex::new(usize::MAX));
+            let expect_expire_ipts_calls = Arc::new(Mutex::new(expect_expire_ipts_calls));
 
             let mocks = Mocks {
                 rng: TestingRng::seed_from_u64(seed),
@@ -2011,11 +2016,14 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let temp_dir = test_temp_dir!();
 
-            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 0);
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 0, 1);
             runtime.progress_until_stalled().await;
+
+            assert_eq!(*m.expect_expire_ipts_calls.lock().unwrap(), 0);
 
             // We expect it to try to establish 3 IPTs
             const EXPECT_N_IPTS: usize = 3;
+            const EXPECT_MAX_IPTS: usize = EXPECT_N_IPTS + 2 /* num_extra */;
             assert_eq!(m.estabs.lock().unwrap().len(), EXPECT_N_IPTS);
             assert!(m.pub_view.borrow_for_publish().ipts.is_none());
 
@@ -2080,8 +2088,9 @@ mod test {
             // ---------- restart! ----------
             info!("*** Restarting ***");
 
-            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 1);
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 1, 1);
             runtime.progress_until_stalled().await;
+            assert_eq!(*m.expect_expire_ipts_calls.lock().unwrap(), 0);
 
             assert_eq!(estabs_inventory, m.estabs_inventory());
 
@@ -2116,9 +2125,16 @@ mod test {
 
             assert_ne!(old_lid_files(), no_files);
 
+            // It might call the expiry function once, or once per IPT.
+            // The latter is quadratic but this is quite rare, so that's fine.
+            *m.expect_expire_ipts_calls.lock().unwrap() = EXPECT_MAX_IPTS;
+
             // wait 2 days, > hs_intro_max_lifetime
             runtime.advance_by(ms(48 * 60 * 60 * 1_000)).await;
             runtime.progress_until_stalled().await;
+
+            // It must have called it at least once.
+            assert_ne!(*m.expect_expire_ipts_calls.lock().unwrap(), EXPECT_MAX_IPTS);
 
             // There should now be no files names after old IptLocalIds.
             assert_eq!(old_lid_files(), no_files);
