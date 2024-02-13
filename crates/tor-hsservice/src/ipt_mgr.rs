@@ -1395,7 +1395,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .mockable
             .expire_old_ipts_external_persistent_state_hook();
 
-        let current_ipts: HashSet<&'_ IptLocalId> = self
+        let all_ipts: HashSet<&'_ IptLocalId> = self
             .state
             .irelays
             .iter()
@@ -1416,7 +1416,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         for (path, ty) in found {
             match IptKeySpecifier::try_from(&path) {
-                Ok(spec) if current_ipts.contains(&spec.lid) => continue,
+                Ok(spec) if all_ipts.contains(&spec.lid) => continue,
                 Ok(_) => trace!("deleting key for old IPT: {path}"),
                 Err(bad) => info!("deleting unrecognised IPT key: {path} ({})", bad.report()),
             };
@@ -1449,7 +1449,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             let ent = ent.map_err(handle_rl_err("read dir", replay_logs))?;
             let leaf = ent.file_name();
             match ReplayLog::parse_log_leafname(&leaf) {
-                Ok((lid, _)) if current_ipts.contains(&lid) => continue,
+                Ok((lid, _)) if all_ipts.contains(&lid) => continue,
                 Ok((_lid, leaf)) => trace!("deleting replay log for old IPT: {leaf}"),
                 Err(bad) => info!(
                     "deleting garbage in IPT replay log dir: {} ({})",
