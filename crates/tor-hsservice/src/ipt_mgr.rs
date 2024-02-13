@@ -44,6 +44,7 @@ use tor_log_ratelim::log_ratelim;
 use tor_netdir::NetDirProvider;
 use tor_rtcompat::Runtime;
 
+use crate::err::StateExpiryError;
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
@@ -1387,47 +1388,11 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// See the comment in [`IptManager::import_new_expiry_times`].
     /// If that invariant is violated, we would delete on-disk files for the affected IPTs.
     /// That's fine since we couldn't re-establish them anyway.)
-    ///
-    /// All that happens with errors from this function is that they are logged
-    /// (with a rate limit).
     #[allow(clippy::blocks_in_conditions)]
     #[allow(clippy::cognitive_complexity)] // TODO HSS improve this in followup MR
     fn expire_old_ipts_external_persistent_state(
         &self,
-    ) -> Result<(), impl tor_error::HasKind + std::error::Error + Clone + 'static> {
-        /// Error occurring in this function
-        #[derive(Error, Clone, Debug)]
-        enum ExpiryError {
-            /// Key expiry failed
-            #[error("key(s)")]
-            Key(#[from] tor_keymgr::Error),
-            /// Replay log expiry (or other things using `tor_persist`) failed
-            #[error("replay log(s): failed to {operation} {}", path.display())]
-            ReplayLog {
-                /// The actual error
-                #[source]
-                source: Arc<io::Error>,
-                /// The pathname
-                path: PathBuf,
-                /// What we were doing
-                operation: &'static str,
-            },
-            /// Internal error
-            #[error("internal error")]
-            Bug(#[from] Bug),
-        }
-        impl HasKind for ExpiryError {
-            fn kind(&self) -> ErrorKind {
-                use tor_error::ErrorKind as EK;
-                use ExpiryError as EE;
-                match self {
-                    EE::Key(e) => e.kind(),
-                    EE::ReplayLog { .. } => EK::PersistentStateAccessFailed,
-                    EE::Bug(e) => e.kind(),
-                }
-            }
-        }
-
+    ) -> Result<(), StateExpiryError> {
         self.state
             .mockable
             .expire_old_ipts_external_persistent_state_hook();
@@ -1469,7 +1434,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         let handle_rl_err = |operation, path: &Path| {
             let path = path.to_owned();
-            move |source| ExpiryError::ReplayLog {
+            move |source| StateExpiryError::ReplayLog {
                 operation,
                 path,
                 source: Arc::new(source),
@@ -1498,7 +1463,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             fs::remove_file(&path).map_err(handle_rl_err("remove", &path))?;
         }
 
-        Ok::<_, ExpiryError>(())
+        Ok(())
     }
 
     /// Run one iteration of the loop
