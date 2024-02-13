@@ -6,13 +6,15 @@
 //! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
-use std::collections::VecDeque;
+use std::borrow::Cow;
+use std::collections::{HashSet, VecDeque};
 use std::fmt::{self, Debug};
+use std::fs;
 use std::hash::Hash;
 use std::io;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -34,16 +36,18 @@ use void::Void;
 use tor_basic_utils::RngExt as _;
 use tor_circmgr::hspool::HsCircPool;
 use tor_error::{error_report, info_report};
-use tor_error::{internal, into_internal, Bug, ErrorKind, HasKind};
+use tor_error::{internal, into_internal, Bug, ErrorKind, ErrorReport as _, HasKind};
 use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
+use tor_keymgr::KeySpecifierPattern as _;
 use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
+use tor_log_ratelim::log_ratelim;
 use tor_netdir::NetDirProvider;
 use tor_persist::state_dir::ContainsInstanceStateGuard as _;
 use tor_rtcompat::Runtime;
 
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
-use crate::keys::{IptKeyRole, IptKeySpecifier};
+use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
 use crate::status::IptMgrStatusSender;
 use crate::svc::{ipt_establish, ShutdownStatus};
@@ -67,6 +71,9 @@ pub(crate) use persist::IptStorageHandle;
 const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(3 * 60 * 60); // 3 hours
 /// Expiry time to put on a final descriptor (IPT publication set Certain
 const IPT_PUBLISH_CERTAIN: Duration = IPT_PUBLISH_UNCERTAIN;
+
+/// Replay log files are `<IPTLOCALID>.bin`
+const REPLAY_LOG_SUFFIX: &str = ".bin";
 
 /// IPT Manager (for one hidden service)
 #[derive(Educe)]
@@ -158,6 +165,10 @@ pub(crate) struct State<R, M> {
     ///
     /// This can only be caused (or triggered) by a busted netdir or config.
     last_irelay_selection_outcome: Result<(), ()>,
+
+    /// Have we removed any IPTs but not yet cleaned up keys and logfiles?
+    #[educe(Debug(ignore))]
+    ipt_removal_cleanup_needed: bool,
 
     /// Signal for us to shut down
     shutdown: broadcast::Receiver<Void>,
@@ -455,7 +466,7 @@ impl Ipt {
 
         // TODO #1186 Support ephemeral services (without persistent replay log)
         let replay_log = {
-            let replay_leaf = format!("{lid}.bin");
+            let replay_leaf = format!("{lid}{REPLAY_LOG_SUFFIX}");
             let replay_log = imm.replay_log_dir.as_path().join(replay_leaf);
 
             ReplayLog::new_logged(&replay_log, imm.replay_log_dir.raw_lock_guard()).map_err(
@@ -577,8 +588,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         let replay_log_dir = state_handle
             .raw_subdir("iptreplay")
-            // TODO #1198 something should expire these! (and our keys too, obviously)
-            // (see also #1067 re expiring a whole service)
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
         let imm = Immutable {
@@ -602,6 +611,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             shutdown,
             irelays,
             last_irelay_selection_outcome: Ok(()),
+            ipt_removal_cleanup_needed: false,
             runtime: PhantomData,
         };
         let mgr = IptManager { imm, state };
@@ -624,6 +634,10 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             &mut self.state.mockable,
             &publisher.borrow_for_read(),
         )?;
+
+        // Now that we've populated `irelays` and its `ipts` from the on-disk state,
+        // we should check any leftover disk files from previous runs.  Make a note.
+        self.state.ipt_removal_cleanup_needed = true;
 
         let runtime = self.imm.runtime.clone();
         // This task will shut down when the RunningOnionService is dropped, causing
@@ -884,6 +898,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// it needs at most O(1) calls to progress that one IPT to its proper new state.
     ///
     /// See the performance note on [`run_once()`](Self::run_once).
+    #[allow(clippy::redundant_closure_call)]
     fn idempotently_progress_things_now(&mut self) -> Result<Option<TrackingNow>, FatalError> {
         /// Return value which means "we changed something, please run me again"
         ///
@@ -904,14 +919,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // ---------- collect garbage ----------
 
-        // Rotate out an old IPT if we have >N good IPTs
-        if self.good_ipts().count() >= self.target_n_intro_points() {
-            for ir in &mut self.state.irelays {
-                if ir.should_retire(&now) {
-                    if let Some(ipt) = ir.current_ipt_mut() {
-                        ipt.is_current = None;
-                        return CONTINUE;
-                    }
+        // Rotate out an old IPT(s)
+        for ir in &mut self.state.irelays {
+            if ir.should_retire(&now) {
+                if let Some(ipt) = ir.current_ipt_mut() {
+                    ipt.is_current = None;
+                    return CONTINUE;
                 }
             }
         }
@@ -920,11 +933,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ir in &mut self.state.irelays {
             // When we drop the Ipt we drop the IptEstablisher, withdrawing the intro point
             ir.ipts.retain(|ipt| {
-                ipt.is_current.is_some()
+                let keep = ipt.is_current.is_some()
                     || match ipt.last_descriptor_expiry_including_slop {
                         None => false,
                         Some(last) => now < last,
-                    }
+                    };
+                // This is the only place in the manager where an IPT is dropped,
+                // other than when the whole service is dropped.
+                self.state.ipt_removal_cleanup_needed |= !keep;
+                keep
             });
             // No need to return CONTINUE, since there is no other future work implied
             // by discarding a non-current IPT.
@@ -1368,6 +1385,144 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(ipt_set::IptSet { ipts, lifetime })
     }
 
+    /// Delete persistent on-disk data (including keys) for old IPTs
+    ///
+    /// More precisely, scan places where per-IPT data files live,
+    /// and delete anything that doesn't correspond to
+    /// one of the IPTs in our main in-memory data structure.
+    ///
+    /// Does *not* deal with deletion of data handled via storage handles
+    /// (`state_dir::StorageHandle`), `ipt_mgr/persist.rs` etc.;
+    /// those are one file for each service, so old data is removed as we rewrite them.
+    ///
+    /// Does *not* deal with deletion of entire old hidden services.
+    ///
+    /// (This function works on the basis of the invariant that every IPT
+    /// in [`ipt_set::PublishIptSet`] is also an [`Ipt`] in [`ipt_mgr::State`](State).
+    /// See the comment in [`IptManager::import_new_expiry_times`].
+    /// If that invariant is violated, we would delete on-disk files for the affected IPTs.
+    /// That's fine since we couldn't re-establish them anyway.)
+    ///
+    /// All that happens with errors from this function is that they are logged
+    /// (with a rate limit).
+    #[allow(clippy::blocks_in_conditions)]
+    #[allow(clippy::cognitive_complexity)] // TODO HSS improve this in followup MR
+    fn expire_old_ipts_external_persistent_state(
+        &self,
+    ) -> Result<(), impl tor_error::HasKind + std::error::Error + Clone + 'static> {
+        /// Error occurring in this function
+        #[derive(Error, Clone, Debug)]
+        enum ExpiryError {
+            /// Key expiry failed
+            #[error("key(s)")]
+            Key(#[from] tor_keymgr::Error),
+            /// Replay log expiry (or other things using `tor_persist`) failed
+            #[error("replay log(s): failed to {operation} {}", path.display())]
+            ReplayLog {
+                /// The actual error
+                #[source]
+                source: Arc<io::Error>,
+                /// The pathname
+                path: PathBuf,
+                /// What we were doing
+                operation: &'static str,
+            },
+            /// Internal error
+            #[error("internal error")]
+            Bug(#[from] Bug),
+        }
+        impl HasKind for ExpiryError {
+            fn kind(&self) -> ErrorKind {
+                use tor_error::ErrorKind as EK;
+                use ExpiryError as EE;
+                match self {
+                    EE::Key(e) => e.kind(),
+                    EE::ReplayLog { .. } => EK::PersistentStateAccessFailed,
+                    EE::Bug(e) => e.kind(),
+                }
+            }
+        }
+
+        self.state
+            .mockable
+            .expire_old_ipts_external_persistent_state_hook();
+
+        let current_ipts: HashSet<&'_ IptLocalId> = self
+            .state
+            .irelays
+            .iter()
+            .flat_map(|ir| &ir.ipts)
+            .map(|ipt| &ipt.lid)
+            .collect();
+
+        // Keys
+
+        let pat = IptKeySpecifierPattern {
+            nick: Some(self.imm.nick.clone()),
+            role: None,
+            lid: None,
+        }
+        .arti_pattern()?;
+
+        let found = self.imm.keymgr.list_matching(&pat)?;
+
+        for (path, ty) in found {
+            match IptKeySpecifier::try_from(&path) {
+                Ok(spec) if current_ipts.contains(&spec.lid) => continue,
+                Ok(_) => trace!("deleting key for old IPT: {path}"),
+                Err(bad) => info!("deleting unrecognised IPT key: {path} ({})", bad.report()),
+            };
+            self.imm.keymgr.remove_with_type(
+                &path,
+                &ty,
+                // TODO #1271 we should remove precisely the thing we just found
+                tor_keymgr::KeystoreSelector::Default,
+            )?;
+        }
+
+        // IPT replay logs
+
+        let handle_rl_err = |operation, path: &Path| {
+            let path = path.to_owned();
+            move |source| ExpiryError::ReplayLog {
+                operation,
+                path,
+                source: Arc::new(source),
+            }
+        };
+
+        // fs-mistrust doesn't offer CheckedDir::read_this_directory.
+        // But, we probably don't mind that we're not doing many checks here.
+        let replay_logs = self.imm.replay_log_dir.as_path();
+        let replay_logs_dir =
+            fs::read_dir(replay_logs).map_err(handle_rl_err("open dir", replay_logs))?;
+
+        for ent in replay_logs_dir {
+            let ent = ent.map_err(handle_rl_err("read dir", replay_logs))?;
+            let leaf = ent.file_name();
+            match (|| {
+                let leaf = leaf.to_str().ok_or("not UTF-8")?;
+                let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
+                let lid: IptLocalId = lid
+                    .parse()
+                    .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
+                Ok::<_, Cow<str>>((leaf, lid))
+            })() {
+                Ok((_, lid)) if current_ipts.contains(&lid) => continue,
+                Ok((leaf, _lid)) => trace!("deleting replay log for old IPT: {leaf}"),
+                Err(bad) => info!(
+                    "deleting garbage in IPT replay log dir: {} ({})",
+                    leaf.to_string_lossy(),
+                    bad
+                ),
+            }
+            let path = ent.path();
+            fs::remove_file(&path).map_err(handle_rl_err("remove", &path))?;
+        }
+
+        Ok::<_, ExpiryError>(())
+    }
+
     /// Run one iteration of the loop
     ///
     /// Either do some work, making changes to our state,
@@ -1450,6 +1605,15 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             self.expire_old_expiry_times(&mut publish_set, &now);
 
             drop(publish_set); // release lock, and notify publisher of any changes
+
+            if self.state.ipt_removal_cleanup_needed {
+                let outcome = self.expire_old_ipts_external_persistent_state();
+                log_ratelim!("removing state for old IPT(s)"; outcome);
+                match outcome {
+                    Ok(()) => self.state.ipt_removal_cleanup_needed = false,
+                    Err(_already_logged) => {}
+                }
+            }
 
             now
         };
@@ -1591,6 +1755,13 @@ pub(crate) trait Mockable<R>: Debug + Send + Sync + Sized + 'static {
 
     /// Call `IptEstablisher::start_accepting`
     fn start_accepting(&self, establisher: &ErasedIptEstablisher);
+
+    /// Allow tests to see when [`IptManager::expire_old_ipts_external_persistent_state`]
+    /// is called.
+    ///
+    /// This lets tests see that it gets called at the right times,
+    /// and not the wrong ones.
+    fn expire_old_ipts_external_persistent_state_hook(&self);
 }
 
 impl<R: Runtime> Mockable<R> for Real<R> {
@@ -1617,9 +1788,11 @@ impl<R: Runtime> Mockable<R> for Real<R> {
             .expect("upcast failure, ErasedIptEstablisher is not IptEstablisher!");
         establisher.start_accepting();
     }
+
+    fn expire_old_ipts_external_persistent_state_hook(&self) {}
 }
 
-// TODO #1213 add unit tests for IptManager
+// TODO #1213 add more unit tests for IptManager
 // Especially, we want to exercise all code paths in idempotently_progress_things_now
 
 #[cfg(test)]
@@ -1652,6 +1825,7 @@ mod test {
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
+    use walkdir::WalkDir;
 
     slotmap::new_key_type! {
         struct MockEstabId;
@@ -1667,6 +1841,7 @@ mod test {
     struct Mocks {
         rng: TestingRng,
         estabs: MockEstabs,
+        expect_expire_ipts_calls: Arc<Mutex<usize>>,
     }
 
     #[derive(Debug)]
@@ -1705,6 +1880,12 @@ mod test {
         }
 
         fn start_accepting(&self, _establisher: &ErasedIptEstablisher) {}
+
+        fn expire_old_ipts_external_persistent_state_hook(&self) {
+            let mut expect = self.expect_expire_ipts_calls.lock().unwrap();
+            eprintln!("expire_old_ipts_external_persistent_state_hook, expect={expect}");
+            *expect = expect.checked_sub(1).expect("unexpected expiry");
+        }
     }
 
     impl Drop for MockEstab {
@@ -1724,10 +1905,16 @@ mod test {
         cfg_tx: watch::Sender<Arc<OnionServiceConfig>>,
         #[allow(dead_code)] // ensures temp dir lifetime; paths stored in self
         temp_dir: &'d TestTempDir,
+        expect_expire_ipts_calls: Arc<Mutex<usize>>, // use usize::MAX to not mind
     }
 
     impl<'d> MockedIptManager<'d> {
-        fn startup(runtime: MockRuntime, temp_dir: &'d TestTempDir) -> Self {
+        fn startup(
+            runtime: MockRuntime,
+            temp_dir: &'d TestTempDir,
+            seed: u64,
+            expect_expire_ipts_calls: usize,
+        ) -> Self {
             let dir: TestNetDirProvider = tor_netdir::testnet::construct_netdir()
                 .unwrap_if_sufficient()
                 .unwrap()
@@ -1746,10 +1933,12 @@ mod test {
             let (shut_tx, shut_rx) = broadcast::channel::<Void>(0);
 
             let estabs: MockEstabs = Default::default();
+            let expect_expire_ipts_calls = Arc::new(Mutex::new(expect_expire_ipts_calls));
 
             let mocks = Mocks {
-                rng: TestingRng::seed_from_u64(0),
+                rng: TestingRng::seed_from_u64(seed),
                 estabs: estabs.clone(),
+                expect_expire_ipts_calls: expect_expire_ipts_calls.clone(),
             };
 
             // Don't provide a subdir; the ipt_mgr is supposed to add any needed subdirs
@@ -1788,6 +1977,7 @@ mod test {
                 shut_tx,
                 cfg_tx,
                 temp_dir,
+                expect_expire_ipts_calls,
             }
         }
 
@@ -1827,11 +2017,14 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let temp_dir = test_temp_dir!();
 
-            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 0, 1);
             runtime.progress_until_stalled().await;
+
+            assert_eq!(*m.expect_expire_ipts_calls.lock().unwrap(), 0);
 
             // We expect it to try to establish 3 IPTs
             const EXPECT_N_IPTS: usize = 3;
+            const EXPECT_MAX_IPTS: usize = EXPECT_N_IPTS + 2 /* num_extra */;
             assert_eq!(m.estabs.lock().unwrap().len(), EXPECT_N_IPTS);
             assert!(m.pub_view.borrow_for_publish().ipts.is_none());
 
@@ -1896,12 +2089,56 @@ mod test {
             // ---------- restart! ----------
             info!("*** Restarting ***");
 
-            let m = MockedIptManager::startup(runtime.clone(), &temp_dir);
+            let m = MockedIptManager::startup(runtime.clone(), &temp_dir, 1, 1);
             runtime.progress_until_stalled().await;
+            assert_eq!(*m.expect_expire_ipts_calls.lock().unwrap(), 0);
 
             assert_eq!(estabs_inventory, m.estabs_inventory());
 
             // TODO #1213 test that we have called start_accepting on all the old IPTs
+
+            // ---------- New IPT relay selection ----------
+
+            let old_lids: Vec<String> = m
+                .estabs
+                .lock()
+                .unwrap()
+                .values()
+                .map(|ess| ess.params.lid.to_string())
+                .collect();
+            eprintln!("IPTs to rotate out: {old_lids:?}");
+
+            let old_lid_files = || {
+                WalkDir::new(temp_dir.as_path_untracked())
+                    .into_iter()
+                    .map(|ent| {
+                        ent.unwrap()
+                            .into_path()
+                            .into_os_string()
+                            .into_string()
+                            .unwrap()
+                    })
+                    .filter(|path| old_lids.iter().any(|lid| path.contains(lid)))
+                    .collect_vec()
+            };
+
+            let no_files: [String; 0] = [];
+
+            assert_ne!(old_lid_files(), no_files);
+
+            // It might call the expiry function once, or once per IPT.
+            // The latter is quadratic but this is quite rare, so that's fine.
+            *m.expect_expire_ipts_calls.lock().unwrap() = EXPECT_MAX_IPTS;
+
+            // wait 2 days, > hs_intro_max_lifetime
+            runtime.advance_by(ms(48 * 60 * 60 * 1_000)).await;
+            runtime.progress_until_stalled().await;
+
+            // It must have called it at least once.
+            assert_ne!(*m.expect_expire_ipts_calls.lock().unwrap(), EXPECT_MAX_IPTS);
+
+            // There should now be no files names after old IptLocalIds.
+            assert_eq!(old_lid_files(), no_files);
 
             // Shut down
             m.shutdown_check_no_tasks(&runtime).await;
