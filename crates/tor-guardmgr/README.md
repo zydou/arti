@@ -83,14 +83,14 @@ below) and comments and internal documentation in this crate.
 
 ## References
 
-Guard nodes were first proposes (as "helper nodes") in "Defending
+Guard nodes were first proposed (as "helper nodes") in "Defending
 Anonymous Communications Against Passive Logging Attacks" by
 Matthew Wright, Micah Adler, Brian N. Levine, and Clay Shields in
 the Proceedings of the 2003 IEEE Symposium on Security and
 Privacy.  (See <https://www.freehaven.net/anonbib/#wright03>)
 
 Tor's current guard selection algorithm is described in Tor's
-[`guard-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/raw/main/guard-spec.txt)
+[Guard Specification](https://spec.torproject.org/guard-spec/)
 document.
 
 ## Compile-time features
