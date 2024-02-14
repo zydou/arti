@@ -827,7 +827,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             let Some((relay, status)) = relay else {
                 // This HSDir went away, so the result doesn't matter.
-                return;
+                // Continue processing the rest of the results
+                continue;
             };
 
             if upload_res.upload_res == UploadStatus::Success {
