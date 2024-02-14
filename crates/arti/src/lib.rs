@@ -632,11 +632,11 @@ pub fn main() {
     match main_main(std::env::args_os()) {
         Ok(()) => {}
         Err(e) => {
-            if let Some(arti_err) = e.downcast_ref::<arti_client::Error>() {
-                if let Some(hint) = arti_err.hint() {
-                    info!("{}", hint);
-                }
+            use arti_client::HintableError;
+            if let Some(hint) = e.hint() {
+                info!("{}", hint);
             }
+
             match e.downcast_ref::<clap::Error>() {
                 Some(clap_err) => clap_err.exit(),
                 None => with_safe_logging_suppressed(|| tor_error::report_and_exit(e)),

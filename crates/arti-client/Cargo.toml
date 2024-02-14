@@ -20,6 +20,7 @@ default = ["tokio", "native-tls", "compression"]
 #     which therefore are not strictly additive.
 #   * Features which may introduce unnecessary licensing restrictions.
 full = [
+    "anyhow",
     "onion-service-client",
     "tokio",
     "async-std",
@@ -50,7 +51,9 @@ full = [
     "tor-ptmgr?/full",
     "tor-rpcbase?/full",
     "tor-keymgr/full",
-    "tor-linkspec/full", "tor-geoip?/full", "tor-hsservice?/full",
+    "tor-linkspec/full",
+    "tor-geoip?/full",
+    "tor-hsservice?/full",
 ]
 
 async-std = ["tor-rtcompat/async-std"]
@@ -109,6 +112,7 @@ keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
+anyhow = { version = "1.0.23", optional = true }
 cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
