@@ -168,12 +168,9 @@ pub(crate) fn expire_publisher_keys(
             let is_expired = relevant_periods
                 .iter()
                 .all(|p| &p.time_period() != spec.period());
-            // TODO: make the keystore selector
-            // configurable
-            let selector = Default::default();
 
             if is_expired {
-                keymgr.remove_with_type(key_path, entry.key_type(), selector)?;
+                keymgr.remove_with_type(&entry)?;
             }
 
             tor_keymgr::Result::Ok(())

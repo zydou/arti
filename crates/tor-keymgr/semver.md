@@ -5,3 +5,4 @@ BREAKING: `KeyMgr::insert` returns `Result<Option<K>>`
 BREAKING: `KeyMgr::remove` returns `Result<Option<K>>`
 ADDED: `KeystoreEntry`
 BREAKING: `KeyMgr::list_matching` now returns `KeystoreEntry`
+BREAKING: `KeyMgr::remove_with_type` now takes `KeystoreEntry`

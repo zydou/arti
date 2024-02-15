@@ -276,13 +276,11 @@ impl KeyMgr {
     /// of obtaining it from the specified type's [`ToEncodableKey`] implementation.
     pub fn remove_with_type(
         &self,
-        key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
-        selector: KeystoreSelector,
+        entry: &KeystoreEntry,
     ) -> Result<Option<()>> {
-        let store = self.select_keystore(&selector)?;
+        let store = self.select_keystore(&(*entry.keystore_id()).into())?;
 
-        store.remove(key_spec, key_type)
+        store.remove(entry.key_path(), entry.key_type())
     }
 
     /// Return the keystore entry descriptors of the keys matching the specified [`KeyPathPattern`].
