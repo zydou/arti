@@ -133,20 +133,20 @@ impl KeyMgr {
         self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())
     }
 
-    /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
+    /// Retrieve the specified keystore entry, and try to deserialize it as `K::Key`.
     ///
-    /// The key returned is retrieved from the first key store that contains an entry for the given
-    /// specifier.
+    /// The key returned is retrieved from the key store specified in the [`KeystoreEntry`].
     ///
-    /// Returns `Ok(None)` if none of the key stores have the requested key.
+    /// Returns `Ok(None)` if the key store does not contain the requested entry.
     ///
     /// Returns an error if the specified `key_type` does not match `K::Key::key_type()`.
-    pub fn get_with_type<K: ToEncodableKey>(
+    pub fn get_entry<K: ToEncodableKey>(
         &self,
-        key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        entry: &KeystoreEntry,
     ) -> Result<Option<K>> {
-        self.get_from_store(key_spec, key_type, self.all_stores())
+        let selector = (*entry.keystore_id()).into();
+        let store = self.select_keystore(&selector)?;
+        self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
     }
 
     /// Read the key identified by `key_spec`.

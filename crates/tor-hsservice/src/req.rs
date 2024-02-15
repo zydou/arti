@@ -127,14 +127,13 @@ impl RendRequestContext {
             .iter()
             .map(|entry| -> Result<Option<_>, FatalError> {
                 let path = entry.key_path();
-                let key_type = entry.key_type();
                 let matches = path
                     .matches(&pattern)
                     .ok_or_else(|| internal!("path matched but no longer does?!"))?;
                 let period = Self::parse_time_period(path, &matches)?;
                 // Try to retrieve the key.
                 self.keymgr
-                    .get_with_type::<HsBlindIdKeypair>(path, key_type)
+                    .get_entry::<HsBlindIdKeypair>(entry)
                     .map_err(FatalError::Keystore)
                     // If the key is not found, it means it has been garbage collected between the time
                     // we queried the keymgr for the list of keys matching the pattern and now.
