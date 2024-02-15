@@ -1426,7 +1426,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 Err(bad) => info!("deleting unrecognised IPT key: {path} ({})", bad.report()),
             };
             // Not known, remove it
-            self.imm.keymgr.remove_with_type(&entry)?;
+            self.imm.keymgr.remove_entry(&entry)?;
         }
 
         // IPT replay logs

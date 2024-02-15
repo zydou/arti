@@ -268,13 +268,18 @@ impl KeyMgr {
         Ok(old_key)
     }
 
-    /// Remove the key identified by `key_spec` and `key_type` from the
-    /// [`Keystore`](crate::Keystore) specified by `selector`.
+    /// Remove the specified keystore entry.
     ///
-    /// Like [`KeyMgr::remove`], except this function takes an explicit
-    /// [`&KeyType`](crate::KeyType) argument instead
-    /// of obtaining it from the specified type's [`ToEncodableKey`] implementation.
-    pub fn remove_with_type(&self, entry: &KeystoreEntry) -> Result<Option<()>> {
+    /// Like [`KeyMgr::remove`], except this function does not return the value of the removed key.
+    ///
+    /// A return value of `Ok(None)` indicates the key was not found in the specified key store,
+    /// whereas `Ok(Some(())` means the key was successfully removed.
+    //
+    // TODO: We should be consistent and return the removed key.
+    //
+    // This probably will involve changing the return type of Keystore::remove
+    // to Result<Option<ErasedKey>>.
+    pub fn remove_entry(&self, entry: &KeystoreEntry) -> Result<Option<()>> {
         let store = self.select_keystore(&(*entry.keystore_id()).into())?;
 
         store.remove(entry.key_path(), entry.key_type())

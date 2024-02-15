@@ -170,7 +170,7 @@ pub(crate) fn expire_publisher_keys(
                 .all(|p| &p.time_period() != spec.period());
 
             if is_expired {
-                keymgr.remove_with_type(&entry)?;
+                keymgr.remove_entry(&entry)?;
             }
 
             tor_keymgr::Result::Ok(())
