@@ -575,6 +575,15 @@ mod tests {
 
     impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
 
+    /// Create a test `KeystoreEntry`.
+    fn entry_descriptor(specifier: impl KeySpecifier, keystore_id: &KeystoreId) -> KeystoreEntry {
+        KeystoreEntry {
+            key_path: specifier.arti_path().unwrap().into(),
+            key_type: TestKey::key_type(),
+            keystore_id,
+        }
+    }
+
     #[test]
     fn insert_and_get() {
         let mut builder = KeyMgrBuilder::default().default_store(Box::<Keystore1>::default());
@@ -805,6 +814,9 @@ mod tests {
         let mgr = builder.build().unwrap();
 
         let keystore2 = KeystoreId::from_str("keystore2").unwrap();
+        let entry_desc1 = entry_descriptor(TestKeySpecifier1, &keystore2);
+        assert!(mgr.get_entry::<TestKey>(&entry_desc1).unwrap().is_none());
+
         mgr.insert(
             "coot".to_string(),
             &TestKeySpecifier1,
@@ -821,6 +833,11 @@ mod tests {
             )
             .unwrap(),
             "keystore2_coot".to_string()
+        );
+
+        assert_eq!(
+            mgr.get_entry::<TestKey>(&entry_desc1).unwrap(),
+            Some("keystore2_coot".to_string())
         );
 
         // This key doesn't exist in any of the keystores, so it will be auto-generated and
@@ -840,5 +857,15 @@ mod tests {
             mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
             Some("keystore3_generated_test_key".to_string())
         );
+
+        let entry_desc2 = entry_descriptor(TestKeySpecifier2, &keystore3);
+        assert_eq!(
+            mgr.get_entry::<TestKey>(&entry_desc2).unwrap(),
+            Some("keystore3_generated_test_key".to_string())
+        );
+
+        assert_eq!(mgr.remove_entry(&entry_desc2).unwrap(), Some(()));
+        assert!(mgr.get_entry::<TestKey>(&entry_desc2).unwrap().is_none());
+        assert!(mgr.remove_entry(&entry_desc2).unwrap().is_none());
     }
 }
