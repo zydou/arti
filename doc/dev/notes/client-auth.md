@@ -10,7 +10,9 @@ implementation plan (in the form of action items and tickets).
 ### Using the `arti hsc` subcommand
 
 Client authorization keys can be manually generated using the `arti hsc
-generate-key stealth` command.
+generate-key stealth` command. In addition to generating a client auth
+keypair in the keystore, this command also exports the public part of key,
+in the format specified using `--pub-format`.
 
 To generate a client authorization key for service xyz.onion in keystore foo:
 
@@ -33,6 +35,10 @@ Initially, `arti hsc generate-key` will only support `stealth` keys, for use
 with services running in **stealth mode** (as defined in #1028). If we implement
 other types of client authorization in the future, we'll likely need to also
 extend `arti hsc generate-key`.
+
+This command displays an error if the client already has a keypair of the
+specified kind. The public part of a preexisting keypair can be extracted using
+`arti hsc export-pubkey`.
 
 (Another possibility would be to let the service generate the client auth keys,
 but then we'd need to come up with a secure way for it to communicate the
@@ -66,6 +72,7 @@ document).
   * [ ] Decide if `arti hsc generate-key stealth` is a good name for the
     command, and come up with a better one if it isn't
   * [ ] Implement the `arti hsc generate-key` subcommand (#1281)
+  * [ ] Implement the `arti hsc export-pubkey` subcommand
 
 ### Auto-generating client auth keys
 
