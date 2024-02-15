@@ -285,16 +285,21 @@ impl KeyMgr {
         store.remove(key_spec, key_type)
     }
 
-    /// Return the keys matching the specified [`KeyPathPattern`].
+    /// Return the keystore entry descriptors of the keys matching the specified [`KeyPathPattern`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
-    pub fn list_matching(&self, pat: &KeyPathPattern) -> Result<Vec<(KeyPath, KeyType)>> {
+    pub fn list_matching(&self, pat: &KeyPathPattern) -> Result<Vec<KeystoreEntry>> {
         self.all_stores()
             .map(|store| -> Result<Vec<_>> {
                 Ok(store
                     .list()?
                     .into_iter()
                     .filter(|(key_path, _): &(KeyPath, KeyType)| key_path.matches(pat).is_some())
+                    .map(|(path, key_type)| KeystoreEntry {
+                        key_path: path.clone(),
+                        key_type,
+                        keystore_id: store.id(),
+                    })
                     .collect::<Vec<_>>())
             })
             .flatten_ok()

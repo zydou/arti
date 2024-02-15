@@ -1417,16 +1417,18 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         let found = self.imm.keymgr.list_matching(&pat)?;
 
-        for (path, ty) in found {
+        for entry in found {
+            let path = entry.key_path();
+            let ty = entry.key_type();
             // Try to identify this key (including its IptLocalId)
-            match IptKeySpecifier::try_from(&path) {
+            match IptKeySpecifier::try_from(path) {
                 Ok(spec) if all_ipts.contains(&spec.lid) => continue,
                 Ok(_) => trace!("deleting key for old IPT: {path}"),
                 Err(bad) => info!("deleting unrecognised IPT key: {path} ({})", bad.report()),
             };
             // Not known, remove it
             self.imm.keymgr.remove_with_type(
-                &path,
+                path,
                 &ty,
                 // TODO #1271 we should remove precisely the thing we just found
                 tor_keymgr::KeystoreSelector::Default,

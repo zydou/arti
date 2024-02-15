@@ -125,7 +125,9 @@ impl RendRequestContext {
             .keymgr
             .list_matching(&pattern)?
             .iter()
-            .map(|(path, key_type)| -> Result<Option<_>, FatalError> {
+            .map(|entry| -> Result<Option<_>, FatalError> {
+                let path = entry.key_path();
+                let key_type = entry.key_type();
                 let matches = path
                     .matches(&pattern)
                     .ok_or_else(|| internal!("path matched but no longer does?!"))?;

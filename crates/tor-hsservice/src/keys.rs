@@ -155,7 +155,8 @@ pub(crate) fn expire_publisher_keys(
     let arti_pat = tor_keymgr::KeyPathPattern::Arti(format!("hss/{}/*", &nickname));
     let possibly_relevant_keys = keymgr.list_matching(&arti_pat)?;
 
-    for (key_path, key_type) in possibly_relevant_keys {
+    for entry in possibly_relevant_keys {
+        let key_path = entry.key_path();
         // Remove the key identified by `spec` if it's no longer relevant
         let remove_if_expired = |spec: &dyn HsTimePeriodKeySpecifier| {
             if spec.nickname() != nickname {
@@ -172,7 +173,7 @@ pub(crate) fn expire_publisher_keys(
             let selector = Default::default();
 
             if is_expired {
-                keymgr.remove_with_type(&key_path, &key_type, selector)?;
+                keymgr.remove_with_type(key_path, entry.key_type(), selector)?;
             }
 
             tor_keymgr::Result::Ok(())
@@ -181,7 +182,7 @@ pub(crate) fn expire_publisher_keys(
         /// Remove the specified key, if it's no longer relevant.
         macro_rules! remove_if_expired {
             ($K:ty) => {{
-                if let Ok(spec) = <$K>::try_from(&key_path) {
+                if let Ok(spec) = <$K>::try_from(key_path) {
                     remove_if_expired(&spec)?;
                 }
             }};
