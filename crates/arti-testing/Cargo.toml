@@ -21,7 +21,8 @@ full = [
     "tor-dirmgr/full",
     "tor-error/full",
     "tor-netdoc/full",
-    "tor-rtcompat/full", "tor-basic-utils/full",
+    "tor-rtcompat/full",
+    "tor-basic-utils/full",
 ]
 
 [dependencies]
@@ -31,7 +32,6 @@ arti-client = { package = "arti-client", path = "../arti-client", version = "0.1
 async-trait = "0.1.54"
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["wrap_help"] }
-config = { version = "0.14.0", default-features = false }
 futures = "0.3.14"
 pin-project = "1"
 rand = "0.8"
