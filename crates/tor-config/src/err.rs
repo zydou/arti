@@ -134,9 +134,12 @@ impl HasKind for ReconfigureError {
 #[derive(Debug, Clone)]
 pub struct ConfigError(Arc<config::ConfigError>);
 
-// XXXX Need to remove this.
-impl From<config::ConfigError> for ConfigError {
-    fn from(err: config::ConfigError) -> Self {
+impl ConfigError {
+    /// Wrap `err` as a ConfigError.
+    ///
+    /// This is not a From implementation, since we don't want to expose our
+    /// underlying configuration library.
+    pub(crate) fn from_cfg_err(err: config::ConfigError) -> Self {
         ConfigError(Arc::new(err))
     }
 }

@@ -111,12 +111,6 @@ pub enum ConfigResolveError {
     Build(#[from] ConfigBuildError),
 }
 
-impl From<config::ConfigError> for ConfigResolveError {
-    fn from(err: config::ConfigError) -> Self {
-        crate::ConfigError::from(err).into()
-    }
-}
-
 /// A type that can be built from a builder via a build method
 pub trait Builder {
     /// The type that this builder constructs
@@ -452,7 +446,7 @@ where
                 input.unrecognized.intersect_with(nign);
                 ret
             };
-            ret?
+            ret.map_err(crate::ConfigError::from_cfg_err)?
         };
         let built = builder.build()?;
         Ok(built)

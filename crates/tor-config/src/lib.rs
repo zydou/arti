@@ -90,7 +90,7 @@ pub struct ConfigurationTree(config::Config);
 impl ConfigurationTree {
     #[cfg(test)]
     pub(crate) fn get_string(&self, key: &str) -> Result<String, crate::ConfigError> {
-        Ok(self.0.get_string(key)?)
+        self.0.get_string(key).map_err(ConfigError::from_cfg_err)
     }
 }
 

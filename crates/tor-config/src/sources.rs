@@ -273,12 +273,13 @@ impl ConfigurationSources {
                 if e.kind() == io::ErrorKind::NotFound && !required {
                     Result::<_, crate::ConfigError>::Ok(())
                 } else {
-                    Err(config::ConfigError::Message(format!(
-                        "unable to access config path: {:?}: {}",
-                        &source.as_path(),
-                        e
+                    Err(crate::ConfigError::from_cfg_err(
+                        config::ConfigError::Message(format!(
+                            "unable to access config path: {:?}: {}",
+                            &source.as_path(),
+                            e
+                        )),
                     ))
-                    .into())
                 }
             };
 
@@ -395,7 +396,9 @@ impl FoundConfigFiles<'_> {
     pub fn load(self) -> Result<ConfigurationFields, ConfigError> {
         let mut builder = config::Config::builder();
         builder = self.add_sources(builder)?;
-        Ok(ConfigurationFields(builder.build()?))
+        Ok(ConfigurationTree(
+            builder.build().map_err(ConfigError::from_cfg_err)?,
+        ))
     }
 }
 
@@ -430,7 +433,7 @@ fn foreign_err<E>(err: E) -> crate::ConfigError
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    crate::ConfigError::from(config::ConfigError::Foreign(err.into()))
+    crate::ConfigError::from_cfg_err(config::ConfigError::Foreign(err.into()))
 }
 
 #[cfg(test)]
