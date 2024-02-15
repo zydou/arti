@@ -12,15 +12,20 @@
 //! make sure that our replay logs are already persistent.  We do this by using
 //! a file on disk.
 
+use crate::ipt_mgr::CreateIptError;
+use crate::IptLocalId;
 use hash::{hash, H, HASH_LEN};
 use std::{
+    borrow::Cow,
+    ffi::OsStr,
     fs::{File, OpenOptions},
     io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::Path,
     sync::Arc,
 };
 use tor_cell::relaycell::msg::Introduce2;
-use tor_persist::state_dir::LockFileGuard;
+use tor_persist::state_dir::ContainsInstanceStateGuard as _;
+use tor_persist::state_dir::{InstanceRawSubdir, LockFileGuard};
 
 /// A probabilistic data structure to record fingerprints of observed Introduce2
 /// messages.
@@ -67,6 +72,9 @@ pub(crate) struct PersistFile {
 /// we don't confuse this file format with others.
 const MAGIC: &[u8; 32] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
 
+/// Replay log files are `<IPTLOCALID>.bin`
+const REPLAY_LOG_SUFFIX: &str = ".bin";
+
 impl ReplayLog {
     /// Create a new ReplayLog not backed by any data storage.
     #[allow(dead_code)] // TODO #1186 Remove once something uses ReplayLog.
@@ -89,7 +97,22 @@ impl ReplayLog {
     /// It is the caller's responsibility to make sure that there are never two
     /// `ReplayLogs` open at once for the same path, or for two paths that
     /// resolve to the same file.
-    pub(crate) fn new_logged(path: impl AsRef<Path>, lock: Arc<LockFileGuard>) -> io::Result<Self> {
+    pub(crate) fn new_logged(
+        dir: &InstanceRawSubdir,
+        lid: &IptLocalId,
+    ) -> Result<Self, CreateIptError> {
+        let leaf = format!("{lid}{REPLAY_LOG_SUFFIX}");
+        let path = dir.as_path().join(leaf);
+        let lock_guard = dir.raw_lock_guard();
+
+        Self::new_logged_inner(&path, lock_guard).map_err(|error| CreateIptError::OpenReplayLog {
+            file: path,
+            error: error.into(),
+        })
+    }
+
+    /// Inner function for `new_logged`, with reified arguments and raw error type
+    fn new_logged_inner(path: impl AsRef<Path>, lock: Arc<LockFileGuard>) -> io::Result<Self> {
         let mut file = {
             let mut options = OpenOptions::new();
             options.read(true).write(true).create(true);
@@ -241,6 +264,24 @@ impl ReplayLog {
         }
         Ok(())
     }
+
+    /// Tries to parse a filename in the replay logs directory
+    ///
+    /// If the leafname refers to a file that would be created by
+    /// [`ReplayLog::new_logged`], returns the `IptLocalId`.
+    ///
+    /// Otherwise returns an error explaining why it isn't,
+    /// as a plain string (for logging).
+    pub(crate) fn parse_log_leafname(
+        leaf: &OsStr,
+    ) -> Result<(IptLocalId, &str), Cow<'static, str>> {
+        let leaf = leaf.to_str().ok_or("not proper unicode")?;
+        let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
+        let lid: IptLocalId = lid
+            .parse()
+            .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
+        Ok((lid, leaf))
+    }
 }
 
 /// Implementation code for pre-hashing our inputs.
@@ -355,9 +396,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::path::PathBuf;
-
     use super::*;
+    use crate::svc::test::mk_state_instance;
     use rand::Rng;
     use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
 
@@ -400,13 +440,9 @@ mod test {
 
     fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<ReplayLog> {
         dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
-            let lock = LockFileGuard::lock(dir.join("lock")).unwrap();
-            // Really ReplayLog::new should take a lock file type that guarantees the
-            // returned value has actually been locked.  But it doesn't.  Because
-            // the LockFile API is defective and doesn't provide such a type.
-            // So, we can skip actually locking, in these tests...
-            let p: PathBuf = dir.join("logfile");
-            ReplayLog::new_logged(p, Arc::new(lock)).unwrap()
+            let inst = mk_state_instance(&dir, "allium");
+            let raw = inst.raw_subdir("iptreplay").unwrap();
+            ReplayLog::new_logged(&raw, &IptLocalId::dummy(1)).unwrap()
         })
     }
 
@@ -456,10 +492,8 @@ mod test {
         drop(log);
         // Truncate the file by 7 bytes.
         dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
-            let file = OpenOptions::new()
-                .write(true)
-                .open(dir.join("logfile"))
-                .unwrap();
+            let path = dir.join(format!("hss/allium/iptreplay/{}.bin", IptLocalId::dummy(1)));
+            let file = OpenOptions::new().write(true).open(path).unwrap();
             // Make sure that the file has the length we expect.
             let expected_len = MAGIC.len() + HASH_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
@@ -606,7 +640,7 @@ mod test {
             let path = dir.join("test.log");
             let lock = LockFileGuard::lock(dir.join("dummy.lock")).unwrap();
             let lock = Arc::new(lock);
-            let mut rl = ReplayLog::new_logged(&path, lock.clone()).unwrap();
+            let mut rl = ReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
 
             const BUF: usize = 8192; // BufWriter default; if that changes, test will break
 
@@ -694,7 +728,7 @@ mod test {
             // We can then check that everything the earlier ReplayLog
             // claimed to have written, is indeed recorded.
 
-            let mut rl = ReplayLog::new_logged(&path, lock.clone()).unwrap();
+            let mut rl = ReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
             for h in &gave_ok {
                 match rl.check_inner(h) {
                     Err(ReplayError::AlreadySeen) => {}

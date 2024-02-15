@@ -49,7 +49,7 @@ impl HsNickname {
     /// Create a new `HsNickname` from a `String`
     ///
     /// Returns an error if the syntax is not valid
-    fn new(s: String) -> Result<HsNickname, InvalidNickname> {
+    pub fn new(s: String) -> Result<HsNickname, InvalidNickname> {
         Ok(Self(s.try_into().map_err(|_| InvalidNickname {})?))
     }
 }

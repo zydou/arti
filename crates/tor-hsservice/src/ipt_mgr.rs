@@ -6,7 +6,6 @@
 //! See [`IptManager::run_once`] for discussion of the implementation approach.
 
 use std::any::Any;
-use std::borrow::Cow;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::{self, Debug};
 use std::fs;
@@ -43,9 +42,9 @@ use tor_linkspec::{HasRelayIds as _, RelayIds};
 use tor_llcrypto::pk::ed25519;
 use tor_log_ratelim::log_ratelim;
 use tor_netdir::NetDirProvider;
-use tor_persist::state_dir::ContainsInstanceStateGuard as _;
 use tor_rtcompat::Runtime;
 
+use crate::err::StateExpiryError;
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
@@ -71,9 +70,6 @@ pub(crate) use persist::IptStorageHandle;
 const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(3 * 60 * 60); // 3 hours
 /// Expiry time to put on a final descriptor (IPT publication set Certain
 const IPT_PUBLISH_CERTAIN: Duration = IPT_PUBLISH_UNCERTAIN;
-
-/// Replay log files are `<IPTLOCALID>.bin`
-const REPLAY_LOG_SUFFIX: &str = ".bin";
 
 /// IPT Manager (for one hidden service)
 #[derive(Educe)]
@@ -465,17 +461,7 @@ impl Ipt {
         };
 
         // TODO #1186 Support ephemeral services (without persistent replay log)
-        let replay_log = {
-            let replay_leaf = format!("{lid}{REPLAY_LOG_SUFFIX}");
-            let replay_log = imm.replay_log_dir.as_path().join(replay_leaf);
-
-            ReplayLog::new_logged(&replay_log, imm.replay_log_dir.raw_lock_guard()).map_err(
-                |error| CreateIptError::OpenReplayLog {
-                    file: replay_log,
-                    error: error.into(),
-                },
-            )?
-        };
+        let replay_log = ReplayLog::new_logged(&imm.replay_log_dir, &lid)?;
 
         let params = IptParameters {
             replay_log,
@@ -651,7 +637,17 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(())
     }
 
-    /// Iterate over the current IPTs
+    /// Iterate over *all* the IPTs we know about
+    ///
+    /// Yields each `IptRelay` at most once.
+    fn all_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
+        self.state
+            .irelays
+            .iter()
+            .flat_map(|ir| ir.ipts.iter().map(move |ipt| (ir, ipt)))
+    }
+
+    /// Iterate over the *current* IPTs
     ///
     /// Yields each `IptRelay` at most once.
     fn current_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
@@ -661,7 +657,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             .filter_map(|ir| Some((ir, ir.current_ipt()?)))
     }
 
-    /// Iterate over the current IPTs in `Good` state
+    /// Iterate over the *current* IPTs in `Good` state
     fn good_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
         self.current_ipts().filter(|(_ir, ipt)| ipt.is_good())
     }
@@ -704,7 +700,7 @@ impl HasKind for ChooseIptError {
 ///
 /// Used only within the IPT manager.
 #[derive(Debug, Error)]
-enum CreateIptError {
+pub(crate) enum CreateIptError {
     /// Fatal error
     #[error("fatal error")]
     Fatal(#[from] FatalError),
@@ -1402,58 +1398,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// See the comment in [`IptManager::import_new_expiry_times`].
     /// If that invariant is violated, we would delete on-disk files for the affected IPTs.
     /// That's fine since we couldn't re-establish them anyway.)
-    ///
-    /// All that happens with errors from this function is that they are logged
-    /// (with a rate limit).
-    #[allow(clippy::blocks_in_conditions)]
-    #[allow(clippy::cognitive_complexity)] // TODO HSS improve this in followup MR
-    fn expire_old_ipts_external_persistent_state(
-        &self,
-    ) -> Result<(), impl tor_error::HasKind + std::error::Error + Clone + 'static> {
-        /// Error occurring in this function
-        #[derive(Error, Clone, Debug)]
-        enum ExpiryError {
-            /// Key expiry failed
-            #[error("key(s)")]
-            Key(#[from] tor_keymgr::Error),
-            /// Replay log expiry (or other things using `tor_persist`) failed
-            #[error("replay log(s): failed to {operation} {}", path.display())]
-            ReplayLog {
-                /// The actual error
-                #[source]
-                source: Arc<io::Error>,
-                /// The pathname
-                path: PathBuf,
-                /// What we were doing
-                operation: &'static str,
-            },
-            /// Internal error
-            #[error("internal error")]
-            Bug(#[from] Bug),
-        }
-        impl HasKind for ExpiryError {
-            fn kind(&self) -> ErrorKind {
-                use tor_error::ErrorKind as EK;
-                use ExpiryError as EE;
-                match self {
-                    EE::Key(e) => e.kind(),
-                    EE::ReplayLog { .. } => EK::PersistentStateAccessFailed,
-                    EE::Bug(e) => e.kind(),
-                }
-            }
-        }
-
+    #[allow(clippy::cognitive_complexity)] // Splitting this up would make it worse
+    fn expire_old_ipts_external_persistent_state(&self) -> Result<(), StateExpiryError> {
         self.state
             .mockable
             .expire_old_ipts_external_persistent_state_hook();
 
-        let current_ipts: HashSet<&'_ IptLocalId> = self
-            .state
-            .irelays
-            .iter()
-            .flat_map(|ir| &ir.ipts)
-            .map(|ipt| &ipt.lid)
-            .collect();
+        let all_ipts: HashSet<_> = self.all_ipts().map(|(_, ipt)| &ipt.lid).collect();
 
         // Keys
 
@@ -1467,11 +1418,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         let found = self.imm.keymgr.list_matching(&pat)?;
 
         for (path, ty) in found {
+            // Try to identify this key (including its IptLocalId)
             match IptKeySpecifier::try_from(&path) {
-                Ok(spec) if current_ipts.contains(&spec.lid) => continue,
+                Ok(spec) if all_ipts.contains(&spec.lid) => continue,
                 Ok(_) => trace!("deleting key for old IPT: {path}"),
                 Err(bad) => info!("deleting unrecognised IPT key: {path} ({})", bad.report()),
             };
+            // Not known, remove it
             self.imm.keymgr.remove_with_type(
                 &path,
                 &ty,
@@ -1484,7 +1437,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         let handle_rl_err = |operation, path: &Path| {
             let path = path.to_owned();
-            move |source| ExpiryError::ReplayLog {
+            move |source| StateExpiryError::ReplayLog {
                 operation,
                 path,
                 source: Arc::new(source),
@@ -1500,27 +1453,22 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         for ent in replay_logs_dir {
             let ent = ent.map_err(handle_rl_err("read dir", replay_logs))?;
             let leaf = ent.file_name();
-            match (|| {
-                let leaf = leaf.to_str().ok_or("not UTF-8")?;
-                let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
-                let lid: IptLocalId = lid
-                    .parse()
-                    .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
-                Ok::<_, Cow<str>>((leaf, lid))
-            })() {
-                Ok((_, lid)) if current_ipts.contains(&lid) => continue,
-                Ok((leaf, _lid)) => trace!("deleting replay log for old IPT: {leaf}"),
+            // Try to identify this replay logfile (including its IptLocalId)
+            match ReplayLog::parse_log_leafname(&leaf) {
+                Ok((lid, _)) if all_ipts.contains(&lid) => continue,
+                Ok((_lid, leaf)) => trace!("deleting replay log for old IPT: {leaf}"),
                 Err(bad) => info!(
                     "deleting garbage in IPT replay log dir: {} ({})",
                     leaf.to_string_lossy(),
                     bad
                 ),
             }
+            // Not known, remove it
             let path = ent.path();
             fs::remove_file(&path).map_err(handle_rl_err("remove", &path))?;
         }
 
-        Ok::<_, ExpiryError>(())
+        Ok(())
     }
 
     /// Run one iteration of the loop

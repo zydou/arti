@@ -513,6 +513,7 @@ pub(crate) mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    use std::fmt::Display;
     use std::path::Path;
 
     use fs_mistrust::Mistrust;
@@ -521,6 +522,7 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder};
     use tor_llcrypto::pk::ed25519;
+    use tor_persist::state_dir::InstanceStateHandle;
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::IptSetStorageHandle;
@@ -547,6 +549,15 @@ pub(crate) mod test {
         })
     }
 
+    #[allow(clippy::let_and_return)] // clearer and more regular
+    pub(crate) fn mk_state_instance(dir: &Path, nick: impl Display) -> InstanceStateHandle {
+        let nick = HsNickname::new(nick.to_string()).unwrap();
+        let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
+        let state_dir = StateDirectory::new(dir, &mistrust).unwrap();
+        let instance = state_dir.acquire_instance(&nick).unwrap();
+        instance
+    }
+
     pub(crate) fn create_storage_handles(
         dir: &Path,
     ) -> (
@@ -564,9 +575,7 @@ pub(crate) mod test {
         tor_persist::state_dir::InstanceStateHandle,
         IptSetStorageHandle,
     ) {
-        let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
-        let state_dir = StateDirectory::new(state_dir, &mistrust).unwrap();
-        let instance = state_dir.acquire_instance(nick).unwrap();
+        let instance = mk_state_instance(state_dir, nick);
         let iptpub_state_handle = instance.storage_handle("iptpub").unwrap();
         (instance, iptpub_state_handle)
     }

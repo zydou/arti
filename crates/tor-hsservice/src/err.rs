@@ -289,3 +289,40 @@ impl HasKind for FatalError {
         }
     }
 }
+
+/// Error occurring in [`IptManager::expire_old_ipts_external_persistent_state`](crate::ipt_mgr::IptManager::expire_old_ipts_external_persistent_state)
+///
+/// All that happens with these errors is that they are logged
+/// (with a rate limit).
+#[derive(Error, Clone, Debug)]
+pub(crate) enum StateExpiryError {
+    /// Key expiry failed
+    #[error("key(s)")]
+    Key(#[from] tor_keymgr::Error),
+    /// Replay log expiry (or other things using `tor_persist`) failed
+    #[error("replay log(s): failed to {operation} {}", path.display())]
+    ReplayLog {
+        /// The actual error
+        #[source]
+        source: Arc<io::Error>,
+        /// The pathname
+        path: PathBuf,
+        /// What we were doing
+        operation: &'static str,
+    },
+    /// Internal error
+    #[error("internal error")]
+    Bug(#[from] Bug),
+}
+
+impl HasKind for StateExpiryError {
+    fn kind(&self) -> ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use StateExpiryError as SEE;
+        match self {
+            SEE::Key(e) => e.kind(),
+            SEE::ReplayLog { .. } => EK::PersistentStateAccessFailed,
+            SEE::Bug(e) => e.kind(),
+        }
+    }
+}
