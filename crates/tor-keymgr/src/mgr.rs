@@ -13,8 +13,6 @@ use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
 
-// TODO: unify get()/get_with_type() and remove()/remove_with_type()
-
 /// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
 ///
