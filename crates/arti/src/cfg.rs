@@ -1247,7 +1247,7 @@ example config file {which:?}, uncommented={uncommented:?}
 
         /// Make a TOML document of this section and parse it as a complete configuration.
         /// Panic if the section cannot be parsed.
-        fn parse(&self) -> config::Config {
+        fn parse(&self) -> tor_config::ConfigurationTree {
             let s = self.build_string();
             eprintln!("parsing\n  --\n{}\n  --", &s);
             let mut sources = tor_config::ConfigurationSources::new_empty();

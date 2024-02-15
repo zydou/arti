@@ -96,7 +96,7 @@ use serde::de::DeserializeOwned;
 use thiserror::Error;
 use tracing::warn;
 
-use crate::ConfigBuildError;
+use crate::{ConfigBuildError, ConfigurationTree};
 
 /// Error resolving a configuration (during deserialize, or build)
 #[derive(Error, Debug)]
@@ -230,7 +230,7 @@ define_for_tuples! { A - B C D E }
 /// You don't want to try to obtain one.
 pub struct ResolveContext {
     /// The input
-    input: config::Config,
+    input: ConfigurationTree,
 
     /// Paths unrecognized by all deserializations
     ///
@@ -303,7 +303,7 @@ enum PathEntry {
 ///
 /// Inner function used by all the `resolve_*` family
 fn resolve_inner<T>(
-    input: config::Config,
+    input: ConfigurationTree,
     want_disfavoured: bool,
 ) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
@@ -314,7 +314,7 @@ where
     if want_disfavoured {
         T::enumerate_deprecated_keys(&mut |l: &[&str]| {
             for key in l {
-                match input.get(key) {
+                match input.0.get(key) {
                     Err(_) => {}
                     Ok(serde::de::IgnoredAny) => {
                         deprecated.insert(key);
@@ -373,7 +373,7 @@ where
 ///
 /// For an example, see the
 /// [`tor_config::load` module-level documentation](self).
-pub fn resolve<T>(input: config::Config) -> Result<T, ConfigResolveError>
+pub fn resolve<T>(input: ConfigurationTree) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -393,7 +393,7 @@ where
 
 /// Deserialize and build overall configuration, reporting unrecognized keys in the return value
 pub fn resolve_return_results<T>(
-    input: config::Config,
+    input: ConfigurationTree,
 ) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
     T: Resolvable,
@@ -416,7 +416,7 @@ pub struct ResolutionResults<T> {
 }
 
 /// Deserialize and build overall configuration, silently ignoring unrecognized config keys
-pub fn resolve_ignore_warnings<T>(input: config::Config) -> Result<T, ConfigResolveError>
+pub fn resolve_ignore_warnings<T>(input: ConfigurationTree) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -436,13 +436,13 @@ where
             // That is how this tracking is disabled when we want it to be.
             let want_unrecognized = !input.unrecognized.is_empty();
             let ret = if !want_unrecognized {
-                deser.try_deserialize()
+                deser.0.try_deserialize()
             } else {
                 let mut nign = BTreeSet::new();
                 let mut recorder = |path: serde_ignored::Path<'_>| {
                     nign.insert(copy_path(&path));
                 };
-                let deser = serde_ignored::Deserializer::new(deser, &mut recorder);
+                let deser = serde_ignored::Deserializer::new(deser.0, &mut recorder);
                 let ret = serde::Deserialize::deserialize(deser);
                 if ret.is_err() {
                     // If we got an error, the config might only have been partially processed,

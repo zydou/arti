@@ -78,6 +78,22 @@ pub use derive_adhoc;
 #[doc(hidden)]
 pub use flatten::flattenable_extract_fields;
 
+/// A set of configuration fields, represented as a set of nested K=V
+/// mappings.
+///
+/// (This is a wrapper for an underlying type provided by the library that
+/// actually does our configuration.)
+#[derive(Clone, Debug)]
+pub struct ConfigurationTree(config::Config);
+
+#[cfg(test)]
+impl ConfigurationTree {
+    #[cfg(test)]
+    pub(crate) fn get_string(&self, key: &str) -> Result<String, crate::ConfigError> {
+        Ok(self.0.get_string(key)?)
+    }
+}
+
 /// Rules for reconfiguring a running Arti instance.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[non_exhaustive]

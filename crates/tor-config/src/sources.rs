@@ -28,7 +28,7 @@ use std::{fs, io, sync::Arc};
 use void::ResultVoidExt as _;
 
 use crate::err::ConfigError;
-use crate::CmdLine;
+use crate::{CmdLine, ConfigurationTree};
 
 /// The synchronous configuration builder type we use.
 ///
@@ -255,7 +255,7 @@ impl ConfigurationSources {
     ///
     /// This is a convenience method for [`scan()`](Self::scan)
     /// followed by [`files.load`].
-    pub fn load(&self) -> Result<config::Config, ConfigError> {
+    pub fn load(&self) -> Result<ConfigurationTree, ConfigError> {
         let files = self.scan()?;
         files.load()
     }
@@ -392,10 +392,10 @@ impl FoundConfigFiles<'_> {
     }
 
     /// Load the configuration into a new [`config::Config`].
-    pub fn load(self) -> Result<config::Config, ConfigError> {
+    pub fn load(self) -> Result<ConfigurationFields, ConfigError> {
         let mut builder = config::Config::builder();
         builder = self.add_sources(builder)?;
-        Ok(builder.build()?)
+        Ok(ConfigurationFields(builder.build()?))
     }
 }
 
@@ -481,7 +481,7 @@ friends = 4242
     fn load_nodefaults<P: AsRef<Path>>(
         files: &[(P, MustRead)],
         opts: &[String],
-    ) -> Result<config::Config, crate::ConfigError> {
+    ) -> Result<ConfigurationTree, crate::ConfigError> {
         sources_nodefaults(files, opts).load()
     }
 
