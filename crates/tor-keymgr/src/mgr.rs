@@ -542,8 +542,15 @@ mod tests {
                 }
 
                 fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
-                    // These tests don't use this function
-                    unimplemented!()
+                    Ok(self
+                        .inner
+                        .read()
+                        .unwrap()
+                        .iter()
+                        .map(|((arti_path, key_type), _)| {
+                            (KeyPath::Arti(arti_path.clone()), key_type.clone())
+                        })
+                        .collect())
                 }
             }
         };
@@ -863,6 +870,13 @@ mod tests {
             mgr.get_entry::<TestKey>(&entry_desc2).unwrap(),
             Some("keystore3_generated_test_key".to_string())
         );
+
+        let arti_pat = KeyPathPattern::Arti("*".to_string());
+        let matching = mgr.list_matching(&arti_pat).unwrap();
+
+        assert_eq!(matching.len(), 2);
+        assert!(matching.contains(&entry_desc1));
+        assert!(matching.contains(&entry_desc2));
 
         assert_eq!(mgr.remove_entry(&entry_desc2).unwrap(), Some(()));
         assert!(mgr.get_entry::<TestKey>(&entry_desc2).unwrap().is_none());
