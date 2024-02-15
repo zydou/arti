@@ -91,7 +91,7 @@ pub(crate) type BoxedKeystore = Box<dyn Keystore>;
 #[doc(hidden)]
 pub use {derive_adhoc, inventory};
 
-use derive_more::{AsRef, Display};
+use derive_more::{AsRef, Display, From};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -117,7 +117,7 @@ impl FromStr for KeystoreId {
 }
 
 /// Specifies which keystores a [`KeyMgr`] operation should apply to.
-#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash, From)]
 #[non_exhaustive]
 pub enum KeystoreSelector<'a> {
     /// Try to use the keystore with the specified ID.
