@@ -336,7 +336,7 @@ where
 ///  * `impl Default for $Config`
 ///  * `impl Builder for $ConfigBuilder`
 ///  * a self-test that the `Default` impl actually works
-///  * a test that the `Builder` can be deserialized from an empty [`config::Config`],
+///  * a test that the `Builder` can be deserialized from an empty [`ConfigurationTree`],
 ///    and then built, and that the result is the same as the ordinary default.
 //
 // The implementation munches fake "trait bounds" (`: !Deserialize + !Wombat ...`) off the RHS.

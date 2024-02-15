@@ -25,7 +25,7 @@ works as follows:
 
  2. [`ConfigurationSources::load`] actually *reads* all of these sources,
     parses them (eg, as TOML files),
-    and returns a [`config::Config`].
+    and returns a [`ConfigurationTree`].
     This is a tree-structured dynamically typed data structure,
     mirroring the input configuration structure, largely unvalidated,
     and containing everything in the input config sources.

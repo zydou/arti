@@ -1,8 +1,8 @@
-//! Processing a config::Config into a validated configuration
+//! Processing a `ConfigurationTree` into a validated configuration
 //!
 //! This module, and particularly [`resolve`], takes care of:
 //!
-//!   * Deserializing a [`config::Config`] into various `FooConfigBuilder`
+//!   * Deserializing a [`ConfigurationTree`] into various `FooConfigBuilder`
 //!   * Calling the `build()` methods to get various `FooConfig`.
 //!   * Reporting unrecognised configuration keys
 //!     (eg to help the user detect misspellings).
@@ -21,7 +21,7 @@
 //!
 //!   * [`impl TopLevel`](TopLevel) for your *top level* structures (only).
 //!
-//!   * Call [`resolve`] (or one of its variants) with a `config::Config`,
+//!   * Call [`resolve`] (or one of its variants) with a `ConfigurationTree`,
 //!     to obtain your top-level configuration(s).
 //!
 //! # Example
@@ -33,7 +33,7 @@
 //!    for additional configuration settings for the added features.
 //!  * Establishes some configuration sources
 //!    (the trivial empty `ConfigSources`, to avoid clutter in the example)
-//!  * Reads those sources into a single configuration taxonomy [`config::Config`].
+//!  * Reads those sources into a single configuration taxonomy [`ConfigurationTree`].
 //!  * Processes that configuration into a 3-tuple of configuration
 //!    structs for the three components, namely:
 //!      - `TorClientConfig`, the configuration for the `arti_client` crate's `TorClient`

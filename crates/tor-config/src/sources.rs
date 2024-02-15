@@ -2,7 +2,8 @@
 //!
 //! This module provides [`ConfigurationSources`].
 //!
-//! This layer brings together the functionality of [`config::File`],
+//! This layer brings together the functionality of
+//! our underlying configuration library,
 //! [`fs_mistrust`] and [`tor_config::cmdline`](crate::cmdline).
 //!
 //! A `ConfigurationSources` records a set of filenames of TOML files,
@@ -12,7 +13,7 @@
 //! Usually, call [`ConfigurationSources::from_cmdline`],
 //! perhaps [`set_mistrust`](ConfigurationSources::set_mistrust),
 //! and finally [`load`](ConfigurationSources::load).
-//! The resulting [`config::Config`] can then be deserialized.
+//! The resulting [`ConfigurationTree`] can then be deserialized.
 //!
 //! If you want to watch for config file changes,
 //! use [`ConfigurationSources::scan()`],
@@ -251,7 +252,7 @@ impl ConfigurationSources {
         &self.mistrust
     }
 
-    /// Scan for files and load the configuration into a new [`config::Config`].
+    /// Scan for files and load the configuration into a new [`ConfigurationTree`].
     ///
     /// This is a convenience method for [`scan()`](Self::scan)
     /// followed by [`files.load`].
@@ -392,8 +393,8 @@ impl FoundConfigFiles<'_> {
         Ok(builder)
     }
 
-    /// Load the configuration into a new [`config::Config`].
-    pub fn load(self) -> Result<ConfigurationFields, ConfigError> {
+    /// Load the configuration into a new [`ConfigurationTree`].
+    pub fn load(self) -> Result<ConfigurationTree, ConfigError> {
         let mut builder = config::Config::builder();
         builder = self.add_sources(builder)?;
         Ok(ConfigurationTree(
