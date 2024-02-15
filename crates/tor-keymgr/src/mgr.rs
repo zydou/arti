@@ -21,7 +21,7 @@ use tor_error::{bad_api_usage, internal};
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
 ///
-/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type) -
+/// The `KeyMgr` accessors - currently just [`get()`](KeyMgr::get) -
 /// search the configured key stores in order: first the default key store,
 /// and then the secondary stores, in order.
 ///
