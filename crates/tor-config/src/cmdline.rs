@@ -1,12 +1,7 @@
 //! Implement a configuration source based on command-line arguments.
 
-use config::{ConfigError, Source, Value};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::collections::HashMap;
-
-/// Alias for the Result type from config.
-type Result<T> = std::result::Result<T, ConfigError>;
 
 /// A CmdLine holds a set of command-line arguments that augment a
 /// configuration.
@@ -43,6 +38,7 @@ impl CmdLine {
     pub fn push_toml_line(&mut self, line: String) {
         self.contents.push(line);
     }
+
     /// Try to adjust the contents of a toml deserialization error so
     /// that instead it refers to a single command-line argument.
     fn convert_toml_error(
@@ -88,27 +84,18 @@ impl CmdLine {
     }
 }
 
-impl Source for CmdLine {
-    fn clone_into_box(&self) -> Box<dyn Source + Send + Sync> {
-        Box::new(self.clone())
+impl figment::Provider for CmdLine {
+    fn metadata(&self) -> figment::Metadata {
+        figment::Metadata::named("command line")
     }
 
-    fn collect(&self) -> Result<HashMap<String, Value>> {
-        let toml_s = self.build_toml();
-        let toml_v: toml::Value = match toml::from_str(&toml_s) {
-            Err(e) => {
-                return Err(ConfigError::Message(self.convert_toml_error(
-                    &toml_s,
-                    e.message(),
-                    &e.span(),
-                )))
-            }
-            Ok(v) => v,
-        };
+    fn data(&self) -> figment::Result<figment::value::Map<figment::Profile, figment::value::Dict>> {
+        let toml_str = self.build_toml();
+        let toml: toml::Value = toml::from_str(&toml_str).map_err(|toml_err| {
+            self.convert_toml_error(&toml_str, toml_err.message(), &toml_err.span())
+        })?;
 
-        toml_v
-            .try_into()
-            .map_err(|e| ConfigError::Foreign(Box::new(e)))
+        figment::providers::Serialized::defaults(toml).data()
     }
 }
 
@@ -157,6 +144,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use figment::Provider as _;
+
     #[test]
     fn bareword_expansion() {
         assert_eq!(tweak_toml_bareword("dsfklj"), None);
@@ -197,16 +186,6 @@ mod test {
     }
 
     #[test]
-    fn clone_into_box() {
-        let mut cl = CmdLine::new();
-        cl.push_toml_line("Molo=Lizwe".to_owned());
-        let cl2 = cl.clone_into_box();
-
-        let v = cl2.collect().unwrap();
-        assert_eq!(v["Molo"], "Lizwe".into());
-    }
-
-    #[test]
     fn parse_good() {
         let mut cl = CmdLine::default();
         cl.push_toml_line("a=3".to_string());
@@ -214,7 +193,12 @@ mod test {
         cl.push_toml_line("ef=\"gh i\"".to_string());
         cl.push_toml_line("w=[1,2,3]".to_string());
 
-        let v = cl.collect().unwrap();
+        let v = cl
+            .data()
+            .unwrap()
+            .remove(&figment::Profile::Default)
+            .unwrap();
+
         assert_eq!(v["a"], "3".into());
         assert_eq!(v["bcd"], "hello".into());
         assert_eq!(v["ef"], "gh i".into());
@@ -225,7 +209,7 @@ mod test {
     fn parse_bad() {
         let mut cl = CmdLine::default();
         cl.push_toml_line("x=1 1 1 1 1".to_owned());
-        let v = cl.collect();
+        let v = cl.data();
         assert!(v.is_err());
     }
 }

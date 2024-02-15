@@ -1,7 +1,5 @@
 //! Declare error types.
 
-use std::sync::Arc;
-
 use tor_error::{ErrorKind, HasKind};
 
 /// An error related to an option passed to Arti via a configuration
@@ -130,21 +128,39 @@ impl HasKind for ReconfigureError {
     }
 }
 
-/// Wrapper for an error type from our underlying configuration library.
+/// An error that occurs while trying to read and process our configuration.
+#[derive(Debug, Clone, thiserror::Error)]
+#[non_exhaustive]
+pub enum ConfigError {
+    /// We encoundered a problem with file permissions.
+    #[error("Bad permissions on configuration file")]
+    Permissions(#[source] fs_mistrust::Error),
+    /// Our underlying configuration library gave an error.
+    #[error("Invalid configuration data")]
+    Parse(#[source] ConfigParseError),
+    /// Encountered an IO error while reading (or preparing to read) a file.
+    #[error("Unable to read configuration file {0:?}")]
+    Io(
+        Option<std::path::PathBuf>,
+        #[source] std::sync::Arc<std::io::Error>,
+    ),
+}
+
+/// Wrapper for our an error type from our underlying configuration library.
 #[derive(Debug, Clone)]
-pub struct ConfigError(Arc<config::ConfigError>);
+pub struct ConfigParseError(figment::Error);
 
 impl ConfigError {
     /// Wrap `err` as a ConfigError.
     ///
     /// This is not a From implementation, since we don't want to expose our
     /// underlying configuration library.
-    pub(crate) fn from_cfg_err(err: config::ConfigError) -> Self {
-        ConfigError(Arc::new(err))
+    pub(crate) fn from_cfg_err(err: figment::Error) -> Self {
+        ConfigError::Parse(ConfigParseError(err))
     }
 }
 
-impl std::fmt::Display for ConfigError {
+impl std::fmt::Display for ConfigParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = self.0.to_string();
         write!(f, "{}", s)?;
@@ -155,7 +171,7 @@ impl std::fmt::Display for ConfigError {
     }
 }
 
-impl std::error::Error for ConfigError {
+impl std::error::Error for ConfigParseError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.0)
     }

@@ -413,7 +413,7 @@ mod test_serde {
         let cfg = sources.load().unwrap();
 
         dbg!(&cfg);
-        let TestConfigFile { p } = cfg.0.try_deserialize().expect("deser cfg failed");
+        let TestConfigFile { p } = cfg.0.extract().expect("deser cfg failed");
         p
     }
 
