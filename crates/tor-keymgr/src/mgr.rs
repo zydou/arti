@@ -140,10 +140,7 @@ impl KeyMgr {
     /// Returns `Ok(None)` if the key store does not contain the requested entry.
     ///
     /// Returns an error if the specified `key_type` does not match `K::Key::key_type()`.
-    pub fn get_entry<K: ToEncodableKey>(
-        &self,
-        entry: &KeystoreEntry,
-    ) -> Result<Option<K>> {
+    pub fn get_entry<K: ToEncodableKey>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
         let selector = (*entry.keystore_id()).into();
         let store = self.select_keystore(&selector)?;
         self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
