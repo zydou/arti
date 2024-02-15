@@ -231,8 +231,10 @@ DESCRIPTION
 
 SUBCOMMANDS
        help                  Print this message or the help of the given subcommand(s)
+       list                  List the authorized clients
        import                Import the public keys of a client
        disable               Un-authorize a previously authorized client
+       remove                Purge the client authorization keys of a client, unauthorizing them
        enable                Authorize a new client
 ```
 
