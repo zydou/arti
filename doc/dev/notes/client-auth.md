@@ -130,6 +130,10 @@ We have several options for the static authorized clients configuration.
 We could put the authorized client keys in a directory
 within the state dir (`<state_dir>/authorized_clients/<client_nick>`).
 
+We will provide a `arti hss auth-clients` CLI (described under `Extra CLI
+subcommands for managing authorized clients` below) for managing client
+authorization.
+
 We will use the same naming convention as we do for the keys in an
 `ArtiNativeKeystore`, so the paths of client authorization keys
 will be of the form
@@ -254,6 +258,12 @@ and `mv`, this subcommand may not be particularly useful. OTOH, `enable` and
 `disable` could be useful for managing temporarily unauthorized clients: arti
 would maintain a separate `revoked_clients` (`disabled_clients`?) directory, and
 `disable` and `enable` would move keys to and from it.
+
+In addition to the commands listed under `SUBCOMMANDS` above, we might also want
+to provide subcommands for:
+  * retrieving the absolute path of `<state_dir>/authorized_clients`
+  * retrieving the absolute path of
+    `<state_dir>/authorized_clients/<client_nick>`
 
 **Suggested action items**:
   * [ ] Make this a low-priority item (and implement it if time permits)
