@@ -263,13 +263,11 @@ integration-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # First commit where shadow CI scripts are fixed on bookworm.
-    # TODO: update to next release once there is one.
-    JOB_SHADOW_COMMIT: "193924aae0dab30ffda0abe29467f552949849fa"
+    JOB_SHADOW_COMMIT: "v3.1.0"
 
     JOB_TGEN_REPO: "https://github.com/shadow/tgen.git"
     JOB_TGEN_BRANCH: "main"
-    JOB_TGEN_COMMIT: "30c95bbe723ebe5e4d068adfd975b094e00dbe10"
+    JOB_TGEN_COMMIT: "v1.1.2"
   stage: test
   cache:
     - key: $CI_JOB_NAME-shadow-$JOB_SHADOW_COMMIT
@@ -285,23 +283,6 @@ integration-shadow:
 
     # We're going to install binaries to $HOME/.local/bin
     - 'export PATH=$HOME/.local/bin:$PATH'
-
-    # Add bullseye sources, needed for tgen.
-    # See https://github.com/shadow/tgen/issues/44
-    - |
-      cat <<EOF > /etc/apt/sources.list.d/bullseye.sources
-      Types: deb
-      URIs: http://deb.debian.org/debian
-      Suites: bullseye bullseye-updates
-      Components: main
-      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
-
-      Types: deb
-      URIs: http://deb.debian.org/debian-security
-      Suites: bullseye-security
-      Components: main
-      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
-      EOF
 
     - apt-get update
     - apt-get install -y git tor stow
@@ -342,7 +323,7 @@ integration-shadow:
         git clone --shallow-since=2022-01-01 -b $JOB_TGEN_BRANCH $JOB_TGEN_REPO ~/src/tgen
         pushd ~/src/tgen
         git checkout $JOB_TGEN_COMMIT
-        apt-get install -y cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev/bullseye make
+        apt-get install -y cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev make
         mkdir build
         cd build
         cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/tgen
@@ -350,7 +331,7 @@ integration-shadow:
         make install
         popd
       fi
-    - apt-get install -y libigraph1/bullseye libglib2.0-0
+    - apt-get install -y libigraph3 libglib2.0-0
     - stow -d opt -t $HOME/.local tgen
 
     # Ensure newly installed executables can be found
