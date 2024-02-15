@@ -74,7 +74,7 @@ pub use {
     key_type::{KeyType, UnknownKeyTypeError},
     keystore::arti::ArtiNativeKeystore,
     keystore::{EncodableKey, ErasedKey, Keygen, KeygenRng, Keystore, SshKeyData, ToEncodableKey},
-    mgr::{KeyMgr, KeyMgrBuilder},
+    mgr::{KeyMgr, KeyMgrBuilder, KeystoreEntry},
     ssh_key,
 };
 

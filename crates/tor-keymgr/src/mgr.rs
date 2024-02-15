@@ -54,6 +54,23 @@ pub struct KeyMgr {
     key_info_extractors: Vec<&'static dyn KeyPathInfoExtractor>,
 }
 
+/// A keystore entry descriptor.
+///
+/// This identifies a key entry from a specific keystore.
+/// The key entry can be retrieved, using [`KeyMgr::get_entry`],
+/// or removed, using [`KeyMgr::remove_entry`].
+///
+/// Returned from [`KeyMgr::list_matching`].
+#[derive(Clone, Debug, PartialEq, amplify::Getters)]
+pub struct KeystoreEntry<'a> {
+    /// The [`KeyPath`] of the key.
+    key_path: KeyPath,
+    /// The [`KeyType`] of the key.
+    key_type: KeyType,
+    /// The [`KeystoreId`] that of the keystore where the key was found.
+    keystore_id: &'a KeystoreId,
+}
+
 impl KeyMgrBuilder {
     /// Construct a [`KeyMgr`] from this builder.
     pub fn build(self) -> StdResult<KeyMgr, KeyMgrBuilderError> {
