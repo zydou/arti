@@ -404,11 +404,13 @@ mod test_serde {
     }
     fn deser_toml_cfg(toml: &str) -> CfgPath {
         dbg!(toml);
-        let cfg = config::File::from_str(toml, config::FileFormat::Toml);
-        let cfg = config::Config::builder()
-            .add_source(cfg)
-            .build()
-            .expect("parse toml failed");
+        let mut sources = crate::ConfigurationSources::new_empty();
+        sources.push_source(
+            crate::ConfigurationSource::from_verbatim(toml.to_string()),
+            crate::sources::MustRead::MustRead,
+        );
+        let cfg = sources.load().unwrap();
+
         dbg!(&cfg);
         let TestConfigFile { p } = cfg.try_deserialize().expect("deser cfg failed");
         p

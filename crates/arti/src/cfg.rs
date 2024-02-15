@@ -600,7 +600,9 @@ mod test {
     fn default_config() {
         use InExample::*;
 
-        let empty_config = config::Config::builder().build().unwrap();
+        let empty_config = tor_config::ConfigurationSources::new_empty()
+            .load()
+            .unwrap();
         let empty_config: ArtiCombinedConfig = tor_config::resolve(empty_config).unwrap();
 
         let default = (ArtiConfig::default(), TorClientConfig::default());
@@ -661,10 +663,14 @@ mod test {
         }
 
         let parses_to_defaults = |example: &str, which: WhichExample, uncommented: bool| {
-            let cfg = config::Config::builder()
-                .add_source(config::File::from_str(example, config::FileFormat::Toml))
-                .build()
-                .unwrap();
+            let cfg = {
+                let mut sources = tor_config::ConfigurationSources::new_empty();
+                sources.push_source(
+                    tor_config::ConfigurationSource::from_verbatim(example.to_string()),
+                    tor_config::sources::MustRead::MustRead,
+                );
+                sources.load().unwrap()
+            };
 
             // This tests that the example settings do not *contradict* the defaults.
             let results: ResolutionResults<ArtiCombinedConfig> =
@@ -1244,8 +1250,12 @@ example config file {which:?}, uncommented={uncommented:?}
         fn parse(&self) -> config::Config {
             let s = self.build_string();
             eprintln!("parsing\n  --\n{}\n  --", &s);
-            let c: toml::Value = toml::from_str(&s).expect(&s);
-            config::Config::try_from(&c).expect(&s)
+            let mut sources = tor_config::ConfigurationSources::new_empty();
+            sources.push_source(
+                tor_config::ConfigurationSource::from_verbatim(s.to_string()),
+                tor_config::sources::MustRead::MustRead,
+            );
+            sources.load().expect(&s)
         }
 
         fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {

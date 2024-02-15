@@ -783,12 +783,14 @@ mod test {
             a = "hi"
             old = true
         "#;
-        let source = config::File::from_str(test_data, config::FileFormat::Toml);
-
-        let cfg = config::Config::builder()
-            .add_source(source)
-            .build()
-            .unwrap();
+        let cfg = {
+            let mut sources = crate::ConfigurationSources::new_empty();
+            sources.push_source(
+                crate::ConfigurationSource::from_verbatim(test_data.to_string()),
+                crate::sources::MustRead::MustRead,
+            );
+            sources.load().unwrap()
+        };
 
         let _: (TestConfigA, TestConfigB) = resolve_ignore_warnings(cfg.clone()).unwrap();
 
@@ -835,11 +837,15 @@ mod test {
         // suppress a dead-code warning.
         let _b = TestConfigC::builder();
 
-        let source = config::File::from_str(test_data, config::FileFormat::Toml);
-        let cfg = config::Config::builder()
-            .add_source(source)
-            .build()
-            .unwrap();
+        let cfg = {
+            let mut sources = crate::ConfigurationSources::new_empty();
+            sources.push_source(
+                crate::ConfigurationSource::from_verbatim(test_data.to_string()),
+                crate::sources::MustRead::MustRead,
+            );
+            sources.load().unwrap()
+        };
+
         {
             // First try "A", then "C".
             let res1: Result<ResolutionResults<(TestConfigA, TestConfigC)>, _> =
