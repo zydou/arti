@@ -225,8 +225,8 @@ macro_rules! define_list_builder_helper {
         $( item_build: $item_build:expr; )?
         $(#[ serde $serde_attrs:tt ] )+
     } => {
-        #[derive($crate::educe::Educe, Clone, Debug)]
-        #[derive($crate::serde::Serialize, $crate::serde::Deserialize)]
+        #[derive($crate::deps::educe::Educe, Clone, Debug)]
+        #[derive($crate::deps::serde::Serialize, $crate::deps::serde::Deserialize)]
         #[educe(Default)]
         $(#[ serde $serde_attrs ])+
         $(#[ $docs_and_attrs ])*
@@ -263,7 +263,7 @@ macro_rules! define_list_builder_helper {
                 let $things = $things
                     .iter()
                     .map(
-                        $crate::macro_first_nonempty!{
+                        $crate::deps::macro_first_nonempty!{
                             [ $( $item_build )? ],
                             [ |item| item.build() ],
                         }
@@ -356,7 +356,7 @@ macro_rules! define_list_builder_accessors {
             )*
         }
     } => {
-        impl $OuterBuilder { $( $crate::paste!{
+        impl $OuterBuilder { $( $crate::deps::paste!{
             /// Access the being-built list (resolving default)
             ///
             /// If the field has not yet been set or accessed, the default list will be

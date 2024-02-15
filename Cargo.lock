@@ -5803,7 +5803,6 @@ dependencies = [
  "derive_builder_fork_arti",
  "fs-mistrust",
  "futures",
- "itertools 0.12.1",
  "serde",
  "thiserror",
  "tokio",

@@ -51,22 +51,27 @@ mod mut_cfg;
 mod path;
 pub mod sources;
 
+#[doc(hidden)]
+pub mod deps {
+    pub use config;
+    pub use educe;
+    pub use itertools::Itertools;
+    pub use paste::paste;
+    pub use serde;
+    pub use tor_basic_utils::macro_first_nonempty;
+}
+
 pub use cmdline::CmdLine;
-pub use config as config_crate;
-pub use educe;
 pub use err::{ConfigBuildError, ConfigError, ReconfigureError};
 pub use flatten::{Flatten, Flattenable};
-pub use itertools::Itertools;
 pub use list_builder::{MultilineListBuilder, MultilineListBuilderError};
 pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
 pub use misc::*;
 pub use mut_cfg::MutCfg;
-pub use paste::paste;
 pub use path::{CfgPath, CfgPathError};
-pub use serde;
 pub use sources::{ConfigurationSource, ConfigurationSources};
 
-pub use tor_basic_utils::macro_first_nonempty;
+use itertools::Itertools;
 
 #[doc(hidden)]
 pub use derive_adhoc;
@@ -383,7 +388,7 @@ macro_rules! impl_standard_builder {
         @ ( $($Builder        :ident)? )
           ( $($default        :ident)? )
           ( $($try_deserialize:ident)? ) $Config:ty : $(+)?
-    } => { $crate::paste!{
+    } => { $crate::deps::paste!{
         impl $Config {
             /// Returns a fresh, default, builder
             pub fn builder() -> [< $Config Builder >] {
@@ -420,7 +425,7 @@ macro_rules! impl_standard_builder {
 
             if let Some(def) = def {
                 $( // expands iff there was $try_deserialize, which is always try_deserialize
-                    let empty_config = $crate::config_crate::Config::builder().build().unwrap();
+                    let empty_config = $crate::deps::config::Config::builder().build().unwrap();
                     let builder: [< $Config Builder >] = empty_config.$try_deserialize().unwrap();
                     let from_empty = builder.build().unwrap();
                     assert_eq!(def, from_empty);
