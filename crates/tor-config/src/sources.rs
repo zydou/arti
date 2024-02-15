@@ -23,7 +23,7 @@
 //! which is necessary to avoid possibly missing changes.)
 
 use std::ffi::OsString;
-use std::{fs, io};
+use std::{fs, io, sync::Arc};
 
 use void::ResultVoidExt as _;
 
@@ -68,13 +68,16 @@ pub enum MustRead {
 /// You can make one out of a `PathBuf`, examining its syntax like `arti` does,
 /// using `ConfigurationSource::from_path`.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[allow(clippy::exhaustive_enums)] // Callers will need to understand this
+#[allow(clippy::exhaustive_enums)]
 pub enum ConfigurationSource {
     /// A plain file
     File(PathBuf),
 
     /// A directory
     Dir(PathBuf),
+
+    /// A verbatim TOML file
+    Verbatim(Arc<String>),
 }
 
 impl ConfigurationSource {
@@ -94,17 +97,17 @@ impl ConfigurationSource {
         }
     }
 
-    /// Return a reference to the inner `Path`
-    pub fn as_path(&self) -> &Path {
-        self.as_ref()
+    /// Use the provided text as verbatim TOML, as if it had been read from disk.
+    pub fn from_verbatim(text: String) -> ConfigurationSource {
+        Self::Verbatim(Arc::new(text))
     }
-}
 
-impl AsRef<PathBuf> for ConfigurationSource {
-    fn as_ref(&self) -> &PathBuf {
+    /// Return a reference to the inner `Path`, if there is one.
+    pub fn as_path(&self) -> Option<&Path> {
         use ConfigurationSource as CS;
         match self {
-            CS::File(p) | CS::Dir(p) => p,
+            CS::File(p) | CS::Dir(p) => Some(p),
+            CS::Verbatim(_) => None,
         }
     }
 }
@@ -319,7 +322,7 @@ impl ConfigurationSources {
                         must_read: MustRead::TolerateAbsence,
                     }));
                 }
-                CS::File(_) => {
+                CS::File(_) | CS::Verbatim(_) => {
                     out.push(FoundConfigFile {
                         source: source.clone(),
                         must_read,
@@ -354,6 +357,11 @@ impl FoundConfigFiles<'_> {
             let file = match source {
                 CS::File(file) => file,
                 CS::Dir(_) => continue,
+                CS::Verbatim(text) => {
+                    builder =
+                        builder.add_source(config::File::from_str(&text, config::FileFormat::Toml));
+                    continue;
+                }
             };
 
             match self
@@ -526,7 +534,13 @@ world = \"nonsense\"
         assert_eq!(
             found
                 .iter()
-                .map(|p| p.as_path().strip_prefix(&td).unwrap().to_str().unwrap())
+                .map(|p| p
+                    .as_path()
+                    .unwrap()
+                    .strip_prefix(&td)
+                    .unwrap()
+                    .to_str()
+                    .unwrap())
                 .collect_vec(),
             &["1.toml", "extra.d", "extra.d/2.toml"]
         );
@@ -570,7 +584,7 @@ world = \"nonsense\"
         let files: Vec<_> = sources
             .files
             .iter()
-            .map(|file| file.0.as_ref().to_str().unwrap())
+            .map(|file| file.0.as_path().unwrap().to_str().unwrap())
             .collect();
         assert_eq!(files, vec!["/family/yor.toml", "/family/anya.toml"]);
         assert_eq!(sources.files[0].1, MustRead::MustRead);

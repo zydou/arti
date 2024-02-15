@@ -923,8 +923,8 @@ mod test {
         // here, so we'll just make sure it does _something_ plausible.
 
         let dflt = default_config_files().unwrap();
-        assert!(dflt[0].as_path().ends_with("arti.toml"));
-        assert!(dflt[1].as_path().ends_with("arti.d"));
+        assert!(dflt[0].as_path().unwrap().ends_with("arti.toml"));
+        assert!(dflt[1].as_path().unwrap().ends_with("arti.d"));
         assert_eq!(dflt.len(), 2);
     }
 
