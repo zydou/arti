@@ -5,9 +5,12 @@ use std::error::Error as StdError;
 
 /// non-public module, to implement a "sealed" trait.
 mod seal {
-    /// Trait to seal the "Hintable" trait
+    /// Trait to seal the "HintableError" trait
     #[allow(unreachable_pub)]
     pub trait Sealed {}
+    /// Trait to seal the "HintableErrorImpl" trait
+    #[allow(unreachable_pub)]
+    pub trait OnlyTheMacroShouldImplementThis__ {}
 }
 
 /// An error that can provide additional information about how to solve itself.
@@ -56,7 +59,11 @@ fn best_hint<'a>(mut err: &'a (dyn StdError + 'static)) -> Option<ErrorHint<'a>>
 /// Trait for an error that can provide a hint _directly_.
 ///
 /// Not defined for errors whose sources may provide a hint.
-trait HintableErrorImpl: seal::Sealed {
+///
+/// To implement this trait, you need to provide an impl in this crate, and
+/// extend the macro invocation for `hintable_impl!`.  Nothing else is currently
+/// supported.
+trait HintableErrorImpl: seal::OnlyTheMacroShouldImplementThis__ {
     /// If possible, provide a hint for how to solve this error.
     ///
     /// (This should not check the source of this error or any other error;
@@ -89,7 +96,7 @@ macro_rules! hintable_impl {
     { $( $e:ty )+, $(,)? } =>
     {
         $(
-            impl seal::Sealed for $e {}
+            impl seal::OnlyTheMacroShouldImplementThis__ for $e {}
         )+
 
         /// If possible, downcast this `StdError` to one of the implementations
