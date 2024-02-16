@@ -115,3 +115,61 @@ macro_rules! hintable_impl {
 hintable_impl! {
     fs_mistrust::Error,
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    fn mistrust_err() -> fs_mistrust::Error {
+        fs_mistrust::Error::BadPermission("/shocking-bad-directory".into(), 0o777, 0o022)
+    }
+
+    #[test]
+    fn find_hint_tor_error() {
+        let underlying = mistrust_err();
+        let want_hint_string = underlying.hint_specific().unwrap().to_string();
+
+        let e = tor_error::into_internal!("let's pretend an error happened")(underlying);
+        let e = crate::Error {
+            detail: Box::new(crate::err::ErrorDetail::from(e)),
+        };
+        let hint: Option<ErrorHint<'_>> = e.hint();
+        assert_eq!(hint.unwrap().to_string(), want_hint_string);
+        dbg!(want_hint_string);
+    }
+
+    #[test]
+    fn find_no_hint_tor_error() {
+        let e = tor_error::internal!("let's suppose this error has no source");
+        let e = crate::Error {
+            detail: Box::new(crate::err::ErrorDetail::from(e)),
+        };
+        let hint: Option<ErrorHint<'_>> = e.hint();
+        assert!(hint.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "anyhow")]
+    fn find_hint_anyhow() {
+        let underlying = mistrust_err();
+        let want_hint_string = underlying.hint_specific().unwrap().to_string();
+
+        let e = tor_error::into_internal!("let's pretend an error happened")(underlying);
+        let e = anyhow::Error::from(e);
+        let hint: Option<ErrorHint<'_>> = e.hint();
+        assert_eq!(hint.unwrap().to_string(), want_hint_string);
+    }
+}
