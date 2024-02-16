@@ -44,7 +44,9 @@ impl HintableError for anyhow::Error {
 /// HintableErrorImpl::hint.
 fn best_hint<'a>(mut err: &'a (dyn StdError + 'static)) -> Option<ErrorHint<'a>> {
     loop {
-        if let Some(hint) = downcast_to_hintable_impl(err).and_then(HintableErrorImpl::hint) {
+        if let Some(hint) =
+            downcast_to_hintable_impl(err).and_then(HintableErrorImpl::hint_specific)
+        {
             return Some(hint);
         }
         err = err.source()?;
@@ -56,11 +58,16 @@ fn best_hint<'a>(mut err: &'a (dyn StdError + 'static)) -> Option<ErrorHint<'a>>
 /// Not defined for errors whose sources may provide a hint.
 trait HintableErrorImpl: seal::Sealed {
     /// If possible, provide a hint for how to solve this error.
-    fn hint(&self) -> Option<ErrorHint<'_>>;
+    ///
+    /// (This should not check the source of this error or any other error;
+    /// recursing is the job of [`best_hint`].  This is the method that
+    /// should be implemented for an error type that might have a hint about how
+    /// to solve that error in particular.)
+    fn hint_specific(&self) -> Option<ErrorHint<'_>>;
 }
 
 impl HintableErrorImpl for fs_mistrust::Error {
-    fn hint(&self) -> Option<ErrorHint<'_>> {
+    fn hint_specific(&self) -> Option<ErrorHint<'_>> {
         match self {
             fs_mistrust::Error::BadPermission(filename, bits, badbits) => Some(ErrorHint {
                 inner: super::ErrorHintInner::BadPermission {
