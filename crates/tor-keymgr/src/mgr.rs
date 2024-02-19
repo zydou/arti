@@ -66,6 +66,7 @@ pub struct KeystoreEntry<'a> {
     /// The [`KeyType`] of the key.
     key_type: KeyType,
     /// The [`KeystoreId`] that of the keystore where the key was found.
+    #[getter(as_copy)]
     keystore_id: &'a KeystoreId,
 }
 
@@ -139,7 +140,7 @@ impl KeyMgr {
     ///
     /// Returns an error if the specified `key_type` does not match `K::Key::key_type()`.
     pub fn get_entry<K: ToEncodableKey>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
-        let selector = (*entry.keystore_id()).into();
+        let selector = entry.keystore_id().into();
         let store = self.select_keystore(&selector)?;
         self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
     }
@@ -275,7 +276,8 @@ impl KeyMgr {
     // This probably will involve changing the return type of Keystore::remove
     // to Result<Option<ErasedKey>>.
     pub fn remove_entry(&self, entry: &KeystoreEntry) -> Result<Option<()>> {
-        let store = self.select_keystore(&(*entry.keystore_id()).into())?;
+        let selector = entry.keystore_id().into();
+        let store = self.select_keystore(&selector)?;
 
         store.remove(entry.key_path(), entry.key_type())
     }
