@@ -418,7 +418,7 @@ impl KeySpecifierComponent for TimePeriod {
     {
         let s = s.to_string();
         #[allow(clippy::redundant_closure)] // the closure makes things slightly more readable
-        let err_ctx = |s: &str| InvalidKeyPathComponentValue::Slug(s.to_string());
+        let err_ctx = |e: &str| InvalidKeyPathComponentValue::Slug(e.to_string());
         let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
         let [interval, len, offset]: [&str; 3] = parts
             .into_inner()
