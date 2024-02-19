@@ -13,15 +13,13 @@ use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
 
-// TODO: unify get()/get_with_type() and remove()/remove_with_type()
-
 /// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
 ///
-/// The `KeyMgr` accessors - [`get()`](KeyMgr::get), [`get_with_type()`](KeyMgr::get_with_type) -
+/// The `KeyMgr` accessors - currently just [`get()`](KeyMgr::get) -
 /// search the configured key stores in order: first the default key store,
 /// and then the secondary stores, in order.
 ///
@@ -52,6 +50,24 @@ pub struct KeyMgr {
     /// using `inventory`.
     #[builder(default, setter(skip))]
     key_info_extractors: Vec<&'static dyn KeyPathInfoExtractor>,
+}
+
+/// A keystore entry descriptor.
+///
+/// This identifies a key entry from a specific keystore.
+/// The key entry can be retrieved, using [`KeyMgr::get_entry`],
+/// or removed, using [`KeyMgr::remove_entry`].
+///
+/// Returned from [`KeyMgr::list_matching`].
+#[derive(Clone, Debug, PartialEq, amplify::Getters)]
+pub struct KeystoreEntry<'a> {
+    /// The [`KeyPath`] of the key.
+    key_path: KeyPath,
+    /// The [`KeyType`] of the key.
+    key_type: KeyType,
+    /// The [`KeystoreId`] that of the keystore where the key was found.
+    #[getter(as_copy)]
+    keystore_id: &'a KeystoreId,
 }
 
 impl KeyMgrBuilder {
@@ -116,20 +132,17 @@ impl KeyMgr {
         self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())
     }
 
-    /// Read a key from one of the key stores, and try to deserialize it as `K::Key`.
+    /// Retrieve the specified keystore entry, and try to deserialize it as `K::Key`.
     ///
-    /// The key returned is retrieved from the first key store that contains an entry for the given
-    /// specifier.
+    /// The key returned is retrieved from the key store specified in the [`KeystoreEntry`].
     ///
-    /// Returns `Ok(None)` if none of the key stores have the requested key.
+    /// Returns `Ok(None)` if the key store does not contain the requested entry.
     ///
     /// Returns an error if the specified `key_type` does not match `K::Key::key_type()`.
-    pub fn get_with_type<K: ToEncodableKey>(
-        &self,
-        key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
-    ) -> Result<Option<K>> {
-        self.get_from_store(key_spec, key_type, self.all_stores())
+    pub fn get_entry<K: ToEncodableKey>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
+        let selector = entry.keystore_id().into();
+        let store = self.select_keystore(&selector)?;
+        self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
     }
 
     /// Read the key identified by `key_spec`.
@@ -251,33 +264,39 @@ impl KeyMgr {
         Ok(old_key)
     }
 
-    /// Remove the key identified by `key_spec` and `key_type` from the
-    /// [`Keystore`](crate::Keystore) specified by `selector`.
+    /// Remove the specified keystore entry.
     ///
-    /// Like [`KeyMgr::remove`], except this function takes an explicit
-    /// [`&KeyType`](crate::KeyType) argument instead
-    /// of obtaining it from the specified type's [`ToEncodableKey`] implementation.
-    pub fn remove_with_type(
-        &self,
-        key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
-        selector: KeystoreSelector,
-    ) -> Result<Option<()>> {
+    /// Like [`KeyMgr::remove`], except this function does not return the value of the removed key.
+    ///
+    /// A return value of `Ok(None)` indicates the key was not found in the specified key store,
+    /// whereas `Ok(Some(())` means the key was successfully removed.
+    //
+    // TODO: We should be consistent and return the removed key.
+    //
+    // This probably will involve changing the return type of Keystore::remove
+    // to Result<Option<ErasedKey>>.
+    pub fn remove_entry(&self, entry: &KeystoreEntry) -> Result<Option<()>> {
+        let selector = entry.keystore_id().into();
         let store = self.select_keystore(&selector)?;
 
-        store.remove(key_spec, key_type)
+        store.remove(entry.key_path(), entry.key_type())
     }
 
-    /// Return the keys matching the specified [`KeyPathPattern`].
+    /// Return the keystore entry descriptors of the keys matching the specified [`KeyPathPattern`].
     ///
     /// NOTE: This searches for matching keys in _all_ keystores.
-    pub fn list_matching(&self, pat: &KeyPathPattern) -> Result<Vec<(KeyPath, KeyType)>> {
+    pub fn list_matching(&self, pat: &KeyPathPattern) -> Result<Vec<KeystoreEntry>> {
         self.all_stores()
             .map(|store| -> Result<Vec<_>> {
                 Ok(store
                     .list()?
                     .into_iter()
                     .filter(|(key_path, _): &(KeyPath, KeyType)| key_path.matches(pat).is_some())
+                    .map(|(path, key_type)| KeystoreEntry {
+                        key_path: path.clone(),
+                        key_type,
+                        keystore_id: store.id(),
+                    })
                     .collect::<Vec<_>>())
             })
             .flatten_ok()
@@ -525,8 +544,15 @@ mod tests {
                 }
 
                 fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
-                    // These tests don't use this function
-                    unimplemented!()
+                    Ok(self
+                        .inner
+                        .read()
+                        .unwrap()
+                        .iter()
+                        .map(|((arti_path, key_type), _)| {
+                            (KeyPath::Arti(arti_path.clone()), key_type.clone())
+                        })
+                        .collect())
                 }
             }
         };
@@ -557,6 +583,15 @@ mod tests {
     impl_specifier!(TestKeySpecifier3, "spec3");
 
     impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
+
+    /// Create a test `KeystoreEntry`.
+    fn entry_descriptor(specifier: impl KeySpecifier, keystore_id: &KeystoreId) -> KeystoreEntry {
+        KeystoreEntry {
+            key_path: specifier.arti_path().unwrap().into(),
+            key_type: TestKey::key_type(),
+            keystore_id,
+        }
+    }
 
     #[test]
     fn insert_and_get() {
@@ -788,6 +823,9 @@ mod tests {
         let mgr = builder.build().unwrap();
 
         let keystore2 = KeystoreId::from_str("keystore2").unwrap();
+        let entry_desc1 = entry_descriptor(TestKeySpecifier1, &keystore2);
+        assert!(mgr.get_entry::<TestKey>(&entry_desc1).unwrap().is_none());
+
         mgr.insert(
             "coot".to_string(),
             &TestKeySpecifier1,
@@ -804,6 +842,11 @@ mod tests {
             )
             .unwrap(),
             "keystore2_coot".to_string()
+        );
+
+        assert_eq!(
+            mgr.get_entry::<TestKey>(&entry_desc1).unwrap(),
+            Some("keystore2_coot".to_string())
         );
 
         // This key doesn't exist in any of the keystores, so it will be auto-generated and
@@ -823,5 +866,22 @@ mod tests {
             mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
             Some("keystore3_generated_test_key".to_string())
         );
+
+        let entry_desc2 = entry_descriptor(TestKeySpecifier2, &keystore3);
+        assert_eq!(
+            mgr.get_entry::<TestKey>(&entry_desc2).unwrap(),
+            Some("keystore3_generated_test_key".to_string())
+        );
+
+        let arti_pat = KeyPathPattern::Arti("*".to_string());
+        let matching = mgr.list_matching(&arti_pat).unwrap();
+
+        assert_eq!(matching.len(), 2);
+        assert!(matching.contains(&entry_desc1));
+        assert!(matching.contains(&entry_desc2));
+
+        assert_eq!(mgr.remove_entry(&entry_desc2).unwrap(), Some(()));
+        assert!(mgr.get_entry::<TestKey>(&entry_desc2).unwrap().is_none());
+        assert!(mgr.remove_entry(&entry_desc2).unwrap().is_none());
     }
 }
