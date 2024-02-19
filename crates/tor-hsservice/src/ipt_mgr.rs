@@ -48,7 +48,7 @@ use crate::err::StateExpiryError;
 use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
-use crate::status::IptMgrStatusSender;
+use crate::status::{IptMgrStatusSender, State as IptMgrState};
 use crate::svc::{ipt_establish, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
@@ -60,6 +60,8 @@ use TrackedStatus as TS;
 
 mod persist;
 pub(crate) use persist::IptStorageHandle;
+
+pub use crate::svc::ipt_establish::IptError;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 ///
@@ -122,8 +124,6 @@ pub(crate) struct Immutable<R> {
     replay_log_dir: tor_persist::state_dir::InstanceRawSubdir,
 
     /// A sender for updating the status of the onion service.
-    //
-    // TODO (#1083): Set the status to Running/Bootstrapping/Recovering where appropriate
     #[educe(Debug(ignore))]
     status_tx: IptMgrStatusSender,
 }
@@ -279,6 +279,9 @@ enum TrackedStatus {
         /// of the establishment time, which is fine.
         /// Or it might be `Err` meaning we don't know.
         started: Result<Instant, ()>,
+
+        /// The error, if any.
+        error: Option<IptError>,
     },
 
     /// Corresponds to [`IptStatusStatus::Establishing`]
@@ -534,6 +537,14 @@ impl Ipt {
         }
     }
 
+    /// Returns the error, if any, we are currently encountering at this IPT.
+    fn error(&self) -> Option<&IptError> {
+        match &self.status_last {
+            TS::Good { .. } | TS::Establishing { .. } => None,
+            TS::Faulty { error, .. } => error.as_ref(),
+        }
+    }
+
     /// Construct the information needed by the publisher for this intro point
     fn for_publish(&self, details: &ipt_establish::GoodIptDetails) -> Result<ipt_set::Ipt, Bug> {
         let k_sid: &ed25519::Keypair = (*self.k_sid).as_ref();
@@ -626,6 +637,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         self.state.ipt_removal_cleanup_needed = true;
 
         let runtime = self.imm.runtime.clone();
+
+        self.imm.status_tx.send(IptMgrState::Bootstrapping, None);
+
         // This task will shut down when the RunningOnionService is dropped, causing
         // self.state.shutdown to become ready.
         runtime
@@ -660,6 +674,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Iterate over the *current* IPTs in `Good` state
     fn good_ipts(&self) -> impl Iterator<Item = (&IptRelay, &Ipt)> {
         self.current_ipts().filter(|(_ir, ipt)| ipt.is_good())
+    }
+
+    /// Iterate over the current IPT errors.
+    ///
+    /// Used when reporting our state as [`Recovering`](crate::status::State::Recovering).
+    fn ipt_errors(&self) -> impl Iterator<Item = &IptError> {
+        self.all_ipts().filter_map(|(_ir, ipt)| ipt.error())
     }
 }
 
@@ -830,7 +851,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
                     details,
                 }
             }
-            ISS::Faulty => TS::Faulty { started },
+            ISS::Faulty(error) => TS::Faulty { started, error },
         };
     }
 }
@@ -1230,12 +1251,22 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 n_good_ipts,
                 self.target_n_intro_points()
             );
+
+            self.imm.status_tx.send(IptMgrState::Running, None);
+
             Some(IPT_PUBLISH_CERTAIN)
         } else if self.good_ipts().next().is_none()
         /* !... .is_empty() */
         {
             // "Unknown" - we have no idea which IPTs to publish.
             debug!("HS service {}: no good IPTs", &self.imm.nick);
+
+            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
+            // and include it in the onion svc status.
+            self.imm
+                .status_tx
+                .send_recovering(self.ipt_errors().cloned().collect_vec());
+
             None
         } else if let Some((wait_for, wait_more)) = started_establishing_very_recently() {
             // "Unknown" - we say have no idea which IPTs to publish:
@@ -1250,6 +1281,13 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 wait_more.as_millis(),
                 wait_for
             );
+
+            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
+            // and include it in the onion svc status.
+            self.imm
+                .status_tx
+                .send_recovering(self.ipt_errors().cloned().collect_vec());
+
             None
         } else {
             // "Uncertain" - we have some IPTs we could publish, but we're not confident
@@ -1259,6 +1297,19 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 n_good_ipts,
                 self.target_n_intro_points()
             );
+
+            // We are close to being Running -- we just need more IPTs!
+            let errors = self.ipt_errors().cloned().collect_vec();
+            let errors = if errors.is_empty() {
+                None
+            } else {
+                Some(errors)
+            };
+
+            self.imm
+                .status_tx
+                .send(IptMgrState::Degraded, errors.map(|e| e.into()));
+
             Some(IPT_PUBLISH_UNCERTAIN)
         };
 
@@ -1624,12 +1675,12 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 Err(crash) => {
                     error!("HS service {} crashed! {}", &self.imm.nick, crash);
 
-                    self.imm.status_tx.note_broken(crash);
+                    self.imm.status_tx.send_broken(crash);
                     break;
                 }
                 Ok(ShutdownStatus::Continue) => continue,
                 Ok(ShutdownStatus::Terminate) => {
-                    self.imm.status_tx.note_shutdown();
+                    self.imm.status_tx.send_shutdown();
 
                     break;
                 }

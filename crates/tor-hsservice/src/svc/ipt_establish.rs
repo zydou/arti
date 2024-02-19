@@ -89,16 +89,15 @@ impl Drop for IptEstablisher {
 
 /// An error from trying to work with an IptEstablisher.
 #[derive(Clone, Debug, thiserror::Error)]
-pub(crate) enum IptError {
+pub(crate) enum IptEstablisherError {
+    /// We encountered a faulty IPT.
+    #[error("{0}")]
+    Ipt(#[from] IptError),
+
     /// The network directory provider is shutting down without giving us the
     /// netdir we asked for.
     #[error("{0}")]
     NetdirProviderShutdown(#[from] NetdirProviderShutdown),
-
-    /// When we tried to establish this introduction point, we found that the
-    /// netdir didn't list it.
-    #[error("Introduction point not listed in network directory")]
-    IntroPointNotListed,
 
     /// We encountered an error while building a circuit to an intro point.
     #[error("Unable to build circuit to introduction point")]
@@ -123,7 +122,28 @@ pub(crate) enum IptError {
     #[error("Circuit closed during INTRO_ESTABLISHED handshake")]
     ClosedWithoutAck,
 
+    /// We encountered a programming error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
+}
+
+/// An error caused by a faulty IPT.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum IptError {
+    /// When we tried to establish this introduction point, we found that the
+    /// netdir didn't list it.
+    ///
+    /// This introduction point is not strictly "faulty", but unlisted in the directory means we
+    /// can't use the introduction point.
+    #[error("Introduction point not listed in network directory")]
+    IntroPointNotListed,
+
     /// We received an invalid INTRO_ESTABLISHED message.
+    ///
+    /// This is definitely the introduction point's fault: it sent us
+    /// an authenticated message, but the contents of that message were
+    /// definitely wrong.
     #[error("Got an invalid INTRO_ESTABLISHED message")]
     // Eventually, once we expect intro_established extensions, we will make
     // sure that they are well-formed.
@@ -135,9 +155,26 @@ pub(crate) enum IptError {
     #[error("Invalid message: {0}")]
     BadMessage(String),
 
-    /// We encountered a programming error.
-    #[error("Internal error")]
-    Bug(#[from] tor_error::Bug),
+    /// This introduction point has gone too long without a success.
+    #[error("introduction point has gone too long without a success")]
+    Timeout,
+}
+
+impl tor_error::HasKind for IptEstablisherError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use IptEstablisherError as E;
+        match self {
+            E::Ipt(e) => e.kind(),
+            E::NetdirProviderShutdown(e) => e.kind(),
+            E::BuildCircuit(e) => e.kind(),
+            E::EstablishTimeout => EK::TorNetworkTimeout,
+            E::SendEstablishIntro(e) => e.kind(),
+            E::ClosedWithoutAck => EK::CircuitCollapse,
+            E::CreateEstablishIntro(_) => EK::Internal,
+            E::Bug(e) => e.kind(),
+        }
+    }
 }
 
 impl tor_error::HasKind for IptError {
@@ -145,55 +182,40 @@ impl tor_error::HasKind for IptError {
         use tor_error::ErrorKind as EK;
         use IptError as E;
         match self {
-            E::NetdirProviderShutdown(e) => e.kind(),
             E::IntroPointNotListed => EK::TorDirectoryError, // TODO (#1255) Not correct kind.
-            E::BuildCircuit(e) => e.kind(),
-            E::EstablishTimeout => EK::TorNetworkTimeout,
-            E::SendEstablishIntro(e) => e.kind(),
-            E::ClosedWithoutAck => EK::CircuitCollapse,
             E::BadEstablished => EK::RemoteProtocolViolation,
             E::BadMessage(_) => EK::RemoteProtocolViolation,
-            E::CreateEstablishIntro(_) => EK::Internal,
-            E::Bug(e) => e.kind(),
+            E::Timeout => EK::RemoteProtocolViolation, // TODO: this is not necessarily correct
         }
     }
 }
 
-impl IptError {
-    /// Return true if this error appears to be the introduction point's fault.
+impl IptEstablisherError {
+    /// Return the underlying [`IptError`] if this error appears to be the introduction point's fault.
     ///
-    /// This corresponds to [`IptStatusStatus::Faulty`]`: when we return true,
+    /// This corresponds to [`IptStatusStatus::Faulty`]`: when we return `Some`,
     /// it means that we should try another relay as an introduction point,
     /// though we don't necessarily need to give up on this one.
     ///
-    /// Note that the intro point may be to blame even if we return `false`;
+    /// Note that the intro point may be to blame even if we return `None`;
     /// we only return `true` when we are certain that the intro point is
     /// unlisted, unusable, or misbehaving.
-    fn is_ipt_failure(&self) -> bool {
-        use IptError as IE;
+    fn ipt_failure(&self) -> Option<&IptError> {
+        use IptEstablisherError as IE;
         match self {
             // If we don't have a netdir, then no intro point is better than any other.
-            IE::NetdirProviderShutdown(_) => false,
-            // Not strictly "faulty", but unlisted in the directory means we
-            // can't use the introduction point.
-            IE::IntroPointNotListed => true,
+            IE::NetdirProviderShutdown(_) => None,
+            IE::Ipt(e) => Some(e),
             // This _might_ be the introduction point's fault, but it might not.
             // We can't be certain.
-            IE::BuildCircuit(_) => false,
-            IE::EstablishTimeout => false,
-            IE::ClosedWithoutAck => false,
-
-            // This is definitely the introduction point's fault: it sent us
-            // an authenticated message, but the contents of that message were
-            // definitely wrong.
-            IE::BadEstablished => true,
-            IE::BadMessage(_) => true,
-
+            IE::BuildCircuit(_) => None,
+            IE::EstablishTimeout => None,
+            IE::ClosedWithoutAck => None,
             // These are, most likely, not the introduction point's fault,
             // though they might or might not be survivable.
-            IE::CreateEstablishIntro(_) => false,
-            IE::SendEstablishIntro(_) => false,
-            IE::Bug(_) => false,
+            IE::CreateEstablishIntro(_) => None,
+            IE::SendEstablishIntro(_) => None,
+            IE::Bug(_) => None,
         }
     }
 }
@@ -385,7 +407,7 @@ impl IptEstablisher {
 /// `hssvc-ipt-algorithms.md`.
 ///
 /// TODO (#1235) Make that file unneeded.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum IptStatusStatus {
     /// We are (re)establishing our connection to the IPT
     ///
@@ -411,7 +433,7 @@ pub(crate) enum IptStatusStatus {
     /// The IPT manager should *not* arrange to include this in descriptors.
     /// If this persists, the IPT manager should replace this IPT
     /// with a new IPT at a different relay.
-    Faulty,
+    Faulty(Option<IptError>),
 }
 
 /// Details of a good introduction point
@@ -437,7 +459,7 @@ pub(crate) struct GoodIptDetails {
 
 impl GoodIptDetails {
     /// Try to copy out the relevant parts of a CircTarget into a GoodIptDetails.
-    fn try_from_circ_target(relay: &impl CircTarget) -> Result<Self, IptError> {
+    fn try_from_circ_target(relay: &impl CircTarget) -> Result<Self, IptEstablisherError> {
         Ok(Self {
             link_specifiers: relay
                 .linkspecs()
@@ -476,7 +498,7 @@ pub(crate) enum RequestDisposition {
 }
 
 /// The current status of an introduction point.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct IptStatus {
     /// The current state of this introduction point as defined by
     /// `hssvc-ipt-algorithms.md`.
@@ -509,23 +531,23 @@ impl IptStatus {
     /// Record that we are trying to connect to an introduction point.
     fn note_attempt(&mut self) {
         use IptStatusStatus::*;
-        self.status = match self.status {
+        self.status = match &self.status {
             Establishing | Good(..) => Establishing,
-            Faulty => Faulty, // We don't change status if we think we're broken.
+            Faulty(e) => Faulty(e.clone()), // We don't change status if we think we're broken.
         }
     }
 
     /// Record that an error has occurred.
-    fn note_error(&mut self, err: &IptError, now: Instant) {
+    fn note_error(&mut self, err: &IptEstablisherError, now: Instant) {
         use IptStatusStatus::*;
         let failing_since = *self.failing_since.get_or_insert(now);
         #[allow(clippy::if_same_then_else)]
-        if err.is_ipt_failure() {
+        if let Some(ipt_err) = err.ipt_failure() {
             // This error always indicates a faulty introduction point.
-            self.status = Faulty;
+            self.status = Faulty(Some(ipt_err.clone()));
         } else if now.saturating_duration_since(failing_since) >= FAULTY_IPT_THRESHOLD {
             // This introduction point has gone too long without a success.
-            self.status = Faulty;
+            self.status = Faulty(Some(IptError::Timeout));
         }
     }
 
@@ -542,7 +564,7 @@ impl IptStatus {
     /// Produce an `IptStatus` representing a shut down or crashed establisher
     fn new_terminated() -> Self {
         IptStatus {
-            status: IptStatusStatus::Faulty,
+            status: IptStatusStatus::Faulty(None),
             // If we're broken, we simply tell the manager that that is the case.
             // It will decide for itself whether it wants to replace us.
             wants_to_retire: Ok(()),
@@ -642,7 +664,7 @@ impl<R: Runtime> Reactor<R> {
     async fn keep_intro_established(
         &self,
         mut status_tx: DropNotifyWatchSender<IptStatus>,
-    ) -> Result<Void, IptError> {
+    ) -> Result<Void, IptEstablisherError> {
         let mut retry_delay = tor_basic_utils::retry::RetryDelay::from_msec(1000);
         loop {
             status_tx.borrow_mut().note_attempt();
@@ -678,7 +700,7 @@ impl<R: Runtime> Reactor<R> {
                     // Wait for the session to be closed.
                     session.wait_for_close().await;
                 }
-                Err(e @ IptError::IntroPointNotListed) => {
+                Err(e @ IptEstablisherError::Ipt(IptError::IntroPointNotListed)) => {
                     // The network directory didn't include this relay.  Wait
                     // until it does.
                     //
@@ -707,7 +729,9 @@ impl<R: Runtime> Reactor<R> {
     /// point there.
     ///
     /// Does not retry.  Does not time out except via `HsCircPool`.
-    async fn establish_intro_once(&self) -> Result<(IntroPtSession, GoodIptDetails), IptError> {
+    async fn establish_intro_once(
+        &self,
+    ) -> Result<(IntroPtSession, GoodIptDetails), IptEstablisherError> {
         let (protovers, circuit, ipt_details) = {
             let netdir = wait_for_netdir(
                 self.netdir_provider.as_ref(),
@@ -725,7 +749,7 @@ impl<R: Runtime> Reactor<R> {
                 .pool
                 .get_or_launch_specific(netdir.as_ref(), kind, circ_target)
                 .await
-                .map_err(IptError::BuildCircuit)?;
+                .map_err(IptEstablisherError::BuildCircuit)?;
             // note that netdir is dropped here, to avoid holding on to it any
             // longer than necessary.
             (protovers, circuit, ipt_details)
@@ -749,7 +773,7 @@ impl<R: Runtime> Reactor<R> {
                 .ok_or(internal!("No binding key for introduction point!?"))?;
             let body: Vec<u8> = details
                 .sign_and_encode((*self.k_sid).as_ref(), circuit_binding_key.hs_mac())
-                .map_err(IptError::CreateEstablishIntro)?;
+                .map_err(IptEstablisherError::CreateEstablishIntro)?;
 
             // TODO: This is ugly, but it is the sensible way to munge the above
             // body into a format that AnyRelayMsgOuter will accept without doing a
@@ -790,7 +814,7 @@ impl<R: Runtime> Reactor<R> {
         let _conversation = circuit
             .start_conversation(Some(establish_intro), handler, intro_pt_hop)
             .await
-            .map_err(IptError::SendEstablishIntro)?;
+            .map_err(IptEstablisherError::SendEstablishIntro)?;
         // At this point, we have `await`ed for the Conversation to exist, so we know
         // that the message was sent.  We have to wait for any actual `established`
         // message, though.
@@ -804,8 +828,8 @@ impl<R: Runtime> Reactor<R> {
             .runtime
             .timeout(ack_timeout, established_rx)
             .await
-            .map_err(|_| IptError::EstablishTimeout)?
-            .map_err(|_| IptError::ClosedWithoutAck)??;
+            .map_err(|_| IptEstablisherError::EstablishTimeout)?
+            .map_err(|_| IptEstablisherError::ClosedWithoutAck)??;
 
         // This session will be owned by keep_intro_established(), and dropped
         // when the circuit closes, or when the keep_intro_established() future
@@ -833,7 +857,7 @@ struct IptMsgHandler {
     ///
     /// If this is None, then we already sent an IntroEstablished and we shouldn't
     /// send any more.
-    established_tx: Option<oneshot::Sender<Result<IntroEstablished, IptError>>>,
+    established_tx: Option<oneshot::Sender<Result<IntroEstablished, IptEstablisherError>>>,
 
     /// A channel used to report Introduce2 messages.
     introduce_tx: mpsc::Sender<RendRequest>,
@@ -863,7 +887,8 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                 let _ = tx.send(Err(IptError::BadMessage(format!(
                     "Invalid message type {}",
                     m.cmd()
-                ))));
+                ))
+                .into()));
             }
             // TODO: It's not completely clear whether CircProto is the right
             // type for use in this function (here and elsewhere);
@@ -898,7 +923,8 @@ impl tor_proto::circuit::MsgHandler for IptMsgHandler {
                 if let Some(tx) = self.established_tx.take() {
                     let _ = tx.send(Err(IptError::BadMessage(
                         "INTRODUCE2 message without INTRO_ESTABLISHED.".to_string(),
-                    )));
+                    )
+                    .into()));
                     return Err(tor_proto::Error::CircProto(
                         "Received an INTRODUCE2 message before INTRO_ESTABLISHED".into(),
                     ));

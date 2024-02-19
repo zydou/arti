@@ -632,7 +632,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 Ok(ShutdownStatus::Terminate) => {
                     debug!(nickname=%self.imm.nickname, "descriptor publisher is shutting down!");
 
-                    self.imm.status_tx.note_shutdown();
+                    self.imm.status_tx.send_shutdown();
                     return Ok(());
                 }
                 Err(e) => {
@@ -642,7 +642,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         self.imm.nickname
                     );
 
-                    self.imm.status_tx.note_broken(e.clone());
+                    self.imm.status_tx.send_broken(e.clone());
 
                     return Err(e);
                 }
@@ -1060,7 +1060,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             | PublishStatus::RateLimited(_) => State::Bootstrapping,
         };
 
-        self.imm.status_tx.note_status(onion_status, None);
+        self.imm.status_tx.send(onion_status, None);
 
         trace!(
             "publisher reactor status change: {:?} -> {:?}",

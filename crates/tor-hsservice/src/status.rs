@@ -9,7 +9,7 @@ use futures::StreamExt as _;
 use retry_error::RetryError;
 use tor_async_utils::PostageWatchSenderExt;
 
-use crate::{DescUploadError, FatalError};
+use crate::{DescUploadError, FatalError, IptError};
 
 /// The current reported status of an onion service.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -77,18 +77,42 @@ pub enum State {
     ///
     /// Either [`OnionService::launch`](crate::OnionService::launch) has not
     /// been called, or the service has been shut down.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is not reachable.
     Shutdown,
-
     /// The service is bootstrapping.
     ///
     /// Specifically, we have been offline, or we just initialized:
     /// We are trying to build introduction points and publish a descriptor,
     /// and haven't hit any significant problems yet.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is not fully reachable, but may be reachable by some clients.
     Bootstrapping,
+    /// The service is running in a degraded state.
+    ///
+    /// Specifically, we are not satisfied with our introduction points, but
+    /// we do have a number of working introduction points,
+    /// and our descriptor is up-to-date.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is reachable.
+    ///
+    // TODO: this variant is only used by the IptManager.
+    // We should split this enum into IptManagerState and PublisherState.
+    Degraded,
     /// The service is running.
     ///
     /// Specifically, we are satisfied with our introduction points, and our
     /// descriptor is up-to-date.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is believed to be fully reachable.
     Running,
     /// The service is trying to recover from a minor interruption.
     ///
@@ -97,12 +121,29 @@ pub enum State {
     ///     intermittent failure to upload a descriptor)
     ///   * We are trying to recover from the problem.
     ///   * We have not yet failed.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is unlikely to be reachable.
+    ///
+    //
+    // NOTE: this status is currently only set by `IptManager` whenever:
+    //   * there are no good IPTs (so the service will be unreachable); or
+    //   * there aren't enough good IPTs to publish (AFAICT in this case the service
+    //   may be reachable, if the IPTs we _do_ have are have previously been published).
+    //
+    // TODO (#1270): split this state into 2 different states (one for the "service is
+    // still reachable" case, and another for the "unreachable" one).
     Recovering,
     /// The service is not working.
     ///
     /// Specifically, there is a problem with this onion service, and either it
     /// is one we cannot recover from, or we have tried for a while to recover
     /// and have failed.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is not fully reachable. It may temporarily be reachable by some clients.
     Broken,
 }
 
@@ -115,6 +156,9 @@ pub enum Problem {
 
     /// We failed to upload a descriptor.
     DescriptorUpload(RetryError<DescUploadError>),
+
+    /// We failed to establish one or more introduction points.
+    Ipt(Vec<IptError>),
     // TODO: add variants for other transient errors?
 }
 
@@ -140,6 +184,7 @@ impl OnionServiceStatus {
             (Running, Running) => Running,
             (Recovering, _) | (_, Recovering) => Recovering,
             (Broken, _) | (_, Broken) => Broken,
+            (Degraded, Running) | (Running, Degraded) | (Degraded, Degraded) => Degraded,
         }
     }
 
@@ -220,8 +265,8 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_broken(&self, err: impl Into<Problem>) {
-                self.note_status(State::Broken, Some(err.into()));
+            pub(crate) fn send_broken(&self, err: impl Into<Problem>) {
+                self.send(State::Broken, Some(err.into()));
             }
 
             /// Update `latest_error` and set the underlying state to `Recovering`.
@@ -229,8 +274,8 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_recovering(&self, err: impl Into<Problem>) {
-                self.note_status(State::Recovering, Some(err.into()));
+            pub(crate) fn send_recovering(&self, err: impl Into<Problem>) {
+                self.send(State::Recovering, Some(err.into()));
             }
 
             /// Set `latest_error` to `None` and the underlying state to `Shutdown`.
@@ -238,8 +283,8 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_shutdown(&self) {
-                self.note_status(State::Shutdown, None);
+            pub(crate) fn send_shutdown(&self) {
+                self.send(State::Shutdown, None);
             }
 
             /// Update the underlying state and latest_error.
@@ -247,7 +292,7 @@ macro_rules! impl_status_sender {
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
             #[allow(dead_code)]
-            pub(crate) fn note_status(&self, state: State, err: Option<Problem>) {
+            pub(crate) fn send(&self, state: State, err: Option<Problem>) {
                 let sender = &self.0;
                 let mut tx = sender.0.lock().expect("Poisoned lock");
                 let mut svc_status = tx.borrow().clone();
