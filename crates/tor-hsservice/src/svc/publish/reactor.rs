@@ -527,7 +527,7 @@ pub enum UploadError {
     Request(#[from] RequestFailedError),
 
     /// Failed to establish circuit to hidden service directory
-    #[error("circuit failed")]
+    #[error("could not build circuit to HsDir")]
     Circuit(#[from] tor_circmgr::Error),
 
     /// Failed to establish stream to hidden service directory
