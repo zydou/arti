@@ -59,7 +59,7 @@ pub use tor_error::{ErrorKind, HasKind};
 pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 
 mod err;
-pub use err::{Error, ErrorHint};
+pub use err::{Error, ErrorHint, HintableError};
 
 #[cfg(feature = "error_detail")]
 pub use err::ErrorDetail;

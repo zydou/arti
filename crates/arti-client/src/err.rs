@@ -1,5 +1,7 @@
 //! Declare tor client specific errors.
 
+mod hint;
+
 use std::fmt::{self, Display};
 use std::sync::Arc;
 
@@ -15,6 +17,8 @@ use tor_error::{ErrorKind, HasKind};
 use crate::TorAddrError;
 #[cfg(feature = "onion-service-client")]
 use tor_hscrypto::pk::HsId;
+
+pub use hint::HintableError;
 
 /// Main high-level error type for the Arti Tor client
 ///
@@ -471,39 +475,6 @@ enum ErrorHintInner<'a> {
     },
 }
 
-impl<'a> ErrorHint<'a> {
-    /// construct from supported `fs_mistrust::Error` variants
-    fn tryfrom_fsmistrust(src: &fs_mistrust::Error) -> Option<ErrorHint> {
-        use fs_mistrust::Error as E;
-        match src {
-            E::BadPermission(buf, bits, badbits) => {
-                Some(ErrorHint::from_badpermission(buf, *bits, *badbits))
-            }
-            _ => None,
-        }
-    }
-    /// construct from supported `tor_persist::Error` variants
-    fn tryfrom_torpersist(src: &tor_persist::Error) -> Option<ErrorHint> {
-        use tor_persist::ErrorSource as ES;
-        match src.source() {
-            ES::Permissions(e) => Self::tryfrom_fsmistrust(e),
-            _ => None,
-        }
-    }
-
-    /// inform user of overpermission risks
-    /// provide chmod to fix it, or options to mute the error if they accept the risk
-    fn from_badpermission(filename: &std::path::Path, bits: u32, badbits: u32) -> ErrorHint<'_> {
-        ErrorHint {
-            inner: ErrorHintInner::BadPermission {
-                filename,
-                bits,
-                badbits,
-            },
-        }
-    }
-}
-
 // TODO: Perhaps we want to lower this logic to fs_mistrust crate, and have a
 // separate `ErrorHint` type for each crate that can originate a hint.  But I'd
 // rather _not_ have that turn into something that forces us to give a Hint for
@@ -555,22 +526,7 @@ impl Error {
     /// Right now, `ErrorHint` is completely opaque: the only supported option
     /// is to format it for human consumption.
     pub fn hint(&self) -> Option<ErrorHint> {
-        use tor_circmgr::Error as CircE;
-        use tor_dirmgr::Error as DirE;
-        use tor_guardmgr::GuardMgrError as GuardE;
-        use ErrorDetail as E;
-        match &(*self.detail) {
-            // fs_mistrust errors, possibly nonexhaustive
-            E::DirMgrSetup(DirE::CachePermissions(e)) => ErrorHint::tryfrom_fsmistrust(e),
-            // tor_persist errors, possibly nonexhaustive
-            E::StateMgrSetup(e)
-            | E::StateAccess(e)
-            | E::CircMgrSetup(CircE::State(e))
-            | E::CircMgrSetup(CircE::GuardMgr(GuardE::State(e))) => {
-                ErrorHint::tryfrom_torpersist(e)
-            }
-            _ => None,
-        }
+        HintableError::hint(self)
     }
 }
 
