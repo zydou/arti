@@ -540,7 +540,7 @@ impl Ipt {
     /// Returns the error, if any, we are currently encountering at this IPT.
     fn error(&self) -> Option<&IptError> {
         match &self.status_last {
-            TS::Good { .. } | TS::Establishing { .. }  => None,
+            TS::Good { .. } | TS::Establishing { .. } => None,
             TS::Faulty { error, .. } => error.as_ref(),
         }
     }
@@ -1263,7 +1263,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
             // and include it in the onion svc status.
-            self.imm.status_tx.send_recovering(self.ipt_errors().cloned().collect_vec());
+            self.imm
+                .status_tx
+                .send_recovering(self.ipt_errors().cloned().collect_vec());
 
             None
         } else if let Some((wait_for, wait_more)) = started_establishing_very_recently() {
@@ -1282,7 +1284,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
             // and include it in the onion svc status.
-            self.imm.status_tx.send_recovering(self.ipt_errors().cloned().collect_vec());
+            self.imm
+                .status_tx
+                .send_recovering(self.ipt_errors().cloned().collect_vec());
 
             None
         } else {
