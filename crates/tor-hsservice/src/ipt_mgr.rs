@@ -680,7 +680,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     ///
     /// Used when reporting our state as [`Recovering`](crate::status::State::Recovering).
     fn ipt_errors(&self) -> impl Iterator<Item = &IptError> {
-        self.current_ipts().filter_map(|(_ir, ipt)| ipt.error())
+        self.all_ipts().filter_map(|(_ir, ipt)| ipt.error())
     }
 }
 
