@@ -95,9 +95,9 @@ impl<T> LimitedAsyncIo<T> {
 }
 
 
-pub struct BucketConfig {
-    max_bytes_per_sec: u64, // or usize?
-    max_bucket_size: u64
+pub struct TrafficRateLimit {
+    max_bytes_per_sec: u64,
+    max_bytes_burst: u64
 }
 
 pub struct LimitConfig {
