@@ -44,11 +44,13 @@ pub struct PathConfig {
     ipv6_subnet_family_prefix: u8,
 
     /// A set of ports that need to be sent over Stable circuits.
-    #[builder(default = "long_lived_ports_default()")]
-    pub(crate) long_lived_ports: HashSet<u16>,
+    #[builder(sub_builder, setter(custom))]
+    #[builder_field_attr(serde(default))]
+    pub(crate) long_lived_ports: LongLivedPorts,
 
     /// The set of addresses to which we're willing to make direct connections.
     #[builder(sub_builder, setter(custom))]
+    #[builder_field_attr(serde(default))]
     pub(crate) reachable_addrs: ReachableAddrs,
 }
 impl_standard_builder! { PathConfig }
@@ -76,6 +78,18 @@ define_list_builder_accessors! {
     }
 }
 
+/// Type alias to help define long_lived_ports.
+type LongLivedPorts = HashSet<u16>;
+
+define_list_builder_helper! {
+    pub struct LongLivedPortsBuilder {
+        long_lived_ports:[u16],
+    }
+    built: LongLivedPorts = long_lived_ports;
+    default = long_lived_ports_default();
+    item_build: |item| Ok(*item);
+}
+
 /// Default value for ipv4_subnet_family_prefix.
 fn ipv4_prefix_default() -> u8 {
     16
@@ -85,12 +99,10 @@ fn ipv6_prefix_default() -> u8 {
     32
 }
 /// Default value for long_lived_ports.
-fn long_lived_ports_default() -> HashSet<u16> {
-    [
+fn long_lived_ports_default() -> Vec<u16> {
+    vec![
         21, 22, 706, 1863, 5050, 5190, 5222, 5223, 6523, 6667, 6697, 8300,
     ]
-    .into_iter()
-    .collect()
 }
 
 impl PathConfig {
