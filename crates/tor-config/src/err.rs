@@ -1,5 +1,8 @@
 //! Declare error types.
 
+use std::path::PathBuf;
+
+use tor_basic_utils::PathExt as _;
 use tor_error::{ErrorKind, HasKind};
 
 /// An error related to an option passed to Arti via a configuration
@@ -138,12 +141,17 @@ pub enum ConfigError {
     /// Our underlying configuration library gave an error.
     #[error("Invalid configuration data")]
     Parse(#[source] ConfigParseError),
-    /// Encountered an IO error while reading (or preparing to read) a file.
-    #[error("Unable to read configuration file {0:?}")]
-    Io(
-        Option<std::path::PathBuf>,
-        #[source] std::sync::Arc<std::io::Error>,
-    ),
+    /// Encountered an IO error with a configuration file.
+    #[error("IoError while {} {}", action, path.display_lossy())]
+    Io {
+        /// The action while we were trying to perform
+        action: &'static str,
+        /// The path we were trying to do it to.
+        path: PathBuf,
+        /// The underlying problem
+        #[source]
+        err: std::sync::Arc<std::io::Error>,
+    },
 }
 
 /// Wrapper for our an error type from our underlying configuration library.

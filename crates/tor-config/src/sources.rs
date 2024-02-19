@@ -266,24 +266,25 @@ impl ConfigurationSources {
 
             // Returns Err(error) if we should bail,
             // or Ok(()) if we should ignore the error and skip the file.
-            let handle_io_error = |e: io::Error| {
+            let handle_io_error = |e: io::Error, p: &Path| {
                 if e.kind() == io::ErrorKind::NotFound && !required {
                     Result::<_, crate::ConfigError>::Ok(())
                 } else {
-                    Err(crate::ConfigError::Io(
-                        source.as_path().map(Path::to_owned),
-                        Arc::new(e),
-                    ))
+                    Err(crate::ConfigError::Io {
+                        action: "reading",
+                        path: p.to_owned(),
+                        err: Arc::new(e),
+                    })
                 }
             };
 
             use ConfigurationSource as CS;
             match &source {
-                CS::Dir(found) => {
-                    let dir = match fs::read_dir(found) {
+                CS::Dir(dirname) => {
+                    let dir = match fs::read_dir(dirname) {
                         Ok(y) => y,
                         Err(e) => {
-                            handle_io_error(e)?;
+                            handle_io_error(e, dirname.as_ref())?;
                             continue;
                         }
                     };
@@ -299,7 +300,7 @@ impl ConfigurationSources {
                         let found = match found {
                             Ok(y) => y,
                             Err(e) => {
-                                handle_io_error(e)?;
+                                handle_io_error(e, dirname.as_ref())?;
                                 continue;
                             }
                         };
