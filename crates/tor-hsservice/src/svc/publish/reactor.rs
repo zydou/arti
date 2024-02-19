@@ -523,7 +523,7 @@ pub(crate) enum AuthorizedClientConfigError {
 #[non_exhaustive]
 pub enum UploadError {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
-    #[error("descriptor upload request failed")]
+    #[error("descriptor upload request failed: {}", _0.error)]
     Request(#[from] RequestFailedError),
 
     /// Failed to establish circuit to hidden service directory
