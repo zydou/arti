@@ -534,8 +534,8 @@ pub enum UploadError {
     #[error("stream failed")]
     Stream(#[source] tor_proto::Error),
 
-    /// The operation timed out before it could complete.
-    #[error("operation timed out")]
+    /// A descriptor upload timed out before it could complete.
+    #[error("descriptor publication timed out")]
     Timeout,
 
     /// An internal error.
