@@ -10,7 +10,7 @@ use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
-use tor_hscrypto::pk::{HsId, HSID_ONION_SUFFIX};
+use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
 use tor_hscrypto::time::TimePeriod;
 use tor_persist::slug::Slug;
 
@@ -111,15 +111,22 @@ pub trait KeySpecifierPattern {
 ///
 /// See also `crate::keystore::arti::MalformedPathError`,
 /// which occurs at a lower level.
+///
+// Note: Currently, all KeyPathErrors (except Unrecognized and Bug) are only returned from
+// functions that parse ArtiPaths and/or ArtiPath denotators, so their context contains an
+// `ArtiPath` rather than a `KeyPath` (i.e. PatternNotMatched, InvalidArtiPath,
+// InvalidKeyPathComponent value can only happen if we're dealing with an ArtiPath).
 //
-// TODO (#1115): places where this error is embedded should include the actual filename,
-// for reporting purposes.  (Or abn ArtiPath if they don't have filesystem filenames.)
+// For now this is alright, but we might want to rethink this error enum (for example, a better
+// idea might be to create an ArtiPathError { path: ArtiPath, kind: ArtiPathErrorKind } error type
+// and move PatternNotMatched, InvalidArtiPath, InvalidKeyPathComponentValue to the new
+// ArtiPathErrorKind enum.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum KeyPathError {
     /// The path did not match the expected pattern.
     #[error("Path does not match expected pattern")]
-    PatternNotMatched,
+    PatternNotMatched(ArtiPath),
 
     /// The path is not recognized.
     ///
@@ -129,8 +136,14 @@ pub enum KeyPathError {
     Unrecognized(KeyPath),
 
     /// Found an invalid [`ArtiPath`], which is syntactically invalid on its face
-    #[error("{0}")]
-    InvalidArtiPath(#[from] ArtiPathSyntaxError),
+    #[error("ArtiPath {path} is invalid")]
+    InvalidArtiPath {
+        /// What was wrong with the value
+        #[source]
+        error: ArtiPathSyntaxError,
+        /// The offending `ArtiPath`.
+        path: ArtiPath,
+    },
 
     /// An invalid key path component value string was encountered
     ///
@@ -148,6 +161,8 @@ pub enum KeyPathError {
         ///
         /// Should be valid Rust identifier syntax.
         key: String,
+        /// The `ArtiPath` of the key.
+        path: ArtiPath,
         /// The substring of the `ArtiPath` that couldn't be parsed.
         value: Slug,
     },
@@ -157,21 +172,31 @@ pub enum KeyPathError {
     Bug(#[from] tor_error::Bug),
 }
 
-/// Error to be returned by `KeySpecifierComponent::from_component` implementations
+/// Error to be returned by `KeySpecifierComponent::from_slug` implementations
 ///
 /// Currently this error contains little information,
 /// but the context and value are provided in
 /// [`KeyPathError::InvalidKeyPathComponentValue`].
-#[derive(Error, Clone, Debug, Hash)]
+#[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-#[error("invalid key denotator")]
-pub struct InvalidKeyPathComponentValue {}
+pub enum InvalidKeyPathComponentValue {
+    /// Found an invalid slug.
+    ///
+    /// The inner string should be a description of what is wrong with the slug.
+    /// It should not say that the keystore was corrupted,
+    /// (keystore corruption errors are reported using higher level
+    /// [`KeystoreCorruptionError`s](crate::KeystoreCorruptionError)),
+    /// or where the information came from (the context is encoded in the
+    /// enclosing [`KeyPathError::InvalidKeyPathComponentValue`] error).
+    #[error("{0}")]
+    Slug(String),
 
-impl InvalidKeyPathComponentValue {
-    /// Create an `InvalidDenotator` error with no further information about the problem
-    fn new() -> Self {
-        InvalidKeyPathComponentValue {}
-    }
+    /// An internal error.
+    ///
+    /// The [`KeySpecifierComponentViaDisplayFromStr`] trait maps any errors returned by the
+    /// [`FromStr`] implementation of the implementing type to this variant.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 /// Information about a [`KeyPath`].
@@ -310,9 +335,9 @@ pub trait KeySpecifier {
 /// deriving `DefaultKeySpecifier`, you do not need to implement this trait.
 pub trait KeySpecifierComponent {
     /// Return the [`Slug`] representation of this type.
-    fn to_component(&self) -> Result<Slug, Bug>;
-    /// Try to convert `c` into an object of this type.
-    fn from_component(c: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn to_slug(&self) -> Result<Slug, Bug>;
+    /// Try to convert `s` into an object of this type.
+    fn from_slug(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized;
     /// Display the value in a human-meaningful representation
@@ -377,7 +402,7 @@ impl KeySpecifier for KeyPath {
 }
 
 impl KeySpecifierComponent for TimePeriod {
-    fn to_component(&self) -> Result<Slug, Bug> {
+    fn to_slug(&self) -> Result<Slug, Bug> {
         Slug::new(format!(
             "{}_{}_{}",
             self.interval_num(),
@@ -387,22 +412,25 @@ impl KeySpecifierComponent for TimePeriod {
         .map_err(into_internal!("TP formatting went wrong"))
     }
 
-    fn from_component(c: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn from_slug(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
-        let s = c.to_string();
-        let (interval_num, length, offset_in_sec) = (|| {
-            let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
-            let [interval, len, offset]: [&str; 3] = parts.into_inner().ok()?;
+        let s = s.to_string();
+        #[allow(clippy::redundant_closure)] // the closure makes things slightly more readable
+        let err_ctx = |e: &str| InvalidKeyPathComponentValue::Slug(e.to_string());
+        let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
+        let [interval, len, offset]: [&str; 3] = parts
+            .into_inner()
+            .map_err(|_| err_ctx("invalid number of subcomponents"))?;
 
-            let length = len.parse().ok()?;
-            let interval_num = interval.parse().ok()?;
-            let offset_in_sec = offset.parse().ok()?;
-
-            Some((interval_num, length, offset_in_sec))
-        })()
-        .ok_or_else(InvalidKeyPathComponentValue::new)?;
+        let length = len.parse().map_err(|_| err_ctx("invalid length"))?;
+        let interval_num = interval
+            .parse()
+            .map_err(|_| err_ctx("invalid interval_num"))?;
+        let offset_in_sec = offset
+            .parse()
+            .map_err(|_| err_ctx("invalid offset_in_sec"))?;
 
         Ok(TimePeriod::from_parts(length, interval_num, offset_in_sec))
     }
@@ -422,20 +450,26 @@ impl KeySpecifierComponent for TimePeriod {
 }
 
 /// Implement [`KeySpecifierComponent`] in terms of [`Display`] and [`FromStr`] (helper trait)
+///
+/// The default [`from_slug`](KeySpecifierComponent::from_slug) implementation maps any errors
+/// returned from [`FromStr`] to [`InvalidKeyPathComponentValue::Bug`].
+/// Key specifier components that cannot readily be parsed from a string should have a bespoke
+/// [`from_slug`](KeySpecifierComponent::from_slug) implementation, and
+/// return more descriptive errors through [`InvalidKeyPathComponentValue::Slug`].
 pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
 impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
-    fn to_component(&self) -> Result<Slug, Bug> {
+    fn to_slug(&self) -> Result<Slug, Bug> {
         self.to_string()
             .try_into()
             .map_err(into_internal!("Display generated bad Slug"))
     }
-    fn from_component(s: &Slug) -> Result<Self, InvalidKeyPathComponentValue>
+    fn from_slug(s: &Slug) -> Result<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
         s.as_str()
             .parse()
-            .map_err(|_| InvalidKeyPathComponentValue::new())
+            .map_err(|_| internal!("slug cannot be parsed as component").into())
     }
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)
@@ -443,7 +477,7 @@ impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent f
 }
 
 impl KeySpecifierComponent for HsId {
-    fn to_component(&self) -> StdResult<Slug, Bug> {
+    fn to_slug(&self) -> StdResult<Slug, Bug> {
         // We can't implement KeySpecifierComponentViaDisplayFromStr for HsId,
         // because its Display impl contains the `.onion` suffix, and Slugs can't
         // contain `.`.
@@ -457,13 +491,13 @@ impl KeySpecifierComponent for HsId {
             .map_err(into_internal!("Display generated bad Slug"))
     }
 
-    fn from_component(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
+    fn from_slug(s: &Slug) -> StdResult<Self, InvalidKeyPathComponentValue>
     where
         Self: Sized,
     {
         // Note: HsId::from_str expects the string to have a .onion suffix,
         // but the string representation of our slug doesn't have it
-        // (because we manually strip it away, see to_component()).
+        // (because we manually strip it away, see to_slug()).
         //
         // We have to manually add it for this to work.
         //
@@ -473,7 +507,7 @@ impl KeySpecifierComponent for HsId {
 
         onion
             .parse()
-            .map_err(|_| InvalidKeyPathComponentValue::new())
+            .map_err(|e: HsIdParseError| InvalidKeyPathComponentValue::Slug(e.to_string()))
     }
 
     fn fmt_pretty(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -983,12 +1017,12 @@ KeyPathInfo {
     #[test]
     fn encode_time_period() {
         let period = TimePeriod::from_parts(1, 2, 3);
-        let encoded_period = period.to_component().unwrap();
+        let encoded_period = period.to_slug().unwrap();
 
         assert_eq!(encoded_period.to_string(), "2_1_3");
-        assert_eq!(period, TimePeriod::from_component(&encoded_period).unwrap());
+        assert_eq!(period, TimePeriod::from_slug(&encoded_period).unwrap());
 
-        assert!(TimePeriod::from_component(&Slug::new("invalid_tp".to_string()).unwrap()).is_err());
+        assert!(TimePeriod::from_slug(&Slug::new("invalid_tp".to_string()).unwrap()).is_err());
     }
 
     #[test]
@@ -996,10 +1030,10 @@ KeyPathInfo {
         let b32 = "eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad";
         let onion = format!("{b32}.onion");
         let hsid = HsId::from_str(&onion).unwrap();
-        let hsid_slug = hsid.to_component().unwrap();
+        let hsid_slug = hsid.to_slug().unwrap();
 
         assert_eq!(hsid_slug.to_string(), b32);
-        assert_eq!(hsid, HsId::from_component(&hsid_slug).unwrap());
+        assert_eq!(hsid, HsId::from_slug(&hsid_slug).unwrap());
     }
 
     #[test]

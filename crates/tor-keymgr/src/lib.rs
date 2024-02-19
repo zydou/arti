@@ -40,7 +40,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-// TODO (#1115): write more comprehensive documentation when the API is a bit more
+// TODO: write more comprehensive documentation when the API is a bit more
 // stable
 
 mod arti_path;
@@ -63,9 +63,10 @@ mod dummy;
 pub use arti_path::{ArtiPath, DENOTATOR_SEP};
 pub use err::{ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError};
 pub use key_specifier::{
-    ArtiPathUnavailableError, CTorPath, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoBuilder,
-    KeyPathInfoExtractor, KeyPathPattern, KeyPathRange, KeySpecifier, KeySpecifierComponent,
-    KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
+    ArtiPathUnavailableError, CTorPath, InvalidKeyPathComponentValue, KeyPath, KeyPathError,
+    KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeyPathRange,
+    KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
+    KeySpecifierPattern,
 };
 
 #[cfg(feature = "keymgr")]

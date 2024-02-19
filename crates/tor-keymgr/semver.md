@@ -9,3 +9,6 @@ REMOVED: `KeyMgr::remove_with_type`
 ADDED: `KeyMgr::remove_entry`
 REMOVED: `KeyMgr::get_with_type`
 ADDED: `KeyMgr::get_entry`
+BREAKING: `KeySpecifierComponent::{to,from}_component` renamed to `KeySpecifierComponent::{to,from}_slug`
+BREAKING: some of the `KeyPathError` variants now have a `path: ArtiPath` field
+ADDED: `InvalidKeyPathComponentValue`

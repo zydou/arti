@@ -27,7 +27,7 @@ pub use tor_error::{internal, into_internal, Bug};
 pub trait RawKeySpecifierComponent {
     /// Append `self`s `KeySpecifierComponent` string representation to `s`
     //
-    // This is not quite like `KeySpecifierComponent::to_component`,
+    // This is not quite like `KeySpecifierComponent::to_slug`,
     // since that *returns* a String (effectively) and we *append*.
     // At some future point we may change KeySpecifierComponent,
     // although the current API has the nice feature that
@@ -36,7 +36,7 @@ pub trait RawKeySpecifierComponent {
 }
 impl<T: KeySpecifierComponent> RawKeySpecifierComponent for T {
     fn append_to(&self, s: &mut String) -> Result<(), Bug> {
-        self.to_component()?.as_str().append_to(s)
+        self.to_slug()?.as_str().append_to(s)
     }
 }
 impl<T: KeySpecifierComponent> RawKeySpecifierComponent for Option<T> {
@@ -145,7 +145,7 @@ pub trait RawKeySpecifierComponentParser {
 
 impl<T: KeySpecifierComponent> RawKeySpecifierComponentParser for Option<T> {
     fn parse(&mut self, comp: &Slug) -> RawComponentParseResult {
-        let v = match T::from_component(comp) {
+        let v = match T::from_slug(comp) {
             Ok(v) => v,
             Err(e) => return RCPR::Invalid(e),
         };
@@ -195,8 +195,8 @@ pub fn parse_key_path(
     path_parsers: &mut Parsers,
     leaf_parsers: &mut Parsers,
 ) -> Result<(), KeyPathError> {
-    let path = match path {
-        KeyPath::Arti(path) => path.as_str(),
+    let (path, arti_path) = match path {
+        KeyPath::Arti(path) => (path.as_str(), path),
         KeyPath::CTor(_path) => {
             // TODO (#858): support ctor stores
             return Err(internal!("not implemented").into());
@@ -212,6 +212,7 @@ pub fn parse_key_path(
 
     /// Split a string into components and parse each one
     fn extract(
+        arti_path: &ArtiPath,
         input: Option<&str>,
         delim: char,
         parsers: &mut Parsers,
@@ -223,20 +224,26 @@ pub fn parse_key_path(
         ) {
             let EitherOrBoth::Both(comp, parser) = ent else {
                 // wrong number of components
-                return Err(KeyPathError::PatternNotMatched);
+                return Err(KeyPathError::PatternNotMatched(arti_path.clone()));
             };
 
             // TODO would be nice to avoid allocating again here,
             // but I think that needs an `SlugRef`.
-            let comp = Slug::new(comp.to_owned()).map_err(ArtiPathSyntaxError::Slug)?;
+            let comp = Slug::new(comp.to_owned())
+                .map_err(ArtiPathSyntaxError::Slug)
+                .map_err(|error| KeyPathError::InvalidArtiPath {
+                    error,
+                    path: arti_path.clone(),
+                })?;
 
             let missing_keys = || internal!("keys list too short, bad args to parse_key_path");
 
             match parser.parse(&comp) {
-                RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched),
+                RCPR::PatternNotMatched => Err(KeyPathError::PatternNotMatched(arti_path.clone())),
                 RCPR::Invalid(error) => Err(KeyPathError::InvalidKeyPathComponentValue {
                     error,
                     key: keys.first().ok_or_else(missing_keys)?.to_string(),
+                    path: arti_path.clone(),
                     value: comp,
                 }),
                 RCPR::ParsedField => {
@@ -249,8 +256,14 @@ pub fn parse_key_path(
         Ok(())
     }
 
-    extract(path, '/', path_parsers, &mut keys)?;
-    extract(Some(leaf), DENOTATOR_SEP, leaf_parsers, &mut keys)?;
+    extract(arti_path, path, '/', path_parsers, &mut keys)?;
+    extract(
+        arti_path,
+        Some(leaf),
+        DENOTATOR_SEP,
+        leaf_parsers,
+        &mut keys,
+    )?;
     Ok(())
 }
 

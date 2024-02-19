@@ -174,12 +174,17 @@ impl RendRequestContext {
             return Err(internal!("captured substring out of range?!").into());
         };
 
-        let comp = Slug::new(denotator.to_string())
-            .map_err(|e| KCE::KeyPath(KeyPathError::InvalidArtiPath(e.into())))?;
-        let tp = TimePeriod::from_component(&comp).map_err(|error| {
+        let slug = Slug::new(denotator.to_string()).map_err(|e| {
+            KCE::KeyPath(KeyPathError::InvalidArtiPath {
+                path: path.clone(),
+                error: e.into(),
+            })
+        })?;
+        let tp = TimePeriod::from_slug(&slug).map_err(|error| {
             KCE::KeyPath(KeyPathError::InvalidKeyPathComponentValue {
                 key: "time_period".to_owned(),
-                value: comp,
+                path: path.clone(),
+                value: slug,
                 error,
             })
         })?;
