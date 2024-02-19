@@ -25,6 +25,14 @@ IGNORE=(
     # We do not use (yet) do any private-key rsa operations in arti:
     # we only use it to verify signatures.
     --ignore RUSTSEC-2023-0071
+
+    # This is not a vulnerability but an unmaintained warning for
+    # `generational-arena`. It is only used by arti-rpcserver (which is
+    # experimental).
+    #
+    #
+    # Eventual resolution: Migrate to slotmap
+    --ignore RUSTSEC-2024-0014
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
