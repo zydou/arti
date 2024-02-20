@@ -531,7 +531,7 @@ pub enum UploadError {
     Circuit(#[from] tor_circmgr::Error),
 
     /// Failed to establish stream to hidden service directory
-    #[error("stream failed")]
+    #[error("failed to establish directory stream to HsDir")]
     Stream(#[source] tor_proto::Error),
 
     /// A descriptor upload timed out before it could complete.
