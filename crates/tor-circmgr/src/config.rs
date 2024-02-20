@@ -90,6 +90,12 @@ define_list_builder_helper! {
     item_build: |item| Ok(*item);
 }
 
+define_list_builder_accessors! {
+    struct PathConfigBuilder {
+        pub long_lived_ports: [u16],
+    }
+}
+
 /// Default value for ipv4_subnet_family_prefix.
 fn ipv4_prefix_default() -> u8 {
     16
