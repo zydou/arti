@@ -79,6 +79,7 @@ impl TargetPort {
 
     /// Return true if this port is supported by the provided Relay.
     pub fn is_supported_by(&self, r: &tor_netdir::Relay<'_>) -> bool {
+        // TODO #504
         if self.ipv6 {
             r.supports_exit_port_ipv6(self.port)
         } else {
@@ -127,6 +128,7 @@ impl Display for TargetPorts {
 impl ExitPolicy {
     /// Make a new exit policy from a given Relay.
     pub(crate) fn from_relay(relay: &Relay<'_>) -> Self {
+        // TODO #504
         Self {
             v4: relay.ipv4_policy(),
             v6: relay.ipv6_policy(),
@@ -411,6 +413,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     require_stability,
                 },
             ) => {
+                // TODO #504
                 i1.as_ref()
                     .map(|i1| i1.compatible_same_type(i2))
                     .unwrap_or(true)
@@ -431,6 +434,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     ..
                 },
             ) => {
+                // TODO #504
                 if *require_stability && !all_relays_stable {
                     return false;
                 }
@@ -439,6 +443,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     // for new streams that don't share it.
                     return false;
                 }
+                // TODO #504
                 if let Some(p) = port {
                     policy.allows_port(*p)
                 } else {

@@ -57,6 +57,7 @@ impl DirPathBuilder {
                 let mut can_share = FilterCount::default();
                 let mut correct_usage = FilterCount::default();
                 let relay = netdir
+                    // TODO #504
                     .pick_relay(rng, WeightRole::BeginDir, |r| {
                         r.is_flagged_fast()
                             && can_share.count(true)

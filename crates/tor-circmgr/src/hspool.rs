@@ -334,6 +334,8 @@ struct TargetInfo<'a> {
 impl<'a> TargetInfo<'a> {
     /// Return true if, according to the rules of `subnet_config`, this target can share a circuit with `r`.
     fn may_share_circuit_with(&self, r: &Relay<'_>, subnet_config: SubnetConfig) -> bool {
+        // TODO #504
+        // TODO 768
         if let Some(this_r) = &self.relay {
             if this_r.in_same_family(r) {
                 return false;
