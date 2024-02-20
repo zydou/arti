@@ -60,7 +60,8 @@ path of the key on disk (relative to the root directory of the key store).
 
 ### Additive features
 
-(None yet.)
+* `keymgr` -- build with full key manager support. Disabling this
+  feature causes `tor-keymgr` to export a no-op, placeholder implementation.
 
 ### Experimental and unstable features
 
@@ -68,8 +69,7 @@ path of the key on disk (relative to the root directory of the key store).
  versioning[^1] guarantees: we might break them or remove them between patch
  versions.
 
-* `keymgr` -- build with full key manager support. Disabling this
-  feature causes `tor-keymgr` to export a no-op, placeholder implementation.
+* (None at present)
 
 [^1]: Remember, semantic versioning is what makes various `cargo`
 features work reliably. To be explicit: if you want `cargo update`
