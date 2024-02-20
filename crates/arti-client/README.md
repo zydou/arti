@@ -214,6 +214,9 @@ match tor_client.connect(("example.com", 80)).await {
 * `onion-service-client` -- Build with support for connecting to onion 
   services. Note that this is not yet as secure as C-Tor and shouldn't be used
   for security-sensitive purposes.
+* `onion-service-service` -- Build with support for running onion services.
+  Note that this is not yet as secure as C-Tor and shouldn't
+  be used for security-sensitive purposes.
 * `pt-client` -- Build with support for pluggable transports.
 * `anyhow` -- Build with support for extracting `ErrorHint`s from
   anyhow::Error.
@@ -262,9 +265,6 @@ implementation with another.
 * `error_detail` -- expose the `arti_client::Error` inner error type.
 * `dirfilter` -- expose the `DirFilter` API, which lets you modify a network
   directory before it is used.
-* `keymgr` -- build with non-working APIs for key management. (These do not work
-  yet, and will just cause your code to panic.)
-
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.
 

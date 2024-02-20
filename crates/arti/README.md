@@ -127,6 +127,9 @@ work.
 * `onion-service-client` (default) -- Build with support for connecting to
   onion services. Note that this is not yet as secure as C-Tor and shouldn't
   be used for security-sensitive purposes.
+* `onion-service-service` -- Build with support for running onion services.
+  Note that this is not yet as secure as C-Tor and shouldn't
+  be used for security-sensitive purposes.
 * `pt-client` (default) -- Build with support for pluggable transports.
 
 * `full` -- Build with all features above, along with all stable additive
