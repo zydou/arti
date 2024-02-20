@@ -13,15 +13,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["tokio", "native-tls", "compression"]
-# "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
-#   * Features that are experimental or unstable
-#   * Features that are testing-only
-#   * Features which are select a particular implementation or build flag and
-#     which therefore are not strictly additive.
-#   * Features which may introduce unnecessary licensing restrictions.
 full = [
     "anyhow",
+    "keymgr",
     "onion-service-client",
+    "onion-service-service",
     "tokio",
     "async-std",
     "native-tls",
@@ -54,7 +50,12 @@ full = [
     "tor-linkspec/full",
     "tor-geoip?/full",
     "tor-hsservice?/full",
-]
+] # "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
+#   * Features that are experimental or unstable
+#   * Features that are testing-only
+#   * Features which are select a particular implementation or build flag and
+#     which therefore are not strictly additive.
+#   * Features which may introduce unnecessary licensing restrictions.
 
 async-std = ["tor-rtcompat/async-std"]
 bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
@@ -75,6 +76,10 @@ static-native-tls = ["tor-rtcompat/static", "native-tls", "__is_nonadditive"]
 accel-sha1-asm = ["tor-llcrypto/with-sha1-asm", "__is_nonadditive"]
 accel-openssl = ["tor-llcrypto/with-openssl", "__is_nonadditive"]
 
+onion-service-client = ["tor-hsclient", "tor-hscrypto"]
+onion-service-service = ["tor-hsservice", "tor-hscrypto", "tor-persist/state-dir", "keymgr"]
+keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr"]
+
 __is_nonadditive = []
 
 compression = ["tor-dirmgr/compression"]
@@ -84,7 +89,6 @@ experimental = [
     "experimental-api",
     "error_detail",
     "geoip",
-    "onion-service-service",
     "rpc",
     "tor-proto/experimental",
     "tor-cell/experimental",
@@ -93,7 +97,6 @@ experimental = [
     "tor-dirmgr/experimental",
     "tor-circmgr/experimental",
     "tor-config/experimental",
-    "keymgr",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
@@ -104,11 +107,7 @@ experimental-api = ["__is_experimental"]
 dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
-onion-service-client = ["tor-hsclient", "tor-hscrypto"]
-onion-service-service = ["tor-hsservice", "tor-hscrypto", "tor-persist/state-dir", "keymgr", "__is_experimental"]
 rpc = ["tor-rpcbase", "__is_experimental"]
-
-keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
