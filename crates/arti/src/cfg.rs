@@ -473,6 +473,7 @@ mod test {
                 "application.allow_running_as_root",
                 "bridges",
                 "logging.time_granularity",
+                "path_rules.long_lived_ports",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
             ],

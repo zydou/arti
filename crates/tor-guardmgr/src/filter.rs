@@ -81,7 +81,7 @@ impl GuardFilter {
         let mut guard_bw: RelayWeight = 0.into();
         let mut permitted_bw: RelayWeight = 0.into();
         for relay in netdir.relays() {
-            if relay.is_flagged_guard() {
+            if relay.is_suitable_as_guard() {
                 let w = netdir.relay_weight(&relay, WeightRole::Guard);
                 guard_bw += w;
                 if self.permits(&relay) {

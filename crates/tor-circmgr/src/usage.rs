@@ -61,7 +61,7 @@ pub struct TargetPort {
     /// True if this is a request to connect to an IPv6 address
     ipv6: bool,
     /// The port that the client wants to connect to
-    port: u16,
+    pub(crate) port: u16,
 }
 
 impl TargetPort {
@@ -164,6 +164,8 @@ pub(crate) enum TargetCircUsage {
         isolation: StreamIsolation,
         /// Restrict the circuit to only exits in the provided country code.
         country_code: Option<CountryCode>,
+        /// If true, all relays on this circuit need to have the Stable flag.
+        require_stability: bool,
     },
     /// For a circuit is only used for the purpose of building it.
     TimeoutTesting,
@@ -181,6 +183,8 @@ pub(crate) enum TargetCircUsage {
         port: Option<TargetPort>,
         /// The number of exit circuits needed for a port
         circs: usize,
+        /// If true, all relays on this circuit need to have the Stable flag.
+        require_stability: bool,
     },
     /// Use for BEGINDIR-based non-anonymous directory connections to a particular target,
     /// and therefore to a specific relay (which need not be in any netdir).
@@ -218,6 +222,8 @@ pub(crate) enum SupportedCircUsage {
         isolation: Option<StreamIsolation>,
         /// Country code the exit is in, or `None` if no country could be determined.
         country_code: Option<CountryCode>,
+        /// Whether every relay in this circuit has the "Stable" flag.
+        all_relays_stable: bool,
     },
     /// This circuit is not suitable for any usage.
     NoUsage,
@@ -253,9 +259,14 @@ impl TargetCircUsage {
                 let (path, mon, usable) = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
                 Ok((path, SupportedCircUsage::Dir, mon, usable))
             }
-            TargetCircUsage::Preemptive { port, .. } => {
+            TargetCircUsage::Preemptive {
+                port,
+                require_stability,
+                ..
+            } => {
                 // FIXME(eta): this is copypasta from `TargetCircUsage::Exit`.
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(port.iter().copied())
+                    .require_stability(*require_stability)
                     .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
                     .exit_policy()
@@ -264,13 +275,14 @@ impl TargetCircUsage {
                 let country_code = path.country_code();
                 #[cfg(not(feature = "geoip"))]
                 let country_code = None;
-
+                let all_relays_stable = path.appears_stable();
                 Ok((
                     path,
                     SupportedCircUsage::Exit {
                         policy,
                         isolation: None,
                         country_code,
+                        all_relays_stable,
                     },
                     mon,
                     usable,
@@ -280,15 +292,18 @@ impl TargetCircUsage {
                 ports: p,
                 isolation,
                 country_code,
+                require_stability,
             } => {
                 #[cfg(feature = "geoip")]
-                let builder = if let Some(cc) = country_code {
+                let mut builder = if let Some(cc) = country_code {
                     ExitPathBuilder::in_given_country(*cc, p.clone())
                 } else {
                     ExitPathBuilder::from_target_ports(p.clone())
                 };
                 #[cfg(not(feature = "geoip"))]
-                let builder = ExitPathBuilder::from_target_ports(p.clone());
+                let mut builder = ExitPathBuilder::from_target_ports(p.clone());
+
+                builder.require_stability(*require_stability);
 
                 let (path, mon, usable) = builder.pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
@@ -305,6 +320,7 @@ impl TargetCircUsage {
                         resulting_cc
                     );
                 }
+                let all_relays_stable = path.appears_stable();
 
                 #[cfg(not(feature = "geoip"))]
                 let resulting_cc = *country_code; // avoid unused var warning
@@ -314,6 +330,7 @@ impl TargetCircUsage {
                         policy,
                         isolation: Some(isolation.clone()),
                         country_code: resulting_cc,
+                        all_relays_stable,
                     },
                     mon,
                     usable,
@@ -321,6 +338,7 @@ impl TargetCircUsage {
             }
             TargetCircUsage::TimeoutTesting => {
                 let (path, mon, usable) = ExitPathBuilder::for_timeout_testing()
+                    .require_stability(false)
                     .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path.exit_policy();
                 #[cfg(feature = "geoip")]
@@ -332,6 +350,7 @@ impl TargetCircUsage {
                         policy,
                         isolation: None,
                         country_code,
+                        all_relays_stable: path.appears_stable(),
                     },
                     _ => SupportedCircUsage::NoUsage,
                 };
@@ -350,6 +369,9 @@ impl TargetCircUsage {
             } => {
                 let (path, mon, usable) =
                     ExitPathBuilder::for_any_compatible_with(compatible_with_target.clone())
+                        // TODO: We don't actually require stability if this is a
+                        // HsDir circuit: but at this point, we can't tell.
+                        .require_stability(true)
                         .pick_path(rng, netdir, guards, config, now)?;
                 let usage = SupportedCircUsage::HsOnly;
                 Ok((path, usage, mon, usable))
@@ -380,25 +402,38 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     policy: p1,
                     isolation: i1,
                     country_code: cc1,
+                    all_relays_stable,
                 },
                 TargetCircUsage::Exit {
                     ports: p2,
                     isolation: i2,
                     country_code: cc2,
+                    require_stability,
                 },
             ) => {
                 i1.as_ref()
                     .map(|i1| i1.compatible_same_type(i2))
                     .unwrap_or(true)
+                    && (!require_stability || *all_relays_stable)
                     && p2.iter().all(|port| p1.allows_port(*port))
                     && (cc2.is_none() || cc1 == cc2)
             }
             (
                 Exit {
-                    policy, isolation, ..
+                    policy,
+                    isolation,
+                    all_relays_stable,
+                    ..
                 },
-                TargetCircUsage::Preemptive { port, .. },
+                TargetCircUsage::Preemptive {
+                    port,
+                    require_stability,
+                    ..
+                },
             ) => {
+                if *require_stability && !all_relays_stable {
+                    return false;
+                }
                 if isolation.is_some() {
                     // If the circuit has a stream isolation, we might not be able to use it
                     // for new streams that don't share it.
@@ -525,11 +560,13 @@ pub(crate) mod test {
                         ports: p1,
                         isolation: is1,
                         country_code: cc1,
+                        ..
                     },
                     Exit {
                         ports: p2,
                         isolation: is2,
                         country_code: cc2,
+                        ..
                     },
                 ) => p1 == p2 && cc1 == cc2 && is1.isol_eq(is2),
                 (TimeoutTesting, TimeoutTesting) => true,
@@ -537,10 +574,12 @@ pub(crate) mod test {
                     Preemptive {
                         port: p1,
                         circs: c1,
+                        ..
                     },
                     Preemptive {
                         port: p2,
                         circs: c2,
+                        ..
                     },
                 ) => p1 == p2 && c1 == c2,
                 _ => false,
@@ -558,11 +597,13 @@ pub(crate) mod test {
                         policy: p1,
                         isolation: is1,
                         country_code: cc1,
+                        ..
                     },
                     Exit {
                         policy: p2,
                         isolation: is2,
                         country_code: cc2,
+                        ..
                     },
                 ) => p1 == p2 && is1.isol_eq(is2) && cc1 == cc2,
                 (NoUsage, NoUsage) => true,
@@ -655,16 +696,19 @@ pub(crate) mod test {
             policy: policy.clone(),
             isolation: Some(isolation.clone()),
             country_code: None,
+            all_relays_stable: true,
         };
         let supp_exit_iso2 = SupportedCircUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation2.clone()),
             country_code: None,
+            all_relays_stable: true,
         };
         let supp_exit_no_iso = SupportedCircUsage::Exit {
             policy,
             isolation: None,
             country_code: None,
+            all_relays_stable: true,
         };
         let supp_none = SupportedCircUsage::NoUsage;
 
@@ -672,26 +716,32 @@ pub(crate) mod test {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation.clone(),
             country_code: None,
+            require_stability: false,
         };
         let targ_80_v4_iso2 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation2,
             country_code: None,
+            require_stability: false,
         };
         let targ_80_23_v4 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80), TargetPort::ipv4(23)],
             isolation: isolation.clone(),
             country_code: None,
+            require_stability: false,
         };
+
         let targ_80_23_mixed = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80), TargetPort::ipv6(23)],
             isolation: isolation.clone(),
             country_code: None,
+            require_stability: false,
         };
         let targ_999_v6 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv6(999)],
             isolation,
             country_code: None,
+            require_stability: false,
         };
         let targ_testing = TargetCircUsage::TimeoutTesting;
 
@@ -744,27 +794,32 @@ pub(crate) mod test {
             policy: policy.clone(),
             isolation: Some(isolation.clone()),
             country_code: None,
+            all_relays_stable: true,
         };
         let supp_exit_iso2 = SupportedCircUsage::Exit {
             policy: policy.clone(),
             isolation: Some(isolation2.clone()),
             country_code: None,
+            all_relays_stable: true,
         };
         let supp_exit_no_iso = SupportedCircUsage::Exit {
             policy,
             isolation: None,
             country_code: None,
+            all_relays_stable: true,
         };
         let supp_none = SupportedCircUsage::NoUsage;
         let targ_exit = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation,
             country_code: None,
+            require_stability: false,
         };
         let targ_exit_iso2 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation2,
             country_code: None,
+            require_stability: false,
         };
         let targ_testing = TargetCircUsage::TimeoutTesting;
 
@@ -853,6 +908,7 @@ pub(crate) mod test {
             ports: vec![TargetPort::ipv4(995)],
             isolation: isolation.clone(),
             country_code: None,
+            require_stability: false,
         };
         let (p_exit, u_exit, _, _) = exit_usage
             .build_path(&mut rng, di, guards, &config, now)
@@ -890,6 +946,7 @@ pub(crate) mod test {
                 policy,
                 isolation: None,
                 country_code: None,
+                all_relays_stable: true
             }
         );
     }

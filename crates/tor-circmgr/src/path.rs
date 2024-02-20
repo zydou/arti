@@ -181,6 +181,21 @@ impl<'a> TorPath<'a> {
             Path(p) => p.len(),
         }
     }
+
+    /// Return true if every `Relay` in this path has the stable flag.
+    ///
+    /// Assumes that Owned elements of this path are stable.
+    pub(crate) fn appears_stable(&self) -> bool {
+        match &self.inner {
+            TorPathInner::OneHop(r) => r.is_flagged_stable(),
+            TorPathInner::FallbackOneHop(_) => true,
+            TorPathInner::OwnedOneHop(_) => true,
+            TorPathInner::Path(relays) => relays.iter().all(|maybe_owned| match maybe_owned {
+                MaybeOwnedRelay::Relay(r) => r.is_flagged_stable(),
+                MaybeOwnedRelay::Owned(_) => true,
+            }),
+        }
+    }
 }
 
 /// A path composed entirely of owned components.

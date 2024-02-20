@@ -408,6 +408,13 @@ impl<R: Runtime> CircMgr<R> {
                 }
             }
         }
+        let require_stability = ports.iter().any(|p| {
+            self.mgr
+                .peek_builder()
+                .path_config()
+                .long_lived_ports
+                .contains(&p.port)
+        });
         let ports = ports.iter().map(Clone::clone).collect();
         #[cfg(not(feature = "geoip"))]
         let country_code = None;
@@ -415,6 +422,7 @@ impl<R: Runtime> CircMgr<R> {
             ports,
             isolation,
             country_code,
+            require_stability,
         };
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
@@ -478,9 +486,10 @@ impl<R: Runtime> CircMgr<R> {
     ) -> std::result::Result<(), err::PreemptiveCircError> {
         trace!("Checking preemptive circuit predictions.");
         let (circs, threshold) = {
+            let path_config = self.mgr.peek_builder().path_config();
             let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
             let threshold = preemptive.config().disable_at_threshold;
-            (preemptive.predict(), threshold)
+            (preemptive.predict(&path_config), threshold)
         };
 
         if self.mgr.n_circs() >= threshold {

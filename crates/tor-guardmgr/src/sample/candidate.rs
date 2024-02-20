@@ -65,6 +65,9 @@ pub(crate) enum CandidateStatus<T> {
 #[derive(Clone, Debug)]
 pub(crate) struct Candidate {
     /// True if the candidate is not currently disabled for use as a guard.
+    ///
+    /// (To be enabled, it must be in the lastest directory, with the Fast,
+    /// Stable, and Guard flags.)
     pub(crate) listed_as_guard: bool,
     /// True if the candidate can be used as a directory cache.
     pub(crate) is_dir_cache: bool,
@@ -105,7 +108,7 @@ impl Universe for NetDir {
     fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate> {
         match NetDir::by_ids(self, guard) {
             Some(relay) => CandidateStatus::Present(Candidate {
-                listed_as_guard: relay.is_flagged_guard(),
+                listed_as_guard: relay.is_suitable_as_guard(),
                 is_dir_cache: relay.is_dir_cache(),
                 owned_target: OwnedChanTarget::from_chan_target(&relay),
                 full_dir_info: true,
@@ -127,7 +130,7 @@ impl Universe for NetDir {
         // universe we're willing to add.
         let maximum_weight = {
             let total_weight = self.total_weight(tor_netdir::WeightRole::Guard, |r| {
-                r.is_flagged_guard() && r.is_dir_cache()
+                r.is_suitable_as_guard() && r.is_dir_cache()
             });
             total_weight
                 .ratio(params.max_sample_bw_fraction)
@@ -170,7 +173,7 @@ impl Universe for NetDir {
             tor_netdir::WeightRole::Guard,
             |relay| {
                 filter.permits(relay)
-                    && relay.is_flagged_guard()
+                    && relay.is_suitable_as_guard()
                     && relay.is_dir_cache()
                     && pre_existing.all_overlapping(relay).is_empty()
             },

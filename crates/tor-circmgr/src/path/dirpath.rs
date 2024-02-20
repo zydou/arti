@@ -58,7 +58,9 @@ impl DirPathBuilder {
                 let mut correct_usage = FilterCount::default();
                 let relay = netdir
                     .pick_relay(rng, WeightRole::BeginDir, |r| {
-                        can_share.count(true) && correct_usage.count(r.is_dir_cache())
+                        r.is_flagged_fast()
+                            && can_share.count(true)
+                            && correct_usage.count(r.is_dir_cache())
                     })
                     .ok_or(Error::NoPath {
                         role: "directory cache",

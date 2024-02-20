@@ -1325,7 +1325,9 @@ impl NetDir {
     /// Return the estimated fraction of possible paths that we have
     /// enough microdescriptors to build.
     fn frac_usable_paths(&self) -> f64 {
-        let f_g = self.frac_for_role(WeightRole::Guard, |u| u.rs.is_flagged_guard());
+        // TODO #504, TODO SPEC: We may want to add a set of is_flagged_fast() and/or
+        // is_flagged_stable() checks here.  This will require spec clarification.
+        let f_g = self.frac_for_role(WeightRole::Guard, |u| u.is_suitable_as_guard());
         let f_m = self.frac_for_role(WeightRole::Middle, |_| true);
         let f_e = if self.all_relays().any(|u| u.rs.is_flagged_exit()) {
             self.frac_for_role(WeightRole::Exit, |u| u.rs.is_flagged_exit())
@@ -1775,9 +1777,21 @@ impl<'a> UncheckedRelay<'a> {
             None
         }
     }
-    /// Return true if this relay has the guard flag.
+    /// Return true if this relay has the Guard flag.
+    ///
+    /// Note that this function _only_ checks for the presence of the Guard
+    /// flag. If you want to check for all the properties that indicate
+    /// suitability, use [`UncheckedRelay::is_suitable_as_guard`] instead.
+    //
+    // TODO #504: We may want to deprecate this function; its only users are
+    // test cases.
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
+    }
+    /// Return true if this relay is suitable for use as a newly sampled guard,
+    /// or for continuing to use as a guard.
+    pub fn is_suitable_as_guard(&self) -> bool {
+        self.rs.is_flagged_guard() && self.rs.is_flagged_fast() && self.rs.is_flagged_stable()
     }
     /// Return true if this relay is a potential directory cache.
     pub fn is_dir_cache(&self) -> bool {
@@ -1826,12 +1840,38 @@ impl<'a> Relay<'a> {
         rs_is_dir_cache(self.rs)
     }
     /// Return true if this relay is marked as a potential Guard node.
+    ///
+    /// Note that this function _only_ checks for the presence of the Guard
+    /// flag. If you want to check for all the properties that indicate
+    /// suitability, use [`Relay::is_suitable_as_guard`] instead.
+    //
+    // TODO #504: We may want to deprecate this function; its only users are
+    // test cases.
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
+    /// Return true if this relay has the "Fast" flag.
+    ///
+    /// Most relays have this flag.  It indicates that the relay is suitable for
+    /// circuits that need more than a minimal amount of bandwidth.
+    pub fn is_flagged_fast(&self) -> bool {
+        self.rs.is_flagged_fast()
+    }
+    /// Return true if this relay has the "Stable" flag.
+    ///
+    /// Most relays have this flag. It indicates that the relay is suitable for
+    /// long-lived circuits.
+    pub fn is_flagged_stable(&self) -> bool {
+        self.rs.is_flagged_stable()
+    }
     /// Return true if this relay is a potential HS introduction point
     pub fn is_hs_intro_point(&self) -> bool {
-        self.rs.is_flagged_stable()
+        self.is_flagged_fast() && self.rs.is_flagged_stable()
+    }
+    /// Return true if this relay is suitable for use as a newly sampled guard,
+    /// or for continuing to use as a guard.
+    pub fn is_suitable_as_guard(&self) -> bool {
+        self.is_flagged_guard() && self.is_flagged_fast() && self.is_flagged_stable()
     }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
