@@ -523,19 +523,19 @@ pub(crate) enum AuthorizedClientConfigError {
 #[non_exhaustive]
 pub enum UploadError {
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
-    #[error("descriptor upload request failed")]
+    #[error("descriptor upload request failed: {}", _0.error)]
     Request(#[from] RequestFailedError),
 
     /// Failed to establish circuit to hidden service directory
-    #[error("circuit failed")]
+    #[error("could not build circuit to HsDir")]
     Circuit(#[from] tor_circmgr::Error),
 
     /// Failed to establish stream to hidden service directory
-    #[error("stream failed")]
+    #[error("failed to establish directory stream to HsDir")]
     Stream(#[source] tor_proto::Error),
 
-    /// The operation timed out before it could complete.
-    #[error("operation timed out")]
+    /// A descriptor upload timed out before it could complete.
+    #[error("descriptor publication timed out")]
     Timeout,
 
     /// An internal error.
