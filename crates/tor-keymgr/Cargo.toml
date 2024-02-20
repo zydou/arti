@@ -13,14 +13,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-# Enable experimental APIs that are not yet officially supported.
-#
-# These APIs are not covered by semantic versioning.  Using this
-# feature voids your "semver warrantee".
 
-keymgr = ["__is_experimental"]
-__is_experimental = []
+keymgr = []
 full = [
+    "keymgr",
     "fs-mistrust/full",
     "tor-error/full",
     "tor-hscrypto/full",
@@ -28,9 +24,14 @@ full = [
     "tor-config/full",
     "tor-persist/full",
 ]
-experimental = ["keymgr", "testing"]
 
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental = ["testing"]
 testing = ["__is_experimental"]
+__is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
