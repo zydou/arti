@@ -103,13 +103,65 @@ impl OnionServiceConfig {
         mut other: OnionServiceConfig,
         how: tor_config::Reconfigure,
     ) -> Result<OnionServiceConfig, tor_config::ReconfigureError> {
-        if self.nickname != other.nickname {
-            how.cannot_change("nickname")?;
-            // If we reach here, then `how` is WarnOnFailures, so we keep the
-            // original nickname.
-            other.nickname = self.nickname.clone();
+        /// Arguments to a handler for a field
+        ///
+        /// The handler must:
+        ///  * check whether this field can be updated
+        ///  * if necessary, throw an error (in which case `*other` may be wrong)
+        ///  * if it doesn't throw an error, ensure that `*other`
+        ///    is appropriately updated.
+        //
+        // We could have a trait but that seems overkill.
+        #[allow(clippy::missing_docs_in_private_items)] // avoid otiosity
+        struct HandlerInput<'i, 'o, T> {
+            how: tor_config::Reconfigure,
+            self_: &'i T,
+            other: &'o mut T,
+            field_name: &'i str,
         }
-        if self.anonymity != other.anonymity {
+        /// Convenience alias
+        type HandlerResult = Result<(), tor_config::ReconfigureError>;
+
+        /// Handler for config fields that cannot be changed
+        #[allow(clippy::needless_pass_by_value)]
+        fn unchangeable<T: Clone + PartialEq>(i: HandlerInput<T>) -> HandlerResult {
+            if i.self_ != i.other {
+                i.how.cannot_change(i.field_name)?;
+                // If we reach here, then `how` is WarnOnFailures, so we keep the
+                // original value.
+                *i.other = i.self_.clone();
+            }
+            Ok(())
+        }
+        /// Handler for config fields that can be freely changed
+        #[allow(clippy::unnecessary_wraps)]
+        fn simply_update<T>(_: HandlerInput<T>) -> HandlerResult {
+            Ok(())
+        }
+
+        /// Check all the fields.  Input maps fields to handlers.
+        macro_rules! fields { {
+            $(
+                $field:ident: $handler:expr
+            ),* $(,)?
+        } => {
+            // XXXX enable this
+            // // prove that we have handled every field
+            // let OnionServiceConfig { $( $field: _, )* } = self;
+
+            $(
+                $handler(HandlerInput {
+                    how,
+                    self_: &self.$field,
+                    other: &mut other.$field,
+                    field_name: stringify!($field),
+                })?;
+            )*
+        } }
+
+        fields! {
+            nickname: unchangeable,
+
             // Note: C Tor absolutely forbids changing between different
             // values here.
             //
@@ -119,8 +171,7 @@ impl OnionServiceConfig {
             // it retroactively.
             //
             // We may someday want to ease this behavior.
-            how.cannot_change("anonymity")?;
-            other.anonymity = self.anonymity;
+            anonymity: unchangeable,
         }
 
         Ok(other)
