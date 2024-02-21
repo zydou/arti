@@ -82,7 +82,7 @@ pub enum Error {
 //
 // [TODO: If you need a Bounded* for some type other than i32, ask nickm:
 // he has an implementation kicking around.]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct BoundedInt32<const LOWER: i32, const UPPER: i32> {
     /// Interior Value
     value: i32,
@@ -241,7 +241,7 @@ impl<const L: i32, const H: i32> TryFrom<BoundedInt32<L, H>> for usize {
 ///
 /// This type wraps an underlying numeric type, and ensures that callers
 /// are clear whether they want a _fraction_, or a _percentage_.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Percentage<T: Copy + Into<f64>> {
     /// The underlying percentage value.
     value: T,
@@ -298,7 +298,7 @@ impl<const H: i32, const L: i32> TryFrom<i32> for Percentage<BoundedInt32<H, L>>
 // section.
 
 #[derive(
-    Add, Copy, Clone, Mul, Div, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd,
+    Add, Copy, Clone, Mul, Div, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd, Hash,
 )]
 /// This type represents an integer number of milliseconds.
 ///
@@ -356,7 +356,7 @@ impl<const H: i32, const L: i32> TryFrom<i32> for IntegerMilliseconds<BoundedInt
 }
 
 #[derive(
-    Add, Copy, Clone, Mul, Div, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd,
+    Add, Copy, Clone, Mul, Div, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd, Hash,
 )]
 /// This type represents an integer number of seconds.
 ///
@@ -411,7 +411,7 @@ impl<const H: i32, const L: i32> TryFrom<i32> for IntegerSeconds<BoundedInt32<H,
     }
 }
 
-#[derive(Copy, Clone, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Copy, Clone, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 /// This type represents an integer number of minutes.
 ///
 /// The underlying type should usually implement `TryInto<u64>`.
@@ -471,7 +471,7 @@ impl<const H: i32, const L: i32> TryFrom<i32> for IntegerMinutes<BoundedInt32<H,
     }
 }
 
-#[derive(Copy, Clone, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Copy, Clone, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 /// This type represents an integer number of days.
 ///
 /// The underlying type should usually implement `TryInto<u64>`.
@@ -532,7 +532,7 @@ impl<const H: i32, const L: i32> TryFrom<i32> for IntegerDays<BoundedInt32<H, L>
 /// A SendMe Version
 ///
 /// DOCDOC: Explain why this needs to have its own type, or remove it.
-#[derive(Clone, Copy, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Clone, Copy, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct SendMeVersion(u8);
 
 impl SendMeVersion {
