@@ -178,11 +178,9 @@ impl OnionServiceConfig {
             // as they are rotated out.)
             num_intro_points: simply_update,
 
-            // TODO Changing this would involve abolishing our IPTs and making new ones.
-            // Currently that's not implemented.  It could be done by the Establisher
-            // reporting WantsToRetire, or by the Manager recording the last setting
-            // and abolishing the IPTs.
-            rate_limit_at_intro: unchangeable,
+            // IPT manager's "new configuration" select arm handles this,
+            // by replacing IPTs if necessary.
+            rate_limit_at_intro: simply_update,
         }
 
         Ok(other)
