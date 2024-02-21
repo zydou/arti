@@ -39,6 +39,7 @@ members = [
     "crates/tor-netdoc",
     "crates/tor-consdiff",
     "crates/tor-netdir",
+    "crates/tor-relay-selection",
     "crates/tor-congestion",
     "crates/tor-persist",
     "crates/tor-chanmgr",

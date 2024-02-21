@@ -5816,6 +5816,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-relay-selection"
+version = "0.0.1"
+dependencies = [
+ "tor-geoip",
+ "tor-linkspec",
+ "tor-netdir",
+]
+
+[[package]]
 name = "tor-rpcbase"
 version = "0.3.0"
 dependencies = [
