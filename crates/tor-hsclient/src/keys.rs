@@ -12,9 +12,7 @@ use std::sync::Arc;
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
-use tor_keymgr::{
-    derive_adhoc_template_KeySpecifier,
-};
+use tor_keymgr::derive_adhoc_template_KeySpecifier;
 
 use derive_adhoc::Adhoc;
 use derive_more::Constructor;
