@@ -1,0 +1,211 @@
+snext_old# Memory limiting and reclamation
+
+## Intended behavour
+
+In normal operation we track very little cheaply
+We do track total memory use in nominal bytes
+(but a little approximately).
+
+When we exceed the quota, we engage a more expensive algorithm:
+we build a heap to select oldest victims.
+We use the heap to keep reducing memory
+until we go below a low-water mark (hysteresis).
+
+## Higher level memory-tracking/limiting queue API
+
+Replaces mpsc queues.
+
+Do we need *m*p ?  If so, need to make Sender.oldest Atomic.
+
+```
+mod memquota::spsc_queue {
+
+  trait SizeForMemoryQuota { fn size_for_memory_quota(&self) -> usize }
+  trait HasDummyValue { 
+    // Return a dummy value suitable for putting into queue to cause a wakeup.
+	// The inserted dummy value will *not* be actually observed,
+	// so its semantics don't matter, but it should be cheap to make.
+	// This separate dummy constructor avoids wrapping each queue
+    // entry in Option (but we provide impl for Option for convenience
+    // in colder paths).
+    fn new_dummy_value() -> Self
+  }
+  impl SizeForMemoryQuota for Option<T> where T: SizeForMemoryQuota {
+  impl HasDummyValue for Option<T> {
+
+  pub fn channel<T: SizeForMemoryQuota + HasDummyValue>(mgr: &MemoryQuotaTracker)
+      -> (Sender, Receiver)
+
+  pub struct Sender<T>(
+  struct SenderInner<T> { // Just so we don't expose RawParticipant impl
+    oldest: RoughTime,
+    shared: Arc<Shared>
+
+  pub struct Receiver<T> {
+    shared: Arc<Shared>,
+
+  struct Shared {
+    // We want a queue that lets us tell if it's empty without
+	// extracting an element.  Otherwise we'd have to stash one element
+	// somewhere.  This is needed to implement `RawParticipant::get_oldest`.
+    queue: deadqueue::unlimited::Queue<T>,
+    collapsing: AtomicBool,
+    memquota: memquots::raw::Participation,
+
+  // sketch; really we'd impl Sink
+  impl Sender<T> {
+    // passing now means we don't have to have a runtime handle in the queue object
+    async fn send(&mut self, now: RoughTime, t: T) -> Result {
+      if self.shared.collapsing.load() { return Err }
+      self.oldest = now;
+      self.shared.memquota.claim(t.size_for_memory_quota())
+      self.shared.send
+
+    // when the queue decides to collapse due to memory exhaustion, yields None
+    fn watch_for_collapse(&self) -> impl Stream<Void> + Send + Sync + 'static {
+      makes and returns a async_broadcast::Receiver<Void>
+
+  // sketch; really we'd impl Stream
+  impl Receiver<T> {
+    async fn recv(&mut self) -> {
+      if self.shared.collapsing.load() { return Err }
+	  let t = self.shared.queue.recv();
+	  self.shared.memquota.release(t.size_for_memory_quota());
+	  t
+
+  impl RawParticipant for SenderInner {
+    fn get_oldest(&self) -> Option<RoughTime> {
+	  if self.inner.len() == 0 { return None }
+	  Some(self.oldest)
+    }
+    fn reclaim(&self, _, token) {
+      self.shared.collapse.store(true);
+	  token.forget_participant();
+      // proactively empty the queue in case the sender doesn't wake
+      // up for some reason
+      while let Some(_) = self.shared.queue.try_pop() { 
+	    // no need to update memquota since we've told it we're collapsing
+	  }
+      // put a dummy element in the queue *to* wake the sender up
+	  // we do this rather than having a separate signal,
+	  // so that each loop iteration in the receiver doesn't need to
+	  // register two wakers
+	  self.shared.queue.send(T::new_dummy_value())
+
+```
+
+## Low level
+
+```
+mod memquota::raw {
+
+  pub struct MemoryQuotaTracker(
+	Arc<Mutex<TrackerInner>>
+
+  pub struct TrackerInner {
+	Config {
+	  max,
+	  low_water,
+	}
+	total_used,
+	ps: SlotMap<PId, PRecord>
+	reclaimation_task_wakeup: Condvar,
+
+  struct PRecord {
+	used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
+	reclaiming: bool, // does a ReclaimingToken exist, see below
+    participation_clones: u32,
+	p: Box<dyn Participant>,
+  }
+
+  pub trait Participant {
+	fn get_oldest(&self) -> Option<RoughTime>;
+	/// MAY BE CALLED REENTRANTLY as a result of claim() !
+	// not async because &self borrows from TrackerInner
+	//
+	// Should free *at least* all memory at least as old as next_oldest
+	// (can be done asynchronously) and then drop the ReclaimingToken.
+	fn reclaim(&mut self, discard_everything_as_old_as_this: RoughTime, ReclaimingToken);
+
+  pub struct Participation {
+	id: PId,
+	// quota we have preemptively claimed for use by this Participation
+	// has been added to RawParticipationRecord.used
+	// but not yet returned by Participation.claim
+	//
+	// this arranges that most of the time we don't have to hammer a
+	// single cache line
+	local_quota: u16,
+	#[deref]
+	tracker: MemoryQuotaTracker
+
+  impl Participation {
+	fn claim(&mut self, usize) -> Result<()> {
+	   try to take usize from local_quota,
+	   failing that, get from tracker,
+	   possibly taking extra to put into local quota
+
+	fn release(&mut self usize) /* infallible */ {
+	   self.local_quota += usize;
+	   if local quota too big, call tracker.release
+
+  impl Drop for Participation
+    decrement participation_clones
+	if zero, forget the participant (subtracting its PRecord.used from TrackerInner_used)
+
+  // gives you another view of the same particant
+  impl Clone for Participation {
+	// clone's local_quota is set to 0.
+
+  impl MemoryQuotaTracker {
+	pub fn new_participant(&self, Box<dyn Participant>) -> Participation;
+
+	fn claim(&self, pid: PId, req: usize) -> Result {
+	   let inner = self.0.lock().unwrap();
+	   let p = inner.ps.get_mut(pid)
+		 .ok_or_else(ParticipantForgottenError)?;
+	   self.used += req;
+	   p.used += req;
+	   if self.used > self.max { self.reclamation_task_wakeup.signal(); }
+	   Ok(())
+
+	async fn reclamation_task() {
+	  let mut target = self.max;
+
+	  loop {
+		condvar wait for signal;
+		if self.used <= max { continue }
+
+		// reclamation
+		let mut heap: Heap<RoughTime, PId> = ps.iter().collect();
+		while self.used > self.low_water {
+		  let oldest = heap.pop_lowest();
+          let next_oldest = heap.peek_lowest();
+		  self.ps[oldest].reclaiming = true;
+	      // fudge next_oldest by something to do with number of loop iterations,
+		  // to avoid one-allocation-each-time ping pong between multiple caches
+		  self.ps[oldest].reclaim(next_oldest, ReclaimingToken { });
+		  while self.ps[oldest].reclaiming { condvar wait }
+		  // do some timeouts and checks on participant behaviour
+          // if we have unresponsive participant, we can't kill it but we can
+		  // start reclaiming other stuff?  maybe in 1st cut we just log such a situation
+		}
+
+  /// Dropping this means "I've done some stuff, please call reclaim()
+  /// again if necessary".
+  // Drop impl clears PRecord.reclaiming and signals
+  struct ReclaimingToken {
+
+  impl ReclaimingToken {
+	/// "this participant is reclaiming by collapsing completely.
+	/// all memory it uses will be eventually `release`d,
+	/// but this may not have happened yet"
+	fn forget_participant(self) {
+```
+
+## Plan for caches
+
+A cache knows its oldest data and will need to know how old each thing it has, is.
+
+On reclaim, it discards the oldest things until it reaches roughly (at least) next_oldest.
+If that's not enough, tracker will call reclaim again.
