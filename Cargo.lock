@@ -5101,6 +5101,7 @@ dependencies = [
  "tor-persist",
  "tor-proto",
  "tor-protover",
+ "tor-relay-selection",
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
@@ -5819,9 +5820,15 @@ dependencies = [
 name = "tor-relay-selection"
 version = "0.0.1"
 dependencies = [
+ "derive_more",
+ "once_cell",
+ "rand",
+ "serde",
+ "tor-basic-utils",
  "tor-geoip",
  "tor-linkspec",
  "tor-netdir",
+ "tor-netdoc",
 ]
 
 [[package]]

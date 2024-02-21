@@ -1,7 +1,6 @@
 //! Code related to tracking what activities a circuit can be used for.
 
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -41,6 +40,8 @@ use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
 use crate::Result;
 
+pub use tor_relay_selection::TargetPort;
+
 /// An exit policy, as supported by the last hop of a circuit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExitPolicy {
@@ -48,50 +49,6 @@ pub(crate) struct ExitPolicy {
     v4: Arc<PortPolicy>,
     /// Permitted IPv6 ports.
     v6: Arc<PortPolicy>,
-}
-
-/// A port that we want to connect to as a client.
-///
-/// Ordinarily, this is a TCP port, plus a flag to indicate whether we
-/// must support IPv4 or IPv6.
-#[derive(
-    Clone, Copy, Debug, Deserialize, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Default,
-)]
-pub struct TargetPort {
-    /// True if this is a request to connect to an IPv6 address
-    ipv6: bool,
-    /// The port that the client wants to connect to
-    pub(crate) port: u16,
-}
-
-impl TargetPort {
-    /// Create a request to make sure that a circuit supports a given
-    /// ipv4 exit port.
-    pub fn ipv4(port: u16) -> TargetPort {
-        TargetPort { ipv6: false, port }
-    }
-
-    /// Create a request to make sure that a circuit supports a given
-    /// ipv6 exit port.
-    pub fn ipv6(port: u16) -> TargetPort {
-        TargetPort { ipv6: true, port }
-    }
-
-    /// Return true if this port is supported by the provided Relay.
-    pub fn is_supported_by(&self, r: &tor_netdir::Relay<'_>) -> bool {
-        // TODO #504
-        if self.ipv6 {
-            r.supports_exit_port_ipv6(self.port)
-        } else {
-            r.supports_exit_port_ipv4(self.port)
-        }
-    }
-}
-
-impl Display for TargetPort {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}", self.port, if self.ipv6 { "v6" } else { "v4" })
-    }
 }
 
 /// Set of requested target ports, mostly for use in error reporting

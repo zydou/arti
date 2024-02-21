@@ -40,3 +40,95 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
+
+mod config;
+mod ext;
+mod restriction;
+mod selector;
+mod target_port;
+mod usage;
+
+pub use config::RelaySelectionConfig;
+pub use ext::{NetDirExt, RelayExt};
+pub use restriction::{RelayExclusion, RelayRestriction};
+pub use selector::{RelaySelector, SelectionInfo};
+pub use target_port::TargetPort;
+pub use usage::RelayUsage;
+
+/// A property that can be provided by relays.
+pub trait RelayPredicate {
+    /// Return true if `relay` provides this predicate.
+    fn permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool;
+}
+
+/// Helper module for our tests.
+#[cfg(test)]
+pub(crate) mod testing {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use crate::{RelayPredicate, RelaySelectionConfig};
+    use once_cell::sync::Lazy;
+    use std::collections::HashSet;
+    use tor_netdir::{NetDir, Relay, SubnetConfig};
+    use tor_netdoc::doc::netstatus::RelayFlags;
+
+    /// Use a predicate to divide a NetDir into the relays that do and do not
+    /// conform (respectively).
+    ///
+    /// # Panics
+    ///
+    /// Panics if either the "yes" list or the "no" list is empty, to ensure
+    /// that all of our tests are really testing something.
+    pub(crate) fn split_netdir<'a, P: RelayPredicate>(
+        netdir: &'a NetDir,
+        pred: &P,
+    ) -> (Vec<Relay<'a>>, Vec<Relay<'a>>) {
+        let mut yes = Vec::new();
+        let mut no = Vec::new();
+        for r in netdir.relays() {
+            if pred.permits_relay(&r) {
+                yes.push(r);
+            } else {
+                no.push(r);
+            }
+        }
+        assert!(!yes.is_empty());
+        assert!(!no.is_empty());
+        (yes, no)
+    }
+
+    /// Return a basic configuration.
+    pub(crate) fn cfg() -> RelaySelectionConfig<'static> {
+        static STABLE_PORTS: Lazy<HashSet<u16>> = Lazy::new(|| [22].into_iter().collect());
+        RelaySelectionConfig {
+            long_lived_ports: &STABLE_PORTS,
+            subnet_config: SubnetConfig::default(),
+        }
+    }
+
+    // Construct a test network to exercise the various cases in this crate.
+    pub(crate) fn testnet() -> NetDir {
+        tor_netdir::testnet::construct_custom_netdir(|idx, node| {
+            if idx % 7 == 0 {
+                node.rs.clear_flags(RelayFlags::FAST);
+            }
+            if idx % 5 == 0 {
+                node.rs.clear_flags(RelayFlags::STABLE);
+            };
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap()
+    }
+}
