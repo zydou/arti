@@ -265,6 +265,8 @@ struct Ipt {
     ///  * WantsToRetire
     ///  * We have >N IPTs and we have been using this IPT so long we want to rotate it out
     ///    (the [`IptRelay`] has reached its `planned_retirement` time)
+    ///  * The IPT has wrong parameters of some kind, and needs to be replaced
+    ///    (Eg, we set it up with the wrong DOS_PARAMS extension)
     is_current: Option<IsCurrent>,
 }
 
@@ -1651,6 +1653,24 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                            &self.imm.nick);
                     return Ok(ShutdownStatus::Terminate);
                 };
+                if let Err(why) = (|| {
+                    let dos = |config: &OnionServiceConfig| config.dos_extension()
+                        .map_err(|e| e.report().to_string());
+                    if dos(&self.state.current_config)? != dos(&new_config)? {
+                        return Err("DOS parameters (rate limit) changed".to_string());
+                    }
+                    Ok(())
+                })() {
+                    // We need new IPTs with the new parameters.  (The previously-published
+                    // IPTs will automatically be retained so long as needed, by the
+                    // rest of our algorithm.)
+                    info!("HS service {}: replacing IPTs: {}", &self.imm.nick, &why);
+                    for ir in &mut self.state.irelays {
+                        for ipt in &mut ir.ipts {
+                            ipt.is_current = None;
+                        }
+                    }
+                }
                 self.state.current_config = new_config;
                 self.state.last_irelay_selection_outcome = Ok(());
             }

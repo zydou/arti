@@ -432,4 +432,6 @@
 
 # How many streams will we allow at a time for each circuit?
 # 
+# NB this is not supported.  See #1124.  If this is not supported
+# by the time of release, it should be removed from the example config.
 #    max_concurrent_streams_per_circuit = 65535

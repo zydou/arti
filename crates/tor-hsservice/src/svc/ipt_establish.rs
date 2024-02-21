@@ -356,6 +356,8 @@ impl IptEstablisher {
             k_sid,
             introduce_tx,
             extensions: EstIntroExtensionSet {
+                // Updates to this are handled by the IPT manager: when it changes,
+                // this IPT will be replaced with one with the correct parameters.
                 dos_params: config.dos_extension()?,
             },
             state: state.clone(),

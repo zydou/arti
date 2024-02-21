@@ -50,7 +50,7 @@ caret_int! {
 /// This extension requires protover `HSIntro=5`.
 ///
 /// See <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct DosParams {
     /// An optional parameter indicates the rate per second of
     /// INTRODUCE2 cell relayed to the service.
