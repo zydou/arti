@@ -172,6 +172,11 @@ impl OnionServiceConfig {
             //
             // We may someday want to ease this behavior.
             anonymity: unchangeable,
+
+            // IPT manager will respond by adding or removing IPTs as desired.
+            // (Old IPTs are not proactively removed, but they will not be replaced
+            // as they are rotated out.)
+            num_intro_points: simply_update,
         }
 
         Ok(other)
