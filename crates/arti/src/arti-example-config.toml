@@ -120,8 +120,6 @@
 # Setting this option to true when the `keymgr` feature is disabled is a
 # configuration error.
 #enabled = "auto"
-# The root directory of the arti keystore
-#path = "${ARTI_LOCAL_DATA}/keystore"
 
 # Describe how to enforce permissions on the filesystem when accessing the cache
 # and state directories.  (This does not apply to configuration files)

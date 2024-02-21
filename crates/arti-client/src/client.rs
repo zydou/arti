@@ -1431,11 +1431,12 @@ impl<R: Runtime> TorClient<R> {
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
         if keystore.is_enabled() {
-            let key_store_dir = keystore.path();
+            let (state_dir, _mistrust) = Self::state_dir(config)?;
+            let key_store_dir = state_dir.join("keystore");
             let permissions = config.storage.permissions();
 
             let arti_store =
-                ArtiNativeKeystore::from_path_and_mistrust(key_store_dir, permissions)?;
+                ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
             info!("Using keystore from {key_store_dir:?}");
 
             // TODO #1106: make the default store configurable
