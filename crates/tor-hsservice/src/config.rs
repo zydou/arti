@@ -49,7 +49,6 @@ pub struct OnionServiceConfig {
     /// <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
     #[builder(default)]
     rate_limit_at_intro: Option<TokenBucketConfig>,
-
     // TODO #1124 Implement max_concurrent_streams_per_circuit
     // /// How many streams will we allow to be open at once for a single circuit on
     // /// this service?
