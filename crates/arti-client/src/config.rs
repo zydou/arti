@@ -724,21 +724,6 @@ impl TorClientConfigBuilder {
             .cache_dir(CfgPath::new_literal(cache_dir.as_ref()))
             .state_dir(CfgPath::new_literal(state_dir.as_ref()));
 
-        // Derive the keystore path from `state_dir`
-        //
-        // TODO #1185: perhaps the default `keystore_dir` should more generally be derived from
-        // `state_dir`.
-        //
-        // Note this will involve writing a custom deserializer for StorageConfig (if
-        // `storage.keystore.path` is missing from the config, it will need to be initialized using
-        // the value we deserialized for `storage.state_dir` rather than a static default value).
-        #[cfg(feature = "keymgr")]
-        {
-            let sub_builder = builder.storage().keystore();
-            let keystore_dir = state_dir.as_ref().join("keystore");
-            sub_builder.path(CfgPath::new_literal(keystore_dir));
-        };
-
         builder
     }
 }
@@ -1017,18 +1002,5 @@ mod test {
         for (test_case, expected) in test_cases.iter() {
             chk(&from_toml(test_case), *expected);
         }
-    }
-
-    #[test]
-    #[cfg(feature = "keymgr")]
-    fn from_directories_keystore_dir() {
-        let builder =
-            TorClientConfigBuilder::from_directories("/home/bob/state", "/home/bob/cache");
-        let client_cfg = builder.build().unwrap();
-
-        assert_eq!(
-            client_cfg.storage.keystore.path(),
-            Path::new("/home/bob/state/keystore")
-        );
     }
 }

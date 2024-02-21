@@ -24,7 +24,9 @@ log_sensitive_information = true
 # of 120 here; match it.
 hsdir_interval = 120
 
+[storage]
+state_dir = "./"
+
 # Configure the keystore dir
 [storage.keystore]
 enabled = true
-path = "./keystore"
