@@ -146,9 +146,8 @@ impl OnionServiceConfig {
                 $field:ident: $handler:expr
             ),* $(,)?
         } => {
-            // XXXX enable this
-            // // prove that we have handled every field
-            // let OnionServiceConfig { $( $field: _, )* } = self;
+            // prove that we have handled every field
+            let OnionServiceConfig { $( $field: _, )* } = self;
 
             $(
                 $handler(HandlerInput {
