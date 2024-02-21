@@ -50,10 +50,12 @@ pub struct OnionServiceConfig {
     #[builder(default)]
     rate_limit_at_intro: Option<TokenBucketConfig>,
 
-    /// How many streams will we allow to be open at once for a single circuit on
-    /// this service?
-    #[builder(default = "65535")]
-    max_concurrent_streams_per_circuit: u32,
+    // TODO #1124 Implement max_concurrent_streams_per_circuit
+    // /// How many streams will we allow to be open at once for a single circuit on
+    // /// this service?
+    // #[builder(default = "65535")]
+    // max_concurrent_streams_per_circuit: u32,
+
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
     // // enable_pow: bool,
