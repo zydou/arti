@@ -23,7 +23,7 @@ Key APIs.
  * `pub fn channel` constructor that gives you a `Sender`/`Receiver` pair,
    (given a `MemoryQuotaTracker`)
  * Elements in the queue must implement
-   `SizeForMemoryQuota` and `HasDummyValue`.
+   `SizeForMemoryQuota`.
 
 Reclamation APIs:
 Hardly any.
@@ -36,45 +36,44 @@ There is a method to allow the sender to proactively notice collapse.
 mod memquota::spsc_queue {
 
   trait SizeForMemoryQuota { fn size_for_memory_quota(&self) -> usize }
-  trait HasDummyValue { 
-    // Return a dummy value suitable for putting into queue to cause a wakeup.
-	// The inserted dummy value will *not* be actually observed,
-	// so its semantics don't matter, but it should be cheap to make.
-	// This separate dummy constructor avoids wrapping each queue
-    // entry in Option (but we provide impl for Option for convenience
-    // in colder paths).
-    fn new_dummy_value() -> Self
-  }
-  impl SizeForMemoryQuota for Option<T> where T: SizeForMemoryQuota {
-  impl HasDummyValue for Option<T> {
 
   pub fn channel<T: SizeForMemoryQuota + HasDummyValue>(mgr: &MemoryQuotaTracker)
       -> (Sender, Receiver)
 
   pub struct Sender<T>(
-  struct SenderInner<T> { // Just so we don't expose RawParticipant impl
-    oldest: RoughTime,
+    rx: mpsc::Sender<Entry<T>>,
     shared: Arc<Shared>
 
   pub struct Receiver<T> {
+  struct ReceiverInner<T> { // Just so we don't expose RawParticipant impl
+    // We'd like to use futures::stream::Peekable but it doesn't have sync try_peek
+    peeked: Option<Entry<T>>,
+    rx: mpsc::Receiver<Entry<T>>,
     shared: Arc<Shared>,
 
   struct Shared {
-    // We want a queue that lets us tell if it's empty without
-	// extracting an element.  Otherwise we'd have to stash one element
-	// somewhere.  This is needed to implement `RawParticipant::get_oldest`.
-    queue: deadqueue::unlimited::Queue<T>,
     collapsing: AtomicBool,
     memquota: memquots::raw::Participation,
+
+  /// Entry in in the inner queue
+  // we might want to bit-shave to optimise the layout of this
+  enum Entry {
+    Real {
+      when: RoughTime,
+	  t: T,
+    }
+    /// When collapsing, one of these is put in the queue,
+    /// which will wake up the receiver.
+	DummyJustForWakeup,
+  }
 
   // sketch; really we'd impl Sink
   impl Sender<T> {
     // passing now means we don't have to have a runtime handle in the queue object
     async fn send(&mut self, now: RoughTime, t: T) -> Result {
       if self.shared.collapsing.load() { return Err }
-      self.oldest = now;
       self.shared.memquota.claim(t.size_for_memory_quota())
-      self.shared.send
+      self.shared.send(Entry::Real { ... })
 
     // when the queue decides to collapse due to memory exhaustion, yields None
     fn watch_for_collapse(&self) -> impl Stream<Void> + Send + Sync + 'static {
@@ -84,14 +83,14 @@ mod memquota::spsc_queue {
   impl Receiver<T> {
     async fn recv(&mut self) -> {
       if self.shared.collapsing.load() { return Err }
-	  let t = self.shared.queue.recv();
+	  let t = { obvious impl involving peeked and rx };
 	  self.shared.memquota.release(t.size_for_memory_quota());
 	  t
 
-  impl RawParticipant for SenderInner {
+  impl RawParticipant for ReceiverInner {
     fn get_oldest(&self) -> Option<RoughTime> {
-	  if self.inner.len() == 0 { return None }
-	  Some(self.oldest)
+	  let peeked = { obvious impl involving peeked and rx };
+      return peeked.when
     }
     fn reclaim(&self, _, token) {
       self.shared.collapse.store(true);
@@ -101,11 +100,11 @@ mod memquota::spsc_queue {
       while let Some(_) = self.shared.queue.try_pop() { 
 	    // no need to update memquota since we've told it we're collapsing
 	  }
-      // put a dummy element in the queue *to* wake the sender up
+      // put a dummy element in the queue to wake the sender up
 	  // we do this rather than having a separate signal,
 	  // so that each loop iteration in the receiver doesn't need to
 	  // register two wakers
-	  self.shared.queue.send(T::new_dummy_value())
+	  self.shared.queue.send(Entry::DummyJustForWakeup)
 
 ```
 
