@@ -1,4 +1,4 @@
-snext_old# Memory limiting and reclamation
+# Memory limiting and reclamation
 
 ## Intended behavour
 
