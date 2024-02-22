@@ -17,6 +17,21 @@ Replaces mpsc queues.
 
 Do we need *m*p ?  If so, need to make Sender.oldest Atomic.
 
+Key APIs.
+
+ * `pub struct Sender<T>` and `pub struct Receiver<T>` with the obvious behaviours.
+ * `pub fn channel` constructor that gives you a `Sender`/`Receiver` pair,
+   (given a `MemoryQuotaTracker`)
+ * Elements in the queue must implement
+   `SizeForMemoryQuota` and `HasDummyValue`.
+
+Reclamation APIs:
+Hardly any.
+When under memory pressure, the queue "collapses".
+All its contents are immediately dropped,
+and the sender and receiver both start to return errors.
+There is a method to allow the sender to proactively notice collapse.
+
 ```
 mod memquota::spsc_queue {
 
@@ -95,6 +110,33 @@ mod memquota::spsc_queue {
 ```
 
 ## Low level
+
+Key types:
+
+ * `pub struct MemoryQuotaTracker`.
+   One of these per quota.
+   Contains the quota configuration and a list of participants,
+   (and how much each participant is using).
+
+ * `pub trait Participant`.
+   Implemented by things that relevantly allocate memory.
+   Provides the callback methods used during reclamation.
+   Each participant has, somewhere, one or more `Participation`s.
+   
+ * `pub struct Participation`.
+   Obtained by a participant from a `MemoryQuotaTracker`,
+   during enrolment of the participant.
+   The participant supplies a `Participant` implementation
+   (to `MemoryQuotaTracker::new_participant`)
+   and gets a (cloneable) `Participation`.
+   A `Participation` has methods
+   for accounting the allocation and freeing of memory.
+   
+Actual memory allocation is handled by the participant itself,
+using the global heap.
+
+The `usize`'s handled by methods are in bytes, but they are nominal
+and need not be completely precise.
 
 ```
 mod memquota::raw {
@@ -191,7 +233,11 @@ mod memquota::raw {
 		  // start reclaiming other stuff?  maybe in 1st cut we just log such a situation
 		}
 
-  /// Dropping this means "I've done some stuff, please call reclaim()
+  /// Type that is passed to a participant's `reclaim()`,
+  /// and is dropped by the participant to notify the quota tracker
+  /// that participant has finished the requested reclamation.
+  ///
+  /// Ie dropping this means "I've done some stuff, please call reclaim()
   /// again if necessary".
   // Drop impl clears PRecord.reclaiming and signals
   struct ReclaimingToken {
@@ -199,7 +245,9 @@ mod memquota::raw {
   impl ReclaimingToken {
 	/// "this participant is reclaiming by collapsing completely.
 	/// all memory it uses will be eventually `release`d,
-	/// but this may not have happened yet"
+	/// but this may not have happened yet".
+	///
+	/// The `reclaim()` method won't be called again.
 	fn forget_participant(self) {
 ```
 
