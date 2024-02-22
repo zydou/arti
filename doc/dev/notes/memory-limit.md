@@ -254,6 +254,10 @@ mod memquota::raw {
 
 ## Plan for caches
 
+We may or may not use this "shared quota, delete oldest thing" notion.
+If we don't, then we have something completely other
+and don't reuse any of this API even the lower level.
+
 A cache knows its oldest data and will need to know how old each thing it has, is.
 
 On reclaim, it discards the oldest things until it reaches roughly (at least) next_oldest,
