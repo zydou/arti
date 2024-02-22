@@ -92,7 +92,7 @@ mod memquota::spsc_queue {
 	  let peeked = { obvious impl involving peeked and rx };
       return peeked.when
     }
-    fn reclaim(&mut self, _, token) {
+    fn reclaim(&mut self, _, _, token) {
       self.shared.collapse.store(true);
 	  token.forget_participant();
       // proactively empty the queue in case the sender doesn't wake
@@ -166,7 +166,9 @@ mod memquota::raw {
 	//
 	// Should free *at least* all memory at least as old as next_oldest
 	// (can be done asynchronously) and then drop the ReclaimingToken.
-	fn reclaim(&mut self, discard_everything_as_old_as_this: RoughTime, ReclaimingToken);
+	fn reclaim(&mut self, discard_everything_as_old_as_this: RoughTime, 
+               but_can_stop_discarding_after_freeing_this_much: usize,
+               ReclaimingToken);
 
   pub struct Participation {
 	id: PId,
@@ -225,7 +227,7 @@ mod memquota::raw {
 		  self.ps[oldest].reclaiming = true;
 	      // fudge next_oldest by something to do with number of loop iterations,
 		  // to avoid one-allocation-each-time ping pong between multiple caches
-		  self.ps[oldest].reclaim(next_oldest, ReclaimingToken { });
+		  self.ps[oldest].reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
 		  while self.ps[oldest].reclaiming { condvar wait }
 		  // do some timeouts and checks on participant behaviour
           // if we have unresponsive participant, we can't kill it but we can
@@ -254,5 +256,6 @@ mod memquota::raw {
 
 A cache knows its oldest data and will need to know how old each thing it has, is.
 
-On reclaim, it discards the oldest things until it reaches roughly (at least) next_oldest.
+On reclaim, it discards the oldest things until it reaches roughly (at least) next_oldest,
+or has freed the amount requested.
 If that's not enough, tracker will call reclaim again.
