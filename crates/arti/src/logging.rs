@@ -217,6 +217,7 @@ where
     let appender = RollingFileAppender::new(rotation, directory, fname);
     let (nonblocking, guard) = non_blocking(appender);
     let layer = fmt::layer()
+        .with_ansi(false)
         .with_writer(nonblocking)
         .with_timer(timer)
         .with_filter(filter);
