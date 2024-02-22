@@ -167,6 +167,7 @@ impl<'a> ExitPathBuilder<'a> {
         let mut correct_country = FilterCount::default();
         match &self.inner {
             ExitPathBuilderInner::AnyExit { strict } => {
+                // TODO #504
                 let exit = netdir.pick_relay(rng, WeightRole::Exit, |r| {
                     r.is_flagged_fast()
                         && (!self.require_stability || r.is_flagged_stable())
@@ -195,6 +196,7 @@ impl<'a> ExitPathBuilder<'a> {
                 // nodes to resemble the one that we would use for real
                 // circuits.
                 netdir
+                    // TODO #504
                     .pick_relay(rng, WeightRole::Exit, |r| {
                         r.is_flagged_fast()
                             && (!self.require_stability || r.is_flagged_stable())
@@ -208,6 +210,7 @@ impl<'a> ExitPathBuilder<'a> {
             }
             #[cfg(feature = "geoip")]
             ExitPathBuilderInner::ExitInCountry { country, ports } => Ok(netdir
+                // TODO #504
                 .pick_relay(rng, WeightRole::Exit, |r| {
                     r.is_flagged_fast()
                         && (!self.require_stability || r.is_flagged_stable())
@@ -224,6 +227,7 @@ impl<'a> ExitPathBuilder<'a> {
 
             #[cfg(feature = "hs-common")]
             ExitPathBuilderInner::AnyRelay => netdir
+                // TODO #504
                 .pick_relay(rng, WeightRole::Middle, |r| {
                     r.is_flagged_fast()
                         && (!self.require_stability || r.is_flagged_stable())
@@ -236,6 +240,7 @@ impl<'a> ExitPathBuilder<'a> {
                 }),
 
             ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
+                // TODO #504
                 .pick_relay(rng, WeightRole::Exit, |r| {
                     r.is_flagged_fast()
                         && (!self.require_stability || r.is_flagged_stable())
@@ -348,6 +353,7 @@ impl<'a> ExitPathBuilder<'a> {
                 let mut correct_usage = FilterCount::default();
                 let chosen_exit = chosen_exit.map(|relay| MaybeOwnedRelay::from(relay.clone()));
                 let entry = netdir
+                    // TODO #504
                     .pick_relay(rng, WeightRole::Guard, |r| {
                         can_share.count(relays_can_share_circuit_opt(
                             r,
@@ -371,6 +377,7 @@ impl<'a> ExitPathBuilder<'a> {
         let mut can_share = FilterCount::default();
         let mut correct_usage = FilterCount::default();
         let middle = netdir
+            // TODO #504
             .pick_relay(rng, WeightRole::Middle, |r| {
                 r.is_flagged_fast()
                     // TODO: if we intend to use this as an exit circuit, and
@@ -403,11 +410,13 @@ impl<'a> ExitPathBuilder<'a> {
 }
 
 /// Returns true if both relays can appear together in the same circuit.
+// TODO #789
 fn relays_can_share_circuit(
     a: &Relay<'_>,
     b: &MaybeOwnedRelay<'_>,
     subnet_config: SubnetConfig,
 ) -> bool {
+    // TODO #504
     if let MaybeOwnedRelay::Relay(r) = b {
         if a.in_same_family(r) {
             return false;
@@ -421,6 +430,7 @@ fn relays_can_share_circuit(
 }
 
 /// Helper: wraps relays_can_share_circuit but takes an option.
+// TODO #789
 fn relays_can_share_circuit_opt(
     r1: &Relay<'_>,
     r2: Option<&MaybeOwnedRelay<'_>>,

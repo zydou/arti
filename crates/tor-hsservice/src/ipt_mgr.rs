@@ -762,6 +762,7 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
         let mut rng = self.mockable.thread_rng();
 
         let relay = netdir
+            // TODO #504
             .pick_relay(&mut rng, tor_netdir::WeightRole::HsIntro, |new| {
                 new.is_hs_intro_point()
                     && !self
