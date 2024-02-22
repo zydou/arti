@@ -45,7 +45,7 @@ mod memquota::spsc_queue {
     shared: Arc<Shared>
 
   pub struct Receiver<T> {
-  struct ReceiverInner<T> { // Just so we don't expose RawParticipant impl
+  struct ReceiverInner<T> { // Just so we don't expose Participant impl
     // We'd like to use futures::stream::Peekable but it doesn't have sync try_peek
     peeked: Option<Entry<T>>,
     rx: mpsc::Receiver<Entry<T>>,
@@ -87,7 +87,7 @@ mod memquota::spsc_queue {
 	  self.shared.memquota.release(t.size_for_memory_quota());
 	  t
 
-  impl RawParticipant for ReceiverInner {
+  impl Participant for ReceiverInner {
     fn get_oldest(&self) -> Option<RoughTime> {
 	  let peeked = { obvious impl involving peeked and rx };
       return peeked.when
@@ -171,7 +171,7 @@ mod memquota::raw {
   pub struct Participation {
 	id: PId,
 	// quota we have preemptively claimed for use by this Participation
-	// has been added to RawParticipationRecord.used
+	// has been added to PRecord.used
 	// but not yet returned by Participation.claim
 	//
 	// this arranges that most of the time we don't have to hammer a
