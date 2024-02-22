@@ -92,7 +92,7 @@ mod memquota::spsc_queue {
 	  let peeked = { obvious impl involving peeked and rx };
       return peeked.when
     }
-    fn reclaim(&self, _, token) {
+    fn reclaim(&mut self, _, token) {
       self.shared.collapse.store(true);
 	  token.forget_participant();
       // proactively empty the queue in case the sender doesn't wake
