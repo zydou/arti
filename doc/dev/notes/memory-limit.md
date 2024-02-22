@@ -179,7 +179,7 @@ mod memquota::raw {
 	// this arranges that most of the time we don't have to hammer a
 	// single cache line
 	local_quota: u16,
-	#[deref]
+	#[deref] // Actually, have an accessor
 	tracker: MemoryQuotaTracker
 
   impl Participation {
