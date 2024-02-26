@@ -41,70 +41,82 @@ mod memquota::spsc_queue {
       -> (Sender, Receiver)
 
   pub struct Sender<T>(
-    rx: mpsc::Sender<Entry<T>>,
-    shared: Arc<Shared>
+    tx: mpsc::Sender<Entry<T>>,
+    memquota: memquots::raw::Participation, // collapsed-checking is in here
 
   pub struct Receiver<T> {
-  struct ReceiverInner<T> { // Just so we don't expose Participant impl
+    // usually, lock acquired only by recv ie only by owner of Receiver
+    // on memory pressure, lock acquired by memory system
+    inner: Arc<Mutex<ReceiverState<T>
+
+  struct ReceiverState<T> {
     // We'd like to use futures::stream::Peekable but it doesn't have sync try_peek
     peeked: Option<Entry<T>>,
     rx: mpsc::Receiver<Entry<T>>,
-    shared: Arc<Shared>,
-
-  struct Shared {
-    collapsing: AtomicBool,
+    // We have separate `Participation`s for rx anc tx.
+    // The tx is constantly claiming and the rx releasing;
+    // each `local_quota`-limit's worth, they must balance out
+    // via the (fairly globally shared) MemoryDataTracker.
     memquota: memquots::raw::Participation,
+    // when receiver dropped, or memory reclaimed, call all of these
+    // for circuits, callback will send a ctrl msg
+    // (callback is nicer than use handing out an mpsc rx
+    // which user must read and convert items from)
+    collpase_notify: Vec<CollapseCallback>,
 
   /// Entry in in the inner queue
-  // we might want to bit-shave to optimise the layout of this
-  enum Entry {
-    Real {
-      when: RoughTime,
-	  t: T,
-    }
-    /// When collapsing, one of these is put in the queue,
-    /// which will wake up the receiver.
-	DummyJustForWakeup,
+  struct Entry {
+    when: RoughTime,
+    t: T,
   }
+
+  pub type CollapseCallback = Box<dyn FnOnce(CollapseReason) + Send + Sync + 'static>;
+  pub enum CollapseReason {
+    MemoryReclaimed,
+    ReceiverDropped,
+  }
+  impl Drop for ReceiverState<T> {
+
+  // weak ref to queue, for implementing Participant to hook into memory system
+  struct ReceiverParticipant {
+    inner: Weak<Mutex<RecieverState
 
   // sketch; really we'd impl Sink
   impl Sender<T> {
     // passing now means we don't have to have a runtime handle in the queue object
-    async fn send(&mut self, now: RoughTime, t: T) -> Result {
-      if self.shared.collapsing.load() { return Err }
-      self.shared.memquota.claim(t.size_for_memory_quota())
-      self.shared.send(Entry::Real { ... })
-
-    // when the queue decides to collapse due to memory exhaustion, yields None
-    fn watch_for_collapse(&self) -> impl Stream<Void> + Send + Sync + 'static {
-      makes and returns a async_broadcast::Receiver<Void>
+    pub async fn send(&mut self, now: RoughTime, t: T) -> Result {
+      self.memquota.claim(t.size_for_memory_quota())? // will throw if collapsing
+      self.tx.send(Entry::Real { ... })
 
   // sketch; really we'd impl Stream
   impl Receiver<T> {
-    async fn recv(&mut self) -> {
-      if self.shared.collapsing.load() { return Err }
-	  let t = { obvious impl involving peeked and rx };
-	  self.shared.memquota.release(t.size_for_memory_quota());
-	  t
+    pub async fn recv(&mut self) -> {
+      let state = self.inner.state.lock();
+      state.collapse_status?; // check if we're out of memory
+      let t = { obvious impl involving peeked and rx };
+      state.memquota.release(t.size_for_memory_quota());
+      t
 
-  impl Participant for ReceiverInner {
+    // this method is on Receiver because that has the State,
+    // but could be called during setup to hook both sender's and
+    // receiver's shutdown mechanisms.
+    pub fn hook_collapse(&self, CollapseCallback)
+
+  impl Participant for ReceiverParticipant {
     fn get_oldest(&self) -> Option<RoughTime> {
-	  let peeked = { obvious impl involving peeked and rx };
+      let state = self.inner.upgrade()?.state.lock();
+      let peeked = { obvious impl involving peeked and rx };
       return peeked.when
     }
     fn reclaim(&mut self, _, _, token) {
-      self.shared.collapse.store(true);
-	  token.forget_participant();
-      // proactively empty the queue in case the sender doesn't wake
-      // up for some reason
-      while let Some(_) = self.shared.queue.try_pop() { 
-	    // no need to update memquota since we've told it we're collapsing
-	  }
-      // put a dummy element in the queue to wake the sender up
-	  // we do this rather than having a separate signal,
-	  // so that each loop iteration in the receiver doesn't need to
-	  // register two wakers
-	  self.shared.queue.send(Entry::DummyJustForWakeup)
+      let state = self.inner.upgrade()?.state.lock();
+      state.collapse_state = Err(MemoryReclaimed);
+      token.forget_participant();
+      // proactively empty the queue in case the sender doesn't
+      while let Some(_) = state.rx.try_pop() { 
+        // no need to update memquota since we've told it we're collapsing
+      }
+      state.collapse_wake.wake();
 
 ```
 
