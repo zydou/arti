@@ -213,7 +213,7 @@ dependencies = [
  "hickory-proto",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "libc",
  "notify",
  "once_cell",
@@ -1349,7 +1349,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0f27b6d3c8bc4e69b0e1091cfc38e3bb9e7b6d3dfc3703a1dd5c75d0a281e2a"
 dependencies = [
  "heck",
- "itertools 0.12.0",
+ "itertools 0.11.0",
  "proc-macro-crate 2.0.0",
  "proc-macro2",
  "quote",
@@ -1829,9 +1829,9 @@ name = "fixup-features"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "pico-args",
- "toml_edit 0.19.15",
+ "toml_edit 0.22.6",
 ]
 
 [[package]]
@@ -2623,15 +2623,6 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
 name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
@@ -2641,9 +2632,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
 dependencies = [
  "either",
 ]
@@ -4914,7 +4905,7 @@ checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
  "indexmap 2.1.0",
  "toml_datetime",
- "winnow",
+ "winnow 0.5.33",
 ]
 
 [[package]]
@@ -4925,7 +4916,7 @@ checksum = "70f427fce4d84c72b5b732388bf4a9f4531b53f74e2887e3ecb2481f68f66d81"
 dependencies = [
  "indexmap 2.1.0",
  "toml_datetime",
- "winnow",
+ "winnow 0.5.33",
 ]
 
 [[package]]
@@ -4938,7 +4929,18 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow",
+ "winnow 0.5.33",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c1b5fd4128cc8d3e0cb74d4ed9a9cc7c7284becd4df68f5f940e1ad123606f6"
+dependencies = [
+ "indexmap 2.1.0",
+ "toml_datetime",
+ "winnow 0.6.2",
 ]
 
 [[package]]
@@ -5040,7 +5042,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex-literal",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "postage",
  "rand",
  "safelog",
@@ -5088,7 +5090,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime-serde",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "once_cell",
  "pin-project",
  "rand",
@@ -5132,7 +5134,7 @@ dependencies = [
  "educe",
  "either",
  "fs-mistrust",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "once_cell",
  "paste",
  "regex",
@@ -5186,7 +5188,7 @@ dependencies = [
  "http 1.0.0",
  "httparse",
  "httpdate",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "memchr",
  "thiserror",
  "tor-circmgr",
@@ -5221,7 +5223,7 @@ dependencies = [
  "hex-literal",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "memmap2 0.9.3",
  "once_cell",
  "paste",
@@ -5314,7 +5316,7 @@ dependencies = [
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "num_enum",
  "pin-project",
  "postage",
@@ -5352,7 +5354,7 @@ dependencies = [
  "either",
  "futures",
  "humantime 2.1.0",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "postage",
  "rand",
  "rand_core",
@@ -5398,7 +5400,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "paste",
  "rand",
  "rand_core",
@@ -5473,7 +5475,7 @@ dependencies = [
  "growable-bloom-filter",
  "hex",
  "humantime 2.1.0",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "k12",
  "libc",
  "once_cell",
@@ -5534,7 +5536,7 @@ dependencies = [
  "glob-match",
  "humantime 2.1.0",
  "inventory",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "paste",
  "rand",
  "serde",
@@ -5565,7 +5567,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "safelog",
  "serde",
  "serde_test",
@@ -5642,7 +5644,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "num_enum",
  "rand",
  "rand_chacha",
@@ -5684,7 +5686,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime 2.1.0",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "once_cell",
  "phf",
  "rand",
@@ -5726,7 +5728,7 @@ dependencies = [
  "fs-mistrust",
  "fslock",
  "fslock-guard",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "paste",
  "sanitize-filename",
  "serde",
@@ -5758,7 +5760,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "humantime 2.1.0",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "pin-project",
  "rand",
  "rand_core",
@@ -5879,7 +5881,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime 2.1.0",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "pin-project",
  "priority-queue",
  "rand",
@@ -6521,6 +6523,15 @@ name = "winnow"
 version = "0.5.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7520bbdec7211caa7c4e682eb1fbe07abe20cee6756b6e00f537c82c11816aa"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "winnow"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a4191c47f15cc3ec71fcb4913cb83d58def65dd3787610213c649283b5ce178"
 dependencies = [
  "memchr",
 ]
