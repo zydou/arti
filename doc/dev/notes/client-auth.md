@@ -415,7 +415,7 @@ bob   = "descriptor:x25519:B5ZQGTPERMMUDA6VC63LHJUF5IHPOKJMUK26LY2XKSF7VG52AESQ"
 # Each authorized client is represented by an .auth file, as specified
 # under CLIENT AUTHORIZATION in tor(1).
 #
-# [onion_service."allium-cepa".restricted_mode.authorized_clients]
+# [onion_service."allium-cepa".restricted_mode.authorized_clients.keydirectory]
 # path = "/etc/allium/authorized_clients"
 ```
 
