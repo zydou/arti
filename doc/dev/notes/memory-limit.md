@@ -37,7 +37,7 @@ mod memquota::spsc_queue {
 
   trait SizeForMemoryQuota { fn size_for_memory_quota(&self) -> usize }
 
-  pub fn channel<T: SizeForMemoryQuota + HasDummyValue>(
+  pub fn channel<T: SizeForMemoryQuota>(
      mgr: &MemoryQuotaTracker,
      parent: Option<ParticipantId>,
   )
@@ -63,7 +63,7 @@ mod memquota::spsc_queue {
     memquota: memquots::raw::Participation,
     // when receiver dropped, or memory reclaimed, call all of these
     // for circuits, callback will send a ctrl msg
-    // (callback is nicer than use handing out an mpsc rx
+    // (callback is nicer than us handing out an mpsc rx
     // which user must read and convert items from)
     collpase_notify: Vec<CollapseCallback>,
 
@@ -79,6 +79,8 @@ mod memquota::spsc_queue {
     ReceiverDropped,
   }
   impl Drop for ReceiverState<T> {
+    // no need to tell quota tracker, dropping the Participation clones will do that
+    self.collapse_notify.drain(). call(CollapseReason::ReceiverDropped)
 
   // weak ref to queue, for implementing Participant to hook into memory system
   struct ReceiverParticipant {
@@ -113,13 +115,13 @@ mod memquota::spsc_queue {
     }
     fn reclaim(&mut self, _, _, token) {
       let state = self.inner.upgrade()?.state.lock();
-      state.collapse_state = Err(MemoryReclaimed);
+      for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
+      // allow memory manager to continue
       token.forget_participant();
       // proactively empty the queue in case the sender doesn't
       while let Some(_) = state.rx.try_pop() { 
         // no need to update memquota since we've told it we're collapsing
       }
-      state.collapse_wake.wake();
 
 ```
 
