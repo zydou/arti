@@ -141,7 +141,7 @@ and need not be completely precise.
 mod memquota::raw {
 
   pub struct MemoryQuotaTracker(
-	Arc<Mutex<TrackerInner>>
+	Mutex<TrackerInner>
 
   pub struct TrackerInner {
 	Config {
@@ -201,7 +201,7 @@ mod memquota::raw {
 	// clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
-	pub fn new_participant(&self, Box<dyn Participant>) -> Participation;
+	pub fn new_participant(&Arc<self>, Box<dyn Participant>) -> Participation;
 
 	fn claim(&self, pid: PId, req: usize) -> Result {
 	   let inner = self.0.lock().unwrap();
