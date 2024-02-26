@@ -77,7 +77,7 @@ paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.5.0" }
-rusqlite = { version = "0.30.0", features = ["time"] }
+rusqlite = { version = "0.31.0", features = ["time"] }
 safelog = { path = "../safelog", version = "0.3.2" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
