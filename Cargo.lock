@@ -1719,6 +1719,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "event-listener"
+version = "5.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7ad6fd685ce13acd6d9541a30f6db6567a7a24c9ffd4ba2955d29e3f22c8b27"
+dependencies = [
+ "concurrent-queue",
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "event-listener-strategy"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5201,7 +5212,7 @@ dependencies = [
  "derive_more",
  "digest",
  "educe",
- "event-listener 4.0.3",
+ "event-listener 5.1.0",
  "float_eq",
  "fs-mistrust",
  "fslock",

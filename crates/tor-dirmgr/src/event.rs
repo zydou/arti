@@ -164,7 +164,7 @@ pub(crate) struct FlagListener<F> {
     ///
     /// We must always have one of these available _before_ we check any counts
     /// in self.inner.
-    listener: Pin<Box<event_listener::EventListener>>,
+    listener: event_listener::EventListener,
     /// Reference to shared data.
     inner: Arc<Inner<F>>,
 }
