@@ -286,7 +286,6 @@ keypair in the keystore, this command also exports the public part of the key
 arti hsc prepare-restricted-mode-key
    --hs[-]nick[name] ...      # no default, option has shorter convenience aliases
    [ --config arti.toml ]     # default is default arti.toml
-   [ --keystore ... ]         # default is `default`; no client nicknames yet
    [ --output FOO.auth ]      # default is <hs-nickname>.auth, use `-` for stdout
    [ --overwrite ]            # overwrites any existing output file; default is to refuse
    [ --generate=no|yes|if-needed ]     # if-needed is the default; otherwise, can error
