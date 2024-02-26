@@ -39,7 +39,7 @@ mod memquota::spsc_queue {
 
   pub fn channel<T: SizeForMemoryQuota + HasDummyValue>(
      mgr: &MemoryQuotaTracker,
-	 parent: Option<ParticipantId>,
+     parent: Option<ParticipantId>,
   )
       -> (Sender, Receiver)
 
@@ -160,103 +160,103 @@ mod memquota::raw {
   type PId = ParticipantId;
 
   pub struct MemoryQuotaTracker(
-	Mutex<TrackerInner>
+    Mutex<TrackerInner>
 
   pub struct TrackerInner {
-	Config {
-	  max,
-	  low_water,
-	}
-	total_used,
-	ps: SlotMap<PId, PRecord>
-	reclaimation_task_wakeup: Condvar,
+    Config {
+      max,
+      low_water,
+    }
+    total_used,
+    ps: SlotMap<PId, PRecord>
+    reclaimation_task_wakeup: Condvar,
 
   struct PRecord {
-	used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
-	reclaiming: bool, // does a ReclaimingToken exist, see below
+    used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
+    reclaiming: bool, // does a ReclaimingToken exist, see below
     participation_clones: u32,
     children: Vec<PId>,
-	p: Box<dyn Participant>,
+    p: Box<dyn Participant>,
   }
 
   pub trait Participant {
-	fn get_oldest(&self) -> Option<RoughTime>;
-	/// MAY BE CALLED REENTRANTLY as a result of claim() !
-	// not async because &self borrows from TrackerInner
-	//
-	// Should free *at least* all memory at least as old as next_oldest
-	// (can be done asynchronously) and then drop the ReclaimingToken.
-	fn reclaim(&mut self, discard_everything_as_old_as_this: RoughTime, 
+    fn get_oldest(&self) -> Option<RoughTime>;
+    /// MAY BE CALLED REENTRANTLY as a result of claim() !
+    // not async because &self borrows from TrackerInner
+    //
+    // Should free *at least* all memory at least as old as next_oldest
+    // (can be done asynchronously) and then drop the ReclaimingToken.
+    fn reclaim(&mut self, discard_everything_as_old_as_this: RoughTime, 
                but_can_stop_discarding_after_freeing_this_much: usize,
                ReclaimingToken);
 
   pub struct Participation {
     #[getter]
-	id: PId,
-	// quota we have preemptively claimed for use by this Participation
-	// has been added to PRecord.used
-	// but not yet returned by Participation.claim
-	//
-	// this arranges that most of the time we don't have to hammer a
-	// single cache line
-	local_quota: u16,
-	#[deref] // Actually, have an accessor
-	tracker: MemoryQuotaTracker
+    id: PId,
+    // quota we have preemptively claimed for use by this Participation
+    // has been added to PRecord.used
+    // but not yet returned by Participation.claim
+    //
+    // this arranges that most of the time we don't have to hammer a
+    // single cache line
+    local_quota: u16,
+    #[deref] // Actually, have an accessor
+    tracker: MemoryQuotaTracker
 
   impl Participation {
-	fn claim(&mut self, usize) -> Result<()> {
-	   try to take usize from local_quota,
-	   failing that, get from tracker,
-	   possibly taking extra to put into local quota
+    fn claim(&mut self, usize) -> Result<()> {
+       try to take usize from local_quota,
+       failing that, get from tracker,
+       possibly taking extra to put into local quota
 
-	fn release(&mut self usize) /* infallible */ {
-	   self.local_quota += usize;
-	   if local quota too big, call tracker.release
+    fn release(&mut self usize) /* infallible */ {
+       self.local_quota += usize;
+       if local quota too big, call tracker.release
 
   impl Drop for Participation
     decrement participation_clones
-	if zero, forget the participant (subtracting its PRecord.used from TrackerInner_used)
+    if zero, forget the participant (subtracting its PRecord.used from TrackerInner_used)
 
   // gives you another view of the same particant
   impl Clone for Participation {
-	// clone's local_quota is set to 0.
+    // clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
-	pub fn new_participant(&Arc<self>, Box<dyn Participant>, parent: Option<ParticipantId>)
+    pub fn new_participant(&Arc<self>, Box<dyn Participant>, parent: Option<ParticipantId>)
         -> Participation;
 
-	fn claim(&self, pid: PId, req: usize) -> Result {
-	   let inner = self.0.lock().unwrap();
-	   let p = inner.ps.get_mut(pid)
-		 .ok_or_else(ParticipantForgottenError)?;
-	   self.used += req;
-	   p.used += req;
-	   if self.used > self.max { self.reclamation_task_wakeup.signal(); }
-	   Ok(())
+    fn claim(&self, pid: PId, req: usize) -> Result {
+       let inner = self.0.lock().unwrap();
+       let p = inner.ps.get_mut(pid)
+         .ok_or_else(ParticipantForgottenError)?;
+       self.used += req;
+       p.used += req;
+       if self.used > self.max { self.reclamation_task_wakeup.signal(); }
+       Ok(())
 
-	async fn reclamation_task() {
-	  let mut target = self.max;
+    async fn reclamation_task() {
+      let mut target = self.max;
 
-	  loop {
-		condvar wait for signal;
-		if self.used <= max { continue }
+      loop {
+        condvar wait for signal;
+        if self.used <= max { continue }
 
-		// reclamation
-		let mut heap: Heap<RoughTime, PId> = ps.iter().collect();
-		while self.used > self.low_water {
-		  let oldest = heap.pop_lowest();
+        // reclamation
+        let mut heap: Heap<RoughTime, PId> = ps.iter().collect();
+        while self.used > self.low_water {
+          let oldest = heap.pop_lowest();
           let next_oldest = heap.peek_lowest();
-		  self.ps[oldest].reclaiming = true;
-	      // fudge next_oldest by something to do with number of loop iterations,
-		  // to avoid one-allocation-each-time ping pong between multiple caches
-		  self.ps[oldest].reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
+          self.ps[oldest].reclaiming = true;
+          // fudge next_oldest by something to do with number of loop iterations,
+          // to avoid one-allocation-each-time ping pong between multiple caches
+          self.ps[oldest].reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
           // ^ do this for self.ps[oldest].children too
-		  while self.ps[oldest].reclaiming { condvar wait }
+          while self.ps[oldest].reclaiming { condvar wait }
           // ^ do this for self.ps[oldest].children too
-		  // do some timeouts and checks on participant behaviour
+          // do some timeouts and checks on participant behaviour
           // if we have unresponsive participant, we can't kill it but we can
-		  // start reclaiming other stuff?  maybe in 1st cut we just log such a situation
-		}
+          // start reclaiming other stuff?  maybe in 1st cut we just log such a situation
+        }
 
   /// Type that is passed to a participant's `reclaim()`,
   /// and is dropped by the participant to notify the quota tracker
@@ -268,12 +268,12 @@ mod memquota::raw {
   struct ReclaimingToken {
 
   impl ReclaimingToken {
-	/// "this participant is reclaiming by collapsing completely.
-	/// all memory it uses will be eventually `release`d,
-	/// but this may not have happened yet".
-	///
-	/// The `reclaim()` method won't be called again.
-	fn forget_participant(self) {
+    /// "this participant is reclaiming by collapsing completely.
+    /// all memory it uses will be eventually `release`d,
+    /// but this may not have happened yet".
+    ///
+    /// The `reclaim()` method won't be called again.
+    fn forget_participant(self) {
 ```
 
 ## Plan for caches
