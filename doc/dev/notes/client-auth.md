@@ -284,7 +284,7 @@ keypair in the keystore, this command also exports the public part of the key
 
 ```
 arti hsc prepare-restricted-mode-key
-   --hs[-]nick[name] ...      # no default, option has shorter convenience aliases
+   --hsid ...                 # no default
    [ --config arti.toml ]     # default is default arti.toml
    [ --output FOO.auth ]      # default is <hs-nickname>.auth, use `-` for stdout
    [ --overwrite ]            # overwrites any existing output file; default is to refuse
@@ -301,7 +301,7 @@ For now, we will only support C Tor format for restricted mode client public key
 **Suggested action items**:
   * [ ] Support encoding x25519 public keys in C Tor format
 
-## HS nickname -> HsId mapping
+## HS nickname -> HsId mapping (rejected)
 
 Clients will have nicknames for the services they have authorization keys for.
 This will allow clients to refer to services by nickname rather than
@@ -382,21 +382,10 @@ manually updated regardless of whether it's encoded in the `ArtiPath` or stored
 separately.
 
 **Suggested action items**:
-  * [  ] On the client, abolish client nicknames (#1283)
-  * [  ] Add a client-side `ClientSideFooHsNickname` type. Pick a name for it
-    (it should be distinguishable from the service-side `HsNickname`), define
-    its charset and decide what limit to impose on its length (#1284)
-  * [  ] Add a `ClientSideFooHsNickname` to the client key specifiers, and make
-    clients error if there is more than one nickname for any given HsId (#1284)
-  * [  ] Provide an `arti hsc` subcommand for updating the HsId for a given
-    `<hs-nickname>`
-  * [  ] Provide an `arti hsc` subcommand for managing HsId changes, and decide
-    how long old `<hs-nickname>` -> `<hsid>` mapping is allowed to exist for.
-    Ideally, we'd provide an `arti hsc` command for garbage collecting keys that
-    haven't been used in `N` time units (where `N` is a command-line option).
-    However, we don't store last modified/last accessed timestamps in the
-    keystore, so this will require a bit of design/discussion (one option would
-    be to put these timestamps in the comment of the key)
+  * [x] For now, do not implement any of this. When we have a concrete use case
+    for it, we should come up with an alternative way to map nicknames to
+    HsIds and/or multiple HsIds to the same service identity. For context, see
+    https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1987#note_2999114
 
 ## Configuring client authorization (service side)
 
