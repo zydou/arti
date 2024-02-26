@@ -37,7 +37,10 @@ mod memquota::spsc_queue {
 
   trait SizeForMemoryQuota { fn size_for_memory_quota(&self) -> usize }
 
-  pub fn channel<T: SizeForMemoryQuota + HasDummyValue>(mgr: &MemoryQuotaTracker)
+  pub fn channel<T: SizeForMemoryQuota + HasDummyValue>(
+     mgr: &MemoryQuotaTracker,
+	 parent: Option<ParticipantId>,
+  )
       -> (Sender, Receiver)
 
   pub struct Sender<T>(
@@ -152,6 +155,10 @@ and need not be completely precise.
 ```
 mod memquota::raw {
 
+  struct ParticipantId; // Clone, Copy, etc.
+
+  type PId = ParticipantId;
+
   pub struct MemoryQuotaTracker(
 	Mutex<TrackerInner>
 
@@ -168,6 +175,7 @@ mod memquota::raw {
 	used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
 	reclaiming: bool, // does a ReclaimingToken exist, see below
     participation_clones: u32,
+    children: Vec<PId>,
 	p: Box<dyn Participant>,
   }
 
@@ -183,6 +191,7 @@ mod memquota::raw {
                ReclaimingToken);
 
   pub struct Participation {
+    #[getter]
 	id: PId,
 	// quota we have preemptively claimed for use by this Participation
 	// has been added to PRecord.used
@@ -213,7 +222,8 @@ mod memquota::raw {
 	// clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
-	pub fn new_participant(&Arc<self>, Box<dyn Participant>) -> Participation;
+	pub fn new_participant(&Arc<self>, Box<dyn Participant>, parent: Option<ParticipantId>)
+        -> Participation;
 
 	fn claim(&self, pid: PId, req: usize) -> Result {
 	   let inner = self.0.lock().unwrap();
@@ -240,7 +250,9 @@ mod memquota::raw {
 	      // fudge next_oldest by something to do with number of loop iterations,
 		  // to avoid one-allocation-each-time ping pong between multiple caches
 		  self.ps[oldest].reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
+          // ^ do this for self.ps[oldest].children too
 		  while self.ps[oldest].reclaiming { condvar wait }
+          // ^ do this for self.ps[oldest].children too
 		  // do some timeouts and checks on participant behaviour
           // if we have unresponsive participant, we can't kill it but we can
 		  // start reclaiming other stuff?  maybe in 1st cut we just log such a situation
