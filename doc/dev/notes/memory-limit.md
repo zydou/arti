@@ -35,9 +35,9 @@ There is a method to allow the sender to proactively notice collapse.
 ```
 mod memquota::spsc_queue {
 
-  trait SizeForMemoryQuota { fn size_for_memory_quota(&self) -> usize }
+  trait HasMemoryCost /* name? MemoryCosted? */ { fn memory_cost(&self) -> usize }
 
-  pub fn channel<T: SizeForMemoryQuota>(
+  pub fn channel<T:HasMemoryCost>(
      mgr: &MemoryQuotaTracker,
      parent: Option<ParticipantId>,
   )
