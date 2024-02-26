@@ -56,9 +56,8 @@ impl Change {
                         "no such feature as {feature_name} to annotate with {annotation}"
                     ));
                 }
-                let decor = features
-                    .key_decor_mut(feature_name)
-                    .expect("No decor on key!"); // (There should always be decor afaict.)
+                let mut key = features.key_mut(feature_name).expect("key not found!?");
+                let decor = key.leaf_decor_mut();
                 let prefix = match decor.prefix() {
                     Some(r) => r.as_str().expect("prefix not a string"), // (We can't proceed if the prefix decor is not a string.)
                     None => "",
