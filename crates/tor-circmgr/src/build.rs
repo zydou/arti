@@ -335,11 +335,11 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
 
         match double_timeout(&self.runtime, circuit_future, timeout, abandon_timeout).await {
             Ok(circuit) => Ok(circuit),
-            Err(Error::CircTimeout) => {
+            Err(Error::CircTimeout(unique_id)) => {
                 let n_built = hops_built.load(Ordering::SeqCst);
                 self.timeouts
                     .note_circ_timeout(n_built as u8, self.runtime.now() - start_time);
-                Err(Error::CircTimeout)
+                Err(Error::CircTimeout(unique_id))
             }
             Err(e) => Err(e),
         }
@@ -552,7 +552,9 @@ where
     // (Technically, we could refrain from unwrapping the future's result,
     // but doing it this way helps make it more certain that we really are
     // collapsing all the layers into one.)
-    outcome???
+    outcome
+        .map_err(|_| Error::CircTimeout(None))??
+        .map_err(|_| Error::CircTimeout(None))?
 }
 
 #[cfg(test)]
@@ -649,7 +651,7 @@ mod test {
                     t10,
                 ))
                 .await;
-            assert!(matches!(x, Err(Error::CircTimeout)));
+            assert!(matches!(x, Err(Error::CircTimeout(_))));
             let end = rt.now();
             assert!(duration_close_to(end - start, Duration::from_secs(1)));
             let waited = rt.wait_for(rcv).await;
@@ -678,7 +680,7 @@ mod test {
                     t10,
                 ))
                 .await;
-            assert!(matches!(x, Err(Error::CircTimeout)));
+            assert!(matches!(x, Err(Error::CircTimeout(_))));
             let end = rt.now();
             // ...and let it hit the second, too.
             rt.allow_one_advance(Duration::from_secs(9));
@@ -1002,7 +1004,7 @@ mod test {
 
             let (outcome, timeouts) =
                 run_builder_test(rt, Duration::from_millis(100), path, None, CU::UserTraffic).await;
-            assert!(matches!(outcome, Err(Error::CircTimeout)));
+            assert!(matches!(outcome, Err(Error::CircTimeout(_))));
 
             assert_eq!(timeouts.len(), 1);
             assert!(!timeouts[0].0); // timeout
@@ -1034,7 +1036,7 @@ mod test {
                 CU::UserTraffic,
             )
             .await;
-            assert!(matches!(outcome, Err(Error::CircTimeout)));
+            assert!(matches!(outcome, Err(Error::CircTimeout(_))));
 
             assert_eq!(timeouts.len(), 2);
             assert!(!timeouts[0].0); // timeout

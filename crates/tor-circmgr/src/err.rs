@@ -60,8 +60,8 @@ pub enum Error {
     UsageMismatched(#[from] RestrictionFailed),
 
     /// A circuit build took too long to finish.
-    #[error("Circuit took too long to build")]
-    CircTimeout,
+    #[error("Circuit{} took too long to build", OptUniqId(_0))]
+    CircTimeout(Option<UniqId>),
 
     /// A request spent too long waiting for a circuit
     #[error("Spent too long trying to construct circuits for this request")]
@@ -166,12 +166,6 @@ impl From<oneshot::Canceled> for Error {
     }
 }
 
-impl From<tor_rtcompat::TimeoutError> for Error {
-    fn from(_: tor_rtcompat::TimeoutError) -> Error {
-        Error::CircTimeout
-    }
-}
-
 impl From<tor_guardmgr::GuardMgrError> for Error {
     fn from(err: tor_guardmgr::GuardMgrError) -> Error {
         match err {
@@ -192,7 +186,7 @@ impl HasKind for Error {
             E::NoExit { .. } => EK::NoExit,
             E::PendingCanceled => EK::ReactorShuttingDown,
             E::PendingFailed(e) => e.kind(),
-            E::CircTimeout => EK::TorNetworkTimeout,
+            E::CircTimeout(_) => EK::TorNetworkTimeout,
             E::GuardNotUsable(_) => EK::TransientFailure,
             E::UsageMismatched(_) => EK::Internal,
             E::LostUsabilityRace(_) => EK::TransientFailure,
@@ -215,7 +209,7 @@ impl HasRetryTime for Error {
 
         match self {
             // If we fail because of a timeout, there is no need to wait before trying again.
-            E::CircTimeout | E::RequestTimeout => RT::Immediate,
+            E::CircTimeout(_) | E::RequestTimeout => RT::Immediate,
 
             // If a circuit that seemed usable was restricted before we got a
             // chance to try it, that's not our fault: we can try again
@@ -308,7 +302,7 @@ impl Error {
             E::GuardNotUsable(_) | E::LostUsabilityRace(_) => 10,
             E::PendingCanceled => 20,
             E::CircCanceled => 20,
-            E::CircTimeout => 30,
+            E::CircTimeout(_) => 30,
             E::RequestTimeout => 30,
             E::NoPath { .. } => 40,
             E::NoExit { .. } => 40,
@@ -350,7 +344,7 @@ impl Error {
             Error::PendingCanceled
             | Error::PendingFailed(_)
             | Error::UsageMismatched(_)
-            | Error::CircTimeout
+            | Error::CircTimeout(_)
             | Error::RequestTimeout
             | Error::NoPath { .. }
             | Error::NoExit { .. }

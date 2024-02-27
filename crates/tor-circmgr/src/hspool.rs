@@ -220,7 +220,7 @@ impl<R: Runtime> HsCircPool<R> {
             .peek_runtime()
             .timeout(extend_timeout, extend_future)
             .await
-            .map_err(|_| Error::CircTimeout)??;
+            .map_err(|_| Error::CircTimeout(Some(circ.unique_id())))??;
 
         // With any luck, return the circuit.
         Ok(circ)
