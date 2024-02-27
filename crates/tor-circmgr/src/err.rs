@@ -45,6 +45,11 @@ pub enum Error {
     /// Circuits can be cancelled either by a call to
     /// `retire_all_circuits()`, or by a configuration change that
     /// makes old paths unusable.
+    //
+    // TODO: ideally this would also include the circuit identifier (e.g. its UniqId).
+    // However, this would mean making Error generic over Id,
+    // (this variant is constructed in AbstractCircMgr::do_launch,
+    // where the circuit ID is generic).
     #[error("Circuit canceled")]
     CircCanceled,
 
