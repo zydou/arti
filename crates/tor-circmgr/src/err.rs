@@ -20,8 +20,8 @@ use crate::mgr::RestrictionFailed;
 pub enum Error {
     /// We started building a circuit on a guard, but later decided not
     /// to use that guard.
-    #[error("Discarded circuit because of speculative guard selection")]
-    GuardNotUsable,
+    #[error("Discarded circuit {} because of speculative guard selection", _0.display_chan_circ())]
+    GuardNotUsable(UniqId),
 
     /// We were waiting on a pending circuit, but it failed to report
     #[error("Pending circuit(s) failed without reporting status")]
@@ -193,7 +193,7 @@ impl HasKind for Error {
             E::PendingCanceled => EK::ReactorShuttingDown,
             E::PendingFailed(e) => e.kind(),
             E::CircTimeout => EK::TorNetworkTimeout,
-            E::GuardNotUsable => EK::TransientFailure,
+            E::GuardNotUsable(_) => EK::TransientFailure,
             E::UsageMismatched(_) => EK::Internal,
             E::LostUsabilityRace(_) => EK::TransientFailure,
             E::RequestTimeout => EK::TorNetworkTimeout,
@@ -237,7 +237,7 @@ impl HasRetryTime for Error {
             // These don't reflect a real problem in the circuit building, but
             // rather mean that we were waiting for something that didn't pan out.
             // It's okay to try again after a short delay.
-            E::GuardNotUsable | E::PendingCanceled | E::CircCanceled | E::Protocol { .. } => {
+            E::GuardNotUsable(_) | E::PendingCanceled | E::CircCanceled | E::Protocol { .. } => {
                 RT::AfterWaiting
             }
 
@@ -305,7 +305,7 @@ impl Error {
     fn severity(&self) -> usize {
         use Error as E;
         match self {
-            E::GuardNotUsable | E::LostUsabilityRace(_) => 10,
+            E::GuardNotUsable(_) | E::LostUsabilityRace(_) => 10,
             E::PendingCanceled => 20,
             E::CircCanceled => 20,
             E::CircTimeout => 30,
@@ -335,7 +335,7 @@ impl Error {
             // This error is a reset because we expect it to happen while
             // we're picking guards; if it happens, it means that we now know a
             // good guard that we should have used instead.
-            Error::GuardNotUsable => true,
+            Error::GuardNotUsable(_) => true,
             // This error is a reset because it can only happen on the basis
             // of a caller action (for example, a decision to reconfigure the
             // `CircMgr`). If it happens, it just means that we should try again
