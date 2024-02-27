@@ -135,6 +135,8 @@ pub enum Error {
         /// The underlying error.
         #[source]
         error: tor_proto::Error,
+        /// The UniqId of the circuit.
+        unique_id: Option<UniqId>,
     },
 
     /// Unable to spawn task

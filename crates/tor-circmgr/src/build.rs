@@ -107,6 +107,7 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
         error,
         peer: None, // we don't blame the peer, because new_circ() does no networking.
         action: "initializing circuit",
+        unique_id: None,
     })?;
 
     rt.spawn(async {
@@ -128,12 +129,14 @@ impl Buildable for ClientCirc {
         usage: ChannelUsage,
     ) -> Result<Arc<Self>> {
         let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
+        let unique_id = Some(circ.peek_unique_id());
         circ.create_firsthop_fast(params)
             .await
             .map_err(|error| Error::Protocol {
                 peer: Some(ct.to_logged()),
                 error,
                 action: "running CREATE_FAST handshake",
+                unique_id,
             })
     }
     async fn create<RT: Runtime>(
@@ -145,6 +148,7 @@ impl Buildable for ClientCirc {
         usage: ChannelUsage,
     ) -> Result<Arc<Self>> {
         let circ = create_common(chanmgr, rt, ct, guard_status, usage).await?;
+        let unique_id = Some(circ.peek_unique_id());
 
         let params = params.clone();
         let handshake_res;
@@ -167,6 +171,7 @@ impl Buildable for ClientCirc {
             peer: Some(ct.to_logged()),
             error,
             action: "creating first hop",
+            unique_id,
         })
     }
     async fn extend<RT: Runtime>(
@@ -199,6 +204,7 @@ impl Buildable for ClientCirc {
             // to.
             peer: None,
             action: "extending circuit",
+            unique_id: Some(self.unique_id()),
         })
     }
 }

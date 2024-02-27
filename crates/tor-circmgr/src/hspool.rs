@@ -211,6 +211,7 @@ impl<R: Runtime> HsCircPool<R> {
             .map_err(|error| Error::Protocol {
                 action: "extending to chosen HS hop",
                 peer: None, // Either party could be to blame.
+                unique_id: Some(circ.unique_id()),
                 error,
             });
 
