@@ -27,7 +27,7 @@ pub enum Error {
     #[error("Pending circuit(s) failed without reporting status")]
     PendingCanceled,
 
-    /// We were waiting on a pending circuits, but it failed.
+    /// We were waiting on a pending circuit, but it failed.
     #[error("Circuit we were waiting for failed to complete")]
     PendingFailed(#[source] Box<Error>),
 
