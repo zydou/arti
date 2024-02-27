@@ -129,7 +129,7 @@ pub enum Error {
     },
 
     /// Protocol issue while building a circuit.
-    #[error("Problem building a circuit, while {}{}", action, WithOptPeer(peer))]
+    #[error("Problem building circuit{}, while {}{}", OptUniqId(unique_id), action, WithOptPeer(peer))]
     Protocol {
         /// The action that we were trying to take.
         action: &'static str,
