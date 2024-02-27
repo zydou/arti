@@ -10,6 +10,7 @@ use tor_async_utils::oneshot;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
+use tor_proto::circuit::UniqId;
 
 use crate::mgr::RestrictionFailed;
 
@@ -407,6 +408,19 @@ where
             write!(f, " with {}", peer)
         } else {
             Ok(())
+        }
+    }
+}
+
+/// Helper to display an optional UniqId.
+struct OptUniqId<'a>(&'a Option<UniqId>);
+
+impl<'a> std::fmt::Display for OptUniqId<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(unique_id) = self.0 {
+            write!(f, " {}", unique_id.display_chan_circ())
+        } else {
+            write!(f, "")
         }
     }
 }
