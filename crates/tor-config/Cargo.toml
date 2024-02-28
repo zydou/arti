@@ -27,7 +27,7 @@ expand-paths = ["shellexpand", "directories"]
 __is_experimental = []
 
 [dependencies]
-config = { version = "0.13.4", default-features = false, features = ["toml"] }
+config = { version = "0.14.0", default-features = false, features = ["toml"] }
 derive-adhoc = "0.8"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 directories = { version = "5", optional = true }
@@ -51,7 +51,7 @@ tracing = "0.1.36"
 void = "1"
 
 [dev-dependencies]
-config = { version = "0.13.4", default-features = false, features = ["toml"] }
+config = { version = "0.14.0", default-features = false, features = ["toml"] }
 dirs = "5.0.0"
 rmp-serde = "1"
 serde_json = "1.0.50"
