@@ -52,8 +52,6 @@ use tor_llcrypto as ll;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use digest::Digest;
-#[allow(unused_imports)] // This 'use' is needed with ed25519 < 1.3.0
-use signature::Signature;
 
 /// The digest of a RouterDesc document, as reported in a NS consensus.
 pub type RdDigest = [u8; 20];

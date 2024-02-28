@@ -19,7 +19,7 @@ __is_experimental = []
 
 [dependencies]
 humantime = "2"
-signature = "1"
+signature = "2"
 thiserror = "1"
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.7.0" }
 [package.metadata.docs.rs]

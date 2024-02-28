@@ -81,7 +81,7 @@ rusqlite = { version = "0.31.0", features = ["time"] }
 safelog = { path = "../safelog", version = "0.3.2" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
-signature = "1"
+signature = "2"
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "1"
 time = { version = "0.3.20", features = ["formatting", "parsing"] }

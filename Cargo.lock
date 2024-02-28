@@ -1548,7 +1548,7 @@ dependencies = [
  "digest",
  "elliptic-curve",
  "rfc6979",
- "signature 2.2.0",
+ "signature",
  "spki",
 ]
 
@@ -1559,7 +1559,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8",
- "signature 2.2.0",
+ "signature",
 ]
 
 [[package]]
@@ -3845,7 +3845,7 @@ dependencies = [
  "pkcs8",
  "rand_core",
  "sha2",
- "signature 2.2.0",
+ "signature",
  "spki",
  "subtle",
  "zeroize",
@@ -4323,12 +4323,6 @@ dependencies = [
 
 [[package]]
 name = "signature"
-version = "1.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c"
-
-[[package]]
-name = "signature"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
@@ -4468,7 +4462,7 @@ dependencies = [
  "rsa",
  "sec1",
  "sha2",
- "signature 2.2.0",
+ "signature",
  "ssh-cipher",
  "ssh-encoding",
  "subtle",
@@ -4982,7 +4976,7 @@ dependencies = [
  "educe",
  "getrandom",
  "hex-literal",
- "signature 2.2.0",
+ "signature",
  "thiserror",
  "tor-error",
  "tor-llcrypto",
@@ -5071,7 +5065,7 @@ name = "tor-checkable"
 version = "0.7.0"
 dependencies = [
  "humantime 2.1.0",
- "signature 1.6.4",
+ "signature",
  "thiserror",
  "tor-llcrypto",
 ]
@@ -5235,7 +5229,7 @@ dependencies = [
  "safelog",
  "scopeguard",
  "serde",
- "signature 1.6.4",
+ "signature",
  "strum 0.26.1",
  "tempfile",
  "thiserror",
@@ -5407,7 +5401,7 @@ dependencies = [
  "rand_core",
  "safelog",
  "serde",
- "signature 2.2.0",
+ "signature",
  "subtle",
  "thiserror",
  "tor-basic-utils",
@@ -5608,7 +5602,7 @@ dependencies = [
  "sha1",
  "sha2",
  "sha3",
- "signature 2.2.0",
+ "signature",
  "simple_asn1",
  "subtle",
  "thiserror",
@@ -5650,7 +5644,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "serde",
- "signature 1.6.4",
+ "signature",
  "static_assertions",
  "strum 0.26.1",
  "thiserror",
@@ -5694,7 +5688,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "signature 1.6.4",
+ "signature",
  "smallvec",
  "subtle",
  "thiserror",
