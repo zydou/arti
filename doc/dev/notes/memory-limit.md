@@ -17,7 +17,7 @@ until we go below a low-water mark (hysteresis).
 
  * **Account**: all memory used withing the same Account is treated equally, and reclamation also happens on an account-by-account basis.  (Each Account is with one Tracker.)
 
- * **Participant**: one data structure that uses memory.  Each Participant is linked to *one* Account.  An account has *one or more* Participants.
+ * **Participant**: one data structure that uses memory.  Each Participant is linked to *one* Account.  An account has *one or more* Participants.  (An Account can exist with zero Participants, but can't then claim memory.)
 
  * **Child Account**/**Parent Account**: An Account may have a Parent.  When a tracker requests memory reclamation from a Parent, it will also request it of all that Parent's Children (but not vice versa).
 
@@ -55,15 +55,12 @@ mod memquota::spsc_queue {
 
   trait HasMemoryCost /* name? MemoryCosted? */ { fn memory_cost(&self) -> usize }
 
-  pub fn channel<T:HasMemoryCost>(
-     mgr: &MemoryQuotaTracker,
-     parent: Option<AccountId>,
-  )
-      -> (Sender, Receiver)
+  pub fn channel<T:HasMemoryCost>(account: memquota::Account) -> (Sender, Receiver)
+    makes queue, calls new_participant
 
   pub struct Sender<T>(
     tx: mpsc::Sender<Entry<T>>,
-    memquota: memquots::raw::Account, // collapsed-checking is in here
+    memquota: memquots::Account, // collapsed-checking is in here
 
   pub struct Receiver<T> {
     // usually, lock acquired only by recv ie only by owner of Receiver
@@ -78,7 +75,7 @@ mod memquota::spsc_queue {
     // The tx is constantly claiming and the rx releasing;
     // each `local_quota`-limit's worth, they must balance out
     // via the (fairly globally shared) MemoryDataTracker.
-    memquota: memquots::raw::Account,
+    memquota: memquots::Account,
     // when receiver dropped, or memory reclaimed, call all of these
     // for circuits, callback will send a ctrl msg
     // (callback is nicer than us handing out an mpsc rx
@@ -249,8 +246,8 @@ mod memquota::raw {
     // clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
-    pub fn new_account(&Arc<self>, participant: Box<dyn Participant>, parent: Option<AccountId>)
-        -> Account;
+    // claim will fail until a Partciipant is added
+    pub fn new_account(&Arc<self>, parent: Option<AccountId>) -> Account {
 
     pub fn new_participant(&Arc<self>, account_id: AccountId, Box<dyn Participant>>) {
 
@@ -258,6 +255,7 @@ mod memquota::raw {
        let inner = self.0.lock().unwrap();
        let p = inner.ps.get_mut(pid)
          .ok_or_else(ParticipantForgottenError)?;
+       check that there are some Participants;
        self.used += req;
        p.used += req;
        if self.used > self.max { self.reclamation_task_wakeup.signal(); }
