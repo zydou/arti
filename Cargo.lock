@@ -5636,7 +5636,6 @@ dependencies = [
  "rand",
  "rand_chacha",
  "serde",
- "signature",
  "static_assertions",
  "strum 0.26.1",
  "thiserror",
