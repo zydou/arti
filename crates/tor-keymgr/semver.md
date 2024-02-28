@@ -13,3 +13,4 @@ BREAKING: `KeySpecifierComponent::{to,from}_component` renamed to `KeySpecifierC
 BREAKING: some of the `KeyPathError` variants now have a `path: ArtiPath` field
 ADDED: `InvalidKeyPathComponentValue`
 BREAKING: removed `path` from `ArtiNativeKeystoreConfig`/`ArtiNativeKeystoreConfigBuilder`
+REMOVED: `KeyMgrBuilderError` (when `keymgr` feature is disabled)
