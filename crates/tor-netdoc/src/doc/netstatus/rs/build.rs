@@ -95,6 +95,12 @@ impl<D: Clone> RouterStatusBuilder<D> {
         self.flags |= flags;
         self
     }
+    /// Make all the flags in `flags` become cleared on this routerstatus.
+    #[cfg(feature = "testing")]
+    pub fn clear_flags(&mut self, flags: RelayFlags) -> &mut Self {
+        self.flags &= !flags;
+        self
+    }
     /// Set the version of the relay described in this routerstatus.
     ///
     /// This value is optional.
