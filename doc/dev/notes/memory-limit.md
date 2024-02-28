@@ -215,6 +215,9 @@ mod memquota::raw {
        self.local_quota += usize;
        if local quota too big, call tracker.release
 
+  /// An Account is a handle.  All clones refer to the same underlying conceptual Account.
+  impl Clone for Account
+
   impl Drop for Account
     decrement participation_clones
     if zero, forget the account (subtracting its PRecord.used from TrackerInner_used)
