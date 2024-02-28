@@ -33,8 +33,6 @@ until we go below a low-water mark (hysteresis).
 
 Replaces mpsc queues.
 
-Do we need *m*p ?  If so, need to make Sender.oldest Atomic.
-
 Key APIs.
 
  * `pub struct Sender<T>` and `pub struct Receiver<T>` with the obvious behaviours.
@@ -51,13 +49,14 @@ and the sender and receiver both start to return errors.
 There is a method to allow the sender to proactively notice collapse.
 
 ```
-mod memquota::spsc_queue {
+mod memquota::mpsc_queue {
 
   trait HasMemoryCost /* name? MemoryCosted? */ { fn memory_cost(&self) -> usize }
 
   pub fn channel<T:HasMemoryCost>(account: memquota::Account) -> (Sender, Receiver)
     makes queue, calls new_participant
 
+  #[derive(Clone)]
   pub struct Sender<T>(
     tx: mpsc::Sender<Entry<T>>,
     memquota: memquots::Account, // collapsed-checking is in here
