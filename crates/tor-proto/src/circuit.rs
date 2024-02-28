@@ -1030,6 +1030,11 @@ impl PendingClientCirc {
         self.circ.circid
     }
 
+    /// Extract the process-unique identifier for this pending circuit.
+    pub fn peek_unique_id(&self) -> UniqId {
+        self.circ.unique_id
+    }
+
     /// Use the (questionable!) CREATE_FAST handshake to connect to the
     /// first hop of this circuit.
     ///

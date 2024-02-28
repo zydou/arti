@@ -21,10 +21,26 @@ impl UniqId {
     pub(crate) fn new(chan: usize, circ: usize) -> Self {
         UniqId { chan, circ }
     }
+
+    /// A helper for displaying the process-unique identifiers of this circuit.
+    ///
+    /// Unlike the [`Display`] implementation, this does not display a `Circ` prefix.
+    pub fn display_chan_circ(&self) -> impl Display + '_ {
+        DisplayChanCirc(self)
+    }
 }
 
 impl Display for UniqId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Circ {}.{}", self.chan, self.circ)
+        write!(f, "Circ {}", self.display_chan_circ())
+    }
+}
+
+/// A helper for displaying the process-unique identifiers of this circuit.
+struct DisplayChanCirc<'a>(&'a UniqId);
+
+impl<'a> Display for DisplayChanCirc<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.0.chan, self.0.circ)
     }
 }

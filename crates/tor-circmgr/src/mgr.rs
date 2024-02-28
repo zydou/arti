@@ -1718,7 +1718,7 @@ mod test {
             match op {
                 FakeOp::Succeed => Ok((plan.spec, Arc::new(FakeCirc { id: FakeId::next() }))),
                 FakeOp::WrongSpec(s) => Ok((s, Arc::new(FakeCirc { id: FakeId::next() }))),
-                FakeOp::Fail => Err(Error::CircTimeout),
+                FakeOp::Fail => Err(Error::CircTimeout(None)),
                 FakeOp::Delay(d) => {
                     let sl = self.runtime.sleep(d);
                     self.runtime.allow_one_advance(d);

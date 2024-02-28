@@ -800,7 +800,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                             .await
                             .map_err(|_: TimeoutError| match using_rend_pt {
                                 None => FAE::RendezvousCircuitObtain {
-                                    error: tor_circmgr::Error::CircTimeout,
+                                    error: tor_circmgr::Error::CircTimeout(None),
                                 },
                                 Some(rend_pt) => FAE::RendezvousEstablishTimeout { rend_pt },
                             })??,

@@ -10,6 +10,7 @@ use tor_async_utils::oneshot;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
+use tor_proto::circuit::UniqId;
 
 use crate::mgr::RestrictionFailed;
 
@@ -19,14 +20,14 @@ use crate::mgr::RestrictionFailed;
 pub enum Error {
     /// We started building a circuit on a guard, but later decided not
     /// to use that guard.
-    #[error("Discarded circuit because of speculative guard selection")]
-    GuardNotUsable,
+    #[error("Discarded circuit {} because of speculative guard selection", _0.display_chan_circ())]
+    GuardNotUsable(UniqId),
 
     /// We were waiting on a pending circuit, but it failed to report
     #[error("Pending circuit(s) failed without reporting status")]
     PendingCanceled,
 
-    /// We were waiting on a pending circuits, but it failed.
+    /// We were waiting on a pending circuit, but it failed.
     #[error("Circuit we were waiting for failed to complete")]
     PendingFailed(#[source] Box<Error>),
 
@@ -44,6 +45,11 @@ pub enum Error {
     /// Circuits can be cancelled either by a call to
     /// `retire_all_circuits()`, or by a configuration change that
     /// makes old paths unusable.
+    //
+    // TODO: ideally this would also include the circuit identifier (e.g. its UniqId).
+    // However, this would mean making Error generic over Id,
+    // (this variant is constructed in AbstractCircMgr::do_launch,
+    // where the circuit ID is generic).
     #[error("Circuit canceled")]
     CircCanceled,
 
@@ -59,8 +65,8 @@ pub enum Error {
     UsageMismatched(#[from] RestrictionFailed),
 
     /// A circuit build took too long to finish.
-    #[error("Circuit took too long to build")]
-    CircTimeout,
+    #[error("Circuit{} took too long to build", OptUniqId(_0))]
+    CircTimeout(Option<UniqId>),
 
     /// A request spent too long waiting for a circuit
     #[error("Spent too long trying to construct circuits for this request")]
@@ -123,7 +129,12 @@ pub enum Error {
     },
 
     /// Protocol issue while building a circuit.
-    #[error("Problem building a circuit, while {}{}", action, WithOptPeer(peer))]
+    #[error(
+        "Problem building circuit{}, while {}{}",
+        OptUniqId(unique_id),
+        action,
+        WithOptPeer(peer)
+    )]
     Protocol {
         /// The action that we were trying to take.
         action: &'static str,
@@ -134,6 +145,8 @@ pub enum Error {
         /// The underlying error.
         #[source]
         error: tor_proto::Error,
+        /// The UniqId of the circuit.
+        unique_id: Option<UniqId>,
     },
 
     /// Unable to spawn task
@@ -165,12 +178,6 @@ impl From<oneshot::Canceled> for Error {
     }
 }
 
-impl From<tor_rtcompat::TimeoutError> for Error {
-    fn from(_: tor_rtcompat::TimeoutError) -> Error {
-        Error::CircTimeout
-    }
-}
-
 impl From<tor_guardmgr::GuardMgrError> for Error {
     fn from(err: tor_guardmgr::GuardMgrError) -> Error {
         match err {
@@ -191,8 +198,8 @@ impl HasKind for Error {
             E::NoExit { .. } => EK::NoExit,
             E::PendingCanceled => EK::ReactorShuttingDown,
             E::PendingFailed(e) => e.kind(),
-            E::CircTimeout => EK::TorNetworkTimeout,
-            E::GuardNotUsable => EK::TransientFailure,
+            E::CircTimeout(_) => EK::TorNetworkTimeout,
+            E::GuardNotUsable(_) => EK::TransientFailure,
             E::UsageMismatched(_) => EK::Internal,
             E::LostUsabilityRace(_) => EK::TransientFailure,
             E::RequestTimeout => EK::TorNetworkTimeout,
@@ -214,7 +221,7 @@ impl HasRetryTime for Error {
 
         match self {
             // If we fail because of a timeout, there is no need to wait before trying again.
-            E::CircTimeout | E::RequestTimeout => RT::Immediate,
+            E::CircTimeout(_) | E::RequestTimeout => RT::Immediate,
 
             // If a circuit that seemed usable was restricted before we got a
             // chance to try it, that's not our fault: we can try again
@@ -236,7 +243,7 @@ impl HasRetryTime for Error {
             // These don't reflect a real problem in the circuit building, but
             // rather mean that we were waiting for something that didn't pan out.
             // It's okay to try again after a short delay.
-            E::GuardNotUsable | E::PendingCanceled | E::CircCanceled | E::Protocol { .. } => {
+            E::GuardNotUsable(_) | E::PendingCanceled | E::CircCanceled | E::Protocol { .. } => {
                 RT::AfterWaiting
             }
 
@@ -304,10 +311,10 @@ impl Error {
     fn severity(&self) -> usize {
         use Error as E;
         match self {
-            E::GuardNotUsable | E::LostUsabilityRace(_) => 10,
+            E::GuardNotUsable(_) | E::LostUsabilityRace(_) => 10,
             E::PendingCanceled => 20,
             E::CircCanceled => 20,
-            E::CircTimeout => 30,
+            E::CircTimeout(_) => 30,
             E::RequestTimeout => 30,
             E::NoPath { .. } => 40,
             E::NoExit { .. } => 40,
@@ -334,7 +341,7 @@ impl Error {
             // This error is a reset because we expect it to happen while
             // we're picking guards; if it happens, it means that we now know a
             // good guard that we should have used instead.
-            Error::GuardNotUsable => true,
+            Error::GuardNotUsable(_) => true,
             // This error is a reset because it can only happen on the basis
             // of a caller action (for example, a decision to reconfigure the
             // `CircMgr`). If it happens, it just means that we should try again
@@ -349,7 +356,7 @@ impl Error {
             Error::PendingCanceled
             | Error::PendingFailed(_)
             | Error::UsageMismatched(_)
-            | Error::CircTimeout
+            | Error::CircTimeout(_)
             | Error::RequestTimeout
             | Error::NoPath { .. }
             | Error::NoExit { .. }
@@ -407,6 +414,19 @@ where
             write!(f, " with {}", peer)
         } else {
             Ok(())
+        }
+    }
+}
+
+/// Helper to display an optional UniqId.
+struct OptUniqId<'a>(&'a Option<UniqId>);
+
+impl<'a> std::fmt::Display for OptUniqId<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(unique_id) = self.0 {
+            write!(f, " {}", unique_id.display_chan_circ())
+        } else {
+            write!(f, "")
         }
     }
 }

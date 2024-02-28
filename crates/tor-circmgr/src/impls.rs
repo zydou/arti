@@ -120,7 +120,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
                 // in case some preferable guard won't meet our needs.
                 match guard_usable.await {
                     Some(Ok(true)) | None => (),
-                    Some(Ok(false)) => return Err(Error::GuardNotUsable),
+                    Some(Ok(false)) => return Err(Error::GuardNotUsable(circuit.unique_id())),
                     Some(Err(_)) => {
                         return Err(internal!("Guard usability status cancelled").into());
                     }
