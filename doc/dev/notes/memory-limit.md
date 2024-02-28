@@ -190,10 +190,10 @@ mod memquota::raw {
       low_water,
     }
     total_used,
-    ps: SlotMap<PId, PRecord>
+    ps: SlotMap<AId, ARecord>
     reclaimation_task_wakeup: Condvar,
 
-  struct PRecord {
+  struct ARecord {
     used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
     reclaiming: bool, // does a ReclaimingToken exist, see below
     acount_clones: u32,
@@ -216,7 +216,7 @@ mod memquota::raw {
     #[getter]
     aid: AId,
     // quota we have preemptively claimed for use by this Account
-    // has been added to PRecord.used
+    // has been added to ARecord.used
     // but not yet returned by Account.claim
     //
     // this arranges that most of the time we don't have to hammer a
@@ -252,7 +252,7 @@ mod memquota::raw {
   // dropping all Account clones will forget the Participants
   impl Drop for Account
     decrement participation_clones
-    if zero, forget the account (subtracting its PRecord.used from TrackerInner_used)
+    if zero, forget the account (subtracting its ARecord.used from TrackerInner_used)
 
   // gives you another view of the same particant
   impl Clone for Account {
@@ -308,7 +308,7 @@ mod memquota::raw {
   ///
   /// Ie dropping this means "I've done some stuff, please call reclaim()
   /// again if necessary".
-  // Drop impl clears PRecord.reclaiming and signals
+  // Drop impl clears ARecord.reclaiming and signals
   struct ReclaimingToken {
 
   impl ReclaimingToken {
