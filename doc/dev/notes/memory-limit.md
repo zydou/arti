@@ -11,6 +11,24 @@ we build a heap to select oldest victims.
 We use the heap to keep reducing memory
 until we go below a low-water mark (hysteresis).
 
+## Key concepts
+
+ * **Tracker**: Instance of the memory quota system.  Each tracker has a notion of how much memory its participants are allowed to use, in aggregate.  Tracks memory usage by all the Accounts and Participants.  Different Trackers are completely independent.
+
+ * **Account**: all memory used withing the same Account is treated equally, and reclamation also happens on an account-by-account basis.  (Each Account is with one Tracker.)
+
+ * **Participant**: one data structure that uses memory.  Each Participant is linked to *one* Account.  An account has *one or more* Participants.
+
+ * **Child Account**/**Parent Account**: An Account may have a Parent.  When a tracker requests memory reclamation from a Parent, it will also request it of all that Parent's Children (but not vice versa).
+
+ * **Data age**: Each Participant is must be able to say what the oldest data is, that it is storing.  The reclamation policy is to try to free the oldest data.
+
+ * **Reclamation**: When a Tracker decides that too much memory is being used, it will select a victim Account based on the data age.  It will then ask *every Participant* in that Account, and every Participant in every Child of that Account, to reclaim memory.  A Participant responds by freeing at least some memory, according to the reclamation request, and tells the Tracker when it has done so.
+
+ * **Approximate** (both in time and space): The memory quota system is not completely precise.  Participants need not report their use precisely, but the errors should be reasonably small, and bounded.  Likewise, the enforcement is not precise: reclamation may start slightly too early, or too late; but the memory use will be bounded below by O(number of participants) and above by O(1) (plus errors from the participants).  Reclamation is not immediate, and is dependent on task scheduling; during memory pressure the quota may be exceeded; new allocations are not prevented while attempts at reclamation are ongoing.
+
+ * **Queues**: We provide a higher-level API that wraps an mpsc queue and turns it into a Participant.
+
 ## Higher level memory-tracking/limiting queue API
 
 Replaces mpsc queues.
