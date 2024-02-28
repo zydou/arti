@@ -128,8 +128,10 @@ release?" above.
     * APIs were broken.
       (Bump minor if major == 0; else bump major.)
 
-   You can identify crates that have no changes (by elimination)
-   with `./maint/changed_crates ${LAST_VERSION}`.
+   You can identify crates that have no changes using `maint/changed_crates`:
+   ```
+   maint/changed_crates -v "arti-v$LAST_VERSION" 2>&1 >/dev/null | grep -i "no change"
+   ```
 
    To see whether a crate has only non-functional changes,
    you have to use  `git diff`.  Sorry!
