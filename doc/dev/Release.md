@@ -47,6 +47,12 @@ to make sure we aren't going to break our users.
 5. Does `maint/fixup-features` produce any results?
    If so, fix them.
 
+   Note: fixup-features should be run with the top-level Cargo.toml
+   as an argument:
+   ```
+   cargo run -p fixup-features Cargo.toml
+   ```
+
 6. Does `maint/semver-checks` find any issues
    not noted in our semver.md files?
    If so, add them.
