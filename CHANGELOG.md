@@ -3,6 +3,129 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.14 — TBD
+
+Arti 1.1.14 continues work on support for running onion services.
+You can now launch an onion service and expect it to run.
+
+We have fixed a number of bugs and security issues,
+and have made the `onion-service-service` feature non-experimental.
+
+In the next releases, we will focus on implementing
+the missing security features and on improving stability.
+
+Don't rely on this onion service implementation for security yet;
+there are a number of [missing security features]
+we will need to develop before we can recommend them
+for actual use.
+
+See `doc/OnionService.md` for instructions and caveats.
+
+### Major bugfixes
+
+- Empty DATA messages are a way to inject an undetected traffic signal, so we
+  now reject empty DATA messages, and prevent them from being constructed
+  through the [`tor-cell`] API.  This is tracked as [TROVE-2024-001].
+  ([!1981], [#1269])
+
+### Breaking changes in lower-level crates
+
+- In [`tor-circmgr`], `Error::GuardNotUsable`, `Error::CircTimeout`,
+  `Error::Protocol` now contain the process-unique identifier of the circuit
+  that caused the error. ([!2003])
+- In [`tor-hsclient`], remove `HsClientNickname` and the nickname argument from
+  `HsClientDescEncKeypairSpecifier::new`. ([!1998], [#1283])
+- In [`tor-hsrproxy`], add a `String` representing the error message to
+  `ProxyConfigError::UnrecognizedTargetType`,
+  `ProxyConfigError::InvalidTargetAddr`, `ProxyConfigError::InvalidPort`
+  ([!1973], [#1266])
+- In [`tor-hsservice`], remove the unused `max_concurrent_streams_per_circuit`
+  configuration option from `OnionServiceConfigBuilder`. ([!1996])
+- In [`tor-keymgr`], rename `KeyInfoExtractor` to `KeyPathInfoExtractor`.
+  ([bd85bffd0a388f57])
+- In [`tor-keymgr`], rename `{to,from}_component()` to `{to,from}_slug()`.
+  ([1040df929f643a2f])
+
+### Onion service development
+
+- Improve the key manager APIs. ([!1952], [#1115])
+- Add more context to [`tor-hsrproxy`] configuration error messages. ([!1973])
+- Design an API for vanguards. ([!1970])
+- Make the descriptor publisher conform with the specification, by periodically
+  republishing the hidden service descriptor.  This fixes a serious reachability
+  bug. ([!1971], [#1241], [#1280])
+- Rotate old introduction point relays even if they are not working.
+  ([72c021555e1095f1])
+- Expire old on-disk introduction point state. ([!1977], [!1982], [#1198])
+- Expose `HsNickname::new`. ([f3720ac2c0f16883])
+- Design the client and service configuration, and a CLI subcommand, for hidden
+  service client authorization (!1987)
+- Improve the ergonomics of our key listing and removal APIs. ([!1988], [#1271])
+- Include the `ArtiPath` in key path errors ([!1960], [#1115])
+- Improve circuit error logging by including the process-unique identifier of
+  the circuit in error messages. ([!2003], [#1297])
+- Improve status reporting from onion services. ([!1966], [#1083])
+- Design an API for bandwidth rate limiting. ([!1965])
+- Improve descriptor publisher error reporting. ([!1991])
+- Remove the client nickname from onion service client key specifiers. ([!1998],
+  [#1283])
+- When reconfiguring an onion service, reject any changes that are inappropriate
+  or would put the service in a bad state. ([!1996], [#1209])
+- Remove the keystore directory configuration option. ([!1995], [#1202])
+- Mark `onion-service-service` and every feature it depends on as
+  non-experimental. ([!1993], [#1182])
+
+### Other major new features in our Rust APIs
+
+- [`tor-persist`] now implements the `state_dir` APIs for instance iteration and
+  expiry needed for onion service state expiry.  ([!1968], [#1163])
+
+### Documentation and examples
+
+- Fix the casing of our recognized key paths. ([1a900081e945679e])
+- Minor updates to the release process. ([!1959], [!1963])
+- Fix typos in the [`tor-guardmgr`] README. ([!1980])
+- Reword the [`tor-keymgr`] README for clarity. ([489a2555f28daa6d])
+- Update onion service documentation. ([!1994], [#1287])
+
+### Testing
+
+- Improve replay log fork test. ([!1974], [#1264])
+- In the introduction point manager tests, avoid reusing the RNG seed.
+  ([b515baf27f194470])
+- Our [Shadow] CI tests now use the latest versions of `shadow` and `tgen`, and
+  no longer pull `libigraph` from bullseye. ([!1958])
+
+### Cleanups, minor features, and bugfixes
+
+- Allow overriding `cargo` in [`semver-checks`]. ([83c29b0d805f908e])
+- Introduce a [`list_crates`] script. ([b03e5d5e11c52faf])
+- Fix compilation with musl. ([!1961], [#1264])
+- Clarify the onion service configuration instructions from
+  `doc/OnionService.md`, remove unsupported "unix:" example ([!1972], [#1266])
+- Add `fixup-features` to the main workspace, make various improvements to
+  `fixup-features`, `check_toposort`, `list_crates` ([!1969], [#1263])
+- Use `std::default::Default` instead of [educe]'s `Default` in a number of
+  places in preparation for the upgrade to educe 0.5. ([!1975], [#1257])
+- Fix a bug that prevented the descriptor publisher from fully processing the
+  results of publish tasks, causing it to republish the descriptor unnecessarily
+  in some circumstances. ([!1983])
+- Require the Fast and Stable flags as appropriate. ([!1976], [#1100])
+- Refactor and improve error hinting in [`arti`] and [`arti-client`]. ([!1986],
+  [#1165])
+- Do not output ANSI escape codes when logging to file. ([!1999], [#1298])
+- Upgrade our dependency on [curve25519-dalek] from 4.1.2 to 4.1.2 ([!2000])
+- Upgrade to the latest versions of [event-listener], [rusqlite],
+  [async-broadcast], [signature], [config]. ([!2001], [!2004])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy and Jim Newsome.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
 # Arti 1.1.13 — 5 February 2024
 
 Arti 1.1.13 continues work on support for running onion services.
