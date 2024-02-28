@@ -39,13 +39,13 @@ mod memquota::spsc_queue {
 
   pub fn channel<T:HasMemoryCost>(
      mgr: &MemoryQuotaTracker,
-     parent: Option<ParticipantId>,
+     parent: Option<AccountId>,
   )
       -> (Sender, Receiver)
 
   pub struct Sender<T>(
     tx: mpsc::Sender<Entry<T>>,
-    memquota: memquots::raw::Participation, // collapsed-checking is in here
+    memquota: memquots::raw::Account, // collapsed-checking is in here
 
   pub struct Receiver<T> {
     // usually, lock acquired only by recv ie only by owner of Receiver
@@ -56,11 +56,11 @@ mod memquota::spsc_queue {
     // We'd like to use futures::stream::Peekable but it doesn't have sync try_peek
     peeked: Option<Entry<T>>,
     rx: mpsc::Receiver<Entry<T>>,
-    // We have separate `Participation`s for rx anc tx.
+    // We have separate `Account`s for rx anc tx.
     // The tx is constantly claiming and the rx releasing;
     // each `local_quota`-limit's worth, they must balance out
     // via the (fairly globally shared) MemoryDataTracker.
-    memquota: memquots::raw::Participation,
+    memquota: memquots::raw::Account,
     // when receiver dropped, or memory reclaimed, call all of these
     // for circuits, callback will send a ctrl msg
     // (callback is nicer than us handing out an mpsc rx
@@ -79,7 +79,7 @@ mod memquota::spsc_queue {
     ReceiverDropped,
   }
   impl Drop for ReceiverState<T> {
-    // no need to tell quota tracker, dropping the Participation clones will do that
+    // no need to tell quota tracker, dropping the Account clones will do that
     self.collapse_notify.drain(). call(CollapseReason::ReceiverDropped)
 
   // weak ref to queue, for implementing Participant to hook into memory system
@@ -117,7 +117,7 @@ mod memquota::spsc_queue {
       let state = self.inner.upgrade()?.state.lock();
       for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
       // allow memory manager to continue
-      token.forget_participant();
+      token.forget_account();
       // proactively empty the queue in case the sender doesn't
       while let Some(_) = state.rx.try_pop() { 
         // no need to update memquota since we've told it we're collapsing
@@ -137,15 +137,15 @@ Key types:
  * `pub trait Participant`.
    Implemented by things that relevantly allocate memory.
    Provides the callback methods used during reclamation.
-   Each participant has, somewhere, one or more `Participation`s.
+   Each participant has, somewhere, one or more `Account`s.
    
- * `pub struct Participation`.
+ * `pub struct Account`.
    Obtained by a participant from a `MemoryQuotaTracker`,
    during enrolment of the participant.
    The participant supplies a `Participant` implementation
-   (to `MemoryQuotaTracker::new_participant`)
-   and gets a (cloneable) `Participation`.
-   A `Participation` has methods
+   (to `MemoryQuotaTracker::new_account`)
+   and gets a (cloneable) `Account`.
+   A `Account` has methods
    for accounting the allocation and freeing of memory.
    
 Actual memory allocation is handled by the participant itself,
@@ -157,9 +157,9 @@ and need not be completely precise.
 ```
 mod memquota::raw {
 
-  struct ParticipantId; // Clone, Copy, etc.
+  struct AccountId; // Clone, Copy, etc.
 
-  type PId = ParticipantId;
+  type AId = AccountId;
 
   pub struct MemoryQuotaTracker(
     Mutex<TrackerInner>
@@ -170,14 +170,14 @@ mod memquota::raw {
       low_water,
     }
     total_used,
-    ps: SlotMap<PId, PRecord>
+    ps: SlotMap<AId, PRecord>
     reclaimation_task_wakeup: Condvar,
 
   struct PRecord {
     used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
     reclaiming: bool, // does a ReclaimingToken exist, see below
-    participation_clones: u32,
-    children: Vec<PId>,
+    acount_clones: u32,
+    children: Vec<AId>,
     p: Box<dyn Participant>,
   }
 
@@ -192,12 +192,12 @@ mod memquota::raw {
                but_can_stop_discarding_after_freeing_this_much: usize,
                ReclaimingToken);
 
-  pub struct Participation {
+  pub struct Account {
     #[getter]
-    id: PId,
-    // quota we have preemptively claimed for use by this Participation
+    id: AId,
+    // quota we have preemptively claimed for use by this Account
     // has been added to PRecord.used
-    // but not yet returned by Participation.claim
+    // but not yet returned by Account.claim
     //
     // this arranges that most of the time we don't have to hammer a
     // single cache line
@@ -205,7 +205,7 @@ mod memquota::raw {
     #[deref] // Actually, have an accessor
     tracker: MemoryQuotaTracker
 
-  impl Participation {
+  impl Account {
     fn claim(&mut self, usize) -> Result<()> {
        try to take usize from local_quota,
        failing that, get from tracker,
@@ -215,19 +215,19 @@ mod memquota::raw {
        self.local_quota += usize;
        if local quota too big, call tracker.release
 
-  impl Drop for Participation
+  impl Drop for Account
     decrement participation_clones
-    if zero, forget the participant (subtracting its PRecord.used from TrackerInner_used)
+    if zero, forget the account (subtracting its PRecord.used from TrackerInner_used)
 
   // gives you another view of the same particant
-  impl Clone for Participation {
+  impl Clone for Account {
     // clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
-    pub fn new_participant(&Arc<self>, Box<dyn Participant>, parent: Option<ParticipantId>)
-        -> Participation;
+    pub fn new_account(&Arc<self>, Box<dyn Participant>, parent: Option<AccountId>)
+        -> Account;
 
-    fn claim(&self, pid: PId, req: usize) -> Result {
+    fn claim(&self, pid: AId, req: usize) -> Result {
        let inner = self.0.lock().unwrap();
        let p = inner.ps.get_mut(pid)
          .ok_or_else(ParticipantForgottenError)?;
@@ -244,7 +244,7 @@ mod memquota::raw {
         if self.used <= max { continue }
 
         // reclamation
-        let mut heap: Heap<RoughTime, PId> = ps.iter().collect();
+        let mut heap: Heap<RoughTime, AId> = ps.iter().collect();
         while self.used > self.low_water {
           let oldest = heap.pop_lowest();
           let next_oldest = heap.peek_lowest();
@@ -270,12 +270,12 @@ mod memquota::raw {
   struct ReclaimingToken {
 
   impl ReclaimingToken {
-    /// "this participant is reclaiming by collapsing completely.
+    /// "this account is reclaiming by collapsing completely.
     /// all memory it uses will be eventually `release`d,
     /// but this may not have happened yet".
     ///
     /// The `reclaim()` method won't be called again.
-    fn forget_participant(self) {
+    fn forget_account(self) {
 ```
 
 ## Plan for caches
