@@ -196,7 +196,7 @@ mod memquota::raw {
     reclaiming: bool, // does a ReclaimingToken exist, see below
     acount_clones: u32,
     children: Vec<AId>,
-    p: Box<dyn Participant>,
+    p: Vec<Box<dyn Participant>>,
   }
 
   pub trait Participant {
@@ -212,7 +212,7 @@ mod memquota::raw {
 
   pub struct Account {
     #[getter]
-    id: AId,
+    aid: AId,
     // quota we have preemptively claimed for use by this Account
     // has been added to PRecord.used
     // but not yet returned by Account.claim
@@ -233,6 +233,10 @@ mod memquota::raw {
        self.local_quota += usize;
        if local quota too big, call tracker.release
 
+    fn new_participant(&self, participant: Box<dyn Participant>) {
+       self.tracker.new_participant(self.aid, participant);
+    }
+
   /// An Account is a handle.  All clones refer to the same underlying conceptual Account.
   impl Clone for Account
 
@@ -245,8 +249,10 @@ mod memquota::raw {
     // clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
-    pub fn new_account(&Arc<self>, Box<dyn Participant>, parent: Option<AccountId>)
+    pub fn new_account(&Arc<self>, participant: Box<dyn Participant>, parent: Option<AccountId>)
         -> Account;
+
+    pub fn new_participant(&Arc<self>, account_id: AccountId, Box<dyn Participant>>) {
 
     fn claim(&self, pid: AId, req: usize) -> Result {
        let inner = self.0.lock().unwrap();
@@ -270,6 +276,7 @@ mod memquota::raw {
           let oldest = heap.pop_lowest();
           let next_oldest = heap.peek_lowest();
           self.ps[oldest].reclaiming = true;
+          // Actually, each entry is a Vec<Partipant> so we must iterate
           // fudge next_oldest by something to do with number of loop iterations,
           // to avoid one-allocation-each-time ping pong between multiple caches
           self.ps[oldest].reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
