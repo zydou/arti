@@ -37,9 +37,10 @@ Key APIs.
 
  * `pub struct Sender<T>` and `pub struct Receiver<T>` with the obvious behaviours.
  * `pub fn channel` constructor that gives you a `Sender`/`Receiver` pair,
-   (given a `MemoryQuotaTracker`)
+   (given an `Account`).
  * Elements in the queue must implement
    `SizeForMemoryQuota`.
+ * Each channel is a Participant.
 
 Reclamation APIs:
 Hardly any.
@@ -75,6 +76,7 @@ mod memquota::mpsc_queue {
     // each `local_quota`-limit's worth, they must balance out
     // via the (fairly globally shared) MemoryDataTracker.
     memquota: memquots::Account,
+    memquota_pid: memquots::ParticipantId,
     // when receiver dropped, or memory reclaimed, call all of these
     // for circuits, callback will send a ctrl msg
     // (callback is nicer than us handing out an mpsc rx
@@ -93,7 +95,7 @@ mod memquota::mpsc_queue {
     ReceiverDropped,
   }
   impl Drop for ReceiverState<T> {
-    // no need to tell quota tracker, dropping the Account clones will do that
+    self.memquota.delete_participant(self.memquota_pid);
     self.collapse_notify.drain(). call(CollapseReason::ReceiverDropped)
 
   // weak ref to queue, for implementing Participant to hook into memory system
@@ -173,7 +175,11 @@ mod memquota::raw {
 
   struct AccountId; // Clone, Copy, etc.
 
+  /// ParticipantId is scoped within in the context of an account.
+  struct ParticipantId; // Clone, Copy, etc.
+
   type AId = AccountId;
+  type PId = ParticipantId;
 
   pub struct MemoryQuotaTracker(
     Mutex<TrackerInner>
@@ -184,7 +190,7 @@ mod memquota::raw {
       low_water,
     }
     total_used,
-    ps: SlotMap<AId, PRecord>
+    ps: SlotMap<PId, PRecord>
     reclaimation_task_wakeup: Condvar,
 
   struct PRecord {
@@ -192,7 +198,7 @@ mod memquota::raw {
     reclaiming: bool, // does a ReclaimingToken exist, see below
     acount_clones: u32,
     children: Vec<AId>,
-    p: Vec<Box<dyn Participant>>,
+    p: SlotMap<PId, Box<dyn Participant>>,
   }
 
   pub trait Participant {
@@ -217,7 +223,11 @@ mod memquota::raw {
     // single cache line
     local_quota: u16,
     #[deref] // Actually, have an accessor
-    tracker: MemoryQuotaTracker
+    tracker: Arc<MemoryQuotaTracker>
+
+  // Optionally, later,
+  pub struct WeakAccount
+  // precisely like Account but doesn't count for account_clones
 
   impl Account {
     fn claim(&mut self, usize) -> Result<()> {
@@ -229,13 +239,17 @@ mod memquota::raw {
        self.local_quota += usize;
        if local quota too big, call tracker.release
 
-    fn new_participant(&self, participant: Box<dyn Participant>) {
+    pub fn new_participant(&self, participant: Box<dyn Participant>) -> PId {
        self.tracker.new_participant(self.aid, participant);
     }
+    // calling this only needed if individual participants are deleted without dropping
+    // all Accounts.
+    pub fn delete_participant(&self, Pid)
 
   /// An Account is a handle.  All clones refer to the same underlying conceptual Account.
   impl Clone for Account
 
+  // dropping all Account clones will forget the Participants
   impl Drop for Account
     decrement participation_clones
     if zero, forget the account (subtracting its PRecord.used from TrackerInner_used)
@@ -249,6 +263,9 @@ mod memquota::raw {
     pub fn new_account(&Arc<self>, parent: Option<AccountId>) -> Account {
 
     pub fn new_participant(&Arc<self>, account_id: AccountId, Box<dyn Participant>>) {
+    // calling this only needed if individual participants are deleted without dropping
+    // all Accounts.
+    pub fn delete_participant(&self, AccountId, ParticipantId)
 
     fn claim(&self, pid: AId, req: usize) -> Result {
        let inner = self.0.lock().unwrap();
