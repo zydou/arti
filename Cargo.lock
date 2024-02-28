@@ -4968,7 +4968,6 @@ dependencies = [
  "educe",
  "getrandom",
  "hex-literal",
- "signature",
  "thiserror",
  "tor-error",
  "tor-llcrypto",
