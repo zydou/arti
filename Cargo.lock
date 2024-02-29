@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpcserver"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "arti-client",
  "asynchronous-codec",
