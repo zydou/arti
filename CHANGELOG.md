@@ -126,6 +126,96 @@ Alexander Færøy and Jim Newsome.
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
+[!1297]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1297
+[!1961]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1961
+[!1952]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1952
+[!1958]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1958
+[!1959]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1959
+[!1960]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1960
+[!1963]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1963
+[!1965]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1965
+[!1966]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1966
+[!1968]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1968
+[!1969]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1969
+[!1970]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1970
+[!1971]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1971
+[!1972]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1972
+[!1973]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1973
+[!1974]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1974
+[!1975]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1975
+[!1976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1976
+[!1977]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1977
+[!1980]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1980
+[!1981]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1981
+[!1982]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1982
+[!1983]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1983
+[!1986]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1986
+[!1987]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1987
+[!1988]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1988
+[!1991]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1991
+[!1993]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1993
+[!1994]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1994
+[!1995]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1995
+[!1996]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1996
+[!1998]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1998
+[!1999]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1999
+[!2000]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2000
+[!2001]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2001
+[!2003]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2003
+[!2004]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2004
+[#1083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1083
+[#1100]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1100
+[#1115]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1115
+[#1163]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1163
+[#1165]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1165
+[#1182]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1182
+[#1198]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1198
+[#1202]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1202
+[#1209]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1209
+[#1241]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1241
+[#1257]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1257
+[#1263]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1263
+[#1264]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1264
+[#1266]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1266
+[#1269]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1269
+[#1271]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1271
+[#1280]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1280
+[#1283]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1283
+[#1287]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1287
+[#1297]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1297
+[#1298]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1298
+[1040df929f643a2f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1040df929f643a2fd2a1ccb0400f1dd2f2beac98
+[1a900081e945679e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1a900081e945679e80d29797ae00c206f2cd78f1
+[489a2555f28daa6d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/489a2555f28daa6d5f523480f434f27292783abd
+[72c021555e1095f1]: https://gitlab.torproject.org/tpo/core/arti/-/commit/72c021555e1095f1be3f658acac5655b54842347
+[83c29b0d805f908e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/83c29b0d805f908e98ed1742491f3145f547fb2e
+[b03e5d5e11c52faf]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b03e5d5e11c52faf441294c8c883a2dfbc0d2021
+[b515baf27f194470]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b515baf27f1944708285849503dfcd08bb7ac73b
+[bd85bffd0a388f57]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bd85bffd0a388f579d42c8a0758091232bf901a0
+[f3720ac2c0f16883]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f3720ac2c0f16883abc1597ad828f99022a0e320
+[Shadow]: https://shadow.github.io/
+[TROVE-2024-001]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
+[`arti`]: https://tpo.pages.torproject.net/core/doc/rust/arti/index.html
+[`list_crates_publish`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/list_crates_publish
+[`semver-checks`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/semver-checks
+[`tor-cell`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cell/index.html
+[`tor-circmgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_circmgr/index.html
+[`tor-guardmgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_guardmgr/index.html
+[`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
+[`tor-hsrproxy`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsrproxy/index.html
+[`tor-hsservice`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsservice/index.html
+[`tor-keymgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_keymgr/index.html
+[`tor-persist`]: https://tpo.pages.torproject.net/core/doc/rust/tor_persist/index.html
+[async-broadcast]: https://crates.io/crates/async-broadcast
+[config]: https://crates.io/crates/config
+[curve25519-dalek]: https://crates.io/crates/curve25519-dalek
+[educe]: https://crates.io/crates/educe
+[event-listener]: https://crates.io/crates/event-listener
+[rusqlite]: https://crates.io/crates/rusqlite
+[signature]: https://crates.io/crates/signature
+
+
 # Arti 1.1.13 — 5 February 2024
 
 Arti 1.1.13 continues work on support for running onion services.
