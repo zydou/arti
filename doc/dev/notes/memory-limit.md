@@ -9,6 +9,12 @@ It omits some important considerations.  Notably:
  * What is called `RoughTime` here doesn't exist yet.
  * Pseudocode (and impls generally) are handwavy sketches.
 
+Re arithmetic overflow, see the clippy lint `arithmetic_side_effects`
+but also its bugs
+<https://github.com/rust-lang/rust-clippy/issues/11220>
+<https://github.com/rust-lang/rust-clippy/issues/11145>
+<https://github.com/rust-lang/rust-clippy/issues/10209>.
+
 ## Intended behavour
 
 In normal operation we track very little cheaply
