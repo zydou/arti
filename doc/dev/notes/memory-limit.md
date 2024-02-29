@@ -1,5 +1,14 @@
 # Memory limiting and reclamation
 
+This is a design document.
+
+It omits some important considerations.  Notably:
+
+ * All arithmetic needs to be panic-free with appropriate out-of-course handling.
+ * In general, error handing isn't shown.
+ * What is called `RoughTime` here doesn't exist yet.
+ * Pseudocode (and impls generally) are handwavy sketches.
+
 ## Intended behavour
 
 In normal operation we track very little cheaply
