@@ -216,12 +216,13 @@ mod memquota::mpsc_queue {
     }
     async fn reclaim(self: Arc<Self>, _, _) -> Reclaimed {
       let state = self.inner.upgrade()?.state.lock();
-      for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
-      // allow memory manager to continue
       // proactively empty the queue in case the sender doesn't
       while let Some(_) = state.rx.try_pop() {
         // no need to update memquota since we've told it we're collapsing
       }
+      let collapse_notify = mem::take(&mut collapse_notify);
+      drop(state); // release lock
+      for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
       Reclaimed::Collapsing
 
 ```
