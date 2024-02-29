@@ -19,7 +19,7 @@ there are a number of [missing security features]
 we will need to develop before we can recommend them
 for actual use.
 
-See `doc/OnionService.md` for instructions and caveats.
+See [`doc/OnionService.md`] for instructions and caveats.
 
 ### Major bugfixes
 
