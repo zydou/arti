@@ -14,9 +14,11 @@ use crate::onion_proxy::{
 #[cfg(not(feature = "onion-service-service"))]
 use crate::onion_proxy_disabled::{OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder};
 use arti_client::TorClientConfig;
+#[cfg(feature = "onion-service-service")]
+use tor_config::define_list_builder_accessors;
+use tor_config::resolve_alternative_specs;
 #[cfg(feature = "rpc")]
 use tor_config::CfgPath;
-use tor_config::{define_list_builder_accessors, resolve_alternative_specs};
 pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
