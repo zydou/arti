@@ -25,6 +25,8 @@ until we go below a low-water mark (hysteresis).
 
  * **Reclamation**: When a Tracker decides that too much memory is being used, it will select a victim Account based on the data age.  It will then ask *every Participant* in that Account, and every Participant in every Child of that Account, to reclaim memory.  A Participant responds by freeing at least some memory, according to the reclamation request, and tells the Tracker when it has done so.
 
+ * **Reclamation strategy**: To avoid too-frequent Reclamation, once Reclamation ha started, it will continue until a low-water mark is reached, significantly lower than the quota.  I.e. the system has a hysteresis.  The only currently implemented higher-level Participant is a queue which responds to a reclamation request by completely destroying itself and freeing all its data.
+
  * **Approximate** (both in time and space): The memory quota system is not completely precise.  Participants need not report their use precisely, but the errors should be reasonably small, and bounded.  Likewise, the enforcement is not precise: reclamation may start slightly too early, or too late; but the memory use will be bounded below by O(number of participants) and above by O(1) (plus errors from the participants).  Reclamation is not immediate, and is dependent on task scheduling; during memory pressure the quota may be exceeded; new allocations are not prevented while attempts at reclamation are ongoing.
 
  * **Queues**: We provide a higher-level API that wraps an mpsc queue and turns it into a Participant.
