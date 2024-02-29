@@ -136,6 +136,7 @@ mod memquota::mpsc_queue {
 
   struct ReceiverState<T> {
     // We'd like to use futures::stream::Peekable but it doesn't have sync try_peek
+    // Probably, actually, roll our own private Peekable for clarity/testing
     peeked: Option<Entry<T>>,
     rx: mpsc::Receiver<Entry<T>>,
     // We have separate `Account`s for rx anc tx.
