@@ -99,7 +99,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
 ### Cleanups, minor features, and bugfixes
 
 - Allow overriding `cargo` in [`semver-checks`]. ([83c29b0d805f908e])
-- Introduce a [`list_crates`] script. ([b03e5d5e11c52faf])
+- Introduce a [`list_crates_publish`] script. ([b03e5d5e11c52faf])
 - Fix compilation with musl. ([!1961], [#1264])
 - Clarify the onion service configuration instructions from
   `doc/OnionService.md`, remove unsupported "unix:" example ([!1972], [#1266])
