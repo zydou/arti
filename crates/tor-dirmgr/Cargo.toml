@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirmgr"
-version = "0.15.0"
+version = "0.16.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -87,9 +87,9 @@ thiserror = "1"
 time = { version = "0.3.20", features = ["formatting", "parsing"] }
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.7.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.15.0" }
-tor-config = { path = "../tor-config", version = "0.10.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.8.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.16.0" }
+tor-config = { path = "../tor-config", version = "0.11.0" }
 tor-consdiff = { path = "../tor-consdiff", version = "0.7.0" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.13.0", default-features = false }
 tor-error = { path = "../tor-error", version = "0.6.0", features = ["tracing"] }

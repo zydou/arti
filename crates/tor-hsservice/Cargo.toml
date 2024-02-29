@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsservice"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -68,12 +68,12 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-bytes = { version = "0.10.0", path = "../tor-bytes" }
 tor-cell = { version = "0.16.1", path = "../tor-cell", features = ["hs"] }
 tor-cert = { path = "../tor-cert", version = "0.10.0" }
-tor-circmgr = { version = "0.15.0", path = "../tor-circmgr", features = ["hs-service"] }
-tor-config = { version = "0.10.0", path = "../tor-config" }
+tor-circmgr = { version = "0.16.0", path = "../tor-circmgr", features = ["hs-service"] }
+tor-config = { version = "0.11.0", path = "../tor-config" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.13.0", default-features = false, features = ["hs-service"] }
 tor-error = { version = "0.6.0", path = "../tor-error" }
 tor-hscrypto = { version = "0.6.0", path = "../tor-hscrypto", features = ["ope"] }
-tor-keymgr = { version = "0.7.0", path = "../tor-keymgr", features = ["keymgr"] }
+tor-keymgr = { version = "0.8.0", path = "../tor-keymgr", features = ["keymgr"] }
 tor-linkspec = { version = "0.11.0", path = "../tor-linkspec", features = ["verbatim", "decode"] }
 tor-llcrypto = { version = "0.7.0", path = "../tor-llcrypto" }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.3.0" }
@@ -99,7 +99,7 @@ serde_json = "1.0.104"
 slotmap = "1.0.6"
 tempfile = "3"
 test-temp-dir = { version = "0.2.0", path = "../test-temp-dir" }
-tor-keymgr = { version = "0.7.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
+tor-keymgr = { version = "0.8.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
 tor-netdir = { version = "0.12.1", path = "../tor-netdir", features = ["hs-service", "testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.12.1", features = ["testing"] }
 tor-persist = { version = "0.10.1", path = "../tor-persist", features = ["testing"] }

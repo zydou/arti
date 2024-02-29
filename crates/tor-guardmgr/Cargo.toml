@@ -66,7 +66,7 @@ strum = { version = "0.26", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-config = { path = "../tor-config", version = "0.10.0" }
+tor-config = { path = "../tor-config", version = "0.11.0" }
 tor-error = { path = "../tor-error", version = "0.6.0" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.11.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.7.0" }
