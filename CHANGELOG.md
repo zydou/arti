@@ -59,9 +59,9 @@ See `doc/OnionService.md` for instructions and caveats.
 - Expire old on-disk introduction point state. ([!1977], [!1982], [#1198])
 - Expose `HsNickname::new`. ([f3720ac2c0f16883])
 - Design the client and service configuration, and a CLI subcommand, for hidden
-  service client authorization (!1987)
+  service client authorization. ([!1987])
 - Improve the ergonomics of our key listing and removal APIs. ([!1988], [#1271])
-- Include the `ArtiPath` in key path errors ([!1960], [#1115])
+- Include the `ArtiPath` in key path errors. ([!1960], [#1115])
 - Improve circuit error logging by including the process-unique identifier of
   the circuit in error messages. ([!2003], [#1297])
 - Improve status reporting from onion services. ([!1966], [#1083])
