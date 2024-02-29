@@ -78,8 +78,8 @@ tor-linkspec = { version = "0.11.0", path = "../tor-linkspec", features = ["verb
 tor-llcrypto = { version = "0.7.0", path = "../tor-llcrypto" }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.3.0" }
 tor-netdir = { version = "0.12.0", path = "../tor-netdir", features = ["hs-service"] }
-tor-netdoc = { version = "0.12.0", path = "../tor-netdoc", features = ["hs-service"] }
-tor-persist = { version = "0.10.0", path = "../tor-persist", features = ["state-dir"] }
+tor-netdoc = { version = "0.12.1", path = "../tor-netdoc", features = ["hs-service"] }
+tor-persist = { version = "0.10.1", path = "../tor-persist", features = ["state-dir"] }
 tor-proto = { version = "0.16.0", path = "../tor-proto", features = [
     "experimental-api",
     "hs-service",
@@ -101,8 +101,8 @@ tempfile = "3"
 test-temp-dir = { version = "0.2.0", path = "../test-temp-dir" }
 tor-keymgr = { version = "0.7.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
 tor-netdir = { version = "0.12.0", path = "../tor-netdir", features = ["hs-service", "testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.12.0", features = ["testing"] }
-tor-persist = { version = "0.10.0", path = "../tor-persist", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.12.1", features = ["testing"] }
+tor-persist = { version = "0.10.1", path = "../tor-persist", features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.13.0" }
 tracing-test = "0.2.4"
 walkdir = "2"

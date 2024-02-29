@@ -1,6 +1,6 @@
 [package]
 name = "arti-testing"
-version = "0.10.0"
+version = "0.10.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -42,7 +42,7 @@ tor-checkable = { path = "../tor-checkable", version = "0.7.0", features = ["exp
 tor-config = { path = "../tor-config", version = "0.10.0" }
 tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.15.0", features = ["dirfilter"] }
 tor-error = { path = "../tor-error", version = "0.6.0" }
-tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.12.0", features = [
+tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.12.1", features = [
     "experimental-api",
     "dangerous-expose-struct-fields",
 ] }

@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "anyhow",
  "arti",
@@ -1901,7 +1901,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.7.7"
+version = "0.7.8"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "fslock-guard"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fslock-arti-fork",
  "thiserror",
@@ -5018,7 +5018,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -5267,7 +5267,7 @@ dependencies = [
 
 [[package]]
 name = "tor-events"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "async-broadcast",
  "futures",
@@ -5291,7 +5291,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "base64ct",
  "derive_builder_fork_arti",
@@ -5542,7 +5542,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "base64ct",
  "by_address",
@@ -5657,7 +5657,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "amplify",
  "anyhow",
@@ -5703,7 +5703,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "amplify",
  "anyhow",

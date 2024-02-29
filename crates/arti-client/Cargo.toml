@@ -137,7 +137,7 @@ tor-config = { path = "../tor-config", version = "0.10.0" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.15.0", default-features = false, features = ["mmap"] }
 tor-error = { path = "../tor-error", version = "0.6.0", features = ["tracing"] }
 tor-geoip = { path = "../tor-geoip", version = "0.2.0", optional = true }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.14.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.14.1" }
 tor-hsclient = { path = "../tor-hsclient", version = "0.9.0", optional = true }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.6.0", optional = true }
 tor-hsservice = { path = "../tor-hsservice", version = "0.7.0", optional = true }
@@ -145,8 +145,8 @@ tor-keymgr = { path = "../tor-keymgr", version = "0.7.0", default-features = fal
 tor-linkspec = { path = "../tor-linkspec", version = "0.11.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.7.0" }
 tor-netdir = { path = "../tor-netdir", version = "0.12.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.12.0" }
-tor-persist = { path = "../tor-persist", version = "0.10.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.12.1" }
+tor-persist = { path = "../tor-persist", version = "0.10.1" }
 tor-proto = { path = "../tor-proto", version = "0.16.0" }
 tor-ptmgr = { path = "../tor-ptmgr", version = "0.10.0", optional = true }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.3.0", optional = true }
