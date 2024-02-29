@@ -122,11 +122,11 @@ mod memquota::mpsc_queue {
   #[derive(Clone)]
   pub struct Sender<T>(
     tx: mpsc::Sender<Entry<T>>,
-    memquota: memquots::Account, // collapsed-checking is in here
+    memquota: memquota::Account, // collapsed-checking is in here
 
   pub struct UnboundedSender<T>(
     tx: mpsc::UnboundedSender<Entry<T>>,
-    memquota: memquots::Account, // collapsed-checking is in here
+    memquota: memquota::Account, // collapsed-checking is in here
   // etc.
 
   pub struct Receiver<T> {
@@ -142,7 +142,7 @@ mod memquota::mpsc_queue {
     // The tx is constantly claiming and the rx releasing;
     // each `local_quota`-limit's worth, they must balance out
     // via the (fairly globally shared) MemoryDataTracker.
-    memquota: memquots::Participation,
+    memquota: memquota::Participation,
     // when receiver dropped, or memory reclaimed, call all of these
     // for circuits, callback will send a ctrl msg
     // (callback is nicer than us handing out an mpsc rx
