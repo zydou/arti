@@ -172,6 +172,7 @@ fn default_max_files() -> u64 {
 /// Configuration for Arti's RPC subsystem.
 ///
 /// You cannot change this section on a running Arti client.
+#[cfg(feature = "rpc")]
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
@@ -179,7 +180,6 @@ fn default_max_files() -> u64 {
 #[non_exhaustive]
 pub struct RpcConfig {
     /// Location to listen for incoming RPC connections.
-    #[cfg(feature = "rpc")]
     #[builder(default = "default_rpc_path()")]
     pub(crate) rpc_listen: Option<CfgPath>,
 }
