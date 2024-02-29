@@ -144,7 +144,7 @@ mod memquota::mpsc_queue {
       for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
       // allow memory manager to continue
       // proactively empty the queue in case the sender doesn't
-      while let Some(_) = state.rx.try_pop() { 
+      while let Some(_) = state.rx.try_pop() {
         // no need to update memquota since we've told it we're collapsing
       }
       Reclaimed::Collapsing
@@ -164,7 +164,7 @@ Key types:
    Implemented by things that relevantly allocate memory.
    Provides the callback methods used during reclamation.
    Each `Account` has, somewhere, one or more Participants.
-   
+
  * `pub struct Account`.
    Obtained by a participant from a `MemoryQuotaTracker`,
    during enrolment of the participant.
@@ -173,7 +173,7 @@ Key types:
    and gets a (cloneable) `Account`.
    A `Account` has methods
    for accounting the allocation and freeing of memory.
-   
+
 Actual memory allocation is handled by the participant itself,
 using the global heap.
 
