@@ -6,7 +6,8 @@ is more mature, we may switch to using a separate changelog for each crate.
 # Arti 1.2.0 — 4 March 2024
 
 Arti 1.2.0 continues work on support for running onion services.
-You can now launch an onion service and expect it to run.
+You can now launch an onion service and expect it to run,
+although you may well encounter bugs.
 
 We have fixed a number of bugs and security issues,
 and have made the `onion-service-service` feature non-experimental.
@@ -39,8 +40,9 @@ See [`doc/OnionService.md`] for instructions and caveats.
   `ProxyConfigError::UnrecognizedTargetType`,
   `ProxyConfigError::InvalidTargetAddr`, `ProxyConfigError::InvalidPort`
   ([!1973], [#1266])
-- In [`tor-hsservice`], remove the unused `max_concurrent_streams_per_circuit`
-  configuration option from `OnionServiceConfigBuilder`. ([!1996])
+- In [`tor-hsservice`], remove the unimplemented `max_concurrent_streams_per_circuit`
+  configuration option from `OnionServiceConfigBuilder`.  We may implement and
+  reinstate it in a future release. ([!1996])
 - In [`tor-keymgr`], rename `KeyInfoExtractor` to `KeyPathInfoExtractor`.
   ([bd85bffd0a388f57])
 - In [`tor-keymgr`], rename `{to,from}_component()` to `{to,from}_slug()`.
@@ -71,7 +73,8 @@ See [`doc/OnionService.md`] for instructions and caveats.
   [#1283])
 - When reconfiguring an onion service, reject any changes that are inappropriate
   or would put the service in a bad state. ([!1996], [#1209])
-- Remove the keystore directory configuration option. ([!1995], [#1202])
+- Remove the keystore directory configuration option, pending design work
+  relating to RPC and multi-user Arti. ([!1995], [#1202])
 - Mark `onion-service-service` and every feature it depends on as
   non-experimental. ([!1993], [#1182])
 - Fix a bug that prevented the descriptor publisher from fully processing the
@@ -80,7 +83,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
 
 ### Other major new features in our Rust APIs
 
-- [`tor-persist`] now implements the `state_dir` APIs for instance iteration and
+- [`tor-persist`] now provides new `state_dir` APIs for instance iteration and
   expiry needed for onion service state expiry.  ([!1968], [#1163])
 
 ### Documentation and examples
