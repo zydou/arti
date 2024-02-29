@@ -277,7 +277,13 @@ mod memquota::raw {
 
   pub trait Participant {
     fn get_oldest(&self) -> Option<RoughTime>;
-    // Should free *at least* all memory at least as old as next_oldest
+    // Should free *at least* all memory at least as old as discard_...
+    //
+    // v1 of the actual implemnetation might not have `discard_everything_as_old_as`
+    // and `but_can_stop_discarding_...`,
+    // and might therefore only support Reclaimed::Collapsing
+    //
+    // ie then `reclaim` is really ~please collapse"
     async fn reclaim(self: Arc<Self>, discard_everything_as_old_as_this: RoughTime,
                but_can_stop_discarding_after_freeing_this_much: usize)
                -> Reclaimed
@@ -289,8 +295,8 @@ mod memquota::raw {
     Collapsing,
     // Participant has already reclaimed some memory as instructed;
     // if this is not sufficient, tracker must call reclaim() again.
-    // XXXX there is a bug here with mixed setups.  (We may not want to implement
-    // XXXX Partial right away but the API ought to support it so let's do it now.)
+    // (We may not want to implement Partial right away but the API
+    // ought to support it so let's think about it now, even if we don't implement it.)
     Partial,
   }
 
