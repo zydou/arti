@@ -56,13 +56,18 @@ mod memquota::mpsc_queue {
 
   trait HasMemoryCost /* name? MemoryCosted? */ { fn memory_cost(&self) -> usize }
 
-  pub fn channel<T:HasMemoryCost>(account: memquota::Account) -> (Sender, Receiver)
+  pub fn channel<T:HasMemoryCost>(account: memquota::Account, buffer: usize) -> (Sender, Receiver)
     makes queue, calls new_participant
 
   #[derive(Clone)]
   pub struct Sender<T>(
     tx: mpsc::Sender<Entry<T>>,
     memquota: memquots::Account, // collapsed-checking is in here
+
+  pub struct UnboundedSender<T>(
+    tx: mpsc::UnboundedSender<Entry<T>>,
+    memquota: memquots::Account, // collapsed-checking is in here
+  // etc.
 
   pub struct Receiver<T> {
     // usually, lock acquired only by recv ie only by owner of Receiver
