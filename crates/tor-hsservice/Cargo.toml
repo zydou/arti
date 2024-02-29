@@ -67,7 +67,7 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-bytes = { version = "0.10.0", path = "../tor-bytes" }
 tor-cell = { version = "0.16.1", path = "../tor-cell", features = ["hs"] }
-tor-cert = { path = "../tor-cert", version = "0.10.0" }
+tor-cert = { path = "../tor-cert", version = "0.11.0" }
 tor-circmgr = { version = "0.16.0", path = "../tor-circmgr", features = ["hs-service"] }
 tor-config = { version = "0.11.0", path = "../tor-config" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.13.0", default-features = false, features = ["hs-service"] }

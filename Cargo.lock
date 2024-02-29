@@ -5000,7 +5000,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "base64ct",
  "caret",
@@ -5377,7 +5377,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "cipher",
  "data-encoding",

@@ -77,7 +77,7 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.10.0" }
 tor-cell = { path = "../tor-cell", version = "0.16.1" }
-tor-cert = { path = "../tor-cert", version = "0.10.0" }
+tor-cert = { path = "../tor-cert", version = "0.11.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.8.0" }
 tor-config = { path = "../tor-config", version = "0.11.0" }
 tor-error = { path = "../tor-error", version = "0.6.0" }
