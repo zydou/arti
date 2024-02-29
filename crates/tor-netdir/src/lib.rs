@@ -143,7 +143,7 @@ impl ConsensusRelays for NetDir {
 /// the network.
 ///
 /// Used by [`Relay::in_same_subnet()`].
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SubnetConfig {
     /// Consider IPv4 nodes in the same /x to be the same family.
@@ -175,6 +175,15 @@ impl SubnetConfig {
         Self {
             subnets_family_v4,
             subnets_family_v6,
+        }
+    }
+
+    /// Construct a new SubnetConfig such that addresses are not in the same
+    /// family with anything--not even with themselves.
+    pub fn no_addresses_match() -> SubnetConfig {
+        SubnetConfig {
+            subnets_family_v4: 33,
+            subnets_family_v6: 129,
         }
     }
 
@@ -216,6 +225,20 @@ impl SubnetConfig {
                 .iter()
                 .any(|bb| self.addrs_in_same_subnet(&aa.ip(), &bb.ip()))
         })
+    }
+
+    /// Return a new subnet configuration that is the union of `self` and
+    /// `other`.
+    ///
+    /// That is, return a subnet configuration that puts all addresses in the
+    /// same subnet if and only if at least one of `self` and `other` would put
+    /// them in the same subnet.
+    pub fn union(&self, other: &Self) -> Self {
+        use std::cmp::min;
+        Self {
+            subnets_family_v4: min(self.subnets_family_v4, other.subnets_family_v4),
+            subnets_family_v6: min(self.subnets_family_v6, other.subnets_family_v6),
+        }
     }
 }
 
@@ -2321,6 +2344,44 @@ mod test {
         };
         assert!(!same_net(&cfg, "127.0.0.1", "127.0.0.1"));
         assert!(!same_net(&cfg, "::", "::"));
+    }
+
+    #[test]
+    fn subnet_union() {
+        let cfg1 = SubnetConfig {
+            subnets_family_v4: 16,
+            subnets_family_v6: 64,
+        };
+        let cfg2 = SubnetConfig {
+            subnets_family_v4: 24,
+            subnets_family_v6: 32,
+        };
+        let a1 = "1.2.3.4".parse().unwrap();
+        let a2 = "1.2.10.10".parse().unwrap();
+
+        let a3 = "ffff:ffff::7".parse().unwrap();
+        let a4 = "ffff:ffff:1234::8".parse().unwrap();
+
+        assert_eq!(cfg1.addrs_in_same_subnet(&a1, &a2), true);
+        assert_eq!(cfg2.addrs_in_same_subnet(&a1, &a2), false);
+
+        assert_eq!(cfg1.addrs_in_same_subnet(&a3, &a4), false);
+        assert_eq!(cfg2.addrs_in_same_subnet(&a3, &a4), true);
+
+        let cfg_u = cfg1.union(&cfg2);
+        assert_eq!(
+            cfg_u,
+            SubnetConfig {
+                subnets_family_v4: 16,
+                subnets_family_v6: 32,
+            }
+        );
+        assert_eq!(cfg_u.addrs_in_same_subnet(&a1, &a2), true);
+        assert_eq!(cfg_u.addrs_in_same_subnet(&a3, &a4), true);
+
+        assert_eq!(cfg1.union(&cfg1), cfg1);
+
+        assert_eq!(cfg1.union(&SubnetConfig::no_addresses_match()), cfg1);
     }
 
     #[test]
