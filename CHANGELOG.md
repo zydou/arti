@@ -74,6 +74,9 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Remove the keystore directory configuration option. ([!1995], [#1202])
 - Mark `onion-service-service` and every feature it depends on as
   non-experimental. ([!1993], [#1182])
+- Fix a bug that prevented the descriptor publisher from fully processing the
+  results of publish tasks, causing it to republish the descriptor unnecessarily
+  in some circumstances. ([!1983])
 
 ### Other major new features in our Rust APIs
 
@@ -107,9 +110,6 @@ See [`doc/OnionService.md`] for instructions and caveats.
   `fixup-features`, `check_toposort`, `list_crates` ([!1969], [#1263])
 - Use `std::default::Default` instead of [educe]'s `Default` in a number of
   places in preparation for the upgrade to educe 0.5. ([!1975], [#1257])
-- Fix a bug that prevented the descriptor publisher from fully processing the
-  results of publish tasks, causing it to republish the descriptor unnecessarily
-  in some circumstances. ([!1983])
 - Require the Fast and Stable flags as appropriate. ([!1976], [#1100])
 - Refactor and improve error hinting in [`arti`] and [`arti-client`]. ([!1986],
   [#1165])
