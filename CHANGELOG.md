@@ -93,6 +93,8 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Fix typos in the [`tor-guardmgr`] README. ([!1980])
 - Reword the [`tor-keymgr`] README for clarity. ([489a2555f28daa6d])
 - Update onion service documentation. ([!1994], [#1287])
+- Clarify the onion service configuration instructions from
+  `doc/OnionService.md`, remove unsupported "unix:" example ([!1972], [#1266])
 
 ### Testing
 
@@ -107,8 +109,6 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Allow overriding `cargo` in [`semver-checks`]. ([83c29b0d805f908e])
 - Introduce a [`list_crates_publish`] script. ([b03e5d5e11c52faf])
 - Fix compilation with musl. ([!1961], [#1264])
-- Clarify the onion service configuration instructions from
-  `doc/OnionService.md`, remove unsupported "unix:" example ([!1972], [#1266])
 - Add `fixup-features` to the main workspace, make various improvements to
   `fixup-features`, `check_toposort`, `list_crates` ([!1969], [#1263])
 - Use `std::default::Default` instead of [educe]'s `Default` in a number of
