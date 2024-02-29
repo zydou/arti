@@ -114,7 +114,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Refactor and improve error hinting in [`arti`] and [`arti-client`]. ([!1986],
   [#1165])
 - Do not output ANSI escape codes when logging to file. ([!1999], [#1298])
-- Upgrade our dependency on [curve25519-dalek] from 4.1.2 to 4.1.2 ([!2000])
+- Upgrade our dependency on [curve25519-dalek] from 4.1.1 to 4.1.2 ([!2000])
 - Upgrade to the latest versions of [event-listener], [rusqlite],
   [async-broadcast], [signature], [config]. ([!2001], [!2004])
 
