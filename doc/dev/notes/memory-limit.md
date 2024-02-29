@@ -31,6 +31,66 @@ until we go below a low-water mark (hysteresis).
 
  * **Queues**: We provide a higher-level API that wraps an mpsc queue and turns it into a Participant.
 
+## Onwership and Arc keeping-alive
+
+ * Somewhere, someone must keep an `Account` to keep the account open.  Ie, the principal
+   object corresponding to the accountholder should contain an `Account`.
+
+ * `Arc<MemoryTracker>` holds `Weak<dyn Participant>`.  If the tracker finds a `Participant`
+   has vanished, it assumes this means that the Participant is being destroyed and it can treat
+   all of the memory it claimed as freed.
+
+ * Each participant holds a `Participation`.  A `Participation` may be invalidated by collapse
+   of the underlying Account, which may be triggered in any number of ways.
+
+ * A `Participation` does *not* keep its `Account` alive.  Ie, it has only a weak reference to
+   the Account.
+
+ * A Participant's implementor of `Participant` may hold a `Participation`.  If the
+   `Participant` is also the principal accountholder object, it must hold an `Account` too.
+
+ * Child/parent accounts do not imply any keeping-alive relationship.
+   It's just that a reclamation request to a parent (if it still exists)
+   will also be made to its children.
+
+
+```
+    accountholder   =======================================>*  Participant
+
+          ||                                                     ^     ||
+          ||                                                     |     ||
+          ||                                                     |     ||
+          ||                 global                     Weak<dyn>|     ||
+          ||                     ||                              |     ||
+          \/*                    \/                              |     ||
+                                                                 |     ||
+        Account  *===========>  MemoryTracker  ------------------'     ||
+                                                                       ||
+           ^                                                           ||
+           |                                                           \/
+           |
+            `-------------------------------------------------*   Participation
+
+
+
+    accountholder which is also directly the Participant ==============\
+                                                                      ||
+          ||                              ^                           ||
+          ||                              |                           ||
+          ||                              |                           ||
+          ||                 global       |Weak<dyn>                  ||
+          ||                     ||       |                           ||
+          \/                     \/       |                           ||
+                                                                      ||
+        Account  *===========>  MemoryTracker                         ||
+                                                                      ||
+           ^                                                          ||
+           |                                                          \/
+           |
+            `-------------------------------------------------*   Participation
+
+```
+
 ## Higher level memory-tracking/limiting queue API
 
 Replaces mpsc queues.
@@ -212,7 +272,7 @@ mod memquota::raw {
     participation_clones: u32,
     used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
     reclaiming: bool,
-    Arc<dyn Participant>,
+    Weak<dyn Participant>,
   }
 
   pub trait Participant {
@@ -273,6 +333,7 @@ mod memquota::raw {
   /// An Account is a handle.  All clones refer to the same underlying conceptual Account.
   impl Clone for Account
   /// Participation is a handle.  All clones are for use by the same Participant.
+  /// It doesn't keep the underlying Account alive.
   impl Clone for Participation
 
   impl Drop for Account
