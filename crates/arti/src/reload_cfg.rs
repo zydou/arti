@@ -62,6 +62,7 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 pub(crate) fn watch_for_config_changes<R: Runtime>(
     sources: ConfigurationSources,
     config: &ArtiConfig,
+    #[cfg_attr(not(target_family = "unix"), allow(unused_variables))]
     client: &TorClient<R>,
     modules: Vec<Weak<dyn ReconfigurableModule>>,
 ) -> anyhow::Result<()> {
