@@ -92,6 +92,9 @@ mod memquota::mpsc_queue {
 
   /// Entry in in the inner queue
   struct Entry {
+    /// TODO: We're using `RoughTime` as a placeholder in this design doc.
+    /// This will actually be whatever coarsetime-like thing we decide to add to Runtime.
+    /// (No ticket for that that I can find, but see also #496.)
     when: RoughTime,
     t: T,
   }
