@@ -3,9 +3,9 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.1.14 — TBD
+# Arti 1.2.0 — TBD
 
-Arti 1.1.14 continues work on support for running onion services.
+Arti 1.2.0 continues work on support for running onion services.
 You can now launch an onion service and expect it to run.
 
 We have fixed a number of bugs and security issues,
