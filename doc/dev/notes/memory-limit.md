@@ -319,7 +319,9 @@ mod memquota::raw {
     //
     // this arranges that most of the time we don't have to hammer a
     // single cache line
-    local_quota: u16,
+    //
+    // The value here is bounded by a configured limit
+    local_quota: usize,
     #[getter]
     account: WeakAccount,
   }
