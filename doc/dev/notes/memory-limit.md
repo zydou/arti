@@ -139,7 +139,7 @@ mod memquota::mpsc_queue {
       let peeked = { obvious impl involving peeked and rx };
       return peeked.when
     }
-    fn reclaim(&mut self, _, _, token) {
+    fn reclaim(self: &Arc<Self>, _, _, token) {
       let state = self.inner.upgrade()?.state.lock();
       for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
       // allow memory manager to continue
@@ -208,17 +208,18 @@ mod memquota::raw {
     reclaiming: bool, // does a ReclaimingToken exist, see below
     acount_clones: u32,
     children: Vec<AId>,
-    p: SlotMap<PId, Box<dyn Participant>>,
+    p: SlotMap<PId, Arc<dyn Participant>>,
   }
 
   pub trait Participant {
     fn get_oldest(&self) -> Option<RoughTime>;
     /// MAY BE CALLED REENTRANTLY as a result of claim() !
     // not async because &self borrows from TrackerInner
+    // ^ XXXX this is now false
     //
     // Should free *at least* all memory at least as old as next_oldest
     // (can be done asynchronously) and then drop the ReclaimingToken.
-    fn reclaim(&mut self, discard_everything_as_old_as_this: RoughTime, 
+    fn reclaim(self: &Arc<Self>, discard_everything_as_old_as_this: RoughTime, 
                but_can_stop_discarding_after_freeing_this_much: usize,
                ReclaimingToken);
 
@@ -249,7 +250,7 @@ mod memquota::raw {
        self.local_quota += usize;
        if local quota too big, call tracker.release
 
-    pub fn new_participant(&self, participant: Box<dyn Participant>) -> PId {
+    pub fn new_participant(&self, participant: Arc<dyn Participant>) -> PId {
        self.tracker.new_participant(self.aid, participant);
     }
     // calling this only needed if individual participants are deleted without dropping
@@ -272,7 +273,7 @@ mod memquota::raw {
     // claim will fail until a Partciipant is added
     pub fn new_account(&Arc<self>, parent: Option<AccountId>) -> Account {
 
-    pub fn new_participant(&Arc<self>, account_id: AccountId, Box<dyn Participant>>) {
+    pub fn new_participant(&Arc<self>, account_id: AccountId, Arc<dyn Participant>>) {
     // calling this only needed if individual participants are deleted without dropping
     // all Accounts.
     pub fn delete_participant(&self, AccountId, ParticipantId)
