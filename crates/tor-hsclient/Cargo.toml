@@ -57,7 +57,7 @@ tor-cell = { path = "../tor-cell", version = "0.16.1", features = ["hs"] }
 tor-checkable = { path = "../tor-checkable", version = "0.8.0" }
 tor-circmgr = { version = "0.16.0", path = "../tor-circmgr", features = ["hs-client"] }
 tor-config = { path = "../tor-config", version = "0.11.0" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.13.0", default-features = false, features = ["hs-client"] }
+tor-dirclient = { path = "../tor-dirclient", version = "0.14.0", default-features = false, features = ["hs-client"] }
 tor-error = { path = "../tor-error", version = "0.6.0", features = ["tracing"] }
 tor-hscrypto = { version = "0.6.0", path = "../tor-hscrypto" }
 tor-keymgr = { version = "0.8.0", path = "../tor-keymgr", default-features = false }
