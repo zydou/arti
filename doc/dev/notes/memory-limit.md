@@ -17,7 +17,7 @@ until we go below a low-water mark (hysteresis).
 
  * **Account**: all memory used withing the same Account is treated equally, and reclamation also happens on an account-by-account basis.  (Each Account is with one Tracker.)
 
- * **Participant**: one data structure that uses memory.  Each Participant is linked to *one* Account.  An account has *one or more* Participants.  (An Account can exist with zero Participants, but can't then claim memory.)
+ * **Participant**: one data structure that uses memory.  Each Participant is linked to *one* Account.  An account has *one or more* Participants.  (An Account can exist with zero Participants, but can't then claim memory.)  A Participant provides a `dyn Participant` to the memory system; in turn, the memory system provides the Participant with a `Participation` - a handle for tracking memory alloc/free.
 
  * **Child Account**/**Parent Account**: An Account may have a Parent.  When a tracker requests memory reclamation from a Parent, it will also request it of all that Parent's Children (but not vice versa).
 
@@ -82,8 +82,7 @@ mod memquota::mpsc_queue {
     // The tx is constantly claiming and the rx releasing;
     // each `local_quota`-limit's worth, they must balance out
     // via the (fairly globally shared) MemoryDataTracker.
-    memquota: memquots::Account,
-    memquota_pid: memquots::ParticipantId,
+    memquota: memquots::Participation,
     // when receiver dropped, or memory reclaimed, call all of these
     // for circuits, callback will send a ctrl msg
     // (callback is nicer than us handing out an mpsc rx
@@ -183,9 +182,10 @@ and need not be completely precise.
 ```
 mod memquota::raw {
 
-  struct AccountId; // Clone, Copy, etc.
+  pub struct AccountId; // Clone, Copy, etc.
 
   /// ParticipantId is scoped within in the context of an account.
+  /// Private.
   struct ParticipantId; // Clone, Copy, etc.
 
   type AId = AccountId;
@@ -204,11 +204,15 @@ mod memquota::raw {
     reclaimation_task_wakeup: Condvar,
 
   struct ARecord {
+    account_clones: u32,
+    children: Vec<AId>,
+    p: SlotMap<PId, PRecord>,
+  }
+  struct PRecord {
+    participation_clones: u32,
     used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
     reclaiming: bool,
-    acount_clones: u32,
-    children: Vec<AId>,
-    p: SlotMap<PId, Arc<dyn Participant>>,
+    Arc<dyn Participant>,
   }
 
   pub trait Participant {
@@ -231,8 +235,17 @@ mod memquota::raw {
   }
 
   pub struct Account {
+    // existence of this field prevents us exposing the Arc, hence separate WeakAccount
     #[getter]
     aid: AId,
+    #[getter]
+    tracker: Arc<MemoryQuotaTracker>
+  }
+  pub struct WeakAccount {
+    // like Account but has Weak<> and doesn't count for account_clones
+
+  pub struct Participation {
+    pid: ParticipationId,
     // quota we have preemptively claimed for use by this Account
     // has been added to ARecord.used
     // but not yet returned by Account.claim
@@ -240,37 +253,34 @@ mod memquota::raw {
     // this arranges that most of the time we don't have to hammer a
     // single cache line
     local_quota: u16,
-    #[deref] // Actually, have an accessor
-    tracker: Arc<MemoryQuotaTracker>
+    #[getter]
+    account: WeakAccount,
+  }
 
-  // Optionally, later,
-  pub struct WeakAccount
-  // precisely like Account but doesn't count for account_clones
-
-  impl Account {
-    fn claim(&mut self, usize) -> Result<()> {
+  impl Participation {
+    pub fn claim(&mut self, usize) -> Result<()> {
        try to take usize from local_quota,
        failing that, get from tracker,
        possibly taking extra to put into local quota
 
-    fn release(&mut self usize) /* infallible */ {
+    pub fn release(&mut self usize) /* infallible */ {
        self.local_quota += usize;
        if local quota too big, call tracker.release
 
-    pub fn new_participant(&self, participant: Arc<dyn Participant>) -> PId {
-       self.tracker.new_participant(self.aid, participant);
-    }
-    // calling this only needed if individual participants are deleted without dropping
-    // all Accounts.
-    pub fn delete_participant(&self, Pid)
+  impl Account {
+    pub fn new_participant(self, participant: Weak<dyn Participant>) -> Participation
 
   /// An Account is a handle.  All clones refer to the same underlying conceptual Account.
   impl Clone for Account
+  /// Participation is a handle.  All clones are for use by the same Participant.
+  impl Clone for Participation
 
-  // dropping all Account clones will forget the Participants
   impl Drop for Account
+    decrement account_clones
+    the ARecord should no longer have anything in p
+  impl Drop for Participation
     decrement participation_clones
-    if zero, forget the account (subtracting its ARecord.used from TrackerInner_used)
+    if zero, forget the participant (subtracting its PRecord.used from TrackerInner_used)
 
   // gives you another view of the same particant
   impl Clone for Account {
@@ -280,16 +290,11 @@ mod memquota::raw {
     // claim will fail until a Partciipant is added
     pub fn new_account(&Arc<self>, parent: Option<AccountId>) -> Account {
 
-    pub fn new_participant(&Arc<self>, account_id: AccountId, Arc<dyn Participant>>) {
-    // calling this only needed if individual participants are deleted without dropping
-    // all Accounts.
-    pub fn delete_participant(&self, AccountId, ParticipantId)
-
-    fn claim(&self, pid: AId, req: usize) -> Result {
+    fn claim(&self, aid: AId, pid: PId,, req: usize) -> Result {
        let inner = self.0.lock().unwrap();
-       let p = inner.ps.get_mut(pid)
+       let acc = inner.ps.get_mut(aid)
          .ok_or_else(ParticipantForgottenError)?;
-       check that there are some Participants;
+       check that pid is in acc;
        self.used += req;
        p.used += req;
        if self.used > self.max { self.reclamation_task_wakeup.signal(); }
