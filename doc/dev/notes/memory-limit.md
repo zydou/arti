@@ -139,7 +139,7 @@ mod memquota::mpsc_queue {
       let peeked = { obvious impl involving peeked and rx };
       return peeked.when
     }
-    fn reclaim(self: &Arc<Self>, _, _, token) {
+    fn reclaim(self: Arc<Self>, _, _, token) {
       let state = self.inner.upgrade()?.state.lock();
       for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
       // allow memory manager to continue
@@ -213,13 +213,9 @@ mod memquota::raw {
 
   pub trait Participant {
     fn get_oldest(&self) -> Option<RoughTime>;
-    /// MAY BE CALLED REENTRANTLY as a result of claim() !
-    // not async because &self borrows from TrackerInner
-    // ^ XXXX this is now false
-    //
     // Should free *at least* all memory at least as old as next_oldest
     // (can be done asynchronously) and then drop the ReclaimingToken.
-    fn reclaim(self: &Arc<Self>, discard_everything_as_old_as_this: RoughTime, 
+    fn reclaim(self: Arc<Self>, discard_everything_as_old_as_this: RoughTime,
                but_can_stop_discarding_after_freeing_this_much: usize,
                ReclaimingToken);
 
@@ -300,17 +296,23 @@ mod memquota::raw {
         while self.used > self.low_water {
           let oldest = heap.pop_lowest();
           let next_oldest = heap.peek_lowest();
-          self.ps[oldest].reclaiming = true;
-          // Actually, each entry is a Vec<Partipant> so we must iterate
           // fudge next_oldest by something to do with number of loop iterations,
           // to avoid one-allocation-each-time ping pong between multiple caches
-          self.ps[oldest].reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
-          // ^ do this for self.ps[oldest].children too
-          while self.ps[oldest].reclaiming { condvar wait }
-          // ^ do this for self.ps[oldest].children too
+
+          // Actually, each entry is a Vec<Partipant> so we must iterate or collect
+
+          note that we are reclaiming oldest;
+          oldest_particip = ps[oldest].clone();
+          unlock the lock;
+          oldest_particip.reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
+
+          reacquire lock;
+          while (oldest is still reclaiming) { condvar wait }
           // do some timeouts and checks on participant behaviour
           // if we have unresponsive participant, we can't kill it but we can
           // start reclaiming other stuff?  maybe in 1st cut we just log such a situation
+
+          // ^ do all this for self.ps[oldest].children too (maybe in parallel)
         }
 
   /// Type that is passed to a participant's `reclaim()`,
