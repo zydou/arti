@@ -31,7 +31,7 @@ See `doc/OnionService.md` for instructions and caveats.
 ### Breaking changes in lower-level crates
 
 - In [`tor-circmgr`], `Error::GuardNotUsable`, `Error::CircTimeout`,
-  `Error::Protocol` now contain the process-unique identifier of the circuit
+  and `Error::Protocol` now contain the process-unique identifier of the circuit
   that caused the error. ([!2003])
 - In [`tor-hsclient`], remove `HsClientNickname` and the nickname argument from
   `HsClientDescEncKeypairSpecifier::new`. ([!1998], [#1283])
