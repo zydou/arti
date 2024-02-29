@@ -163,7 +163,7 @@ Key types:
  * `pub trait Participant`.
    Implemented by things that relevantly allocate memory.
    Provides the callback methods used during reclamation.
-   Each participant has, somewhere, one or more `Account`s.
+   Each `Account` has, somewhere, one or more Participants.
    
  * `pub struct Account`.
    Obtained by a participant from a `MemoryQuotaTracker`,
