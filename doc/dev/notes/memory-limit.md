@@ -139,15 +139,15 @@ mod memquota::mpsc_queue {
       let peeked = { obvious impl involving peeked and rx };
       return peeked.when
     }
-    fn reclaim(self: Arc<Self>, _, _, token) {
+    async fn reclaim(self: Arc<Self>, _, _) -> Reclaimed {
       let state = self.inner.upgrade()?.state.lock();
       for n in state.collapse_notify.drain() { n(CollapseReason::MemoryReclaimed); }
       // allow memory manager to continue
-      token.forget_account();
       // proactively empty the queue in case the sender doesn't
       while let Some(_) = state.rx.try_pop() { 
         // no need to update memquota since we've told it we're collapsing
       }
+      Reclaimed::Collapsing
 
 ```
 
@@ -205,7 +205,7 @@ mod memquota::raw {
 
   struct ARecord {
     used: usize, // not 100% accurate, can lag, and be (boundedly) an overestimate
-    reclaiming: bool, // does a ReclaimingToken exist, see below
+    reclaiming: bool,
     acount_clones: u32,
     children: Vec<AId>,
     p: SlotMap<PId, Arc<dyn Participant>>,
@@ -214,10 +214,21 @@ mod memquota::raw {
   pub trait Participant {
     fn get_oldest(&self) -> Option<RoughTime>;
     // Should free *at least* all memory at least as old as next_oldest
-    // (can be done asynchronously) and then drop the ReclaimingToken.
-    fn reclaim(self: Arc<Self>, discard_everything_as_old_as_this: RoughTime,
-               but_can_stop_discarding_after_freeing_this_much: usize,
-               ReclaimingToken);
+    async fn reclaim(self: Arc<Self>, discard_everything_as_old_as_this: RoughTime,
+               but_can_stop_discarding_after_freeing_this_much: usize)
+               -> Reclaimed
+
+  enum Reclaimed {
+    // Participant is responding to reclamation by collapsing completely.
+    // All memory will be freed and `release`'d soon (if it hasn't been already).
+    // Tracker should forget the Participant and all memory it used, right away.
+    Collapsing,
+    // Participant has already reclaimed some memory as instructed;
+    // if this is not sufficient, tracker must call reclaim() again.
+    // XXXX there is a bug here with mixed setups.  (We may not want to implement
+    // XXXX Partial right away but the API ought to support it so let's do it now.)
+    Partial,
+  }
 
   pub struct Account {
     #[getter]
@@ -304,9 +315,12 @@ mod memquota::raw {
           note that we are reclaiming oldest;
           oldest_particip = ps[oldest].clone();
           unlock the lock;
-          oldest_particip.reclaim(next_oldest, self.used - self.low_water, ReclaimingToken { });
+          let r = oldest_particip.reclaim(next_oldest, self.used - self.low_water)
+              .await;
 
           reacquire lock;
+          if matches!(r, Collapsing) { delete the participant }
+
           while (oldest is still reclaiming) { condvar wait }
           // do some timeouts and checks on participant behaviour
           // if we have unresponsive participant, we can't kill it but we can
@@ -315,22 +329,6 @@ mod memquota::raw {
           // ^ do all this for self.ps[oldest].children too (maybe in parallel)
         }
 
-  /// Type that is passed to a participant's `reclaim()`,
-  /// and is dropped by the participant to notify the quota tracker
-  /// that participant has finished the requested reclamation.
-  ///
-  /// Ie dropping this means "I've done some stuff, please call reclaim()
-  /// again if necessary".
-  // Drop impl clears ARecord.reclaiming and signals
-  struct ReclaimingToken {
-
-  impl ReclaimingToken {
-    /// "this account is reclaiming by collapsing completely.
-    /// all memory it uses will be eventually `release`d,
-    /// but this may not have happened yet".
-    ///
-    /// The `reclaim()` method won't be called again.
-    fn forget_account(self) {
 ```
 
 ## Plan for caches
