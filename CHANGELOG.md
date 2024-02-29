@@ -3,6 +3,222 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.0 — 4 March 2024
+
+Arti 1.2.0 continues work on support for running onion services.
+You can now launch an onion service and expect it to run,
+although you may well encounter bugs.
+
+We have fixed a number of bugs and security issues,
+and have made the `onion-service-service` feature non-experimental.
+
+In the next releases, we will focus on implementing
+the missing security features and on improving stability.
+
+Don't rely on this onion service implementation for security yet;
+there are a number of [missing security features]
+we will need to develop before we can recommend them
+for actual use.
+
+See [`doc/OnionService.md`] for instructions and caveats.
+
+### Major bugfixes
+
+- Empty DATA messages are a way to inject an undetected traffic signal, so we
+  now reject empty DATA messages, and prevent them from being constructed
+  through the [`tor-cell`] API.  This is tracked as [TROVE-2024-001].
+  ([!1981], [#1269])
+
+### Breaking changes in lower-level crates
+
+- In [`tor-circmgr`], `Error::GuardNotUsable`, `Error::CircTimeout`,
+  and `Error::Protocol` now contain the process-unique identifier of the circuit
+  that caused the error. ([!2003])
+- In [`tor-hsclient`], remove `HsClientNickname` and the nickname argument from
+  `HsClientDescEncKeypairSpecifier::new`. ([!1998], [#1283])
+- In [`tor-hsrproxy`], add a `String` representing the error message to
+  `ProxyConfigError::UnrecognizedTargetType`,
+  `ProxyConfigError::InvalidTargetAddr`, `ProxyConfigError::InvalidPort`
+  ([!1973], [#1266])
+- In [`tor-hsservice`], remove the unimplemented `max_concurrent_streams_per_circuit`
+  configuration option from `OnionServiceConfigBuilder`.  We may implement and
+  reinstate it in a future release. ([!1996])
+- In [`tor-keymgr`], rename `KeyInfoExtractor` to `KeyPathInfoExtractor`.
+  ([bd85bffd0a388f57])
+- In [`tor-keymgr`], rename `{to,from}_component()` to `{to,from}_slug()`.
+  ([1040df929f643a2f])
+
+### Onion service development
+
+- Improve the key manager APIs. ([!1952], [#1115])
+- Add more context to [`tor-hsrproxy`] configuration error messages. ([!1973])
+- Design an API for vanguards. ([!1970])
+- Make the descriptor publisher conform with the specification, by periodically
+  republishing the hidden service descriptor.  This fixes a serious reachability
+  bug. ([!1971], [#1241], [#1280])
+- Rotate old introduction point relays even if they are not working.
+  ([72c021555e1095f1])
+- Expire old on-disk introduction point state. ([!1977], [!1982], [#1198])
+- Expose `HsNickname::new`. ([f3720ac2c0f16883])
+- Design the client and service configuration, and a CLI subcommand, for hidden
+  service client authorization. ([!1987])
+- Improve the ergonomics of our key listing and removal APIs. ([!1988], [#1271])
+- Include the `ArtiPath` in key path errors. ([!1960], [#1115])
+- Improve circuit error logging by including the process-unique identifier of
+  the circuit in error messages. ([!2003], [#1297])
+- Improve status reporting from onion services. ([!1966], [#1083])
+- Design an API for bandwidth rate limiting. ([!1965])
+- Improve descriptor publisher error reporting. ([!1991])
+- Remove the client nickname from onion service client key specifiers. ([!1998],
+  [#1283])
+- When reconfiguring an onion service, reject any changes that are inappropriate
+  or would put the service in a bad state. ([!1996], [#1209])
+- Remove the keystore directory configuration option, pending design work
+  relating to RPC and multi-user Arti. ([!1995], [#1202])
+- Mark `onion-service-service` and every feature it depends on as
+  non-experimental. ([!1993], [#1182])
+- Fix a bug that prevented the descriptor publisher from fully processing the
+  results of publish tasks, causing it to republish the descriptor unnecessarily
+  in some circumstances. ([!1983])
+
+### Other major new features in our Rust APIs
+
+- [`tor-persist`] now provides new `state_dir` APIs for instance iteration and
+  expiry needed for onion service state expiry.  ([!1968], [#1163])
+
+### Documentation and examples
+
+- Fix the casing of our recognized key paths. ([1a900081e945679e])
+- Minor updates to the release process. ([!1959], [!1963])
+- Fix typos in the [`tor-guardmgr`] README. ([!1980])
+- Reword the [`tor-keymgr`] README for clarity. ([489a2555f28daa6d])
+- Update onion service documentation. ([!1994], [#1287])
+- Clarify the onion service configuration instructions from
+  `doc/OnionService.md`, remove unsupported "unix:" example ([!1972], [#1266])
+
+### Testing
+
+- Improve replay log fork test. ([!1974], [#1264])
+- In the introduction point manager tests, avoid reusing the RNG seed.
+  ([b515baf27f194470])
+- Our [Shadow] CI tests now use the latest versions of `shadow` and `tgen`, and
+  no longer pull `libigraph` from bullseye. ([!1958])
+
+### Cleanups, minor features, and bugfixes
+
+- Allow overriding `cargo` in [`semver-checks`]. ([83c29b0d805f908e])
+- Introduce a [`list_crates_publish`] script. ([b03e5d5e11c52faf])
+- Fix compilation with musl. ([!1961], [#1264])
+- Add `fixup-features` to the main workspace, make various improvements to
+  `fixup-features`, `check_toposort`, `list_crates` ([!1969], [#1263])
+- Use `std::default::Default` instead of [educe]'s `Default` in a number of
+  places in preparation for the upgrade to educe 0.5. ([!1975], [#1257])
+- Require the Fast and Stable flags as appropriate. ([!1976], [#1100])
+- Refactor and improve error hinting in [`arti`] and [`arti-client`]. ([!1986],
+  [#1165])
+- Do not output ANSI escape codes when logging to file. ([!1999], [#1298])
+- Upgrade our dependency on [curve25519-dalek] from 4.1.1 to 4.1.2 ([!2000])
+- Upgrade to the latest versions of [event-listener], [rusqlite],
+  [async-broadcast], [signature], [config]. ([!2001], [!2004])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy and Jim Newsome.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+[!1297]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1297
+[!1961]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1961
+[!1952]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1952
+[!1958]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1958
+[!1959]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1959
+[!1960]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1960
+[!1963]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1963
+[!1965]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1965
+[!1966]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1966
+[!1968]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1968
+[!1969]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1969
+[!1970]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1970
+[!1971]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1971
+[!1972]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1972
+[!1973]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1973
+[!1974]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1974
+[!1975]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1975
+[!1976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1976
+[!1977]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1977
+[!1980]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1980
+[!1981]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1981
+[!1982]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1982
+[!1983]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1983
+[!1986]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1986
+[!1987]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1987
+[!1988]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1988
+[!1991]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1991
+[!1993]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1993
+[!1994]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1994
+[!1995]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1995
+[!1996]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1996
+[!1998]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1998
+[!1999]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1999
+[!2000]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2000
+[!2001]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2001
+[!2003]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2003
+[!2004]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2004
+[#1083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1083
+[#1100]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1100
+[#1115]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1115
+[#1163]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1163
+[#1165]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1165
+[#1182]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1182
+[#1198]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1198
+[#1202]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1202
+[#1209]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1209
+[#1241]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1241
+[#1257]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1257
+[#1263]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1263
+[#1264]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1264
+[#1266]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1266
+[#1269]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1269
+[#1271]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1271
+[#1280]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1280
+[#1283]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1283
+[#1287]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1287
+[#1297]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1297
+[#1298]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1298
+[1040df929f643a2f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1040df929f643a2fd2a1ccb0400f1dd2f2beac98
+[1a900081e945679e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1a900081e945679e80d29797ae00c206f2cd78f1
+[489a2555f28daa6d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/489a2555f28daa6d5f523480f434f27292783abd
+[72c021555e1095f1]: https://gitlab.torproject.org/tpo/core/arti/-/commit/72c021555e1095f1be3f658acac5655b54842347
+[83c29b0d805f908e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/83c29b0d805f908e98ed1742491f3145f547fb2e
+[b03e5d5e11c52faf]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b03e5d5e11c52faf441294c8c883a2dfbc0d2021
+[b515baf27f194470]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b515baf27f1944708285849503dfcd08bb7ac73b
+[bd85bffd0a388f57]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bd85bffd0a388f579d42c8a0758091232bf901a0
+[f3720ac2c0f16883]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f3720ac2c0f16883abc1597ad828f99022a0e320
+[Shadow]: https://shadow.github.io/
+[TROVE-2024-001]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
+[`arti`]: https://tpo.pages.torproject.net/core/doc/rust/arti/index.html
+[`list_crates_publish`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/list_crates_publish
+[`semver-checks`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/semver-checks
+[`tor-cell`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cell/index.html
+[`tor-circmgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_circmgr/index.html
+[`tor-guardmgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_guardmgr/index.html
+[`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
+[`tor-hsrproxy`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsrproxy/index.html
+[`tor-hsservice`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsservice/index.html
+[`tor-keymgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_keymgr/index.html
+[`tor-persist`]: https://tpo.pages.torproject.net/core/doc/rust/tor_persist/index.html
+[async-broadcast]: https://crates.io/crates/async-broadcast
+[config]: https://crates.io/crates/config
+[curve25519-dalek]: https://crates.io/crates/curve25519-dalek
+[educe]: https://crates.io/crates/educe
+[event-listener]: https://crates.io/crates/event-listener
+[rusqlite]: https://crates.io/crates/rusqlite
+[signature]: https://crates.io/crates/signature
+
+
 # Arti 1.1.13 — 5 February 2024
 
 Arti 1.1.13 continues work on support for running onion services.
