@@ -66,7 +66,7 @@ thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-bytes = { version = "0.10.0", path = "../tor-bytes" }
-tor-cell = { version = "0.16.0", path = "../tor-cell", features = ["hs"] }
+tor-cell = { version = "0.16.1", path = "../tor-cell", features = ["hs"] }
 tor-cert = { path = "../tor-cert", version = "0.10.0" }
 tor-circmgr = { version = "0.15.0", path = "../tor-circmgr", features = ["hs-service"] }
 tor-config = { version = "0.10.0", path = "../tor-config" }
@@ -77,17 +77,17 @@ tor-keymgr = { version = "0.7.0", path = "../tor-keymgr", features = ["keymgr"] 
 tor-linkspec = { version = "0.11.0", path = "../tor-linkspec", features = ["verbatim", "decode"] }
 tor-llcrypto = { version = "0.7.0", path = "../tor-llcrypto" }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.3.0" }
-tor-netdir = { version = "0.12.0", path = "../tor-netdir", features = ["hs-service"] }
+tor-netdir = { version = "0.12.1", path = "../tor-netdir", features = ["hs-service"] }
 tor-netdoc = { version = "0.12.1", path = "../tor-netdoc", features = ["hs-service"] }
 tor-persist = { version = "0.10.1", path = "../tor-persist", features = ["state-dir"] }
-tor-proto = { version = "0.16.0", path = "../tor-proto", features = [
+tor-proto = { version = "0.16.1", path = "../tor-proto", features = [
     "experimental-api",
     "hs-service",
     "send-control-msg",
 ] }
 tor-protover = { version = "0.6.0", path = "../tor-protover" }
 tor-rtcompat = { version = "0.10.0", path = "../tor-rtcompat" }
-tor-units = { path = "../tor-units", version = "0.6.1" }
+tor-units = { path = "../tor-units", version = "0.6.5" }
 tracing = "0.1.36"
 void = "1"
 
@@ -100,7 +100,7 @@ slotmap = "1.0.6"
 tempfile = "3"
 test-temp-dir = { version = "0.2.0", path = "../test-temp-dir" }
 tor-keymgr = { version = "0.7.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
-tor-netdir = { version = "0.12.0", path = "../tor-netdir", features = ["hs-service", "testing"] }
+tor-netdir = { version = "0.12.1", path = "../tor-netdir", features = ["hs-service", "testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.12.1", features = ["testing"] }
 tor-persist = { version = "0.10.1", path = "../tor-persist", features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.13.0" }

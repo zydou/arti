@@ -42,7 +42,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-bytes = { version = "0.10.0", path = "../tor-bytes" }
 tor-error = { version = "0.6.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.7.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
-tor-units = { path = "../tor-units", version = "0.6.1" }
+tor-units = { path = "../tor-units", version = "0.6.5" }
 zeroize = { version = "1", optional = true }
 
 [dev-dependencies]

@@ -36,7 +36,7 @@ __is_nonadditive = []
 
 [dependencies]
 anyhow = "1.0.23"
-arti-client = { path = "../arti-client", version = "0.14.0" }
+arti-client = { path = "../arti-client", version = "0.14.1" }
 educe = "0.4.6"
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"

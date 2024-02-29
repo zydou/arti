@@ -1,6 +1,6 @@
 [package]
 name = "tor-proto"
-version = "0.16.0"
+version = "0.16.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -76,7 +76,7 @@ tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.10.0" }
-tor-cell = { path = "../tor-cell", version = "0.16.0" }
+tor-cell = { path = "../tor-cell", version = "0.16.1" }
 tor-cert = { path = "../tor-cert", version = "0.10.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.7.0" }
 tor-config = { path = "../tor-config", version = "0.10.0" }
@@ -88,7 +88,7 @@ tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.3.0" }
 tor-protover = { path = "../tor-protover", version = "0.6.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.10.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.13.0" }
-tor-units = { path = "../tor-units", version = "0.6.1" }
+tor-units = { path = "../tor-units", version = "0.6.5" }
 tracing = "0.1.36"
 typenum = "1.12"
 visibility = { version = "0.1.0", optional = true }

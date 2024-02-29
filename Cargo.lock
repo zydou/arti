@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -4976,7 +4976,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.16.0"
+version = "0.16.1"
 dependencies = [
  "bitflags 2.4.2",
  "bytes",
@@ -5619,7 +5619,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "bitflags 2.4.2",
  "derive_builder_fork_arti",
@@ -5728,7 +5728,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.16.0"
+version = "0.16.1"
 dependencies = [
  "asynchronous-codec",
  "bitvec",
@@ -5897,7 +5897,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.6.4"
+version = "0.6.5"
 dependencies = [
  "derive_more",
  "float-cmp",

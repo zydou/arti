@@ -81,10 +81,10 @@ tor-geoip = { path = "../tor-geoip", version = "0.2.0", optional = true }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.14.1" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.6.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.11.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.12.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.12.1" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.12.1" }
 tor-persist = { path = "../tor-persist", version = "0.10.1" }
-tor-proto = { path = "../tor-proto", version = "0.16.0" }
+tor-proto = { path = "../tor-proto", version = "0.16.1" }
 tor-protover = { path = "../tor-protover", version = "0.6.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.10.0" }
 tracing = "0.1.36"
@@ -96,7 +96,7 @@ weak-table = "0.3.0"
 futures-await-test = "0.3.0"
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.14.1", features = ["testing"] }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.7.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.12.0", features = ["testing"] }
+tor-netdir = { path = "../tor-netdir", version = "0.12.1", features = ["testing"] }
 tor-persist = { path = "../tor-persist", version = "0.10.1", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.10.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.13.0" }
