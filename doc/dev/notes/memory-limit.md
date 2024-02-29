@@ -355,6 +355,12 @@ mod memquota::raw {
 
   impl MemoryQuotaTracker {
     // claim will fail until a Partciipant is added
+    //
+    // Right now, parent can't be changed after construction of an Account,
+    // so circular accounts are impossible.
+    // But, we might choose to support that in the future.  Circular accounts parent relationships
+    // would need just a little care in the reclamation loop to avoid inifitely looping,
+    // but aren't inherently unsupportable.
     pub fn new_account(&Arc<self>, parent: Option<AccountId>) -> Account {
 
     fn claim(&self, aid: AId, pid: PId,, req: usize) -> Result {
