@@ -314,13 +314,21 @@ mod memquota::raw {
   pub struct Participation {
     pid: ParticipationId,
     // quota we have preemptively claimed for use by this Account
-    // has been added to ARecord.used
-    // but not yet returned by Account.claim
+    // has been added to PRecord.used
+    // but not yet returned by Participation.claim
     //
     // this arranges that most of the time we don't have to hammer a
     // single cache line
     //
     // The value here is bounded by a configured limit
+    //
+    // Invariants on memory accounting:
+    //
+    //  * `Participation.local_quota < configured limit`
+    //  * `Participation.local_quota + sum(Participation::claim) - sum(Participation::release) == `PRecord.used`
+    //    except if `PRecord` has been deleted
+    //    (ie when we aren't tracking any more and think the Participant is Collapsing).
+    //  * `sum(PRecord.used) == TrackerInner.total_used`
     local_quota: usize,
     #[getter]
     account: WeakAccount,
