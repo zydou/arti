@@ -6,8 +6,8 @@
 # Please keep this list topologically sorted by dependency relation, so
 # that every crate appears _before_ any other crate that depends on it.
 members = [
-    "crates/fslock-guard",
     "crates/test-temp-dir",
+    "crates/fslock-guard",
     "crates/hashx",
     "crates/equix",
     "crates/tor-basic-utils",

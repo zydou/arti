@@ -19,6 +19,9 @@ full = []
 fslock = { version = "0.2.0", package = "fslock-arti-fork" }
 thiserror = "1"
 
+[dev-dependencies]
+test-temp-dir = { version = "0.2.0", path = "../test-temp-dir" }
+
 [target.'cfg(windows)'.dependencies.winapi]
 version = "^0.3.8"
 

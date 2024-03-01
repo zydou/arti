@@ -1942,6 +1942,7 @@ name = "fslock-guard"
 version = "0.1.0"
 dependencies = [
  "fslock-arti-fork",
+ "test-temp-dir",
  "thiserror",
  "winapi",
 ]
