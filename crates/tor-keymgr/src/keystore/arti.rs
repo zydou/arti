@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
+use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 
 use fs_mistrust::{CheckedDir, Mistrust};
@@ -273,7 +273,13 @@ impl Keystore for ArtiNativeKeystore {
                 let key_type = KeyType::from(extension);
                 // Strip away the file extension
                 let path = path.with_extension("");
-                ArtiPath::new(path.display().to_string())
+                // Construct slugs in platform-independent way
+                let slugs = path
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(&arti_path::PATH_SEP.to_string());
+                ArtiPath::new(slugs)
                     .map(|path| Some((path.into(), key_type)))
                     .map_err(|e| {
                         malformed_err(&path, err::MalformedPathError::InvalidArtiPath(e)).into()
