@@ -403,14 +403,16 @@ mod test {
         assert!(matches!(nonesuch, Ok(None)));
 
         // bad utf8 is an error.
-        std::fs::write(dir.path().join("state/Hello.json"), b"hello world \x00\xff").unwrap();
+        let file: PathBuf = ["state", "Hello.json"].iter().collect();
+        std::fs::write(dir.path().join(&file), b"hello world \x00\xff").unwrap();
         let bad_utf8: Result<Option<String>> = store.load("Hello");
         assert!(bad_utf8.is_err());
         assert_eq!(
             bad_utf8.unwrap_err().to_string(),
             format!(
-                "IO error while loading persistent data on state/Hello.json in {}",
-                dir.path().display(),
+                "IO error while loading persistent data on {} in {}",
+                file.to_string_lossy(),
+                dir.path().anonymize_home(),
             ),
         );
     }
