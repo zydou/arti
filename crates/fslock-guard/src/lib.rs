@@ -279,10 +279,10 @@ mod os {
         let f2 = File::open(path)?;
 
         let (i1, i2) = unsafe {
-            if GetFileInformationByHandle(lf.as_raw_handle(), m1.as_mut_ptr()) == 0 {
+            if GetFileInformationByHandle(lf.as_raw_handle() as _, m1.as_mut_ptr()) == 0 {
                 return Err(std::io::Error::last_os_error());
             }
-            if GetFileInformationByHandle(f2.as_raw_handle(), m2.as_mut_ptr()) == 0 {
+            if GetFileInformationByHandle(f2.as_raw_handle() as _, m2.as_mut_ptr()) == 0 {
                 return Err(std::io::Error::last_os_error());
             }
             (m1.assume_init(), m2.assume_init())
