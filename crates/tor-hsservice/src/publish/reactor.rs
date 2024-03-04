@@ -52,10 +52,6 @@
 
 use super::*;
 
-use crate::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
-use crate::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::publish::reupload_timer::ReuploadTimer;
-
 /// The upload rate-limiting threshold.
 ///
 /// Before initiating an upload, the reactor checks if the last upload was at least

@@ -9,6 +9,9 @@ use crate::internal_prelude::*;
 
 use reactor::Reactor;
 use reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
+use backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
+use descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use reupload_timer::ReuploadTimer;
 
 pub use reactor::UploadError;
 pub(crate) use reactor::{Mockable, Real, OVERALL_UPLOAD_TIMEOUT};
