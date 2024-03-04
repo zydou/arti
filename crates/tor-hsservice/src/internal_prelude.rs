@@ -68,7 +68,6 @@ pub(crate) use futures::{SinkExt as _, StreamExt as _};
 pub(crate) use itertools::chain;
 pub(crate) use itertools::Itertools as _;
 pub(crate) use postage::broadcast;
-pub(crate) use postage::sink::SendError;
 pub(crate) use postage::watch;
 pub(crate) use rand::Rng;
 pub(crate) use rand_core::{CryptoRng, RngCore};
