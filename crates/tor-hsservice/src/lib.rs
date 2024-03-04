@@ -41,17 +41,6 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-use std::fmt::{self, Display};
-use std::str::FromStr;
-
-use derive_adhoc::Adhoc;
-use serde::{Deserialize, Serialize};
-use serde::{Deserializer, Serializer};
-use thiserror::Error;
-
-use tor_basic_utils::impl_debug_hex;
-use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
-
 #[macro_use] // SerdeStringOrTransparent
 mod time_store;
 
@@ -93,6 +82,8 @@ pub mod time_store_for_doctests_unstable_no_semver_guarantees {
     pub use crate::time_store::*;
 }
 
+use internal_prelude::*;
+
 // ---------- public exports ----------
 
 pub use anon_level::Anonymity;
@@ -108,38 +99,7 @@ pub use req::{RendRequest, StreamRequest};
 pub use crate::netdir::NetdirProviderShutdown;
 pub use publish::UploadError as DescUploadError;
 
-use err::IptStoreError;
-use ipt_lid::{InvalidIptLocalId, IptLocalId};
-
 pub use helpers::handle_rend_requests;
-
-// ---------- private imports ----------
-
-use std::sync::{Arc, Mutex};
-
-use futures::channel::mpsc;
-use tor_async_utils::oneshot;
-use futures::Stream;
-use postage::broadcast;
-use safelog::sensitive;
-use tor_async_utils::PostageWatchSenderExt as _;
-use tor_circmgr::hspool::HsCircPool;
-use tor_config::{Reconfigure, ReconfigureError};
-use tor_hscrypto::pk::HsId;
-use tor_hscrypto::pk::HsIdKey;
-use tor_hscrypto::pk::HsIdKeypair;
-use tor_keymgr::KeyMgr;
-use tor_keymgr::KeystoreSelector;
-use tor_llcrypto::pk::curve25519;
-use tor_netdir::NetDirProvider;
-use tor_persist::state_dir::StateDirectory;
-use tor_rtcompat::Runtime;
-use tracing::info;
-
-use crate::ipt_mgr::IptManager;
-use crate::ipt_set::IptsManagerView;
-use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
-use crate::publish::Publisher;
 
 //---------- top-level service implementation (types and methods) ----------
 
