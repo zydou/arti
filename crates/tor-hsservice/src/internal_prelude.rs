@@ -19,12 +19,9 @@
 pub(crate) use std::any::Any;
 pub(crate) use std::cmp::max;
 pub(crate) use std::cmp::Ordering;
-pub(crate) use std::collections::BinaryHeap;
-pub(crate) use std::collections::HashMap;
-pub(crate) use std::collections::{HashSet, VecDeque};
+pub(crate) use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 pub(crate) use std::error::Error as StdError;
-pub(crate) use std::fmt::Debug;
-pub(crate) use std::fmt::{self, Display};
+pub(crate) use std::fmt::{self, Debug, Display};
 pub(crate) use std::fs;
 pub(crate) use std::future::Future;
 pub(crate) use std::hash::Hash;
@@ -35,46 +32,33 @@ pub(crate) use std::ops::{Deref, DerefMut};
 pub(crate) use std::panic::AssertUnwindSafe;
 pub(crate) use std::path::{Path, PathBuf};
 pub(crate) use std::str::FromStr;
-pub(crate) use std::sync::MutexGuard;
-pub(crate) use std::sync::{Arc, Mutex};
-pub(crate) use std::time::SystemTime;
-pub(crate) use std::time::{Duration, Instant};
-pub(crate) use std::{
-    borrow::Cow,
-    ffi::OsStr,
-    fs::{File, OpenOptions},
-    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
-};
+pub(crate) use std::sync::{Arc, Mutex, MutexGuard};
+pub(crate) use std::time::{Duration, Instant, SystemTime};
+pub(crate) use std::borrow::Cow;
+pub(crate) use std::ffi::OsStr;
+pub(crate) use std::fs::{File, OpenOptions};
+pub(crate) use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 
 //---------- upstreams ----------
 
 pub(crate) use async_trait::async_trait;
 pub(crate) use base64ct::{Base64Unpadded, Encoding as _};
-pub(crate) use derive_adhoc::define_derive_adhoc;
-pub(crate) use derive_adhoc::Adhoc;
+pub(crate) use derive_adhoc::{define_derive_adhoc, Adhoc};
 pub(crate) use derive_builder::Builder;
-pub(crate) use derive_more::Constructor;
-pub(crate) use derive_more::{Deref, DerefMut};
-pub(crate) use derive_more::{From, Into};
+pub(crate) use derive_more::{Constructor, Deref, DerefMut, From, Into};
 pub(crate) use educe::Educe;
 pub(crate) use futures::stream::BoxStream;
-pub(crate) use futures::task::SpawnError;
-pub(crate) use futures::Stream;
-pub(crate) use futures::{channel::mpsc, task::SpawnExt as _, FutureExt as _};
-pub(crate) use futures::{future, select_biased};
-pub(crate) use futures::{future::Either};
-pub(crate) use futures::{AsyncRead, AsyncWrite, TryStreamExt as _};
-pub(crate) use futures::{SinkExt as _, StreamExt as _};
-pub(crate) use itertools::chain;
-pub(crate) use itertools::Itertools as _;
-pub(crate) use postage::broadcast;
-pub(crate) use postage::watch;
+pub(crate) use futures::channel::mpsc;
+pub(crate) use futures::task::{SpawnError, SpawnExt as _};
+pub(crate) use futures::select_biased;
+pub(crate) use futures::future::{self, Either};
+pub(crate) use futures::{AsyncRead, AsyncWrite, Stream};
+pub(crate) use futures::{FutureExt as _, SinkExt as _, StreamExt as _, TryStreamExt as _};
+pub(crate) use itertools::{chain, Itertools as _};
+pub(crate) use postage::{broadcast, watch};
 pub(crate) use rand::Rng;
 pub(crate) use rand_core::{CryptoRng, RngCore};
-pub(crate) use safelog::sensitive;
-pub(crate) use safelog::Redactable as _;
-pub(crate) use serde::{Deserialize, Serialize};
-pub(crate) use serde::{Deserializer, Serializer};
+pub(crate) use serde::{Deserialize, Serialize, Deserializer, Serializer};
 pub(crate) use thiserror::Error;
 pub(crate) use tor_keymgr::KeyMgr;
 pub(crate) use tracing::{debug, error, info, trace, warn};
@@ -83,6 +67,7 @@ pub(crate) use void::{ResultVoidErrExt as _, Void};
 //---------- tor-* crates ----------
 
 pub(crate) use retry_error::RetryError;
+pub(crate) use safelog::{sensitive, Redactable as _};
 pub(crate) use tor_async_utils::oneshot;
 pub(crate) use tor_async_utils::DropNotifyWatchSender;
 pub(crate) use tor_async_utils::PostageWatchSenderExt as _;
