@@ -39,6 +39,12 @@ pub(crate) use std::cmp::max;
 pub(crate) use std::collections::BinaryHeap;
 pub(crate) use std::iter;
 pub(crate) use std::cmp::Ordering;
+pub(crate) use std::{
+    borrow::Cow,
+    ffi::OsStr,
+    fs::{File, OpenOptions},
+    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
+};
 
 //---------- upstreams ----------
 
@@ -138,6 +144,8 @@ pub(crate) use tor_circmgr::{
 pub(crate) use tor_linkspec::{
     OwnedChanTargetBuilder,
 };
+pub(crate) use tor_persist::state_dir::ContainsInstanceStateGuard as _;
+pub(crate) use tor_persist::state_dir::{InstanceRawSubdir, LockFileGuard};
 
 //---------- names from this crate ----------
 
@@ -177,3 +185,4 @@ pub(crate) use crate::{
 pub(crate) use crate::ipt_set::{IptsPublisherUploadView};
 pub(crate) use crate::keys::expire_publisher_keys;
 pub(crate) use crate::status::{State};
+pub(crate) use crate::ipt_mgr::CreateIptError;
