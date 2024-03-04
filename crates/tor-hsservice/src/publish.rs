@@ -200,7 +200,7 @@ mod test {
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::publish::reactor::MockableClientCirc;
     use crate::svc::test::create_storage_handles;
-    use crate::{Anonymity, HsNickname, IptLocalId};
+    use crate::{Anonymity, HsNickname};
     use crate::{
         BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
         HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
@@ -564,7 +564,7 @@ mod test {
                 .enumerate()
                 .map(|(i, ipt)| IptInSet {
                     ipt: ipt.clone(),
-                    lid: IptLocalId([i.try_into().unwrap(); 32]),
+                    lid: [i.try_into().unwrap(); 32].into(),
                 })
                 .collect();
 

@@ -647,7 +647,7 @@ mod test {
                 .ipts
                 .push(IptInSet {
                     ipt: test_intro_point(),
-                    lid: IptLocalId([42; 32]),
+                    lid: [42; 32].into(),
                 });
 
             pv_expect_one_await_update(&mut pv).await;
