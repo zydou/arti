@@ -34,6 +34,7 @@ pub(crate) use std::ops::{Deref, DerefMut};
 pub(crate) use std::sync::{MutexGuard};
 pub(crate) use std::error::Error as StdError;
 pub(crate) use std::future::Future;
+pub(crate) use std::time::SystemTime;
 
 //---------- upstreams ----------
 
@@ -63,6 +64,7 @@ pub(crate) use derive_more::{Deref, DerefMut};
 pub(crate) use itertools::{chain};
 pub(crate) use derive_adhoc::{define_derive_adhoc};
 pub(crate) use derive_more::Constructor;
+pub(crate) use rand_core::{CryptoRng, RngCore};
 
 //---------- tor-* crates ----------
 
@@ -104,6 +106,11 @@ pub(crate) use tor_hscrypto::time::TimePeriod;
 pub(crate) use tor_keymgr::derive_adhoc_template_KeySpecifier;
 pub(crate) use tor_netdir::HsDirParams;
 pub(crate) use retry_error::RetryError;
+pub(crate) use tor_error::{into_bad_api_usage};
+pub(crate) use tor_hscrypto::pk::{HsBlindIdKey, HsDescSigningKeypair};
+pub(crate) use tor_hscrypto::RevisionCounter;
+pub(crate) use tor_netdoc::doc::hsdesc::{create_desc_sign_key_cert, HsDescBuilder};
+pub(crate) use tor_netdoc::NetdocBuilder;
 
 //---------- names from this crate ----------
 
@@ -135,3 +142,9 @@ pub(crate) use crate::{StreamRequest};
 pub(crate) use crate::time_store;
 pub(crate) use crate::status::PublisherStatusSender;
 pub(crate) use crate::{ipt_set::IptsPublisherView};
+pub(crate) use crate::config::DescEncryptionConfig;
+pub(crate) use crate::ipt_set::IptSet;
+pub(crate) use crate::{
+    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier,
+};
+
