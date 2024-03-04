@@ -59,7 +59,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use async_trait::async_trait;
 use derive_more::{From, Into};
-use futures::channel::mpsc::{self, Receiver, Sender};
+use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use futures::{select_biased, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, TryStreamExt};
 use postage::sink::SendError;
@@ -164,11 +164,11 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// A channel for sending upload completion notifications.
     ///
     /// This channel is polled in the main loop of the reactor.
-    upload_task_complete_rx: Receiver<TimePeriodUploadResult>,
+    upload_task_complete_rx: mpsc::Receiver<TimePeriodUploadResult>,
     /// A channel for receiving upload completion notifications.
     ///
     /// A copy of this sender is handed to each upload task.
-    upload_task_complete_tx: Sender<TimePeriodUploadResult>,
+    upload_task_complete_tx: mpsc::Sender<TimePeriodUploadResult>,
     /// A sender for notifying any pending upload tasks that the reactor is shutting down.
     ///
     /// Receivers can use this channel to find out when reactor is dropped.
@@ -1244,7 +1244,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         params: HsDirParams,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
-        mut upload_task_complete_tx: Sender<TimePeriodUploadResult>,
+        mut upload_task_complete_tx: mpsc::Sender<TimePeriodUploadResult>,
         shutdown_rx: broadcast::Receiver<Void>,
     ) -> Result<(), FatalError> {
         let time_period = params.time_period();
