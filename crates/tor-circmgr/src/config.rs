@@ -12,6 +12,7 @@ use tor_guardmgr::{GuardFilter, GuardMgrConfig};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_netdoc::types::policy::AddrPortPattern;
+use tor_relay_selection::RelaySelectionConfig;
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -139,6 +140,15 @@ impl PathConfig {
         let mut filt = GuardFilter::default();
         filt.push_reachable_addresses(self.reachable_addrs.clone());
         filt
+    }
+
+    /// Return a new [`RelaySelectionConfig`] reflecting the rules in this
+    /// configuration.
+    pub(crate) fn relay_selection_config(&self) -> RelaySelectionConfig<'_> {
+        RelaySelectionConfig {
+            long_lived_ports: &self.long_lived_ports,
+            subnet_config: self.subnet_config(),
+        }
     }
 }
 

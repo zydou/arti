@@ -49,8 +49,8 @@ vanguards = ["tor-guardmgr/vanguards", "__is_experimental"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental = ["experimental-api", "ntor_v3", "testing", "geoip", "vanguards"]
+geoip = ["tor-geoip", "tor-netdir/geoip", "tor-relay-selection/geoip", "__is_experimental"]
 experimental-api = ["visibility", "__is_experimental"]
-geoip = ["tor-geoip", "tor-netdir/geoip", "__is_experimental"]
 ntor_v3 = ["tor-proto/ntor_v3", "__is_experimental"]
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
