@@ -434,6 +434,7 @@ where
                             .help("The nickname of the service")
                     )
                     .subcommand_required(true)
+                    .arg_required_else_help(true)
                     .subcommand(
                         Command::new("onion-name")
                             .about(
