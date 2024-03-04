@@ -146,6 +146,14 @@ pub(crate) use tor_linkspec::{
 };
 pub(crate) use tor_persist::state_dir::ContainsInstanceStateGuard as _;
 pub(crate) use tor_persist::state_dir::{InstanceRawSubdir, LockFileGuard};
+pub(crate) use tor_hscrypto::{
+    pk::{HsIntroPtSessionIdKey},
+};
+pub(crate) use tor_keymgr::{KeyPath, KeyPathRange, KeySpecifierComponent};
+pub(crate) use tor_persist::slug::Slug;
+pub(crate) use tor_proto::{
+    stream::DataStream,
+};
 
 //---------- names from this crate ----------
 
@@ -186,3 +194,8 @@ pub(crate) use crate::ipt_set::{IptsPublisherUploadView};
 pub(crate) use crate::keys::expire_publisher_keys;
 pub(crate) use crate::status::{State};
 pub(crate) use crate::ipt_mgr::CreateIptError;
+pub(crate) use crate::{
+    keys::BlindIdKeypairSpecifierPattern,
+    rend_handshake::{self, RendCircConnector},
+    ClientError,
+};

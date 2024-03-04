@@ -3,29 +3,14 @@
 //! These requests are yielded on a stream, and the calling code needs to decide
 //! whether to permit or reject them.
 
-use educe::Educe;
-use futures::{Stream, StreamExt};
-use itertools::Itertools;
-use std::sync::Arc;
+use crate::internal_prelude::*;
+
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 use tor_hscrypto::{
-    pk::{HsBlindIdKeypair, HsIdKey, HsIdKeypair, HsIntroPtSessionIdKey, HsSvcNtorKeypair},
-    time::TimePeriod,
     Subcredential,
 };
-use tor_keymgr::{KeyMgr, KeyPath, KeyPathRange, KeySpecifierComponent, KeySpecifierPattern};
-use tor_persist::slug::Slug;
-
-use tor_error::{internal, Bug};
 use tor_proto::{
-    circuit::ClientCirc,
-    stream::{DataStream, IncomingStream, IncomingStreamRequest},
-};
-
-use crate::{
-    keys::BlindIdKeypairSpecifierPattern,
-    rend_handshake::{self, RendCircConnector},
-    ClientError, FatalError, HsIdKeypairSpecifier, HsNickname, IptLocalId,
+    stream::{IncomingStream, IncomingStreamRequest},
 };
 
 /// Request to complete an introduction/rendezvous handshake.
