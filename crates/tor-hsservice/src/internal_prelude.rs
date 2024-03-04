@@ -72,7 +72,7 @@ pub(crate) use {
 pub(crate) use {
     retry_error::RetryError,
     safelog::{sensitive, Redactable as _},
-    tor_async_utils::{oneshot, DropNotifyWatchSender, PostageWatchSenderExt as _,},
+    tor_async_utils::{oneshot, DropNotifyWatchSender, PostageWatchSenderExt as _},
     tor_basic_utils::{impl_debug_hex, retry::RetryDelay, RngExt as _},
     tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg as _},
     tor_circmgr::build::circparameters_from_netparameters,
@@ -81,40 +81,32 @@ pub(crate) use {
     tor_dirclient::request::HsDescUploadRequest,
     tor_dirclient::{send_request, Error as DirClientError, RequestFailedError},
     tor_error::define_asref_dyn_std_error,
-    tor_error::{into_bad_api_usage, internal, into_internal, bad_api_usage},
-    tor_error::{warn_report, debug_report, error_report, info_report},
+    tor_error::{bad_api_usage, internal, into_bad_api_usage, into_internal},
+    tor_error::{debug_report, error_report, info_report, warn_report},
     tor_error::{Bug, ErrorKind, ErrorReport as _, HasKind},
     tor_hscrypto::ope::AesOpeKey,
     tor_hscrypto::pk::{
-        HsClientDescEncKey, HsId, HsIdKey, HsIdKeypair, HsIntroPtSessionIdKey,
-        HsBlindId, HsBlindIdKeypair,
-        HsBlindIdKey, HsDescSigningKeypair,
-        HsIntroPtSessionIdKeypair, HsSvcNtorKeypair
+        HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKey, HsDescSigningKeypair, HsId,
+        HsIdKey, HsIdKeypair, HsIntroPtSessionIdKey, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair,
     },
     tor_hscrypto::time::TimePeriod,
     tor_hscrypto::RevisionCounter,
     tor_keymgr::{
-        derive_adhoc_template_KeySpecifier,
-        KeySpecifier,
-        KeySpecifierComponentViaDisplayFromStr,
-        KeySpecifierPattern as _,
-        KeystoreSelector,
+        derive_adhoc_template_KeySpecifier, KeyMgr, KeySpecifier,
+        KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern as _, KeystoreSelector,
         {KeyPath, KeyPathRange, KeySpecifierComponent},
-        KeyMgr
     },
     tor_linkspec::{
-        CircTarget, OwnedChanTargetBuilder, OwnedCircTarget, HasRelayIds as _, RelayIds
+        CircTarget, HasRelayIds as _, OwnedChanTargetBuilder, OwnedCircTarget, RelayIds,
     },
     tor_llcrypto::pk::{curve25519, ed25519},
     tor_log_ratelim::log_ratelim,
-    tor_netdir::{HsDirParams, NetDirProvider, NetDir, Relay, Timeliness},
+    tor_netdir::{HsDirParams, NetDir, NetDirProvider, Relay, Timeliness},
     tor_netdoc::doc::hsdesc::{create_desc_sign_key_cert, HsDescBuilder},
     tor_netdoc::NetdocBuilder,
     tor_persist::slug::Slug,
     tor_persist::state_dir::{
-        ContainsInstanceStateGuard as _,
-        StateDirectory,
-        InstanceRawSubdir, LockFileGuard
+        ContainsInstanceStateGuard as _, InstanceRawSubdir, LockFileGuard, StateDirectory,
     },
     tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition},
     tor_proto::stream::DataStream,
@@ -153,17 +145,13 @@ pub(crate) use {
     crate::StreamRequest,
     crate::{ipt_establish, ShutdownStatus},
     crate::{
-       keys::BlindIdKeypairSpecifierPattern,
-       rend_handshake::{self, RendCircConnector},
-       ClientError,
+        keys::BlindIdKeypairSpecifierPattern,
+        rend_handshake::{self, RendCircConnector},
+        ClientError,
     },
     crate::{req::RendRequestContext, HsNickname, LinkSpecs, NtorPublicKey},
-    crate::{
-       BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier,
-    },
+    crate::{BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier},
     crate::{DescUploadError, IptError},
     crate::{FatalError, RendRequest},
-    ipt_establish::{
-       IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire,
-    },
+    ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire},
 };
