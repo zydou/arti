@@ -91,7 +91,7 @@ use crate::config::OnionServiceConfig;
 use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
 use crate::status::{PublisherStatusSender, State};
-use crate::svc::netdir::wait_for_netdir;
+use crate::netdir::wait_for_netdir;
 use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::svc::publish::reupload_timer::ReuploadTimer;

@@ -46,7 +46,7 @@ use crate::{
 };
 use crate::{FatalError, IptLocalId, RendRequest};
 
-use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
+use crate::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {

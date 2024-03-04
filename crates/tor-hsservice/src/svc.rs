@@ -1,5 +1,4 @@
 //! Principal types for onion services.
-pub(crate) mod netdir;
 
 use std::sync::{Arc, Mutex};
 
