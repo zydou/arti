@@ -1,6 +1,6 @@
 //! [`IptLocalId`]
 
-use super::*;
+use crate::internal_prelude::*;
 
 /// Persistent local identifier for an introduction point
 ///
