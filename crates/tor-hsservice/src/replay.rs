@@ -524,7 +524,7 @@ mod test {
 
     /// Test for a partial write
     #[test]
-    #[cfg(target_family = "unix")] // no idea how to do elsewhere, hopefully this is enough
+    #[cfg(target_os = "linux")] // different platforms have different definitions of sigaction
     fn test_partial_write() {
         use std::env;
         use std::os::unix::process::ExitStatusExt;
