@@ -207,7 +207,14 @@ impl TestTempDir {
             dir.push(subdir);
             dir
         };
-        println!("test {subdir}, temp dir is {}", dir.display());
+
+        let dir_display_lossy;
+        #[allow(clippy::disallowed_methods)]
+        {
+            dir_display_lossy = dir.display();
+        }
+        println!("test {subdir}, temp dir is {}", dir_display_lossy);
+
         match fs::remove_dir_all(&dir) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
             other => other,
