@@ -25,6 +25,8 @@ const IPT_PUBLISH_UNCERTAIN: Duration = Duration::from_secs(3 * 60 * 60); // 3 h
 /// Expiry time to put on a final descriptor (IPT publication set Certain
 const IPT_PUBLISH_CERTAIN: Duration = IPT_PUBLISH_UNCERTAIN;
 
+//========== data structures ==========
+
 /// IPT Manager (for one hidden service)
 #[derive(Educe)]
 #[educe(Debug(bound))]
@@ -136,17 +138,6 @@ pub(crate) struct State<R, M> {
     runtime: PhantomData<R>,
 }
 
-/// Mockable state in an IPT Manager - real version
-#[derive(Educe)]
-#[educe(Debug)]
-pub(crate) struct Real<R: Runtime> {
-    /// Circuit pool for circuits we need to make
-    ///
-    /// Passed to the each new Establisher
-    #[educe(Debug(ignore))]
-    pub(crate) circ_pool: Arc<HsCircPool<R>>,
-}
-
 /// One selected relay, at which we are establishing (or relavantly advertised) IPTs
 struct IptRelay {
     /// The actual relay
@@ -163,12 +154,6 @@ struct IptRelay {
     /// so these are in chronological order of selection.
     ipts: Vec<Ipt>,
 }
-
-/// Type-erased version of `Box<IptEstablisher>`
-///
-/// The real type is `M::IptEstablisher`.
-/// We use `Box<dyn Any>` to avoid propagating the `M` type parameter to `Ipt` etc.
-type ErasedIptEstablisher = dyn Any + Send + Sync + 'static;
 
 /// One introduction point, representation in memory
 #[derive(Debug)]
@@ -259,6 +244,73 @@ enum TrackedStatus {
 /// Token indicating that this introduction point is current (not Retiring)
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct IsCurrent;
+
+//---------- related to mockability ----------
+
+/// Type-erased version of `Box<IptEstablisher>`
+///
+/// The real type is `M::IptEstablisher`.
+/// We use `Box<dyn Any>` to avoid propagating the `M` type parameter to `Ipt` etc.
+type ErasedIptEstablisher = dyn Any + Send + Sync + 'static;
+
+/// Mockable state in an IPT Manager - real version
+#[derive(Educe)]
+#[educe(Debug)]
+pub(crate) struct Real<R: Runtime> {
+    /// Circuit pool for circuits we need to make
+    ///
+    /// Passed to the each new Establisher
+    #[educe(Debug(ignore))]
+    pub(crate) circ_pool: Arc<HsCircPool<R>>,
+}
+
+//---------- errors ----------
+
+/// An error that happened while trying to select a relay
+///
+/// Used only within the IPT manager.
+/// Can only be caused by bad netdir or maybe bad config.
+#[derive(Debug, Error)]
+enum ChooseIptError {
+    /// Bad or insufficient netdir
+    #[error("bad or insufficient netdir")]
+    NetDir(#[from] tor_netdir::Error),
+    /// Too few suitable relays
+    #[error("too few suitable relays")]
+    TooFewUsableRelays,
+    /// Time overflow
+    #[error("time overflow (system clock set wrong?)")]
+    TimeOverflow,
+    /// Internal error
+    #[error("internal error")]
+    Bug(#[from] Bug),
+}
+
+/// An error that happened while trying to crate an IPT (at a selected relay)
+///
+/// Used only within the IPT manager.
+#[derive(Debug, Error)]
+pub(crate) enum CreateIptError {
+    /// Fatal error
+    #[error("fatal error")]
+    Fatal(#[from] FatalError),
+
+    /// Error accessing keystore
+    #[error("problems with keystores")]
+    Keystore(#[from] tor_keymgr::Error),
+
+    /// Error opening the intro request replay log
+    #[error("unable to open the intro req replay log: {file:?}")]
+    OpenReplayLog {
+        /// What filesystem object we tried to do it to
+        file: PathBuf,
+        /// What happened
+        #[source]
+        error: Arc<io::Error>,
+    },
+}
+
+//========== Relays we've chosen, and IPTs ==========
 
 impl IptRelay {
     /// Get a reference to this IPT relay's current intro point state (if any)
@@ -506,7 +558,51 @@ impl Ipt {
     }
 }
 
+impl HasKind for ChooseIptError {
+    fn kind(&self) -> ErrorKind {
+        use ChooseIptError as E;
+        use ErrorKind as EK;
+        match self {
+            E::NetDir(e) => e.kind(),
+            E::TooFewUsableRelays => EK::TorDirectoryUnusable,
+            E::TimeOverflow => EK::ClockSkew,
+            E::Bug(e) => e.kind(),
+        }
+    }
+}
+
+// This is somewhat abbreviated but it is legible and enough for most purposes.
+impl Debug for IptRelay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "IptRelay {}", self.relay)?;
+        write!(
+            f,
+            "          planned_retirement: {:?}",
+            self.planned_retirement
+        )?;
+        for ipt in &self.ipts {
+            write!(
+                f,
+                "\n          ipt {} {} {:?} ldeis={:?}",
+                match ipt.is_current {
+                    Some(IsCurrent) => "cur",
+                    None => "old",
+                },
+                &ipt.lid,
+                &ipt.status_last,
+                &ipt.last_descriptor_expiry_including_slop,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+//========== impls on IptManager and State ==========
+
 impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
+
+    //---------- constructor and setup ----------
+
     /// Create a new IptManager
     #[allow(clippy::too_many_arguments)] // this is an internal function with 1 call site
     pub(crate) fn new(
@@ -599,6 +695,8 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
         Ok(())
     }
 
+    //---------- internal utility and helper methods ----------
+
     /// Iterate over *all* the IPTs we know about
     ///
     /// Yields each `IptRelay` at most once.
@@ -630,184 +728,21 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     fn ipt_errors(&self) -> impl Iterator<Item = &IptError> {
         self.all_ipts().filter_map(|(_ir, ipt)| ipt.error())
     }
-}
 
-/// An error that happened while trying to select a relay
-///
-/// Used only within the IPT manager.
-/// Can only be caused by bad netdir or maybe bad config.
-#[derive(Debug, Error)]
-enum ChooseIptError {
-    /// Bad or insufficient netdir
-    #[error("bad or insufficient netdir")]
-    NetDir(#[from] tor_netdir::Error),
-    /// Too few suitable relays
-    #[error("too few suitable relays")]
-    TooFewUsableRelays,
-    /// Time overflow
-    #[error("time overflow (system clock set wrong?)")]
-    TimeOverflow,
-    /// Internal error
-    #[error("internal error")]
-    Bug(#[from] Bug),
-}
-
-impl HasKind for ChooseIptError {
-    fn kind(&self) -> ErrorKind {
-        use ChooseIptError as E;
-        use ErrorKind as EK;
-        match self {
-            E::NetDir(e) => e.kind(),
-            E::TooFewUsableRelays => EK::TorDirectoryUnusable,
-            E::TimeOverflow => EK::ClockSkew,
-            E::Bug(e) => e.kind(),
-        }
-    }
-}
-
-/// An error that happened while trying to crate an IPT (at a selected relay)
-///
-/// Used only within the IPT manager.
-#[derive(Debug, Error)]
-pub(crate) enum CreateIptError {
-    /// Fatal error
-    #[error("fatal error")]
-    Fatal(#[from] FatalError),
-
-    /// Error accessing keystore
-    #[error("problems with keystores")]
-    Keystore(#[from] tor_keymgr::Error),
-
-    /// Error opening the intro request replay log
-    #[error("unable to open the intro req replay log: {file:?}")]
-    OpenReplayLog {
-        /// What filesystem object we tried to do it to
-        file: PathBuf,
-        /// What happened
-        #[source]
-        error: Arc<io::Error>,
-    },
-}
-
-impl<R: Runtime, M: Mockable<R>> State<R, M> {
-    /// Find the `Ipt` with persistent local id `lid`
-    fn ipt_by_lid_mut(&mut self, needle: IptLocalId) -> Option<&mut Ipt> {
-        self.irelays
-            .iter_mut()
-            .find_map(|ir| ir.ipts.iter_mut().find(|ipt| ipt.lid == needle))
+    /// Target number of intro points
+    pub(crate) fn target_n_intro_points(&self) -> usize {
+        self.state.current_config.num_intro_points.into()
     }
 
-    /// Choose a new relay to use for IPTs
-    fn choose_new_ipt_relay(
-        &mut self,
-        imm: &Immutable<R>,
-        now: Instant,
-    ) -> Result<(), ChooseIptError> {
-        let netdir = imm.dirprovider.timely_netdir()?;
-
-        let mut rng = self.mockable.thread_rng();
-
-        let relay = netdir
-            // TODO #504
-            .pick_relay(&mut rng, tor_netdir::WeightRole::HsIntro, |new| {
-                new.is_hs_intro_point()
-                    && !self
-                        .irelays
-                        .iter()
-                        .any(|existing| new.has_any_relay_id_from(&existing.relay))
-            })
-            .ok_or(ChooseIptError::TooFewUsableRelays)?;
-
-        let lifetime_low = netdir
-            .params()
-            .hs_intro_min_lifetime
-            .try_into()
-            .expect("Could not convert param to duration.");
-        let lifetime_high = netdir
-            .params()
-            .hs_intro_max_lifetime
-            .try_into()
-            .expect("Could not convert param to duration.");
-        let lifetime_range: std::ops::RangeInclusive<Duration> = lifetime_low..=lifetime_high;
-        let retirement = rng
-            .gen_range_checked(lifetime_range)
-            // If the range from the consensus is invalid, just pick the high-bound.
-            .unwrap_or(lifetime_high);
-        let retirement = now
-            .checked_add(retirement)
-            .ok_or(ChooseIptError::TimeOverflow)?;
-
-        let new_irelay = IptRelay {
-            relay: RelayIds::from_relay_ids(&relay),
-            planned_retirement: retirement,
-            ipts: vec![],
-        };
-        self.irelays.push(new_irelay);
-
-        debug!(
-            "HS service {}: choosing new IPT relay {}",
-            &imm.nick,
-            relay.display_relay_ids()
-        );
-
-        Ok(())
+    /// Maximum number of concurrent intro point relays
+    pub(crate) fn max_n_intro_relays(&self) -> usize {
+        let params = self.imm.dirprovider.params();
+        let num_extra = (*params).as_ref().hs_intro_num_extra_intropoints.get() as usize;
+        self.target_n_intro_points() + num_extra
     }
 
-    /// Update `self`'s status tracking for one introduction point
-    fn handle_ipt_status_update(&mut self, imm: &Immutable<R>, lid: IptLocalId, update: IptStatus) {
-        let Some(ipt) = self.ipt_by_lid_mut(lid) else {
-            // update from now-withdrawn IPT, ignore it (can happen due to the IPT being a task)
-            return;
-        };
+    //---------- main implementation logic ----------
 
-        debug!("HS service {}: {lid:?} status update {update:?}", &imm.nick);
-
-        let IptStatus {
-            status: update,
-            wants_to_retire,
-            ..
-        } = update;
-
-        #[allow(clippy::single_match)] // want to be explicit about the Ok type
-        match wants_to_retire {
-            Err(IptWantsToRetire) => ipt.is_current = None,
-            Ok(()) => {}
-        }
-
-        let now = || imm.runtime.now();
-
-        let started = match &ipt.status_last {
-            TS::Establishing { started, .. } => Ok(*started),
-            TS::Faulty { started, .. } => *started,
-            TS::Good { .. } => Err(()),
-        };
-
-        ipt.status_last = match update {
-            ISS::Establishing => TS::Establishing {
-                started: started.unwrap_or_else(|()| now()),
-            },
-            ISS::Good(details) => {
-                let time_to_establish = started.and_then(|started| {
-                    // return () at end of ok_or_else closure, for clarity
-                    #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
-                    now().checked_duration_since(started).ok_or_else(|| {
-                        warn!("monotonic clock went backwards! (HS IPT)");
-                        ()
-                    })
-                });
-                TS::Good {
-                    time_to_establish,
-                    details,
-                }
-            }
-            ISS::Faulty(error) => TS::Faulty { started, error },
-        };
-    }
-}
-
-// TODO #1212: Combine this block with the other impl IptManager<R, M>
-// We probably want to make sure this whole file is in a sensible order.
-impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
     /// Make some progress, if possible, and say when to wake up again
     ///
     /// Examines the current state and attempts to improve it.
@@ -1654,45 +1589,125 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             }
         }
     }
-
-    /// Target number of intro points
-    pub(crate) fn target_n_intro_points(&self) -> usize {
-        self.state.current_config.num_intro_points.into()
-    }
-
-    /// Maximum number of concurrent intro point relays
-    pub(crate) fn max_n_intro_relays(&self) -> usize {
-        let params = self.imm.dirprovider.params();
-        let num_extra = (*params).as_ref().hs_intro_num_extra_intropoints.get() as usize;
-        self.target_n_intro_points() + num_extra
-    }
 }
 
-// This is somewhat abbreviated but it is legible and enough for most purposes.
-impl Debug for IptRelay {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "IptRelay {}", self.relay)?;
-        write!(
-            f,
-            "          planned_retirement: {:?}",
-            self.planned_retirement
-        )?;
-        for ipt in &self.ipts {
-            write!(
-                f,
-                "\n          ipt {} {} {:?} ldeis={:?}",
-                match ipt.is_current {
-                    Some(IsCurrent) => "cur",
-                    None => "old",
-                },
-                &ipt.lid,
-                &ipt.status_last,
-                &ipt.last_descriptor_expiry_including_slop,
-            )?;
-        }
+impl<R: Runtime, M: Mockable<R>> State<R, M> {
+    /// Find the `Ipt` with persistent local id `lid`
+    fn ipt_by_lid_mut(&mut self, needle: IptLocalId) -> Option<&mut Ipt> {
+        self.irelays
+            .iter_mut()
+            .find_map(|ir| ir.ipts.iter_mut().find(|ipt| ipt.lid == needle))
+    }
+
+    /// Choose a new relay to use for IPTs
+    fn choose_new_ipt_relay(
+        &mut self,
+        imm: &Immutable<R>,
+        now: Instant,
+    ) -> Result<(), ChooseIptError> {
+        let netdir = imm.dirprovider.timely_netdir()?;
+
+        let mut rng = self.mockable.thread_rng();
+
+        let relay = netdir
+            // TODO #504
+            .pick_relay(&mut rng, tor_netdir::WeightRole::HsIntro, |new| {
+                new.is_hs_intro_point()
+                    && !self
+                        .irelays
+                        .iter()
+                        .any(|existing| new.has_any_relay_id_from(&existing.relay))
+            })
+            .ok_or(ChooseIptError::TooFewUsableRelays)?;
+
+        let lifetime_low = netdir
+            .params()
+            .hs_intro_min_lifetime
+            .try_into()
+            .expect("Could not convert param to duration.");
+        let lifetime_high = netdir
+            .params()
+            .hs_intro_max_lifetime
+            .try_into()
+            .expect("Could not convert param to duration.");
+        let lifetime_range: std::ops::RangeInclusive<Duration> = lifetime_low..=lifetime_high;
+        let retirement = rng
+            .gen_range_checked(lifetime_range)
+            // If the range from the consensus is invalid, just pick the high-bound.
+            .unwrap_or(lifetime_high);
+        let retirement = now
+            .checked_add(retirement)
+            .ok_or(ChooseIptError::TimeOverflow)?;
+
+        let new_irelay = IptRelay {
+            relay: RelayIds::from_relay_ids(&relay),
+            planned_retirement: retirement,
+            ipts: vec![],
+        };
+        self.irelays.push(new_irelay);
+
+        debug!(
+            "HS service {}: choosing new IPT relay {}",
+            &imm.nick,
+            relay.display_relay_ids()
+        );
+
         Ok(())
     }
+
+    /// Update `self`'s status tracking for one introduction point
+    fn handle_ipt_status_update(&mut self, imm: &Immutable<R>, lid: IptLocalId, update: IptStatus) {
+        let Some(ipt) = self.ipt_by_lid_mut(lid) else {
+            // update from now-withdrawn IPT, ignore it (can happen due to the IPT being a task)
+            return;
+        };
+
+        debug!("HS service {}: {lid:?} status update {update:?}", &imm.nick);
+
+        let IptStatus {
+            status: update,
+            wants_to_retire,
+            ..
+        } = update;
+
+        #[allow(clippy::single_match)] // want to be explicit about the Ok type
+        match wants_to_retire {
+            Err(IptWantsToRetire) => ipt.is_current = None,
+            Ok(()) => {}
+        }
+
+        let now = || imm.runtime.now();
+
+        let started = match &ipt.status_last {
+            TS::Establishing { started, .. } => Ok(*started),
+            TS::Faulty { started, .. } => *started,
+            TS::Good { .. } => Err(()),
+        };
+
+        ipt.status_last = match update {
+            ISS::Establishing => TS::Establishing {
+                started: started.unwrap_or_else(|()| now()),
+            },
+            ISS::Good(details) => {
+                let time_to_establish = started.and_then(|started| {
+                    // return () at end of ok_or_else closure, for clarity
+                    #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
+                    now().checked_duration_since(started).ok_or_else(|| {
+                        warn!("monotonic clock went backwards! (HS IPT)");
+                        ()
+                    })
+                });
+                TS::Good {
+                    time_to_establish,
+                    details,
+                }
+            }
+            ISS::Faulty(error) => TS::Faulty { started, error },
+        };
+    }
 }
+
+//========== mockability ==========
 
 /// Mockable state for the IPT Manager
 ///
