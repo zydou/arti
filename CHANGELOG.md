@@ -128,7 +128,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-Alexander Færøy and Jim Newsome.
+Alexander Færøy, Jim Newsome, Tobias Stoeckmann, and trinity-1686a.
 
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
