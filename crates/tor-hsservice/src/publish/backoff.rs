@@ -7,9 +7,10 @@
 // tor-hsservice
 
 use std::error::Error as StdError;
-use std::future::{self, Future};
+use std::future::Future;
 use std::time::Duration;
 
+use futures::future;
 use futures::future::Either;
 use futures::{select_biased, FutureExt};
 
