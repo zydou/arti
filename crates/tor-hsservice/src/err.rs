@@ -38,7 +38,7 @@ pub enum StartupError {
     StateDirectoryInaccessible(#[source] tor_persist::Error),
 
     /// Unable to access on-disk state using underlying IO operations
-    #[error("Unable to access on-disk state: {action} {}", path.display())]
+    #[error("Unable to access on-disk state: {action} {}", path.display_lossy())]
     // TODO ideally we'd like to use StateDirectoryInaccessiblePersist and tor_persist::Error
     // for this too, but tor_persist::Error is quite awkward.
     StateDirectoryInaccessibleIo {
@@ -289,7 +289,7 @@ pub(crate) enum StateExpiryError {
     #[error("key(s)")]
     Key(#[from] tor_keymgr::Error),
     /// Replay log expiry (or other things using `tor_persist`) failed
-    #[error("replay log(s): failed to {operation} {}", path.display())]
+    #[error("replay log(s): failed to {operation} {}", path.display_lossy())]
     ReplayLog {
         /// The actual error
         #[source]

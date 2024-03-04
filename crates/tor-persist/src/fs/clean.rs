@@ -6,6 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use tor_basic_utils::PathExt as _;
 use tor_error::warn_report;
 use tracing::warn;
 
@@ -60,7 +61,7 @@ pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf>
             _ => warn_report!(
                 err,
                 "Failed to scan directory {} for obsolete files",
-                statepath.display(),
+                statepath.display_lossy(),
             ),
         }
     };
@@ -80,14 +81,14 @@ pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf>
                 Ok(false) => {
                     warn!(
                         "Found obsolete file {}; will delete it when it is older.",
-                        entry.path().display(),
+                        entry.path().display_lossy(),
                     );
                 }
                 Err(err) => {
                     warn_report!(
                         err,
                         "Found obsolete file {} but could not access its modification time",
-                        entry.path().display(),
+                        entry.path().display_lossy(),
                     );
                 }
             }

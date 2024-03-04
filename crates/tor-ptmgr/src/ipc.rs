@@ -20,6 +20,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{io, thread};
+use tor_basic_utils::PathExt as _;
 use tor_config::Itertools;
 use tor_error::{internal, warn_report};
 use tor_linkspec::PtTransportName;
@@ -566,7 +567,7 @@ pub(crate) mod sealed {
             }
             info!(
                 "Launching pluggable transport at {} for {:?}",
-                binary_path.display(),
+                binary_path.display_lossy(),
                 transports
             );
             let child = Command::new(binary_path)

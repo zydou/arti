@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::slug::BadSlug;
 use crate::FsMistrustErrorExt as _;
 use fs_mistrust::anon_home::PathExt as _;
+use tor_basic_utils::PathExt as _;
 use tor_error::{into_bad_api_usage, Bug, ErrorKind};
 
 /// A resource that we failed to access or where we found a problem.
@@ -20,7 +21,7 @@ pub(crate) enum Resource {
         dir: std::path::PathBuf,
     },
     /// A file on disk within our checked directory.
-    #[display(fmt = "{} in {}", "file.display()", "container.anonymize_home()")]
+    #[display(fmt = "{} in {}", "file.display_lossy()", "container.anonymize_home()")]
     File {
         /// The path to the checked directory
         container: std::path::PathBuf,
