@@ -98,11 +98,13 @@ See [`doc/OnionService.md`] for instructions and caveats.
 
 ### Testing
 
-- Improve replay log fork test. ([!1974], [#1264])
+- Improve replay log fork test. ([!1974], [!2010], [#1264])
 - In the introduction point manager tests, avoid reusing the RNG seed.
   ([b515baf27f194470])
 - Our [Shadow] CI tests now use the latest versions of `shadow` and `tgen`, and
   no longer pull `libigraph` from bullseye. ([!1958])
+- Upgrade docker image for reproducible builds. ([!2016])
+- Fix several tests on Windows. ([!2015])
 
 ### Cleanups, minor features, and bugfixes
 
@@ -120,11 +122,13 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Upgrade our dependency on [curve25519-dalek] from 4.1.1 to 4.1.2 ([!2000])
 - Upgrade to the latest versions of [event-listener], [rusqlite],
   [async-broadcast], [signature], [config]. ([!2001], [!2004])
+- Fix `ArtiPath` creation on Windows. ([!2012])
+- Fix compilation and warnings on Windows. ([!2014], [!2009])
 
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-Alexander Færøy and Jim Newsome.
+Alexander Færøy, Jim Newsome, Tobias Stoeckmann, and trinity-1686a.
 
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
@@ -166,6 +170,12 @@ for funding the development of Arti!
 [!2001]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2001
 [!2003]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2003
 [!2004]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2004
+[!2009]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2009
+[!2010]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2010
+[!2012]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2012
+[!2014]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2014
+[!2015]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2015
+[!2016]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2016
 [#1083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1083
 [#1100]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1100
 [#1115]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1115
