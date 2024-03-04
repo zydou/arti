@@ -1,35 +1,22 @@
 //! Implementation for the introduce-and-rendezvous handshake.
 
-use std::sync::Arc;
+use super::*;
 
-use async_trait::async_trait;
-use futures::{stream::BoxStream, StreamExt as _};
-use retry_error::RetryError;
+// These imports just here, because they have names unsuitable for importing widely.
 use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
 };
-use tor_circmgr::{
-    build::circparameters_from_netparameters,
-    hspool::{HsCircKind, HsCircPool},
-};
-use tor_error::{into_internal, HasKind};
 use tor_linkspec::{
-    decode::Strictness, verbatim::VerbatimLinkSpecCircTarget, CircTarget as _,
-    OwnedChanTargetBuilder, OwnedCircTarget,
+    decode::Strictness, verbatim::VerbatimLinkSpecCircTarget,
 };
-use tor_netdir::NetDirProvider;
 use tor_proto::{
     circuit::{
         handshake,
         handshake::hs_ntor::{self, HsNtorHkdfKeyGenerator},
-        ClientCirc,
     },
     stream::IncomingStream,
 };
-use tor_rtcompat::Runtime;
-
-use crate::req::RendRequestContext;
 
 /// An error produced while trying to process an introduction request we have
 /// received from a client via an introduction point.

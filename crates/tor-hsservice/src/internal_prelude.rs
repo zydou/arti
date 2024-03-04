@@ -73,6 +73,7 @@ pub(crate) use async_trait::async_trait;
 pub(crate) use derive_more::{From, Into};
 pub(crate) use futures::{AsyncRead, AsyncWrite, TryStreamExt as _};
 pub(crate) use postage::sink::SendError;
+pub(crate) use futures::{stream::BoxStream};
 
 //---------- tor-* crates ----------
 
@@ -131,6 +132,12 @@ pub(crate) use tor_hscrypto::pk::{
 };
 pub(crate) use tor_linkspec::{OwnedCircTarget};
 pub(crate) use tor_netdir::{NetDir, Relay, Timeliness};
+pub(crate) use tor_circmgr::{
+    build::circparameters_from_netparameters,
+};
+pub(crate) use tor_linkspec::{
+    OwnedChanTargetBuilder,
+};
 
 //---------- names from this crate ----------
 
