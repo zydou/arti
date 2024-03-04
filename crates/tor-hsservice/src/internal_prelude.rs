@@ -199,3 +199,4 @@ pub(crate) use crate::{
     rend_handshake::{self, RendCircConnector},
     ClientError,
 };
+pub(crate) use crate::{DescUploadError, IptError};
