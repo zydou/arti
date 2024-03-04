@@ -154,7 +154,7 @@ pub(crate) type Ipt = tor_netdoc::doc::hsdesc::IntroPointDesc;
 //
 // TODO: We'd like to use "+" here, but it isn't const yet.
 const IPT_PUBLISH_EXPIRY_SLOP: Duration =
-    Duration::from_secs(10 * 60).saturating_add(crate::svc::publish::OVERALL_UPLOAD_TIMEOUT);
+    Duration::from_secs(10 * 60).saturating_add(crate::publish::OVERALL_UPLOAD_TIMEOUT);
 
 /// Shared view of introduction points - IPT manager's view
 ///

@@ -17,7 +17,7 @@ use tor_netdoc::NetdocBuilder;
 
 use crate::config::DescEncryptionConfig;
 use crate::ipt_set::IptSet;
-use crate::svc::publish::reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
+use crate::publish::reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
 use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,
     OnionServiceConfig,
@@ -249,7 +249,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use crate::config::AuthorizedClientConfig::Curve25519Key;
-    use crate::svc::publish::descriptor::{
+    use crate::publish::descriptor::{
         build_auth_clients, decode_curve25519_str, DescEncryptionConfig,
     };
     use tor_basic_utils::test_rng::testing_rng;

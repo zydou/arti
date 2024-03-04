@@ -198,7 +198,7 @@ mod test {
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
     use crate::status::{OnionServiceStatus, StatusSender};
-    use crate::svc::publish::reactor::MockableClientCirc;
+    use crate::publish::reactor::MockableClientCirc;
     use crate::svc::test::create_storage_handles;
     use crate::{Anonymity, HsNickname, IptLocalId};
     use crate::{

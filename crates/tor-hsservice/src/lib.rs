@@ -65,6 +65,7 @@ mod ipt_set;
 mod keys;
 mod netdir;
 mod nickname;
+mod publish;
 mod rend_handshake;
 mod replay;
 mod req;
@@ -101,7 +102,7 @@ pub use keys::{
 pub use nickname::{HsNickname, InvalidNickname};
 pub use req::{RendRequest, StreamRequest};
 pub use crate::netdir::NetdirProviderShutdown;
-pub use svc::publish::UploadError as DescUploadError;
+pub use publish::UploadError as DescUploadError;
 pub use svc::{OnionService, RunningOnionService};
 
 use err::IptStoreError;

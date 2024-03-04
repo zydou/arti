@@ -92,9 +92,9 @@ use crate::ipt_set::{IptsPublisherUploadView, IptsPublisherView};
 use crate::keys::expire_publisher_keys;
 use crate::status::{PublisherStatusSender, State};
 use crate::netdir::wait_for_netdir;
-use crate::svc::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
-use crate::svc::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
-use crate::svc::publish::reupload_timer::ReuploadTimer;
+use crate::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
+use crate::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use crate::publish::reupload_timer::ReuploadTimer;
 use crate::svc::ShutdownStatus;
 use crate::timeout_track::TrackingNow;
 use crate::{

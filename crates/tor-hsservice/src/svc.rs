@@ -24,14 +24,12 @@ use tracing::info;
 use crate::ipt_mgr::IptManager;
 use crate::ipt_set::IptsManagerView;
 use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
-use crate::svc::publish::Publisher;
+use crate::publish::{self, Publisher};
 use crate::HsIdKeypairSpecifier;
 use crate::HsNickname;
 use crate::OnionServiceConfig;
 use crate::RendRequest;
 use crate::StartupError;
-
-pub(crate) mod publish;
 
 /// Convenience alias for link specifiers of an intro point
 pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;
