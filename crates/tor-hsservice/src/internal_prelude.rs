@@ -130,3 +130,5 @@ pub(crate) use crate::{StartupError};
 pub(crate) use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
 pub(crate) use crate::{StreamRequest};
 pub(crate) use crate::time_store;
+pub(crate) use crate::status::PublisherStatusSender;
+pub(crate) use crate::{ipt_set::IptsPublisherView};
