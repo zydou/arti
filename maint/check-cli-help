@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CARGO:=cargo}"
+
+# --------------------------------------------------------------------------------
+# subcommands that just go and do a thing, by default, need an entry in this list
+# this causes us to run, eg `arti proxy --help` rather than just `arti proxy`.
+help_arg () {
+    case "$subcommand" in
+	'proxy' | \
+	'hss onion-name' )
+	    help_arg='--help' ;;
+    esac
+}
+# --------------------------------------------------------------------------------
+
+fail () {
+    echo >&2 "ERROR: $*"
+    exit 16
+}
+
+exec 4>&2
+
+x () {
+    echo >&4 "    $*"
+    "$@"
+}
+
+trap '
+	echo "last output from cargo run:"
+	cat "$help_file"
+	exit 1
+' 0
+
+echo 'checking help output'
+
+check_recurse () {
+    mkdir -p target/test/check-cli-help
+    help_file="target/test/check-cli-help/help-output,$*.txt"
+    help_file="${help_file// /,}"
+    local help_arg=''
+
+    subcommand="$*"
+    subcommand="${subcommand#* -- }"
+    help_arg
+
+    case "$*" in
+	*' help') return ;;
+    esac
+
+    exec 3>"$help_file"
+    set +e
+    # shellcheck disable=SC2086
+    x "$CARGO" run "$@" $help_arg >&3 2>&3
+    rc=$?
+    set -e
+    test $rc = 0 || test $rc = 2 || fail "help message unexpected status $rc"
+    for exp in 'Usage' 'Options'; do
+	grep "^$exp:" "$help_file" >/dev/null || fail "expected to find $exp"
+    done
+    commands=$(perl -ne '
+	next unless m{^Commands:}...m{^\S};
+	next if m{^\S};
+	next unless m{\S};
+	s{^  ([a-z][0-9a-z-]*) .*}{$1} or die "$_ ?";
+	print;
+    ' "$help_file")
+    for command in $commands; do
+	check_recurse "$@" "$command"
+    done
+}
+
+check_recurse                --bin arti --
+check_recurse --all-features --bin arti --
+
+trap '' 0
+echo ok.

@@ -416,6 +416,9 @@ where
             .subcommand_required(true)
             .arg_required_else_help(true);
 
+    // When adding a subcommand, it may be necessary to add an entry in
+    // `maint/check-cli-help`, to the function `help_arg`.
+
     cfg_if::cfg_if! {
         // TODO (#1250): test the CLI.
         if #[cfg(feature = "onion-service-service")] {
