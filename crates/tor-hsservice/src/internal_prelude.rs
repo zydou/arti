@@ -59,6 +59,8 @@ pub(crate) use futures::task::SpawnError;
 pub(crate) use futures::{future::Either, stream};
 pub(crate) use derive_more::{Deref, DerefMut};
 pub(crate) use itertools::{chain};
+pub(crate) use derive_adhoc::{define_derive_adhoc};
+pub(crate) use derive_more::Constructor;
 
 //---------- tor-* crates ----------
 
@@ -96,6 +98,9 @@ pub(crate) use tor_llcrypto::pk::ed25519;
 pub(crate) use tor_config::ConfigBuildError;
 pub(crate) use tor_hscrypto::pk::HsClientDescEncKey;
 pub(crate) use tor_rtcompat::SleepProvider;
+pub(crate) use tor_hscrypto::time::TimePeriod;
+pub(crate) use tor_keymgr::derive_adhoc_template_KeySpecifier;
+pub(crate) use tor_netdir::HsDirParams;
 
 //---------- names from this crate ----------
 
