@@ -17,15 +17,19 @@
 //---------- std ----------
 
 pub(crate) use std::any::Any;
+pub(crate) use std::borrow::Cow;
 pub(crate) use std::cmp::max;
 pub(crate) use std::cmp::Ordering;
 pub(crate) use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 pub(crate) use std::error::Error as StdError;
+pub(crate) use std::ffi::OsStr;
 pub(crate) use std::fmt::{self, Debug, Display};
 pub(crate) use std::fs;
+pub(crate) use std::fs::{File, OpenOptions};
 pub(crate) use std::future::Future;
 pub(crate) use std::hash::Hash;
 pub(crate) use std::io;
+pub(crate) use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 pub(crate) use std::iter;
 pub(crate) use std::marker::PhantomData;
 pub(crate) use std::ops::{Deref, DerefMut};
@@ -34,10 +38,6 @@ pub(crate) use std::path::{Path, PathBuf};
 pub(crate) use std::str::FromStr;
 pub(crate) use std::sync::{Arc, Mutex, MutexGuard};
 pub(crate) use std::time::{Duration, Instant, SystemTime};
-pub(crate) use std::borrow::Cow;
-pub(crate) use std::ffi::OsStr;
-pub(crate) use std::fs::{File, OpenOptions};
-pub(crate) use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 
 //---------- upstreams ----------
 
@@ -47,18 +47,18 @@ pub(crate) use derive_adhoc::{define_derive_adhoc, Adhoc};
 pub(crate) use derive_builder::Builder;
 pub(crate) use derive_more::{Constructor, Deref, DerefMut, From, Into};
 pub(crate) use educe::Educe;
-pub(crate) use futures::stream::BoxStream;
 pub(crate) use futures::channel::mpsc;
-pub(crate) use futures::task::{SpawnError, SpawnExt as _};
-pub(crate) use futures::select_biased;
 pub(crate) use futures::future::{self, Either};
+pub(crate) use futures::select_biased;
+pub(crate) use futures::stream::BoxStream;
+pub(crate) use futures::task::{SpawnError, SpawnExt as _};
 pub(crate) use futures::{AsyncRead, AsyncWrite, Stream};
 pub(crate) use futures::{FutureExt as _, SinkExt as _, StreamExt as _, TryStreamExt as _};
 pub(crate) use itertools::{chain, Itertools as _};
 pub(crate) use postage::{broadcast, watch};
 pub(crate) use rand::Rng;
 pub(crate) use rand_core::{CryptoRng, RngCore};
-pub(crate) use serde::{Deserialize, Serialize, Deserializer, Serializer};
+pub(crate) use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub(crate) use thiserror::Error;
 pub(crate) use tor_keymgr::KeyMgr;
 pub(crate) use tracing::{debug, error, info, trace, warn};
