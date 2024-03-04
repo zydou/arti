@@ -5,5 +5,6 @@ disallowed-types = [
 disallowed-methods = [
     { path = "rand::Rng::gen_range", reason = "Prefer tor_basic_utils::RngExt::gen_range_checked to avoid uncontrolled panics, or gen_range_infallible if applicable" },
     { path = "futures::channel::oneshot::channel", reason = "Use tor_async_utils::oneshot to avoid bug with select macro" },
+    { path = "std::path::Path::display", reason = "See tor_basic_utils::PathExt::display_lossy" },
 #    { path = "std::time::SystemTime::now", reason = "prefer using SleepProvider::wallclock instead when possible" },
 ]
