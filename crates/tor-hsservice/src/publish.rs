@@ -8,6 +8,7 @@ mod reupload_timer;
 use crate::internal_prelude::*;
 
 use reactor::Reactor;
+use reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
 
 pub use reactor::UploadError;
 pub(crate) use reactor::{Mockable, Real, OVERALL_UPLOAD_TIMEOUT};

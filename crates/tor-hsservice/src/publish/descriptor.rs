@@ -1,6 +1,5 @@
 //! Helpers for building and representing hidden service descriptors.
 
-use crate::publish::reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
 use super::*;
 use tor_cell::chancell::msg::HandshakeType;
 
