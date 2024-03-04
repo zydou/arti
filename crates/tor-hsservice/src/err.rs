@@ -12,7 +12,7 @@ use thiserror::Error;
 use tor_error::error_report;
 use tor_error::{Bug, ErrorKind, HasKind};
 
-pub use crate::svc::rend_handshake::{EstablishSessionError, IntroRequestError};
+pub use crate::rend_handshake::{EstablishSessionError, IntroRequestError};
 use crate::{HsNickname, NetdirProviderShutdown};
 
 /// An error which occurs trying to create and start up an onion service

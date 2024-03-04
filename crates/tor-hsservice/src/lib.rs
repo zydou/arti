@@ -65,6 +65,7 @@ mod ipt_set;
 mod keys;
 mod netdir;
 mod nickname;
+mod rend_handshake;
 mod replay;
 mod req;
 pub mod status;

@@ -32,7 +32,6 @@ use crate::RendRequest;
 use crate::StartupError;
 
 pub(crate) mod publish;
-pub(crate) mod rend_handshake;
 
 /// Convenience alias for link specifiers of an intro point
 pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;

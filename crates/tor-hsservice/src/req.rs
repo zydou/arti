@@ -24,7 +24,7 @@ use tor_proto::{
 
 use crate::{
     keys::BlindIdKeypairSpecifierPattern,
-    svc::rend_handshake::{self, RendCircConnector},
+    rend_handshake::{self, RendCircConnector},
     ClientError, FatalError, HsIdKeypairSpecifier, HsNickname, IptLocalId,
 };
 
