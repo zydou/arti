@@ -4,7 +4,7 @@ use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
 use crate::stream::AnyCmdChecker;
 use crate::{Error, Result};
-use tor_cell::relaycell::UnparsedRelayCell;
+use tor_cell::relaycell::UnparsedRelayMsg;
 /// Mapping from stream ID to streams.
 // NOTE: This is a work in progress and I bet I'll refactor it a lot;
 // it needs to stay opaque!
@@ -27,7 +27,7 @@ pub(super) enum StreamEnt {
     /// An open stream.
     Open {
         /// Sink to send relay cells tagged for this stream into.
-        sink: mpsc::Sender<UnparsedRelayCell>,
+        sink: mpsc::Sender<UnparsedRelayMsg>,
         /// Stream for cells that should be sent down this stream.
         rx: mpsc::Receiver<AnyRelayMsg>,
         /// Send window, for congestion control purposes.
@@ -109,7 +109,7 @@ impl StreamMap {
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
-        sink: mpsc::Sender<UnparsedRelayCell>,
+        sink: mpsc::Sender<UnparsedRelayMsg>,
         rx: mpsc::Receiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
         cmd_checker: AnyCmdChecker,
@@ -142,7 +142,7 @@ impl StreamMap {
     #[cfg(feature = "hs-service")]
     pub(super) fn add_ent_with_id(
         &mut self,
-        sink: mpsc::Sender<UnparsedRelayCell>,
+        sink: mpsc::Sender<UnparsedRelayMsg>,
         rx: mpsc::Receiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
         id: StreamId,

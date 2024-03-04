@@ -13,7 +13,7 @@
 use std::collections::VecDeque;
 
 use tor_cell::relaycell::RelayCmd;
-use tor_cell::relaycell::UnparsedRelayCell;
+use tor_cell::relaycell::UnparsedRelayMsg;
 use tor_error::internal;
 
 use crate::{Error, Result};
@@ -280,7 +280,7 @@ pub(crate) fn msg_counts_towards_windows(msg: &tor_cell::relaycell::msg::AnyRela
 }
 
 /// Return true if this message is counted by flow-control windows.
-pub(crate) fn cell_counts_towards_windows(cell: &UnparsedRelayCell) -> bool {
+pub(crate) fn cell_counts_towards_windows(cell: &UnparsedRelayMsg) -> bool {
     cmd_counts_towards_windows(cell.cmd())
 }
 
@@ -309,7 +309,7 @@ mod test {
             .unwrap()
             .into();
         assert!(!msg_counts_towards_windows(&m));
-        assert!(!cell_counts_towards_windows(&UnparsedRelayCell::from_body(
+        assert!(!cell_counts_towards_windows(&UnparsedRelayMsg::from_body(
             AnyRelayMsgOuter::new(StreamId::new(77), m)
                 .encode(&mut rng)
                 .unwrap()
@@ -317,7 +317,7 @@ mod test {
 
         let m = msg::Data::new(&b"Education is not a prerequisite to political control-political control is the cause of popular education."[..]).unwrap().into(); // Du Bois
         assert!(msg_counts_towards_windows(&m));
-        assert!(cell_counts_towards_windows(&UnparsedRelayCell::from_body(
+        assert!(cell_counts_towards_windows(&UnparsedRelayMsg::from_body(
             AnyRelayMsgOuter::new(StreamId::new(128), m)
                 .encode(&mut rng)
                 .unwrap()

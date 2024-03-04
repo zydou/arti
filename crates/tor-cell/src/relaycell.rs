@@ -193,13 +193,10 @@ impl StreamId {
     }
 }
 
-/// A relay cell that has not yet been fully parsed, but where we have access to
-/// the command and stream ID, for dispatching purposes.
-//
-// TODO prop340: Further discussion is necessary about standardizing names for
-// all of the pieces of our cells.
+/// An enveloped relay message that has not yet been fully parsed, but where we
+/// have access to the command and stream ID, for dispatching purposes.
 #[derive(Clone, Debug)]
-pub struct UnparsedRelayCell {
+pub struct UnparsedRelayMsg {
     /// The body of the cell.
     body: BoxedCellBody,
     // NOTE: we could also have a separate command and stream ID field here, but
@@ -212,7 +209,7 @@ pub struct UnparsedRelayCell {
 /// Position of the stream ID within the cell body.
 const STREAM_ID_OFFSET: usize = 3;
 
-impl UnparsedRelayCell {
+impl UnparsedRelayMsg {
     /// Wrap a BoxedCellBody as an UnparsedRelayCell.
     pub fn from_body(body: BoxedCellBody) -> Self {
         Self { body }

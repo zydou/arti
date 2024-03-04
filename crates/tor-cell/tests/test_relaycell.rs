@@ -3,7 +3,7 @@
 
 use tor_bytes::Error;
 use tor_cell::relaycell::{
-    msg, msg::AnyRelayMsg, AnyRelayMsgOuter, RelayCmd, RelayMsg, StreamId, UnparsedRelayCell,
+    msg, msg::AnyRelayMsg, AnyRelayMsgOuter, RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
 };
 
 #[cfg(feature = "experimental-udp")]
@@ -55,7 +55,7 @@ fn cell(body: &str, id: Option<StreamId>, msg: AnyRelayMsg) {
 
     let decoded = AnyRelayMsgOuter::decode(body.clone()).unwrap();
 
-    let decoded_from_partial = UnparsedRelayCell::from_body(body)
+    let decoded_from_partial = UnparsedRelayMsg::from_body(body)
         .decode::<AnyRelayMsg>()
         .unwrap();
     assert_eq!(decoded_from_partial.stream_id(), decoded.stream_id());

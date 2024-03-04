@@ -39,7 +39,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd, StreamId, UnparsedRelayCell};
+use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd, StreamId, UnparsedRelayMsg};
 #[cfg(feature = "hs-service")]
 use {
     crate::stream::{DataCmdChecker, IncomingStreamRequest},
@@ -205,7 +205,7 @@ pub(super) enum CtrlMsg {
         /// SENDME cells once we've read enough out of the other end. If it *does* block, we
         /// can assume someone is trying to send us more cells than they should, and abort
         /// the stream.
-        sender: mpsc::Sender<UnparsedRelayCell>,
+        sender: mpsc::Sender<UnparsedRelayMsg>,
         /// A channel to receive messages to send on this stream from.
         rx: mpsc::Receiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
@@ -388,7 +388,7 @@ pub(super) trait MetaCellHandler: Send {
     fn handle_msg(
         &mut self,
         cx: &mut Context<'_>,
-        msg: UnparsedRelayCell,
+        msg: UnparsedRelayMsg,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition>;
 }
@@ -525,7 +525,7 @@ where
     /// This is a separate function to simplify the error-handling work of handle_msg().
     fn extend_circuit(
         &mut self,
-        msg: UnparsedRelayCell,
+        msg: UnparsedRelayMsg,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition> {
         let msg = msg
@@ -584,7 +584,7 @@ where
     fn handle_msg(
         &mut self,
         _cx: &mut Context<'_>,
-        msg: UnparsedRelayCell,
+        msg: UnparsedRelayMsg,
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition> {
         let status = self.extend_circuit(msg, reactor);
@@ -736,7 +736,7 @@ pub(super) struct IncomingStreamRequestContext {
     // incoming stream request from two separate hops.  (There is only one that's valid.)
     pub(super) hop_num: HopNum,
     /// A channel for receiving messages from this stream.
-    pub(super) receiver: mpsc::Receiver<UnparsedRelayCell>,
+    pub(super) receiver: mpsc::Receiver<UnparsedRelayMsg>,
     /// A channel for sending messages to be sent on this stream.
     pub(super) msg_tx: mpsc::Sender<AnyRelayMsg>,
 }
@@ -1276,7 +1276,7 @@ impl Reactor {
         &mut self,
         cx: &mut Context<'_>,
         hopnum: HopNum,
-        msg: UnparsedRelayCell,
+        msg: UnparsedRelayMsg,
     ) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
 
@@ -1731,7 +1731,7 @@ impl Reactor {
         cx: &mut Context<'_>,
         hopnum: HopNum,
         message: AnyRelayMsg,
-        sender: mpsc::Sender<UnparsedRelayCell>,
+        sender: mpsc::Sender<UnparsedRelayMsg>,
         rx: mpsc::Receiver<AnyRelayMsg>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
@@ -1826,7 +1826,7 @@ impl Reactor {
             tag_copy
         };
         // Put the cell into a format where we can make sense of it.
-        let msg = UnparsedRelayCell::from_body(body.into());
+        let msg = UnparsedRelayMsg::from_body(body.into());
 
         let c_t_w = sendme::cell_counts_towards_windows(&msg);
 
@@ -1970,7 +1970,7 @@ impl Reactor {
     fn handle_incoming_stream_request(
         &mut self,
         cx: &mut Context<'_>,
-        msg: UnparsedRelayCell,
+        msg: UnparsedRelayMsg,
         stream_id: StreamId,
         hop_num: HopNum,
     ) -> Result<()> {
