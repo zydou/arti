@@ -317,9 +317,15 @@ mod test {
         check(LogPrecision::Subseconds(1), "2023-07-05T04:15:36.1Z");
         check(LogPrecision::Subseconds(2), "2023-07-05T04:15:36.12Z");
         check(LogPrecision::Subseconds(7), "2023-07-05T04:15:36.1234567Z");
-        check(
-            LogPrecision::Subseconds(9),
-            "2023-07-05T04:15:36.123456789Z",
-        );
+        cfg_if::cfg_if! {
+            if #[cfg(windows)] {
+                // Windows has a 100-nanosecond precision, see
+                // https://learn.microsoft.com/en-us/windows/win32/sysinfo/about-time
+                let expected = "2023-07-05T04:15:36.123456700Z";
+            } else {
+                let expected = "2023-07-05T04:15:36.123456789Z";
+            }
+        }
+        check(LogPrecision::Subseconds(9), expected);
     }
 }
