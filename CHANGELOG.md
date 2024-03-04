@@ -103,6 +103,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
   ([b515baf27f194470])
 - Our [Shadow] CI tests now use the latest versions of `shadow` and `tgen`, and
   no longer pull `libigraph` from bullseye. ([!1958])
+- Upgrade docker image for reproducible builds. ([!2016])
 
 ### Cleanups, minor features, and bugfixes
 
@@ -167,6 +168,7 @@ for funding the development of Arti!
 [!2003]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2003
 [!2004]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2004
 [!2010]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2010
+[!2016]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2016
 [#1083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1083
 [#1100]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1100
 [#1115]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1115
