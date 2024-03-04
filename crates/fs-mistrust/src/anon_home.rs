@@ -7,6 +7,7 @@
 
 use std::{
     collections::HashSet,
+    fmt::Display,
     path::{Path, PathBuf},
 };
 
@@ -85,6 +86,12 @@ pub struct AnonHomePath<'a>(&'a Path);
 
 impl<'a> std::fmt::Display for AnonHomePath<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        /// `Path::display`, but with a better name and an allow
+        #[allow(clippy::disallowed_methods)]
+        fn display_lossy(p: &Path) -> impl Display + '_ {
+            p.display()
+        }
+
         // We compare against both the home directory and the canonical home
         // directory, since sometimes we'll want to canonicalize a path before
         // passing it to this function and still have it work.
@@ -95,14 +102,14 @@ impl<'a> std::fmt::Display for AnonHomePath<'a> {
                     "{}{}{}",
                     HOME_SUBSTITUTION,
                     std::path::MAIN_SEPARATOR,
-                    suffix.display()
+                    display_lossy(suffix),
                 );
             }
         }
 
         // Didn't match any homedir.
 
-        self.0.display().fmt(f)
+        display_lossy(self.0).fmt(f)
     }
 }
 
