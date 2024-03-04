@@ -35,6 +35,9 @@ pub(crate) use std::sync::{MutexGuard};
 pub(crate) use std::error::Error as StdError;
 pub(crate) use std::future::Future;
 pub(crate) use std::time::SystemTime;
+pub(crate) use std::cmp::max;
+pub(crate) use std::collections::BinaryHeap;
+pub(crate) use std::iter;
 
 //---------- upstreams ----------
 
@@ -54,7 +57,7 @@ pub(crate) use futures::{future, select_biased};
 pub(crate) use futures::{SinkExt as _, StreamExt as _};
 pub(crate) use itertools::Itertools as _;
 pub(crate) use rand::Rng;
-pub(crate) use tor_keymgr::{KeyMgr, KeySpecifier as _};
+pub(crate) use tor_keymgr::{KeyMgr};
 pub(crate) use tracing::{debug, error, info, trace, warn};
 pub(crate) use base64ct::{Base64Unpadded, Encoding as _};
 pub(crate) use derive_builder::Builder;
@@ -65,6 +68,10 @@ pub(crate) use itertools::{chain};
 pub(crate) use derive_adhoc::{define_derive_adhoc};
 pub(crate) use derive_more::Constructor;
 pub(crate) use rand_core::{CryptoRng, RngCore};
+pub(crate) use async_trait::async_trait;
+pub(crate) use derive_more::{From, Into};
+pub(crate) use futures::{AsyncRead, AsyncWrite, TryStreamExt as _};
+pub(crate) use postage::sink::SendError;
 
 //---------- tor-* crates ----------
 
@@ -111,6 +118,18 @@ pub(crate) use tor_hscrypto::pk::{HsBlindIdKey, HsDescSigningKeypair};
 pub(crate) use tor_hscrypto::RevisionCounter;
 pub(crate) use tor_netdoc::doc::hsdesc::{create_desc_sign_key_cert, HsDescBuilder};
 pub(crate) use tor_netdoc::NetdocBuilder;
+pub(crate) use tor_basic_utils::retry::RetryDelay;
+pub(crate) use tor_hscrypto::ope::AesOpeKey;
+pub(crate) use tor_keymgr::{KeySpecifier};
+pub(crate) use tor_circmgr::hspool::{HsCircKind};
+pub(crate) use tor_dirclient::request::HsDescUploadRequest;
+pub(crate) use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
+pub(crate) use tor_error::define_asref_dyn_std_error;
+pub(crate) use tor_hscrypto::pk::{
+    HsBlindId, HsBlindIdKeypair,
+};
+pub(crate) use tor_linkspec::{OwnedCircTarget};
+pub(crate) use tor_netdir::{NetDir, Relay, Timeliness};
 
 //---------- names from this crate ----------
 
@@ -147,4 +166,6 @@ pub(crate) use crate::ipt_set::IptSet;
 pub(crate) use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier,
 };
-
+pub(crate) use crate::ipt_set::{IptsPublisherUploadView};
+pub(crate) use crate::keys::expire_publisher_keys;
+pub(crate) use crate::status::{State};
