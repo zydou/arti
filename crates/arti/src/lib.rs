@@ -218,7 +218,12 @@ async fn run<R: Runtime>(
     // NOTE: reconfigurable_modules stores the only strong references to these modules,
     // so we must keep the variable alive until the end of the function
     let weak_modules = reconfigurable_modules.iter().map(Arc::downgrade).collect();
-    reload_cfg::watch_for_config_changes(config_sources, &arti_config, client.runtime(), weak_modules)?;
+    reload_cfg::watch_for_config_changes(
+        config_sources,
+        &arti_config,
+        client.runtime(),
+        weak_modules,
+    )?;
 
     #[cfg(all(feature = "rpc", feature = "tokio"))]
     let rpc_mgr = {
