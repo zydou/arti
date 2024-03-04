@@ -63,7 +63,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     sources: ConfigurationSources,
     config: &ArtiConfig,
     #[cfg_attr(not(target_family = "unix"), allow(unused_variables))]
-    client: &TorClient<R>,
+    runtime: &R,
     modules: Vec<Weak<dyn ReconfigurableModule>>,
 ) -> anyhow::Result<()> {
     let watch_file = config.application().watch_configuration;
@@ -90,7 +90,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 
         let mut sighup_stream = sighup_stream()?;
         let tx = tx.clone();
-        client.runtime().spawn(async move {
+        runtime.spawn(async move {
             while let Some(()) = sighup_stream.next().await {
                 info!("Received SIGHUP");
                 if tx.send(Event::SigHup).is_err() {
