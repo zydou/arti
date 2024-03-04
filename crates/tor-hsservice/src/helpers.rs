@@ -1,9 +1,6 @@
 //! Functions to help working with onion services.
 
-use futures::{future::Either, stream, FutureExt, Stream, StreamExt};
-use tor_error::warn_report;
-
-use crate::{RendRequest, StreamRequest};
+use crate::internal_prelude::*;
 
 /// Consume a stream of [`RendRequest`], accepting them all, and produce a
 /// stream of [`StreamRequest`].

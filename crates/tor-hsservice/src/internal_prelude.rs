@@ -89,6 +89,7 @@ pub(crate) use tor_linkspec::{HasRelayIds as _, RelayIds};
 pub(crate) use tor_llcrypto::pk::ed25519;
 pub(crate) use tor_config::ConfigBuildError;
 pub(crate) use tor_hscrypto::pk::HsClientDescEncKey;
+pub(crate) use futures::{future::Either, stream};
 
 //---------- names from this crate ----------
 
@@ -116,3 +117,4 @@ pub(crate) use crate::{ipt_establish, ShutdownStatus};
 pub(crate) use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 pub(crate) use crate::{StartupError};
 pub(crate) use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
+pub(crate) use crate::{StreamRequest};
