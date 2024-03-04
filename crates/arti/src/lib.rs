@@ -412,7 +412,9 @@ where
                             .value_name("PORT")
                             .help("Port to listen on for DNS request (overrides the port in the config if specified).")
                     )
-            );
+            )
+            .subcommand_required(true)
+            .arg_required_else_help(true);
 
     cfg_if::cfg_if! {
         // TODO (#1250): test the CLI.
@@ -438,9 +440,7 @@ where
                                 "Print the .onion address of a hidden service",
                             )
                     )
-            )
-            .subcommand_required(true)
-            .arg_required_else_help(true);
+            );
         }
     }
 
