@@ -1,9 +1,6 @@
 //! Helper types used by the [`Reactor`](super::Reactor) for scheduling descriptor reuploads.
 
-use std::cmp::Ordering;
-use std::time::Instant;
-
-use tor_hscrypto::time::TimePeriod;
+use super::*;
 
 /// A type that represents when a descriptor should be republished.
 ///

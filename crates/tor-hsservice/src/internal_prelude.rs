@@ -38,6 +38,7 @@ pub(crate) use std::time::SystemTime;
 pub(crate) use std::cmp::max;
 pub(crate) use std::collections::BinaryHeap;
 pub(crate) use std::iter;
+pub(crate) use std::cmp::Ordering;
 
 //---------- upstreams ----------
 
