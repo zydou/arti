@@ -1,6 +1,6 @@
 [package]
 name = "arti-rpcserver"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 rust-version = "1.70"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
@@ -23,7 +23,7 @@ full = [
 ]
 
 [dependencies]
-arti-client = { path = "../arti-client", version = "0.14.0", features = ["rpc"] }
+arti-client = { path = "../arti-client", version = "0.14.1", features = ["rpc"] }
 asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"

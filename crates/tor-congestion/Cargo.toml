@@ -1,6 +1,6 @@
 [package]
 name = "tor-congestion"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
 rust-version = "1.70"
@@ -17,8 +17,8 @@ publish = false
 [dependencies]
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.6.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.12.0" }
-tor-units = { path = "../tor-units", version = "0.6.1" }
+tor-netdir = { path = "../tor-netdir", version = "0.12.1" }
+tor-units = { path = "../tor-units", version = "0.6.5" }
 
 [features]
 full = ["tor-error/full", "tor-netdir/full", "tor-units/full"]

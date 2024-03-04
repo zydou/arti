@@ -124,6 +124,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
   [async-broadcast], [signature], [config]. ([!2001], [!2004])
 - Fix `ArtiPath` creation on Windows. ([!2012])
 - Fix compilation and warnings on Windows. ([!2014], [!2009])
+- Gate `RpcConfig` behind `rpc` feature. ([[6c9e70e39ab279aa]])
 
 ### Acknowledgments
 
@@ -206,6 +207,7 @@ for funding the development of Arti!
 [b515baf27f194470]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b515baf27f1944708285849503dfcd08bb7ac73b
 [bd85bffd0a388f57]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bd85bffd0a388f579d42c8a0758091232bf901a0
 [f3720ac2c0f16883]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f3720ac2c0f16883abc1597ad828f99022a0e320
+[6c9e70e39ab279aa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/6c9e70e39ab279aa99634d216847627f1cd62f2a
 [Shadow]: https://shadow.github.io/
 [TROVE-2024-001]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
