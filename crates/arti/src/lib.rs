@@ -219,9 +219,9 @@ async fn run<R: Runtime>(
     // so we must keep the variable alive until the end of the function
     let weak_modules = reconfigurable_modules.iter().map(Arc::downgrade).collect();
     reload_cfg::watch_for_config_changes(
+        client.runtime(),
         config_sources,
         &arti_config,
-        client.runtime(),
         weak_modules,
     )?;
 

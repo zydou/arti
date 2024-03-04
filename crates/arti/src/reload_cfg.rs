@@ -60,10 +60,10 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 /// from keeping them alive.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
-    sources: ConfigurationSources,
-    config: &ArtiConfig,
     #[cfg_attr(not(target_family = "unix"), allow(unused_variables))]
     runtime: &R,
+    sources: ConfigurationSources,
+    config: &ArtiConfig,
     modules: Vec<Weak<dyn ReconfigurableModule>>,
 ) -> anyhow::Result<()> {
     let watch_file = config.application().watch_configuration;
