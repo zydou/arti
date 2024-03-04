@@ -7,10 +7,10 @@ mod reupload_timer;
 
 use crate::internal_prelude::*;
 
-use reactor::Reactor;
-use reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
 use backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use reactor::Reactor;
+use reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
 use reupload_timer::ReuploadTimer;
 
 pub use reactor::UploadError;
@@ -189,8 +189,8 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
-    use crate::status::{OnionServiceStatus, StatusSender};
     use crate::publish::reactor::MockableClientCirc;
+    use crate::status::{OnionServiceStatus, StatusSender};
     use crate::test::create_storage_handles;
     use crate::{Anonymity, HsNickname};
     use crate::{

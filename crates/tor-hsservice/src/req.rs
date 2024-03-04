@@ -6,12 +6,8 @@
 use crate::internal_prelude::*;
 
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
-use tor_hscrypto::{
-    Subcredential,
-};
-use tor_proto::{
-    stream::{IncomingStream, IncomingStreamRequest},
-};
+use tor_hscrypto::Subcredential;
+use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
 
 /// Request to complete an introduction/rendezvous handshake.
 ///

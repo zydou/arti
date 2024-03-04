@@ -12,7 +12,7 @@ use crate::internal_prelude::*;
 
 use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
-    msg::{IntroEstablished},
+    msg::IntroEstablished,
 };
 
 /// Handle onto the task which is establishing and maintaining one IPT

@@ -7,9 +7,7 @@ use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
 };
-use tor_linkspec::{
-    decode::Strictness, verbatim::VerbatimLinkSpecCircTarget,
-};
+use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
 use tor_proto::{
     circuit::{
         handshake,

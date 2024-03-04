@@ -86,6 +86,7 @@ use internal_prelude::*;
 
 // ---------- public exports ----------
 
+pub use crate::netdir::NetdirProviderShutdown;
 pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
@@ -95,9 +96,8 @@ pub use keys::{
     HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
 };
 pub use nickname::{HsNickname, InvalidNickname};
-pub use req::{RendRequest, StreamRequest};
-pub use crate::netdir::NetdirProviderShutdown;
 pub use publish::UploadError as DescUploadError;
+pub use req::{RendRequest, StreamRequest};
 
 pub use helpers::handle_rend_requests;
 

@@ -1775,8 +1775,8 @@ mod test {
     use super::*;
 
     use crate::config::OnionServiceConfigBuilder;
-    use crate::status::{OnionServiceStatus, StatusSender};
     use crate::ipt_establish::GoodIptDetails;
+    use crate::status::{OnionServiceStatus, StatusSender};
     use crate::test::{create_keymgr, create_storage_handles_from_state_dir};
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
