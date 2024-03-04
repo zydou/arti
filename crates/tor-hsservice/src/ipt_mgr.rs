@@ -49,7 +49,7 @@ use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
 use crate::status::{IptMgrStatusSender, State as IptMgrState};
-use crate::svc::{ipt_establish, ShutdownStatus};
+use crate::{ipt_establish, svc::ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
 use crate::{HsNickname, IptLocalId, OnionServiceConfig, RendRequest};
@@ -61,7 +61,7 @@ use TrackedStatus as TS;
 mod persist;
 pub(crate) use persist::IptStorageHandle;
 
-pub use crate::svc::ipt_establish::IptError;
+pub use crate::ipt_establish::IptError;
 
 /// Expiry time to put on an interim descriptor (IPT publication set Uncertain)
 ///
@@ -1830,7 +1830,7 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::status::{OnionServiceStatus, StatusSender};
-    use crate::svc::ipt_establish::GoodIptDetails;
+    use crate::ipt_establish::GoodIptDetails;
     use crate::svc::test::{create_keymgr, create_storage_handles_from_state_dir};
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;

@@ -31,7 +31,6 @@ use crate::OnionServiceConfig;
 use crate::RendRequest;
 use crate::StartupError;
 
-pub(crate) mod ipt_establish;
 pub(crate) mod publish;
 pub(crate) mod rend_handshake;
 
@@ -42,7 +41,7 @@ pub(crate) type LinkSpecs = Vec<tor_linkspec::EncodedLinkSpec>;
 // TODO (#1022) maybe this should be
 // `tor_proto::crypto::handshake::ntor::NtorPublicKey`,
 // or a unified OnionKey type.
-type NtorPublicKey = curve25519::PublicKey;
+pub(crate) type NtorPublicKey = curve25519::PublicKey;
 
 /// A handle to a running instance of an onion service.
 //
