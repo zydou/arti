@@ -116,7 +116,7 @@ pub use helpers::handle_rend_requests;
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc;
-use futures::channel::oneshot;
+use tor_async_utils::oneshot;
 use futures::Stream;
 use postage::broadcast;
 use safelog::sensitive;
