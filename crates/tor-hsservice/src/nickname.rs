@@ -15,9 +15,8 @@ use crate::internal_prelude::*;
 // Slug, we should remember to also update `KeySpecifierComponent::from_component` (it
 // should return an error if the specified string is a valid Slug, but not a valid
 // HsNickname).
-#[derive(
-    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, derive_more::Display, From, Into, Serialize, Deserialize,
-)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)] //
+#[derive(derive_more::Display, From, Into, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(Slug);
 
