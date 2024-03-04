@@ -45,6 +45,7 @@ use std::collections::BinaryHeap;
 use std::fmt;
 use std::mem;
 use std::ops::{RangeInclusive, RangeToInclusive};
+use std::path::Path;
 use std::time::Duration;
 
 pub mod iter;
@@ -271,6 +272,30 @@ impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
     fn retain_ext<F: FnMut(&T) -> bool>(&mut self, f: F) {
         let items = mem::take(self).into_iter();
         *self = items.filter(f).collect();
+    }
+}
+
+// ----------------------------------------------------------------------
+
+/// Renaming of `Path::display` as `display_lossy`
+pub trait PathExt: Sealed {
+    /// Display this `Path` as an approximate string, for human consumption in messages
+    ///
+    /// Operating system paths cannot always be faithfully represented as Rust strings,
+    /// because they might not be valid Unicode.
+    ///
+    /// This helper method provides a way to display a string for human users.
+    /// **This may lose information** so should only be used for error messages etc.
+    ///
+    /// This method is exactly the same as [`std::path::Path::display`],
+    /// but with a different and more discouraging name.
+    fn display_lossy(&self) -> std::path::Display<'_>;
+}
+impl Sealed for Path {}
+impl PathExt for Path {
+    #[allow(clippy::disallowed_methods)]
+    fn display_lossy(&self) -> std::path::Display<'_> {
+        self.display()
     }
 }
 
