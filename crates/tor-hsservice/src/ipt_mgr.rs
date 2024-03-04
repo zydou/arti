@@ -308,12 +308,6 @@ enum TrackedStatus {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct IsCurrent;
 
-impl rand::distributions::Distribution<IptLocalId> for rand::distributions::Standard {
-    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> IptLocalId {
-        IptLocalId(rng.gen())
-    }
-}
-
 impl IptRelay {
     /// Get a reference to this IPT relay's current intro point state (if any)
     ///
