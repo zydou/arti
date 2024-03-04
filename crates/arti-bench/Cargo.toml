@@ -17,7 +17,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.23"
-arti = { path = "../arti", version = "1.1.13" }
+arti = { path = "../arti", version = "1.2.0" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.14.1" }
 clap = { version = "4.3.24", features = ["wrap_help"] }
 float-ord = "0.3"
