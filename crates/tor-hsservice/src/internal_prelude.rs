@@ -32,11 +32,13 @@ pub(crate) use std::path::{Path, PathBuf};
 pub(crate) use std::collections::HashMap;
 pub(crate) use std::ops::{Deref, DerefMut};
 pub(crate) use std::sync::{MutexGuard};
+pub(crate) use std::error::Error as StdError;
+pub(crate) use std::future::Future;
 
 //---------- upstreams ----------
 
 pub(crate) use educe::Educe;
-pub(crate) use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
+pub(crate) use futures::{channel::mpsc, task::SpawnExt as _, FutureExt as _};
 pub(crate) use postage::watch;
 pub(crate) use safelog::Redactable as _;
 pub(crate) use void::{ResultVoidErrExt as _, Void};
@@ -101,6 +103,7 @@ pub(crate) use tor_rtcompat::SleepProvider;
 pub(crate) use tor_hscrypto::time::TimePeriod;
 pub(crate) use tor_keymgr::derive_adhoc_template_KeySpecifier;
 pub(crate) use tor_netdir::HsDirParams;
+pub(crate) use retry_error::RetryError;
 
 //---------- names from this crate ----------
 
