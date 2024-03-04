@@ -3,7 +3,7 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-use derive_more::{Display, From, Into};
+use derive_more::{From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -24,7 +24,7 @@ use tor_persist::slug::Slug;
 // should return an error if the specified string is a valid Slug, but not a valid
 // HsNickname).
 #[derive(
-    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Display, From, Into, Serialize, Deserialize,
+    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, derive_more::Display, From, Into, Serialize, Deserialize,
 )]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(Slug);
