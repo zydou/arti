@@ -20,6 +20,15 @@ pub(crate) use std::sync::{Arc, Mutex};
 pub(crate) use std::time::{Duration, Instant};
 pub(crate) use std::fmt::{self, Display};
 pub(crate) use std::str::FromStr;
+pub(crate) use std::any::Any;
+pub(crate) use std::collections::{HashSet, VecDeque};
+pub(crate) use std::fmt::Debug;
+pub(crate) use std::fs;
+pub(crate) use std::hash::Hash;
+pub(crate) use std::io;
+pub(crate) use std::marker::PhantomData;
+pub(crate) use std::panic::AssertUnwindSafe;
+pub(crate) use std::path::{Path, PathBuf};
 
 //---------- upstreams ----------
 
@@ -27,7 +36,6 @@ pub(crate) use educe::Educe;
 pub(crate) use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
 pub(crate) use postage::watch;
 pub(crate) use safelog::Redactable as _;
-pub(crate) use tracing::debug;
 pub(crate) use void::{ResultVoidErrExt as _, Void};
 pub(crate) use derive_adhoc::Adhoc;
 pub(crate) use serde::{Deserialize, Serialize};
@@ -36,7 +44,12 @@ pub(crate) use thiserror::Error;
 pub(crate) use futures::Stream;
 pub(crate) use postage::broadcast;
 pub(crate) use safelog::sensitive;
-pub(crate) use tracing::info;
+pub(crate) use futures::{future, select_biased};
+pub(crate) use futures::{SinkExt as _, StreamExt as _};
+pub(crate) use itertools::Itertools as _;
+pub(crate) use rand::Rng;
+pub(crate) use tor_keymgr::{KeyMgr, KeySpecifier as _};
+pub(crate) use tracing::{debug, error, info, trace, warn};
 
 //---------- tor-* crates ----------
 
@@ -50,9 +63,7 @@ pub(crate) use tor_circmgr::hspool::HsCircPool;
 pub(crate) use tor_error::warn_report;
 pub(crate) use tor_error::{bad_api_usage, debug_report, internal, into_internal};
 pub(crate) use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
-pub(crate) use tor_keymgr::KeyMgr;
 pub(crate) use tor_linkspec::CircTarget;
-pub(crate) use tor_linkspec::{HasRelayIds as _, RelayIds};
 pub(crate) use tor_log_ratelim::log_ratelim;
 pub(crate) use tor_netdir::NetDirProvider;
 pub(crate) use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
@@ -67,6 +78,12 @@ pub(crate) use tor_hscrypto::pk::HsIdKeypair;
 pub(crate) use tor_keymgr::KeystoreSelector;
 pub(crate) use tor_llcrypto::pk::curve25519;
 pub(crate) use tor_persist::state_dir::StateDirectory;
+pub(crate) use tor_basic_utils::RngExt as _;
+pub(crate) use tor_error::{error_report, info_report};
+pub(crate) use tor_error::{Bug, ErrorKind, ErrorReport as _, HasKind};
+pub(crate) use tor_keymgr::KeySpecifierPattern as _;
+pub(crate) use tor_linkspec::{HasRelayIds as _, RelayIds};
+pub(crate) use tor_llcrypto::pk::ed25519;
 
 //---------- names from this crate ----------
 
@@ -86,3 +103,11 @@ pub(crate) use crate::status::{OnionServiceStatus, OnionServiceStatusStream, Sta
 pub(crate) use crate::publish::Publisher;
 pub(crate) use crate::err::IptStoreError;
 pub(crate) use crate::ipt_lid::{InvalidIptLocalId, IptLocalId};
+pub(crate) use crate::err::StateExpiryError;
+pub(crate) use crate::ipt_set::{self, PublishIptSet};
+pub(crate) use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
+pub(crate) use crate::status::{IptMgrStatusSender, State as IptMgrState};
+pub(crate) use crate::{ipt_establish, ShutdownStatus};
+pub(crate) use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
+pub(crate) use crate::{StartupError};
+pub(crate) use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
