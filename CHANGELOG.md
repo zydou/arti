@@ -98,7 +98,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
 
 ### Testing
 
-- Improve replay log fork test. ([!1974], [#1264])
+- Improve replay log fork test. ([!1974], [!2010], [#1264])
 - In the introduction point manager tests, avoid reusing the RNG seed.
   ([b515baf27f194470])
 - Our [Shadow] CI tests now use the latest versions of `shadow` and `tgen`, and
@@ -166,6 +166,7 @@ for funding the development of Arti!
 [!2001]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2001
 [!2003]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2003
 [!2004]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2004
+[!2010]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2010
 [#1083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1083
 [#1100]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1100
 [#1115]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1115
