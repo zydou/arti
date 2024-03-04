@@ -397,7 +397,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::svc::test::mk_state_instance;
+    use crate::test::mk_state_instance;
     use rand::Rng;
     use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
 

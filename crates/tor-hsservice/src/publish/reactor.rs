@@ -95,7 +95,7 @@ use crate::netdir::wait_for_netdir;
 use crate::publish::backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use crate::publish::descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use crate::publish::reupload_timer::ReuploadTimer;
-use crate::svc::ShutdownStatus;
+use crate::ShutdownStatus;
 use crate::timeout_track::TrackingNow;
 use crate::{
     BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,

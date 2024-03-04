@@ -49,7 +49,7 @@ use crate::ipt_set::{self, IptsManagerView, PublishIptSet};
 use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
 use crate::replay::ReplayLog;
 use crate::status::{IptMgrStatusSender, State as IptMgrState};
-use crate::{ipt_establish, svc::ShutdownStatus};
+use crate::{ipt_establish, ShutdownStatus};
 use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
 use crate::{FatalError, IptStoreError, StartupError};
 use crate::{HsNickname, IptLocalId, OnionServiceConfig, RendRequest};
@@ -1825,7 +1825,7 @@ mod test {
     use crate::config::OnionServiceConfigBuilder;
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::ipt_establish::GoodIptDetails;
-    use crate::svc::test::{create_keymgr, create_storage_handles_from_state_dir};
+    use crate::test::{create_keymgr, create_storage_handles_from_state_dir};
     use rand::SeedableRng as _;
     use slotmap::DenseSlotMap;
     use std::collections::BTreeMap;

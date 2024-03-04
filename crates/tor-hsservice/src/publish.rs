@@ -199,7 +199,7 @@ mod test {
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::publish::reactor::MockableClientCirc;
-    use crate::svc::test::create_storage_handles;
+    use crate::test::create_storage_handles;
     use crate::{Anonymity, HsNickname};
     use crate::{
         BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,

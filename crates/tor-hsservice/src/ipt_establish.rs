@@ -41,7 +41,7 @@ use crate::replay::ReplayLog;
 use crate::OnionServiceConfig;
 use crate::{
     req::RendRequestContext,
-    svc::{LinkSpecs, NtorPublicKey},
+    LinkSpecs, NtorPublicKey,
     HsNickname,
 };
 use crate::{FatalError, IptLocalId, RendRequest};
