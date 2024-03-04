@@ -17,7 +17,7 @@ where
                 Ok(stream_requests) => Either::Left(stream_requests),
                 Err(e) => {
                     warn_report!(e, "Problem while accepting rendezvous request");
-                    Either::Right(stream::empty())
+                    Either::Right(futures::stream::empty())
                 }
             })
             .flatten_stream()

@@ -62,7 +62,7 @@ pub(crate) use futures::task::SpawnError;
 pub(crate) use futures::Stream;
 pub(crate) use futures::{channel::mpsc, task::SpawnExt as _, FutureExt as _};
 pub(crate) use futures::{future, select_biased};
-pub(crate) use futures::{future::Either, stream};
+pub(crate) use futures::{future::Either};
 pub(crate) use futures::{AsyncRead, AsyncWrite, TryStreamExt as _};
 pub(crate) use futures::{SinkExt as _, StreamExt as _};
 pub(crate) use itertools::chain;
