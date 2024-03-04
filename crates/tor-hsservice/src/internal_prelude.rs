@@ -52,6 +52,7 @@ pub(crate) use tor_keymgr::{KeyMgr, KeySpecifier as _};
 pub(crate) use tracing::{debug, error, info, trace, warn};
 pub(crate) use base64ct::{Base64Unpadded, Encoding as _};
 pub(crate) use derive_builder::Builder;
+pub(crate) use futures::task::SpawnError;
 
 //---------- tor-* crates ----------
 

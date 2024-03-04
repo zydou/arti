@@ -1,19 +1,8 @@
 //! Declare an error type for the `tor-hsservice` crate.
 
-use std::io;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-
-use futures::task::SpawnError;
-
-use thiserror::Error;
-
-use tor_error::error_report;
-use tor_error::{Bug, ErrorKind, HasKind};
+use crate::internal_prelude::*;
 
 pub use crate::rend_handshake::{EstablishSessionError, IntroRequestError};
-use crate::{HsNickname, NetdirProviderShutdown};
 
 /// An error which occurs trying to create and start up an onion service
 ///
