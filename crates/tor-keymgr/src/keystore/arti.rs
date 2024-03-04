@@ -355,6 +355,7 @@ mod tests {
             let key_path = key_path(&key_store, &KeyType::Ed25519Keypair);
             let parent = key_path.parent().unwrap();
             fs::create_dir_all(parent).unwrap();
+            #[cfg(unix)]
             fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).unwrap();
 
             fs::write(key_path, OPENSSH_ED25519).unwrap();

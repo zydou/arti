@@ -14,9 +14,11 @@ use crate::onion_proxy::{
 #[cfg(not(feature = "onion-service-service"))]
 use crate::onion_proxy_disabled::{OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder};
 use arti_client::TorClientConfig;
+#[cfg(feature = "onion-service-service")]
+use tor_config::define_list_builder_accessors;
+use tor_config::resolve_alternative_specs;
 #[cfg(feature = "rpc")]
 use tor_config::CfgPath;
-use tor_config::{define_list_builder_accessors, resolve_alternative_specs};
 pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
@@ -170,6 +172,7 @@ fn default_max_files() -> u64 {
 /// Configuration for Arti's RPC subsystem.
 ///
 /// You cannot change this section on a running Arti client.
+#[cfg(feature = "rpc")]
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
@@ -177,7 +180,6 @@ fn default_max_files() -> u64 {
 #[non_exhaustive]
 pub struct RpcConfig {
     /// Location to listen for incoming RPC connections.
-    #[cfg(feature = "rpc")]
     #[builder(default = "default_rpc_path()")]
     pub(crate) rpc_listen: Option<CfgPath>,
 }
