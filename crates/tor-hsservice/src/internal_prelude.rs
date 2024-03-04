@@ -29,6 +29,9 @@ pub(crate) use std::io;
 pub(crate) use std::marker::PhantomData;
 pub(crate) use std::panic::AssertUnwindSafe;
 pub(crate) use std::path::{Path, PathBuf};
+pub(crate) use std::collections::HashMap;
+pub(crate) use std::ops::{Deref, DerefMut};
+pub(crate) use std::sync::{MutexGuard};
 
 //---------- upstreams ----------
 
@@ -53,6 +56,9 @@ pub(crate) use tracing::{debug, error, info, trace, warn};
 pub(crate) use base64ct::{Base64Unpadded, Encoding as _};
 pub(crate) use derive_builder::Builder;
 pub(crate) use futures::task::SpawnError;
+pub(crate) use futures::{future::Either, stream};
+pub(crate) use derive_more::{Deref, DerefMut};
+pub(crate) use itertools::{chain};
 
 //---------- tor-* crates ----------
 
@@ -89,7 +95,7 @@ pub(crate) use tor_linkspec::{HasRelayIds as _, RelayIds};
 pub(crate) use tor_llcrypto::pk::ed25519;
 pub(crate) use tor_config::ConfigBuildError;
 pub(crate) use tor_hscrypto::pk::HsClientDescEncKey;
-pub(crate) use futures::{future::Either, stream};
+pub(crate) use tor_rtcompat::SleepProvider;
 
 //---------- names from this crate ----------
 
@@ -118,3 +124,4 @@ pub(crate) use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Upd
 pub(crate) use crate::{StartupError};
 pub(crate) use ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire};
 pub(crate) use crate::{StreamRequest};
+pub(crate) use crate::time_store;
