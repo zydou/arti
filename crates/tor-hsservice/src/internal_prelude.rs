@@ -16,156 +16,164 @@
 
 //---------- std ----------
 
-pub(crate) use std::any::Any;
-pub(crate) use std::borrow::Cow;
-pub(crate) use std::cmp::max;
-pub(crate) use std::cmp::Ordering;
-pub(crate) use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
-pub(crate) use std::error::Error as StdError;
-pub(crate) use std::ffi::OsStr;
-pub(crate) use std::fmt::{self, Debug, Display};
-pub(crate) use std::fs;
-pub(crate) use std::fs::{File, OpenOptions};
-pub(crate) use std::future::Future;
-pub(crate) use std::hash::Hash;
-pub(crate) use std::io;
-pub(crate) use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
-pub(crate) use std::iter;
-pub(crate) use std::marker::PhantomData;
-pub(crate) use std::ops::{Deref, DerefMut};
-pub(crate) use std::panic::AssertUnwindSafe;
-pub(crate) use std::path::{Path, PathBuf};
-pub(crate) use std::str::FromStr;
-pub(crate) use std::sync::{Arc, Mutex, MutexGuard};
-pub(crate) use std::time::{Duration, Instant, SystemTime};
+pub(crate) use {
+    std::any::Any,
+    std::borrow::Cow,
+    std::cmp::max,
+    std::cmp::Ordering,
+    std::collections::{BinaryHeap, HashMap, HashSet, VecDeque},
+    std::error::Error as StdError,
+    std::ffi::OsStr,
+    std::fmt::{self, Debug, Display},
+    std::fs,
+    std::fs::{File, OpenOptions},
+    std::future::Future,
+    std::hash::Hash,
+    std::io,
+    std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
+    std::iter,
+    std::marker::PhantomData,
+    std::ops::{Deref, DerefMut},
+    std::panic::AssertUnwindSafe,
+    std::path::{Path, PathBuf},
+    std::str::FromStr,
+    std::sync::{Arc, Mutex, MutexGuard},
+    std::time::{Duration, Instant, SystemTime},
+};
 
 //---------- upstreams ----------
 
-pub(crate) use async_trait::async_trait;
-pub(crate) use base64ct::{Base64Unpadded, Encoding as _};
-pub(crate) use derive_adhoc::{define_derive_adhoc, Adhoc};
-pub(crate) use derive_builder::Builder;
-pub(crate) use derive_more::{Constructor, Deref, DerefMut, From, Into};
-pub(crate) use educe::Educe;
-pub(crate) use futures::channel::mpsc;
-pub(crate) use futures::future::{self, Either};
-pub(crate) use futures::select_biased;
-pub(crate) use futures::stream::BoxStream;
-pub(crate) use futures::task::{SpawnError, SpawnExt as _};
-pub(crate) use futures::{AsyncRead, AsyncWrite, Stream};
-pub(crate) use futures::{FutureExt as _, SinkExt as _, StreamExt as _, TryStreamExt as _};
-pub(crate) use itertools::{chain, Itertools as _};
-pub(crate) use postage::{broadcast, watch};
-pub(crate) use rand::Rng;
-pub(crate) use rand_core::{CryptoRng, RngCore};
-pub(crate) use serde::{Deserialize, Deserializer, Serialize, Serializer};
-pub(crate) use thiserror::Error;
-pub(crate) use tor_keymgr::KeyMgr;
-pub(crate) use tracing::{debug, error, info, trace, warn};
-pub(crate) use void::{ResultVoidErrExt as _, Void};
+pub(crate) use {
+    async_trait::async_trait,
+    base64ct::{Base64Unpadded, Encoding as _},
+    derive_adhoc::{define_derive_adhoc, Adhoc},
+    derive_builder::Builder,
+    derive_more::{Constructor, Deref, DerefMut, From, Into},
+    educe::Educe,
+    futures::channel::mpsc,
+    futures::future::{self, Either},
+    futures::select_biased,
+    futures::stream::BoxStream,
+    futures::task::{SpawnError, SpawnExt as _},
+    futures::{AsyncRead, AsyncWrite, Stream},
+    futures::{FutureExt as _, SinkExt as _, StreamExt as _, TryStreamExt as _},
+    itertools::{chain, Itertools as _},
+    postage::{broadcast, watch},
+    rand::Rng,
+    rand_core::{CryptoRng, RngCore},
+    serde::{Deserialize, Deserializer, Serialize, Serializer},
+    thiserror::Error,
+    tor_keymgr::KeyMgr,
+    tracing::{debug, error, info, trace, warn},
+    void::{ResultVoidErrExt as _, Void},
+};
 
 //---------- tor-* crates ----------
 
-pub(crate) use retry_error::RetryError;
-pub(crate) use safelog::{sensitive, Redactable as _};
-pub(crate) use tor_async_utils::oneshot;
-pub(crate) use tor_async_utils::DropNotifyWatchSender;
-pub(crate) use tor_async_utils::PostageWatchSenderExt as _;
-pub(crate) use tor_basic_utils::impl_debug_hex;
-pub(crate) use tor_basic_utils::retry::RetryDelay;
-pub(crate) use tor_basic_utils::RngExt as _;
-pub(crate) use tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg as _};
-pub(crate) use tor_circmgr::build::circparameters_from_netparameters;
-pub(crate) use tor_circmgr::hspool::HsCircKind;
-pub(crate) use tor_circmgr::hspool::HsCircPool;
-pub(crate) use tor_config::ConfigBuildError;
-pub(crate) use tor_config::{Reconfigure, ReconfigureError};
-pub(crate) use tor_dirclient::request::HsDescUploadRequest;
-pub(crate) use tor_dirclient::{send_request, Error as DirClientError, RequestFailedError};
-pub(crate) use tor_error::define_asref_dyn_std_error;
-pub(crate) use tor_error::into_bad_api_usage;
-pub(crate) use tor_error::warn_report;
-pub(crate) use tor_error::{bad_api_usage, debug_report, internal, into_internal};
-pub(crate) use tor_error::{error_report, info_report};
-pub(crate) use tor_error::{Bug, ErrorKind, ErrorReport as _, HasKind};
-pub(crate) use tor_hscrypto::ope::AesOpeKey;
-pub(crate) use tor_hscrypto::pk::HsClientDescEncKey;
-pub(crate) use tor_hscrypto::pk::HsId;
-pub(crate) use tor_hscrypto::pk::HsIdKey;
-pub(crate) use tor_hscrypto::pk::HsIdKeypair;
-pub(crate) use tor_hscrypto::pk::HsIntroPtSessionIdKey;
-pub(crate) use tor_hscrypto::pk::{HsBlindId, HsBlindIdKeypair};
-pub(crate) use tor_hscrypto::pk::{HsBlindIdKey, HsDescSigningKeypair};
-pub(crate) use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
-pub(crate) use tor_hscrypto::time::TimePeriod;
-pub(crate) use tor_hscrypto::RevisionCounter;
-pub(crate) use tor_keymgr::derive_adhoc_template_KeySpecifier;
-pub(crate) use tor_keymgr::KeySpecifier;
-pub(crate) use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
-pub(crate) use tor_keymgr::KeySpecifierPattern as _;
-pub(crate) use tor_keymgr::KeystoreSelector;
-pub(crate) use tor_keymgr::{KeyPath, KeyPathRange, KeySpecifierComponent};
-pub(crate) use tor_linkspec::CircTarget;
-pub(crate) use tor_linkspec::OwnedChanTargetBuilder;
-pub(crate) use tor_linkspec::OwnedCircTarget;
-pub(crate) use tor_linkspec::{HasRelayIds as _, RelayIds};
-pub(crate) use tor_llcrypto::pk::curve25519;
-pub(crate) use tor_llcrypto::pk::ed25519;
-pub(crate) use tor_log_ratelim::log_ratelim;
-pub(crate) use tor_netdir::HsDirParams;
-pub(crate) use tor_netdir::NetDirProvider;
-pub(crate) use tor_netdir::{NetDir, Relay, Timeliness};
-pub(crate) use tor_netdoc::doc::hsdesc::{create_desc_sign_key_cert, HsDescBuilder};
-pub(crate) use tor_netdoc::NetdocBuilder;
-pub(crate) use tor_persist::slug::Slug;
-pub(crate) use tor_persist::state_dir::ContainsInstanceStateGuard as _;
-pub(crate) use tor_persist::state_dir::StateDirectory;
-pub(crate) use tor_persist::state_dir::{InstanceRawSubdir, LockFileGuard};
-pub(crate) use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
-pub(crate) use tor_proto::stream::DataStream;
-pub(crate) use tor_rtcompat::SleepProvider;
-pub(crate) use tor_rtcompat::{Runtime, SleepProviderExt as _};
+pub(crate) use {
+    retry_error::RetryError,
+    safelog::{sensitive, Redactable as _},
+    tor_async_utils::oneshot,
+    tor_async_utils::DropNotifyWatchSender,
+    tor_async_utils::PostageWatchSenderExt as _,
+    tor_basic_utils::impl_debug_hex,
+    tor_basic_utils::retry::RetryDelay,
+    tor_basic_utils::RngExt as _,
+    tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg as _},
+    tor_circmgr::build::circparameters_from_netparameters,
+    tor_circmgr::hspool::HsCircKind,
+    tor_circmgr::hspool::HsCircPool,
+    tor_config::ConfigBuildError,
+    tor_config::{Reconfigure, ReconfigureError},
+    tor_dirclient::request::HsDescUploadRequest,
+    tor_dirclient::{send_request, Error as DirClientError, RequestFailedError},
+    tor_error::define_asref_dyn_std_error,
+    tor_error::into_bad_api_usage,
+    tor_error::warn_report,
+    tor_error::{bad_api_usage, debug_report, internal, into_internal},
+    tor_error::{error_report, info_report},
+    tor_error::{Bug, ErrorKind, ErrorReport as _, HasKind},
+    tor_hscrypto::ope::AesOpeKey,
+    tor_hscrypto::pk::HsClientDescEncKey,
+    tor_hscrypto::pk::HsId,
+    tor_hscrypto::pk::HsIdKey,
+    tor_hscrypto::pk::HsIdKeypair,
+    tor_hscrypto::pk::HsIntroPtSessionIdKey,
+    tor_hscrypto::pk::{HsBlindId, HsBlindIdKeypair},
+    tor_hscrypto::pk::{HsBlindIdKey, HsDescSigningKeypair},
+    tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair},
+    tor_hscrypto::time::TimePeriod,
+    tor_hscrypto::RevisionCounter,
+    tor_keymgr::derive_adhoc_template_KeySpecifier,
+    tor_keymgr::KeySpecifier,
+    tor_keymgr::KeySpecifierComponentViaDisplayFromStr,
+    tor_keymgr::KeySpecifierPattern as _,
+    tor_keymgr::KeystoreSelector,
+    tor_keymgr::{KeyPath, KeyPathRange, KeySpecifierComponent},
+    tor_linkspec::CircTarget,
+    tor_linkspec::OwnedChanTargetBuilder,
+    tor_linkspec::OwnedCircTarget,
+    tor_linkspec::{HasRelayIds as _, RelayIds},
+    tor_llcrypto::pk::curve25519,
+    tor_llcrypto::pk::ed25519,
+    tor_log_ratelim::log_ratelim,
+    tor_netdir::HsDirParams,
+    tor_netdir::NetDirProvider,
+    tor_netdir::{NetDir, Relay, Timeliness},
+    tor_netdoc::doc::hsdesc::{create_desc_sign_key_cert, HsDescBuilder},
+    tor_netdoc::NetdocBuilder,
+    tor_persist::slug::Slug,
+    tor_persist::state_dir::ContainsInstanceStateGuard as _,
+    tor_persist::state_dir::StateDirectory,
+    tor_persist::state_dir::{InstanceRawSubdir, LockFileGuard},
+    tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition},
+    tor_proto::stream::DataStream,
+    tor_rtcompat::SleepProvider,
+    tor_rtcompat::{Runtime, SleepProviderExt as _},
+};
 
 //---------- names from this crate ----------
 
-pub(crate) use crate::config::DescEncryptionConfig;
-pub(crate) use crate::err::IptStoreError;
-pub(crate) use crate::err::StateExpiryError;
-pub(crate) use crate::ipt_lid::{InvalidIptLocalId, IptLocalId};
-pub(crate) use crate::ipt_mgr::CreateIptError;
-pub(crate) use crate::ipt_mgr::IptManager;
-pub(crate) use crate::ipt_set::IptSet;
-pub(crate) use crate::ipt_set::IptsManagerView;
-pub(crate) use crate::ipt_set::IptsPublisherUploadView;
-pub(crate) use crate::ipt_set::IptsPublisherView;
-pub(crate) use crate::ipt_set::{self, PublishIptSet};
-pub(crate) use crate::keys::expire_publisher_keys;
-pub(crate) use crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern};
-pub(crate) use crate::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
-pub(crate) use crate::publish::Publisher;
-pub(crate) use crate::replay::ReplayError;
-pub(crate) use crate::replay::ReplayLog;
-pub(crate) use crate::status::PublisherStatusSender;
-pub(crate) use crate::status::State;
-pub(crate) use crate::status::{IptMgrStatusSender, State as IptMgrState};
-pub(crate) use crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender};
-pub(crate) use crate::time_store;
-pub(crate) use crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _};
-pub(crate) use crate::OnionServiceConfig;
-pub(crate) use crate::StartupError;
-pub(crate) use crate::StreamRequest;
-pub(crate) use crate::{ipt_establish, ShutdownStatus};
-pub(crate) use crate::{
-    keys::BlindIdKeypairSpecifierPattern,
-    rend_handshake::{self, RendCircConnector},
-    ClientError,
-};
-pub(crate) use crate::{req::RendRequestContext, HsNickname, LinkSpecs, NtorPublicKey};
-pub(crate) use crate::{
-    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier,
-};
-pub(crate) use crate::{DescUploadError, IptError};
-pub(crate) use crate::{FatalError, RendRequest};
-pub(crate) use ipt_establish::{
-    IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire,
+pub(crate) use {
+    crate::config::DescEncryptionConfig,
+    crate::err::IptStoreError,
+    crate::err::StateExpiryError,
+    crate::ipt_lid::{InvalidIptLocalId, IptLocalId},
+    crate::ipt_mgr::CreateIptError,
+    crate::ipt_mgr::IptManager,
+    crate::ipt_set::IptSet,
+    crate::ipt_set::IptsManagerView,
+    crate::ipt_set::IptsPublisherUploadView,
+    crate::ipt_set::IptsPublisherView,
+    crate::ipt_set::{self, PublishIptSet},
+    crate::keys::expire_publisher_keys,
+    crate::keys::{IptKeyRole, IptKeySpecifier, IptKeySpecifierPattern},
+    crate::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown},
+    crate::publish::Publisher,
+    crate::replay::ReplayError,
+    crate::replay::ReplayLog,
+    crate::status::PublisherStatusSender,
+    crate::status::State,
+    crate::status::{IptMgrStatusSender, State as IptMgrState},
+    crate::status::{OnionServiceStatus, OnionServiceStatusStream, StatusSender},
+    crate::time_store,
+    crate::timeout_track::{TrackingInstantOffsetNow, TrackingNow, Update as _},
+    crate::OnionServiceConfig,
+    crate::StartupError,
+    crate::StreamRequest,
+    crate::{ipt_establish, ShutdownStatus},
+    crate::{
+       keys::BlindIdKeypairSpecifierPattern,
+       rend_handshake::{self, RendCircConnector},
+       ClientError,
+    },
+    crate::{req::RendRequestContext, HsNickname, LinkSpecs, NtorPublicKey},
+    crate::{
+       BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier,
+    },
+    crate::{DescUploadError, IptError},
+    crate::{FatalError, RendRequest},
+    ipt_establish::{
+       IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire,
+    },
 };
