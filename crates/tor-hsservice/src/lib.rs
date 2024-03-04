@@ -55,6 +55,8 @@ use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
 #[macro_use] // SerdeStringOrTransparent
 mod time_store;
 
+mod internal_prelude;
+
 mod anon_level;
 pub mod config;
 mod err;
