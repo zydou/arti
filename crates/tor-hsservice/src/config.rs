@@ -1,17 +1,8 @@
 //! Configuration information for onion services.
 
-use base64ct::{Base64Unpadded, Encoding as _};
-use derive_adhoc::Adhoc;
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use tor_cell::relaycell::hs::est_intro;
-use tor_config::ConfigBuildError;
-use tor_error::into_internal;
-use tor_hscrypto::pk::HsClientDescEncKey;
-use tor_llcrypto::pk::curve25519;
+use crate::internal_prelude::*;
 
-use crate::HsNickname;
+use tor_cell::relaycell::hs::est_intro;
 
 /// Configuration for one onion service.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]

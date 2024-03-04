@@ -50,6 +50,8 @@ pub(crate) use itertools::Itertools as _;
 pub(crate) use rand::Rng;
 pub(crate) use tor_keymgr::{KeyMgr, KeySpecifier as _};
 pub(crate) use tracing::{debug, error, info, trace, warn};
+pub(crate) use base64ct::{Base64Unpadded, Encoding as _};
+pub(crate) use derive_builder::Builder;
 
 //---------- tor-* crates ----------
 
@@ -84,6 +86,8 @@ pub(crate) use tor_error::{Bug, ErrorKind, ErrorReport as _, HasKind};
 pub(crate) use tor_keymgr::KeySpecifierPattern as _;
 pub(crate) use tor_linkspec::{HasRelayIds as _, RelayIds};
 pub(crate) use tor_llcrypto::pk::ed25519;
+pub(crate) use tor_config::ConfigBuildError;
+pub(crate) use tor_hscrypto::pk::HsClientDescEncKey;
 
 //---------- names from this crate ----------
 
