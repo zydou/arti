@@ -6,9 +6,9 @@
 //!
 //! Exceptions:
 //!
-//!  * Names that are private to a module (eg, `publish`),
-//!    are re-exported from its sub-modules, and imported via `use super::*`.
-//!    (The sub-module inherits the prelude from its parent.)
+//!  * Names that are private to a module and its submodules (eg, `publish`)
+//!    are imported to the sub-modules via `use super::*`.
+//!    (Thus, the sub-module inherits the prelude from its parent.)
 //!
 //!  * Broad names from specific contexts, that are unsuitable for wide imports.
 //!    For example, individual cell and message names from `tor-cell`,
