@@ -127,7 +127,7 @@ enum ErrorDetail {
 
     /// Error setting up the guard manager
     // TODO: should "guardmgr setup error" be its own type in tor-guardmgr?
-    #[error("Error setting up the circuit manager")]
+    #[error("Error setting up the guard manager")]
     GuardMgrSetup(#[source] tor_guardmgr::GuardMgrError),
 
     /// Error setting up the circuit manager
