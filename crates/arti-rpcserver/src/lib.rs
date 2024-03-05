@@ -29,6 +29,7 @@
 #![deny(clippy::ref_option_ref)]
 #![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::trait_duplication_in_bounds)]
+#![deny(clippy::unchecked_duration_subtraction)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
