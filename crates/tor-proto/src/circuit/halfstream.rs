@@ -92,15 +92,17 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::relaycell::{
         msg::{self, AnyRelayMsg},
-        AnyRelayMsgOuter, StreamId,
+        AnyRelayMsgOuter, RelayCellFormat, StreamId,
     };
 
     fn to_unparsed<R: Rng + CryptoRng>(rng: &mut R, val: AnyRelayMsg) -> UnparsedRelayMsg {
-        UnparsedRelayMsg::from_body(
+        UnparsedRelayMsg::from_singleton_body(
+            RelayCellFormat::V0,
             AnyRelayMsgOuter::new(StreamId::new(77), val)
                 .encode(rng)
                 .expect("encoding failed"),
         )
+        .unwrap()
     }
 
     #[test]

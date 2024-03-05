@@ -188,7 +188,7 @@ mod test {
 
     use tor_cell::relaycell::{
         msg::{Begin, BeginDir, Data, Resolve},
-        AnyRelayMsgOuter,
+        AnyRelayMsgOuter, RelayCellFormat,
     };
 
     use super::*;
@@ -200,7 +200,7 @@ mod test {
             let body = AnyRelayMsgOuter::new(None, msg)
                 .encode(&mut rand::thread_rng())
                 .unwrap();
-            UnparsedRelayMsg::from_body(body)
+            UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, body).unwrap()
         };
         let begin = u(Begin::new("allium.example.com", 443, 0).unwrap().into());
         let begin_dir = u(BeginDir::default().into());

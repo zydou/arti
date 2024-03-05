@@ -39,7 +39,9 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
-use tor_cell::relaycell::{AnyRelayMsgOuter, RelayCmd, StreamId, UnparsedRelayMsg};
+use tor_cell::relaycell::{
+    AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
+};
 #[cfg(feature = "hs-service")]
 use {
     crate::stream::{DataCmdChecker, IncomingStreamRequest},
@@ -324,6 +326,8 @@ pub(super) struct CircHop {
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
     outbound: VecDeque<(bool, AnyRelayMsgOuter)>,
+    /// Decodes relay cells received from this hop.
+    inbound: RelayCellDecoder,
 }
 
 /// An indicator on what we should do when we receive a cell for a circuit.
@@ -338,11 +342,14 @@ enum CellStatus {
 impl CircHop {
     /// Create a new hop.
     pub(super) fn new(initial_window: u16) -> Self {
+        // TODO: Add support for negotiating other versions.
+        let relay_cell_version = RelayCellFormat::V0;
         CircHop {
             map: streammap::StreamMap::new(),
             recvwindow: sendme::CircRecvWindow::new(1000),
             sendwindow: sendme::CircSendWindow::new(initial_window),
             outbound: VecDeque::new(),
+            inbound: RelayCellDecoder::new(relay_cell_version),
         }
     }
 }
@@ -1825,10 +1832,21 @@ impl Reactor {
             tag_copy.copy_from_slice(tag);
             tag_copy
         };
-        // Put the cell into a format where we can make sense of it.
-        let msg = UnparsedRelayMsg::from_body(body.into());
 
-        let c_t_w = sendme::cell_counts_towards_windows(&msg);
+        // Decode the cell.
+        let decode_res = self
+            .hop_mut(hopnum)
+            .ok_or_else(|| {
+                Error::from(internal!(
+                    "Trying to decode cell from nonexistent hop {:?}",
+                    hopnum
+                ))
+            })?
+            .inbound
+            .decode(body.into())
+            .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+
+        let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
 
         // Decrement the circuit sendme windows, and see if we need to
         // send a sendme cell.
@@ -1860,7 +1878,37 @@ impl Reactor {
                 .put();
         }
 
-        // If this cell wants/refuses to have a Stream ID, does it
+        let (mut msgs, incomplete) = decode_res.into_parts();
+        while let Some(msg) = msgs.next() {
+            let msg_status = self.handle_relay_msg(cx, hopnum, c_t_w, msg)?;
+            match msg_status {
+                CellStatus::Continue => (),
+                CellStatus::CleanShutdown => {
+                    for msg in msgs {
+                        debug!(
+                            "{id}: Ignoring relay msg received after triggering shutdown: {msg:?}",
+                            id = self.unique_id
+                        );
+                    }
+                    if let Some(incomplete) = incomplete {
+                        debug!("{id}: Ignoring parial relay msg received after triggering shutdown: {incomplete:?}", id=self.unique_id);
+                    }
+                    return Ok(CellStatus::CleanShutdown);
+                }
+            }
+        }
+        Ok(CellStatus::Continue)
+    }
+
+    /// Handle a single incoming relay message.
+    fn handle_relay_msg(
+        &mut self,
+        cx: &mut Context<'_>,
+        hopnum: HopNum,
+        cell_counts_toward_windows: bool,
+        msg: UnparsedRelayMsg,
+    ) -> Result<CellStatus> {
+        // If this msg wants/refuses to have a Stream ID, does it
         // have/not have one?
         let cmd = msg.cmd();
         let streamid = msg.stream_id();
@@ -1914,7 +1962,7 @@ impl Reactor {
                             sv(streamid),
                         )));
                     }
-                    if e.is_disconnected() && c_t_w {
+                    if e.is_disconnected() && cell_counts_toward_windows {
                         // the other side of the stream has gone away; remember
                         // that we received a cell that we couldn't queue for it.
                         //

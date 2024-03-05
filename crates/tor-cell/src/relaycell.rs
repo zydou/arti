@@ -3,6 +3,7 @@
 use std::num::NonZeroU16;
 
 use crate::chancell::{BoxedCellBody, CELL_DATA_LEN};
+use smallvec::{smallvec, SmallVec};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Reader, Writer};
 use tor_error::internal;
@@ -193,44 +194,230 @@ impl StreamId {
     }
 }
 
-/// An enveloped relay message that has not yet been fully parsed, but where we
-/// have access to the command and stream ID, for dispatching purposes.
+/// Specifies which encoding version of RelayCell to use.
+#[non_exhaustive]
+#[derive(Copy, Clone, Debug)]
+pub enum RelayCellFormat {
+    /// This is the "legacy" pre-prop340 format. No packing or fragmentation.
+    V0,
+}
+
+/// Internal decoder state.
 #[derive(Clone, Debug)]
-pub struct UnparsedRelayMsg {
-    /// The body of the cell.
-    body: BoxedCellBody,
+enum RelayCellDecoderInternal {
+    /// Internal state for `RelayCellFormat::V0`
+    V0,
+}
+
+/// Decodes a stream of relay cell bodies into `UnparsedRelayMsg`s.
+#[derive(Clone, Debug)]
+pub struct RelayCellDecoder {
+    /// Internal representation.
+    internal: RelayCellDecoderInternal,
+}
+
+impl RelayCellDecoder {
+    /// Returns a new `Decoder`, handling a stream of relay cells
+    /// of the given `version`.
+    pub fn new(version: RelayCellFormat) -> Self {
+        match version {
+            RelayCellFormat::V0 => Self {
+                internal: RelayCellDecoderInternal::V0,
+            },
+        }
+    }
+    /// Parse a RELAY or RELAY_EARLY cell body.
+    ///
+    /// Requires that the cryptographic checks on the message have already been
+    /// performed
+    pub fn decode(&mut self, cell: BoxedCellBody) -> Result<RelayCellDecoderResult> {
+        match &self.internal {
+            RelayCellDecoderInternal::V0 => Ok(RelayCellDecoderResult {
+                msgs: smallvec![UnparsedRelayMsg {
+                    internal: UnparsedRelayMsgInternal::V0(cell)
+                }],
+                incomplete: None,
+            }),
+        }
+    }
+    /// Returns the `IncompleteRelayMsgInfo` describing the partial
+    /// (fragmented) relay message at the end of the so-far-processed relay cell
+    /// stream.
+    pub fn incomplete_info(&self) -> Option<IncompleteRelayMsgInfo> {
+        match &self.internal {
+            // V0 doesn't support fragmentation, so there is never a pending fragment.
+            RelayCellDecoderInternal::V0 => None,
+        }
+    }
+}
+
+/// Result of calling `RelayCellDecoder::decode`.
+#[derive(Debug)]
+pub struct RelayCellDecoderResult {
+    /// Complete messages obtained by decoding the cell. i.e. messages
+    /// that were completely contained within the cell, or for which the cell
+    /// contained the final fragment.
+    msgs: SmallVec<[UnparsedRelayMsg; 1]>,
+    /// Description of the partial message at the end of the cell, if any.
+    incomplete: Option<IncompleteRelayMsgInfo>,
+}
+
+impl RelayCellDecoderResult {
+    /// Returns a non-empty iterator over commands in relay messages that the
+    /// cell producing this result contained *any* part of. i.e. this includes
+    /// the command of "head", "middle", and/or "tail" message fragments that
+    /// were in the cell.
+    pub fn cmds(&self) -> impl Iterator<Item = RelayCmd> + '_ {
+        let complete_msg_cmds = self.msgs.iter().map(|m| m.cmd());
+        let partial_msg_cmd = self.incomplete.as_ref().map(|c| c.cmd());
+        complete_msg_cmds.chain(partial_msg_cmd)
+    }
+    /// Converts `self` to an iterator over the complete messages, and metadata
+    /// about the trailing incomplete message (as for `Self::incomplete_info`),
+    /// if any.
+    pub fn into_parts(
+        self,
+    ) -> (
+        impl Iterator<Item = UnparsedRelayMsg>,
+        Option<IncompleteRelayMsgInfo>,
+    ) {
+        (self.msgs.into_iter(), self.incomplete)
+    }
+    /// Returns the `IncompleteRelayMsgInfo` describing the incomplete
+    /// relay message that this cell contained a fragment of, if any.
+    ///
+    /// Note that:
+    /// * This does not describe a fragment that includes the end of the relay
+    /// message, since the message is then complete.
+    /// * This *does* include a fragment that continues, but does not complete,
+    /// a message started in an earlier relay cell.
+    /// * There is at most one such incomplete relay message, since no current
+    /// relay cell format supports starting a new message before completing the
+    /// previous one.
+    pub fn incomplete_info(&self) -> Option<IncompleteRelayMsgInfo> {
+        self.incomplete.clone()
+    }
+}
+
+/// Information about a relay message for which we don't yet have the complete body.
+#[derive(Clone, Debug)]
+pub struct IncompleteRelayMsgInfo {
+    /// The message's command.
+    cmd: RelayCmd,
+    /// The message's stream ID, if any.
+    stream_id: Option<StreamId>,
+    /// The total number of bytes in the body of the message.
+    total_msg_len: usize,
+    /// The number of bytes of the body of the message that we've decoded so
+    /// far.
+    num_bytes_present: usize,
+}
+
+impl IncompleteRelayMsgInfo {
+    /// Returns the message's command.
+    pub fn cmd(&self) -> RelayCmd {
+        self.cmd
+    }
+    /// Returns the message's `StreamId`, if any.
+    pub fn stream_id(&self) -> Option<StreamId> {
+        self.stream_id
+    }
+    /// Returns the total size of the complete message body.
+    pub fn total_msg_len(&self) -> usize {
+        self.total_msg_len
+    }
+    /// Returns the number of bytes of the message body that we have so far.
+    pub fn num_bytes_present(&self) -> usize {
+        self.num_bytes_present
+    }
+    /// Returns the number of bytes of the message body that we still need.
+    pub fn num_bytes_missing(&self) -> usize {
+        self.total_msg_len - self.num_bytes_present
+    }
+}
+
+/// Internal representation of an `UnparsedRelayMsg`.
+#[derive(Clone, Debug)]
+enum UnparsedRelayMsgInternal {
+    /// For `RelayCellFormat::V0` we can avoid copying data around by just
+    /// storing the original cell body here.
     // NOTE: we could also have a separate command and stream ID field here, but
     // we expect to be working with a TON of these, so we will be mildly
     // over-optimized and just peek into the body.
     //
     // It *is* a bit ugly to have to encode so much knowledge about the format in
     // different functions here, but that information shouldn't leak out of this module.
+    V0(BoxedCellBody),
 }
+
+/// An enveloped relay message that has not yet been fully parsed, but where we
+/// have access to the command and stream ID, for dispatching purposes.
+#[derive(Clone, Debug)]
+pub struct UnparsedRelayMsg {
+    /// The internal representation.
+    internal: UnparsedRelayMsgInternal,
+}
+
 /// Position of the stream ID within the cell body.
 const STREAM_ID_OFFSET: usize = 3;
 
 impl UnparsedRelayMsg {
-    /// Wrap a BoxedCellBody as an UnparsedRelayCell.
-    pub fn from_body(body: BoxedCellBody) -> Self {
-        Self { body }
+    /// Wrap a BoxedCellBody as an UnparsedRelayMsg.
+    ///
+    /// Fails if the body doesn't correspond to exactly one relay message, but
+    /// doesn't parse the message itself.
+    ///
+    /// Non-test code should generally use `RelayCellDecoder` instead.
+    // Ideally we'd make this `#[cfg(test)]`, but then we wouldn't be able
+    // to use it in integration tests.
+    // https://github.com/rust-lang/rust/issues/84629
+    pub fn from_singleton_body(version: RelayCellFormat, body: BoxedCellBody) -> Result<Self> {
+        let mut decoder = RelayCellDecoder::new(version);
+        let res = decoder.decode(body)?;
+        let (mut msgs, incomplete) = res.into_parts();
+        let Some(msg) = msgs.next() else {
+            // There was no complete message in the cell.
+            return Err(Error::Truncated);
+        };
+        if incomplete.is_some() {
+            // There was an incomplete message at the end of the cell.
+            return Err(Error::ExtraneousBytes);
+        }
+        if msgs.next().is_some() {
+            // There was more than one message in the cell.
+            return Err(Error::ExtraneousBytes);
+        }
+        Ok(msg)
     }
+
     /// Return the command for this cell.
     pub fn cmd(&self) -> RelayCmd {
-        /// Position of the command within the cell body.
-        const CMD_OFFSET: usize = 0;
-        self.body[CMD_OFFSET].into()
+        match &self.internal {
+            UnparsedRelayMsgInternal::V0(body) => {
+                /// Position of the command within the cell body.
+                const CMD_OFFSET: usize = 0;
+                body[CMD_OFFSET].into()
+            }
+        }
     }
-    /// Return the stream ID for the stream that this cell corresponds to, if any.
+    /// Return the stream ID for the stream that this msg corresponds to, if any.
     pub fn stream_id(&self) -> Option<StreamId> {
-        StreamId::new(u16::from_be_bytes(
-            self.body[STREAM_ID_OFFSET..STREAM_ID_OFFSET + 2]
-                .try_into()
-                .expect("two-byte slice was not two bytes long!?"),
-        ))
+        match &self.internal {
+            UnparsedRelayMsgInternal::V0(body) => StreamId::new(u16::from_be_bytes(
+                body[STREAM_ID_OFFSET..STREAM_ID_OFFSET + 2]
+                    .try_into()
+                    .expect("two-byte slice was not two bytes long!?"),
+            )),
+        }
     }
     /// Decode this unparsed cell into a given cell type.
     pub fn decode<M: RelayMsg>(self) -> Result<RelayMsgOuter<M>> {
-        RelayMsgOuter::decode(self.body)
+        match self.internal {
+            UnparsedRelayMsgInternal::V0(body) => {
+                let mut reader = Reader::from_slice(body.as_ref());
+                RelayMsgOuter::decode_from_reader(RelayCellFormat::V0, &mut reader)
+            }
+        }
     }
 }
 
@@ -375,19 +562,34 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
     }
 
     /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter.
-    ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
+    ///
+    /// Fails if the cell doesn't contain exactly one message.
+    ///
+    /// Non-test code should generally use `RelayCellDecoder` instead.
+    // Ideally we'd make this `#[cfg(test)]`, but then we wouldn't be able
+    // to use it in integration tests.
+    // https://github.com/rust-lang/rust/issues/84629
     #[allow(clippy::needless_pass_by_value)] // TODO this will go away soon.
-    pub fn decode(body: BoxedCellBody) -> Result<Self> {
-        let mut reader = Reader::from_slice(body.as_ref());
-        Self::decode_from_reader(&mut reader)
+    pub fn decode_singleton(version: RelayCellFormat, body: BoxedCellBody) -> Result<Self> {
+        let unparsed_msg = UnparsedRelayMsg::from_singleton_body(version, body)?;
+        unparsed_msg.decode()
     }
     /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter from a reader.
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
-    pub fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+    pub fn decode_from_reader(version: RelayCellFormat, r: &mut Reader<'_>) -> Result<Self> {
+        match version {
+            RelayCellFormat::V0 => Self::decode_v0_from_reader(r),
+        }
+    }
+    /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter from a reader.
+    ///
+    /// Requires that the cryptographic checks on the message have already been
+    /// performed
+    fn decode_v0_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let cmd = r.take_u8()?.into();
         r.advance(2)?; // "recognized"
         let streamid = StreamId::new(r.take_u16()?);

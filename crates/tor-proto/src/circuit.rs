@@ -1319,7 +1319,7 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
     use tor_cell::relaycell::extend::NtorV3Extension;
-    use tor_cell::relaycell::{msg as relaymsg, AnyRelayMsgOuter, StreamId};
+    use tor_cell::relaycell::{msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, StreamId};
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
@@ -1634,7 +1634,10 @@ mod test {
             let rcvd = rx.next().await.unwrap();
             assert_eq!(rcvd.circid(), CircId::new(128));
             let m = match rcvd.into_circid_and_msg().1 {
-                AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => {
+                    AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                        .unwrap()
+                }
                 _ => panic!(),
             };
             assert!(matches!(m.msg(), AnyRelayMsg::BeginDir(_)));
@@ -1730,7 +1733,10 @@ mod test {
             let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             assert_eq!(id, CircId::new(128));
             let rmsg = match chmsg {
-                AnyChanMsg::RelayEarly(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::RelayEarly(r) => {
+                    AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                        .unwrap()
+                }
                 _ => panic!(),
             };
             let e2 = match rmsg.msg() {
@@ -1921,7 +1927,10 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, CircId::new(128)); // hardcoded circid.
                 let rmsg = match chmsg {
-                    AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => {
+                        AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                            .unwrap()
+                    }
                     _ => panic!(),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
@@ -1935,7 +1944,10 @@ mod test {
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, CircId::new(128));
                 let rmsg = match chmsg {
-                    AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => {
+                        AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                            .unwrap()
+                    }
                     _ => panic!(),
                 };
                 let (streamid_2, rmsg) = rmsg.into_streamid_and_msg();
@@ -2001,7 +2013,10 @@ mod test {
             // Read the begindir cell.
             let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             let rmsg = match chmsg {
-                AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
+                AnyChanMsg::Relay(r) => {
+                    AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                        .unwrap()
+                }
                 _ => panic!(),
             };
             let (streamid, rmsg) = rmsg.into_streamid_and_msg();
@@ -2018,7 +2033,10 @@ mod test {
                 assert_eq!(id, CircId::new(128));
 
                 let rmsg = match chmsg {
-                    AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode(r.into_relay_body()).unwrap(),
+                    AnyChanMsg::Relay(r) => {
+                        AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                            .unwrap()
+                    }
                     _ => panic!(),
                 };
                 let (streamid2, rmsg) = rmsg.into_streamid_and_msg();

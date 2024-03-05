@@ -3,7 +3,8 @@
 
 use tor_bytes::Error;
 use tor_cell::relaycell::{
-    msg, msg::AnyRelayMsg, AnyRelayMsgOuter, RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
+    msg::{self, AnyRelayMsg},
+    AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
 };
 
 #[cfg(feature = "experimental-udp")]
@@ -53,9 +54,10 @@ fn cell(body: &str, id: Option<StreamId>, msg: AnyRelayMsg) {
 
     let expected = AnyRelayMsgOuter::new(id, msg);
 
-    let decoded = AnyRelayMsgOuter::decode(body.clone()).unwrap();
+    let decoded = AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, body.clone()).unwrap();
 
-    let decoded_from_partial = UnparsedRelayMsg::from_body(body)
+    let decoded_from_partial = UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, body)
+        .unwrap()
         .decode::<AnyRelayMsg>()
         .unwrap();
     assert_eq!(decoded_from_partial.stream_id(), decoded.stream_id());
@@ -102,7 +104,7 @@ fn test_cells() {
     // length too big: 0x1f3 is one byte too many.
     let m = decode("02 0000 9999 12345678 01f3 6e6565642d746f2d6b6e6f77 00000000");
     assert_eq!(
-        AnyRelayMsgOuter::decode(m).err(),
+        AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, m).err(),
         Some(Error::InvalidMessage(
             "Insufficient data in relay cell".into()
         ))
@@ -110,7 +112,7 @@ fn test_cells() {
 
     // check accessors.
     let m = decode("02 0000 9999 12345678 01f2 6e6565642d746f2d6b6e6f77 00000000");
-    let c = AnyRelayMsgOuter::decode(m).unwrap();
+    let c = AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, m).unwrap();
     assert_eq!(c.cmd(), RelayCmd::from(2));
     assert_eq!(c.msg().cmd(), RelayCmd::from(2));
     let (s, _) = c.into_streamid_and_msg();
