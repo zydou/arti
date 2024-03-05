@@ -291,3 +291,44 @@ mod os {
             && i1.dwVolumeSerialNumber == i2.dwVolumeSerialNumber)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use crate::LockFileGuard;
+    use test_temp_dir::test_temp_dir;
+
+    #[test]
+    fn keep_lock_file_after_drop() {
+        test_temp_dir!().used_by(|dir| {
+            let file = dir.join("file");
+            let flock_guard = LockFileGuard::lock(&file).unwrap();
+            assert!(file.exists());
+            drop(flock_guard);
+            assert!(file.exists());
+        });
+    }
+
+    #[test]
+    fn delete_lock_file_if_requested() {
+        test_temp_dir!().used_by(|dir| {
+            let file = dir.join("file");
+            let flock_guard = LockFileGuard::lock(&file).unwrap();
+            assert!(file.exists());
+            assert!(flock_guard.delete_lock_file(&file).is_ok());
+            assert!(!file.exists());
+        });
+    }
+}
