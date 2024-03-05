@@ -36,6 +36,7 @@ sanitize-filename = "0.5.0"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "1"
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-error = { path = "../tor-error", version = "0.6.0", features = ["tracing"] }
 tracing = "0.1.36"
 

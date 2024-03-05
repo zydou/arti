@@ -20,6 +20,8 @@ use ssh_key::private::PrivateKey;
 use ssh_key::{LineEnding, PublicKey};
 use walkdir::WalkDir;
 
+use tor_basic_utils::PathExt as _;
+
 use super::SshKeyData;
 
 /// The Arti key store.
@@ -242,8 +244,8 @@ impl Keystore for ArtiNativeKeystore {
                         /* This error should be impossible. */
                         tor_error::internal!(
                             "found key {} outside of keystore_dir {}?!",
-                            path.display(),
-                            self.keystore_dir.as_path().display()
+                            path.display_lossy(),
+                            self.keystore_dir.as_path().display_lossy()
                         )
                     })?;
 
@@ -406,7 +408,7 @@ mod tests {
             err.to_string(),
             format!(
                 "Invalid path or permissions on {} while attempting to Init",
-                keystore_dir.path().display()
+                keystore_dir.path().display_lossy()
             ),
             "expected keystore init failure (perms = {:o})",
             mode
@@ -468,7 +470,7 @@ mod tests {
                 key_store
                     .key_path(&key_spec, ed_key_type)
                     .unwrap()
-                    .display()
+                    .display_lossy()
             ),
         );
     }

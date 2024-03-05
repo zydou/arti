@@ -292,7 +292,9 @@ pub struct DescEncryptionConfig {
 #[non_exhaustive]
 pub enum AuthorizedClientConfig {
     /// A directory full of authorized public keys.
-    DirectoryOfKeys(PathBuf),
+    ///
+    /// Currently, only valid unicode pathnames are supported.
+    DirectoryOfKeys(String),
     /// A single authorized public key.
     Curve25519Key(HsClientDescEncKey),
 }
@@ -300,7 +302,7 @@ pub enum AuthorizedClientConfig {
 impl std::fmt::Display for AuthorizedClientConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DirectoryOfKeys(pb) => write!(f, "dir:{}", pb.display()),
+            Self::DirectoryOfKeys(pb) => write!(f, "dir:{}", pb),
             Self::Curve25519Key(key) => write!(
                 f,
                 "curve25519:{}",

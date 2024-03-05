@@ -37,6 +37,7 @@ futures = "0.3.14"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.1.5", path = "../tor-async-utils" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-chanmgr = { version = "0.14.0", path = "../tor-chanmgr", features = ["pt-client"] }
 tor-config = { version = "0.11.0", path = "../tor-config" }
 tor-error = { version = "0.6.0", path = "../tor-error", features = ["tracing"] }

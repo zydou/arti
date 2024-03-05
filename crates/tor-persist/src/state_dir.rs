@@ -1126,6 +1126,7 @@ mod test {
     use std::io;
     use std::str::FromStr;
     use test_temp_dir::test_temp_dir;
+    use tor_basic_utils::PathExt as _;
     use tor_error::HasKind as _;
     use tracing_test::traced_test;
 
@@ -1364,7 +1365,7 @@ mod test {
                 let flock_guard = Arc::into_inner(inst.flock_guard).unwrap();
                 flock_guard
                     .delete_lock_file(&lock_path)
-                    .expect(&lock_path.display().to_string());
+                    .expect(&lock_path.display_lossy().to_string());
             }
         }
 
@@ -1490,7 +1491,7 @@ mod test {
 
         for (p, is_dir) in junk {
             let md = fs::metadata(&p).unwrap();
-            assert_eq!(md.is_dir(), is_dir, "{}", p.display());
+            assert_eq!(md.is_dir(), is_dir, "{}", p.display_lossy());
         }
     }
 
