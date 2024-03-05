@@ -163,7 +163,7 @@ impl TestTempDir {
     /// The supplied `item_path` must be globally unique in the whole workspace,
     /// or it might collide with other tests from other crates.
     ///
-    /// Handles the replacement of `::` with `:` on Windows.
+    /// Handles the replacement of `::` with `,` on Windows.
     pub fn from_complete_item_path(item_path: &str) -> Self {
         let subdir = item_path;
 

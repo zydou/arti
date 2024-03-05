@@ -237,10 +237,7 @@ mod os {
 /// * When we compare members of `handle.metadata()` and `path.metadata()`,
 ///   the comparison will return equal if ~~and only if~~
 ///   the two files are truly the same.
-///   * (We know that the "only if" part is not yet guaranteed;
-///     see "Limitations" on lockfile_has_path.)
-///   * When we do switch to look at `file_index`, we will rely only
-///     on the property that a file cannot change its file_index while it is
+///   * We rely on the property that a file cannot change its file_index while it is
 ///     open.
 /// * Deleting the lock file will actually work, since `fslock` opened it with
 ///   FILE_SHARE_DELETE.
@@ -253,7 +250,7 @@ mod os {
 /// * The same is true even on a remote filesystem.
 /// * If someone with read access to the file - eg the human user - opens it for reading
 ///   without FILE_SHARE options, the algorithm will still work and not fail
-///   with a file sharing violation io rror.
+///   with a file sharing violation io error.
 ///   (Or, every program the user might use to randomly peer at files in arti's
 ///   state directory, including the equivalents of `grep -R` and backup programs,
 ///   will use suitable FILE_SHARE options.)
@@ -266,13 +263,6 @@ mod os {
     use winapi::um::fileapi::{GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION as Info};
 
     /// Return true if `lf` currently exists with the given `path`, and false otherwise.
-    ///
-    /// ## Limitations
-    ///
-    /// This function only looks at `creation_time`, which is not a perfectly
-    /// reliable check.  It should instead look at `volume_serial_number` and
-    /// `file_index`, but those are not yet stable in Rust.
-    ///
     pub(crate) fn lockfile_has_path(lf: &fslock::LockFile, path: &Path) -> std::io::Result<bool> {
         let mut m1: MaybeUninit<Info> = MaybeUninit::uninit();
         let mut m2: MaybeUninit<Info> = MaybeUninit::uninit();
