@@ -274,8 +274,8 @@ mod test {
 
         let desc_enc_cfg = DescEncryptionConfig {
             authorized_client: vec![
-                DirectoryOfKeys(a_dir.path().to_path_buf()),
-                DirectoryOfKeys(b_dir.path().to_path_buf()),
+                DirectoryOfKeys(a_dir.path().to_str().unwrap().to_owned()),
+                DirectoryOfKeys(b_dir.path().to_str().unwrap().to_owned()),
             ],
         };
 
