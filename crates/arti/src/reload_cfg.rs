@@ -60,10 +60,10 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 /// from keeping them alive.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
+    #[cfg_attr(not(target_family = "unix"), allow(unused_variables))]
+    runtime: &R,
     sources: ConfigurationSources,
     config: &ArtiConfig,
-    #[cfg_attr(not(target_family = "unix"), allow(unused_variables))]
-    client: &TorClient<R>,
     modules: Vec<Weak<dyn ReconfigurableModule>>,
 ) -> anyhow::Result<()> {
     let watch_file = config.application().watch_configuration;
@@ -90,7 +90,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 
         let mut sighup_stream = sighup_stream()?;
         let tx = tx.clone();
-        client.runtime().spawn(async move {
+        runtime.spawn(async move {
             while let Some(()) = sighup_stream.next().await {
                 info!("Received SIGHUP");
                 if tx.send(Event::SigHup).is_err() {
