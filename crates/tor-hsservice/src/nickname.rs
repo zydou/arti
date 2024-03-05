@@ -1,14 +1,6 @@
 //! `HsNickname` module itself is private, but `HsNickname` etc. are re-exported
 
-use std::fmt::{self, Display};
-use std::str::FromStr;
-
-use derive_more::{Display, From, Into};
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-use tor_keymgr::KeySpecifierComponentViaDisplayFromStr;
-use tor_persist::slug::Slug;
+use crate::internal_prelude::*;
 
 /// Nickname (local identifier) for a Tor hidden service
 ///
@@ -23,9 +15,8 @@ use tor_persist::slug::Slug;
 // Slug, we should remember to also update `KeySpecifierComponent::from_component` (it
 // should return an error if the specified string is a valid Slug, but not a valid
 // HsNickname).
-#[derive(
-    Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Display, From, Into, Serialize, Deserialize,
-)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)] //
+#[derive(derive_more::Display, From, Into, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct HsNickname(Slug);
 

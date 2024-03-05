@@ -8,45 +8,12 @@
 //! [`IptManager::idempotently_progress_things_now`](crate::ipt_mgr::IptManager::idempotently_progress_things_now)
 //! for details of our algorithm.
 
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use crate::internal_prelude::*;
 
-use educe::Educe;
-use futures::{channel::mpsc, task::SpawnExt as _, Future, FutureExt as _};
-use postage::watch;
-use safelog::Redactable as _;
-use tor_async_utils::oneshot;
-use tor_async_utils::DropNotifyWatchSender;
 use tor_cell::relaycell::{
     hs::est_intro::{self, EstablishIntroDetails},
-    msg::{AnyRelayMsg, IntroEstablished},
-    RelayMsg as _,
+    msg::IntroEstablished,
 };
-use tor_circmgr::hspool::HsCircPool;
-use tor_error::warn_report;
-use tor_error::{bad_api_usage, debug_report, internal, into_internal};
-use tor_hscrypto::pk::{HsIntroPtSessionIdKeypair, HsSvcNtorKeypair};
-use tor_keymgr::KeyMgr;
-use tor_linkspec::CircTarget;
-use tor_linkspec::{HasRelayIds as _, RelayIds};
-use tor_log_ratelim::log_ratelim;
-use tor_netdir::NetDirProvider;
-use tor_proto::circuit::{ClientCirc, ConversationInHandler, MetaCellDisposition};
-use tor_rtcompat::{Runtime, SleepProviderExt as _};
-use tracing::debug;
-use void::{ResultVoidErrExt as _, Void};
-
-use crate::replay::ReplayError;
-use crate::replay::ReplayLog;
-use crate::OnionServiceConfig;
-use crate::{
-    req::RendRequestContext,
-    svc::{LinkSpecs, NtorPublicKey},
-    HsNickname,
-};
-use crate::{FatalError, IptLocalId, RendRequest};
-
-use super::netdir::{wait_for_netdir, wait_for_netdir_to_list, NetdirProviderShutdown};
 
 /// Handle onto the task which is establishing and maintaining one IPT
 pub(crate) struct IptEstablisher {

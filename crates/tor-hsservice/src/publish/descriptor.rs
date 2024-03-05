@@ -1,27 +1,7 @@
 //! Helpers for building and representing hidden service descriptors.
 
-use std::sync::Arc;
-use std::time::{Duration, SystemTime};
-
-use rand_core::{CryptoRng, RngCore};
-
+use super::*;
 use tor_cell::chancell::msg::HandshakeType;
-use tor_error::{internal, into_bad_api_usage, into_internal};
-use tor_hscrypto::pk::{HsBlindIdKey, HsDescSigningKeypair, HsIdKey, HsIdKeypair};
-use tor_hscrypto::time::TimePeriod;
-use tor_hscrypto::RevisionCounter;
-use tor_keymgr::KeyMgr;
-use tor_llcrypto::pk::curve25519;
-use tor_netdoc::doc::hsdesc::{create_desc_sign_key_cert, HsDescBuilder};
-use tor_netdoc::NetdocBuilder;
-
-use crate::config::DescEncryptionConfig;
-use crate::ipt_set::IptSet;
-use crate::svc::publish::reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
-use crate::{
-    BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, FatalError, HsIdKeypairSpecifier,
-    OnionServiceConfig,
-};
 
 /// Build the descriptor.
 ///
@@ -249,7 +229,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use crate::config::AuthorizedClientConfig::Curve25519Key;
-    use crate::svc::publish::descriptor::{
+    use crate::publish::descriptor::{
         build_auth_clients, decode_curve25519_str, DescEncryptionConfig,
     };
     use tor_basic_utils::test_rng::testing_rng;

@@ -1,5 +1,7 @@
 //! Define the `Anonymity` type to indicate a level of anonymity.
 
+use crate::internal_prelude::*;
+
 /// The level of anonymity that an onion service should try to run with.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
 #[non_exhaustive]
@@ -25,10 +27,10 @@ const ANON_STRING: &str = "anonymous";
 /// A string used to represent `Anonymity::DangerouslyNonAnonymous` in serde.
 const DANGER_STRING: &str = "not_anonymous";
 
-impl serde::Serialize for Anonymity {
+impl Serialize for Anonymity {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         match self {
             Anonymity::Anonymous => serializer.serialize_bool(true),
@@ -37,17 +39,17 @@ impl serde::Serialize for Anonymity {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Anonymity {
+impl<'de> Deserialize<'de> for Anonymity {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         /// Visitor struct to deserialize an Anonymity object.
         struct Vis;
         impl<'de> serde::de::Visitor<'de> for Vis {
             type Value = Anonymity;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 write!(
                     formatter,
                     r#"`true`, `{:?}`, or `{:?}`"#,

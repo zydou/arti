@@ -5,21 +5,13 @@ mod descriptor;
 mod reactor;
 mod reupload_timer;
 
-use futures::task::SpawnExt;
-use postage::watch;
-use std::sync::Arc;
-use tor_keymgr::KeyMgr;
-use tracing::debug;
+use crate::internal_prelude::*;
 
-use tor_error::warn_report;
-use tor_netdir::NetDirProvider;
-use tor_rtcompat::Runtime;
-
-use crate::status::PublisherStatusSender;
-use crate::{ipt_set::IptsPublisherView, StartupError};
-use crate::{HsNickname, OnionServiceConfig};
-
+use backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
+use descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use reactor::Reactor;
+use reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
+use reupload_timer::ReuploadTimer;
 
 pub use reactor::UploadError;
 pub(crate) use reactor::{Mockable, Real, OVERALL_UPLOAD_TIMEOUT};
@@ -197,10 +189,10 @@ mod test {
 
     use crate::config::OnionServiceConfigBuilder;
     use crate::ipt_set::{ipts_channel, IptInSet, IptSet};
+    use crate::publish::reactor::MockableClientCirc;
     use crate::status::{OnionServiceStatus, StatusSender};
-    use crate::svc::publish::reactor::MockableClientCirc;
-    use crate::svc::test::create_storage_handles;
-    use crate::{Anonymity, HsNickname, IptLocalId};
+    use crate::test::create_storage_handles;
+    use crate::{Anonymity, HsNickname};
     use crate::{
         BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
         HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
@@ -564,7 +556,7 @@ mod test {
                 .enumerate()
                 .map(|(i, ipt)| IptInSet {
                     ipt: ipt.clone(),
-                    lid: IptLocalId([i.try_into().unwrap(); 32]),
+                    lid: [i.try_into().unwrap(); 32].into(),
                 })
                 .collect();
 

@@ -12,20 +12,12 @@
 //! make sure that our replay logs are already persistent.  We do this by using
 //! a file on disk.
 
-use crate::ipt_mgr::CreateIptError;
-use crate::IptLocalId;
+use crate::internal_prelude::*;
+
 use hash::{hash, H, HASH_LEN};
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-    fs::{File, OpenOptions},
-    io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
-    path::Path,
-    sync::Arc,
-};
+
+// This has rather a generic name.
 use tor_cell::relaycell::msg::Introduce2;
-use tor_persist::state_dir::ContainsInstanceStateGuard as _;
-use tor_persist::state_dir::{InstanceRawSubdir, LockFileGuard};
 
 /// A probabilistic data structure to record fingerprints of observed Introduce2
 /// messages.
@@ -397,7 +389,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::svc::test::mk_state_instance;
+    use crate::test::mk_state_instance;
     use rand::Rng;
     use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
 

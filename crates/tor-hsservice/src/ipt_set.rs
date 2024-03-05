@@ -1,26 +1,6 @@
 //! IPT set - the principal API between the IPT manager and publisher
 
-use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-use std::sync::{Mutex, MutexGuard};
-use std::time::{Duration, Instant};
-
-use futures::channel::mpsc;
-use futures::StreamExt as _;
-
-use derive_more::{Deref, DerefMut};
-use educe::Educe;
-use itertools::{chain, Itertools as _};
-use serde::{Deserialize, Serialize};
-
-use crate::time_store;
-use crate::IptLocalId;
-use crate::{IptStoreError, StartupError};
-
-use tor_error::internal;
-use tor_log_ratelim::log_ratelim;
-use tor_rtcompat::SleepProvider;
+use crate::internal_prelude::*;
 
 /// Handle for a suitable persistent storage manager
 pub(crate) type IptSetStorageHandle = tor_persist::state_dir::StorageHandle<StateRecord>;
@@ -154,7 +134,7 @@ pub(crate) type Ipt = tor_netdoc::doc::hsdesc::IntroPointDesc;
 //
 // TODO: We'd like to use "+" here, but it isn't const yet.
 const IPT_PUBLISH_EXPIRY_SLOP: Duration =
-    Duration::from_secs(10 * 60).saturating_add(crate::svc::publish::OVERALL_UPLOAD_TIMEOUT);
+    Duration::from_secs(10 * 60).saturating_add(crate::publish::OVERALL_UPLOAD_TIMEOUT);
 
 /// Shared view of introduction points - IPT manager's view
 ///
@@ -548,7 +528,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::svc::test::create_storage_handles;
+    use crate::test::create_storage_handles;
     use crate::FatalError;
     use futures::{pin_mut, poll};
     use std::task::Poll::{self, *};
@@ -647,7 +627,7 @@ mod test {
                 .ipts
                 .push(IptInSet {
                     ipt: test_intro_point(),
-                    lid: IptLocalId([42; 32]),
+                    lid: [42; 32].into(),
                 });
 
             pv_expect_one_await_update(&mut pv).await;
