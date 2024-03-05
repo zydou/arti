@@ -412,7 +412,12 @@ where
                             .value_name("PORT")
                             .help("Port to listen on for DNS request (overrides the port in the config if specified).")
                     )
-            );
+            )
+            .subcommand_required(true)
+            .arg_required_else_help(true);
+
+    // When adding a subcommand, it may be necessary to add an entry in
+    // `maint/check-cli-help`, to the function `help_arg`.
 
     cfg_if::cfg_if! {
         // TODO (#1250): test the CLI.
@@ -432,15 +437,14 @@ where
                             .help("The nickname of the service")
                     )
                     .subcommand_required(true)
+                    .arg_required_else_help(true)
                     .subcommand(
                         Command::new("onion-name")
                             .about(
                                 "Print the .onion address of a hidden service",
                             )
                     )
-            )
-            .subcommand_required(true)
-            .arg_required_else_help(true);
+            );
         }
     }
 

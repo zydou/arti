@@ -383,6 +383,12 @@ matrix-test-cfg:
   script:
     - ./maint/matrix_test_cfg
 
+cli-help:
+  stage: test
+  image: rust:bookworm
+  script:
+    - ./maint/check-cli-help
+
 
 coverage-aggregated:
   rules:
