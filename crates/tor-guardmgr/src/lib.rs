@@ -83,6 +83,8 @@ mod pending;
 mod sample;
 mod skew;
 mod util;
+#[cfg(feature = "vanguards")]
+pub mod vanguards;
 
 #[cfg(not(feature = "bridge-client"))]
 #[path = "bridge_disabled.rs"]

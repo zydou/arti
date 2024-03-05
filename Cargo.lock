@@ -5294,6 +5294,7 @@ dependencies = [
 name = "tor-guardmgr"
 version = "0.14.1"
 dependencies = [
+ "amplify",
  "base64ct",
  "derive_builder_fork_arti",
  "derive_more",
