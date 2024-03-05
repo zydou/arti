@@ -97,6 +97,9 @@ pub use tor_guardmgr::{ExternalActivity, FirstHopId};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+use tor_guardmgr::vanguards::VanguardMgr;
+
 /// A Result type as returned from this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -178,6 +181,7 @@ impl<R: Runtime> CircMgr<R> {
         runtime: &R,
         chanmgr: Arc<ChanMgr<R>>,
         guardmgr: tor_guardmgr::GuardMgr<R>,
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguardmgr: VanguardMgr,
     ) -> Result<Arc<Self>>
     where
         SM: tor_persist::StateMgr + Send + Sync + 'static,
@@ -196,6 +200,8 @@ impl<R: Runtime> CircMgr<R> {
             config.path_rules().clone(),
             storage_handle,
             guardmgr,
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            vanguardmgr,
         );
         let mgr =
             mgr::AbstractCircMgr::new(builder, runtime.clone(), config.circuit_timing().clone());

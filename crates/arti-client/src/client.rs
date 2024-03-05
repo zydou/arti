@@ -20,6 +20,11 @@ use tor_config::MutCfg;
 use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{error_report, internal, Bug};
+#[cfg(all(
+    feature = "vanguards",
+    any(feature = "onion-service-client", feature = "onion-service-service")
+))]
+use tor_guardmgr::vanguards::VanguardMgr;
 use tor_guardmgr::GuardMgr;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 #[cfg(feature = "onion-service-service")]
@@ -580,12 +585,27 @@ impl<R: Runtime> TorClient<R> {
             mgr
         };
 
+        #[cfg(all(
+            feature = "vanguards",
+            any(feature = "onion-service-client", feature = "onion-service-service")
+        ))]
+        let vanguardmgr = {
+            // TODO HS-VANGUARDS: add the VanguardsConfig to TorClientConfig
+            let config = Default::default();
+            VanguardMgr::new(&config, statemgr.clone()).map_err(ErrorDetail::VanguardMgrSetup)?
+        };
+
         let circmgr = tor_circmgr::CircMgr::new(
             config,
             statemgr.clone(),
             &runtime,
             Arc::clone(&chanmgr),
             guardmgr.clone(),
+            #[cfg(all(
+                feature = "vanguards",
+                any(feature = "onion-service-client", feature = "onion-service-service")
+            ))]
+            vanguardmgr,
         )
         .map_err(ErrorDetail::CircMgrSetup)?;
 

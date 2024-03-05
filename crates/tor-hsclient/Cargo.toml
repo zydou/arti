@@ -76,7 +76,7 @@ tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.1.5" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.14.0" }
-tor-circmgr = { version = "0.16.0", path = "../tor-circmgr", features = ["hs-client", "testing"] }
+tor-circmgr = { version = "0.16.0", path = "../tor-circmgr", features = ["hs-client", "testing", "vanguards"] }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.14.1", features = ["testing"] }
 tor-netdir = { path = "../tor-netdir", version = "0.12.1", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.12.1", features = ["testing"] }

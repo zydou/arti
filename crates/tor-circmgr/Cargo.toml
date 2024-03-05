@@ -38,12 +38,14 @@ specific-relay = []
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["tor-guardmgr/testing", "__is_experimental"]
+# Vanguards are experimental
+vanguards = ["tor-guardmgr/vanguards", "__is_experimental"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "ntor_v3", "testing", "geoip"]
+experimental = ["experimental-api", "ntor_v3", "testing", "geoip", "vanguards"]
 experimental-api = ["visibility", "__is_experimental"]
 geoip = ["tor-geoip", "tor-netdir/geoip", "__is_experimental"]
 ntor_v3 = ["tor-proto/ntor_v3", "__is_experimental"]
