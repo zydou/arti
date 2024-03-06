@@ -202,7 +202,7 @@ impl FromStr for RangeEnd {
         } else {
             let v: NonZeroUsize = s.parse()?;
             if v.get() == std::usize::MAX {
-                return Err(Error::BadDiff("range end cannot at usize::MAX"));
+                return Err(Error::BadDiff("range cannot end at usize::MAX"));
             }
             Ok(RangeEnd::Num(v))
         }
