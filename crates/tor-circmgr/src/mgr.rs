@@ -1551,7 +1551,6 @@ mod test {
     use once_cell::sync::Lazy;
     use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
-    use tor_basic_utils::iter::FilterCount;
     use tor_guardmgr::fallback::FallbackList;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
@@ -1697,10 +1696,10 @@ mod test {
         fn plan_circuit(&self, spec: &FakeSpec, _dir: DirInfo<'_>) -> Result<(FakePlan, FakeSpec)> {
             let next_op = self.next_op(spec);
             if matches!(next_op, FakeOp::NoPlan) {
-                return Err(Error::NoPath {
-                    role: "relay",
-                    can_share: FilterCount::default(),
-                    correct_usage: FilterCount::default(),
+                return Err(Error::NoRelay {
+                    path_kind: "example",
+                    role: "example",
+                    problem: "called with no plan".to_string(),
                 });
             }
             let plan = FakePlan {
