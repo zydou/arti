@@ -44,7 +44,7 @@ enum ExitPathBuilderInner<'a> {
     /// Request a path to any relay, even those that cannot exit.
     // TODO: #785 may make this non-conditional.
     #[cfg(feature = "hs-common")]
-    AnyRelay,
+    AnyRelayForOnionService,
 
     /// Request a path that uses a given relay as exit node.
     ChosenExit(Relay<'a>),
@@ -120,6 +120,7 @@ impl<'a> ExitPathBuilder<'a> {
     }
 
     /// Create a new builder that will try to build a three-hop non-exit path
+    /// for use with the onion services protocols
     /// that is compatible with being extended to an optional given relay.
     ///
     /// (The provided relay is _not_ included in the built path: we only ensure
@@ -130,9 +131,9 @@ impl<'a> ExitPathBuilder<'a> {
     /// Perhaps we should rename ExitPathBuilder, split it into multiple types,
     /// or move this method.
     #[cfg(feature = "hs-common")]
-    pub(crate) fn for_any_compatible_with(compatible_with: Option<OwnedChanTarget>) -> Self {
+    pub(crate) fn for_onion_service(compatible_with: Option<OwnedChanTarget>) -> Self {
         Self {
-            inner: ExitPathBuilderInner::AnyRelay,
+            inner: ExitPathBuilderInner::AnyRelayForOnionService,
             compatible_with,
             require_stability: true,
         }
@@ -187,9 +188,11 @@ impl<'a> ExitPathBuilder<'a> {
             }
 
             #[cfg(feature = "hs-common")]
-            ExitPathBuilderInner::AnyRelay => {
-                // XXXX This enum variant is badly named!
-                RelaySelector::new(RelayUsage::any_exit(rs_cfg), guard_exclusion)
+            ExitPathBuilderInner::AnyRelayForOnionService => {
+                // TODO: This usage is a bit convoluted, and some onion-service-
+                // related circuits don't need this much stability.
+                let usage = RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()));
+                RelaySelector::new(usage, guard_exclusion)
             }
 
             ExitPathBuilderInner::WantsPorts(wantports) => RelaySelector::new(
@@ -368,7 +371,7 @@ impl<'a> ExitPathBuilder<'a> {
             #[cfg(feature = "geoip")]
             ExitInCountry { .. } => "country-specific exit circuit",
             AnyExit { .. } => "testing circuit",
-            AnyRelay => "onion-service circuit", // XXXX badly named.
+            AnyRelayForOnionService => "onion-service circuit",
             ChosenExit(_) => "circuit to a specific exit",
         }
     }

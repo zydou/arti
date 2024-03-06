@@ -327,7 +327,7 @@ impl TargetCircUsage {
                 compatible_with_target,
             } => {
                 let (path, mon, usable) =
-                    ExitPathBuilder::for_any_compatible_with(compatible_with_target.clone())
+                    ExitPathBuilder::for_onion_service(compatible_with_target.clone())
                         // TODO: We don't actually require stability if this is a
                         // HsDir circuit: but at this point, we can't tell.
                         .require_stability(true)
