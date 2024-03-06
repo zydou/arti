@@ -132,7 +132,7 @@ mod memquota::mpsc_queue {
   trait HasMemoryCost /* name? MemoryCosted? */ { fn memory_cost(&self) -> usize }
 
   pub fn channel<T:HasMemoryCost>(account: memquota::Account, buffer: usize) -> (Sender, Receiver)
-    makes queue, calls new_participant
+    makes queue, calls register_participant
 
   #[derive(Clone)]
   pub struct Sender<T>(
@@ -361,7 +361,7 @@ mod memquota::raw {
        if local quota too big, call tracker.release
 
   impl Account {
-    pub fn new_participant(self, participant: Weak<dyn Participant>) -> Participation
+    pub fn register_participant(self, participant: Weak<dyn Participant>) -> Participation
 
   /// An Account is a handle.  All clones refer to the same underlying conceptual Account.
   impl Clone for Account
