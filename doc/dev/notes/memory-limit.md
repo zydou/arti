@@ -377,7 +377,7 @@ mod memquota::raw {
     if zero, forget the participant (subtracting its PRecord.used from TrackerInner_used)
 
   // gives you another view of the same particant
-  impl Clone for Account {
+  impl Clone for Participation {
     // clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
