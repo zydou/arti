@@ -9,7 +9,7 @@ Instead, we'd like our logs to look more like
 `"connecting to the guard X: error (problem occurred 1310/2000 times in the last hour)"`
 
 This crate is part of `arti`,
-and is not adapted for use outside it:
+and is not adapted for use outside of it:
 it assumes that your logging system is [`tracing`],
 and that you are using [`tor_rtcompat`] for your asynchronous runtime.
 

@@ -124,7 +124,7 @@ to let you enable client authorization.
 
 ### Missing security features; deanonymisation risks
 
-There are a *ton* of missing security featuers.
+There are a *ton* of missing security features.
 You should not expect privacy (yet)
 when you are running onion services with Arti.
 

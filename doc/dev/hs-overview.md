@@ -81,7 +81,7 @@ Now we get to the communications steps in the diagram:
    
    The descriptor is signed by the descriptor signing key.  It contains:
      * The blinded identity key.
-     * The certificate signed by the the blinded identity key, certifying 
+     * The certificate signed by the blinded identity key, certifying 
        the descriptor signing key.
      * A sequence number to prevent rollbacks
      * A section encrypted with a symmetric key derived from the service's true identity, containing:
