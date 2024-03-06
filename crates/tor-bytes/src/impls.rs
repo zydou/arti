@@ -19,7 +19,7 @@ impl Writer for Vec<u8> {
     }
     fn write_zeros(&mut self, n: usize) {
         // specialize for performance
-        let new_len = self.len() + n;
+        let new_len = self.len().saturating_add(n);
         self.resize(new_len, 0);
     }
 }
