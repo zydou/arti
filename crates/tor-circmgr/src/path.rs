@@ -41,7 +41,7 @@ enum TorPathInner<'a> {
     Path(Vec<MaybeOwnedRelay<'a>>),
 }
 
-/// Identifier for a a relay that could be either known from a NetDir, or
+/// Identifier for a relay that could be either known from a NetDir, or
 /// specified as an OwnedCircTarget.
 ///
 /// NOTE: This type should NEVER be visible outside of path.rs and its

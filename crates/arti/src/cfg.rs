@@ -23,7 +23,7 @@ pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
-/// Example file demonstrating our our configuration and the default options.
+/// Example file demonstrating our configuration and the default options.
 ///
 /// The options in this example file are all commented out;
 /// the actual defaults are done via builder attributes in all the Rust config structs.

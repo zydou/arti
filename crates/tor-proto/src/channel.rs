@@ -335,7 +335,7 @@ impl Sink<AnyChanCell> for Channel {
 /// Structure for building and launching a Tor channel.
 #[derive(Default)]
 pub struct ChannelBuilder {
-    /// If present, a description of the the address we're trying to connect to,
+    /// If present, a description of the address we're trying to connect to,
     /// and the way in which we are trying to connect to it.
     ///
     /// TODO: at some point, check this against the addresses in the netinfo

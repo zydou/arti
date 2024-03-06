@@ -44,7 +44,7 @@ pub(super) struct HsDescEncryption<'a> {
 /// The length of a client ID.
 pub(crate) const HS_DESC_CLIENT_ID_LEN: usize = 8;
 
-/// The length of the the `AuthClient` IV.
+/// The length of the `AuthClient` IV.
 pub(crate) const HS_DESC_IV_LEN: usize = 16;
 
 /// The length of an `N_hs_desc_enc` nonce (also known as a "descriptor cookie").

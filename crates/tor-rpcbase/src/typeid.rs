@@ -7,7 +7,7 @@
 /// TypeId for a type and store it in a const.  But sadly, we need to do so for
 /// our dispatch code.
 ///
-/// Thus, we use a nasty hack: we save the the address of the function
+/// Thus, we use a nasty hack: we save the address of the function
 /// `TypeId::of::<T>` and use it _later_ to get type of T.
 ///
 /// This type and the module containing it are hidden: Nobody should actually

@@ -32,7 +32,7 @@
 //!
 //! # Examples
 //!
-//! Here's a simple example, of a test that verifies that integer sorting works
+//! Here's a simple example of a test that verifies that integer sorting works
 //! correctly by shuffling a short sequence and then re-sorting it.
 //!
 //! ```
@@ -193,7 +193,7 @@ impl Config {
     }
 }
 
-/// Format `seed` in the formatted expected by [`decode_seed_bytes`].
+/// Format `seed` in the format expected by [`decode_seed_bytes`].
 ///
 /// This is a separate function to make it clearer what the tests are testing.
 fn format_seed_bytes(seed: &Seed) -> String {

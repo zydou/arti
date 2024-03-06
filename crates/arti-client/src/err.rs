@@ -35,7 +35,7 @@ pub use hint::HintableError;
 pub struct Error {
     /// The actual error.
     ///
-    /// This field is exposed  via the `detail()` method only if the the
+    /// This field is exposed via the `detail()` method only if the
     /// `error_detail` feature is enabled. Using it will void your semver
     /// guarantee.
     #[source]

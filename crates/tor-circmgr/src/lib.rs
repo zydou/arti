@@ -454,7 +454,7 @@ impl<R: Runtime> CircMgr<R> {
     /// future unless explicitly re-registered with a circuit manager.
     ///
     /// If `planned_target` is provided, then the circuit will be built so that
-    /// it does not share any family members with the the provided target.  (The
+    /// it does not share any family members with the provided target.  (The
     /// circuit _will not be_ extended to that target itself!)
     ///
     /// Used to implement onion service clients and services.

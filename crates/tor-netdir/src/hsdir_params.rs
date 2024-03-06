@@ -82,7 +82,7 @@ impl HsDirParams {
         self.srv_lifespan.start
     }
 
-    /// Return an opaque offset for `when` from the start of the the shared-random-value protocol
+    /// Return an opaque offset for `when` from the start of the shared-random-value protocol
     /// period corresponding to the SRV for this time period.
     ///
     /// When uploading, callers should this offset to determine

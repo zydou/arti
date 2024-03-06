@@ -237,7 +237,7 @@ impl TestTempDir {
     ///
     /// So the resulting value can be passed to functions which
     /// store the path for later use, and might later malfunction because
-    /// the `TestTempDir` is dropped too earlier.
+    /// the `TestTempDir` is dropped too early.
     pub fn as_path_untracked(&self) -> &Path {
         match self {
             TestTempDir::Ephemeral(t) => t.as_ref(),

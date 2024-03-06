@@ -213,7 +213,7 @@ fn get_home() -> Option<&'static str> {
         .and_then(Path::to_str)
 }
 
-/// Shellexpand helper: return the directory holding the the currently executing program.
+/// Shellexpand helper: return the directory holding the currently executing program.
 #[cfg(feature = "expand-paths")]
 fn get_program_dir() -> Result<Option<String>, CfgPathError> {
     let binary = std::env::current_exe().map_err(|_| CfgPathError::NoProgramPath)?;

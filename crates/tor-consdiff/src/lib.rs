@@ -252,7 +252,7 @@ impl<'a> DiffCommand<'a> {
     /// by this command, and finally deleting any affected lines from
     /// input.
     ///
-    /// We builds the `output` value in reverse order, and then put it
+    /// We build the `output` value in reverse order, and then put it
     /// back to normal before giving it to the user.
     fn apply_transformation(
         &self,
@@ -467,7 +467,7 @@ where
 
 impl<'a> DiffResult<'a> {
     /// Construct a new DiffResult containing the provided string
-    /// split into lines, and an expected post-transformation digests.
+    /// split into lines, and an expected post-transformation digest.
     fn from_str(s: &'a str, d_post: [u8; 32]) -> Self {
         // I'd like to use str::split_inclusive here, but that isn't stable yet
         // as of rust 1.48.

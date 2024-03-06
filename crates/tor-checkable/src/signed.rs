@@ -15,7 +15,7 @@ pub struct SignatureGated<T> {
 
 impl<T> SignatureGated<T> {
     /// Return a new SignatureGated object that will be treated as
-    /// correct if every one if the given set of signatures is valid.
+    /// correct if every one of the given set of signatures is valid.
     pub fn new(obj: T, signatures: Vec<Box<dyn ValidatableSignature>>) -> Self {
         SignatureGated { obj, signatures }
     }
