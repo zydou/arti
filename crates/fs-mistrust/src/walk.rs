@@ -263,7 +263,7 @@ impl Iterator for ResolvePath {
             };
             self.steps_remaining -= 1;
 
-            // ..and add that component to the our resolved path to see what we
+            // ..and add that component to our resolved path to see what we
             // should inspect next.
             let inspecting: std::borrow::Cow<'_, Path> = if next_part.text == "." {
                 // Do nothing.

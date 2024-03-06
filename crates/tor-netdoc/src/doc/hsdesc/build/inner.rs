@@ -142,7 +142,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
                     &intro_point.svc_ntor_key.as_bytes()[..],
                 ));
 
-            // The subject key is the the ed25519 equivalent of the svc_ntor_key
+            // The subject key is the ed25519 equivalent of the svc_ntor_key
             // curve25519 public encryption key, with its sign bit set to 0.
             //
             // (Setting the sign bit to zero has a 50% chance of making the
