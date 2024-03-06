@@ -34,7 +34,10 @@ full = [
     "tor-linkspec/full",
     "tor-netdoc/full",
     "tor-units/full",
-    "tor-persist/full", "tor-protover/full", "fs-mistrust/full", "tor-log-ratelim/full",
+    "tor-persist/full",
+    "tor-protover/full",
+    "fs-mistrust/full",
+    "tor-log-ratelim/full",
 ]
 
 [dependencies]
@@ -86,6 +89,7 @@ tor-proto = { version = "0.16.1", path = "../tor-proto", features = [
     "send-control-msg",
 ] }
 tor-protover = { version = "0.6.0", path = "../tor-protover" }
+tor-relay-selection = { path = "../tor-relay-selection", version = "0.0.1" }
 tor-rtcompat = { version = "0.10.0", path = "../tor-rtcompat" }
 tor-units = { path = "../tor-units", version = "0.6.5" }
 tracing = "0.1.36"

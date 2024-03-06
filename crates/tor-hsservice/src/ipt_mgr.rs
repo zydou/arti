@@ -7,6 +7,7 @@
 
 use crate::internal_prelude::*;
 
+use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
 use IptStatusStatus as ISS;
 use TrackedStatus as TS;
 
@@ -1609,16 +1610,22 @@ impl<R: Runtime, M: Mockable<R>> State<R, M> {
 
         let mut rng = self.mockable.thread_rng();
 
-        let relay = netdir
-            // TODO #504
-            .pick_relay(&mut rng, tor_netdir::WeightRole::HsIntro, |new| {
-                new.is_hs_intro_point()
-                    && !self
-                        .irelays
-                        .iter()
-                        .any(|existing| new.has_any_relay_id_from(&existing.relay))
-            })
-            .ok_or(ChooseIptError::TooFewUsableRelays)?;
+        let relay = {
+            let exclude_ids = self
+                .irelays
+                .iter()
+                .flat_map(|e| e.relay.identities())
+                .map(|id| id.to_owned())
+                .collect();
+            let selector = RelaySelector::new(
+                RelayUsage::new_intro_point(),
+                RelayExclusion::exclude_identities(exclude_ids),
+            );
+            selector
+                .select_relay(&mut rng, &netdir)
+                .0 // TODO: Someday we might want to report why we rejected everything on failure.
+                .ok_or(ChooseIptError::TooFewUsableRelays)?
+        };
 
         let lifetime_low = netdir
             .params()
