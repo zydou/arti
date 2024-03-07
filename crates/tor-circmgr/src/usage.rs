@@ -85,7 +85,9 @@ impl Display for TargetPorts {
 impl ExitPolicy {
     /// Make a new exit policy from a given Relay.
     pub(crate) fn from_relay(relay: &Relay<'_>) -> Self {
-        // TODO #504
+        // TODO #504: it might be a good idea to lower this whole type into
+        // tor-netdir or tor-relay-selection.  That way we wouldn't need to
+        // invoke these Relay-specific methods in tor-circmgr.
         Self {
             v4: relay.ipv4_policy(),
             v6: relay.ipv6_policy(),
@@ -124,6 +126,8 @@ pub(crate) enum TargetCircUsage {
         /// Restrict the circuit to only exits in the provided country code.
         country_code: Option<CountryCode>,
         /// If true, all relays on this circuit need to have the Stable flag.
+        //
+        // TODO #504: It would be good to remove this field, if we can.
         require_stability: bool,
     },
     /// For a circuit is only used for the purpose of building it.
@@ -143,6 +147,7 @@ pub(crate) enum TargetCircUsage {
         /// The number of exit circuits needed for a port
         circs: usize,
         /// If true, all relays on this circuit need to have the Stable flag.
+        // TODO #504: It would be good to remove this field, if we can.
         require_stability: bool,
     },
     /// Use for BEGINDIR-based non-anonymous directory connections to a particular target,
@@ -182,6 +187,8 @@ pub(crate) enum SupportedCircUsage {
         /// Country code the exit is in, or `None` if no country could be determined.
         country_code: Option<CountryCode>,
         /// Whether every relay in this circuit has the "Stable" flag.
+        //
+        // TODO #504: It would be good to remove this field, if we can.
         all_relays_stable: bool,
     },
     /// This circuit is not suitable for any usage.
@@ -370,7 +377,8 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     require_stability,
                 },
             ) => {
-                // TODO #504
+                // TODO #504: These calculations don't touch Relays, but they
+                // seem like they should be done using the types of tor-relay-selection.
                 i1.as_ref()
                     .map(|i1| i1.compatible_same_type(i2))
                     .unwrap_or(true)
@@ -391,7 +399,8 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     ..
                 },
             ) => {
-                // TODO #504
+                // TODO #504: It would be good to simply remove stability
+                // calculation from tor-circmgr.
                 if *require_stability && !all_relays_stable {
                     return false;
                 }
@@ -400,7 +409,8 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     // for new streams that don't share it.
                     return false;
                 }
-                // TODO #504
+                // TODO #504: Similarly, it would be good to have exit port
+                // calculation done elsewhere.
                 if let Some(p) = port {
                     policy.allows_port(*p)
                 } else {
