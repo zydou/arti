@@ -118,7 +118,7 @@ pub struct TorClient<R: Runtime> {
     #[cfg(feature = "onion-service-client")]
     hsclient: HsClientConnector<R>,
     /// Circuit pool for providing onion services with circuits.
-    #[cfg(feature = "onion-service-service")]
+    #[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
     hs_circ_pool: Arc<tor_circmgr::hspool::HsCircPool<R>>,
     /// The key manager.
     ///
@@ -702,7 +702,7 @@ impl<R: Runtime> TorClient<R> {
             pt_mgr,
             #[cfg(feature = "onion-service-client")]
             hsclient,
-            #[cfg(feature = "onion-service-service")]
+            #[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
             hs_circ_pool,
             keymgr,
             guardmgr,
