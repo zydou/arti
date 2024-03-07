@@ -590,9 +590,8 @@ impl<R: Runtime> TorClient<R> {
             any(feature = "onion-service-client", feature = "onion-service-service")
         ))]
         let vanguardmgr = {
-            // TODO HS-VANGUARDS: add the VanguardsConfig to TorClientConfig
-            let config = Default::default();
-            VanguardMgr::new(&config, statemgr.clone()).map_err(ErrorDetail::VanguardMgrSetup)?
+            VanguardMgr::new(&config.vanguards, statemgr.clone())
+                .map_err(ErrorDetail::VanguardMgrSetup)?
         };
 
         let circmgr = tor_circmgr::CircMgr::new(

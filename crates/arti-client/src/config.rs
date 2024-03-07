@@ -630,6 +630,15 @@ pub struct TorClientConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) stream_timeouts: StreamTimeoutConfig,
+
+    /// Information about vanguards.
+    #[cfg(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) vanguards: vanguards::VanguardConfig,
 }
 impl_standard_builder! { TorClientConfig }
 

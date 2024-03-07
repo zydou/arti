@@ -570,6 +570,17 @@ mod test {
             ],
         );
 
+        declare_exceptions(
+            None,
+            None, // TODO HS-VANGUARDS: add vanguards config to example
+            FeatureDependent,
+            &[
+                // Vanguards-specific settings
+                "vanguards",
+                "vanguards.mode",
+            ],
+        );
+
         out.sort();
 
         let dupes = out.iter().map(|exc| &exc.key).duplicates().collect_vec();
