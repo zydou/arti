@@ -903,12 +903,26 @@ impl<R: Runtime> TorClient<R> {
         let addr_cfg = &new_config.address_filter;
         let timeout_cfg = &new_config.stream_timeouts;
 
+        #[cfg(all(
+            feature = "vanguards",
+            any(feature = "onion-service-client", feature = "onion-service-service")
+        ))]
+        let vanguard_cfg = &new_config.vanguards;
+
         if state_cfg != self.statemgr.path() {
             how.cannot_change("storage.state_dir").map_err(wrap_err)?;
         }
 
         self.circmgr
             .reconfigure(new_config, how)
+            .map_err(wrap_err)?;
+
+        #[cfg(all(
+            feature = "vanguards",
+            any(feature = "onion-service-client", feature = "onion-service-service")
+        ))]
+        self.hs_circ_pool
+            .reconfigure(vanguard_cfg)
             .map_err(wrap_err)?;
 
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
