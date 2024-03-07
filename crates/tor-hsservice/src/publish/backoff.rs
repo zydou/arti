@@ -46,8 +46,8 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
 
         // When this timeout elapses, the `Runner` will stop retrying the fallible operation.
         //
-        // A `timeout` of `None` means there is no time limit for the retries.
-        let mut timeout = match self.schedule.timeout() {
+        // A `overall_timeout` of `None` means there is no time limit for the retries.
+        let mut timeout = match self.schedule.overall_timeout() {
             Some(timeout) => Either::Left(Box::pin(self.runtime.sleep(timeout))),
             None => Either::Right(future::pending()),
         }
@@ -110,8 +110,8 @@ pub(super) trait BackoffSchedule {
     /// The maximum number of retries.
     ///
     /// A return value of `None` indicates is no upper limit for the number of retries, and that
-    /// the operation should be retried until [`BackoffSchedule::timeout`] time elapses (or
-    /// indefinitely, if [`BackoffSchedule::timeout`] returns `None`).
+    /// the operation should be retried until [`BackoffSchedule::overall_timeout`] time elapses (or
+    /// indefinitely, if [`BackoffSchedule::overall_timeout`] returns `None`).
     fn max_retries(&self) -> Option<usize>;
 
     /// The total amount of time allowed for the retriable operation.
@@ -119,7 +119,10 @@ pub(super) trait BackoffSchedule {
     /// A return value of `None` indicates the operation should be retried until
     /// [`BackoffSchedule::max_retries`] number of retries are exceeded (or indefinitely, if
     /// [`BackoffSchedule::max_retries`] returns `None`).
-    fn timeout(&self) -> Option<Duration>;
+    fn overall_timeout(&self) -> Option<Duration>;
+
+    /// The total amount of time allowed for a single operation.
+    fn single_attempt_timeout(&self) -> Option<Duration>;
 
     /// Return the delay to introduce before the next retry.
     ///
@@ -198,14 +201,18 @@ mod tests {
     const MAX_RETRIES: usize = 5;
 
     macro_rules! impl_backoff_sched {
-        ($name:ty, $max_retries:expr, $timeout:expr, $next_delay:expr) => {
+        ($name:ty, $max_retries:expr, $timeout:expr, $single_timeout:expr, $next_delay:expr) => {
             impl BackoffSchedule for $name {
                 fn max_retries(&self) -> Option<usize> {
                     $max_retries
                 }
 
-                fn timeout(&self) -> Option<Duration> {
+                fn overall_timeout(&self) -> Option<Duration> {
                     $timeout
+                }
+
+                fn single_attempt_timeout(&self) -> Option<Duration> {
+                    $single_timeout
                 }
 
                 #[allow(unused_variables)]
@@ -222,12 +229,19 @@ mod tests {
         BackoffWithMaxRetries,
         Some(MAX_RETRIES),
         None,
+        None,
         Some(SHORT_DELAY)
     );
 
     struct BackoffWithTimeout;
 
-    impl_backoff_sched!(BackoffWithTimeout, None, Some(TIMEOUT), Some(SHORT_DELAY));
+    impl_backoff_sched!(
+        BackoffWithTimeout,
+        None,
+        Some(TIMEOUT),
+        None,
+        Some(SHORT_DELAY)
+    );
 
     /// A potentially retriable error.
     #[derive(Debug, Copy, Clone, thiserror::Error)]
