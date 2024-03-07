@@ -22,6 +22,9 @@ use tor_rtcompat::{
 };
 use tracing::warn;
 
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+use {std::result::Result as StdResult, tor_guardmgr::vanguards::VanguardConfig};
+
 /// The (onion-service-related) purpose for which a given circuit is going to be
 /// used.
 ///
@@ -225,6 +228,19 @@ impl<R: Runtime> HsCircPool<R> {
 
         // With any luck, return the circuit.
         Ok(circ)
+    }
+
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    /// Handle vanguard configuration changes.
+    pub fn reconfigure(
+        &self,
+        config: &VanguardConfig,
+    ) -> StdResult<(), tor_config::ReconfigureError> {
+        self.inner
+            .lock()
+            .expect("poisoned lock")
+            .pool
+            .reconfigure(config)
     }
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.

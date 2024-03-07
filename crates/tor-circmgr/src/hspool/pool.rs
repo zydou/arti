@@ -10,7 +10,7 @@ use tor_basic_utils::RngExt as _;
 use tor_proto::circuit::ClientCirc;
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-use tor_guardmgr::vanguards::VanguardMode;
+use tor_guardmgr::vanguards::{VanguardConfig, VanguardMode};
 
 /// A collection of circuits used to fulfil onion-service-related requests.
 pub(super) struct Pool {
@@ -140,6 +140,29 @@ impl Pool {
         self.target = self.target.clamp(DEFAULT_TARGET, MAX_TARGET);
         self.have_been_exhausted = false;
         self.have_been_under_highwater = false;
+    }
+
+    /// Handle vanguard configuration changes.
+    ///
+    /// If new config has a different [`VanguardMode`] enabled,
+    /// this empties the circuit pool.
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    #[allow(clippy::unnecessary_wraps)] // for consistency and future-proofing
+    pub(super) fn reconfigure(
+        &mut self,
+        config: &VanguardConfig,
+    ) -> Result<(), tor_config::ReconfigureError> {
+        let mode = config.mode();
+
+        if self.mode != mode {
+            self.mode = mode;
+            self.have_been_exhausted = true;
+
+            // Purge all circuits from this pool
+            self.circuits.clear();
+        }
+
+        Ok(())
     }
 }
 
