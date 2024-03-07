@@ -47,7 +47,13 @@ to make sure we aren't going to break our users.
 5. Does `maint/fixup-features` produce any results?
    If so, fix them.
 
-6. Does `maint/semver-checks` find any issues
+   Note: fixup-features should be run with the top-level Cargo.toml
+   as an argument:
+   ```
+   cargo run -p fixup-features Cargo.toml
+   ```
+
+6. Does `maint/semver-checks "arti-v$LAST_VERSION"` find any issues
    not noted in our semver.md files?
    If so, add them.
 
@@ -122,8 +128,10 @@ release?" above.
     * APIs were broken.
       (Bump minor if major == 0; else bump major.)
 
-   You can identify crates that have no changes (by elimination)
-   with `./maint/changed_crates ${LAST_VERSION}`.
+   You can identify crates that have no changes using `maint/changed_crates`:
+   ```
+   maint/changed_crates -v "arti-v$LAST_VERSION" 2>&1 >/dev/null | grep -i "no change"
+   ```
 
    To see whether a crate has only non-functional changes,
    you have to use  `git diff`.  Sorry!
