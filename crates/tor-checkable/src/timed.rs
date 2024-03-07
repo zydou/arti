@@ -71,14 +71,20 @@ impl<T> TimerangeBound<T> {
     /// in the future.
     #[must_use]
     pub fn extend_tolerance(self, d: time::Duration) -> Self {
-        let end = self.end.map(|t| t + d);
+        let end = match self.end {
+            Some(t) => t.checked_add(d),
+            _ => None,
+        };
         Self { end, ..self }
     }
     /// Adjust this time-range bound to tolerate an initial validity
     /// time farther in the past.
     #[must_use]
     pub fn extend_pre_tolerance(self, d: time::Duration) -> Self {
-        let start = self.start.map(|t| t - d);
+        let start = match self.start {
+            Some(t) => t.checked_sub(d),
+            _ => None,
+        };
         Self { start, ..self }
     }
     /// Consume this [`TimerangeBound`], and return a new one with the same
@@ -244,6 +250,12 @@ mod test {
             .extend_tolerance(2 * one_day);
         assert_eq!(tr.start, Some(tor_v0_0_2pre13 - 5 * one_day));
         assert_eq!(tr.end, Some(tor_v0_4_4_5 + 2 * one_day));
+
+        let tr = tr
+            .extend_pre_tolerance(Duration::MAX)
+            .extend_tolerance(Duration::MAX);
+        assert_eq!(tr.start, None);
+        assert_eq!(tr.end, None);
 
         let tr = TimerangeBound::new((), tor_v0_4_4_5..);
         assert_eq!(tr.start, Some(tor_v0_4_4_5));
