@@ -1496,25 +1496,23 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> UploadStatus {
         /// The base delay to use for the backoff schedule.
         const BASE_DELAY_MSEC: u32 = 1000;
-
-        let runner = {
-            let schedule = PublisherBackoffSchedule {
-                retry_delay: RetryDelay::from_msec(BASE_DELAY_MSEC),
-                mockable: imm.mockable.clone(),
-            };
-            Runner::new(
-                "upload a hidden service descriptor".into(),
-                schedule,
-                imm.runtime.clone(),
-            )
+        let schedule = PublisherBackoffSchedule {
+            retry_delay: RetryDelay::from_msec(BASE_DELAY_MSEC),
+            mockable: imm.mockable.clone(),
         };
 
-        let single_upload_timeout = imm.mockable.estimate_upload_timeout();
+        let runner = Runner::new(
+            "upload a hidden service descriptor".into(),
+            schedule.clone(),
+            imm.runtime.clone(),
+        );
 
         let fallible_op = || async {
             imm.runtime
                 .timeout(
-                    single_upload_timeout,
+                    schedule
+                        .single_attempt_timeout()
+                        .ok_or_else(|| internal!("single_attempt_timeout missing"))?,
                     Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)),
                 )
                 .await
@@ -1657,8 +1655,12 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
         None
     }
 
-    fn timeout(&self) -> Option<Duration> {
+    fn overall_timeout(&self) -> Option<Duration> {
         Some(OVERALL_UPLOAD_TIMEOUT)
+    }
+
+    fn single_attempt_timeout(&self) -> Option<Duration> {
+        Some(self.mockable.estimate_upload_timeout())
     }
 
     fn next_delay<E: RetriableError>(&mut self, _error: &E) -> Option<Duration> {
