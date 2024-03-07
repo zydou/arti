@@ -9,6 +9,9 @@ use rand::Rng;
 use tor_basic_utils::RngExt as _;
 use tor_proto::circuit::ClientCirc;
 
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+use tor_guardmgr::vanguards::VanguardMode;
+
 /// A collection of circuits used to fulfil onion-service-related requests.
 pub(super) struct Pool {
     /// The collection of circuits themselves, in no particular order.
@@ -30,6 +33,12 @@ pub(super) struct Pool {
 
     /// Last time when we changed our target size.
     last_changed_target: Option<Instant>,
+
+    /// The kind of vanguards that are in use.
+    ///
+    /// All the circuits from `circuits` use the type of vanguards specified here.
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    mode: VanguardMode,
 }
 
 /// Our default (and minimum) target pool size.
@@ -47,6 +56,8 @@ impl Default for Pool {
             have_been_exhausted: false,
             have_been_under_highwater: false,
             last_changed_target: None,
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            mode: VanguardMode::default(),
         }
     }
 }
