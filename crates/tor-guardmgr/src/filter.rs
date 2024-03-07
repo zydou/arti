@@ -81,6 +81,8 @@ impl GuardFilter {
         use tor_netdir::{RelayWeight, WeightRole};
         let mut guard_bw: RelayWeight = 0.into();
         let mut permitted_bw: RelayWeight = 0.into();
+        // TODO #504: This is an unaccompanied RelayUsage, and is therefore a
+        // bit suspect.  We should consider whether we like this behavior.
         let usage = RelayUsage::new_guard();
 
         // TODO: There is a case to be made for converting "permitted by this

@@ -270,6 +270,8 @@ impl<R: Runtime> HsCircPool<R> {
             let path_cfg = self.circmgr.builder().path_config();
             let cfg = path_cfg.relay_selection_config();
             match avoid_target {
+                // TODO #504: This is an unaccompanied RelayExclusion, and is therefore a
+                // bit suspect.  We should consider whether we like this behavior.
                 Some(ct) => RelayExclusion::exclude_channel_target_family(&cfg, ct, netdir),
                 None => RelayExclusion::no_relays_excluded(),
             }
