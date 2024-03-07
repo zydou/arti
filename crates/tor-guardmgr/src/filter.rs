@@ -4,6 +4,7 @@ use tor_linkspec::ChanTarget;
 // TODO(nickm): Conceivably, this type should be exposed from a lower-level crate than
 // tor-netdoc.
 use tor_netdoc::types::policy::AddrPortPattern;
+use tor_relay_selection::{RelayPredicate, RelayRestriction, RelaySelector, RelayUsage};
 
 /// An object specifying which relays are eligible to be guards.
 ///
@@ -80,9 +81,12 @@ impl GuardFilter {
         use tor_netdir::{RelayWeight, WeightRole};
         let mut guard_bw: RelayWeight = 0.into();
         let mut permitted_bw: RelayWeight = 0.into();
+        let usage = RelayUsage::new_guard();
+
+        // TODO: There is a case to be made for converting "permitted by this
+        // address-port filter?" into a RelayRestriction.
         for relay in netdir.relays() {
-            // TODO #504
-            if relay.is_suitable_as_guard() {
+            if usage.permits_relay(&relay) {
                 let w = netdir.relay_weight(&relay, WeightRole::Guard);
                 guard_bw += w;
                 if self.permits(&relay) {
@@ -93,12 +97,30 @@ impl GuardFilter {
 
         permitted_bw.checked_div(guard_bw).unwrap_or(1.0)
     }
+
+    /// Update `selector` with all the restrictions from this filter.
+    pub(crate) fn add_to_selector(&self, selector: &mut RelaySelector) {
+        // TODO #504: There is a case to be made that we should refactor
+        // `tor-guardmgr` crate so that GuardFilter no longer exists
+        // independently, but instead is just a part of RelaySelector.
+        //
+        // But before we do that, we should let the rest of #504 settle.
+        for filt in &self.filters {
+            selector.push_restriction(match filt {
+                SingleFilter::ReachableAddrs(addrs) => {
+                    RelayRestriction::require_address(addrs.clone())
+                }
+            });
+        }
+    }
 }
 
 impl SingleFilter {
     /// Return true if this filter permits the provided target.
     fn permits<C: ChanTarget>(&self, target: &C) -> bool {
         match self {
+            // TODO: This is partially duplicated with tor-relay-selection,
+            // but (for now) that only covers Relays, not general ChanTargets.
             SingleFilter::ReachableAddrs(patterns) => {
                 patterns.iter().any(|pat| {
                     match target.chan_method().socket_addrs() {
@@ -190,6 +212,6 @@ mod test {
             f.push_reachable_addresses(vec!["1.0.0.0/8:*".parse().unwrap()]);
             f
         };
-        assert_float_eq!(net_1_only.frac_bw_permitted(&nd), 54.0 / 330.0, abs <= TOL);
+        assert_float_eq!(net_1_only.frac_bw_permitted(&nd), 0.28, abs <= TOL);
     }
 }

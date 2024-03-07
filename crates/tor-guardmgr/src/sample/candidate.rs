@@ -5,6 +5,7 @@ use std::{sync::Arc, time::SystemTime};
 
 use tor_linkspec::{ByRelayIds, ChanTarget, HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay, RelayWeight};
+use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
 
 use crate::{GuardFilter, GuardParams};
 
@@ -169,32 +170,35 @@ impl Universe for NetDir {
             dir.weight_by_rsa_id(relay.rsa_identity()?, tor_netdir::WeightRole::Guard)
         }
 
-        // TODO #504
-        self.pick_n_relays(
-            &mut rand::thread_rng(),
-            n,
-            tor_netdir::WeightRole::Guard,
-            |relay| {
-                filter.permits(relay)
-                    && relay.is_suitable_as_guard()
-                    && relay.is_dir_cache()
-                    && pre_existing.all_overlapping(relay).is_empty()
-            },
-        )
-        .iter()
-        .map(|relay| {
-            (
-                Candidate {
-                    listed_as_guard: true,
-                    is_dir_cache: true,
-                    full_dir_info: true,
-                    owned_target: OwnedChanTarget::from_chan_target(relay),
-                    sensitivity: crate::guard::DisplayRule::Sensitive,
-                },
-                weight(self, relay).unwrap_or_else(|| RelayWeight::from(0)),
-            )
-        })
-        .collect()
+        let already_selected = pre_existing
+            .values()
+            .flat_map(|item| item.identities())
+            .map(|id| id.to_owned())
+            .collect();
+        let mut sel = RelaySelector::new(
+            RelayUsage::new_guard(),
+            RelayExclusion::exclude_identities(already_selected),
+        );
+        filter.add_to_selector(&mut sel);
+
+        let (relays, _outcome) = sel.select_n_relays(&mut rand::thread_rng(), n, self);
+        // TODO: report _outcome somehow.
+        relays
+            .iter()
+            .map(|relay| {
+                (
+                    Candidate {
+                        listed_as_guard: true,
+                        is_dir_cache: true,
+                        full_dir_info: true,
+                        owned_target: OwnedChanTarget::from_chan_target(relay),
+                        sensitivity: crate::guard::DisplayRule::Sensitive,
+                    },
+                    // TODO: It would be better not to need this function.
+                    weight(self, relay).unwrap_or_else(|| RelayWeight::from(0)),
+                )
+            })
+            .collect()
     }
 }
 
