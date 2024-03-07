@@ -849,7 +849,7 @@ impl GuardMgrInner {
     }
 
     /// Update the status of all guards in the active set, based on the passage
-    /// of time, our configuration, and and the relevant Universe for our active
+    /// of time, our configuration, and the relevant Universe for our active
     /// set.
     fn update(&mut self, wallclock: SystemTime, now: Instant) {
         self.with_opt_netdir(|this, netdir| {

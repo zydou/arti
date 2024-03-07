@@ -361,7 +361,7 @@ kinds
 
   Therefore, a client which is trying to classify an error
   should look through the array from start to finish,
-  stopping as soon as it finds a a recognised `ErrorKind`.
+  stopping as soon as it finds a recognised `ErrorKind`.
 
   Note that this set may be extended in future,
   so a client must be prepared to receive unknown values from Arti,
@@ -522,7 +522,7 @@ auth:authenticate
 Three recognized authentication schemes are:
 
 inherent:peer_uid
-: Attempt to authenticate based on the the application's
+: Attempt to authenticate based on the application's
   user-id.
 
 inherent:unix_path

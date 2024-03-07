@@ -128,7 +128,7 @@ enum CircIdReq {
 }
 
 impl ChanCmd {
-    /// Return true if this command is for a cell using the the
+    /// Return true if this command is for a cell using the
     /// variable-length format.
     pub fn is_var_cell(self) -> bool {
         // Version 1 of the channel protocol had no variable-length

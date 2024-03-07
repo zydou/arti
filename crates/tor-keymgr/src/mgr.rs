@@ -35,7 +35,7 @@ use tor_error::{bad_api_usage, internal};
 /// (i.e. a key with the same `ArtiPath`), because
 /// their outcome depends on whether the selected key store
 /// [`contains`][crate::Keystore::contains]
-/// the specified key (and thus suffers from a a TOCTOU race).
+/// the specified key (and thus suffers from a TOCTOU race).
 #[derive(derive_builder::Builder)]
 #[builder(pattern = "owned", build_fn(private, name = "build_unvalidated"))]
 pub struct KeyMgr {
@@ -185,7 +185,7 @@ impl KeyMgr {
     /// **IMPORTANT**: using this function concurrently with any other `KeyMgr` operation that
     /// mutates the key store state is **not** recommended, as it can yield surprising results! The
     /// outcome of [`KeyMgr::generate`] depends on whether the selected key store
-    /// [`contains`][crate::Keystore::contains] the specified key, and thus suffers from a a TOCTOU race.
+    /// [`contains`][crate::Keystore::contains] the specified key, and thus suffers from a TOCTOU race.
     //
     // TODO (#1119): can we make this less racy without a lock? Perhaps we should say we'll always
     // overwrite any existing keys.
@@ -246,7 +246,7 @@ impl KeyMgr {
     /// Returns an error if the selected keystore is not the default keystore or one of the
     /// configured secondary stores.
     ///
-    /// Returns the the value of the removed key,
+    /// Returns the value of the removed key,
     /// or `Ok(None)` if the key does not exist in the requested keystore.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.

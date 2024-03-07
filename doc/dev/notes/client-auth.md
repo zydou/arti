@@ -351,7 +351,7 @@ Pros:
     all the key specifiers matching `client/*+*/ks_hsc_desc_enc.x25519_private`
   * the mapping cannot go out of sync with the keystore
   * when asked to connect to `<hsid.onion>`, the client doesn't need to know the
-    nickname of the service: it just needs to find the the key matching
+    nickname of the service: it just needs to find the key matching
     `client/*+<hsid>/ks_hsc_desc_enc.x25519_private`, and bail if there is more
     than 1 such key (in the future we might decide to allow many-to-many
     nickname -> hsid mappings, but for now they are forbidden)

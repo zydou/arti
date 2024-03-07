@@ -931,7 +931,7 @@ impl State {
 impl<R: Runtime, M: Mockable<R>> StateGuard<'_, R, M> {
     /// Record a download outcome.
     ///
-    /// Final act of the the descriptor download task.
+    /// Final act of the descriptor download task.
     /// `got` is from [`download_descriptor`](Manager::download_descriptor).
     fn record_download_outcome(&mut self, bridge: BridgeKey, got: Result<Downloaded, Error>) {
         let RunningInfo { retry_delay, .. } = match self.running.remove(&bridge) {

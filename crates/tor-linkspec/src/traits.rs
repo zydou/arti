@@ -278,7 +278,7 @@ pub trait CircTarget: ChanTarget {
     /// Return a new vector of encoded link specifiers for this relay.
     ///
     /// Note that, outside of this method, nothing in Arti should be re-ordering
-    /// the the link specifiers returned by this method.  It is this method's
+    /// the link specifiers returned by this method.  It is this method's
     /// responsibility to return them in the correct order.
     ///
     /// The default implementation for this method builds a list of link

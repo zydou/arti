@@ -174,7 +174,7 @@ We also use `Weak<>` references to these manager objects when implementing
 background tasks to keep the managers alive if there are no other references to
 the `TorClient`, so we tend to structure them more or less as follows:
 
-```
+```rust
 async fn run_background_task(mgr: Weak<FooMgr>, schedule: ScheduleObject) {
     while schedule.await {
         if let Some(mgr) = Weak::upgrade(&mgr) {

@@ -210,7 +210,7 @@ impl MistrustBuilder {
     /// By default, we trust the group (if any) with the same name as the
     /// current user if we are currently running as a member of that group.
     ///
-    /// With this option set, no group is trusted, and and any group-readable or
+    /// With this option set, no group is trusted, and any group-readable or
     /// group-writable objects are treated the same as world-readable and
     /// world-writable objects respectively.
     #[cfg(all(

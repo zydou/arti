@@ -337,7 +337,7 @@ impl IptsPublisherView {
 
     /// Look at the list of introduction points to publish
     ///
-    /// Whenever a a publication attempt is started
+    /// Whenever a publication attempt is started
     /// [`note_publication_attempt`](PublishIptSet::note_publication_attempt)
     /// must be called on this same [`IptSet`].
     ///

@@ -38,7 +38,7 @@ pub trait Keystore: Send + Sync + 'static {
     /// store.
     fn id(&self) -> &KeystoreId;
 
-    /// Check if the the key identified by `key_spec` exists in this key store.
+    /// Check if the key identified by `key_spec` exists in this key store.
     fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool>;
 
     /// Retrieve the key identified by `key_spec`.

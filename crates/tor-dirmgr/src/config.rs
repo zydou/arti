@@ -220,7 +220,7 @@ pub struct DirMgrConfig {
     /// Cannot be changed on a running Arti client.
     pub cache_dir: PathBuf,
 
-    /// Rules for whether to trust the the permissions on the cache_path.
+    /// Rules for whether to trust the permissions on the cache_path.
     pub cache_trust: fs_mistrust::Mistrust,
 
     /// Configuration information about the network.

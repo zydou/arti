@@ -86,7 +86,7 @@ Arti.
 This is all a work in progress, and will need severe refactoring
 before it's done.
 
-This is a client-only implementation; there is no support the
+This is a client-only implementation; there is no support for the
 operations that Relays need.
 
 There are too many missing features to list.

@@ -91,7 +91,7 @@ pub mod macro_prelude {
     pub use weak_table::WeakValueHashMap;
 }
 
-/// An group of events that an be logged singly or in a summary over a period of time.
+/// A group of events that can be logged singly or in a summary over a period of time.
 #[doc(hidden)]
 pub trait Loggable: 'static + Send {
     /// Log these events immediately, if there is anything to log.

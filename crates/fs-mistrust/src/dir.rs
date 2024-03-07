@@ -16,7 +16,7 @@ use std::os::unix::fs::OpenOptionsExt;
 /// functions to access members of that directory.
 ///
 /// The accessor functions will enforce that whatever security properties we
-/// checked on the the directory also apply to all of the members that we access
+/// checked on the directory also apply to all of the members that we access
 /// within the directory.
 ///
 /// ## Limitations
