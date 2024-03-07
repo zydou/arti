@@ -57,6 +57,15 @@ pub mod onion_service {
     pub use tor_hsservice::config::{OnionServiceConfig, OnionServiceConfigBuilder};
 }
 
+/// Types for configuring vanguards.
+#[cfg(all(
+    feature = "vanguards",
+    any(feature = "onion-service-client", feature = "onion-service-service")
+))]
+pub mod vanguards {
+    pub use tor_guardmgr::vanguards::{VanguardConfig, VanguardConfigBuilder};
+}
+
 /// Configuration for client behavior relating to addresses.
 ///
 /// This type is immutable once constructed. To create an object of this type,

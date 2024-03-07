@@ -15,7 +15,7 @@ use tor_netdir::{NetDir, NetDirProvider};
 use tor_persist::StateMgr;
 use tor_rtcompat::Runtime;
 
-pub use config::{VanguardConfig, VanguardMode, VanguardParams};
+pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardMode, VanguardParams};
 pub use set::Vanguard;
 
 use set::VanguardSet;
