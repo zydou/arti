@@ -107,7 +107,8 @@ impl Universe for NetDir {
     }
 
     fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate> {
-        // TODO #504
+        // TODO #504 - if we make a data extractor for Relays, we'll want
+        // to use it here.
         match NetDir::by_ids(self, guard) {
             Some(relay) => CandidateStatus::Present(Candidate {
                 listed_as_guard: relay.is_suitable_as_guard(),
@@ -131,7 +132,8 @@ impl Universe for NetDir {
         // When adding from a netdir, we impose a limit on the fraction of the
         // universe we're willing to add.
         let maximum_weight = {
-            // TODO #504
+            // TODO #504 - to convert this, we need tor_relay_selector to apply
+            // to UncheckedRelay.
             let total_weight = self.total_weight(tor_netdir::WeightRole::Guard, |r| {
                 r.is_suitable_as_guard() && r.is_dir_cache()
             });
