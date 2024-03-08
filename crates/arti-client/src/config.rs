@@ -25,6 +25,12 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
 pub use tor_guardmgr::bridge::BridgeParseError;
 
+#[cfg(all(
+    feature = "vanguards",
+    any(feature = "onion-service-client", feature = "onion-service-service")
+))]
+pub use tor_guardmgr::vanguards::VanguardConfig;
+
 use tor_guardmgr::bridge::BridgeConfig;
 use tor_keymgr::config::arti::{ArtiNativeKeystoreConfig, ArtiNativeKeystoreConfigBuilder};
 
@@ -657,7 +663,15 @@ fn convert_override_net_params(
     override_net_params
 }
 
-impl tor_circmgr::CircMgrConfig for TorClientConfig {}
+impl tor_circmgr::CircMgrConfig for TorClientConfig {
+    #[cfg(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig {
+        &self.vanguards
+    }
+}
 #[cfg(feature = "onion-service-client")]
 impl tor_hsclient::HsClientConnectorConfig for TorClientConfig {}
 

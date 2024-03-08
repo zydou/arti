@@ -356,6 +356,10 @@ define_accessor_trait! {
         path_rules: PathConfig,
         circuit_timing: CircuitTiming,
         preemptive_circuits: PreemptiveCircuitConfig,
+        +
+        /// Access the field
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig;
     }
 }
 
@@ -365,6 +369,7 @@ pub(crate) mod test_config {
     use super::*;
     use crate::*;
     use tor_guardmgr::bridge::BridgeConfig;
+    use tor_guardmgr::vanguards::VanguardConfig;
 
     /// Testing configuration, with public fields
     #[derive(Default, derive_more::AsRef)]
@@ -379,6 +384,8 @@ pub(crate) mod test_config {
         pub preemptive_circuits: PreemptiveCircuitConfig,
         ///
         pub guardmgr: tor_guardmgr::TestConfig,
+        ///
+        pub vanguard_config: VanguardConfig,
     }
     impl AsRef<[BridgeConfig]> for TestConfig {
         fn as_ref(&self) -> &[BridgeConfig] {
@@ -404,6 +411,10 @@ pub(crate) mod test_config {
         }
         fn preemptive_circuits(&self) -> &PreemptiveCircuitConfig {
             &self.preemptive_circuits
+        }
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig {
+            &self.vanguard_config
         }
     }
 }
