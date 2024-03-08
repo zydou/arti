@@ -303,6 +303,13 @@ impl<R: Runtime> CircMgr<R> {
         let retire_because_of_guardmgr =
             self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
 
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let retire_because_of_vanguardmgr = self
+            .mgr
+            .peek_builder()
+            .vanguardmgr()
+            .reconfigure(new_config.vanguard_config())?;
+
         let new_reachable = &new_config.path_rules().reachable_addrs;
         if new_reachable != &old_path_rules.reachable_addrs {
             let filter = new_config.path_rules().build_guard_filter();
@@ -313,6 +320,10 @@ impl<R: Runtime> CircMgr<R> {
             .path_rules()
             .at_least_as_permissive_as(&old_path_rules)
             || retire_because_of_guardmgr != tor_guardmgr::RetireCircuits::None;
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let discard_all_circuits = discard_all_circuits
+            || retire_because_of_vanguardmgr != tor_guardmgr::RetireCircuits::None;
 
         self.mgr
             .peek_builder()
