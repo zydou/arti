@@ -11,7 +11,7 @@ Arti will need the following new subcommands:
 Initially, `arti-hss` and `arti-hsc` will be only used for listing,
 manipulating, and verifying the contents of Arti key stores (they are frontends
 to Arti's [`KeyMgr`]). In the future, they will be extended to support
-manipulatating other types of persistent state too (for example, `arti hss` will
+manipulating other types of persistent state too (for example, `arti hss` will
 also be used for manipulating the on-disk IPT records of the service).
 
 NOTE: The subcommands documented here do not exist yet. Rather than being the
@@ -244,7 +244,7 @@ SYNOPSIS
        arti keys verify [OPTIONS]
 
 DESCRIPTION
-       The key vality checks fail if there are any
+       The key validity checks fail if there are any
          * keys and certificates not associated with any current identity
          * unrecognized keys
          * expired keys
@@ -304,7 +304,7 @@ EXAMPLES
 
        Perform validity checks on keystores foo and bar, removing any invalid keys:
 
-        arti kets verify --config arti.toml \
+        arti keys verify --config arti.toml \
           --keystore foo,bar                \
           --fix
 
@@ -588,7 +588,7 @@ SYNOPSIS
 
 DESCRIPTION
        A CLI for accessing, manipulating and validating the contents of Arti key
-       stores and other peristent state.
+       stores and other persistent state.
 
        As with arti, keystores are configured through Arti's TOML config
        (specified using the --config flag).
@@ -1069,7 +1069,7 @@ DESCRIPTION
        service.
 
        This command deletes all the keys, including identity key, of the
-       specified sevice and generates a fresh identity keypair.
+       specified service and generates a fresh identity keypair.
 
        This command preserves the nickname of the service and its configuration
        (including the authorized clients).

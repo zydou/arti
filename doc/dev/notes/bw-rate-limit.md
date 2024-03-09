@@ -131,7 +131,7 @@ here if the functionality grows in this way.
 
 ### Stream/Sink APIs
 
-We may somday want to add the ability to limit Stream/Sink objects
+We may someday want to add the ability to limit Stream/Sink objects
 other than AsyncRead and AsyncWrite.  To do so, we define a cost
 function on the members of the Stream/Sinks, to make them
 comparable with our other read/writes.
@@ -189,7 +189,7 @@ If we expose them,
 they should be behind an `experimental` feature
 until we actually need them for something.
 
-One proposed possiblity (from diziet):
+One proposed possibility (from diziet):
 
 ```
 
@@ -202,7 +202,7 @@ impl RawLimiter {
     //    Q. separate read and write types?
     //       Probably not
     //    Q. should qty be a Range or something
-    //          which causes this to return only when min is fulfulled?
+    //          which causes this to return only when min is fulfilled?
     //          probably not.
     // As I propose here this API is equivalent to AsyncWrite except
     // that it doesn't get involved with `&[u8]` etc.  so it hopefully doesn't impose

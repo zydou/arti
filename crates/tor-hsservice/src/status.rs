@@ -247,7 +247,7 @@ pub(crate) struct PublisherStatusSender(StatusSender);
 /// A helper for implementing [`PublisherStatusSender`] and [`IptMgrStatusSender`].
 ///
 /// TODO: this macro is a bit repetitive, it would be nice if we could reduce duplication even
-/// furhter (and auto-generate a `note_<state>` function for every `State` variant).
+/// further (and auto-generate a `note_<state>` function for every `State` variant).
 macro_rules! impl_status_sender {
     ($sender:ident, $field:ident) => {
         impl $sender {

@@ -153,7 +153,7 @@ If both `kp_hsc_desc_enc.x25519_public` and `<client_nick>.auth` are present,
 the service will use `kp_hsc_desc_enc.x25519_public` and log a warning.
 
 In addition to provisioning the `authorized_clients` directory, HS operators
-wanting to enable client authorization must explictly set `enabled = true` in
+wanting to enable client authorization must explicitly set `enabled = true` in
 the toml config:
 
 ```toml
@@ -364,7 +364,7 @@ Cons:
     `<hs-nickname>.auth`). This asymmetry might mean we need to split
     `KeyMgr::list_matching`  into `KeyMgr::list_matching_arti` and
     `KeyMgr::list_matching_ctor` (because `ArtiPath`s are going to be handled
-    very differently from `CTorPath`s). (I think this is actually a pervaisve
+    very differently from `CTorPath`s). (I think this is actually a pervasive
     issue that we haven't tackled yet: a number of other callsites/APIs will
     likely need to change when we add support for C Tor keystores).
 
