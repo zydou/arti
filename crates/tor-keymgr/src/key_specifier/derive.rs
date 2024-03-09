@@ -22,7 +22,7 @@ pub use tor_error::{internal, into_internal, Bug};
 
 /// Trait for (only) formatting as a [`KeySpecifierComponent`]
 ///
-/// Like the fomratting part of `KeySpecifierComponent`
+/// Like the formatting part of `KeySpecifierComponent`
 /// but implemented for Option and &str too.
 pub trait RawKeySpecifierComponent {
     /// Append `self`s `KeySpecifierComponent` string representation to `s`
@@ -325,7 +325,7 @@ define_derive_adhoc! {
     /// The `role` is followed by the denotators of the key.
     ///
     /// The denotator fields, if there are any,
-    /// should be anotated with `#[denotator]`.
+    /// should be annotated with `#[denotator]`.
     ///
     /// The declaration order of the fields is important.
     /// The inner components of the [`ArtiPath`] of the specifier are built

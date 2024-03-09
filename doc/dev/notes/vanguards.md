@@ -155,7 +155,7 @@ Code to modify will be concentrated in `tor_circmgr`:
  * Anything that touches `SupportedCircUsage::HsOnly`.
 
 We will also need a new path-selection implementation.
-This will either be a new implemention
+This will either be a new implementation
 similar to `ExitPathBuilder`,
 or an additional set of options to a possibly renamed
 `ExitPathBuilder`.

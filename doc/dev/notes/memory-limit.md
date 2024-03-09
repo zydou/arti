@@ -30,7 +30,7 @@ until we go below a low-water mark (hysteresis).
 
  * **Tracker**: Instance of the memory quota system.  Each tracker has a notion of how much memory its participants are allowed to use, in aggregate.  Tracks memory usage by all the Accounts and Participants.  Different Trackers are completely independent.
 
- * **Account**: all memory used withing the same Account is treated equally, and reclamation also happens on an account-by-account basis.  (Each Account is with one Tracker.)
+ * **Account**: all memory used within the same Account is treated equally, and reclamation also happens on an account-by-account basis.  (Each Account is with one Tracker.)
 
  * **Participant**: one data structure that uses memory.  Each Participant is linked to *one* Account.  An account has *one or more* Participants.  (An Account can exist with zero Participants, but can't then claim memory.)  A Participant provides a `dyn Participant` to the memory system; in turn, the memory system provides the Participant with a `Participation` - a handle for tracking memory alloc/free.
 
@@ -46,7 +46,7 @@ until we go below a low-water mark (hysteresis).
 
  * **Queues**: We provide a higher-level API that wraps an mpsc queue and turns it into a Participant.
 
-## Onwership and Arc keeping-alive
+## Ownership and Arc keeping-alive
 
  * Somewhere, someone must keep an `Account` to keep the account open.  Ie, the principal
    object corresponding to the accountholder should contain an `Account`.
@@ -163,7 +163,7 @@ mod memquota::mpsc_queue {
     // for circuits, callback will send a ctrl msg
     // (callback is nicer than us handing out an mpsc rx
     // which user must read and convert items from)
-    collpase_notify: Vec<CollapseCallback>,
+    collapse_notify: Vec<CollapseCallback>,
 
   /// Entry in in the inner queue
   struct Entry {
@@ -185,7 +185,7 @@ mod memquota::mpsc_queue {
 
   // weak ref to queue, for implementing Participant to hook into memory system
   struct ReceiverParticipant {
-    inner: Weak<Mutex<RecieverState
+    inner: Weak<Mutex<ReceiverState
 
   // sketch; really we'd impl Sink
   impl Sender<T> {
@@ -296,7 +296,7 @@ mod memquota::raw {
     fn get_oldest(&self) -> Option<RoughTime>;
     // Should free *at least* all memory at least as old as discard_...
     //
-    // v1 of the actual implemnetation might not have `discard_everything_as_old_as`
+    // v1 of the actual implementation might not have `discard_everything_as_old_as`
     // and `but_can_stop_discarding_...`,
     // and might therefore only support Reclaimed::Collapsing
     //
@@ -376,17 +376,17 @@ mod memquota::raw {
     decrement participation_clones
     if zero, forget the participant (subtracting its PRecord.used from TrackerInner_used)
 
-  // gives you another view of the same particant
+  // gives you another view of the same participant
   impl Clone for Participation {
     // clone's local_quota is set to 0.
 
   impl MemoryQuotaTracker {
-    // claim will fail until a Partciipant is added
+    // claim will fail until a Participant is added
     //
     // Right now, parent can't be changed after construction of an Account,
     // so circular accounts are impossible.
     // But, we might choose to support that in the future.  Circular accounts parent relationships
-    // would need just a little care in the reclamation loop to avoid inifitely looping,
+    // would need just a little care in the reclamation loop to avoid infinitely looping,
     // but aren't inherently unsupportable.
     pub fn new_account(&Arc<self>, parent: Option<AccountId>) -> Account {
 
@@ -415,7 +415,7 @@ mod memquota::raw {
           // fudge next_oldest by something to do with number of loop iterations,
           // to avoid one-allocation-each-time ping pong between multiple caches
 
-          // Actually, each entry is a Vec<Partipant> so we must iterate or collect
+          // Actually, each entry is a Vec<Participant> so we must iterate or collect
 
           note that we are reclaiming oldest;
           oldest_particip = ps[oldest].clone();
@@ -454,7 +454,7 @@ If that's not enough, tracker will call reclaim again.
 I.e. we want to balance caches with queues "somehow" (TBD).
 
 We'll introduce a new kind of `Participant`, probably a new trait,
-and a `new_cache_particpant` enrolment method.
+and a `new_cache_participant` enrolment method.
 (We may want to rename `Participant`?)
 
 When memory pressure occurs the `MemoryQuotaTracker`
@@ -464,7 +464,7 @@ It will ask caches about whatever it is that is relevant (via
 `CacheParticipant`?).
 
 The manager will decide who needs to free memory,
-and give instructions via the `Particpant`/`CacheParticpant` trait method(s).
+and give instructions via the `Participant`/`CacheParticipant` trait method(s).
 
 Policy and algorithms TBD.
 

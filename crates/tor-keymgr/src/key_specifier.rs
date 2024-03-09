@@ -219,7 +219,7 @@ pub struct KeyPathInfo {
     role: String,
     /// Additional information, in the form of key-value pairs.
     ///
-    /// This will contain human-readable information that describes the invidivdual
+    /// This will contain human-readable information that describes the individual
     /// components of a KeyPath. For example, for the [`ArtiPath`]
     /// `hs/foo/KS_hs_id.expanded_ed25519_private`, the extra information could
     /// be `("kind", "service)`, `("nickname", "foo")`, etc.
@@ -279,7 +279,7 @@ macro_rules! register_key_info_extractor {
 ///
 /// ## Syntax
 ///
-/// NOTE: this table is copied vebatim from the [`glob-match`] docs.
+/// NOTE: this table is copied verbatim from the [`glob-match`] docs.
 ///
 /// | Syntax  | Meaning                                                                                                                                                                                             |
 /// | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -361,7 +361,7 @@ pub enum ArtiPathUnavailableError {
     ///
     /// This is returned, for example, by [`CTorPath`]'s [`KeySpecifier::arti_path`]
     /// implementation.
-    #[error("ArtiPath unvailable")]
+    #[error("ArtiPath unavailable")]
     ArtiPathUnavailable,
 }
 
