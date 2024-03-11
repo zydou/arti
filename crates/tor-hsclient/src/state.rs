@@ -747,7 +747,6 @@ pub(crate) mod test {
     use std::task::Poll::{self, *};
     use tokio::pin;
     use tokio_crate as tokio;
-    use tor_guardmgr::vanguards::VanguardMgr;
     use tor_rtcompat::{test_with_one_runtime, SleepProvider};
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
@@ -866,16 +865,12 @@ pub(crate) mod test {
         )
         .unwrap();
 
-        let vanguardmgr =
-            VanguardMgr::new(&Default::default(), tor_persist::TestingStateMgr::new()).unwrap();
-
         let circmgr = tor_circmgr::CircMgr::new(
             &tor_circmgr::TestConfig::default(),
             tor_persist::TestingStateMgr::new(),
             &runtime,
             Arc::new(chanmgr),
             guardmgr,
-            vanguardmgr,
         )
         .unwrap();
         let circpool = HsCircPool::new(&circmgr);

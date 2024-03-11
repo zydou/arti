@@ -113,6 +113,11 @@ pub enum Error {
     #[error("Unable to select a guard relay")]
     Guard(#[from] tor_guardmgr::PickGuardError),
 
+    /// Problem creating a vanguard manager.
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    #[error("Unable to create vanguard manager")]
+    VanguardMgrInit(#[from] tor_guardmgr::vanguards::VanguardMgrError),
+
     /// Unable to get or build a circuit, despite retrying.
     #[error("{0}")]
     RequestFailed(RetryError<Box<Error>>),
@@ -209,6 +214,8 @@ impl HasKind for Error {
             E::State(e) => e.kind(),
             E::GuardMgr(e) => e.kind(),
             E::Guard(e) => e.kind(),
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            E::VanguardMgrInit(e) => e.kind(),
             E::Spawn { cause, .. } => cause.kind(),
         }
     }
@@ -270,6 +277,9 @@ impl HasRetryTime for Error {
                     .unwrap_or(RT::Never)
             }
 
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            E::VanguardMgrInit(_) => RT::Never,
+
             // These all indicate an internal error, or an error that shouldn't
             // be able to happen when we're building a circuit.
             E::Spawn { .. } | E::GuardMgr(_) | E::State(_) | E::Bug(_) => RT::Never,
@@ -320,6 +330,8 @@ impl Error {
             E::NoExit { .. } => 40,
             E::GuardMgr(_) => 40,
             E::Guard(_) => 40,
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            E::VanguardMgrInit(_) => 40,
             E::RequestFailed(_) => 40,
             E::Channel { .. } => 40,
             E::Protocol { .. } => 45,
@@ -352,7 +364,8 @@ impl Error {
             // to use the circuit at once, and they turned out not to be
             // compatible with one another after the circuit was built.
             Error::LostUsabilityRace(_) => true,
-
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            Error::VanguardMgrInit(_) => false,
             Error::PendingCanceled
             | Error::PendingFailed(_)
             | Error::UsageMismatched(_)

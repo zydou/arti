@@ -181,16 +181,18 @@ impl<R: Runtime> CircMgr<R> {
         runtime: &R,
         chanmgr: Arc<ChanMgr<R>>,
         guardmgr: tor_guardmgr::GuardMgr<R>,
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguardmgr: VanguardMgr,
     ) -> Result<Arc<Self>>
     where
-        SM: tor_persist::StateMgr + Send + Sync + 'static,
+        SM: tor_persist::StateMgr + Clone + Send + Sync + 'static,
     {
         let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(
             config.preemptive_circuits().clone(),
         )));
 
         guardmgr.set_filter(config.path_rules().build_guard_filter());
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let vanguardmgr = VanguardMgr::new(&config.vanguard_config(), storage.clone())?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
