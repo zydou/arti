@@ -640,6 +640,14 @@ mod test {
             val("192.168.0.1:80"),
             Err(ErrorDetail::LocalAddress)
         ));
+        assert!(matches!(
+            val(TorAddr::new(Host::Hostname("foo@bar".to_owned()), 553).unwrap()),
+            Err(ErrorDetail::InvalidHostname)
+        ));
+        assert!(matches!(
+            val(TorAddr::new(Host::Hostname("foo.onion".to_owned()), 80).unwrap()),
+            Err(ErrorDetail::OnionAddressNotSupported)
+        ));
     }
 
     #[test]
@@ -832,8 +840,11 @@ mod test {
             TorAddr::from(("www.example.com", 8000)).unwrap(),
             "www.example.com:8000",
         );
-        check("[2001:db8::0042]:9001".to_owned(), "[2001:db8::42]:9001");
+        let addr = "[2001:db8::0042]:9001".to_owned();
+        check(&addr, "[2001:db8::42]:9001");
+        check(addr, "[2001:db8::42]:9001");
         check(("2001:db8::0042".to_owned(), 9001), "[2001:db8::42]:9001");
+        check(("example.onion", 80), "example.onion:80");
     }
 
     #[test]
