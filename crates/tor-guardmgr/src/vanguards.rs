@@ -77,6 +77,7 @@ impl VanguardMgr {
             params: Default::default(),
         };
 
+        // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
         Ok(Self {
             inner: RwLock::new(inner),
             l2_vanguards: Default::default(),
