@@ -415,7 +415,7 @@ impl UnparsedRelayMsg {
         match self.internal {
             UnparsedRelayMsgInternal::V0(body) => {
                 let mut reader = Reader::from_slice(body.as_ref());
-                RelayMsgOuter::decode_from_reader(RelayCellFormat::V0, &mut reader)
+                RelayMsgOuter::decode_v0_from_reader(&mut reader)
             }
         }
     }
@@ -576,16 +576,8 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
         let unparsed_msg = UnparsedRelayMsg::from_singleton_body(version, body)?;
         unparsed_msg.decode()
     }
-    /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter from a reader.
-    ///
-    /// Requires that the cryptographic checks on the message have already been
-    /// performed
-    pub fn decode_from_reader(version: RelayCellFormat, r: &mut Reader<'_>) -> Result<Self> {
-        match version {
-            RelayCellFormat::V0 => Self::decode_v0_from_reader(r),
-        }
-    }
-    /// Parse a RELAY or RELAY_EARLY cell body into a RelayMsgOuter from a reader.
+    /// Parse a `RelayCellFormat::V0` RELAY or RELAY_EARLY cell body into a
+    /// RelayMsgOuter from a reader.
     ///
     /// Requires that the cryptographic checks on the message have already been
     /// performed
