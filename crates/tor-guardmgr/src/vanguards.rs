@@ -10,7 +10,7 @@ mod set;
 use std::sync::{Arc, RwLock};
 
 use tor_config::ReconfigureError;
-use tor_error::{ErrorKind, HasKind};
+use tor_error::{internal, ErrorKind, HasKind};
 use tor_netdir::{NetDir, NetDirProvider};
 use tor_persist::StateMgr;
 use tor_rtcompat::Runtime;
@@ -49,6 +49,10 @@ pub enum VanguardMgrError {
     /// Could not find a suitable relay to use for the specifier layer.
     #[error("No suitable relays")]
     NoSuitableRelay(Layer),
+
+    /// An internal error occurred.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 impl HasKind for VanguardMgrError {
@@ -56,6 +60,7 @@ impl HasKind for VanguardMgrError {
         match self {
             // TODO HS-VANGUARDS: this is not right
             VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
+            VanguardMgrError::Bug(e) => e.kind(),
         }
     }
 }
@@ -116,10 +121,21 @@ impl VanguardMgr {
         netdir: &'a NetDir,
         layer: Layer,
     ) -> Result<Vanguard<'a>, VanguardMgrError> {
+        use VanguardMode::*;
+
         let inner = self.inner.read().expect("poisoned lock");
-        let vanguard_set = match layer {
-            Layer::Layer2 => &inner.l2_vanguards,
-            Layer::Layer3 => &inner.l3_vanguards,
+        // TODO HS-VANGUARDS: come up with something with better UX
+        let vanguard_set = match (layer, inner.mode) {
+            (Layer::Layer2, Full) | (Layer::Layer2, Lite) => &inner.l2_vanguards,
+            (Layer::Layer3, Full) => &inner.l3_vanguards,
+            // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
+            _ => {
+                return Err(internal!(
+                    "vanguards for layer {layer} are supported in mode {})",
+                    inner.mode
+                )
+                .into())
+            }
         };
 
         vanguard_set
@@ -140,11 +156,14 @@ impl VanguardMgr {
 
 /// The vanguard layer.
 #[allow(unused)] // TODO HS-VANGUARDS
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)] //
+#[derive(derive_more::Display)] //
 #[non_exhaustive]
 pub enum Layer {
     /// L2 vanguard.
+    #[display(fmt = "layer 2")]
     Layer2,
     /// L3 vanguard.
+    #[display(fmt = "layer 3")]
     Layer3,
 }

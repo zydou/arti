@@ -39,16 +39,20 @@ pub struct VanguardConfig {
 }
 
 /// The kind of vanguards to use.
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)] //
+#[derive(derive_more::Display)] //
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum VanguardMode {
     /// "Lite" vanguards.
     #[default]
+    #[display(fmt = "lite")]
     Lite,
     /// "Full" vanguards.
+    #[display(fmt = "full")]
     Full,
     /// Vanguards are disabled.
+    #[display(fmt = "disabled")]
     Disabled,
 }
 
