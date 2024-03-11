@@ -40,6 +40,7 @@ pub struct VanguardConfig {
 
 /// The kind of vanguards to use.
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum VanguardMode {
     /// "Lite" vanguards.
