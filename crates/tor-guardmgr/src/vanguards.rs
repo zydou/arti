@@ -27,10 +27,6 @@ use crate::RetireCircuits;
 pub struct VanguardMgr {
     /// The mutable state.
     inner: RwLock<Inner>,
-    /// The L2 vanguards.
-    l2_vanguards: VanguardSet,
-    /// The L3 vanguards.
-    l3_vanguards: VanguardSet,
 }
 
 /// The mutable inner state of [`VanguardMgr`].
@@ -40,6 +36,10 @@ struct Inner {
     mode: VanguardMode,
     /// Configuration parameters read from the consensus parameters.
     params: VanguardParams,
+    /// The L2 vanguards.
+    l2_vanguards: VanguardSet,
+    /// The L3 vanguards.
+    l3_vanguards: VanguardSet,
 }
 
 /// An error coming from the vanguards subsystem.
@@ -75,13 +75,13 @@ impl VanguardMgr {
             mode: *mode,
             // TODO HS-VANGUARDS: read the params from the consensus
             params: Default::default(),
+            l2_vanguards: Default::default(),
+            l3_vanguards: Default::default(),
         };
 
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
         Ok(Self {
             inner: RwLock::new(inner),
-            l2_vanguards: Default::default(),
-            l3_vanguards: Default::default(),
         })
     }
 
@@ -111,14 +111,15 @@ impl VanguardMgr {
     }
 
     /// Return a [`Vanguard`] relay for use in the specified layer.
-    pub fn select_vanguard(
+    pub fn select_vanguard<'a>(
         &self,
-        netdir: &NetDir,
+        netdir: &'a NetDir,
         layer: Layer,
-    ) -> Result<Vanguard, VanguardMgrError> {
+    ) -> Result<Vanguard<'a>, VanguardMgrError> {
+        let inner = self.inner.read().expect("poisoned lock");
         let vanguard_set = match layer {
-            Layer::Layer2 => &self.l2_vanguards,
-            Layer::Layer3 => &self.l3_vanguards,
+            Layer::Layer2 => &inner.l2_vanguards,
+            Layer::Layer3 => &inner.l3_vanguards,
         };
 
         vanguard_set

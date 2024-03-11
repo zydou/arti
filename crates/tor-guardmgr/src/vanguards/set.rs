@@ -47,7 +47,7 @@ pub(super) struct VanguardSet {
 
 impl VanguardSet {
     /// Pick a relay from this set.
-    pub(super) fn pick_relay(&self, _netdir: &NetDir) -> Option<Vanguard> {
+    pub(super) fn pick_relay<'a>(&self, _netdir: &'a NetDir) -> Option<Vanguard<'a>> {
         todo!()
     }
 }
