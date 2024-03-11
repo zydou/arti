@@ -90,6 +90,7 @@ experimental = [
     "error_detail",
     "geoip",
     "rpc",
+    "vanguards",
     "tor-proto/experimental",
     "tor-cell/experimental",
     "tor-checkable/experimental",
@@ -97,6 +98,7 @@ experimental = [
     "tor-dirmgr/experimental",
     "tor-circmgr/experimental",
     "tor-config/experimental",
+    "tor-guardmgr/experimental",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
@@ -109,6 +111,7 @@ error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 rpc = ["tor-rpcbase", "__is_experimental"]
 __is_experimental = []
+vanguards = ["tor-guardmgr/vanguards", "tor-circmgr/vanguards", "__is_experimental"]
 
 [dependencies]
 anyhow = { version = "1.0.23", optional = true }

@@ -22,6 +22,10 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 
 #[cfg(feature = "ntor_v3")]
 use {tor_linkspec::CircTarget, tor_protover::ProtoKind};
+
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+use tor_guardmgr::vanguards::VanguardMgr;
+
 mod guardstatus;
 
 pub(crate) use guardstatus::GuardStatusHandle;
@@ -379,6 +383,10 @@ pub struct CircuitBuilder<R: Runtime> {
     /// Guard manager to tell us which guards nodes to use for the circuits
     /// we build.
     guardmgr: tor_guardmgr::GuardMgr<R>,
+    /// The vanguard manager object used for HS circuits.
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    #[allow(dead_code)] // TODO HS-VANGUARDS
+    vanguardmgr: Arc<VanguardMgr>,
 }
 
 impl<R: Runtime> CircuitBuilder<R> {
@@ -391,6 +399,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         path_config: crate::PathConfig,
         storage: crate::TimeoutStateHandle,
         guardmgr: tor_guardmgr::GuardMgr<R>,
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguardmgr: VanguardMgr,
     ) -> Self {
         let timeouts = timeouts::Estimator::from_storage(&storage);
 
@@ -399,6 +408,8 @@ impl<R: Runtime> CircuitBuilder<R> {
             path_config: path_config.into(),
             storage,
             guardmgr,
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            vanguardmgr: Arc::new(vanguardmgr),
         }
     }
 
@@ -491,6 +502,12 @@ impl<R: Runtime> CircuitBuilder<R> {
     /// Return a reference to this builder's `GuardMgr`.
     pub(crate) fn guardmgr(&self) -> &tor_guardmgr::GuardMgr<R> {
         &self.guardmgr
+    }
+
+    /// Return a reference to this builder's `VanguardMgr`.
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    pub(crate) fn vanguardmgr(&self) -> &VanguardMgr {
+        &self.vanguardmgr
     }
 
     /// Return a reference to this builder's runtime

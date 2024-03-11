@@ -25,6 +25,12 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
 pub use tor_guardmgr::bridge::BridgeParseError;
 
+#[cfg(all(
+    feature = "vanguards",
+    any(feature = "onion-service-client", feature = "onion-service-service")
+))]
+pub use tor_guardmgr::vanguards::VanguardConfig;
+
 use tor_guardmgr::bridge::BridgeConfig;
 use tor_keymgr::config::arti::{ArtiNativeKeystoreConfig, ArtiNativeKeystoreConfigBuilder};
 
@@ -55,6 +61,15 @@ pub mod pt {
 #[cfg(feature = "onion-service-service")]
 pub mod onion_service {
     pub use tor_hsservice::config::{OnionServiceConfig, OnionServiceConfigBuilder};
+}
+
+/// Types for configuring vanguards.
+#[cfg(all(
+    feature = "vanguards",
+    any(feature = "onion-service-client", feature = "onion-service-service")
+))]
+pub mod vanguards {
+    pub use tor_guardmgr::vanguards::{VanguardConfig, VanguardConfigBuilder};
 }
 
 /// Configuration for client behavior relating to addresses.
@@ -621,6 +636,15 @@ pub struct TorClientConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) stream_timeouts: StreamTimeoutConfig,
+
+    /// Information about vanguards.
+    #[cfg(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) vanguards: vanguards::VanguardConfig,
 }
 impl_standard_builder! { TorClientConfig }
 
@@ -639,9 +663,28 @@ fn convert_override_net_params(
     override_net_params
 }
 
-impl tor_circmgr::CircMgrConfig for TorClientConfig {}
+impl tor_circmgr::CircMgrConfig for TorClientConfig {
+    #[cfg(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig {
+        &self.vanguards
+    }
+}
 #[cfg(feature = "onion-service-client")]
 impl tor_hsclient::HsClientConnectorConfig for TorClientConfig {}
+
+#[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
+impl tor_circmgr::hspool::HsCircPoolConfig for TorClientConfig {
+    #[cfg(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig {
+        &self.vanguards
+    }
+}
 
 impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
     fn as_ref(&self) -> &tor_guardmgr::fallback::FallbackList {

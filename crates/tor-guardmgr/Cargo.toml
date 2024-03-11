@@ -31,7 +31,7 @@ full = [
     "tor-units/full",
     "tor-async-utils/full",
 ]
-experimental = ["testing"]
+experimental = ["testing", "vanguards"]
 
 # Support for using bridges as a client. Note that this is not the same as
 # the pt-client feature, since here we are not concerned with
@@ -43,10 +43,13 @@ pt-client = ["bridge-client", "tor-linkspec/pt-client"]
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["tor-netdir/testing", "__is_experimental"]
+# Vanguards support
+vanguards = ["__is_experimental"]
 
 __is_experimental = []
 
 [dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
 base64ct = "1.5.1"
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"

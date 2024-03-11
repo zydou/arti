@@ -83,6 +83,8 @@ mod pending;
 mod sample;
 mod skew;
 mod util;
+#[cfg(feature = "vanguards")]
+pub mod vanguards;
 
 #[cfg(not(feature = "bridge-client"))]
 #[path = "bridge_disabled.rs"]
@@ -101,6 +103,10 @@ pub use filter::GuardFilter;
 pub use ids::FirstHopId;
 pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
 pub use skew::SkewEstimate;
+
+#[cfg(feature = "vanguards")]
+#[cfg_attr(docsrs, doc(cfg(feature = "vanguards")))]
+pub use vanguards::VanguardMgrError;
 
 use pending::{PendingRequest, RequestId};
 use sample::{GuardSet, Universe, UniverseRef};

@@ -130,6 +130,15 @@ enum ErrorDetail {
     #[error("Error setting up the guard manager")]
     GuardMgrSetup(#[source] tor_guardmgr::GuardMgrError),
 
+    /// Error setting up the guard manager
+    // TODO: should "vanguardmgr setup error" be its own type in tor-guardmgr?
+    #[cfg(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    #[error("Error setting up the vanguard manager")]
+    VanguardMgrSetup(#[source] tor_guardmgr::VanguardMgrError),
+
     /// Error setting up the circuit manager
     // TODO: should "circmgr setup error" be its own type in tor-circmgr?
     #[error("Error setting up the circuit manager")]
@@ -379,6 +388,11 @@ impl tor_error::HasKind for ErrorDetail {
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::GuardMgrSetup(e) => e.kind(),
+            #[cfg(all(
+                feature = "vanguards",
+                any(feature = "onion-service-client", feature = "onion-service-service")
+            ))]
+            E::VanguardMgrSetup(e) => e.kind(),
             #[cfg(feature = "bridge-client")]
             E::BridgeDescMgrSetup(e) => e.kind(),
             E::CircMgrSetup(e) => e.kind(),

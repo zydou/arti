@@ -97,6 +97,9 @@ pub use tor_guardmgr::{ExternalActivity, FirstHopId};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+use tor_guardmgr::vanguards::VanguardMgr;
+
 /// A Result type as returned from this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -180,13 +183,16 @@ impl<R: Runtime> CircMgr<R> {
         guardmgr: tor_guardmgr::GuardMgr<R>,
     ) -> Result<Arc<Self>>
     where
-        SM: tor_persist::StateMgr + Send + Sync + 'static,
+        SM: tor_persist::StateMgr + Clone + Send + Sync + 'static,
     {
         let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(
             config.preemptive_circuits().clone(),
         )));
 
         guardmgr.set_filter(config.path_rules().build_guard_filter());
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let vanguardmgr = VanguardMgr::new(config.vanguard_config(), storage.clone())?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
@@ -196,6 +202,8 @@ impl<R: Runtime> CircMgr<R> {
             config.path_rules().clone(),
             storage_handle,
             guardmgr,
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            vanguardmgr,
         );
         let mgr =
             mgr::AbstractCircMgr::new(builder, runtime.clone(), config.circuit_timing().clone());
@@ -297,6 +305,13 @@ impl<R: Runtime> CircMgr<R> {
         let retire_because_of_guardmgr =
             self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
 
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let retire_because_of_vanguardmgr = self
+            .mgr
+            .peek_builder()
+            .vanguardmgr()
+            .reconfigure(new_config.vanguard_config())?;
+
         let new_reachable = &new_config.path_rules().reachable_addrs;
         if new_reachable != &old_path_rules.reachable_addrs {
             let filter = new_config.path_rules().build_guard_filter();
@@ -307,6 +322,10 @@ impl<R: Runtime> CircMgr<R> {
             .path_rules()
             .at_least_as_permissive_as(&old_path_rules)
             || retire_because_of_guardmgr != tor_guardmgr::RetireCircuits::None;
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let discard_all_circuits = discard_all_circuits
+            || retire_because_of_vanguardmgr != tor_guardmgr::RetireCircuits::None;
 
         self.mgr
             .peek_builder()

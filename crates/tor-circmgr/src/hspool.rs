@@ -1,6 +1,7 @@
 //! Manage a pool of circuits for usage with onion services.
 //
 // TODO HS TEST: We need tests here. First, though, we need a testing strategy.
+mod config;
 mod pool;
 
 use std::{
@@ -21,6 +22,10 @@ use tor_rtcompat::{
     Runtime, SleepProviderExt,
 };
 use tracing::warn;
+
+use std::result::Result as StdResult;
+
+pub use config::HsCircPoolConfig;
 
 /// The (onion-service-related) purpose for which a given circuit is going to be
 /// used.
@@ -225,6 +230,24 @@ impl<R: Runtime> HsCircPool<R> {
 
         // With any luck, return the circuit.
         Ok(circ)
+    }
+
+    /// Try to change our configuration to `new_config`.
+    ///
+    /// Actual behavior will depend on the value of `how`.
+    pub fn reconfigure<CFG: HsCircPoolConfig>(
+        &self,
+        new_config: &CFG,
+        _how: tor_config::Reconfigure,
+    ) -> StdResult<(), tor_config::ReconfigureError> {
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        self.inner
+            .lock()
+            .expect("poisoned lock")
+            .pool
+            .reconfigure_vanguards(new_config.vanguard_config())?;
+
+        Ok(())
     }
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.

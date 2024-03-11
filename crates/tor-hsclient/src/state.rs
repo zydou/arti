@@ -864,6 +864,7 @@ pub(crate) mod test {
             &tor_guardmgr::TestConfig::default(),
         )
         .unwrap();
+
         let circmgr = tor_circmgr::CircMgr::new(
             &tor_circmgr::TestConfig::default(),
             tor_persist::TestingStateMgr::new(),
