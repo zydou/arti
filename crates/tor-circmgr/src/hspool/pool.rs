@@ -148,7 +148,7 @@ impl Pool {
     /// this empties the circuit pool.
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     #[allow(clippy::unnecessary_wraps)] // for consistency and future-proofing
-    pub(super) fn reconfigure(
+    pub(super) fn reconfigure_vanguards(
         &mut self,
         config: &VanguardConfig,
     ) -> Result<(), tor_config::ReconfigureError> {

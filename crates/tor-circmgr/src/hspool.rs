@@ -240,7 +240,7 @@ impl<R: Runtime> HsCircPool<R> {
             .lock()
             .expect("poisoned lock")
             .pool
-            .reconfigure(config)
+            .reconfigure_vanguards(config)
     }
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
