@@ -369,6 +369,7 @@ pub(crate) mod test_config {
     use super::*;
     use crate::*;
     use tor_guardmgr::bridge::BridgeConfig;
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use tor_guardmgr::vanguards::VanguardConfig;
 
     /// Testing configuration, with public fields
@@ -385,6 +386,7 @@ pub(crate) mod test_config {
         ///
         pub guardmgr: tor_guardmgr::TestConfig,
         ///
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         pub vanguard_config: VanguardConfig,
     }
     impl AsRef<[BridgeConfig]> for TestConfig {
