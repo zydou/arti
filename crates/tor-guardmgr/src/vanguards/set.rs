@@ -19,6 +19,14 @@ pub struct Vanguard<'a> {
 }
 
 /// An identifier for a time-bound vanguard.
+///
+/// Each vanguard [`Layer`](crate::vanguards::Layer) consists of a [`VanguardSet`],
+/// which contains multiple `TimeBoundVanguard`s.
+///
+/// A [`VanguardSet`]'s `TimeBoundVanguard`s are rotated
+/// by [`VanguardMgr`](crate::vanguards::VanguardMgr) as soon as they expire.
+/// If [Full](crate::vanguards::VanguardMode) vanguards are in use,
+/// the `TimeBoundVanguard`s from all layers are persisted to disk.
 #[derive(Debug, Clone, Serialize, Deserialize)] //
 #[derive(Eq, PartialEq, Ord, PartialOrd, Hash)] //
 pub(crate) struct TimeBoundVanguard {
