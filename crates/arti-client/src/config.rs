@@ -675,6 +675,17 @@ impl tor_circmgr::CircMgrConfig for TorClientConfig {
 #[cfg(feature = "onion-service-client")]
 impl tor_hsclient::HsClientConnectorConfig for TorClientConfig {}
 
+#[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
+impl tor_circmgr::hspool::HsCircPoolConfig for TorClientConfig {
+    #[cfg(all(
+        feature = "vanguards",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig {
+        &self.vanguards
+    }
+}
+
 impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
     fn as_ref(&self) -> &tor_guardmgr::fallback::FallbackList {
         self.tor_network.fallback_caches()
