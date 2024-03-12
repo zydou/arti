@@ -2,7 +2,7 @@
 //!
 //! TODO (#1216): write the docs
 //!
-//! With respect to [`OnionServiceStatus`](crate::status::OnionServiceStatus) reporting,
+//! With respect to [`OnionServiceStatus`] reporting,
 //! the following state transitions are possible:
 //!
 //!
@@ -22,7 +22,7 @@
 //! ```
 //!
 //! Ideally, the publisher should also set the
-//! [`OnionServiceStatus`](crate::status::OnionServiceStatus) to `Recovering` whenever a transient
+//! [`OnionServiceStatus`] to `Recovering` whenever a transient
 //! upload error occurs, but this is currently not possible:
 //!
 //!   * making the upload tasks set the status to `Recovering` (on failure) and `Running` (on
@@ -79,7 +79,7 @@ const MAX_CONCURRENT_UPLOADS: usize = 16;
 /// across all attempts.
 pub(crate) const OVERALL_UPLOAD_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-/// A reactor for the HsDir [`Publisher`](super::Publisher).
+/// A reactor for the HsDir [`Publisher`]
 ///
 /// The entrypoint is [`Reactor::run`].
 #[must_use = "If you don't call run() on the reactor, it won't publish any descriptors."]

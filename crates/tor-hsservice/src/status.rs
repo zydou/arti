@@ -234,12 +234,12 @@ impl futures::Stream for OnionServiceStatusStream {
 #[derive(Clone)]
 pub(crate) struct StatusSender(Arc<Mutex<postage::watch::Sender<OnionServiceStatus>>>);
 
-/// A handle that can be used by the [`IptManager`](crate::ipt_mgr::IptManager)
+/// A handle that can be used by the [`IptManager`]
 /// to update the [`OnionServiceStatus`].
 #[derive(Clone, derive_more::From)]
 pub(crate) struct IptMgrStatusSender(StatusSender);
 
-/// A handle that can be used by the [`Publisher`](crate::svc::publish::Publisher)
+/// A handle that can be used by the [`Publisher`]
 /// to update the [`OnionServiceStatus`].
 #[derive(Clone, derive_more::From)]
 pub(crate) struct PublisherStatusSender(StatusSender);
