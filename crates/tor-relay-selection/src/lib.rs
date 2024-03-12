@@ -96,15 +96,9 @@ pub(crate) mod testing {
         netdir: &'a NetDir,
         pred: &P,
     ) -> (Vec<Relay<'a>>, Vec<Relay<'a>>) {
-        let mut yes = Vec::new();
-        let mut no = Vec::new();
-        for r in netdir.relays() {
-            if pred.low_level_predicate_permits_relay(&r) {
-                yes.push(r);
-            } else {
-                no.push(r);
-            }
-        }
+        let (yes, no): (Vec<_>, Vec<_>) = netdir
+            .relays()
+            .partition(|r| pred.low_level_predicate_permits_relay(r));
         assert!(!yes.is_empty());
         assert!(!no.is_empty());
         (yes, no)
