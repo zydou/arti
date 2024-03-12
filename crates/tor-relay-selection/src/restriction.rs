@@ -11,7 +11,7 @@ use std::{fmt, net::IpAddr};
 
 /// A restriction that we use when picking relays.
 ///
-/// Differs from [`RelayUsage`](crate::RelayUsage) in that it does not say what
+/// Differs from [`RelayUsage`] in that it does not say what
 /// the relay is _used for_;
 /// instead, it describes an additional set of requirements that a relay must
 /// satisfy.

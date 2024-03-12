@@ -1,4 +1,4 @@
-//! Helper types used by the [`Reactor`](super::Reactor) for scheduling descriptor reuploads.
+//! Helper types used by the [`Reactor`] for scheduling descriptor reuploads.
 
 use super::*;
 

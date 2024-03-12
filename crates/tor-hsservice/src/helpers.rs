@@ -5,7 +5,8 @@ use crate::internal_prelude::*;
 /// Consume a stream of [`RendRequest`], accepting them all, and produce a
 /// stream of [`StreamRequest`].
 ///
-/// If you want to reject certain [`RendRequest`]s, you can use [`StreamExt::filter`] or
+/// If you want to reject certain [`RendRequest`]s, you can use
+/// [`StreamExt::filter`](futures::StreamExt::filter) or
 /// similar in order to remove them from the incoming stream.
 pub fn handle_rend_requests<S>(rend_requests: S) -> impl Stream<Item = StreamRequest>
 where
