@@ -27,6 +27,12 @@ pub struct RelayRestriction<'a> {
 ///
 // TODO: I'm not sure about having this be relative to `'a``,
 // but that is the only way to hold a `Relay<'a>`
+//
+// NOTE: Any time that you are extending this type, make sure that you are not
+// describing a new _mandatory_ restriction that all `RelaySelector` users
+// need to consider adding (or not).  If you *are* describing such a restriction,
+// then it should have its own type, and it should become a new argument to
+// RelaySelector::new().
 #[derive(Clone, Debug)]
 enum RestrictionInner<'a> {
     /// Do not restrict any relays.
