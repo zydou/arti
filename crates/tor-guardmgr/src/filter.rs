@@ -82,7 +82,13 @@ impl GuardFilter {
         let mut guard_bw: RelayWeight = 0.into();
         let mut permitted_bw: RelayWeight = 0.into();
         // TODO #504: This is an unaccompanied RelayUsage, and is therefore a
-        // bit suspect.  We should consider whether we like this behavior.
+        // bit suspect.  We should consider whether we like this behavior,
+        // or whether we should convert it into a RelaySelector.
+        //
+        // It is not _too_ bad, however, since we're only looking at the
+        // fraction of the relays that might be guards; we won't use these
+        // relays without later choosing them via a RelaySelector.  Nonetheless,
+        // it would be better to construct a RelaySelector.
         let usage = RelayUsage::new_guard();
 
         // TODO: There is a case to be made for converting "permitted by this

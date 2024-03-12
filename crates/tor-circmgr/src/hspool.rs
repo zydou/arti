@@ -353,6 +353,14 @@ fn circuit_compatible_with_target(
     circ: &ClientCirc,
     exclude_target: &RelayExclusion,
 ) -> bool {
+    // NOTE, TODO #504:
+    // This uses a RelayExclusion directly, when we would be better off
+    // using a RelaySelector to make sure that we had checked every relevant
+    // property.
+    //
+    // The behavior is okay, since we already checked all the properties of the
+    // circuit's relays when we first constructed the circuit.  Still, it would
+    // be better to use refactor and a RelaySelector instead.
     circuit_still_useable(netdir, circ, |relay| {
         exclude_target.low_level_predicate_permits_relay(relay)
     })
