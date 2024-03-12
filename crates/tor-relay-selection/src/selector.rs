@@ -1,7 +1,7 @@
 //! Logic for selecting relays from a network directory,
 //! and reporting the outcome of such a selection.
 
-use crate::{RelayExclusion, RelayPredicate, RelayRestriction, RelayUsage};
+use crate::{LowLevelRelayPredicate, RelayExclusion, RelayRestriction, RelayUsage};
 use tor_basic_utils::iter::FilterCount;
 use tor_netdir::{NetDir, Relay, WeightRole};
 
@@ -247,6 +247,11 @@ impl<'a> RelaySelector<'a> {
         self.usage().selection_weight_role()
     }
 
+    /// Return true if `relay` is one that this selector would pick.
+    pub fn permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool {
+        self.low_level_predicate_permits_relay(relay)
+    }
+
     /// Try to pick a random relay from `netdir`,
     /// according to the rules of this selector.
     pub fn select_relay<'s, 'd, R: rand::Rng>(
@@ -301,7 +306,9 @@ impl<'a> RelaySelector<'a> {
         self.restrictions
             .iter()
             .zip(fc.counts.iter_mut())
-            .all(|(restr, restr_count)| restr_count.count(restr.restriction.permits_relay(r)))
+            .all(|(restr, restr_count)| {
+                restr_count.count(restr.restriction.low_level_predicate_permits_relay(r))
+            })
     }
 
     /// Return true if this selector has any flexible restrictions.
@@ -319,11 +326,11 @@ impl<'a> RelaySelector<'a> {
     }
 }
 
-impl<'a> RelayPredicate for RelaySelector<'a> {
-    fn permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool {
+impl<'a> LowLevelRelayPredicate for RelaySelector<'a> {
+    fn low_level_predicate_permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool {
         self.restrictions
             .iter()
-            .all(|r| r.restriction.permits_relay(relay))
+            .all(|r| r.restriction.low_level_predicate_permits_relay(relay))
     }
 }
 
@@ -408,7 +415,10 @@ mod test {
         let sel = RelaySelector::new(usage.clone(), exclusion.clone());
 
         let (yes, no) = split_netdir(&nd, &sel);
-        let p = |r: &Relay<'_>| usage.permits_relay(r) && exclusion.permits_relay(r);
+        let p = |r: &Relay<'_>| {
+            usage.low_level_predicate_permits_relay(r)
+                && exclusion.low_level_predicate_permits_relay(r)
+        };
         assert!(yes.iter().all(p));
         assert!(no.iter().all(|r| !p(r)));
     }

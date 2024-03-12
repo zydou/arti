@@ -6,7 +6,7 @@ use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds, RelayIdSet};
 use tor_netdir::{NetDir, Relay, SubnetConfig};
 use tor_netdoc::types::policy::AddrPortPattern;
 
-use crate::{RelayPredicate, RelaySelectionConfig, RelayUsage};
+use crate::{LowLevelRelayPredicate, RelaySelectionConfig, RelayUsage};
 use std::{fmt, net::IpAddr};
 
 /// A restriction that we use when picking relays.
@@ -121,13 +121,13 @@ impl<'a> RelayRestriction<'a> {
     }
 }
 
-impl<'a> RelayPredicate for RelayRestriction<'a> {
-    fn permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool {
+impl<'a> LowLevelRelayPredicate for RelayRestriction<'a> {
+    fn low_level_predicate_permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool {
         use RestrictionInner::*;
         match &self.inner {
             NoRestriction => true,
-            SupportsUsage(usage) => usage.permits_relay(relay),
-            Exclude(exclusion) => exclusion.permits_relay(relay),
+            SupportsUsage(usage) => usage.low_level_predicate_permits_relay(relay),
+            Exclude(exclusion) => exclusion.low_level_predicate_permits_relay(relay),
             HasAddrInSet(patterns) => relay_has_addr_in_set(relay, patterns),
             #[cfg(feature = "geoip")]
             RequireCountry(cc) => relay.country_code() == Some(*cc),
@@ -318,8 +318,8 @@ impl<'a> RelayExclusion<'a> {
     }
 }
 
-impl<'a> RelayPredicate for RelayExclusion<'a> {
-    fn permits_relay(&self, relay: &Relay<'_>) -> bool {
+impl<'a> LowLevelRelayPredicate for RelayExclusion<'a> {
+    fn low_level_predicate_permits_relay(&self, relay: &Relay<'_>) -> bool {
         if relay.identities().any(|id| self.exclude_ids.contains(id)) {
             return false;
         }
@@ -380,7 +380,9 @@ mod test {
     fn exclude_nothing() {
         let nd = testnet();
         let usage = RelayExclusion::no_relays_excluded();
-        assert!(nd.relays().all(|r| usage.permits_relay(&r)));
+        assert!(nd
+            .relays()
+            .all(|r| usage.low_level_predicate_permits_relay(&r)));
     }
 
     #[test]

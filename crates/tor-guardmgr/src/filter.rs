@@ -4,7 +4,7 @@ use tor_linkspec::ChanTarget;
 // TODO(nickm): Conceivably, this type should be exposed from a lower-level crate than
 // tor-netdoc.
 use tor_netdoc::types::policy::AddrPortPattern;
-use tor_relay_selection::{RelayPredicate, RelayRestriction, RelaySelector, RelayUsage};
+use tor_relay_selection::{LowLevelRelayPredicate, RelayRestriction, RelaySelector, RelayUsage};
 
 /// An object specifying which relays are eligible to be guards.
 ///
@@ -88,7 +88,7 @@ impl GuardFilter {
         // TODO: There is a case to be made for converting "permitted by this
         // address-port filter?" into a RelayRestriction.
         for relay in netdir.relays() {
-            if usage.permits_relay(&relay) {
+            if usage.low_level_predicate_permits_relay(&relay) {
                 let w = netdir.relay_weight(&relay, WeightRole::Guard);
                 guard_bw += w;
                 if self.permits(&relay) {

@@ -17,7 +17,7 @@ use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, OwnedCircTarget};
 use tor_netdir::{NetDir, NetDirProvider, Relay};
 use tor_proto::circuit::{self, ClientCirc};
-use tor_relay_selection::{RelayExclusion, RelayExt};
+use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
 use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
@@ -353,7 +353,9 @@ fn circuit_compatible_with_target(
     circ: &ClientCirc,
     exclude_target: &RelayExclusion,
 ) -> bool {
-    circuit_still_useable(netdir, circ, |relay| relay.obeys_predicate(exclude_target))
+    circuit_still_useable(netdir, circ, |relay| {
+        exclude_target.low_level_predicate_permits_relay(relay)
+    })
 }
 
 /// Return true if we can still use a given pre-build circuit.

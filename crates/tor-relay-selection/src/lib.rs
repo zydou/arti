@@ -56,9 +56,13 @@ pub use target_port::TargetPort;
 pub use usage::RelayUsage;
 
 /// A property that can be provided by relays.
-pub trait RelayPredicate {
+///
+/// The predicates that implement this trait are typically lower level ones that
+/// represent only some of the properties that need to be checked before a relay
+/// can be used.  Code should generally use RelaySelector instead.
+pub trait LowLevelRelayPredicate {
     /// Return true if `relay` provides this predicate.
-    fn permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool;
+    fn low_level_predicate_permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool;
 }
 
 /// Helper module for our tests.
@@ -77,7 +81,7 @@ pub(crate) mod testing {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::{RelayPredicate, RelaySelectionConfig};
+    use crate::{LowLevelRelayPredicate, RelaySelectionConfig};
     use once_cell::sync::Lazy;
     use std::collections::HashSet;
     use tor_netdir::{NetDir, Relay, SubnetConfig};
@@ -90,14 +94,14 @@ pub(crate) mod testing {
     ///
     /// Panics if either the "yes" list or the "no" list is empty, to ensure
     /// that all of our tests are really testing something.
-    pub(crate) fn split_netdir<'a, P: RelayPredicate>(
+    pub(crate) fn split_netdir<'a, P: LowLevelRelayPredicate>(
         netdir: &'a NetDir,
         pred: &P,
     ) -> (Vec<Relay<'a>>, Vec<Relay<'a>>) {
         let mut yes = Vec::new();
         let mut no = Vec::new();
         for r in netdir.relays() {
-            if pred.permits_relay(&r) {
+            if pred.low_level_predicate_permits_relay(&r) {
                 yes.push(r);
             } else {
                 no.push(r);

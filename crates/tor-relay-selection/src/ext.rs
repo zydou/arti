@@ -1,6 +1,6 @@
 //! Define extension traits for [`tor_netdir`] types.
 
-use crate::{RelayPredicate, SelectionInfo};
+use crate::{LowLevelRelayPredicate, SelectionInfo};
 use tor_netdir::Relay;
 
 /// Private module to prevent other crates from seeing `Sealed`.
@@ -14,13 +14,13 @@ mod sealed {
 /// properties.
 pub trait RelayExt: sealed::Sealed {
     /// Return true if this `Relay` is permitted by a given predicate.
-    fn obeys_predicate<P: RelayPredicate>(&self, pred: &P) -> bool;
+    fn obeys_predicate<P: LowLevelRelayPredicate>(&self, pred: &P) -> bool;
 }
 
 impl<'a> sealed::Sealed for tor_netdir::Relay<'a> {}
 impl<'a> RelayExt for Relay<'a> {
-    fn obeys_predicate<P: RelayPredicate>(&self, pred: &P) -> bool {
-        pred.permits_relay(self)
+    fn obeys_predicate<P: LowLevelRelayPredicate>(&self, pred: &P) -> bool {
+        pred.low_level_predicate_permits_relay(self)
     }
 }
 

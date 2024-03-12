@@ -1,6 +1,6 @@
 //! Define a type describing how we're going to use a relay.
 
-use crate::{RelayPredicate, RelaySelectionConfig, TargetPort};
+use crate::{LowLevelRelayPredicate, RelaySelectionConfig, TargetPort};
 use tor_netdir::{Relay, WeightRole};
 
 /// Description for how we plan to use a single relay.
@@ -192,8 +192,8 @@ impl RelayUsage {
     }
 }
 
-impl RelayPredicate for RelayUsage {
-    fn permits_relay(&self, relay: &Relay<'_>) -> bool {
+impl LowLevelRelayPredicate for RelayUsage {
+    fn low_level_predicate_permits_relay(&self, relay: &Relay<'_>) -> bool {
         use RelayUsageInner::*;
         if !relay.is_flagged_fast() {
             return false;
