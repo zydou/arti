@@ -19,21 +19,19 @@ use std::fmt;
 /// before we give up completely.
 #[derive(Clone, Debug)]
 pub struct RelaySelector<'a> {
-    /// All of the restrictions that a Relay must obey in order to be selected.
+    /// A usage that the relay must support.
     ///
-    /// - Invariant: The first entry here is a usage.
-    /// - Invariant: Nothing else is a usage.
-    /// - Invariant: The second entry is an exclusion.
-    /// - Invariant: This vec is nonempty.
-    restrictions: Vec<Restr<'a>>,
-}
+    /// Invariant: This is a RelayUsage.
+    usage: Restr<'a>,
 
-/// Index of the Usage within `RelaySelector::restrictions`
-const USAGE_IDX: usize = 0;
-/// Index of a required Exclusion within `RelaySelector::restrictions`.
-///
-/// (There may be other Exclusions).
-const EXCLUSION_IDX: usize = 1;
+    /// An excludion that the relay must obey.
+    ///
+    /// Invariant: This a RelayExclusion.
+    exclusion: Restr<'a>,
+
+    /// Other restrictions that a Relay must obey in order to be selected.
+    other_restrictions: Vec<Restr<'a>>,
+}
 
 /// A single restriction, along with a flag about whether it's strict.
 #[derive(Clone, Debug)]
@@ -141,8 +139,8 @@ struct FilterCounts {
 
 impl FilterCounts {
     /// Create a new empty `FilterCounts`.
-    fn new(n_restrictions: usize) -> Self {
-        let counts = vec![FilterCount::default(); n_restrictions];
+    fn new(selector: &RelaySelector) -> Self {
+        let counts = vec![FilterCount::default(); selector.n_restrictions()];
         FilterCounts { counts }
     }
 }
@@ -152,12 +150,11 @@ struct FcDisp<'a>(&'a FilterCounts, &'a RelaySelector<'a>);
 impl<'a> fmt::Display for FcDisp<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let counts = &self.0.counts;
-        let restrictions = &self.1.restrictions;
-        debug_assert_eq!(counts.len(), restrictions.len());
+        let restrictions = self.1.all_restrictions();
         write!(f, "rejected ")?;
         let mut first = true;
         let mut found_any_rejected = false;
-        for (c, r) in counts.iter().zip(restrictions.iter()) {
+        for (c, r) in counts.iter().zip(restrictions) {
             if let Some(desc) = r.restriction.rejection_description() {
                 if first {
                     first = false;
@@ -189,28 +186,26 @@ impl<'a> RelaySelector<'a> {
     // get a third thing that we want everybody to think about.
     pub fn new(usage: RelayUsage, exclusion: RelayExclusion<'a>) -> Self {
         Self {
-            restrictions: vec![
-                // NOTE: These must not be re-ordered.
-                Restr {
-                    restriction: RelayRestriction::for_usage(usage),
-                    strict: true,
-                },
-                Restr {
-                    restriction: exclusion.into(),
-                    strict: true,
-                },
-            ],
+            usage: Restr {
+                restriction: RelayRestriction::for_usage(usage),
+                strict: true,
+            },
+            exclusion: Restr {
+                restriction: exclusion.into(),
+                strict: true,
+            },
+            other_restrictions: vec![],
         }
     }
 
     /// Mark the originally provided `RelayUsage` as flexible.
     pub fn mark_usage_flexible(&mut self) {
-        self.restrictions[USAGE_IDX].strict = false;
+        self.usage.strict = false;
     }
 
     /// Mark the originally provided `RelayExclusion` as flexible.
     pub fn mark_exclusion_flexible(&mut self) {
-        self.restrictions[EXCLUSION_IDX].strict = false;
+        self.exclusion.strict = false;
     }
 
     /// Add a new _strict_ [`RelayRestriction`] to this selector.
@@ -225,7 +220,7 @@ impl<'a> RelaySelector<'a> {
 
     /// Helper to implement adding a new restriction.
     fn push_inner(&mut self, restriction: RelayRestriction<'a>, strict: bool) {
-        self.restrictions.push(Restr {
+        self.other_restrictions.push(Restr {
             restriction,
             strict,
         });
@@ -234,12 +229,10 @@ impl<'a> RelaySelector<'a> {
     /// Return the usage for this selector.
     pub fn usage(&self) -> &RelayUsage {
         // See invariants for explanation of why these `expects` are safe.
-        self.restrictions
-            .first()
-            .expect("Empty selector!?")
+        self.usage
             .restriction
             .as_usage()
-            .expect("First restriction was not a usage!?")
+            .expect("Usage not a usage!?")
     }
 
     /// Return the [`WeightRole`] to use when randomly picking relays according
@@ -253,6 +246,21 @@ impl<'a> RelaySelector<'a> {
         self.low_level_predicate_permits_relay(relay)
     }
 
+    /// Return an iterator that yields each restriction from this selector,
+    /// including the usage and exclusion.
+    fn all_restrictions(&self) -> impl Iterator<Item = &Restr<'a>> {
+        use std::iter::once;
+        once(&self.usage)
+            .chain(once(&self.exclusion))
+            .chain(self.other_restrictions.iter())
+    }
+
+    /// Return the number of restrictions in this selector,
+    /// including the usage and exclusion.
+    fn n_restrictions(&self) -> usize {
+        self.other_restrictions.len() + 2
+    }
+
     /// Try to pick a random relay from `netdir`,
     /// according to the rules of this selector.
     pub fn select_relay<'s, 'd, R: rand::Rng>(
@@ -260,12 +268,11 @@ impl<'a> RelaySelector<'a> {
         rng: &mut R,
         netdir: &'d NetDir,
     ) -> (Option<Relay<'d>>, SelectionInfo<'s>) {
-        let n_restrictions = self.restrictions.len();
         with_possible_relaxation(
             self,
             |selector| {
                 let role = selector.weight_role();
-                let mut fc = FilterCounts::new(n_restrictions);
+                let mut fc = FilterCounts::new(selector);
                 let relay = netdir.pick_relay(rng, role, |r| selector.relay_usable(r, &mut fc));
                 (relay, fc)
             },
@@ -281,12 +288,11 @@ impl<'a> RelaySelector<'a> {
         n_relays: usize,
         netdir: &'d NetDir,
     ) -> (Vec<Relay<'d>>, SelectionInfo<'s>) {
-        let n_restrictions = self.restrictions.len();
         with_possible_relaxation(
             self,
             |selector| {
                 let role = selector.weight_role();
-                let mut fc = FilterCounts::new(n_restrictions);
+                let mut fc = FilterCounts::new(selector);
                 let relays = netdir
                     .pick_n_relays(rng, n_relays, role, |r| selector.relay_usable(r, &mut fc));
                 (relays, fc)
@@ -304,8 +310,9 @@ impl<'a> RelaySelector<'a> {
     /// This differs from `<Self as RelayPredicate>::permits_relay` in taking
     /// `fc` as an argument.
     fn relay_usable(&self, r: &Relay<'_>, fc: &mut FilterCounts) -> bool {
-        self.restrictions
-            .iter()
+        debug_assert_eq!(self.n_restrictions(), fc.counts.len());
+
+        self.all_restrictions()
             .zip(fc.counts.iter_mut())
             .all(|(restr, restr_count)| {
                 restr_count.count(restr.restriction.low_level_predicate_permits_relay(r))
@@ -314,14 +321,21 @@ impl<'a> RelaySelector<'a> {
 
     /// Return true if this selector has any flexible restrictions.
     fn can_relax(&self) -> bool {
-        self.restrictions.iter().any(|restr| !restr.strict)
+        self.all_restrictions().any(|restr| !restr.strict)
     }
 
     /// Return a new selector created by relaxing every flexible restriction in
     /// this selector.
     fn relax(&self) -> Self {
-        let restrictions = self.restrictions.iter().map(Restr::maybe_relax).collect();
-        let new_selector = RelaySelector { restrictions };
+        let new_selector = RelaySelector {
+            usage: self.usage.maybe_relax(),
+            exclusion: self.exclusion.maybe_relax(),
+            other_restrictions: self
+                .other_restrictions
+                .iter()
+                .map(Restr::maybe_relax)
+                .collect(),
+        };
         debug_assert!(!new_selector.can_relax());
         new_selector
     }
@@ -329,8 +343,7 @@ impl<'a> RelaySelector<'a> {
 
 impl<'a> LowLevelRelayPredicate for RelaySelector<'a> {
     fn low_level_predicate_permits_relay(&self, relay: &tor_netdir::Relay<'_>) -> bool {
-        self.restrictions
-            .iter()
+        self.all_restrictions()
             .all(|r| r.restriction.low_level_predicate_permits_relay(relay))
     }
 }
@@ -431,7 +444,7 @@ mod test {
         let usage = RelayUsage::middle_relay(None);
         let exclusion = RelayExclusion::exclude_identities([id_4].into_iter().collect());
         let sel = RelaySelector::new(usage.clone(), exclusion.clone());
-        let mut fc = FilterCounts::new(sel.restrictions.len());
+        let mut fc = FilterCounts::new(&sel);
 
         let (yes, _no) = split_netdir(&nd, &sel);
         let filtered: Vec<_> = nd
