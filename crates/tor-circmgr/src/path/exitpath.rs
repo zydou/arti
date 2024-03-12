@@ -37,11 +37,6 @@ enum ExitPathBuilderInner<'a> {
         strict: bool,
     },
 
-    /// Request a path to any relay, even those that cannot exit.
-    // TODO: #785 may make this non-conditional.
-    #[cfg(feature = "hs-common")]
-    AnyRelayForOnionService,
-
     /// Request a path that uses a given relay as exit node.
     ChosenExit(Relay<'a>),
 }
@@ -115,26 +110,6 @@ impl<'a> ExitPathBuilder<'a> {
         }
     }
 
-    /// Create a new builder that will try to build a three-hop non-exit path
-    /// for use with the onion services protocols
-    /// that is compatible with being extended to an optional given relay.
-    ///
-    /// (The provided relay is _not_ included in the built path: we only ensure
-    /// that the path we build does not have any features that would stop us
-    /// extending it to that relay as a fourth hop.)
-    ///
-    /// TODO: This doesn't seem to belong in a type called ExitPathBuilder.
-    /// Perhaps we should rename ExitPathBuilder, split it into multiple types,
-    /// or move this method.
-    #[cfg(feature = "hs-common")]
-    pub(crate) fn for_onion_service(compatible_with: Option<OwnedChanTarget>) -> Self {
-        Self {
-            inner: ExitPathBuilderInner::AnyRelayForOnionService,
-            compatible_with,
-            require_stability: true,
-        }
-    }
-
     /// Create a new builder that will try to get an exit relay, but which
     /// will be satisfied with a non-exit relay.
     pub(crate) fn for_timeout_testing() -> Self {
@@ -193,14 +168,6 @@ impl<'a> AnonymousPathBuilder<'a> for ExitPathBuilder<'a> {
                 selector
             }
 
-            #[cfg(feature = "hs-common")]
-            ExitPathBuilderInner::AnyRelayForOnionService => {
-                // TODO: This usage is a bit convoluted, and some onion-service-
-                // related circuits don't need this much stability.
-                let usage = RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()));
-                RelaySelector::new(usage, guard_exclusion)
-            }
-
             ExitPathBuilderInner::WantsPorts(wantports) => RelaySelector::new(
                 RelayUsage::exit_to_all_ports(rs_cfg, wantports.clone()),
                 guard_exclusion,
@@ -230,7 +197,6 @@ impl<'a> AnonymousPathBuilder<'a> for ExitPathBuilder<'a> {
             #[cfg(feature = "geoip")]
             ExitInCountry { .. } => "country-specific exit circuit",
             AnyExit { .. } => "testing circuit",
-            AnyRelayForOnionService => "onion-service circuit",
             ChosenExit(_) => "circuit to a specific exit",
         }
     }
