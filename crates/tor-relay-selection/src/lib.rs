@@ -42,14 +42,12 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod config;
-mod ext;
 mod restriction;
 mod selector;
 mod target_port;
 mod usage;
 
 pub use config::RelaySelectionConfig;
-pub use ext::{NetDirExt, RelayExt};
 pub use restriction::{RelayExclusion, RelayRestriction};
 pub use selector::{RelaySelector, SelectionInfo};
 pub use target_port::TargetPort;
