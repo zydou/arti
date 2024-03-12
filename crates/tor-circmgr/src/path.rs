@@ -5,6 +5,8 @@
 
 pub mod dirpath;
 pub mod exitpath;
+#[cfg(feature = "hs-common")]
+pub mod hspath;
 
 use std::time::SystemTime;
 
