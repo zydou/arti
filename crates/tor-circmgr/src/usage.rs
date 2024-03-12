@@ -1,7 +1,6 @@
 //! Code related to tracking what activities a circuit can be used for.
 
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -41,6 +40,8 @@ use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
 use crate::Result;
 
+pub use tor_relay_selection::TargetPort;
+
 /// An exit policy, as supported by the last hop of a circuit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExitPolicy {
@@ -48,50 +49,6 @@ pub(crate) struct ExitPolicy {
     v4: Arc<PortPolicy>,
     /// Permitted IPv6 ports.
     v6: Arc<PortPolicy>,
-}
-
-/// A port that we want to connect to as a client.
-///
-/// Ordinarily, this is a TCP port, plus a flag to indicate whether we
-/// must support IPv4 or IPv6.
-#[derive(
-    Clone, Copy, Debug, Deserialize, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Default,
-)]
-pub struct TargetPort {
-    /// True if this is a request to connect to an IPv6 address
-    ipv6: bool,
-    /// The port that the client wants to connect to
-    pub(crate) port: u16,
-}
-
-impl TargetPort {
-    /// Create a request to make sure that a circuit supports a given
-    /// ipv4 exit port.
-    pub fn ipv4(port: u16) -> TargetPort {
-        TargetPort { ipv6: false, port }
-    }
-
-    /// Create a request to make sure that a circuit supports a given
-    /// ipv6 exit port.
-    pub fn ipv6(port: u16) -> TargetPort {
-        TargetPort { ipv6: true, port }
-    }
-
-    /// Return true if this port is supported by the provided Relay.
-    pub fn is_supported_by(&self, r: &tor_netdir::Relay<'_>) -> bool {
-        // TODO #504
-        if self.ipv6 {
-            r.supports_exit_port_ipv6(self.port)
-        } else {
-            r.supports_exit_port_ipv4(self.port)
-        }
-    }
-}
-
-impl Display for TargetPort {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}", self.port, if self.ipv6 { "v6" } else { "v4" })
-    }
 }
 
 /// Set of requested target ports, mostly for use in error reporting
@@ -128,7 +85,9 @@ impl Display for TargetPorts {
 impl ExitPolicy {
     /// Make a new exit policy from a given Relay.
     pub(crate) fn from_relay(relay: &Relay<'_>) -> Self {
-        // TODO #504
+        // TODO #504: it might be a good idea to lower this whole type into
+        // tor-netdir or tor-relay-selection.  That way we wouldn't need to
+        // invoke these Relay-specific methods in tor-circmgr.
         Self {
             v4: relay.ipv4_policy(),
             v6: relay.ipv6_policy(),
@@ -167,6 +126,8 @@ pub(crate) enum TargetCircUsage {
         /// Restrict the circuit to only exits in the provided country code.
         country_code: Option<CountryCode>,
         /// If true, all relays on this circuit need to have the Stable flag.
+        //
+        // TODO #504: It would be good to remove this field, if we can.
         require_stability: bool,
     },
     /// For a circuit is only used for the purpose of building it.
@@ -186,6 +147,7 @@ pub(crate) enum TargetCircUsage {
         /// The number of exit circuits needed for a port
         circs: usize,
         /// If true, all relays on this circuit need to have the Stable flag.
+        // TODO #504: It would be good to remove this field, if we can.
         require_stability: bool,
     },
     /// Use for BEGINDIR-based non-anonymous directory connections to a particular target,
@@ -225,6 +187,8 @@ pub(crate) enum SupportedCircUsage {
         /// Country code the exit is in, or `None` if no country could be determined.
         country_code: Option<CountryCode>,
         /// Whether every relay in this circuit has the "Stable" flag.
+        //
+        // TODO #504: It would be good to remove this field, if we can.
         all_relays_stable: bool,
     },
     /// This circuit is not suitable for any usage.
@@ -370,7 +334,7 @@ impl TargetCircUsage {
                 compatible_with_target,
             } => {
                 let (path, mon, usable) =
-                    ExitPathBuilder::for_any_compatible_with(compatible_with_target.clone())
+                    ExitPathBuilder::for_onion_service(compatible_with_target.clone())
                         // TODO: We don't actually require stability if this is a
                         // HsDir circuit: but at this point, we can't tell.
                         .require_stability(true)
@@ -413,7 +377,8 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     require_stability,
                 },
             ) => {
-                // TODO #504
+                // TODO #504: These calculations don't touch Relays, but they
+                // seem like they should be done using the types of tor-relay-selection.
                 i1.as_ref()
                     .map(|i1| i1.compatible_same_type(i2))
                     .unwrap_or(true)
@@ -434,7 +399,8 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     ..
                 },
             ) => {
-                // TODO #504
+                // TODO #504: It would be good to simply remove stability
+                // calculation from tor-circmgr.
                 if *require_stability && !all_relays_stable {
                     return false;
                 }
@@ -443,7 +409,8 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     // for new streams that don't share it.
                     return false;
                 }
-                // TODO #504
+                // TODO #504: Similarly, it would be good to have exit port
+                // calculation done elsewhere.
                 if let Some(p) = port {
                     policy.allows_port(*p)
                 } else {

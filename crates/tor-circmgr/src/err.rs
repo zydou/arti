@@ -7,7 +7,6 @@ use retry_error::RetryError;
 use thiserror::Error;
 
 use tor_async_utils::oneshot;
-use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
 use tor_proto::circuit::UniqId;
@@ -72,37 +71,15 @@ pub enum Error {
     #[error("Spent too long trying to construct circuits for this request")]
     RequestTimeout,
 
-    /// No suitable relays for a request
-    #[error(
-        "Can't find {role} for circuit: Rejected {} because of family restrictions \
-         and {} because of usage requirements.",
-         can_share.display_frac_rejected(),
-         correct_usage.display_frac_rejected(),
-    )]
-    NoPath {
-        /// The role that we were trying to choose a relay for.
+    /// Unable to find a relay in order to build a given path type.
+    #[error("Can't find {role} for {path_kind} circuit: {problem}")]
+    NoRelay {
+        /// The kind of path we were trying to build
+        path_kind: &'static str,
+        /// The kind of relay we were trying to pick
         role: &'static str,
-        /// Relays accepted and rejected based on relay family policies.
-        can_share: FilterCount,
-        /// Relays accepted and rejected based on our usage requirements.
-        correct_usage: FilterCount,
-    },
-
-    /// No suitable exit relay for a request.
-    #[error(
-        "Can't find exit for circuit: \
-         Rejected {} because of family restrictions, {} because of port requirements, and {} because of country requirements",
-        can_share.display_frac_rejected(),
-        correct_ports.display_frac_rejected(),
-        correct_country.display_frac_rejected()
-    )]
-    NoExit {
-        /// Exit relays accepted and rejected based on relay family policies.
-        can_share: FilterCount,
-        /// Exit relays accepted and rejected base on the ports that we need.
-        correct_ports: FilterCount,
-        /// Exit relays accepted and rejected based on exit country code.
-        correct_country: FilterCount,
+        /// The problem we encountered
+        problem: String,
     },
 
     /// Problem creating or updating a guard manager.
@@ -199,8 +176,7 @@ impl HasKind for Error {
         match self {
             E::Channel { cause, .. } => cause.kind(),
             E::Bug(e) => e.kind(),
-            E::NoPath { .. } => EK::NoPath,
-            E::NoExit { .. } => EK::NoExit,
+            E::NoRelay { .. } => EK::NoPath,
             E::PendingCanceled => EK::ReactorShuttingDown,
             E::PendingFailed(e) => e.kind(),
             E::CircTimeout(_) => EK::TorNetworkTimeout,
@@ -241,7 +217,7 @@ impl HasRetryTime for Error {
             // TODO: In some rare cases, these errors can actually happen when
             // we have walked ourselves into a snag in our path selection.  See
             // additional "TODO" comments in exitpath.rs.
-            E::NoPath { .. } | E::NoExit { .. } => RT::Never,
+            E::NoRelay { .. } => RT::Never,
 
             // If we encounter UsageMismatched without first converting to
             // LostUsabilityRace, it reflects a real problem in our code.
@@ -326,8 +302,7 @@ impl Error {
             E::CircCanceled => 20,
             E::CircTimeout(_) => 30,
             E::RequestTimeout => 30,
-            E::NoPath { .. } => 40,
-            E::NoExit { .. } => 40,
+            E::NoRelay { .. } => 40,
             E::GuardMgr(_) => 40,
             E::Guard(_) => 40,
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -371,8 +346,7 @@ impl Error {
             | Error::UsageMismatched(_)
             | Error::CircTimeout(_)
             | Error::RequestTimeout
-            | Error::NoPath { .. }
-            | Error::NoExit { .. }
+            | Error::NoRelay { .. }
             | Error::GuardMgr(_)
             | Error::Guard(_)
             | Error::RequestFailed(_)

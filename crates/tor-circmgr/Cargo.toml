@@ -31,7 +31,10 @@ full = [
     "tor-netdoc/full",
     "tor-persist/full",
     "tor-proto/full",
-    "tor-rtcompat/full", "tor-geoip?/full", "tor-async-utils/full", "tor-protover/full",
+    "tor-rtcompat/full",
+    "tor-geoip?/full",
+    "tor-async-utils/full",
+    "tor-protover/full",
 ]
 specific-relay = []
 
@@ -46,8 +49,8 @@ vanguards = ["tor-guardmgr/vanguards", "__is_experimental"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental = ["experimental-api", "ntor_v3", "testing", "geoip", "vanguards"]
+geoip = ["tor-geoip", "tor-netdir/geoip", "tor-relay-selection/geoip", "__is_experimental"]
 experimental-api = ["visibility", "__is_experimental"]
-geoip = ["tor-geoip", "tor-netdir/geoip", "__is_experimental"]
 ntor_v3 = ["tor-proto/ntor_v3", "__is_experimental"]
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
@@ -88,6 +91,7 @@ tor-netdoc = { path = "../tor-netdoc", version = "0.12.1" }
 tor-persist = { path = "../tor-persist", version = "0.10.1" }
 tor-proto = { path = "../tor-proto", version = "0.16.1" }
 tor-protover = { path = "../tor-protover", version = "0.6.0" }
+tor-relay-selection = { path = "../tor-relay-selection", version = "0.0.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.10.0" }
 tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }

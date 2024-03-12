@@ -1,10 +1,9 @@
 //! Code to construct paths to a directory for non-anonymous downloads
 use super::TorPath;
 use crate::{DirInfo, Error, Result};
-use tor_basic_utils::iter::FilterCount;
 use tor_error::bad_api_usage;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
-use tor_netdir::WeightRole;
+use tor_relay_selection::{RelayExclusion, RelayUsage};
 use tor_rtcompat::Runtime;
 
 use rand::Rng;
@@ -54,20 +53,17 @@ impl DirPathBuilder {
                 Ok((TorPath::new_fallback_one_hop(relay), None, None))
             }
             (DirInfo::Directory(netdir), None) => {
-                let mut can_share = FilterCount::default();
-                let mut correct_usage = FilterCount::default();
-                let relay = netdir
-                    // TODO #504
-                    .pick_relay(rng, WeightRole::BeginDir, |r| {
-                        r.is_flagged_fast()
-                            && can_share.count(true)
-                            && correct_usage.count(r.is_dir_cache())
-                    })
-                    .ok_or(Error::NoPath {
-                        role: "directory cache",
-                        can_share,
-                        correct_usage,
-                    })?;
+                let sel = tor_relay_selection::RelaySelector::new(
+                    RelayUsage::directory_cache(),
+                    RelayExclusion::no_relays_excluded(),
+                );
+
+                let (relay, info) = sel.select_relay(rng, netdir);
+                let relay = relay.ok_or_else(|| Error::NoRelay {
+                    path_kind: "dirctory circuit",
+                    role: "cache",
+                    problem: info.to_string(),
+                })?;
 
                 Ok((TorPath::new_one_hop(relay), None, None))
             }

@@ -15,8 +15,9 @@ use once_cell::sync::OnceCell;
 use tor_error::debug_report;
 use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, OwnedCircTarget};
-use tor_netdir::{NetDir, NetDirProvider, Relay, SubnetConfig};
+use tor_netdir::{NetDir, NetDirProvider, Relay};
 use tor_proto::circuit::{self, ClientCirc};
+use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
 use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
@@ -259,19 +260,27 @@ impl<R: Runtime> HsCircPool<R> {
         avoid_target: Option<&T>,
     ) -> Result<Arc<ClientCirc>>
     where
+        // TODO #504: It would be better if this were a type that had to include
+        // family info.
         T: CircTarget,
     {
         // First, look for a circuit that is already built, if any is suitable.
-        let subnet_config = self.circmgr.builder().path_config().subnet_config();
-        let owned_avoid_target = avoid_target.map(OwnedCircTarget::from_circ_target);
-        let target = owned_avoid_target.as_ref().map(|target| TargetInfo {
-            target,
-            relay: netdir.by_ids(target),
-        });
+
+        let target_exclusion = {
+            let path_cfg = self.circmgr.builder().path_config();
+            let cfg = path_cfg.relay_selection_config();
+            match avoid_target {
+                // TODO #504: This is an unaccompanied RelayExclusion, and is therefore a
+                // bit suspect.  We should consider whether we like this behavior.
+                Some(ct) => RelayExclusion::exclude_channel_target_family(&cfg, ct, netdir),
+                None => RelayExclusion::no_relays_excluded(),
+            }
+        };
+
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
             let found_usable_circ = inner.pool.take_one_where(&mut rand::thread_rng(), |circ| {
-                circuit_compatible_with_target(netdir, subnet_config, circ, target.as_ref())
+                circuit_compatible_with_target(netdir, circ, &target_exclusion)
             });
 
             // Tell the background task to fire immediately if we have very few circuits
@@ -334,45 +343,6 @@ impl<R: Runtime> HsCircPool<R> {
     }
 }
 
-/// Wrapper around a target final hop, and any information about that target we
-/// were able to find from the directory.
-///
-/// We don't use this for _extending_ to the final hop, since it contains an
-/// OwnedCircTarget, which may not preserve all the
-/// [`LinkSpec`](tor_linkspec::LinkSpec)s in the right order.  We only use it
-/// for assessing circuit compatibility.
-///
-/// TODO: This is possibly a bit redundant with path::MaybeOwnedRelay.  We
-/// should consider merging them someday, once we have a better sense of what we
-/// truly want here.
-struct TargetInfo<'a> {
-    /// The target to be used as a final hop.
-    //
-    // TODO: Perhaps this should be a generic &dyn CircTarget? I'm not sure we
-    // win anything there, though.
-    target: &'a OwnedCircTarget,
-    /// A Relay reference for the targe, if we found one.
-    relay: Option<Relay<'a>>,
-}
-
-impl<'a> TargetInfo<'a> {
-    /// Return true if, according to the rules of `subnet_config`, this target can share a circuit with `r`.
-    fn may_share_circuit_with(&self, r: &Relay<'_>, subnet_config: SubnetConfig) -> bool {
-        // TODO #504
-        // TODO 768
-        if let Some(this_r) = &self.relay {
-            if this_r.in_same_family(r) {
-                return false;
-            }
-            // TODO: When bridge families are finally implemented (likely via
-            // proposal `321-happy-families.md`), we should move family
-            // functionality into CircTarget.
-        }
-
-        !subnet_config.any_addrs_in_same_subnet(self.target, r)
-    }
-}
-
 /// Return true if we can extend a pre-built circuit `circ` to `target`.
 ///
 /// We require that the circuit is open, that every hop  in the circuit is
@@ -380,13 +350,19 @@ impl<'a> TargetInfo<'a> {
 /// `target`.
 fn circuit_compatible_with_target(
     netdir: &NetDir,
-    subnet_config: SubnetConfig,
     circ: &ClientCirc,
-    target: Option<&TargetInfo<'_>>,
+    exclude_target: &RelayExclusion,
 ) -> bool {
-    circuit_still_useable(netdir, circ, |relay| match target {
-        Some(t) => t.may_share_circuit_with(relay, subnet_config),
-        None => true,
+    // NOTE, TODO #504:
+    // This uses a RelayExclusion directly, when we would be better off
+    // using a RelaySelector to make sure that we had checked every relevant
+    // property.
+    //
+    // The behavior is okay, since we already checked all the properties of the
+    // circuit's relays when we first constructed the circuit.  Still, it would
+    // be better to use refactor and a RelaySelector instead.
+    circuit_still_useable(netdir, circ, |relay| {
+        exclude_target.low_level_predicate_permits_relay(relay)
     })
 }
 

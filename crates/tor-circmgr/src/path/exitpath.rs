@@ -4,13 +4,15 @@ use super::{MaybeOwnedRelay, TorPath};
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
 use std::time::SystemTime;
-use tor_basic_utils::iter::FilterCount;
 use tor_error::{bad_api_usage, internal};
 #[cfg(feature = "geoip")]
-use tor_geoip::{CountryCode, HasCountryCode};
+use tor_geoip::CountryCode;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_linkspec::{HasRelayIds, OwnedChanTarget, RelayIdSet};
-use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
+use tor_netdir::{NetDir, Relay};
+use tor_relay_selection::{
+    RelayExclusion, RelayRestriction, RelaySelectionConfig, RelaySelector, RelayUsage,
+};
 use tor_rtcompat::Runtime;
 
 /// Internal representation of PathBuilder.
@@ -42,7 +44,7 @@ enum ExitPathBuilderInner<'a> {
     /// Request a path to any relay, even those that cannot exit.
     // TODO: #785 may make this non-conditional.
     #[cfg(feature = "hs-common")]
-    AnyRelay,
+    AnyRelayForOnionService,
 
     /// Request a path that uses a given relay as exit node.
     ChosenExit(Relay<'a>),
@@ -118,6 +120,7 @@ impl<'a> ExitPathBuilder<'a> {
     }
 
     /// Create a new builder that will try to build a three-hop non-exit path
+    /// for use with the onion services protocols
     /// that is compatible with being extended to an optional given relay.
     ///
     /// (The provided relay is _not_ included in the built path: we only ensure
@@ -128,9 +131,9 @@ impl<'a> ExitPathBuilder<'a> {
     /// Perhaps we should rename ExitPathBuilder, split it into multiple types,
     /// or move this method.
     #[cfg(feature = "hs-common")]
-    pub(crate) fn for_any_compatible_with(compatible_with: Option<OwnedChanTarget>) -> Self {
+    pub(crate) fn for_onion_service(compatible_with: Option<OwnedChanTarget>) -> Self {
         Self {
-            inner: ExitPathBuilderInner::AnyRelay,
+            inner: ExitPathBuilderInner::AnyRelayForOnionService,
             compatible_with,
             require_stability: true,
         }
@@ -154,112 +157,64 @@ impl<'a> ExitPathBuilder<'a> {
     }
 
     /// Find a suitable exit node from either the chosen exit or from the network directory.
+    ///
+    /// Return the exit, along with the usage for a middle node corresponding
+    /// to this exit.
     fn pick_exit<R: Rng>(
         &self,
         rng: &mut R,
         netdir: &'a NetDir,
-        guard: Option<&MaybeOwnedRelay<'a>>,
-        config: SubnetConfig,
-    ) -> Result<Relay<'a>> {
-        let mut can_share = FilterCount::default();
-        let mut correct_ports = FilterCount::default();
-        #[allow(unused_mut)]
-        let mut correct_country = FilterCount::default();
-        match &self.inner {
+        guard_exclusion: RelayExclusion<'a>,
+        rs_cfg: &RelaySelectionConfig<'_>,
+    ) -> Result<(Relay<'a>, RelayUsage)> {
+        let selector = match &self.inner {
             ExitPathBuilderInner::AnyExit { strict } => {
-                // TODO #504
-                let exit = netdir.pick_relay(rng, WeightRole::Exit, |r| {
-                    r.is_flagged_fast()
-                        && (!self.require_stability || r.is_flagged_stable())
-                        && can_share.count(r.policies_allow_some_port())
-                        && correct_ports.count(relays_can_share_circuit_opt(r, guard, config))
-                });
-                match (exit, strict) {
-                    (Some(exit), _) => return Ok(exit),
-                    (None, true) => {
-                        return Err(Error::NoExit {
-                            can_share,
-                            correct_ports,
-                            correct_country,
-                        })
-                    }
-                    (None, false) => {}
+                let mut selector =
+                    RelaySelector::new(RelayUsage::any_exit(rs_cfg), guard_exclusion);
+                if !strict {
+                    selector.mark_usage_flexible();
                 }
-
-                // Non-strict case.  Arguably this doesn't belong in
-                // ExitPathBuilder.
-                //
-                // Note that we use WeightRole::Exit here even though we don't
-                // care that this is actually an exit. That's because the
-                // purpose of this path is to learn average circuit build time
-                // information, so we want our distribution of possible final
-                // nodes to resemble the one that we would use for real
-                // circuits.
-                netdir
-                    // TODO #504
-                    .pick_relay(rng, WeightRole::Exit, |r| {
-                        r.is_flagged_fast()
-                            && (!self.require_stability || r.is_flagged_stable())
-                            && can_share.count(relays_can_share_circuit_opt(r, guard, config))
-                    })
-                    .ok_or(Error::NoExit {
-                        can_share,
-                        correct_ports,
-                        correct_country,
-                    })
+                selector
             }
+
             #[cfg(feature = "geoip")]
-            ExitPathBuilderInner::ExitInCountry { country, ports } => Ok(netdir
-                // TODO #504
-                .pick_relay(rng, WeightRole::Exit, |r| {
-                    r.is_flagged_fast()
-                        && (!self.require_stability || r.is_flagged_stable())
-                        && can_share.count(relays_can_share_circuit_opt(r, guard, config))
-                        && correct_ports.count(ports.iter().all(|p| p.is_supported_by(r)))
-                        && correct_country
-                            .count(r.country_code().map(|x| x == *country).unwrap_or(false))
-                })
-                .ok_or(Error::NoExit {
-                    can_share,
-                    correct_ports,
-                    correct_country,
-                })?),
+            ExitPathBuilderInner::ExitInCountry { country, ports } => {
+                let mut selector = RelaySelector::new(
+                    RelayUsage::exit_to_all_ports(rs_cfg, ports.clone()),
+                    guard_exclusion,
+                );
+                selector.push_restriction(RelayRestriction::require_country_code(*country));
+                selector
+            }
 
             #[cfg(feature = "hs-common")]
-            ExitPathBuilderInner::AnyRelay => netdir
-                // TODO #504
-                .pick_relay(rng, WeightRole::Middle, |r| {
-                    r.is_flagged_fast()
-                        && (!self.require_stability || r.is_flagged_stable())
-                        && can_share.count(relays_can_share_circuit_opt(r, guard, config))
-                })
-                .ok_or(Error::NoExit {
-                    can_share,
-                    correct_ports,
-                    correct_country,
-                }),
+            ExitPathBuilderInner::AnyRelayForOnionService => {
+                // TODO: This usage is a bit convoluted, and some onion-service-
+                // related circuits don't need this much stability.
+                let usage = RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()));
+                RelaySelector::new(usage, guard_exclusion)
+            }
 
-            ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
-                // TODO #504
-                .pick_relay(rng, WeightRole::Exit, |r| {
-                    r.is_flagged_fast()
-                        && (!self.require_stability || r.is_flagged_stable())
-                        && can_share.count(relays_can_share_circuit_opt(r, guard, config))
-                        && correct_ports.count(wantports.iter().all(|p| p.is_supported_by(r)))
-                })
-                .ok_or(Error::NoExit {
-                    can_share,
-                    correct_ports,
-                    correct_country,
-                })?),
+            ExitPathBuilderInner::WantsPorts(wantports) => RelaySelector::new(
+                RelayUsage::exit_to_all_ports(rs_cfg, wantports.clone()),
+                guard_exclusion,
+            ),
 
             ExitPathBuilderInner::ChosenExit(exit_relay) => {
                 // NOTE that this doesn't check
                 // relays_can_share_circuit_opt(exit_relay,guard).  we
                 // already did that, sort of, in pick_path.
-                Ok(exit_relay.clone())
+                return Ok((exit_relay.clone(), RelayUsage::middle_relay(None)));
             }
-        }
+        };
+
+        let (relay, info) = selector.select_relay(rng, netdir);
+        let relay = relay.ok_or_else(|| Error::NoRelay {
+            path_kind: self.path_kind(),
+            role: "final hop",
+            problem: info.to_string(),
+        })?;
+        Ok((relay, RelayUsage::middle_relay(Some(selector.usage()))))
     }
 
     /// Try to create and return a path corresponding to the requirements of
@@ -281,7 +236,7 @@ impl<'a> ExitPathBuilder<'a> {
                 .into())
             }
         };
-        let subnet_config = config.subnet_config();
+        let rs_cfg = config.relay_selection_config();
 
         let chosen_exit = if let ExitPathBuilderInner::ChosenExit(e) = &self.inner {
             Some(e)
@@ -294,6 +249,8 @@ impl<'a> ExitPathBuilder<'a> {
         // pick the guard before the exit, which is not what our spec says.
         let (guard, mon, usable) = match guards {
             Some(guardmgr) => {
+                // TODO: Extract this section into its own function, and see
+                // what it can share with tor_relay_selection.
                 let mut b = tor_guardmgr::GuardUsageBuilder::default();
                 b.kind(tor_guardmgr::GuardUsageKind::Data);
                 if let Some(exit_relay) = chosen_exit {
@@ -349,96 +306,74 @@ impl<'a> ExitPathBuilder<'a> {
                 (guard, Some(mon), Some(usable))
             }
             None => {
-                let mut can_share = FilterCount::default();
-                let mut correct_usage = FilterCount::default();
-                let chosen_exit = chosen_exit.map(|relay| MaybeOwnedRelay::from(relay.clone()));
-                let entry = netdir
-                    // TODO #504
-                    .pick_relay(rng, WeightRole::Guard, |r| {
-                        can_share.count(relays_can_share_circuit_opt(
-                            r,
-                            chosen_exit.as_ref(),
-                            subnet_config,
-                        )) && correct_usage.count(r.is_suitable_as_guard())
-                    })
-                    .ok_or(Error::NoPath {
-                        role: "entry relay",
-                        can_share,
-                        correct_usage,
-                    })?;
-                (MaybeOwnedRelay::from(entry), None, None)
+                let rs_cfg = config.relay_selection_config();
+                let exclusion = match chosen_exit {
+                    Some(r) => {
+                        RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![r.clone()])
+                    }
+                    None => RelayExclusion::no_relays_excluded(),
+                };
+                let selector = RelaySelector::new(RelayUsage::new_guard(), exclusion);
+                let (relay, info) = selector.select_relay(rng, netdir);
+                let relay = relay.ok_or_else(|| Error::NoRelay {
+                    path_kind: self.path_kind(),
+                    role: "entry",
+                    problem: info.to_string(),
+                })?;
+
+                (MaybeOwnedRelay::from(relay), None, None)
             }
         };
 
-        let exit: MaybeOwnedRelay = self
-            .pick_exit(rng, netdir, Some(&guard), subnet_config)?
-            .into();
+        let guard_exclusion = match &guard {
+            MaybeOwnedRelay::Relay(r) => RelayExclusion::exclude_relays_in_same_family(
+                &config.relay_selection_config(),
+                vec![r.clone()],
+            ),
+            MaybeOwnedRelay::Owned(ct) => RelayExclusion::exclude_channel_target_family(
+                &config.relay_selection_config(),
+                ct.as_ref(),
+                netdir,
+            ),
+        };
 
-        let mut can_share = FilterCount::default();
-        let mut correct_usage = FilterCount::default();
-        let middle = netdir
-            // TODO #504
-            .pick_relay(rng, WeightRole::Middle, |r| {
-                r.is_flagged_fast()
-                    // TODO: if we intend to use this as an exit circuit, and
-                    // exit point only supports long-lived ports, we should
-                    // unconditionally require Stable here, since otherwise this
-                    // circuit isn't useful for exit purposes.
-                    && (!self.require_stability || r.is_flagged_stable())
-                    && can_share.count(
-                        relays_can_share_circuit(r, &exit, subnet_config)
-                            && relays_can_share_circuit(r, &guard, subnet_config),
-                    )
-                    && correct_usage.count(true)
-            })
-            .ok_or(Error::NoPath {
-                role: "middle relay",
-                can_share,
-                correct_usage,
-            })?;
+        let (exit, middle_usage) = self.pick_exit(rng, netdir, guard_exclusion.clone(), &rs_cfg)?;
+
+        let mut family_exclusion =
+            RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![exit.clone()]);
+        family_exclusion.extend(&guard_exclusion);
+
+        let selector = RelaySelector::new(middle_usage, family_exclusion);
+        let (middle, info) = selector.select_relay(rng, netdir);
+        let middle = middle.ok_or_else(|| Error::NoRelay {
+            path_kind: self.path_kind(),
+            role: "middle relay",
+            problem: info.to_string(),
+        })?;
 
         Ok((
             TorPath::new_multihop_from_maybe_owned(vec![
                 guard,
                 MaybeOwnedRelay::from(middle),
-                exit,
+                MaybeOwnedRelay::from(exit),
             ]),
             mon,
             usable,
         ))
     }
-}
 
-/// Returns true if both relays can appear together in the same circuit.
-// TODO #789
-fn relays_can_share_circuit(
-    a: &Relay<'_>,
-    b: &MaybeOwnedRelay<'_>,
-    subnet_config: SubnetConfig,
-) -> bool {
-    // TODO #504
-    if let MaybeOwnedRelay::Relay(r) = b {
-        if a.in_same_family(r) {
-            return false;
-        };
-        // TODO: When bridge families are finally implemented (likely via
-        // proposal `321-happy-families.md`), we should move family
-        // functionality into CircTarget.
-    }
-
-    !subnet_config.any_addrs_in_same_subnet(a, b)
-}
-
-/// Helper: wraps relays_can_share_circuit but takes an option.
-// TODO #789
-fn relays_can_share_circuit_opt(
-    r1: &Relay<'_>,
-    r2: Option<&MaybeOwnedRelay<'_>>,
-    c: SubnetConfig,
-) -> bool {
-    match r2 {
-        Some(r2) => relays_can_share_circuit(r1, r2, c),
-        None => true,
+    /// Return a short description of the path we're trying to build,
+    /// for error reporting purposes.
+    fn path_kind(&self) -> &'static str {
+        use ExitPathBuilderInner::*;
+        match &self.inner {
+            WantsPorts(_) => "exit circuit",
+            #[cfg(feature = "geoip")]
+            ExitInCountry { .. } => "country-specific exit circuit",
+            AnyExit { .. } => "testing circuit",
+            AnyRelayForOnionService => "onion-service circuit",
+            ChosenExit(_) => "circuit to a specific exit",
+        }
     }
 }
 
@@ -464,8 +399,23 @@ mod test {
     use tor_guardmgr::TestConfig;
     use tor_linkspec::{HasRelayIds, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
-    use tor_netdir::testnet;
+    use tor_netdir::{testnet, SubnetConfig};
     use tor_rtcompat::SleepProvider;
+
+    /// Returns true if both relays can appear together in the same circuit.
+    fn relays_can_share_circuit(
+        a: &Relay<'_>,
+        b: &MaybeOwnedRelay<'_>,
+        subnet_config: SubnetConfig,
+    ) -> bool {
+        if let MaybeOwnedRelay::Relay(r) = b {
+            if a.in_same_family(r) {
+                return false;
+            };
+        }
+
+        !subnet_config.any_addrs_in_same_subnet(a, b)
+    }
 
     impl<'a> MaybeOwnedRelay<'a> {
         fn can_share_circuit(
@@ -610,13 +560,13 @@ mod test {
         let outcome = ExitPathBuilder::from_target_ports(vec![TargetPort::ipv4(80)])
             .pick_path(&mut rng, dirinfo, guards, &config, now);
         assert!(outcome.is_err());
-        assert!(matches!(outcome, Err(Error::NoExit { .. })));
+        assert!(matches!(outcome, Err(Error::NoRelay { .. })));
 
         // For any exit
         let outcome =
             ExitPathBuilder::for_any_exit().pick_path(&mut rng, dirinfo, guards, &config, now);
         assert!(outcome.is_err());
-        assert!(matches!(outcome, Err(Error::NoExit { .. })));
+        assert!(matches!(outcome, Err(Error::NoRelay { .. })));
 
         // For any exit (non-strict, so this will work).
         let outcome = ExitPathBuilder::for_timeout_testing()
