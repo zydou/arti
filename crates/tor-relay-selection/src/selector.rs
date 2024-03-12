@@ -95,9 +95,9 @@ impl<'a> SelectionInfo<'a> {
         self.succeeded
     }
 
-    /// Return true if we had to relax our initial selector in order to get
-    /// relays.
-    pub fn result_is_relaxed(&self) -> bool {
+    /// Return true if picked at least one relay,
+    /// but only after relaxing our initial selector.
+    pub fn result_is_relaxed_success(&self) -> bool {
         self.relaxed_try.is_some() && self.succeeded
     }
 }
@@ -483,14 +483,14 @@ mod test {
             // Select one relay; make sure it is ok.
             let (r_rand, si) = sel.select_relay(&mut rng, &nd);
             assert!(si.success());
-            assert!(!si.result_is_relaxed());
+            assert!(!si.result_is_relaxed_success());
             assert!(p(r_rand.unwrap()));
 
             // Select 20 random relays; make sure they are distinct and ok.
             let (rs_rand, si) = sel.select_n_relays(&mut rng, 20, &nd);
             assert_eq!(rs_rand.len(), 20);
             assert!(si.success());
-            assert!(!si.result_is_relaxed());
+            assert!(!si.result_is_relaxed_success());
             assert!(rs_rand.iter().cloned().all(p));
             let k_got: HashSet<_> = rs_rand.iter().map(|r| r.rsa_identity().unwrap()).collect();
             assert_eq!(k_got.len(), 20);
