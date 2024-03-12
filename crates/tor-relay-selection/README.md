@@ -27,8 +27,8 @@ A `RelayRestriction` imposes additional restrictions on a relay.
 
 A `RelaySelector` is a collection of a usage, an exclusion, and any number of restrictions.
 
-In a `RelaySelector`, usages and restrictions can be strict or non-strict.
-If we fail to pick a relay, and there are any non-strict usages/restrictions,
+In a `RelaySelector`, usages and restrictions can be strict or flexible.
+If we fail to pick a relay, and there are any flexible usages/restrictions,
 then we remove those usages/restrictions to produce a _relaxed_ selector
 and we try again.
 

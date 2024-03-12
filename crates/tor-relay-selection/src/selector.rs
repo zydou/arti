@@ -75,7 +75,8 @@ pub struct SelectionInfo<'a> {
     /// Outcome of our first attempt to pick a relay.
     first_try: FilterCounts,
 
-    /// Present if we tried again with a relaxed
+    /// Present if we tried again with a relaxed version of our
+    /// flexible members.
     relaxed_try: Option<FilterCounts>,
 
     /// True if we eventually succeeded in picking a relay.
