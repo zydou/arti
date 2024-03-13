@@ -204,6 +204,11 @@ impl<R: Runtime> HsCircPool<R> {
         let circ = self
             .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Stub)
             .await?;
+
+        if self.vanguards_enabled()? && circ.kind != HsCircStubKind::Stub {
+            return Err(internal!("wanted a STUB circuit, but got STUB+?!").into());
+        }
+
         let path = circ.path_ref();
         match path.hops().last() {
             Some(ent) => {
@@ -267,6 +272,14 @@ impl<R: Runtime> HsCircPool<R> {
         let circ = self
             .take_or_launch_stub_circuit(netdir, Some(&target), wanted_kind)
             .await?;
+
+        if self.vanguards_enabled()? && circ.kind != wanted_kind {
+            return Err(internal!(
+                "take_or_launch_stub_circuit() returned {:?}, but we need {wanted_kind:?}",
+                circ.kind
+            )
+            .into());
+        }
 
         // Estimate how long it will take to extend it one more hop, and
         // construct a timeout as appropriate.
