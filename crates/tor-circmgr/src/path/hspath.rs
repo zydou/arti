@@ -9,6 +9,14 @@ use crate::{Error, Result};
 
 use super::AnonymousPathBuilder;
 
+use {
+    crate::path::TorPath,
+    crate::{DirInfo, PathConfig},
+    std::time::SystemTime,
+    tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable},
+    tor_rtcompat::Runtime,
+};
+
 /// A path builder for hidden service circuits.
 pub struct HsPathBuilder {
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
@@ -72,5 +80,21 @@ impl<'a> AnonymousPathBuilder<'a> for HsPathBuilder {
             problem: info.to_string(),
         })?;
         Ok((relay, RelayUsage::middle_relay(Some(selector.usage()))))
+    }
+
+    #[cfg(feature = "vanguards")]
+    fn pick_path<'s, R: Rng, RT: Runtime>(
+        &'s self,
+        _rng: &mut R,
+        _netdir: DirInfo<'a>,
+        _guards: Option<&GuardMgr<RT>>,
+        _config: &PathConfig,
+        _now: SystemTime,
+    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+        // TODO HS-VANGUARDS (#1279): this will likely share some logic with
+        // AnonymousPathBuilder::pick_path, so we might want to split
+        // AnonymousPathBuilder::pick_path into multiple smaller functions
+        // that we can use here
+        todo!()
     }
 }
