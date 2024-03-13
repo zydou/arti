@@ -934,7 +934,7 @@ impl Default for DataCmdChecker {
 impl super::CmdChecker for DataCmdChecker {
     fn check_msg(
         &mut self,
-        msg: &tor_cell::relaycell::UnparsedRelayCell,
+        msg: &tor_cell::relaycell::UnparsedRelayMsg,
     ) -> Result<super::StreamStatus> {
         use super::StreamStatus::*;
         match msg.cmd() {
@@ -965,7 +965,7 @@ impl super::CmdChecker for DataCmdChecker {
         }
     }
 
-    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayCell) -> Result<()> {
+    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayMsg) -> Result<()> {
         let _ = msg
             .decode::<DataStreamMsg>()
             .map_err(|err| Error::from_bytes_err(err, "cell on half-closed stream"))?;

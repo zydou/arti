@@ -1,7 +1,7 @@
 //! Declare a "command checker" trait that checks whether a given relay message
 //! is acceptable on a given stream.
 
-use tor_cell::relaycell::UnparsedRelayCell;
+use tor_cell::relaycell::UnparsedRelayMsg;
 
 use crate::Result;
 
@@ -38,7 +38,7 @@ pub(crate) trait CmdChecker: std::fmt::Debug {
     ///
     /// If `msg` is invalid, update the state of this checker, and return a
     /// `StreamStatus` indicating whether the last message closed.
-    fn check_msg(&mut self, msg: &UnparsedRelayCell) -> Result<StreamStatus>;
+    fn check_msg(&mut self, msg: &UnparsedRelayMsg) -> Result<StreamStatus>;
 
     /// Consume `msg` and make sure it can be parsed correctly.
     ///
@@ -46,7 +46,7 @@ pub(crate) trait CmdChecker: std::fmt::Debug {
     /// streams.  It should only be called  if check_msg() succeeds.  It shouldn't
     /// be called on open streams: for those, the stream itself parses the message
     /// and consumes it.
-    fn consume_checked_msg(&mut self, msg: UnparsedRelayCell) -> Result<()>;
+    fn consume_checked_msg(&mut self, msg: UnparsedRelayMsg) -> Result<()>;
 }
 
 /// Type alias for a CmdChecker of unspecified type.

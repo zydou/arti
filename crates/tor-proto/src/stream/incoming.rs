@@ -7,7 +7,7 @@ use crate::circuit::reactor::CloseStreamBehavior;
 use crate::circuit::StreamTarget;
 use crate::{Error, Result};
 use tor_async_utils::oneshot;
-use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayCell};
+use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 
@@ -151,7 +151,7 @@ impl IncomingCmdChecker {
 }
 
 impl super::CmdChecker for IncomingCmdChecker {
-    fn check_msg(&mut self, msg: &UnparsedRelayCell) -> Result<StreamStatus> {
+    fn check_msg(&mut self, msg: &UnparsedRelayMsg) -> Result<StreamStatus> {
         if self.allow_commands[u8::from(msg.cmd()) as usize] {
             Ok(StreamStatus::Open)
         } else {
@@ -162,7 +162,7 @@ impl super::CmdChecker for IncomingCmdChecker {
         }
     }
 
-    fn consume_checked_msg(&mut self, msg: UnparsedRelayCell) -> Result<()> {
+    fn consume_checked_msg(&mut self, msg: UnparsedRelayMsg) -> Result<()> {
         let _ = msg
             .decode::<IncomingStreamRequest>()
             .map_err(|err| Error::from_bytes_err(err, "invalid message on incoming stream"))?;
@@ -188,7 +188,7 @@ mod test {
 
     use tor_cell::relaycell::{
         msg::{Begin, BeginDir, Data, Resolve},
-        AnyRelayMsgOuter,
+        AnyRelayMsgOuter, RelayCellFormat,
     };
 
     use super::*;
@@ -200,7 +200,7 @@ mod test {
             let body = AnyRelayMsgOuter::new(None, msg)
                 .encode(&mut rand::thread_rng())
                 .unwrap();
-            UnparsedRelayCell::from_body(body)
+            UnparsedRelayMsg::from_singleton_body(RelayCellFormat::V0, body).unwrap()
         };
         let begin = u(Begin::new("allium.example.com", 443, 0).unwrap().into());
         let begin_dir = u(BeginDir::default().into());

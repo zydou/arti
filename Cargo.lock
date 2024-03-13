@@ -4988,6 +4988,7 @@ dependencies = [
  "hex-literal",
  "paste",
  "rand",
+ "smallvec",
  "thiserror",
  "tor-basic-utils",
  "tor-bytes",

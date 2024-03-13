@@ -13,7 +13,7 @@
 use std::collections::VecDeque;
 
 use tor_cell::relaycell::RelayCmd;
-use tor_cell::relaycell::UnparsedRelayCell;
+use tor_cell::relaycell::UnparsedRelayMsg;
 use tor_error::internal;
 
 use crate::{Error, Result};
@@ -280,7 +280,7 @@ pub(crate) fn msg_counts_towards_windows(msg: &tor_cell::relaycell::msg::AnyRela
 }
 
 /// Return true if this message is counted by flow-control windows.
-pub(crate) fn cell_counts_towards_windows(cell: &UnparsedRelayCell) -> bool {
+pub(crate) fn cell_counts_towards_windows(cell: &UnparsedRelayMsg) -> bool {
     cmd_counts_towards_windows(cell.cmd())
 }
 
@@ -300,7 +300,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_cell::relaycell::{msg, AnyRelayMsgOuter, StreamId};
+    use tor_cell::relaycell::{msg, AnyRelayMsgOuter, RelayCellFormat, StreamId};
 
     #[test]
     fn what_counts() {
@@ -309,19 +309,27 @@ mod test {
             .unwrap()
             .into();
         assert!(!msg_counts_towards_windows(&m));
-        assert!(!cell_counts_towards_windows(&UnparsedRelayCell::from_body(
-            AnyRelayMsgOuter::new(StreamId::new(77), m)
-                .encode(&mut rng)
-                .unwrap()
-        )));
+        assert!(!cell_counts_towards_windows(
+            &UnparsedRelayMsg::from_singleton_body(
+                RelayCellFormat::V0,
+                AnyRelayMsgOuter::new(StreamId::new(77), m)
+                    .encode(&mut rng)
+                    .unwrap()
+            )
+            .unwrap()
+        ));
 
         let m = msg::Data::new(&b"Education is not a prerequisite to political control-political control is the cause of popular education."[..]).unwrap().into(); // Du Bois
         assert!(msg_counts_towards_windows(&m));
-        assert!(cell_counts_towards_windows(&UnparsedRelayCell::from_body(
-            AnyRelayMsgOuter::new(StreamId::new(128), m)
-                .encode(&mut rng)
-                .unwrap()
-        )));
+        assert!(cell_counts_towards_windows(
+            &UnparsedRelayMsg::from_singleton_body(
+                RelayCellFormat::V0,
+                AnyRelayMsgOuter::new(StreamId::new(128), m)
+                    .encode(&mut rng)
+                    .unwrap()
+            )
+            .unwrap()
+        ));
     }
 
     #[test]

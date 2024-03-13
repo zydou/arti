@@ -58,7 +58,7 @@ pub(crate) struct ResolveCmdChecker {}
 impl super::CmdChecker for ResolveCmdChecker {
     fn check_msg(
         &mut self,
-        msg: &tor_cell::relaycell::UnparsedRelayCell,
+        msg: &tor_cell::relaycell::UnparsedRelayMsg,
     ) -> Result<super::StreamStatus> {
         use super::StreamStatus::Closed;
         match msg.cmd() {
@@ -71,7 +71,7 @@ impl super::CmdChecker for ResolveCmdChecker {
         }
     }
 
-    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayCell) -> Result<()> {
+    fn consume_checked_msg(&mut self, msg: tor_cell::relaycell::UnparsedRelayMsg) -> Result<()> {
         let _ = msg
             .decode::<ResolveResponseMsg>()
             .map_err(|err| Error::from_bytes_err(err, "message on resolve stream."))?;
