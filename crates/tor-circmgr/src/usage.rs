@@ -338,9 +338,6 @@ impl TargetCircUsage {
                 compatible_with_target,
             } => {
                 let (path, mon, usable) = HsPathBuilder::new(compatible_with_target.clone())
-                    // TODO: We don't actually require stability if this is a
-                    // HsDir circuit: but at this point, we can't tell.
-                    .require_stability(true)
                     .pick_path(rng, netdir, guards, config, now)?;
                 let usage = SupportedCircUsage::HsOnly;
                 Ok((path, usage, mon, usable))

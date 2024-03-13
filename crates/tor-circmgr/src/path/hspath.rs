@@ -21,8 +21,6 @@ use {
 pub struct HsPathBuilder {
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
     compatible_with: Option<OwnedChanTarget>,
-    /// If true, all relays on this path must be Stable.
-    require_stability: bool,
 }
 
 impl HsPathBuilder {
@@ -34,17 +32,7 @@ impl HsPathBuilder {
     /// that the path we build does not have any features that would stop us
     /// extending it to that relay as a fourth hop.)
     pub(crate) fn new(compatible_with: Option<OwnedChanTarget>) -> Self {
-        Self {
-            compatible_with,
-            require_stability: true,
-        }
-    }
-
-    /// Indicate that middle and exit relays on this circuit need (or do not
-    /// need) to have the Stable flag.
-    pub(crate) fn require_stability(&mut self, require_stability: bool) -> &mut Self {
-        self.require_stability = require_stability;
-        self
+        Self { compatible_with }
     }
 }
 
