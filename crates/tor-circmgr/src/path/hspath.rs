@@ -18,6 +18,26 @@ use {
 };
 
 /// A path builder for hidden service circuits.
+///
+/// This builder is used for creating hidden service stub circuits,
+/// which are three-hop circuits that have not yet been extended to a target.
+///
+/// Stub circuits eventually become introduction, rendezvous, and HsDir circuits.
+/// For all circuit types except client rendezvous, the stubs must first be
+/// extended by an extra hop:
+///
+/// ```text
+///  Client hsdir:  STUB+ -> HsDir
+///  Client intro:  STUB+ -> Ipt
+///  Client rend:   STUB
+///  Service hsdir: STUB  -> HsDir
+///  Service intro: STUB  -> Ipt
+///  Service rend:  STUB+ -> Rpt
+/// ```
+///
+/// While we don't currently distinguish between regular stub circuits (STUB),
+/// and extended stub circuits (STUB+), the two will be handled differently
+/// once we add support for vanguards.
 pub struct HsPathBuilder {
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
     compatible_with: Option<OwnedChanTarget>,
