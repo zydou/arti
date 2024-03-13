@@ -10,9 +10,7 @@ use void::Void;
 
 #[cfg(feature = "hs-common")]
 use crate::path::hspath::HsPathBuilder;
-use crate::path::{
-    dirpath::DirPathBuilder, exitpath::ExitPathBuilder, AnonymousPathBuilder, TorPath,
-};
+use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_chanmgr::ChannelUsage;
 #[cfg(feature = "geoip")]
 use tor_error::internal;

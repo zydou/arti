@@ -54,6 +54,38 @@ impl HsPathBuilder {
     pub(crate) fn new(compatible_with: Option<OwnedChanTarget>) -> Self {
         Self { compatible_with }
     }
+
+    /// Try to create and return a path for a hidden service circuit stub.
+    #[cfg(not(feature = "vanguards"))]
+    pub fn pick_path<'a, R: Rng, RT: Runtime>(
+        &self,
+        rng: &mut R,
+        netdir: DirInfo<'a>,
+        guards: Option<&GuardMgr<RT>>,
+        config: &PathConfig,
+        now: SystemTime,
+    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+        use super::pick_path;
+
+        pick_path(self, rng, netdir, guards, config, now)
+    }
+
+    /// Try to create and return a path for a hidden service circuit stub.
+    #[cfg(feature = "vanguards")]
+    pub fn pick_path<'a, R: Rng, RT: Runtime>(
+        &self,
+        _rng: &mut R,
+        _netdir: DirInfo<'a>,
+        _guards: Option<&GuardMgr<RT>>,
+        _config: &PathConfig,
+        _now: SystemTime,
+    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+        // TODO HS-VANGUARDS (#1279): this will likely share some logic with
+        // AnonymousPathBuilder::pick_path, so we might want to split
+        // AnonymousPathBuilder::pick_path into multiple smaller functions
+        // that we can use here
+        todo!()
+    }
 }
 
 impl<'a> AnonymousPathBuilder<'a> for HsPathBuilder {
@@ -88,21 +120,5 @@ impl<'a> AnonymousPathBuilder<'a> for HsPathBuilder {
             problem: info.to_string(),
         })?;
         Ok((relay, RelayUsage::middle_relay(Some(selector.usage()))))
-    }
-
-    #[cfg(feature = "vanguards")]
-    fn pick_path<'s, R: Rng, RT: Runtime>(
-        &'s self,
-        _rng: &mut R,
-        _netdir: DirInfo<'a>,
-        _guards: Option<&GuardMgr<RT>>,
-        _config: &PathConfig,
-        _now: SystemTime,
-    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
-        // TODO HS-VANGUARDS (#1279): this will likely share some logic with
-        // AnonymousPathBuilder::pick_path, so we might want to split
-        // AnonymousPathBuilder::pick_path into multiple smaller functions
-        // that we can use here
-        todo!()
     }
 }

@@ -1,15 +1,20 @@
 //! Code for building paths to an exit relay.
 
-use super::AnonymousPathBuilder;
-use crate::{Error, Result, TargetPort};
+use std::time::SystemTime;
+
 use rand::Rng;
-#[cfg(feature = "geoip")]
-use tor_geoip::CountryCode;
+
+use super::{AnonymousPathBuilder, TorPath};
+use crate::path::pick_path;
+use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
+
+use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_linkspec::OwnedChanTarget;
 use tor_netdir::{NetDir, Relay};
-use tor_relay_selection::{
-    RelayExclusion, RelayRestriction, RelaySelectionConfig, RelaySelector, RelayUsage,
-};
+use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
+use tor_rtcompat::Runtime;
+#[cfg(feature = "geoip")]
+use {tor_geoip::CountryCode, tor_relay_selection::RelayRestriction};
 
 /// Internal representation of PathBuilder.
 enum ExitPathBuilderInner<'a> {
@@ -108,6 +113,19 @@ impl<'a> ExitPathBuilder<'a> {
             compatible_with: None,
             require_stability: false,
         }
+    }
+
+    /// Try to create and return a path corresponding to the requirements of
+    /// this builder.
+    pub fn pick_path<R: Rng, RT: Runtime>(
+        &self,
+        rng: &mut R,
+        netdir: DirInfo<'a>,
+        guards: Option<&GuardMgr<RT>>,
+        config: &PathConfig,
+        now: SystemTime,
+    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+        pick_path(self, rng, netdir, guards, config, now)
     }
 
     /// Create a new builder that will try to get an exit relay, but which
@@ -222,9 +240,7 @@ mod test {
         assert_same_path_when_owned, MaybeOwnedRelay, OwnedPath, TorPath, TorPathInner,
     };
     use crate::test::OptDummyGuardMgr;
-    use crate::{Error, PathConfig, Result};
     use std::collections::HashSet;
-    use std::time::SystemTime;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::TestConfig;
     use tor_linkspec::{HasRelayIds, RelayIds};
