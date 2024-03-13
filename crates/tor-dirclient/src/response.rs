@@ -182,6 +182,7 @@ mod test {
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
     #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
     #![allow(clippy::print_stderr)]
     #![allow(clippy::print_stdout)]
     #![allow(clippy::single_char_pattern)]
