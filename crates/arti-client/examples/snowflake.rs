@@ -1,4 +1,4 @@
-#![allow(clippy::bool_assert_comparison)]
+#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
 // @@ begin test lint list maintained by maint/add_warning @@
 #![allow(clippy::bool_assert_comparison)]
 #![allow(clippy::clone_on_copy)]
