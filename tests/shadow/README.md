@@ -37,7 +37,7 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
   job `rust-latest` with the invocation:
 
   ```shell
-  $ cargo build --locked --verbose --target x86_64-unknown-linux-gnu
+  $ cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
   ```
 
 Once those are installed, you can invoke the [`run.sh`](./run.sh) script from
