@@ -130,7 +130,7 @@ impl HasKind for ReconfigureError {
     }
 }
 
-/// Wrapper for our an error type from our underlying configuration library.
+/// Wrapper for an error type from our underlying configuration library.
 #[derive(Debug, Clone)]
 pub struct ConfigError(Arc<config::ConfigError>);
 
