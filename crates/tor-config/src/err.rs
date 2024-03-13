@@ -130,12 +130,16 @@ impl HasKind for ReconfigureError {
     }
 }
 
-/// Wrapper for [`config::ConfigError`] with a more helpful error message.
+/// Wrapper for an error type from our underlying configuration library.
 #[derive(Debug, Clone)]
 pub struct ConfigError(Arc<config::ConfigError>);
 
-impl From<config::ConfigError> for ConfigError {
-    fn from(err: config::ConfigError) -> Self {
+impl ConfigError {
+    /// Wrap `err` as a ConfigError.
+    ///
+    /// This is not a From implementation, since we don't want to expose our
+    /// underlying configuration library.
+    pub(crate) fn from_cfg_err(err: config::ConfigError) -> Self {
         ConfigError(Arc::new(err))
     }
 }
@@ -154,13 +158,6 @@ impl std::fmt::Display for ConfigError {
 impl std::error::Error for ConfigError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.0)
-    }
-}
-
-impl ConfigError {
-    /// Return the inner [`config::ConfigError`] that this is wrapping.
-    pub fn inner(&self) -> &config::ConfigError {
-        self.0.as_ref()
     }
 }
 

@@ -1,8 +1,8 @@
-//! Processing a config::Config into a validated configuration
+//! Processing a `ConfigurationTree` into a validated configuration
 //!
 //! This module, and particularly [`resolve`], takes care of:
 //!
-//!   * Deserializing a [`config::Config`] into various `FooConfigBuilder`
+//!   * Deserializing a [`ConfigurationTree`] into various `FooConfigBuilder`
 //!   * Calling the `build()` methods to get various `FooConfig`.
 //!   * Reporting unrecognised configuration keys
 //!     (eg to help the user detect misspellings).
@@ -21,7 +21,7 @@
 //!
 //!   * [`impl TopLevel`](TopLevel) for your *top level* structures (only).
 //!
-//!   * Call [`resolve`] (or one of its variants) with a `config::Config`,
+//!   * Call [`resolve`] (or one of its variants) with a `ConfigurationTree`,
 //!     to obtain your top-level configuration(s).
 //!
 //! # Example
@@ -33,7 +33,7 @@
 //!    for additional configuration settings for the added features.
 //!  * Establishes some configuration sources
 //!    (the trivial empty `ConfigSources`, to avoid clutter in the example)
-//!  * Reads those sources into a single configuration taxonomy [`config::Config`].
+//!  * Reads those sources into a single configuration taxonomy [`ConfigurationTree`].
 //!  * Processes that configuration into a 3-tuple of configuration
 //!    structs for the three components, namely:
 //!      - `TorClientConfig`, the configuration for the `arti_client` crate's `TorClient`
@@ -96,7 +96,7 @@ use serde::de::DeserializeOwned;
 use thiserror::Error;
 use tracing::warn;
 
-use crate::ConfigBuildError;
+use crate::{ConfigBuildError, ConfigurationTree};
 
 /// Error resolving a configuration (during deserialize, or build)
 #[derive(Error, Debug)]
@@ -109,12 +109,6 @@ pub enum ConfigResolveError {
     /// Build failed
     #[error("Config semantically incorrect")]
     Build(#[from] ConfigBuildError),
-}
-
-impl From<config::ConfigError> for ConfigResolveError {
-    fn from(err: config::ConfigError) -> Self {
-        crate::ConfigError::from(err).into()
-    }
 }
 
 /// A type that can be built from a builder via a build method
@@ -230,7 +224,7 @@ define_for_tuples! { A - B C D E }
 /// You don't want to try to obtain one.
 pub struct ResolveContext {
     /// The input
-    input: config::Config,
+    input: ConfigurationTree,
 
     /// Paths unrecognized by all deserializations
     ///
@@ -303,7 +297,7 @@ enum PathEntry {
 ///
 /// Inner function used by all the `resolve_*` family
 fn resolve_inner<T>(
-    input: config::Config,
+    input: ConfigurationTree,
     want_disfavoured: bool,
 ) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
@@ -314,7 +308,7 @@ where
     if want_disfavoured {
         T::enumerate_deprecated_keys(&mut |l: &[&str]| {
             for key in l {
-                match input.get(key) {
+                match input.0.get(key) {
                     Err(_) => {}
                     Ok(serde::de::IgnoredAny) => {
                         deprecated.insert(key);
@@ -373,7 +367,7 @@ where
 ///
 /// For an example, see the
 /// [`tor_config::load` module-level documentation](self).
-pub fn resolve<T>(input: config::Config) -> Result<T, ConfigResolveError>
+pub fn resolve<T>(input: ConfigurationTree) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -393,7 +387,7 @@ where
 
 /// Deserialize and build overall configuration, reporting unrecognized keys in the return value
 pub fn resolve_return_results<T>(
-    input: config::Config,
+    input: ConfigurationTree,
 ) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
     T: Resolvable,
@@ -416,7 +410,7 @@ pub struct ResolutionResults<T> {
 }
 
 /// Deserialize and build overall configuration, silently ignoring unrecognized config keys
-pub fn resolve_ignore_warnings<T>(input: config::Config) -> Result<T, ConfigResolveError>
+pub fn resolve_ignore_warnings<T>(input: ConfigurationTree) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -436,13 +430,13 @@ where
             // That is how this tracking is disabled when we want it to be.
             let want_unrecognized = !input.unrecognized.is_empty();
             let ret = if !want_unrecognized {
-                deser.try_deserialize()
+                deser.0.try_deserialize()
             } else {
                 let mut nign = BTreeSet::new();
                 let mut recorder = |path: serde_ignored::Path<'_>| {
                     nign.insert(copy_path(&path));
                 };
-                let deser = serde_ignored::Deserializer::new(deser, &mut recorder);
+                let deser = serde_ignored::Deserializer::new(deser.0, &mut recorder);
                 let ret = serde::Deserialize::deserialize(deser);
                 if ret.is_err() {
                     // If we got an error, the config might only have been partially processed,
@@ -452,7 +446,7 @@ where
                 input.unrecognized.intersect_with(nign);
                 ret
             };
-            ret?
+            ret.map_err(crate::ConfigError::from_cfg_err)?
         };
         let built = builder.build()?;
         Ok(built)
@@ -784,12 +778,14 @@ mod test {
             a = "hi"
             old = true
         "#;
-        let source = config::File::from_str(test_data, config::FileFormat::Toml);
-
-        let cfg = config::Config::builder()
-            .add_source(source)
-            .build()
-            .unwrap();
+        let cfg = {
+            let mut sources = crate::ConfigurationSources::new_empty();
+            sources.push_source(
+                crate::ConfigurationSource::from_verbatim(test_data.to_string()),
+                crate::sources::MustRead::MustRead,
+            );
+            sources.load().unwrap()
+        };
 
         let _: (TestConfigA, TestConfigB) = resolve_ignore_warnings(cfg.clone()).unwrap();
 
@@ -836,11 +832,15 @@ mod test {
         // suppress a dead-code warning.
         let _b = TestConfigC::builder();
 
-        let source = config::File::from_str(test_data, config::FileFormat::Toml);
-        let cfg = config::Config::builder()
-            .add_source(source)
-            .build()
-            .unwrap();
+        let cfg = {
+            let mut sources = crate::ConfigurationSources::new_empty();
+            sources.push_source(
+                crate::ConfigurationSource::from_verbatim(test_data.to_string()),
+                crate::sources::MustRead::MustRead,
+            );
+            sources.load().unwrap()
+        };
+
         {
             // First try "A", then "C".
             let res1: Result<ResolutionResults<(TestConfigA, TestConfigC)>, _> =

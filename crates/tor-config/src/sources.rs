@@ -2,7 +2,8 @@
 //!
 //! This module provides [`ConfigurationSources`].
 //!
-//! This layer brings together the functionality of [`config::File`],
+//! This layer brings together the functionality of
+//! our underlying configuration library,
 //! [`fs_mistrust`] and [`tor_config::cmdline`](crate::cmdline).
 //!
 //! A `ConfigurationSources` records a set of filenames of TOML files,
@@ -12,7 +13,7 @@
 //! Usually, call [`ConfigurationSources::from_cmdline`],
 //! perhaps [`set_mistrust`](ConfigurationSources::set_mistrust),
 //! and finally [`load`](ConfigurationSources::load).
-//! The resulting [`config::Config`] can then be deserialized.
+//! The resulting [`ConfigurationTree`] can then be deserialized.
 //!
 //! If you want to watch for config file changes,
 //! use [`ConfigurationSources::scan()`],
@@ -23,12 +24,12 @@
 //! which is necessary to avoid possibly missing changes.)
 
 use std::ffi::OsString;
-use std::{fs, io};
+use std::{fs, io, sync::Arc};
 
 use void::ResultVoidExt as _;
 
 use crate::err::ConfigError;
-use crate::CmdLine;
+use crate::{CmdLine, ConfigurationTree};
 
 /// The synchronous configuration builder type we use.
 ///
@@ -68,13 +69,16 @@ pub enum MustRead {
 /// You can make one out of a `PathBuf`, examining its syntax like `arti` does,
 /// using `ConfigurationSource::from_path`.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[allow(clippy::exhaustive_enums)] // Callers will need to understand this
+#[allow(clippy::exhaustive_enums)]
 pub enum ConfigurationSource {
     /// A plain file
     File(PathBuf),
 
     /// A directory
     Dir(PathBuf),
+
+    /// A verbatim TOML file
+    Verbatim(Arc<String>),
 }
 
 impl ConfigurationSource {
@@ -94,17 +98,17 @@ impl ConfigurationSource {
         }
     }
 
-    /// Return a reference to the inner `Path`
-    pub fn as_path(&self) -> &Path {
-        self.as_ref()
+    /// Use the provided text as verbatim TOML, as if it had been read from disk.
+    pub fn from_verbatim(text: String) -> ConfigurationSource {
+        Self::Verbatim(Arc::new(text))
     }
-}
 
-impl AsRef<PathBuf> for ConfigurationSource {
-    fn as_ref(&self) -> &PathBuf {
+    /// Return a reference to the inner `Path`, if there is one.
+    pub fn as_path(&self) -> Option<&Path> {
         use ConfigurationSource as CS;
         match self {
-            CS::File(p) | CS::Dir(p) => p,
+            CS::File(p) | CS::Dir(p) => Some(p),
+            CS::Verbatim(_) => None,
         }
     }
 }
@@ -248,11 +252,11 @@ impl ConfigurationSources {
         &self.mistrust
     }
 
-    /// Scan for files and load the configuration into a new [`config::Config`].
+    /// Scan for files and load the configuration into a new [`ConfigurationTree`].
     ///
     /// This is a convenience method for [`scan()`](Self::scan)
     /// followed by [`files.load`].
-    pub fn load(&self) -> Result<config::Config, ConfigError> {
+    pub fn load(&self) -> Result<ConfigurationTree, ConfigError> {
         let files = self.scan()?;
         files.load()
     }
@@ -270,12 +274,13 @@ impl ConfigurationSources {
                 if e.kind() == io::ErrorKind::NotFound && !required {
                     Result::<_, crate::ConfigError>::Ok(())
                 } else {
-                    Err(config::ConfigError::Message(format!(
-                        "unable to access config path: {:?}: {}",
-                        &source.as_path(),
-                        e
+                    Err(crate::ConfigError::from_cfg_err(
+                        config::ConfigError::Message(format!(
+                            "unable to access config path: {:?}: {}",
+                            &source.as_path(),
+                            e
+                        )),
                     ))
-                    .into())
                 }
             };
 
@@ -319,7 +324,7 @@ impl ConfigurationSources {
                         must_read: MustRead::TolerateAbsence,
                     }));
                 }
-                CS::File(_) => {
+                CS::File(_) | CS::Verbatim(_) => {
                     out.push(FoundConfigFile {
                         source: source.clone(),
                         must_read,
@@ -354,6 +359,11 @@ impl FoundConfigFiles<'_> {
             let file = match source {
                 CS::File(file) => file,
                 CS::Dir(_) => continue,
+                CS::Verbatim(text) => {
+                    builder =
+                        builder.add_source(config::File::from_str(&text, config::FileFormat::Toml));
+                    continue;
+                }
             };
 
             match self
@@ -383,11 +393,13 @@ impl FoundConfigFiles<'_> {
         Ok(builder)
     }
 
-    /// Load the configuration into a new [`config::Config`].
-    pub fn load(self) -> Result<config::Config, ConfigError> {
+    /// Load the configuration into a new [`ConfigurationTree`].
+    pub fn load(self) -> Result<ConfigurationTree, ConfigError> {
         let mut builder = config::Config::builder();
         builder = self.add_sources(builder)?;
-        Ok(builder.build()?)
+        Ok(ConfigurationTree(
+            builder.build().map_err(ConfigError::from_cfg_err)?,
+        ))
     }
 }
 
@@ -422,7 +434,7 @@ fn foreign_err<E>(err: E) -> crate::ConfigError
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    crate::ConfigError::from(config::ConfigError::Foreign(err.into()))
+    crate::ConfigError::from_cfg_err(config::ConfigError::Foreign(err.into()))
 }
 
 #[cfg(test)]
@@ -474,7 +486,7 @@ friends = 4242
     fn load_nodefaults<P: AsRef<Path>>(
         files: &[(P, MustRead)],
         opts: &[String],
-    ) -> Result<config::Config, crate::ConfigError> {
+    ) -> Result<ConfigurationTree, crate::ConfigError> {
         sources_nodefaults(files, opts).load()
     }
 
@@ -527,7 +539,13 @@ world = \"nonsense\"
         assert_eq!(
             found
                 .iter()
-                .map(|p| p.as_path().strip_prefix(&td).unwrap().to_str().unwrap())
+                .map(|p| p
+                    .as_path()
+                    .unwrap()
+                    .strip_prefix(&td)
+                    .unwrap()
+                    .to_str()
+                    .unwrap())
                 .collect_vec(),
             &["1.toml", "extra.d", "extra.d/2.toml"]
         );
@@ -571,7 +589,7 @@ world = \"nonsense\"
         let files: Vec<_> = sources
             .files
             .iter()
-            .map(|file| file.0.as_ref().to_str().unwrap())
+            .map(|file| file.0.as_path().unwrap().to_str().unwrap())
             .collect();
         assert_eq!(files, vec!["/family/yor.toml", "/family/anya.toml"]);
         assert_eq!(sources.files[0].1, MustRead::MustRead);

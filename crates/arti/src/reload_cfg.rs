@@ -322,6 +322,7 @@ impl FileWatcherBuilder {
             match source {
                 ConfigurationSource::Dir(dir) => self.watch_dir(dir)?,
                 ConfigurationSource::File(file) => self.watch_file(file)?,
+                ConfigurationSource::Verbatim(_) => {}
             }
         }
         Ok(sources)
