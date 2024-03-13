@@ -8,7 +8,9 @@ use tracing::trace;
 #[cfg(not(feature = "geoip"))]
 use void::Void;
 
-use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
+use crate::path::{
+    dirpath::DirPathBuilder, exitpath::ExitPathBuilder, AnonymousPathBuilder, TorPath,
+};
 use tor_chanmgr::ChannelUsage;
 #[cfg(feature = "geoip")]
 use tor_error::internal;
