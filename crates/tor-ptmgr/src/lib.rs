@@ -399,33 +399,33 @@ impl<R: Runtime> PtMgr<R> {
         // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
         //            Arguably this is fine since it's just a small read, and nothing should ever
         //            hold this lock for very long.
-        let (mut cmethod, configured) = {
+        let (cmethod, configured) = {
             let inner = self.state.read().expect("ptmgr poisoned");
             let cmethod = inner.managed_cmethods.get(transport).cloned();
             let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
             (cmethod, configured)
         };
 
-        match &cmethod {
-            None => {
-                if configured {
-                    // Tell the reactor to spawn the PT, and wait for it.
-                    // (The reactor will handle coalescing multiple requests.)
-                    info!("Got a request for transport {}, which is not currently running. Launching it.",
-                          transport
-                        );
-                    let (tx, rx) = oneshot::channel();
-                    self.tx
-                        .unbounded_send(PtReactorMessage::Spawn {
-                            pt: transport.clone(),
-                            result: tx,
-                        })
-                        .map_err(|_| {
-                            PtError::Internal(tor_error::internal!(
-                                "PT reactor closed unexpectedly"
-                            ))
-                        })?;
-                    let method =
+        match (cmethod, configured) {
+            (None, true) => {
+                // A configured-but-not-running cmethod.
+                //
+                // Tell the reactor to spawn the PT, and wait for it.
+                // (The reactor will handle coalescing multiple requests.)
+                info!(
+                    "Got a request for transport {}, which is not currently running. Launching it.",
+                    transport
+                );
+                let (tx, rx) = oneshot::channel();
+                self.tx
+                    .unbounded_send(PtReactorMessage::Spawn {
+                        pt: transport.clone(),
+                        result: tx,
+                    })
+                    .map_err(|_| {
+                        PtError::Internal(tor_error::internal!("PT reactor closed unexpectedly"))
+                    })?;
+                let method =
                         // NOTE(eta): Could be improved with result flattening.
                         rx.await
                             .map_err(|_| {
@@ -437,27 +437,28 @@ impl<R: Runtime> PtMgr<R> {
                                 warn!("PT for {} failed to launch: {}", transport, x);
                                 x
                             })?;
-                    info!(
-                        "Successfully launched PT for {} at {:?}.",
-                        transport, &method
-                    );
-                    cmethod = Some(method);
-                } else {
-                    trace!(
-                        "Got a request for transport {}, which is not configured.",
-                        transport
-                    );
-                    return Ok(None);
-                }
+                info!(
+                    "Successfully launched PT for {} at {:?}.",
+                    transport, &method
+                );
+                Ok(Some(method))
             }
-            Some(cmethod) => trace!(
-                "Found configured transport {} accessible via {:?}",
-                transport,
-                cmethod
-            ),
+            (None, false) => {
+                trace!(
+                    "Got a request for transport {}, which is not configured.",
+                    transport
+                );
+                Ok(None)
+            }
+            (Some(cmethod), _) => {
+                trace!(
+                    "Found configured transport {} accessible via {:?}",
+                    transport,
+                    cmethod
+                );
+                Ok(Some(cmethod))
+            }
         }
-
-        Ok(cmethod)
     }
 }
 
