@@ -8,11 +8,6 @@ use tracing::trace;
 #[cfg(not(feature = "geoip"))]
 use void::Void;
 
-#[cfg(feature = "hs-common")]
-use {
-    crate::HsCircStubKind,
-    crate::path::hspath::HsPathBuilder,
-};
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_chanmgr::ChannelUsage;
 #[cfg(feature = "geoip")]
@@ -21,6 +16,8 @@ use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
+#[cfg(feature = "hs-common")]
+use {crate::path::hspath::HsPathBuilder, crate::HsCircStubKind};
 
 #[cfg(feature = "specific-relay")]
 use tor_linkspec::{HasChanMethod, HasRelayIds};
