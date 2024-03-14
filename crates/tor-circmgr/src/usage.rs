@@ -882,7 +882,15 @@ pub(crate) mod test {
 
         // First, a one-hop directory circuit
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
-            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
+            .build_path(
+                &mut rng,
+                di,
+                guards,
+                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                &vanguards,
+                &config,
+                now,
+            )
             .unwrap();
         assert!(matches!(u_dir, SupportedCircUsage::Dir));
         assert_eq!(p_dir.len(), 1);
@@ -901,7 +909,15 @@ pub(crate) mod test {
             require_stability: false,
         };
         let (p_exit, u_exit, _, _) = exit_usage
-            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
+            .build_path(
+                &mut rng,
+                di,
+                guards,
+                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                &vanguards,
+                &config,
+                now,
+            )
             .unwrap();
         assert!(matches!(
             u_exit,
@@ -915,7 +931,15 @@ pub(crate) mod test {
 
         // Now try testing circuits.
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
+            .build_path(
+                &mut rng,
+                di,
+                guards,
+                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                &vanguards,
+                &config,
+                now,
+            )
             .unwrap();
         let path = match OwnedPath::try_from(&path).unwrap() {
             OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
@@ -961,7 +985,15 @@ pub(crate) mod test {
         let vanguards = VanguardMgr::new(&Default::default(), TestingStateMgr::default()).unwrap();
 
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
+            .build_path(
+                &mut rng,
+                di,
+                guards,
+                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                &vanguards,
+                &config,
+                now,
+            )
             .unwrap();
         assert_eq!(path.len(), 3);
         assert_isoleq!(usage, SupportedCircUsage::NoUsage);
