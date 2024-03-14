@@ -22,6 +22,9 @@ use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 use tor_rtcompat::Runtime;
 
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+use tor_guardmgr::vanguards::Vanguard;
+
 use crate::usage::ExitPolicy;
 use crate::{DirInfo, Error, PathConfig, Result};
 
@@ -106,6 +109,13 @@ impl<'a> HasRelayIds for MaybeOwnedRelay<'a> {
             MaybeOwnedRelay::Relay(r) => r.identity(key_type),
             MaybeOwnedRelay::Owned(r) => r.identity(key_type),
         }
+    }
+}
+
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+impl<'a> From<Vanguard<'a>> for MaybeOwnedRelay<'a> {
+    fn from(r: Vanguard<'a>) -> Self {
+        MaybeOwnedRelay::Relay(r.relay().clone())
     }
 }
 
