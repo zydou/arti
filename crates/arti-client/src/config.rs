@@ -54,7 +54,7 @@ pub mod dir {
 /// Types for configuring pluggable transports.
 #[cfg(feature = "pt-client")]
 pub mod pt {
-    pub use tor_ptmgr::config::{ManagedTransportConfig, ManagedTransportConfigBuilder};
+    pub use tor_ptmgr::config::{TransportConfig, TransportConfigBuilder};
 }
 
 /// Types for configuring onion services.
@@ -286,7 +286,7 @@ impl StorageConfig {
 /// A [`BridgesConfig`] configuration has the following pieces:
 ///    * A [`BridgeList`] of [`BridgeConfig`]s, which describes one or more bridges.
 ///    * An `enabled` boolean to say whether or not to use the listed bridges.
-///    * A list of [`pt::ManagedTransportConfig`]s.
+///    * A list of [`pt::TransportConfig`]s.
 ///
 /// # Example
 ///
@@ -301,7 +301,7 @@ impl StorageConfig {
 /// # fn demo() -> anyhow::Result<()> {
 /// use arti_client::config::{TorClientConfig, BridgeConfigBuilder, CfgPath};
 /// // Requires that the pt-client feature is enabled.
-/// use arti_client::config::pt::ManagedTransportConfigBuilder;
+/// use arti_client::config::pt::TransportConfigBuilder;
 ///
 /// let mut builder = TorClientConfig::builder();
 ///
@@ -328,7 +328,7 @@ impl StorageConfig {
 /// builder.bridges().bridges().push(bridge2_builder);
 ///
 /// // Now configure an obfs4 transport. (Requires the "pt-client" feature)
-/// let mut transport = ManagedTransportConfigBuilder::default();
+/// let mut transport = TransportConfigBuilder::default();
 /// transport
 ///     .protocols(vec!["obfs4".parse()?])
 ///     // Specify either the name or the absolute path of pluggable transport client binary, this
@@ -374,12 +374,12 @@ pub struct BridgesConfig {
 
 /// A list of configured transport binaries (type alias for macrology).
 #[cfg(feature = "pt-client")]
-type TransportConfigList = Vec<pt::ManagedTransportConfig>;
+type TransportConfigList = Vec<pt::TransportConfig>;
 
 #[cfg(feature = "pt-client")]
 define_list_builder_helper! {
     pub struct TransportConfigListBuilder {
-        transports: [pt::ManagedTransportConfigBuilder],
+        transports: [pt::TransportConfigBuilder],
     }
     built: TransportConfigList = transports;
     default = vec![];
@@ -388,7 +388,7 @@ define_list_builder_helper! {
 #[cfg(feature = "pt-client")]
 define_list_builder_accessors! {
     struct BridgesConfigBuilder {
-        pub transports: [pt::ManagedTransportConfigBuilder],
+        pub transports: [pt::TransportConfigBuilder],
     }
 }
 
@@ -938,12 +938,26 @@ mod test {
             cfg
         };
 
-        let chk = |cfg: &TorClientConfigBuilder, expected: bool| {
-            assert_eq!(cfg.build().is_ok(), expected);
+        let chk = |cfg: &TorClientConfigBuilder, expected: Result<(), &str>| match (
+            cfg.build(),
+            expected,
+        ) {
+            (Ok(_), Ok(())) => {}
+            (Err(e), Err(ex)) => {
+                if !e.to_string().contains(ex) {
+                    panic!("\"{e}\" did not contain {ex}");
+                }
+            }
+            (Ok(_), Err(ex)) => {
+                panic!("Expected {ex} but cfg succeeded");
+            }
+            (Err(e), Ok(())) => {
+                panic!("Expected success but got error {e}")
+            }
         };
 
         let test_cases = [
-            ("# No bridges", true),
+            ("# No bridges", Ok(())),
             (
                 r#"
                     # No bridges but we still enabled bridges
@@ -951,7 +965,7 @@ mod test {
                     enabled = true
                     bridges = []
                 "#,
-                false,
+                Err("bridges.enabled=true, but no bridges defined"),
             ),
             (
                 r#"
@@ -962,7 +976,7 @@ mod test {
                         "192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956",
                     ]
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -976,7 +990,31 @@ mod test {
                     protocols = ["obfs4"]
                     path = "obfs4proxy"
                 "#,
-                true,
+                Ok(()),
+            ),
+            (
+                r#"
+                    # One obfs4 bridge with unmanaged transport.
+                    [bridges]
+                    enabled = true
+                    bridges = [
+                        "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
+                    ]
+                    [[bridges.transports]]
+                    protocols = ["obfs4"]
+                    proxy_addr = "127.0.0.1:31337"
+                "#,
+                Ok(()),
+            ),
+            (
+                r#"
+                    # Transport is both managed and unmanaged.
+                    [[bridges.transports]]
+                    protocols = ["obfs4"]
+                    path = "obfsproxy"
+                    proxy_addr = "127.0.0.1:9999"
+                "#,
+                Err("Cannot provide both path and proxy_addr"),
             ),
             (
                 r#"
@@ -991,7 +1029,7 @@ mod test {
                     protocols = ["obfs4"]
                     path = "obfs4proxy"
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -1003,7 +1041,7 @@ mod test {
                         "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
                     ]
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -1014,7 +1052,7 @@ mod test {
                         "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
                     ]
                 "#,
-                false,
+                Err("all bridges unusable due to lack of corresponding pluggable transport"),
             ),
             (
                 r#"
@@ -1025,7 +1063,7 @@ mod test {
                         "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
                     ]
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -1039,7 +1077,7 @@ mod test {
                         protocols = ["obfs4"]
                         path = "obfs4proxy"
                 "#,
-                true,
+                Ok(()),
             ),
         ];
 

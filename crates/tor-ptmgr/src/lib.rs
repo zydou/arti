@@ -45,7 +45,7 @@ pub mod config;
 pub mod err;
 pub mod ipc;
 
-use crate::config::ManagedTransportConfig;
+use crate::config::TransportConfig;
 use crate::err::PtError;
 use crate::ipc::{
     sealed::PluggableTransportPrivate, PluggableClientTransport, PluggableTransport,
@@ -61,7 +61,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use tor_async_utils::oneshot;
-use tor_error::error_report;
+use tor_error::{error_report, internal};
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
@@ -79,9 +79,11 @@ use {
 #[derive(Default, Debug)]
 struct PtSharedState {
     /// Connection information for pluggable transports from currently running binaries.
-    cmethods: HashMap<PtTransportName, PtClientMethod>,
-    /// Current configured set of pluggable transport binaries.
-    configured: HashMap<PtTransportName, ManagedTransportConfig>,
+    ///
+    /// Unmanaged pluggable transports are not included in this map.
+    managed_cmethods: HashMap<PtTransportName, PtClientMethod>,
+    /// Current configured set of pluggable transports.
+    configured: HashMap<PtTransportName, TransportConfig>,
 }
 
 /// A message to the `PtReactor`.
@@ -170,7 +172,9 @@ impl<R: Runtime> PtReactor<R> {
             Ok(pt) => {
                 let mut state = self.state.write().expect("ptmgr state poisoned");
                 for (transport, method) in pt.transport_methods() {
-                    state.cmethods.insert(transport.clone(), method.clone());
+                    state
+                        .managed_cmethods
+                        .insert(transport.clone(), method.clone());
                     for sender in self.requests.remove(transport).into_iter().flatten() {
                         let _ = sender.send(Ok(method.clone()));
                     }
@@ -191,7 +195,7 @@ impl<R: Runtime> PtReactor<R> {
     fn remove_pt(&self, pt: PluggableClientTransport) {
         let mut state = self.state.write().expect("ptmgr state poisoned");
         for transport in pt.transport_methods().keys() {
-            state.cmethods.remove(transport);
+            state.managed_cmethods.remove(transport);
         }
         // to satisfy clippy, and make it clear that this is a desired side-effect: doing this
         // shuts down the PT (asynchronously).
@@ -265,7 +269,11 @@ impl<R: Runtime> PtReactor<R> {
                             state.configured.get(&pt).cloned()
                         };
                         let config = match config {
-                            Some(v) => v,
+                            Some(v) if v.is_managed() => v,
+                            Some(_) => {
+                                let _ = result.send(Err(internal!("Tried to spawn an unmanaged transport").into()));
+                                return Ok(false);
+                            }
                             None => {
                                 let _ = result.send(Err(PtError::UnconfiguredTransportDueToConcurrentReconfiguration));
                                 return Ok(false);
@@ -308,11 +316,11 @@ pub struct PtMgr<R> {
 impl<R: Runtime> PtMgr<R> {
     /// Transform the config into a more useful representation indexed by transport name.
     fn transform_config(
-        binaries: Vec<ManagedTransportConfig>,
-    ) -> HashMap<PtTransportName, ManagedTransportConfig> {
+        binaries: Vec<TransportConfig>,
+    ) -> HashMap<PtTransportName, TransportConfig> {
         let mut ret = HashMap::new();
-        // FIXME(eta): You can currently specify overlapping protocols in your binaries, and it'll
-        //             just use the last binary specified.
+        // FIXME(eta): You can currently specify overlapping protocols, and it'll
+        //             just use the last transport specified.
         //             I attempted to fix this, but decided I didn't want to stare into the list
         //             builder macro void after trying it for 15 minutes.
         for thing in binaries {
@@ -326,12 +334,12 @@ impl<R: Runtime> PtMgr<R> {
     /// Create a new PtMgr.
     // TODO: maybe don't have the Vec directly exposed?
     pub fn new(
-        transports: Vec<ManagedTransportConfig>,
+        transports: Vec<TransportConfig>,
         state_dir: PathBuf,
         rt: R,
     ) -> Result<Self, PtError> {
         let state = PtSharedState {
-            cmethods: Default::default(),
+            managed_cmethods: Default::default(),
             configured: Self::transform_config(transports),
         };
         let state = Arc::new(RwLock::new(state));
@@ -363,7 +371,7 @@ impl<R: Runtime> PtMgr<R> {
     pub fn reconfigure(
         &self,
         how: tor_config::Reconfigure,
-        transports: Vec<ManagedTransportConfig>,
+        transports: Vec<TransportConfig>,
     ) -> Result<(), tor_config::ReconfigureError> {
         let configured = Self::transform_config(transports);
         if how == tor_config::Reconfigure::CheckAllOrNothing {
@@ -378,17 +386,126 @@ impl<R: Runtime> PtMgr<R> {
         let _ = self.tx.unbounded_send(PtReactorMessage::Reconfigured);
         Ok(())
     }
+
+    /// Given a transport name, return a method that we can use to contact that transport.
+    ///
+    /// May have to launch a managed transport as needed.
+    ///
+    /// Returns Ok(None) if no such transport exists.
+    async fn get_cmethod_for_transport(
+        &self,
+        transport: &PtTransportName,
+    ) -> Result<Option<PtClientMethod>, PtError> {
+        // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
+        //            Arguably this is fine since it's just a small read, and nothing should ever
+        //            hold this lock for very long.
+        let (cmethod, configured) = {
+            let inner = self.state.read().expect("ptmgr poisoned");
+            let cfg = inner.configured.get(transport);
+            if let Some(cmethod) = cfg.and_then(TransportConfig::cmethod_for_unmanaged_pt) {
+                // We have a unmanaged transport; that was easy.
+                (Some(cmethod), true)
+            } else {
+                let cmethod = inner.managed_cmethods.get(transport).cloned();
+                let configured = cmethod.is_some() || cfg.is_some();
+                (cmethod, configured)
+            }
+        };
+
+        match (cmethod, configured) {
+            // There is going to be a lot happening "under the hood" here.
+            //
+            // When we are asked to get a ChannelFactory for a given
+            // connection, we will need to:
+            //    - launch the binary for that transport if it is not already running*.
+            //    - If we launched the binary, talk to it and see which ports it
+            //      is listening on.
+            //    - Return a ChannelFactory that connects via one of those ports,
+            //      using the appropriate version of SOCKS, passing K=V parameters
+            //      encoded properly.
+            //
+            // * As in other managers, we'll need to avoid trying to launch the same
+            //   transport twice if we get two concurrent requests.
+            //
+            // Later if the binary crashes, we should detect that.  We should relaunch
+            // it on demand.
+            //
+            // On reconfigure, we should shut down any no-longer-used transports.
+            //
+            // Maybe, we should shut down transports that haven't been used
+            // for a long time.
+            (None, true) => {
+                // A configured-but-not-running cmethod.
+                //
+                // Tell the reactor to spawn the PT, and wait for it.
+                // (The reactor will handle coalescing multiple requests.)
+                info!(
+                    "Got a request for transport {}, which is not currently running. Launching it.",
+                    transport
+                );
+                let (tx, rx) = oneshot::channel();
+                self.tx
+                    .unbounded_send(PtReactorMessage::Spawn {
+                        pt: transport.clone(),
+                        result: tx,
+                    })
+                    .map_err(|_| {
+                        PtError::Internal(tor_error::internal!("PT reactor closed unexpectedly"))
+                    })?;
+                let method =
+                        // NOTE(eta): Could be improved with result flattening.
+                        rx.await
+                            .map_err(|_| {
+                               PtError::Internal(tor_error::internal!(
+                                    "PT reactor closed unexpectedly"
+                                ))
+                            })?
+                            .map_err(|x| {
+                                warn!("PT for {} failed to launch: {}", transport, x);
+                                x
+                            })?;
+                info!(
+                    "Successfully launched PT for {} at {:?}.",
+                    transport, &method
+                );
+                Ok(Some(method))
+            }
+            (None, false) => {
+                trace!(
+                    "Got a request for transport {}, which is not configured.",
+                    transport
+                );
+                Ok(None)
+            }
+            (Some(cmethod), _) => {
+                trace!(
+                    "Found configured transport {} accessible via {:?}",
+                    transport,
+                    cmethod
+                );
+                Ok(Some(cmethod))
+            }
+        }
+    }
 }
 
-/// Spawn a `PluggableTransport` using a `ManagedTransportConfig`.
+/// Spawn a managed `PluggableTransport` using a `TransportConfig`.
+///
+/// Requires that the transport is a managed transport.
 async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
-    cfg: ManagedTransportConfig,
+    cfg: TransportConfig,
 ) -> Result<PluggableClientTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
-    let binary_path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {
-        path: cfg.path,
+
+    let cfg_path = cfg
+        .path
+        .as_ref()
+        .ok_or_else(|| internal!("spawn_from_config on an unmanaged transport."))?;
+
+    let binary_path = cfg_path.path().map_err(|e| PtError::PathExpansionFailed {
+        path: cfg_path.clone(),
         error: e,
     })?;
 
@@ -426,92 +543,16 @@ async fn spawn_from_config<R: Runtime>(
 #[cfg(feature = "tor-channel-factory")]
 #[async_trait]
 impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
-    // There is going to be a lot happening "under the hood" here.
-    //
-    // When we are asked to get a ChannelFactory for a given
-    // connection, we will need to:
-    //    - launch the binary for that transport if it is not already running*.
-    //    - If we launched the binary, talk to it and see which ports it
-    //      is listening on.
-    //    - Return a ChannelFactory that connects via one of those ports,
-    //      using the appropriate version of SOCKS, passing K=V parameters
-    //      encoded properly.
-    //
-    // * As in other managers, we'll need to avoid trying to launch the same
-    //   transport twice if we get two concurrent requests.
-    //
-    // Later if the binary crashes, we should detect that.  We should relaunch
-    // it on demand.
-    //
-    // On reconfigure, we should shut down any no-longer-used transports.
-    //
-    // Maybe, we should shut down transports that haven't been used
-    // for a long time.
     async fn factory_for_transport(
         &self,
         transport: &PtTransportName,
     ) -> Result<Option<Arc<dyn ChannelFactory + Send + Sync>>, Arc<dyn AbstractPtError>> {
-        // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
-        //            Arguably this is fine since it's just a small read, and nothing should ever
-        //            hold this lock for very long.
-        let (mut cmethod, configured) = {
-            let inner = self.state.read().expect("ptmgr poisoned");
-            let cmethod = inner.cmethods.get(transport).cloned();
-            let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
-            (cmethod, configured)
+        let cmethod = match self.get_cmethod_for_transport(transport).await {
+            Err(e) => return Err(Arc::new(e)),
+            Ok(None) => return Ok(None),
+            Ok(Some(m)) => m,
         };
 
-        match &cmethod {
-            None => {
-                if configured {
-                    // Tell the reactor to spawn the PT, and wait for it.
-                    // (The reactor will handle coalescing multiple requests.)
-                    info!("Got a request for transport {}, which is not currently running. Launching it.", 
-                          transport
-                        );
-                    let (tx, rx) = oneshot::channel();
-                    self.tx
-                        .unbounded_send(PtReactorMessage::Spawn {
-                            pt: transport.clone(),
-                            result: tx,
-                        })
-                        .map_err(|_| {
-                            Arc::new(PtError::Internal(tor_error::internal!(
-                                "PT reactor closed unexpectedly"
-                            ))) as Arc<dyn AbstractPtError>
-                        })?;
-                    let method =
-                        // NOTE(eta): Could be improved with result flattening.
-                        rx.await
-                            .map_err(|_| {
-                                Arc::new(PtError::Internal(tor_error::internal!(
-                                    "PT reactor closed unexpectedly"
-                                ))) as Arc<dyn AbstractPtError>
-                            })?
-                            .map_err(|x| {
-                                warn!("PT for {} failed to launch: {}", transport, x);
-                                Arc::new(x) as Arc<dyn AbstractPtError>
-                            })?;
-                    info!(
-                        "Successfully launched PT for {} at {:?}.",
-                        transport, &method
-                    );
-                    cmethod = Some(method);
-                } else {
-                    trace!(
-                        "Got a request for transport {}, which is not configured.",
-                        transport
-                    );
-                    return Ok(None);
-                }
-            }
-            Some(cmethod) => trace!(
-                "Found configured transport {} accessible via {:?}",
-                transport,
-                cmethod
-            ),
-        }
-        let cmethod = cmethod.expect("impossible");
         let proxy = ExternalProxyPlugin::new(self.runtime.clone(), cmethod.endpoint, cmethod.kind);
         let factory = ChanBuilder::new(self.runtime.clone(), proxy);
         // FIXME(eta): Should we cache constructed factories? If no: should this still be an Arc?

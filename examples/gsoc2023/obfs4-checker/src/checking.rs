@@ -1,5 +1,5 @@
 //! This module contains the code that actually runs checks on bridges
-use arti_client::config::pt::ManagedTransportConfigBuilder;
+use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, CfgPath, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
 use std::collections::{HashMap, HashSet};
@@ -59,7 +59,7 @@ fn build_pt_bridge_config(
     bin_path: &str,
 ) -> anyhow::Result<TorClientConfigBuilder> {
     let mut builder = TorClientConfig::builder();
-    let mut transport = ManagedTransportConfigBuilder::default();
+    let mut transport = TransportConfigBuilder::default();
     let protocol_parsed = protocol.parse()?;
     transport
         .protocols(vec![protocol_parsed])

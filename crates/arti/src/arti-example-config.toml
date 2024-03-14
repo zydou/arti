@@ -195,6 +195,16 @@
 # launched when we first attempt to use any of the transports it provides instead.
 # run_on_startup = true
 
+# An example unmanaged pluggable transport.
+# [[bridges.transports]]
+#
+# Which protocols does this transport provide?
+# protocols = ["obfs4"]
+#
+# Where can we contact this transport?
+# (This should be a local SOCKS5 proxy address.)
+# proxy_addr = "127.0.0.1:31337"
+
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.
 # These are case-sensitive.

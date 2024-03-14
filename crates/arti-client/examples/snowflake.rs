@@ -19,7 +19,7 @@ use {anyhow::Result, tokio_crate as tokio};
 #[cfg(feature = "pt-client")]
 #[tokio::main]
 async fn main() -> Result<()> {
-    use arti_client::config::pt::ManagedTransportConfigBuilder;
+    use arti_client::config::pt::TransportConfigBuilder;
     use arti_client::config::{BridgeConfigBuilder, CfgPath};
     use arti_client::{TorClient, TorClientConfig};
 
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
     builder.bridges().bridges().push(bridge2_builder);
 
     // Now configure an snowflake transport. (Requires the "pt-client" feature)
-    let mut transport = ManagedTransportConfigBuilder::default();
+    let mut transport = TransportConfigBuilder::default();
     transport
         .protocols(vec!["snowflake".parse()?])
         // this might be named differently on some systems, this should work on Debian, but Archlinux is known to use `snowflake-pt-client` instead for instance.
