@@ -938,12 +938,26 @@ mod test {
             cfg
         };
 
-        let chk = |cfg: &TorClientConfigBuilder, expected: bool| {
-            assert_eq!(cfg.build().is_ok(), expected);
+        let chk = |cfg: &TorClientConfigBuilder, expected: Result<(), &str>| match (
+            cfg.build(),
+            expected,
+        ) {
+            (Ok(_), Ok(())) => {}
+            (Err(e), Err(ex)) => {
+                if !e.to_string().contains(ex) {
+                    panic!("\"{e}\" did not contain {ex}");
+                }
+            }
+            (Ok(_), Err(ex)) => {
+                panic!("Expected {ex} but cfg succeeded");
+            }
+            (Err(e), Ok(())) => {
+                panic!("Expected success but got error {e}")
+            }
         };
 
         let test_cases = [
-            ("# No bridges", true),
+            ("# No bridges", Ok(())),
             (
                 r#"
                     # No bridges but we still enabled bridges
@@ -951,7 +965,7 @@ mod test {
                     enabled = true
                     bridges = []
                 "#,
-                false,
+                Err("bridges.enabled=true, but no bridges defined"),
             ),
             (
                 r#"
@@ -962,7 +976,7 @@ mod test {
                         "192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956",
                     ]
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -976,7 +990,31 @@ mod test {
                     protocols = ["obfs4"]
                     path = "obfs4proxy"
                 "#,
-                true,
+                Ok(()),
+            ),
+            (
+                r#"
+                    # One obfs4 bridge with unmanaged transport.
+                    [bridges]
+                    enabled = true
+                    bridges = [
+                        "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
+                    ]
+                    [[bridges.transports]]
+                    protocols = ["obfs4"]
+                    proxy_addr = "127.0.0.1:31337"
+                "#,
+                Ok(()),
+            ),
+            (
+                r#"
+                    # Transport is both managed and unmanaged.
+                    [[bridges.transports]]
+                    protocols = ["obfs4"]
+                    path = "obfsproxy"
+                    proxy_addr = "127.0.0.1:9999"
+                "#,
+                Err("Cannot provide both path and proxy_addr"),
             ),
             (
                 r#"
@@ -991,7 +1029,7 @@ mod test {
                     protocols = ["obfs4"]
                     path = "obfs4proxy"
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -1003,7 +1041,7 @@ mod test {
                         "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
                     ]
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -1014,7 +1052,7 @@ mod test {
                         "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
                     ]
                 "#,
-                false,
+                Err("all bridges unusable due to lack of corresponding pluggable transport"),
             ),
             (
                 r#"
@@ -1025,7 +1063,7 @@ mod test {
                         "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
                     ]
                 "#,
-                true,
+                Ok(()),
             ),
             (
                 r#"
@@ -1039,7 +1077,7 @@ mod test {
                         protocols = ["obfs4"]
                         path = "obfs4proxy"
                 "#,
-                true,
+                Ok(()),
             ),
         ];
 
