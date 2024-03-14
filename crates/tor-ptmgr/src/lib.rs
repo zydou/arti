@@ -382,6 +382,79 @@ impl<R: Runtime> PtMgr<R> {
         let _ = self.tx.unbounded_send(PtReactorMessage::Reconfigured);
         Ok(())
     }
+
+    /// Given a transport name, return a method that we can use to contact that transport.
+    ///
+    /// May have to launch a managed transport as needed.
+    ///
+    /// Returns Ok(None) if no such transport exists.
+    async fn get_cmethod_for_transport(
+        &self,
+        transport: &PtTransportName,
+    ) -> Result<Option<PtClientMethod>, PtError> {
+        // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
+        //            Arguably this is fine since it's just a small read, and nothing should ever
+        //            hold this lock for very long.
+        let (mut cmethod, configured) = {
+            let inner = self.state.read().expect("ptmgr poisoned");
+            let cmethod = inner.cmethods.get(transport).cloned();
+            let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
+            (cmethod, configured)
+        };
+
+        match &cmethod {
+            None => {
+                if configured {
+                    // Tell the reactor to spawn the PT, and wait for it.
+                    // (The reactor will handle coalescing multiple requests.)
+                    info!("Got a request for transport {}, which is not currently running. Launching it.", 
+                          transport
+                        );
+                    let (tx, rx) = oneshot::channel();
+                    self.tx
+                        .unbounded_send(PtReactorMessage::Spawn {
+                            pt: transport.clone(),
+                            result: tx,
+                        })
+                        .map_err(|_| {
+                            PtError::Internal(tor_error::internal!(
+                                "PT reactor closed unexpectedly"
+                            ))
+                        })?;
+                    let method =
+                        // NOTE(eta): Could be improved with result flattening.
+                        rx.await
+                            .map_err(|_| {
+                               PtError::Internal(tor_error::internal!(
+                                    "PT reactor closed unexpectedly"
+                                ))
+                            })?
+                            .map_err(|x| {
+                                warn!("PT for {} failed to launch: {}", transport, x);
+                                x
+                            })?;
+                    info!(
+                        "Successfully launched PT for {} at {:?}.",
+                        transport, &method
+                    );
+                    cmethod = Some(method);
+                } else {
+                    trace!(
+                        "Got a request for transport {}, which is not configured.",
+                        transport
+                    );
+                    return Ok(None);
+                }
+            }
+            Some(cmethod) => trace!(
+                "Found configured transport {} accessible via {:?}",
+                transport,
+                cmethod
+            ),
+        }
+
+        Ok(cmethod)
+    }
 }
 
 /// Spawn a managed `PluggableTransport` using a `TransportConfig`.
@@ -463,67 +536,12 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
         &self,
         transport: &PtTransportName,
     ) -> Result<Option<Arc<dyn ChannelFactory + Send + Sync>>, Arc<dyn AbstractPtError>> {
-        // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
-        //            Arguably this is fine since it's just a small read, and nothing should ever
-        //            hold this lock for very long.
-        let (mut cmethod, configured) = {
-            let inner = self.state.read().expect("ptmgr poisoned");
-            let cmethod = inner.cmethods.get(transport).cloned();
-            let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
-            (cmethod, configured)
+        let cmethod = match self.get_cmethod_for_transport(transport).await {
+            Err(e) => return Err(Arc::new(e)),
+            Ok(None) => return Ok(None),
+            Ok(Some(m)) => m,
         };
 
-        match &cmethod {
-            None => {
-                if configured {
-                    // Tell the reactor to spawn the PT, and wait for it.
-                    // (The reactor will handle coalescing multiple requests.)
-                    info!("Got a request for transport {}, which is not currently running. Launching it.", 
-                          transport
-                        );
-                    let (tx, rx) = oneshot::channel();
-                    self.tx
-                        .unbounded_send(PtReactorMessage::Spawn {
-                            pt: transport.clone(),
-                            result: tx,
-                        })
-                        .map_err(|_| {
-                            Arc::new(PtError::Internal(tor_error::internal!(
-                                "PT reactor closed unexpectedly"
-                            ))) as Arc<dyn AbstractPtError>
-                        })?;
-                    let method =
-                        // NOTE(eta): Could be improved with result flattening.
-                        rx.await
-                            .map_err(|_| {
-                                Arc::new(PtError::Internal(tor_error::internal!(
-                                    "PT reactor closed unexpectedly"
-                                ))) as Arc<dyn AbstractPtError>
-                            })?
-                            .map_err(|x| {
-                                warn!("PT for {} failed to launch: {}", transport, x);
-                                Arc::new(x) as Arc<dyn AbstractPtError>
-                            })?;
-                    info!(
-                        "Successfully launched PT for {} at {:?}.",
-                        transport, &method
-                    );
-                    cmethod = Some(method);
-                } else {
-                    trace!(
-                        "Got a request for transport {}, which is not configured.",
-                        transport
-                    );
-                    return Ok(None);
-                }
-            }
-            Some(cmethod) => trace!(
-                "Found configured transport {} accessible via {:?}",
-                transport,
-                cmethod
-            ),
-        }
-        let cmethod = cmethod.expect("impossible");
         let proxy = ExternalProxyPlugin::new(self.runtime.clone(), cmethod.endpoint, cmethod.kind);
         let factory = ChanBuilder::new(self.runtime.clone(), proxy);
         // FIXME(eta): Should we cache constructed factories? If no: should this still be an Arc?
