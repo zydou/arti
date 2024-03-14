@@ -5,7 +5,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 
-use crate::{Error, Result};
+use crate::{hspool::HsCircStubKind, Error, Result};
 
 use super::AnonymousPathBuilder;
 
@@ -41,6 +41,11 @@ use {
 pub struct HsPathBuilder {
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
     compatible_with: Option<OwnedChanTarget>,
+    /// The type of circuit to build.
+    ///
+    /// This is only used if `vanguards` are enabled.
+    #[cfg_attr(not(feature = "vanguards"), allow(dead_code))]
+    kind: HsCircStubKind,
 }
 
 impl HsPathBuilder {
@@ -51,8 +56,11 @@ impl HsPathBuilder {
     /// (The provided relay is _not_ included in the built path: we only ensure
     /// that the path we build does not have any features that would stop us
     /// extending it to that relay as a fourth hop.)
-    pub(crate) fn new(compatible_with: Option<OwnedChanTarget>) -> Self {
-        Self { compatible_with }
+    pub(crate) fn new(compatible_with: Option<OwnedChanTarget>, kind: HsCircStubKind) -> Self {
+        Self {
+            compatible_with,
+            kind,
+        }
     }
 
     /// Try to create and return a path for a hidden service circuit stub.

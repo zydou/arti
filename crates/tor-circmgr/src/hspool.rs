@@ -403,7 +403,7 @@ impl<R: Runtime> HsCircPool<R> {
         // TODO: We could in launch multiple circuits in parallel here?
         let circ = self
             .circmgr
-            .launch_hs_unmanaged(avoid_target, netdir)
+            .launch_hs_unmanaged(avoid_target, netdir, kind)
             .await?;
 
         Ok(HsCircStub { circ, kind })
@@ -586,7 +586,11 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 let stub_kind = HsCircStubKind::Stub;
 
                 // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
-                match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
+                match pool
+                    .circmgr
+                    .launch_hs_unmanaged(no_target, &netdir, stub_kind)
+                    .await
+                {
                     Ok(circ) => {
                         let circ = HsCircStub {
                             circ,

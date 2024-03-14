@@ -97,6 +97,8 @@ pub use tor_guardmgr::{ExternalActivity, FirstHopId};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
+#[cfg(feature = "hs-common")]
+use crate::hspool::HsCircStubKind;
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::VanguardMgr;
 
@@ -482,12 +484,14 @@ impl<R: Runtime> CircMgr<R> {
         &self,
         planned_target: Option<T>,
         dir: &NetDir,
+        kind: HsCircStubKind,
     ) -> Result<Arc<ClientCirc>>
     where
         T: IntoOwnedChanTarget,
     {
         let usage = TargetCircUsage::HsCircBase {
             compatible_with_target: planned_target.map(IntoOwnedChanTarget::to_owned),
+            kind,
         };
         let (_, client_circ) = self.mgr.launch_unmanaged(&usage, dir.into()).await?;
         Ok(client_circ)

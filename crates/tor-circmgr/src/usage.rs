@@ -9,7 +9,10 @@ use tracing::trace;
 use void::Void;
 
 #[cfg(feature = "hs-common")]
-use crate::path::hspath::HsPathBuilder;
+use {
+    crate::HsCircStubKind,
+    crate::path::hspath::HsPathBuilder,
+};
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_chanmgr::ChannelUsage;
 #[cfg(feature = "geoip")]
@@ -168,6 +171,8 @@ pub(crate) enum TargetCircUsage {
         /// circuit with this target (without, for example, violating any
         /// family restrictions).
         compatible_with_target: Option<OwnedChanTarget>,
+        /// The kind of stub circuit to build.
+        kind: HsCircStubKind,
     },
 }
 
@@ -334,8 +339,9 @@ impl TargetCircUsage {
             #[cfg(feature = "hs-common")]
             TargetCircUsage::HsCircBase {
                 compatible_with_target,
+                kind,
             } => {
-                let (path, mon, usable) = HsPathBuilder::new(compatible_with_target.clone())
+                let (path, mon, usable) = HsPathBuilder::new(compatible_with_target.clone(), *kind)
                     .pick_path(rng, netdir, guards, config, now)?;
                 let usage = SupportedCircUsage::HsOnly;
                 Ok((path, usage, mon, usable))
