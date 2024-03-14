@@ -11,8 +11,7 @@ use tor_netdir::{NetDir, Relay};
 //
 // TODO HS-VANGUARDS: this is currently just a Relay newtype (if it doesn't grow any additional
 // fields, we might want to consider removing it and using Relay instead).
-#[derive(Clone)]
-#[allow(unused)] // TODO HS-VANGUARDS
+#[derive(Clone, amplify::Getters)]
 pub struct Vanguard<'a> {
     /// The relay.
     relay: Relay<'a>,
