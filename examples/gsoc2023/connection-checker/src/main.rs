@@ -41,7 +41,7 @@
 //! intended for experimental purposes, providing insights into
 //! connection methods.
 use anyhow::Result;
-use arti_client::config::pt::ManagedTransportConfigBuilder;
+use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, CfgPath, Reconfigure};
 use arti_client::{TorClient, TorClientConfig};
 use clap::Parser;
@@ -118,7 +118,7 @@ fn build_pt_config(
     let mut builder = TorClientConfig::builder();
     let bridge: BridgeConfigBuilder = bridge_line.parse()?;
     builder.bridges().bridges().push(bridge);
-    let mut transport = ManagedTransportConfigBuilder::default();
+    let mut transport = TransportConfigBuilder::default();
     transport
         .protocols(vec![protocol_name.parse()?])
         .path(CfgPath::new(client_path.into()))

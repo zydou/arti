@@ -54,7 +54,7 @@ pub mod dir {
 /// Types for configuring pluggable transports.
 #[cfg(feature = "pt-client")]
 pub mod pt {
-    pub use tor_ptmgr::config::{ManagedTransportConfig, ManagedTransportConfigBuilder};
+    pub use tor_ptmgr::config::{TransportConfig, TransportConfigBuilder};
 }
 
 /// Types for configuring onion services.
@@ -286,7 +286,7 @@ impl StorageConfig {
 /// A [`BridgesConfig`] configuration has the following pieces:
 ///    * A [`BridgeList`] of [`BridgeConfig`]s, which describes one or more bridges.
 ///    * An `enabled` boolean to say whether or not to use the listed bridges.
-///    * A list of [`pt::ManagedTransportConfig`]s.
+///    * A list of [`pt::TransportConfig`]s.
 ///
 /// # Example
 ///
@@ -301,7 +301,7 @@ impl StorageConfig {
 /// # fn demo() -> anyhow::Result<()> {
 /// use arti_client::config::{TorClientConfig, BridgeConfigBuilder, CfgPath};
 /// // Requires that the pt-client feature is enabled.
-/// use arti_client::config::pt::ManagedTransportConfigBuilder;
+/// use arti_client::config::pt::TransportConfigBuilder;
 ///
 /// let mut builder = TorClientConfig::builder();
 ///
@@ -328,7 +328,7 @@ impl StorageConfig {
 /// builder.bridges().bridges().push(bridge2_builder);
 ///
 /// // Now configure an obfs4 transport. (Requires the "pt-client" feature)
-/// let mut transport = ManagedTransportConfigBuilder::default();
+/// let mut transport = TransportConfigBuilder::default();
 /// transport
 ///     .protocols(vec!["obfs4".parse()?])
 ///     // Specify either the name or the absolute path of pluggable transport client binary, this
@@ -374,12 +374,12 @@ pub struct BridgesConfig {
 
 /// A list of configured transport binaries (type alias for macrology).
 #[cfg(feature = "pt-client")]
-type TransportConfigList = Vec<pt::ManagedTransportConfig>;
+type TransportConfigList = Vec<pt::TransportConfig>;
 
 #[cfg(feature = "pt-client")]
 define_list_builder_helper! {
     pub struct TransportConfigListBuilder {
-        transports: [pt::ManagedTransportConfigBuilder],
+        transports: [pt::TransportConfigBuilder],
     }
     built: TransportConfigList = transports;
     default = vec![];
@@ -388,7 +388,7 @@ define_list_builder_helper! {
 #[cfg(feature = "pt-client")]
 define_list_builder_accessors! {
     struct BridgesConfigBuilder {
-        pub transports: [pt::ManagedTransportConfigBuilder],
+        pub transports: [pt::TransportConfigBuilder],
     }
 }
 

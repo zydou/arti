@@ -45,7 +45,7 @@ pub mod config;
 pub mod err;
 pub mod ipc;
 
-use crate::config::ManagedTransportConfig;
+use crate::config::TransportConfig;
 use crate::err::PtError;
 use crate::ipc::{
     sealed::PluggableTransportPrivate, PluggableClientTransport, PluggableTransport,
@@ -81,7 +81,7 @@ struct PtSharedState {
     /// Connection information for pluggable transports from currently running binaries.
     cmethods: HashMap<PtTransportName, PtClientMethod>,
     /// Current configured set of pluggable transport binaries.
-    configured: HashMap<PtTransportName, ManagedTransportConfig>,
+    configured: HashMap<PtTransportName, TransportConfig>,
 }
 
 /// A message to the `PtReactor`.
@@ -308,8 +308,8 @@ pub struct PtMgr<R> {
 impl<R: Runtime> PtMgr<R> {
     /// Transform the config into a more useful representation indexed by transport name.
     fn transform_config(
-        binaries: Vec<ManagedTransportConfig>,
-    ) -> HashMap<PtTransportName, ManagedTransportConfig> {
+        binaries: Vec<TransportConfig>,
+    ) -> HashMap<PtTransportName, TransportConfig> {
         let mut ret = HashMap::new();
         // FIXME(eta): You can currently specify overlapping protocols in your binaries, and it'll
         //             just use the last binary specified.
@@ -326,7 +326,7 @@ impl<R: Runtime> PtMgr<R> {
     /// Create a new PtMgr.
     // TODO: maybe don't have the Vec directly exposed?
     pub fn new(
-        transports: Vec<ManagedTransportConfig>,
+        transports: Vec<TransportConfig>,
         state_dir: PathBuf,
         rt: R,
     ) -> Result<Self, PtError> {
@@ -363,7 +363,7 @@ impl<R: Runtime> PtMgr<R> {
     pub fn reconfigure(
         &self,
         how: tor_config::Reconfigure,
-        transports: Vec<ManagedTransportConfig>,
+        transports: Vec<TransportConfig>,
     ) -> Result<(), tor_config::ReconfigureError> {
         let configured = Self::transform_config(transports);
         if how == tor_config::Reconfigure::CheckAllOrNothing {
@@ -380,11 +380,11 @@ impl<R: Runtime> PtMgr<R> {
     }
 }
 
-/// Spawn a `PluggableTransport` using a `ManagedTransportConfig`.
+/// Spawn a `PluggableTransport` using a `TransportConfig`.
 async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
-    cfg: ManagedTransportConfig,
+    cfg: TransportConfig,
 ) -> Result<PluggableClientTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
     let binary_path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {

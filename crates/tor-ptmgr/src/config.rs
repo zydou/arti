@@ -13,7 +13,7 @@ use tor_linkspec::PtTransportName;
 #[derive(Clone, Debug, Builder, Eq, PartialEq)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
-pub struct ManagedTransportConfig {
+pub struct TransportConfig {
     /// Names of the transport protocols that we are willing to use from this binary.
     ///
     /// (These protocols are arbitrary identifiers that describe which protocols
@@ -39,7 +39,7 @@ pub struct ManagedTransportConfig {
     pub(crate) run_on_startup: bool,
 }
 
-impl ManagedTransportConfigBuilder {
+impl TransportConfigBuilder {
     /// Inspect the list of protocols (ie, transport names)
     ///
     /// If none have yet been specified, returns an empty list.
