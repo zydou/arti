@@ -559,7 +559,9 @@ where
         // requested extensions have been acknowledged.
         H::handle_server_aux_data(reactor, &self.params, &server_aux_data)?;
 
-        let layer = L::construct(keygen)?;
+        // XXX
+        let format = RelayCellFormat::V0;
+        let layer = L::construct(format, keygen)?;
 
         trace!("{}: Handshake complete; circuit extended.", self.unique_id);
 
@@ -1154,7 +1156,9 @@ impl Reactor {
 
         H::handle_server_aux_data(self, params, &server_msg)?;
 
-        let layer = L::construct(keygen)?;
+        // XXX
+        let format = RelayCellFormat::V0;
+        let layer = L::construct(format, keygen)?;
 
         trace!("{}: Handshake complete; circuit created.", self.unique_id);
 

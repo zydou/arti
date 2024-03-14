@@ -11,6 +11,8 @@
 // that can wait IMO until we have a second circuit creation mechanism for use
 // with onion services.
 
+use tor_cell::relaycell::RelayCellFormat;
+
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, Tor1Hsv3RelayCrypto,
@@ -65,7 +67,9 @@ impl RelayProtocol {
             RelayProtocol::HsV3 => {
                 let seed_needed = Tor1Hsv3RelayCrypto::seed_len();
                 let seed = keygen.expand(seed_needed)?;
-                let layer = Tor1Hsv3RelayCrypto::initialize(&seed)?;
+                // XXX
+                let format = RelayCellFormat::V0;
+                let layer = Tor1Hsv3RelayCrypto::initialize(format, &seed)?;
                 let (fwd, back, binding) = layer.split();
                 let (fwd, back) = match role {
                     HandshakeRole::Initiator => (fwd, back),
