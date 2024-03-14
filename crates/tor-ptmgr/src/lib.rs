@@ -79,8 +79,10 @@ use {
 #[derive(Default, Debug)]
 struct PtSharedState {
     /// Connection information for pluggable transports from currently running binaries.
-    cmethods: HashMap<PtTransportName, PtClientMethod>,
-    /// Current configured set of pluggable transport binaries.
+    ///
+    /// Unmanaged pluggable transports are not included in this map.
+    managed_cmethods: HashMap<PtTransportName, PtClientMethod>,
+    /// Current configured set of pluggable transports.
     configured: HashMap<PtTransportName, TransportConfig>,
 }
 
@@ -170,7 +172,9 @@ impl<R: Runtime> PtReactor<R> {
             Ok(pt) => {
                 let mut state = self.state.write().expect("ptmgr state poisoned");
                 for (transport, method) in pt.transport_methods() {
-                    state.cmethods.insert(transport.clone(), method.clone());
+                    state
+                        .managed_cmethods
+                        .insert(transport.clone(), method.clone());
                     for sender in self.requests.remove(transport).into_iter().flatten() {
                         let _ = sender.send(Ok(method.clone()));
                     }
@@ -191,7 +195,7 @@ impl<R: Runtime> PtReactor<R> {
     fn remove_pt(&self, pt: PluggableClientTransport) {
         let mut state = self.state.write().expect("ptmgr state poisoned");
         for transport in pt.transport_methods().keys() {
-            state.cmethods.remove(transport);
+            state.managed_cmethods.remove(transport);
         }
         // to satisfy clippy, and make it clear that this is a desired side-effect: doing this
         // shuts down the PT (asynchronously).
@@ -335,7 +339,7 @@ impl<R: Runtime> PtMgr<R> {
         rt: R,
     ) -> Result<Self, PtError> {
         let state = PtSharedState {
-            cmethods: Default::default(),
+            managed_cmethods: Default::default(),
             configured: Self::transform_config(transports),
         };
         let state = Arc::new(RwLock::new(state));
@@ -397,7 +401,7 @@ impl<R: Runtime> PtMgr<R> {
         //            hold this lock for very long.
         let (mut cmethod, configured) = {
             let inner = self.state.read().expect("ptmgr poisoned");
-            let cmethod = inner.cmethods.get(transport).cloned();
+            let cmethod = inner.managed_cmethods.get(transport).cloned();
             let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
             (cmethod, configured)
         };
@@ -407,7 +411,7 @@ impl<R: Runtime> PtMgr<R> {
                 if configured {
                     // Tell the reactor to spawn the PT, and wait for it.
                     // (The reactor will handle coalescing multiple requests.)
-                    info!("Got a request for transport {}, which is not currently running. Launching it.", 
+                    info!("Got a request for transport {}, which is not currently running. Launching it.",
                           transport
                         );
                     let (tx, rx) = oneshot::channel();
