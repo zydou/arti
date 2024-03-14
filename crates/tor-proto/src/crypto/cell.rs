@@ -289,6 +289,7 @@ pub(crate) mod tor1 {
     use super::*;
     use cipher::{KeyIvInit, StreamCipher};
     use digest::Digest;
+    use tor_cell::relaycell::RelayCellFormat;
     use typenum::Unsigned;
 
     /// A CryptState represents one layer of shared cryptographic state between
@@ -441,19 +442,38 @@ pub(crate) mod tor1 {
     ///
     /// These operations is described in tor-spec section 6.1 "Relay cells"
     impl RelayCellBody {
+        /// Returns the byte slice of the `recognized` field.
+        fn recognized(&self, format: RelayCellFormat) -> &[u8] {
+            &self.0[format.recognized_range()]
+        }
+        /// Returns the mut byte slice of the `recognized` field.
+        fn recognized_mut(&mut self, format: RelayCellFormat) -> &mut [u8] {
+            &mut self.0[format.recognized_range()]
+        }
+        /// Returns the byte slice of the `digest` field.
+        fn digest(&self, format: RelayCellFormat) -> &[u8] {
+            &self.0[format.digest_range()]
+        }
+        /// Returns the mut byte slice of the `digest` field.
+        fn digest_mut(&mut self, format: RelayCellFormat) -> &mut [u8] {
+            &mut self.0[format.digest_range()]
+        }
         /// Prepare a cell body by setting its digest and recognized field.
         fn set_digest<D: Digest + Clone>(
             &mut self,
             d: &mut D,
             used_digest: &mut GenericArray<u8, D::OutputSize>,
         ) {
-            self.0[1..3].fill(0); // Set 'Recognized' to zero
-            self.0[5..9].fill(0); // Set Digest to zero
+            // XXX: get from param.
+            let format = RelayCellFormat::V0;
+            self.recognized_mut(format).fill(0); // Set 'Recognized' to zero
+            self.digest_mut(format).fill(0); // Set Digest to zero
 
             d.update(&self.0[..]);
             // TODO(nickm) can we avoid this clone?  Probably not.
             *used_digest = d.clone().finalize();
-            self.0[5..9].copy_from_slice(&used_digest[0..4]);
+            let used_digest_prefix = &used_digest[0..format.digest_range().len()];
+            self.digest_mut(format).copy_from_slice(used_digest_prefix);
         }
         /// Check whether a this just-decrypted cell is now an authenticated plaintext.
         ///
@@ -462,6 +482,7 @@ pub(crate) mod tor1 {
         /// 
         /// If this method returns false, then either further decryption is required,
         /// or the cell is corrupt.
+        // TODO #1336: Further optimize and/or benchmark this.
         fn is_recognized<D: Digest + Clone>(
             &self,
             d: &mut D,
@@ -469,13 +490,10 @@ pub(crate) mod tor1 {
         ) -> bool {
             use crate::util::ct;
 
+            // XXX: get from param.
+            let format = RelayCellFormat::V0;
             // Validate 'Recognized' field
-            let recognized = u16::from_be_bytes(
-                self.0[1..3]
-                    .try_into()
-                    .expect("Two-byte field was not two bytes!?"),
-            );
-            if recognized != 0 {
+            if !ct::is_zero(self.recognized(format)) {
                 return false;
             }
 
@@ -483,17 +501,17 @@ pub(crate) mod tor1 {
 
             let mut dtmp = d.clone();
             // Add bytes up to the 'Digest' field
-            dtmp.update(&self.0[..5]);
+            dtmp.update(&self.0[..format.digest_range().start]);
             // Add zeroes where the 'Digest' field is
-            dtmp.update([0_u8; 4]);
+            dtmp.update(format.empty_digest());
             // Add the rest of the bytes
-            dtmp.update(&self.0[9..]);
+            dtmp.update(&self.0[format.digest_range().end..]);
             // Clone the digest before finalize destroys it because we will use
             // it in the future
             let dtmp_clone = dtmp.clone();
             let result = dtmp.finalize();
 
-            if ct::bytes_eq(&self.0[5..9], &result[0..4]) {
+            if ct::bytes_eq(self.digest(format), &result[0..format.digest_range().len()]) {
                 // Copy useful things out of this cell (we keep running digest)
                 *d = dtmp_clone;
                 *rcvd = result;

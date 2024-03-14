@@ -202,6 +202,32 @@ pub enum RelayCellFormat {
     V0,
 }
 
+impl RelayCellFormat {
+    /// Returns the range containing the `recognized` field, within a relay cell.
+    pub fn recognized_range(&self) -> std::ops::Range<usize> {
+        match self {
+            RelayCellFormat::V0 => 1..3,
+        }
+    }
+    /// Returns the range containing the `digest` field, within a relay cell.
+    pub fn digest_range(&self) -> std::ops::Range<usize> {
+        match self {
+            RelayCellFormat::V0 => 5..9,
+        }
+    }
+    /// Returns a static array of zeroes of the same size as this format uses
+    /// for the digest field. e.g. this enables updating a comparison-digest in
+    /// one hash-update method call, instead of having to loop over
+    /// `digest_range`.
+    pub fn empty_digest(&self) -> &'static [u8] {
+        let res = match self {
+            RelayCellFormat::V0 => &[0, 0, 0, 0],
+        };
+        debug_assert_eq!(res.len(), self.digest_range().len());
+        res
+    }
+}
+
 /// Internal decoder state.
 #[derive(Clone, Debug)]
 enum RelayCellDecoderInternal {
