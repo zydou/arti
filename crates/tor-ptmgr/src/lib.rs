@@ -61,7 +61,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use tor_async_utils::oneshot;
-use tor_error::error_report;
+use tor_error::{error_report, internal};
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
@@ -265,7 +265,11 @@ impl<R: Runtime> PtReactor<R> {
                             state.configured.get(&pt).cloned()
                         };
                         let config = match config {
-                            Some(v) => v,
+                            Some(v) if v.is_managed() => v,
+                            Some(_) => {
+                                let _ = result.send(Err(internal!("Tried to spawn an unmanaged transport").into()));
+                                return Ok(false);
+                            }
                             None => {
                                 let _ = result.send(Err(PtError::UnconfiguredTransportDueToConcurrentReconfiguration));
                                 return Ok(false);
@@ -380,15 +384,23 @@ impl<R: Runtime> PtMgr<R> {
     }
 }
 
-/// Spawn a `PluggableTransport` using a `TransportConfig`.
+/// Spawn a managed `PluggableTransport` using a `TransportConfig`.
+///
+/// Requires that the transport is a managed transport.
 async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
     cfg: TransportConfig,
 ) -> Result<PluggableClientTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
-    let binary_path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {
-        path: cfg.path,
+
+    let cfg_path = cfg
+        .path
+        .as_ref()
+        .ok_or_else(|| internal!("spawn_from_config on an unmanaged transport."))?;
+
+    let binary_path = cfg_path.path().map_err(|e| PtError::PathExpansionFailed {
+        path: cfg_path.clone(),
         error: e,
     })?;
 
