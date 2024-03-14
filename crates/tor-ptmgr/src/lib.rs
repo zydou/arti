@@ -401,9 +401,15 @@ impl<R: Runtime> PtMgr<R> {
         //            hold this lock for very long.
         let (cmethod, configured) = {
             let inner = self.state.read().expect("ptmgr poisoned");
-            let cmethod = inner.managed_cmethods.get(transport).cloned();
-            let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
-            (cmethod, configured)
+            let cfg = inner.configured.get(transport);
+            if let Some(cmethod) = cfg.and_then(TransportConfig::cmethod_for_unmanaged_pt) {
+                // We have a managed transport; that was easy.
+                (Some(cmethod), true)
+            } else {
+                let cmethod = inner.managed_cmethods.get(transport).cloned();
+                let configured = cmethod.is_some() || cfg.is_some();
+                (cmethod, configured)
+            }
         };
 
         match (cmethod, configured) {

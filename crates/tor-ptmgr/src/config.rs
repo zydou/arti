@@ -6,6 +6,9 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_config::{CfgPath, ConfigBuildError};
 use tor_linkspec::PtTransportName;
+use tor_socksproto::SocksVersion;
+
+use crate::ipc::PtClientMethod;
 
 /// A single pluggable transport, to be launched as an external process.
 ///
@@ -61,6 +64,17 @@ impl TransportConfig {
     /// Return true if this transport is managed.
     pub(crate) fn is_managed(&self) -> bool {
         self.path.is_some()
+    }
+
+    /// If this is an unmanaged transport, return a client method that can be
+    /// used to contact it.
+    pub(crate) fn cmethod_for_unmanaged_pt(&self) -> Option<PtClientMethod> {
+        self.proxy_addr.map(|a| PtClientMethod {
+            // TODO: Someday we might want to support other protocols;
+            // but for now, let's see if we can get away with just socks5.
+            kind: SocksVersion::V5,
+            endpoint: a,
+        })
     }
 }
 
