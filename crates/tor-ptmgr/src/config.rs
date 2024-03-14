@@ -12,7 +12,7 @@ use crate::ipc::PtClientMethod;
 
 /// A single pluggable transport.
 ///
-/// Pluggable transports are programs that transforms and obfuscates traffic on
+/// Pluggable transports are programs that transform and obfuscate traffic on
 /// the network between a Tor client and a Tor bridge, so that an adversary
 /// cannot recognize it as Tor traffic.
 ///

@@ -403,7 +403,7 @@ impl<R: Runtime> PtMgr<R> {
             let inner = self.state.read().expect("ptmgr poisoned");
             let cfg = inner.configured.get(transport);
             if let Some(cmethod) = cfg.and_then(TransportConfig::cmethod_for_unmanaged_pt) {
-                // We have a managed transport; that was easy.
+                // We have a unmanaged transport; that was easy.
                 (Some(cmethod), true)
             } else {
                 let cmethod = inner.managed_cmethods.get(transport).cloned();
