@@ -65,6 +65,8 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
             &mut rng,
             dir,
             Some(self.guardmgr()),
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            self.vanguardmgr(),
             self.path_config().as_ref(),
             self.runtime().wallclock(),
         )?;

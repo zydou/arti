@@ -17,6 +17,9 @@ use {
     tor_rtcompat::Runtime,
 };
 
+#[cfg(feature = "vanguards")]
+use tor_guardmgr::vanguards::VanguardMgr;
+
 /// A path builder for hidden service circuits.
 ///
 /// This builder is used for creating hidden service stub circuits,
@@ -85,6 +88,7 @@ impl HsPathBuilder {
         _rng: &mut R,
         _netdir: DirInfo<'a>,
         _guards: Option<&GuardMgr<RT>>,
+        _vanguards: &VanguardMgr,
         _config: &PathConfig,
         _now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {

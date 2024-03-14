@@ -38,6 +38,9 @@ pub(crate) type CountryCode = Void;
 #[cfg(any(feature = "specific-relay", feature = "hs-common"))]
 use tor_linkspec::OwnedChanTarget;
 
+#[cfg(all(feature = "vanguards", feature = "hs-common"))]
+use tor_guardmgr::vanguards::VanguardMgr;
+
 use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
 use crate::Result;
@@ -216,6 +219,7 @@ impl TargetCircUsage {
         rng: &mut R,
         netdir: crate::DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguards: &VanguardMgr,
         config: &crate::PathConfig,
         now: SystemTime,
     ) -> Result<(
@@ -338,8 +342,16 @@ impl TargetCircUsage {
                 compatible_with_target,
                 kind,
             } => {
-                let (path, mon, usable) = HsPathBuilder::new(compatible_with_target.clone(), *kind)
-                    .pick_path(rng, netdir, guards, config, now)?;
+                let path_builder = HsPathBuilder::new(compatible_with_target.clone(), *kind);
+                cfg_if::cfg_if! {
+                    if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
+                        let (path, mon, usable) = path_builder
+                            .pick_path::<_, RT>(rng, netdir, guards, vanguards, config, now)?;
+                    } else {
+                        let (path, mon, usable) = path_builder
+                            .pick_path::<_, RT>(rng, netdir, guards, config, now)?;
+                    }
+                };
                 let usage = SupportedCircUsage::HsOnly;
                 Ok((path, usage, mon, usable))
             }
@@ -522,6 +534,8 @@ pub(crate) mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    use tor_persist::TestingStateMgr;
 
     impl IsolationTokenEq for TargetCircUsage {
         fn isol_eq(&self, other: &Self) -> bool {
@@ -863,9 +877,12 @@ pub(crate) mod test {
         // building code a lot more closely in the tests for TorPath
         // and friends.
 
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let vanguards = VanguardMgr::new(&Default::default(), TestingStateMgr::default()).unwrap();
+
         // First, a one-hop directory circuit
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
-            .build_path(&mut rng, di, guards, &config, now)
+            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
             .unwrap();
         assert!(matches!(u_dir, SupportedCircUsage::Dir));
         assert_eq!(p_dir.len(), 1);
@@ -884,7 +901,7 @@ pub(crate) mod test {
             require_stability: false,
         };
         let (p_exit, u_exit, _, _) = exit_usage
-            .build_path(&mut rng, di, guards, &config, now)
+            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
             .unwrap();
         assert!(matches!(
             u_exit,
@@ -898,7 +915,7 @@ pub(crate) mod test {
 
         // Now try testing circuits.
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, &config, now)
+            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
             .unwrap();
         let path = match OwnedPath::try_from(&path).unwrap() {
             OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
@@ -940,8 +957,11 @@ pub(crate) mod test {
         let guards: OptDummyGuardMgr<'_> = None;
         let now = SystemTime::now();
 
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let vanguards = VanguardMgr::new(&Default::default(), TestingStateMgr::default()).unwrap();
+
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, &config, now)
+            .build_path(&mut rng, di, guards, #[cfg(all(feature = "vanguards", feature = "hs-common"))] &vanguards, &config, now)
             .unwrap();
         assert_eq!(path.len(), 3);
         assert_isoleq!(usage, SupportedCircUsage::NoUsage);
