@@ -398,7 +398,7 @@ pub(crate) mod tor1 {
             // This is describe in tor-spec 5.5.2.2, "Relaying Forward at Onion Routers"
             self.fwd.cipher.apply_keystream(cell.as_mut());
             let mut d_ignored = GenericArray::default();
-            cell.recognized(&mut self.fwd.digest, &mut d_ignored)
+            cell.is_recognized(&mut self.fwd.digest, &mut d_ignored)
         }
     }
 
@@ -422,7 +422,7 @@ pub(crate) mod tor1 {
             // This is a single iteration of the loop described in tor-spec
             // 5.5.3, "routing to the origin."
             self.cipher.apply_keystream(&mut cell.0[..]);
-            if cell.recognized(&mut self.digest, &mut self.last_digest_val) {
+            if cell.is_recognized(&mut self.digest, &mut self.last_digest_val) {
                 Some(&self.last_digest_val[..SENDME_TAG_LEN])
             } else {
                 None
@@ -456,7 +456,7 @@ pub(crate) mod tor1 {
             self.0[5..9].copy_from_slice(&used_digest[0..4]);
         }
         /// Check a cell to see whether its recognized field is set.
-        fn recognized<D: Digest + Clone>(
+        fn is_recognized<D: Digest + Clone>(
             &self,
             d: &mut D,
             rcvd: &mut GenericArray<u8, D::OutputSize>,
