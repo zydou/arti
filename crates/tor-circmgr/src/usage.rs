@@ -8,6 +8,8 @@ use tracing::trace;
 #[cfg(not(feature = "geoip"))]
 use void::Void;
 
+#[cfg(feature = "hs-common")]
+use crate::path::hspath::HsPathBuilder;
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_chanmgr::ChannelUsage;
 #[cfg(feature = "geoip")]
@@ -333,12 +335,8 @@ impl TargetCircUsage {
             TargetCircUsage::HsCircBase {
                 compatible_with_target,
             } => {
-                let (path, mon, usable) =
-                    ExitPathBuilder::for_onion_service(compatible_with_target.clone())
-                        // TODO: We don't actually require stability if this is a
-                        // HsDir circuit: but at this point, we can't tell.
-                        .require_stability(true)
-                        .pick_path(rng, netdir, guards, config, now)?;
+                let (path, mon, usable) = HsPathBuilder::new(compatible_with_target.clone())
+                    .pick_path(rng, netdir, guards, config, now)?;
                 let usage = SupportedCircUsage::HsOnly;
                 Ok((path, usage, mon, usable))
             }

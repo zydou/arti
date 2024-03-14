@@ -95,12 +95,13 @@ rust-latest:
   image: rust:bookworm
   script:
     - rustup show
-    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu
+    - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
     - cargo test --verbose --target x86_64-unknown-linux-gnu
     - rustup component add clippy
     - rustup show
     - cargo clippy --all-features --all-targets -- --cfg ci_arti_stable -D warnings
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
+    - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
   after_script:
     - cargo clean
