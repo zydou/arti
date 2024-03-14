@@ -62,14 +62,13 @@ impl RelayProtocol {
         self,
         role: HandshakeRole,
         keygen: impl KeyGenerator,
+        relay_cell_format: RelayCellFormat,
     ) -> Result<BoxedClientLayer> {
         match self {
             RelayProtocol::HsV3 => {
                 let seed_needed = Tor1Hsv3RelayCrypto::seed_len();
                 let seed = keygen.expand(seed_needed)?;
-                // XXX
-                let format = RelayCellFormat::V0;
-                let layer = Tor1Hsv3RelayCrypto::initialize(format, &seed)?;
+                let layer = Tor1Hsv3RelayCrypto::initialize(relay_cell_format, &seed)?;
                 let (fwd, back, binding) = layer.split();
                 let (fwd, back) = match role {
                     HandshakeRole::Initiator => (fwd, back),
