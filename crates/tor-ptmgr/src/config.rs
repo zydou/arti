@@ -10,16 +10,20 @@ use tor_socksproto::SocksVersion;
 
 use crate::ipc::PtClientMethod;
 
-/// A single pluggable transport, to be launched as an external process.
+/// A single pluggable transport.
 ///
 /// Pluggable transports are programs that transforms and obfuscates traffic on
 /// the network between a Tor client and a Tor bridge, so that an adversary
 /// cannot recognize it as Tor traffic.
+///
+/// A pluggable transport can be either _managed_ (run as an external process
+/// that we launch and monitor), or _unmanaged_ (running on a local port, not
+/// controlled by Arti).
 #[derive(Clone, Debug, Builder, Eq, PartialEq)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 pub struct TransportConfig {
-    /// Names of the transport protocols that we are willing to use from this binary.
+    /// Names of the transport protocols that we are willing to use from this transport.
     ///
     /// (These protocols are arbitrary identifiers that describe which protocols
     /// we want. They must match names that the binary knows how to provide.)

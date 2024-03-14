@@ -319,8 +319,8 @@ impl<R: Runtime> PtMgr<R> {
         binaries: Vec<TransportConfig>,
     ) -> HashMap<PtTransportName, TransportConfig> {
         let mut ret = HashMap::new();
-        // FIXME(eta): You can currently specify overlapping protocols in your binaries, and it'll
-        //             just use the last binary specified.
+        // FIXME(eta): You can currently specify overlapping protocols, and it'll
+        //             just use the last transport specified.
         //             I attempted to fix this, but decided I didn't want to stare into the list
         //             builder macro void after trying it for 15 minutes.
         for thing in binaries {
