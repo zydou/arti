@@ -273,7 +273,7 @@ trait AnonymousPathBuilder<'a> {
 
 /// Try to create and return a path corresponding to the requirements of
 /// this builder.
-fn pick_path<'s, 'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
+fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
     builder: &B,
     rng: &mut R,
     netdir: DirInfo<'a>,
