@@ -413,6 +413,27 @@ impl<R: Runtime> PtMgr<R> {
         };
 
         match (cmethod, configured) {
+            // There is going to be a lot happening "under the hood" here.
+            //
+            // When we are asked to get a ChannelFactory for a given
+            // connection, we will need to:
+            //    - launch the binary for that transport if it is not already running*.
+            //    - If we launched the binary, talk to it and see which ports it
+            //      is listening on.
+            //    - Return a ChannelFactory that connects via one of those ports,
+            //      using the appropriate version of SOCKS, passing K=V parameters
+            //      encoded properly.
+            //
+            // * As in other managers, we'll need to avoid trying to launch the same
+            //   transport twice if we get two concurrent requests.
+            //
+            // Later if the binary crashes, we should detect that.  We should relaunch
+            // it on demand.
+            //
+            // On reconfigure, we should shut down any no-longer-used transports.
+            //
+            // Maybe, we should shut down transports that haven't been used
+            // for a long time.
             (None, true) => {
                 // A configured-but-not-running cmethod.
                 //
@@ -522,27 +543,6 @@ async fn spawn_from_config<R: Runtime>(
 #[cfg(feature = "tor-channel-factory")]
 #[async_trait]
 impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
-    // There is going to be a lot happening "under the hood" here.
-    //
-    // When we are asked to get a ChannelFactory for a given
-    // connection, we will need to:
-    //    - launch the binary for that transport if it is not already running*.
-    //    - If we launched the binary, talk to it and see which ports it
-    //      is listening on.
-    //    - Return a ChannelFactory that connects via one of those ports,
-    //      using the appropriate version of SOCKS, passing K=V parameters
-    //      encoded properly.
-    //
-    // * As in other managers, we'll need to avoid trying to launch the same
-    //   transport twice if we get two concurrent requests.
-    //
-    // Later if the binary crashes, we should detect that.  We should relaunch
-    // it on demand.
-    //
-    // On reconfigure, we should shut down any no-longer-used transports.
-    //
-    // Maybe, we should shut down transports that haven't been used
-    // for a long time.
     async fn factory_for_transport(
         &self,
         transport: &PtTransportName,
