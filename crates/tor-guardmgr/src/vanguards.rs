@@ -143,6 +143,11 @@ impl VanguardMgr {
             .ok_or(VanguardMgrError::NoSuitableRelay(layer))
     }
 
+    /// Get the current [`VanguardMode`].
+    pub fn mode(&self) -> VanguardMode {
+        self.inner.read().expect("poisoned lock").mode
+    }
+
     /// Flush the vanguard sets to storage, if the mode is "vanguards-full".
     #[allow(unused)] // TODO HS-VANGUARDS
     fn flush_to_storage(&self) -> Result<(), VanguardMgrError> {
