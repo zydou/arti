@@ -388,6 +388,18 @@ impl<R: Runtime> HsCircPool<R> {
             .retain(|circ| circuit_still_useable(netdir, circ, |_relay| true));
     }
 
+    /// Returns `true` if vanguards are enabled.
+    fn vanguards_enabled(&self) -> Result<bool> {
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
+                let inner = self.inner.lock().expect("lock poisoned");
+                Ok(inner.pool.vanguards_enabled()?)
+            } else {
+                Ok(false)
+            }
+        }
+    }
+
     /// Return an estimate-based delay for how long a given
     /// [`Action`](timeouts::Action) should be allowed to complete.
     ///

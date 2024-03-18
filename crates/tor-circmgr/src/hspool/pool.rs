@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use crate::hspool::HsCircStub;
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
+use tor_error::{internal, Bug};
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::{VanguardConfig, VanguardMode};
@@ -160,6 +161,21 @@ impl Pool {
         }
 
         Ok(())
+    }
+
+    /// Returns `true` if vanguards are enabled.
+    pub(super) fn vanguards_enabled(&self) -> Result<bool, Bug> {
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
+                match self.mode {
+                    VanguardMode::Lite | VanguardMode::Full => Ok(true),
+                    VanguardMode::Disabled => Ok(false),
+                    _ => Err(internal!("unrecognized vanguards mode")),
+                }
+            } else {
+                Ok(false)
+            }
+        }
     }
 }
 
