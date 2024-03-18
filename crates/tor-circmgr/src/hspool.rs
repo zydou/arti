@@ -5,6 +5,7 @@ mod config;
 mod pool;
 
 use std::{
+    ops::Deref,
     sync::{Arc, Mutex, Weak},
     time::Duration,
 };
@@ -49,6 +50,57 @@ pub enum HsCircKind {
     ClientIntro,
     /// Circuit from an onion service client to a Rendezvous Point.
     ClientRend,
+}
+
+/// A hidden service circuit stub.
+///
+/// This represents a hidden service circuit that has not yet been extended to a target.
+///
+/// See [HsCircStubKind].
+pub(crate) struct HsCircStub {
+    /// The circuit.
+    pub(crate) circ: Arc<ClientCirc>,
+    /// Whether the circuit is STUB or STUB+.
+    #[allow(dead_code)] // TODO HS-VANGUARDS
+    pub(crate) kind: HsCircStubKind,
+}
+
+impl Deref for HsCircStub {
+    type Target = Arc<ClientCirc>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.circ
+    }
+}
+
+/// A kind of [`HsCircStub`].
+///
+/// The structure of a stub circuit depends on whether vanguards are enabled:
+///
+///   * with vanguards disabled:
+///      ```text
+///         STUB  = G -> M -> M
+///         STUB+ = G -> M -> M
+///      ```
+///
+///   * with lite vanguards enabled:
+///      ```text
+///         STUB  = G -> L2 -> M
+///         STUB+ = G -> L2 -> M
+///      ```
+///
+///   * with full vanguards enabled:
+///      ```text
+///         STUB  = G -> L2 -> L3
+///         STUB+ = G -> L2 -> L3 -> M
+///      ```
+#[allow(dead_code)] // TODO HS-VANGUARDS
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) enum HsCircStubKind {
+    /// A stub circuit (STUB).
+    Stub,
+    /// An extended stub circuit (STUB+).
+    Extended,
 }
 
 /// An object to provide circuits for implementing onion services.
@@ -133,7 +185,7 @@ impl<R: Runtime> HsCircPool<R> {
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None)
+            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Stub)
             .await?;
         let path = circ.path_ref();
         match path.hops().last() {
@@ -144,7 +196,7 @@ impl<R: Runtime> HsCircPool<R> {
                     );
                 };
                 match netdir.by_ids(ct) {
-                    Some(relay) => Ok((circ, relay)),
+                    Some(relay) => Ok((circ.circ, relay)),
                     // This can't happen, since launch_hs_unmanaged() only takes relays from the netdir
                     // it is given, and circuit_compatible_with_target() ensures that
                     // every relay in the circuit is listed.
@@ -170,23 +222,22 @@ impl<R: Runtime> HsCircPool<R> {
     where
         T: CircTarget,
     {
-        // The kind makes no difference yet, but it will at some point in the future.
-        match kind {
+        // TODO HS-VANGUARDS: the kind makes no difference yet, but it will at some point in the future.
+        let wanted_kind = match kind {
             HsCircKind::ClientRend => {
                 return Err(
                     bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into(),
                 )
             }
-            HsCircKind::SvcIntro => {
-                // TODO HS-VANGUARDS: In this case we will want to add an extra hop, once we have vanguards.
-                // When this happens, the whole match statement will want to become
-                // let extra_hop = match kind {...}
+            HsCircKind::SvcIntro => HsCircStubKind::Stub,
+            HsCircKind::SvcHsDir => {
+                // TODO HS-VANGUARDS: we might want this to be STUB+
+                HsCircStubKind::Stub
             }
-            HsCircKind::SvcHsDir
-            | HsCircKind::SvcRend
-            | HsCircKind::ClientHsDir
-            | HsCircKind::ClientIntro => {}
-        }
+            HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
+                HsCircStubKind::Extended
+            }
+        };
 
         // For most* of these circuit types, we want to build our circuit with
         // an extra hop, since the target hop is under somebody else's control.
@@ -197,7 +248,7 @@ impl<R: Runtime> HsCircPool<R> {
 
         // Get an unfinished circuit that's compatible with our target.
         let circ = self
-            .take_or_launch_stub_circuit(netdir, Some(&target))
+            .take_or_launch_stub_circuit(netdir, Some(&target), wanted_kind)
             .await?;
 
         // Estimate how long it will take to extend it one more hop, and
@@ -230,7 +281,7 @@ impl<R: Runtime> HsCircPool<R> {
             .map_err(|_| Error::CircTimeout(Some(circ.unique_id())))??;
 
         // With any luck, return the circuit.
-        Ok(circ)
+        Ok(circ.circ)
     }
 
     /// Try to change our configuration to `new_config`.
@@ -253,12 +304,18 @@ impl<R: Runtime> HsCircPool<R> {
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
     ///
+    /// If vanguards are enabled, this will try to build a circuit stub of the specified
+    /// [`HsCircStubKind`].
+    ///
+    /// If vanguards are disabled, `kind` is unused.
+    ///
     /// If there is no such circuit, build and return a new one.
     async fn take_or_launch_stub_circuit<T>(
         &self,
         netdir: &NetDir,
         avoid_target: Option<&T>,
-    ) -> Result<Arc<ClientCirc>>
+        kind: HsCircStubKind,
+    ) -> Result<HsCircStub>
     where
         // TODO #504: It would be better if this were a type that had to include
         // family info.
@@ -279,7 +336,11 @@ impl<R: Runtime> HsCircPool<R> {
 
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
+            // TODO HS-VANGUARDS: try to find a circuit with the specified stub_kind
+            // (and never return a STUB+ circuit if the requested stub_kind is STUB).
             let found_usable_circ = inner.pool.take_one_where(&mut rand::thread_rng(), |circ| {
+                // TODO HS-VANGUARDS: if vanguards are enabled, relax the restrictions from
+                // circuit_compatible_with_target
                 circuit_compatible_with_target(netdir, circ, &target_exclusion)
             });
 
@@ -304,7 +365,12 @@ impl<R: Runtime> HsCircPool<R> {
         // however, complexify our logic quite a bit.
 
         // TODO: We could in launch multiple circuits in parallel here?
-        self.circmgr.launch_hs_unmanaged(avoid_target, netdir).await
+        let circ = self
+            .circmgr
+            .launch_hs_unmanaged(avoid_target, netdir)
+            .await?;
+
+        Ok(HsCircStub { circ, kind })
     }
 
     /// Internal: Remove every closed circuit from this pool.
@@ -350,7 +416,7 @@ impl<R: Runtime> HsCircPool<R> {
 /// `target`.
 fn circuit_compatible_with_target(
     netdir: &NetDir,
-    circ: &ClientCirc,
+    circ: &HsCircStub,
     exclude_target: &RelayExclusion,
 ) -> bool {
     // NOTE, TODO #504:
@@ -371,10 +437,11 @@ fn circuit_compatible_with_target(
 /// We require that the circuit is open, that every hop  in the circuit is
 /// listed in `netdir`, and that `relay_okay` returns true for every hop on the
 /// circuit.
-fn circuit_still_useable<F>(netdir: &NetDir, circ: &ClientCirc, relay_okay: F) -> bool
+fn circuit_still_useable<F>(netdir: &NetDir, circ: &HsCircStub, relay_okay: F) -> bool
 where
     F: Fn(&Relay<'_>) -> bool,
 {
+    let circ = &circ.circ;
     if circ.is_closing() {
         return false;
     }
@@ -437,9 +504,18 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 // launching several of these in parallel.  If we do, we should think about
                 // whether taking the fastest will expose us to any attacks.
                 let no_target: Option<&OwnedCircTarget> = None;
+
+                // TODO HS-VANGUARDS: about half of the preemptively launched circuits should be
+                // STUB+.
+                let stub_kind = HsCircStubKind::Stub;
+
                 // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
                 match pool.circmgr.launch_hs_unmanaged(no_target, &netdir).await {
                     Ok(circ) => {
+                        let circ = HsCircStub {
+                            circ,
+                            kind: stub_kind,
+                        };
                         pool.inner.lock().expect("poisoned lock").pool.insert(circ);
                         n_to_launch -= 1;
                     }

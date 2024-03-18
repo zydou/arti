@@ -1,13 +1,10 @@
 //! An internal pool object that we use to implement HsCircPool.
 
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
+use crate::hspool::HsCircStub;
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
-use tor_proto::circuit::ClientCirc;
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::{VanguardConfig, VanguardMode};
@@ -15,7 +12,7 @@ use tor_guardmgr::vanguards::{VanguardConfig, VanguardMode};
 /// A collection of circuits used to fulfil onion-service-related requests.
 pub(super) struct Pool {
     /// The collection of circuits themselves, in no particular order.
-    circuits: Vec<Arc<ClientCirc>>,
+    circuits: Vec<HsCircStub>,
 
     /// The number of elements that we would like to have in our pool.
     ///
@@ -64,14 +61,14 @@ impl Default for Pool {
 
 impl Pool {
     /// Add `circ` to this pool
-    pub(super) fn insert(&mut self, circ: Arc<ClientCirc>) {
+    pub(super) fn insert(&mut self, circ: HsCircStub) {
         self.circuits.push(circ);
     }
 
     /// Remove every circuit from this pool for which `f` returns false.
     pub(super) fn retain<F>(&mut self, f: F)
     where
-        F: FnMut(&Arc<ClientCirc>) -> bool,
+        F: FnMut(&HsCircStub) -> bool,
     {
         self.circuits.retain(f);
     }
@@ -87,10 +84,10 @@ impl Pool {
     }
 
     /// If there is any circuit in this pool for which `f`  returns true, return one such circuit at random, and remove it from the pool.
-    pub(super) fn take_one_where<R, F>(&mut self, rng: &mut R, f: F) -> Option<Arc<ClientCirc>>
+    pub(super) fn take_one_where<R, F>(&mut self, rng: &mut R, f: F) -> Option<HsCircStub>
     where
         R: Rng,
-        F: Fn(&Arc<ClientCirc>) -> bool,
+        F: Fn(&HsCircStub) -> bool,
     {
         // Select a circuit satisfying `f` at random.
         let rv = match random_idx_where(rng, &mut self.circuits[..], f) {
