@@ -302,12 +302,63 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
     };
     let rs_cfg = config.relay_selection_config();
 
-    let chosen_exit = builder.chosen_exit();
-    let path_is_fully_random = chosen_exit.is_none();
-
     // TODO-SPEC: Because of limitations in guard selection, we have to
     // pick the guard before the exit, which is not what our spec says.
-    let (guard, mon, usable) = match guards {
+    let (guard, mon, usable) = select_guard(builder, rng, netdir, guards, config)?;
+
+    let guard_exclusion = match &guard {
+        MaybeOwnedRelay::Relay(r) => RelayExclusion::exclude_relays_in_same_family(
+            &config.relay_selection_config(),
+            vec![r.clone()],
+        ),
+        MaybeOwnedRelay::Owned(ct) => RelayExclusion::exclude_channel_target_family(
+            &config.relay_selection_config(),
+            ct.as_ref(),
+            netdir,
+        ),
+    };
+
+    let (exit, middle_usage) = builder.pick_exit(rng, netdir, guard_exclusion.clone(), &rs_cfg)?;
+
+    let mut family_exclusion =
+        RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![exit.clone()]);
+    family_exclusion.extend(&guard_exclusion);
+
+    let selector = RelaySelector::new(middle_usage, family_exclusion);
+    let (middle, info) = selector.select_relay(rng, netdir);
+    let middle = middle.ok_or_else(|| Error::NoRelay {
+        path_kind: builder.path_kind(),
+        role: "middle relay",
+        problem: info.to_string(),
+    })?;
+
+    Ok((
+        TorPath::new_multihop_from_maybe_owned(vec![
+            guard,
+            MaybeOwnedRelay::from(middle),
+            MaybeOwnedRelay::from(exit),
+        ]),
+        mon,
+        usable,
+    ))
+}
+
+/// Try to select a guard corresponding to the requirements of
+/// this builder.
+fn select_guard<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
+    builder: &B,
+    rng: &mut R,
+    netdir: &'a NetDir,
+    guards: Option<&GuardMgr<RT>>,
+    config: &PathConfig,
+) -> Result<(
+    MaybeOwnedRelay<'a>,
+    Option<GuardMonitor>,
+    Option<GuardUsable>,
+)> {
+    let chosen_exit = builder.chosen_exit();
+    let path_is_fully_random = chosen_exit.is_none();
+    match guards {
         Some(guardmgr) => {
             // TODO: Extract this section into its own function, and see
             // what it can share with tor_relay_selection.
@@ -363,7 +414,7 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
                 // to complete the circuit.
                 mon.ignore_indeterminate_status();
             }
-            (guard, Some(mon), Some(usable))
+            Ok((guard, Some(mon), Some(usable)))
         }
         None => {
             let rs_cfg = config.relay_selection_config();
@@ -379,45 +430,9 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
                 problem: info.to_string(),
             })?;
 
-            (MaybeOwnedRelay::from(relay), None, None)
+            Ok((MaybeOwnedRelay::from(relay), None, None))
         }
-    };
-
-    let guard_exclusion = match &guard {
-        MaybeOwnedRelay::Relay(r) => RelayExclusion::exclude_relays_in_same_family(
-            &config.relay_selection_config(),
-            vec![r.clone()],
-        ),
-        MaybeOwnedRelay::Owned(ct) => RelayExclusion::exclude_channel_target_family(
-            &config.relay_selection_config(),
-            ct.as_ref(),
-            netdir,
-        ),
-    };
-
-    let (exit, middle_usage) = builder.pick_exit(rng, netdir, guard_exclusion.clone(), &rs_cfg)?;
-
-    let mut family_exclusion =
-        RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![exit.clone()]);
-    family_exclusion.extend(&guard_exclusion);
-
-    let selector = RelaySelector::new(middle_usage, family_exclusion);
-    let (middle, info) = selector.select_relay(rng, netdir);
-    let middle = middle.ok_or_else(|| Error::NoRelay {
-        path_kind: builder.path_kind(),
-        role: "middle relay",
-        problem: info.to_string(),
-    })?;
-
-    Ok((
-        TorPath::new_multihop_from_maybe_owned(vec![
-            guard,
-            MaybeOwnedRelay::from(middle),
-            MaybeOwnedRelay::from(exit),
-        ]),
-        mon,
-        usable,
-    ))
+    }
 }
 
 /// For testing: make sure that `path` is the same when it is an owned
