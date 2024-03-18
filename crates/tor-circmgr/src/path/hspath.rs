@@ -176,11 +176,6 @@ impl VanguardHsPathBuilder {
         vanguards: &VanguardMgr,
         config: &PathConfig,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
-        // TODO HS-VANGUARDS (#1279): this will likely share some logic with
-        // AnonymousPathBuilder::pick_path, so we might want to split
-        // AnonymousPathBuilder::pick_path into multiple smaller functions
-        // that we can use here
-
         // TODO: this is copied from pick_path
         let netdir = match netdir {
             DirInfo::Directory(d) => d,
