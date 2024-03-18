@@ -455,7 +455,13 @@ pub(crate) mod tor1 {
             *used_digest = d.clone().finalize();
             self.0[5..9].copy_from_slice(&used_digest[0..4]);
         }
-        /// Check a cell to see whether its recognized field is set.
+        /// Check whether a this just-decrypted cell is now an authenticated plaintext.
+        ///
+        /// This method returns true if the `recognized` field is all zeros, and if the
+        /// `digest` field is a digest of the correct material.
+        /// 
+        /// If this method returns false, then either further decryption is required,
+        /// or the cell is corrupt.
         fn is_recognized<D: Digest + Clone>(
             &self,
             d: &mut D,
