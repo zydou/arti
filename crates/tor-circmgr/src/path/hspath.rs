@@ -44,9 +44,29 @@ use {
 ///  Service rend:  STUB+ -> Rpt
 /// ```
 ///
-/// While we don't currently distinguish between regular stub circuits (STUB),
-/// and extended stub circuits (STUB+), the two will be handled differently
-/// once we add support for vanguards.
+/// If vanguards are disabled, regular stub circuits (STUB),
+/// and extended stub circuits (STUB+) are the same,
+/// and are built using
+/// [`ExitPathBuilder`](crate::path::exitpath::ExitPathBuilder)'s
+/// path selection rules.
+///
+/// If vanguards are enabled, the path is built without applying family
+/// or same-subnet restrictions at all, the guard is not prohibited
+/// from appearing as either of the last two hops of the circuit,
+/// and the two circuit stub kinds are built differently
+/// depending on the type of vanguards that are in use:
+///
+///   * with lite vanguards enabled:
+///      ```text
+///         STUB  = G -> L2 -> M
+///         STUB+ = G -> L2 -> M
+///      ```
+///
+///   * with full vanguards enabled:
+///      ```text
+///         STUB  = G -> L2 -> L3
+///         STUB+ = G -> L2 -> L3 -> M
+///      ```
 pub struct HsPathBuilder {
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
     ///
