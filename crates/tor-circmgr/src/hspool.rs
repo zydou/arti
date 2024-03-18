@@ -73,6 +73,23 @@ impl Deref for HsCircStub {
     }
 }
 
+impl HsCircStub {
+    /// Check if this circuit stub is of the specified `kind`
+    /// or can be extended to become that kind.
+    ///
+    /// Returns `true` if this `HsCircStub`'s kind is equal to `other`,
+    /// or if its kind is [`Stub`](HsCircStubKind::Stub)
+    /// and `other` is [`Extended`](HsCircStubKind::Extended).
+    pub(crate) fn can_build(&self, other: HsCircStubKind) -> bool {
+        use HsCircStubKind::*;
+
+        match (self.kind, other) {
+            (Stub, Stub) | (Extended, Extended) | (Stub, Extended) => true,
+            (Extended, Stub) => false,
+        }
+    }
+}
+
 /// A kind of [`HsCircStub`].
 ///
 /// The structure of a stub circuit depends on whether vanguards are enabled:
@@ -336,13 +353,19 @@ impl<R: Runtime> HsCircPool<R> {
 
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
-            // TODO HS-VANGUARDS: try to find a circuit with the specified stub_kind
-            // (and never return a STUB+ circuit if the requested stub_kind is STUB).
-            let found_usable_circ = inner.pool.take_one_where(&mut rand::thread_rng(), |circ| {
-                // TODO HS-VANGUARDS: if vanguards are enabled, relax the restrictions from
-                // circuit_compatible_with_target
-                circuit_compatible_with_target(netdir, circ, &target_exclusion)
-            });
+            let vanguards_enabled = inner.pool.vanguards_enabled()?;
+
+            let restrictions = |circ: &HsCircStub| {
+                if vanguards_enabled {
+                    circ.can_build(kind)
+                } else {
+                    circuit_compatible_with_target(netdir, circ, &target_exclusion)
+                }
+            };
+
+            let found_usable_circ = inner
+                .pool
+                .take_one_where(&mut rand::thread_rng(), restrictions);
 
             // Tell the background task to fire immediately if we have very few circuits
             // circuits left, or if we found nothing.
@@ -356,7 +379,7 @@ impl<R: Runtime> HsCircPool<R> {
         };
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
-            return Ok(circuit);
+            return self.maybe_extend_stub_circuit(circuit, kind);
         }
 
         // TODO: There is a possible optimization here. Instead of only waiting
@@ -371,6 +394,34 @@ impl<R: Runtime> HsCircPool<R> {
             .await?;
 
         Ok(HsCircStub { circ, kind })
+    }
+
+    /// Return a circuit of the specified `kind`, built from `circuit`.
+    fn maybe_extend_stub_circuit(
+        &self,
+        mut circuit: HsCircStub,
+        kind: HsCircStubKind,
+    ) -> Result<HsCircStub> {
+        if !self.vanguards_enabled()? {
+            return Ok(circuit);
+        }
+
+        match (circuit.kind, kind) {
+            (HsCircStubKind::Stub, HsCircStubKind::Extended) => {
+                // TODO HS-VANGUARDS: if full vanguards are enabled and the circuit we got is STUB,
+                // we need to extend it by another hop to make it STUB+ before returning it
+                circuit.kind = kind;
+
+                Ok(circuit)
+            }
+            (HsCircStubKind::Extended, HsCircStubKind::Stub) => {
+                Err(internal!("wanted a STUB circuit, but got STUB+?!").into())
+            }
+            _ => {
+                // Nothing to do: the circuit stub we got is of the kind we wanted
+                Ok(circuit)
+            }
+        }
     }
 
     /// Internal: Remove every closed circuit from this pool.
