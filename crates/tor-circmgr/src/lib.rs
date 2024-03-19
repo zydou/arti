@@ -280,6 +280,15 @@ impl<R: Runtime> CircMgr<R> {
             .guardmgr()
             .install_netdir_provider(&dir_provider.clone().upcast_arc())?;
 
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        {
+            let () = self
+                .mgr
+                .peek_builder()
+                .vanguardmgr()
+                .launch_background_tasks(&dir_provider.clone().upcast_arc())?;
+        }
+
         Ok(ret)
     }
 

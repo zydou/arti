@@ -506,7 +506,7 @@ impl<R: Runtime> CircuitBuilder<R> {
 
     /// Return a reference to this builder's `VanguardMgr`.
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-    pub(crate) fn vanguardmgr(&self) -> &VanguardMgr<R> {
+    pub(crate) fn vanguardmgr(&self) -> &Arc<VanguardMgr<R>> {
         &self.vanguardmgr
     }
 
