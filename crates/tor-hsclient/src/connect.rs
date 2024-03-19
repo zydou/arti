@@ -646,12 +646,17 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             (1, TimeoutsAction::RoundTrip { length: HOPS }), // One INTRODUCE1/INTRODUCE_ACK
         ]);
 
-        // Limit on the duration of each attempt for activities involving both RPT and IPT
-        let hs_hops = if desc.is_single_onion_service() {
-            1
-        } else {
-            HOPS
+        // Timeout estimator for the action that the HS will take in building
+        // its circuit to the RPT.
+        let hs_build_action = TimeoutsAction::BuildCircuit {
+            length: if desc.is_single_onion_service() {
+                1
+            } else {
+                HOPS
+            },
         };
+        // Limit on the duration of each attempt for activities involving both
+        // RPT and IPT.
         let rpt_ipt_timeout = self.estimate_timeout(&[
             // The API requires us to specify a number of circuit builds and round trips.
             // So what we tell the estimator is a rather imprecise description.
@@ -665,7 +670,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
             //    and which has to come HOPS hops.  So don't count INTRODUCE2 here.
             //
             //    HS builds to our RPT
-            (1, TimeoutsAction::BuildCircuit { length: hs_hops }),
+            (1, hs_build_action),
             //
             //    RENDEZVOUS1 goes from HS to RPT.  `hs_hops`, one-way.
             //    RENDEZVOUS2 goes from RPT to us.  HOPS, one-way.
