@@ -708,10 +708,18 @@ impl ClientCirc {
         seed: impl handshake::KeyGenerator,
         params: CircParameters,
     ) -> Result<()> {
+        use tor_cell::relaycell::RelayCellFormatV0;
+
         use self::handshake::BoxedClientLayer;
 
-        let BoxedClientLayer { fwd, back, binding } =
-            protocol.construct_layers(role, seed, relay_cell_format)?;
+        let BoxedClientLayer { fwd, back, binding } = match relay_cell_format {
+            RelayCellFormat::V0 => protocol.construct_layers::<RelayCellFormatV0>(role, seed)?,
+            _ => {
+                return Err(Error::Bug(internal!(
+                    "Unimplemented for format {relay_cell_format:?}"
+                )))
+            }
+        };
 
         let (tx, rx) = oneshot::channel();
         let message = CtrlMsg::ExtendVirtual {

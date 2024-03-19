@@ -40,7 +40,8 @@ use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
+    RelayCmd, StreamId, UnparsedRelayMsg,
 };
 #[cfg(feature = "hs-service")]
 use {
@@ -564,7 +565,7 @@ where
         // requested extensions have been acknowledged.
         H::handle_server_aux_data(reactor, &self.params, &server_aux_data)?;
 
-        let layer = L::construct(self.relay_cell_format, keygen)?;
+        let layer = L::construct(keygen)?;
 
         trace!("{}: Handshake complete; circuit extended.", self.unique_id);
 
@@ -1164,7 +1165,7 @@ impl Reactor {
 
         H::handle_server_aux_data(self, params, &server_msg)?;
 
-        let layer = L::construct(relay_cell_format, keygen)?;
+        let layer = L::construct(keygen)?;
 
         trace!("{}: Handshake complete; circuit created.", self.unique_id);
 
@@ -1196,7 +1197,7 @@ impl Reactor {
         // In a CREATE_FAST handshake, we can't negotiate a format other than V0.
         let relay_cell_format = RelayCellFormat::V0;
         let wrap = CreateFastWrap;
-        self.create_impl::<Tor1RelayCrypto, _, _, CreateFastClient, _, _>(
+        self.create_impl::<Tor1RelayCrypto<RelayCellFormatV0>, _, _, CreateFastClient, _, _>(
             relay_cell_format,
             recvcreated,
             &wrap,
@@ -1219,7 +1220,9 @@ impl Reactor {
         params: &CircParameters,
     ) -> Result<()> {
         // In an ntor handshake, we can't negotiate a format other than V0.
-        let relay_cell_format = RelayCellFormat::V0;
+        /// Local type alias to ensure consistency below.
+        type Rcf = RelayCellFormatV0;
+
         // Exit now if we have an Ed25519 or RSA identity mismatch.
         let target = RelayIds::builder()
             .ed_identity(ed_identity)
@@ -1231,8 +1234,8 @@ impl Reactor {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR,
         };
-        self.create_impl::<Tor1RelayCrypto, _, _, NtorClient, _, _>(
-            relay_cell_format,
+        self.create_impl::<Tor1RelayCrypto<Rcf>, _, _, NtorClient, _, _>(
+            Rcf::FORMAT,
             recvcreated,
             &wrap,
             &pubkey,
@@ -1270,15 +1273,22 @@ impl Reactor {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,
         };
-        self.create_impl::<Tor1RelayCrypto, _, _, NtorV3Client, _, _>(
-            relay_cell_format,
-            recvcreated,
-            &wrap,
-            &pubkey,
-            params,
-            &client_extensions,
-        )
-        .await
+        match relay_cell_format {
+            RelayCellFormat::V0 => {
+                self.create_impl::<Tor1RelayCrypto<RelayCellFormatV0>, _, _, NtorV3Client, _, _>(
+                    relay_cell_format,
+                    recvcreated,
+                    &wrap,
+                    &pubkey,
+                    params,
+                    &client_extensions,
+                )
+                .await
+            }
+            _ => Err(Error::Bug(internal!(
+                "Unimplemented for format {relay_cell_format:?}"
+            ))),
+        }
     }
 
     /// Add a hop to the end of this circuit.
@@ -1592,10 +1602,12 @@ impl Reactor {
                 done,
             } => {
                 // ntor handshake only supports V0.
-                let relay_cell_format = RelayCellFormat::V0;
-                let extender = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
+                /// Local type alias to ensure consistency below.
+                type Rcf = RelayCellFormatV0;
+
+                let extender = CircuitExtender::<NtorClient, Tor1RelayCrypto<Rcf>, _, _>::begin(
                     cx,
-                    relay_cell_format,
+                    Rcf::FORMAT,
                     peer_id,
                     HandshakeType::NTOR,
                     &public_key,
@@ -1616,13 +1628,15 @@ impl Reactor {
                 done,
             } => {
                 // TODO #1067: support negotiating other formats.
-                let relay_cell_format = RelayCellFormat::V0;
+                /// Local type alias to ensure consistency below.
+                type Rcf = RelayCellFormatV0;
+
                 // TODO: Set extensions, e.g. based on `params`.
                 let client_extensions = [];
 
-                let extender = CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
+                let extender = CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
                     cx,
-                    relay_cell_format,
+                    Rcf::FORMAT,
                     peer_id,
                     HandshakeType::NTOR_V3,
                     &public_key,
