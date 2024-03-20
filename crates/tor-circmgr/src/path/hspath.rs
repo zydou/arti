@@ -94,7 +94,6 @@ impl HsPathBuilder {
     }
 
     /// Try to create and return a path for a hidden service circuit stub.
-    #[cfg(not(feature = "vanguards"))]
     pub fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -103,14 +102,15 @@ impl HsPathBuilder {
         config: &PathConfig,
         now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
-        use super::pick_path;
-
         pick_path(self, rng, netdir, guards, config, now)
     }
 
     /// Try to create and return a path for a hidden service circuit stub.
+    ///
+    /// If vanguards are disabled, this has the same behavior as
+    /// [pick_path](HsPathBuilder::pick_path).
     #[cfg(feature = "vanguards")]
-    pub fn pick_path<'a, R: Rng, RT: Runtime>(
+    pub fn pick_path_with_vanguards<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,

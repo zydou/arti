@@ -346,7 +346,7 @@ impl TargetCircUsage {
                 cfg_if::cfg_if! {
                     if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
                         let (path, mon, usable) = path_builder
-                            .pick_path::<_, RT>(rng, netdir, guards, vanguards, config, now)?;
+                            .pick_path_with_vanguards::<_, RT>(rng, netdir, guards, vanguards, config, now)?;
                     } else {
                         let (path, mon, usable) = path_builder
                             .pick_path::<_, RT>(rng, netdir, guards, config, now)?;
