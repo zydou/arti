@@ -221,7 +221,7 @@ impl<R: Runtime> HsCircPool<R> {
             .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Stub)
             .await?;
 
-        if self.vanguards_enabled()? && circ.kind != HsCircStubKind::Stub {
+        if self.vanguards_enabled() && circ.kind != HsCircStubKind::Stub {
             return Err(internal!("wanted a STUB circuit, but got STUB+?!").into());
         }
 
@@ -278,7 +278,7 @@ impl<R: Runtime> HsCircPool<R> {
             .take_or_launch_stub_circuit(netdir, Some(&target), wanted_kind)
             .await?;
 
-        if self.vanguards_enabled()? && circ.kind != wanted_kind {
+        if self.vanguards_enabled() && circ.kind != wanted_kind {
             return Err(internal!(
                 "take_or_launch_stub_circuit() returned {:?}, but we need {wanted_kind:?}",
                 circ.kind
@@ -371,7 +371,7 @@ impl<R: Runtime> HsCircPool<R> {
 
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
-            let vanguards_enabled = inner.pool.vanguards_enabled()?;
+            let vanguards_enabled = inner.pool.vanguards_enabled();
 
             let restrictions = |circ: &HsCircStub| {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
@@ -428,7 +428,7 @@ impl<R: Runtime> HsCircPool<R> {
         mut circuit: HsCircStub,
         kind: HsCircStubKind,
     ) -> Result<HsCircStub> {
-        if !self.vanguards_enabled()? {
+        if !self.vanguards_enabled() {
             return Ok(circuit);
         }
 
@@ -466,13 +466,13 @@ impl<R: Runtime> HsCircPool<R> {
     }
 
     /// Returns `true` if vanguards are enabled.
-    fn vanguards_enabled(&self) -> Result<bool> {
+    fn vanguards_enabled(&self) -> bool {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
                 let inner = self.inner.lock().expect("lock poisoned");
-                Ok(inner.pool.vanguards_enabled()?)
+                inner.pool.vanguards_enabled()
             } else {
-                Ok(false)
+                false
             }
         }
     }
