@@ -15,6 +15,20 @@ pub(crate) fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
     choice.unwrap_u8() == 1
 }
 
+/// Returns true if all bytes of the input are zero (including if the slice is
+/// empty). Executes in constant time for a given length of input.
+pub(crate) fn is_zero(x: &[u8]) -> bool {
+    // It's tempting to lift the Choice out of the fold loop, s.t. the loop does
+    // a simple bit-or of each byte, but then the compiler could theoretically
+    // exit the loop early if all bits become one (i.e. 0xff). (Granted this
+    // seems unlikely in practice)
+    x.iter()
+        .map(|b| bool_to_choice(*b == 0))
+        .fold(bool_to_choice(true), std::ops::BitAnd::bitand)
+        .unwrap_u8()
+        == 1
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -38,5 +52,16 @@ mod test {
         assert!(bytes_eq(&b"45"[..], &b"45"[..]));
         assert!(!bytes_eq(&b"hi"[..], &b"45"[..]));
         assert!(bytes_eq(&b""[..], &b""[..]));
+    }
+
+    #[test]
+    fn test_is_zero() {
+        use super::is_zero;
+        assert!(is_zero(&[]));
+        assert!(is_zero(&[0]));
+        assert!(is_zero(&[0, 0]));
+        assert!(!is_zero(&[1, 0]));
+        assert!(!is_zero(&[0, 1]));
+        assert!(!is_zero(&[0, 1, 0]));
     }
 }

@@ -40,7 +40,8 @@ use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCmd, StreamId, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
+    RelayCmd, StreamId, UnparsedRelayMsg,
 };
 #[cfg(feature = "hs-service")]
 use {
@@ -180,6 +181,8 @@ pub(super) enum CtrlMsg {
     /// INTRODUCE and RENDEZVOUS messages.)
     #[cfg(feature = "hs-common")]
     ExtendVirtual {
+        /// Which relay cell format to use for this hop.
+        relay_cell_format: RelayCellFormat,
         /// The cryptographic algorithms and keys to use when communicating with
         /// the newly added hop.
         #[educe(Debug(ignore))]
@@ -283,6 +286,7 @@ pub(super) enum CtrlMsg {
     /// (tests only) Add a hop to the list of hops on this circuit, with dummy cryptography.
     #[cfg(test)]
     AddFakeHop {
+        relay_cell_format: RelayCellFormat,
         fwd_lasthop: bool,
         rev_lasthop: bool,
         params: CircParameters,
@@ -341,15 +345,13 @@ enum CellStatus {
 
 impl CircHop {
     /// Create a new hop.
-    pub(super) fn new(initial_window: u16) -> Self {
-        // TODO: Add support for negotiating other versions.
-        let relay_cell_version = RelayCellFormat::V0;
+    pub(super) fn new(format: RelayCellFormat, initial_window: u16) -> Self {
         CircHop {
             map: streammap::StreamMap::new(),
             recvwindow: sendme::CircRecvWindow::new(1000),
             sendwindow: sendme::CircSendWindow::new(initial_window),
             outbound: VecDeque::new(),
-            inbound: RelayCellDecoder::new(relay_cell_version),
+            inbound: RelayCellDecoder::new(format),
         }
     }
 }
@@ -438,6 +440,8 @@ where
     unique_id: UniqId,
     /// The hop we're expecting the EXTENDED2 cell to come back from.
     expected_hop: HopNum,
+    /// The relay cell format we intend to use for this hop.
+    relay_cell_format: RelayCellFormat,
     /// A oneshot channel that we should inform when we are done with this extend operation.
     operation_finished: Option<oneshot::Sender<Result<()>>>,
     /// `PhantomData` used to make the other type parameters required for a circuit extension
@@ -468,6 +472,7 @@ where
     #[allow(clippy::blocks_in_conditions)]
     fn begin(
         cx: &mut Context<'_>,
+        relay_cell_format: RelayCellFormat,
         peer_id: OwnedChanTarget,
         handshake_id: HandshakeType,
         key: &H::KeyType,
@@ -513,6 +518,7 @@ where
                 expected_hop: hop,
                 operation_finished: None,
                 phantom: Default::default(),
+                relay_cell_format,
             })
         })() {
             Ok(mut result) => {
@@ -566,6 +572,7 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back, binding) = layer.split();
         reactor.add_hop(
+            self.relay_cell_format,
             path::HopDetail::Relay(self.peer_id.clone()),
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -1012,12 +1019,13 @@ impl Reactor {
             CtrlMsg::Shutdown => self.handle_shutdown(),
             #[cfg(test)]
             CtrlMsg::AddFakeHop {
+                relay_cell_format: format,
                 fwd_lasthop,
                 rev_lasthop,
                 params,
                 done,
             } => {
-                self.handle_add_fake_hop(fwd_lasthop, rev_lasthop, &params, done);
+                self.handle_add_fake_hop(format, fwd_lasthop, rev_lasthop, &params, done);
                 Ok(())
             }
             _ => {
@@ -1078,6 +1086,7 @@ impl Reactor {
     #[cfg(test)]
     fn handle_add_fake_hop(
         &mut self,
+        format: RelayCellFormat,
         fwd_lasthop: bool,
         rev_lasthop: bool,
         params: &CircParameters,
@@ -1095,6 +1104,7 @@ impl Reactor {
         let rev = Box::new(DummyCrypto::new(rev_lasthop));
         let binding = None;
         self.add_hop(
+            format,
             path::HopDetail::Relay(dummy_peer_id),
             fwd,
             rev,
@@ -1112,6 +1122,7 @@ impl Reactor {
     /// handle relay crypto after this hop is built.
     async fn create_impl<L, FWD, REV, H, W, M>(
         &mut self,
+        relay_cell_format: RelayCellFormat,
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
@@ -1162,6 +1173,7 @@ impl Reactor {
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
+            relay_cell_format,
             path::HopDetail::Relay(peer_id),
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -1182,8 +1194,11 @@ impl Reactor {
         recvcreated: oneshot::Receiver<CreateResponse>,
         params: &CircParameters,
     ) -> Result<()> {
+        // In a CREATE_FAST handshake, we can't negotiate a format other than V0.
+        let relay_cell_format = RelayCellFormat::V0;
         let wrap = CreateFastWrap;
-        self.create_impl::<Tor1RelayCrypto, _, _, CreateFastClient, _, _>(
+        self.create_impl::<Tor1RelayCrypto<RelayCellFormatV0>, _, _, CreateFastClient, _, _>(
+            relay_cell_format,
             recvcreated,
             &wrap,
             &(),
@@ -1204,6 +1219,10 @@ impl Reactor {
         pubkey: NtorPublicKey,
         params: &CircParameters,
     ) -> Result<()> {
+        // In an ntor handshake, we can't negotiate a format other than V0.
+        /// Local type alias to ensure consistency below.
+        type Rcf = RelayCellFormatV0;
+
         // Exit now if we have an Ed25519 or RSA identity mismatch.
         let target = RelayIds::builder()
             .ed_identity(ed_identity)
@@ -1215,7 +1234,8 @@ impl Reactor {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR,
         };
-        self.create_impl::<Tor1RelayCrypto, _, _, NtorClient, _, _>(
+        self.create_impl::<Tor1RelayCrypto<Rcf>, _, _, NtorClient, _, _>(
+            Rcf::FORMAT,
             recvcreated,
             &wrap,
             &pubkey,
@@ -1243,6 +1263,9 @@ impl Reactor {
             .expect("Unable to build RelayIds");
         self.channel.check_match(&target)?;
 
+        // TODO: Add support for negotiating other formats.
+        let relay_cell_format = RelayCellFormat::V0;
+
         // TODO: Set client extensions. e.g. request congestion control
         // if specified in `params`.
         let client_extensions = [];
@@ -1250,26 +1273,35 @@ impl Reactor {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,
         };
-        self.create_impl::<Tor1RelayCrypto, _, _, NtorV3Client, _, _>(
-            recvcreated,
-            &wrap,
-            &pubkey,
-            params,
-            &client_extensions,
-        )
-        .await
+        match relay_cell_format {
+            RelayCellFormat::V0 => {
+                self.create_impl::<Tor1RelayCrypto<RelayCellFormatV0>, _, _, NtorV3Client, _, _>(
+                    relay_cell_format,
+                    recvcreated,
+                    &wrap,
+                    &pubkey,
+                    params,
+                    &client_extensions,
+                )
+                .await
+            }
+            _ => Err(Error::Bug(internal!(
+                "Unimplemented for format {relay_cell_format:?}"
+            ))),
+        }
     }
 
     /// Add a hop to the end of this circuit.
     fn add_hop(
         &mut self,
+        format: RelayCellFormat,
         peer_id: path::HopDetail,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
         binding: Option<CircuitBinding>,
         params: &CircParameters,
     ) {
-        let hop = crate::circuit::reactor::CircHop::new(params.initial_send_window());
+        let hop = crate::circuit::reactor::CircHop::new(format, params.initial_send_window());
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
@@ -1569,8 +1601,13 @@ impl Reactor {
                 params,
                 done,
             } => {
-                let extender = CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
+                // ntor handshake only supports V0.
+                /// Local type alias to ensure consistency below.
+                type Rcf = RelayCellFormatV0;
+
+                let extender = CircuitExtender::<NtorClient, Tor1RelayCrypto<Rcf>, _, _>::begin(
                     cx,
+                    Rcf::FORMAT,
                     peer_id,
                     HandshakeType::NTOR,
                     &public_key,
@@ -1590,11 +1627,16 @@ impl Reactor {
                 params,
                 done,
             } => {
+                // TODO #1067: support negotiating other formats.
+                /// Local type alias to ensure consistency below.
+                type Rcf = RelayCellFormatV0;
+
                 // TODO: Set extensions, e.g. based on `params`.
                 let client_extensions = [];
 
-                let extender = CircuitExtender::<NtorV3Client, Tor1RelayCrypto, _, _>::begin(
+                let extender = CircuitExtender::<NtorV3Client, Tor1RelayCrypto<Rcf>, _, _>::begin(
                     cx,
+                    Rcf::FORMAT,
                     peer_id,
                     HandshakeType::NTOR_V3,
                     &public_key,
@@ -1609,6 +1651,7 @@ impl Reactor {
             #[cfg(feature = "hs-common")]
             #[allow(unreachable_code)]
             CtrlMsg::ExtendVirtual {
+                relay_cell_format: format,
                 cell_crypto,
                 params,
                 done,
@@ -1619,7 +1662,7 @@ impl Reactor {
                 // describe why the virtual hop was added, or something?
                 let peer_id = path::HopDetail::Virtual;
 
-                self.add_hop(peer_id, outbound, inbound, binding, &params);
+                self.add_hop(format, peer_id, outbound, inbound, binding, &params);
                 let _ = done.send(Ok(()));
             }
             CtrlMsg::BeginStream {
@@ -1707,11 +1750,20 @@ impl Reactor {
             }
             #[cfg(test)]
             CtrlMsg::AddFakeHop {
+                relay_cell_format,
                 fwd_lasthop,
                 rev_lasthop,
                 params,
                 done,
-            } => self.handle_add_fake_hop(fwd_lasthop, rev_lasthop, &params, done),
+            } => {
+                self.handle_add_fake_hop(
+                    relay_cell_format,
+                    fwd_lasthop,
+                    rev_lasthop,
+                    &params,
+                    done,
+                );
+            }
             #[cfg(test)]
             CtrlMsg::QuerySendWindow { hop, done } => {
                 let _ = done.send(if let Some(hop) = self.hop_mut(hop) {

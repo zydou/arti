@@ -68,6 +68,8 @@ use crate::stream::{
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
 use tor_cell::chancell::msg::HandshakeType;
+#[cfg(feature = "hs-common")]
+use tor_cell::relaycell::RelayCellFormat;
 use tor_cell::{
     chancell::{self, msg::AnyChanMsg, CircId},
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -700,17 +702,28 @@ impl ClientCirc {
     #[cfg(feature = "hs-common")]
     pub async fn extend_virtual(
         &self,
+        relay_cell_format: RelayCellFormat,
         protocol: handshake::RelayProtocol,
         role: handshake::HandshakeRole,
         seed: impl handshake::KeyGenerator,
         params: CircParameters,
     ) -> Result<()> {
+        use tor_cell::relaycell::RelayCellFormatV0;
+
         use self::handshake::BoxedClientLayer;
 
-        let BoxedClientLayer { fwd, back, binding } = protocol.construct_layers(role, seed)?;
+        let BoxedClientLayer { fwd, back, binding } = match relay_cell_format {
+            RelayCellFormat::V0 => protocol.construct_layers::<RelayCellFormatV0>(role, seed)?,
+            _ => {
+                return Err(Error::Bug(internal!(
+                    "Unimplemented for format {relay_cell_format:?}"
+                )))
+            }
+        };
 
         let (tx, rx) = oneshot::channel();
         let message = CtrlMsg::ExtendVirtual {
+            relay_cell_format,
             cell_crypto: (fwd, back, binding),
             params,
             done: tx,
@@ -1589,11 +1602,14 @@ mod test {
             recvcreated: _,
         } = pending;
 
+        // TODO #1067: Support other formats
+        let relay_cell_format = RelayCellFormat::V0;
         for idx in 0_u8..3 {
             let params = CircParameters::default();
             let (tx, rx) = oneshot::channel();
             circ.control
                 .unbounded_send(CtrlMsg::AddFakeHop {
+                    relay_cell_format,
                     fwd_lasthop: idx == 2,
                     rev_lasthop: idx == u8::from(next_msg_from),
                     params,
