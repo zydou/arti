@@ -99,6 +99,7 @@ impl HsPathBuilder {
     }
 
     /// Try to create and return a path for a hidden service circuit stub.
+    #[cfg_attr(feature = "vanguards", allow(unused))]
     pub(crate) fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -115,6 +116,7 @@ impl HsPathBuilder {
     /// If vanguards are disabled, this has the same behavior as
     /// [pick_path](HsPathBuilder::pick_path).
     #[cfg(feature = "vanguards")]
+    #[cfg_attr(not(feature = "vanguards"), allow(unused))]
     pub(crate) fn pick_path_with_vanguards<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
