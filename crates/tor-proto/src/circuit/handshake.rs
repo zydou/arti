@@ -95,14 +95,14 @@ impl RelayCryptLayerProtocol {
         use RelayCryptLayerProtocol::*;
 
         let swap = role == HandshakeRole::Responder;
-        let layer = match self {
-            Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, swap)?,
+        match self {
+            Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, swap),
+            Tor1(_) => Err(internal!("protocol not implemented").into()),
             #[cfg(feature = "hs-common")]
-            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, swap)?,
-            _ => return Err(internal!("cell format not implemented").into()),
-        };
-
-        Ok(layer)
+            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, swap),
+            #[cfg(feature = "hs-common")]
+            HsV3(_) => Err(internal!("protocol not implemented").into()),
+        }
     }
 
     /// Return the cell format used by this protocol.
