@@ -156,6 +156,11 @@ impl StreamMap {
             .count()
     }
 
+    /// Return the number of open streams in this map.
+    pub(super) fn n_open_streams(&self) -> usize {
+        self.n_open
+    }
+
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,

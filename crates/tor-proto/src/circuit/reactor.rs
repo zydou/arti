@@ -16,6 +16,8 @@
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
 
+pub(super) mod syncview;
+
 use super::handshake::RelayCryptLayerProtocol;
 use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
