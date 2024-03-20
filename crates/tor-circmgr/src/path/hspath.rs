@@ -1,7 +1,7 @@
 //! Code for building paths for HS circuits.
 //!
 //! The path builders defined here are used for creating hidden service stub circuits,
-//! which are three-hop circuits that have not yet been extended to a target.
+//! which are three- or four-hop circuits that have not yet been extended to a target.
 //!
 //! Stub circuits eventually become introduction, rendezvous, and HsDir circuits.
 //! For all circuit types except client rendezvous, the stubs must first be
