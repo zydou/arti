@@ -309,6 +309,7 @@ impl IptEstablisher {
             keymgr: Arc::clone(keymgr),
             kp_hss_ntor: Arc::clone(&k_ntor),
             kp_hs_ipt_sid: k_sid.as_ref().as_ref().verifying_key().into(),
+            filter: config.filter_settings(),
             netdir_provider: netdir_provider.clone(),
             circ_pool: pool.clone(),
         });

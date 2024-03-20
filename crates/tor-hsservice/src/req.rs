@@ -74,6 +74,9 @@ pub(crate) struct RendRequestContext {
     /// and prevent replays across sessions.
     pub(crate) kp_hs_ipt_sid: HsIntroPtSessionIdKey,
 
+    /// Configuration for a filter for this service.
+    pub(crate) filter: rend_handshake::RequestFilter,
+
     /// Provider we'll use to find a directory so that we can build a rendezvous
     /// circuit.
     pub(crate) netdir_provider: Arc<dyn tor_netdir::NetDirProvider>,
@@ -216,6 +219,7 @@ impl RendRequest {
             circuit,
         } = intro_request
             .establish_session(
+                self.context.filter.clone(),
                 self.context.circ_pool.clone(),
                 self.context.netdir_provider.clone(),
             )

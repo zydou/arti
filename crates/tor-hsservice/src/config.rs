@@ -40,12 +40,11 @@ pub struct OnionServiceConfig {
     /// <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
     #[builder(default)]
     rate_limit_at_intro: Option<TokenBucketConfig>,
-    // TODO #1124 Implement max_concurrent_streams_per_circuit
-    // /// How many streams will we allow to be open at once for a single circuit on
-    // /// this service?
-    // #[builder(default = "65535")]
-    // max_concurrent_streams_per_circuit: u32,
 
+    /// How many streams will we allow to be open at once for a single circuit on
+    /// this service?
+    #[builder(default = "65535")]
+    max_concurrent_streams_per_circuit: u32,
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
     // // enable_pow: bool,
@@ -172,6 +171,9 @@ impl OnionServiceConfig {
             // IPT manager's "new configuration" select arm handles this,
             // by replacing IPTs if necessary.
             rate_limit_at_intro: simply_update,
+
+            // We extract this on every introduction request.
+            max_concurrent_streams_per_circuit: simply_update,
         }
 
         Ok(other)
@@ -187,6 +189,13 @@ impl OnionServiceConfig {
             .map_err(into_internal!(
                 "somehow built an un-validated rate-limit-at-intro"
             ))?)
+    }
+
+    /// Return a RequestFilter based on this configuration.
+    pub(crate) fn filter_settings(&self) -> crate::rend_handshake::RequestFilter {
+        crate::rend_handshake::RequestFilter {
+            max_concurrent_streams: self.max_concurrent_streams_per_circuit as usize,
+        }
     }
 }
 

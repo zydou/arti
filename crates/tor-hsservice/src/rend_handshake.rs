@@ -183,11 +183,17 @@ impl<R: Runtime> RendCircConnector for HsCircPool<R> {
 }
 
 /// Filter callback used to enforce early requirements on streams.
-struct Filter {
+#[derive(Clone, Debug)]
+pub(crate) struct RequestFilter {
     /// Largest number of streams we will accept on a circuit at a time.
-    max_concurrent_streams: usize,
+    //
+    // TODO: Conceivably, this should instead be a
+    // watch::Receiver<Arc<OnionServiceConfig>>, so we can re-check the latest
+    // value of the setting every time.  Instead, we currently only copy this
+    // setting when an intro request is accepted.
+    pub(crate) max_concurrent_streams: usize,
 }
-impl IncomingStreamRequestFilter for Filter {
+impl IncomingStreamRequestFilter for RequestFilter {
     fn disposition(
         &mut self,
         _ctx: &tor_proto::stream::IncomingStreamRequestContext<'_>,
@@ -263,6 +269,7 @@ impl IntroRequest {
     /// the client.
     pub(crate) async fn establish_session(
         self,
+        filter: RequestFilter,
         hs_pool: Arc<dyn RendCircConnector>,
         provider: Arc<dyn NetDirProvider>,
     ) -> Result<OpenSession, EstablishSessionError> {
@@ -359,11 +366,6 @@ impl IntroRequest {
             .last_hop_num()
             .map_err(into_internal!("Circuit with no virtual hop"))?;
 
-        let filter = Filter {
-            // TODO #1124: implement max_concurrent_streams_per_circuit, and
-            // make this configurable.
-            max_concurrent_streams: usize::MAX,
-        };
         // Accept begins from that virtual hop
         let stream_requests = circuit
             .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], virtual_hop, filter)
