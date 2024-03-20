@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use tor_config::ConfigBuildError;
 use tor_netdir::params::NetParameters;
 
+use crate::VanguardMode;
+
 /// The default L2 pool size.
 const DEFAULT_L2_POOL_SIZE: usize = 4;
 
@@ -36,24 +38,6 @@ pub struct VanguardConfig {
     #[builder(default)]
     #[getter(as_copy)]
     pub(super) mode: VanguardMode,
-}
-
-/// The kind of vanguards to use.
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)] //
-#[derive(derive_more::Display)] //
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum VanguardMode {
-    /// "Lite" vanguards.
-    #[default]
-    #[display(fmt = "lite")]
-    Lite,
-    /// "Full" vanguards.
-    #[display(fmt = "full")]
-    Full,
-    /// Vanguards are disabled.
-    #[display(fmt = "disabled")]
-    Disabled,
 }
 
 /// A set of parameters, derived from the consensus document,

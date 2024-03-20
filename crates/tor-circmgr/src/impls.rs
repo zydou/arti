@@ -59,10 +59,14 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         dir: DirInfo<'_>,
     ) -> Result<(Plan, SupportedCircUsage)> {
         let mut rng = rand::thread_rng();
+        // TODO HS-VANGUARDS: build_path will need a handle to VanguardMgr,
+        // which needs to be passed to HsPathBuilder::pick_path.
         let (path, final_spec, guard_status, guard_usable) = usage.build_path(
             &mut rng,
             dir,
             Some(self.guardmgr()),
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            self.vanguardmgr(),
             self.path_config().as_ref(),
             self.runtime().wallclock(),
         )?;

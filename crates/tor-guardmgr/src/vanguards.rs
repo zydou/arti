@@ -15,12 +15,12 @@ use tor_netdir::{NetDir, NetDirProvider};
 use tor_persist::StateMgr;
 use tor_rtcompat::Runtime;
 
-pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardMode, VanguardParams};
+pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
 pub use set::Vanguard;
 
 use set::VanguardSet;
 
-use crate::RetireCircuits;
+use crate::{RetireCircuits, VanguardMode};
 
 /// The vanguard manager.
 #[allow(unused)] // TODO HS-VANGUARDS
@@ -141,6 +141,11 @@ impl VanguardMgr {
         vanguard_set
             .pick_relay(netdir)
             .ok_or(VanguardMgrError::NoSuitableRelay(layer))
+    }
+
+    /// Get the current [`VanguardMode`].
+    pub fn mode(&self) -> VanguardMode {
+        self.inner.read().expect("poisoned lock").mode
     }
 
     /// Flush the vanguard sets to storage, if the mode is "vanguards-full".
