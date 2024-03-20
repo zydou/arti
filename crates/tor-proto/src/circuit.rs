@@ -41,8 +41,12 @@
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 mod halfstream;
+
 #[cfg(feature = "hs-common")]
 pub mod handshake;
+#[cfg(not(feature = "hs-common"))]
+mod handshake;
+
 #[cfg(feature = "send-control-msg")]
 mod msghandler;
 mod path;

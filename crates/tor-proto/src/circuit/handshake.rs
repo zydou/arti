@@ -15,12 +15,16 @@ use tor_cell::relaycell::{RelayCellFormat, RelayCellFormatV0};
 use tor_error::internal;
 
 use crate::crypto::binding::CircuitBinding;
+#[cfg(feature = "hs-common")]
+use crate::crypto::cell::Tor1Hsv3RelayCrypto;
 use crate::crypto::cell::{
-    ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, Tor1Hsv3RelayCrypto,
-    Tor1RelayCrypto,
+    ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, Tor1RelayCrypto,
 };
+
 use crate::Result;
 
+#[cfg(feature = "hs-common")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-common")))]
 pub use crate::crypto::handshake::hs_ntor;
 pub use crate::crypto::handshake::KeyGenerator;
 
@@ -31,6 +35,7 @@ pub use crate::crypto::handshake::KeyGenerator;
 // crate::crypto::cell::ClientLayer.
 #[derive(Copy, Clone, Debug)]
 #[non_exhaustive]
+#[cfg(feature = "hs-common")]
 pub enum RelayProtocol {
     /// A variation of Tor's original protocol, using AES-256 and SHA-3.
     HsV3,
@@ -44,9 +49,11 @@ pub(crate) enum RelayCryptLayerProtocol {
     Tor1(RelayCellFormat),
     /// A variation of Tor's original cell Tor encryption format, using AES-256
     /// and SHA3-256.
+    #[cfg(feature = "hs-common")]
     HsV3(RelayCellFormat),
 }
 
+#[cfg(feature = "hs-common")]
 impl From<RelayProtocol> for RelayCryptLayerProtocol {
     fn from(value: RelayProtocol) -> Self {
         match value {
@@ -90,6 +97,7 @@ impl RelayCryptLayerProtocol {
         let swap = role == HandshakeRole::Responder;
         let layer = match self {
             Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, swap)?,
+            #[cfg(feature = "hs-common")]
             HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, swap)?,
             _ => return Err(internal!("cell format not implemented").into()),
         };
@@ -101,6 +109,7 @@ impl RelayCryptLayerProtocol {
     pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
         match self {
             RelayCryptLayerProtocol::Tor1(v) => *v,
+            #[cfg(feature = "hs-common")]
             RelayCryptLayerProtocol::HsV3(v) => *v,
         }
     }
