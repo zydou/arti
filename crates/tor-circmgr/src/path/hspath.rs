@@ -1,7 +1,6 @@
 //! Code for building paths for HS circuits.
 
 use rand::Rng;
-use tor_error::internal;
 use tor_linkspec::OwnedChanTarget;
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
@@ -138,34 +137,6 @@ impl HsPathBuilder {
 struct VanguardHsPathBuilder(HsCircStubKind);
 
 #[cfg(feature = "vanguards")]
-impl<'a> AnonymousPathBuilder<'a> for VanguardHsPathBuilder {
-    fn chosen_exit(&self) -> Option<&Relay<'_>> {
-        None
-    }
-
-    fn compatible_with(&self) -> Option<&OwnedChanTarget> {
-        // We no longer apply family or same-subnet restrictions at all.
-        None
-    }
-
-    fn path_kind(&self) -> &'static str {
-        "onion-service circuit"
-    }
-
-    fn pick_exit<'s, R: Rng>(
-        &'s self,
-        _rng: &mut R,
-        _netdir: &'a NetDir,
-        _guard_exclusion: RelayExclusion<'a>,
-        _rs_cfg: &RelaySelectionConfig<'_>,
-    ) -> Result<(Relay<'a>, RelayUsage)> {
-        // TODO HS-VANGUARDS: having an unusable impl is ugly (AnonymousPathBuilder, pick_path, and
-        // select_guard need to be refactored)
-        Err(internal!("cannot use pick_exit if vanguards are enabled").into())
-    }
-}
-
-#[cfg(feature = "vanguards")]
 impl VanguardHsPathBuilder {
     /// Try to create and return a path for a hidden service circuit stub.
     fn pick_path<'a, R: Rng, RT: Runtime>(
@@ -191,7 +162,15 @@ impl VanguardHsPathBuilder {
 
         // Select the guard, allowing it to appear as
         // either of the last two hops of the circuit.
-        let (l1_guard, mon, usable) = select_guard(self, rng, netdir, guards, config)?;
+        let (l1_guard, mon, usable) = select_guard(
+            rng,
+            netdir,
+            guards,
+            config,
+            None,
+            None,
+            self.path_kind(),
+        )?;
 
         // Select the vanguards
         let l2_guard = vanguards.select_vanguard(netdir, Layer::Layer2)?;
@@ -224,6 +203,12 @@ impl VanguardHsPathBuilder {
         }
 
         Ok((TorPath::new_multihop_from_maybe_owned(hops), mon, usable))
+    }
+
+    /// Return a short description of the path we're trying to build,
+    /// for error reporting purposes.
+    fn path_kind(&self) -> &'static str {
+        "onion-service vanguard circuit"
     }
 }
 

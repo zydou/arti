@@ -304,7 +304,15 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
 
     // TODO-SPEC: Because of limitations in guard selection, we have to
     // pick the guard before the exit, which is not what our spec says.
-    let (guard, mon, usable) = select_guard(builder, rng, netdir, guards, config)?;
+    let (guard, mon, usable) = select_guard(
+        rng,
+        netdir,
+        guards,
+        config,
+        builder.chosen_exit(),
+        builder.compatible_with(),
+        builder.path_kind(),
+    )?;
 
     let guard_exclusion = match &guard {
         MaybeOwnedRelay::Relay(r) => RelayExclusion::exclude_relays_in_same_family(
@@ -345,18 +353,19 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
 
 /// Try to select a guard corresponding to the requirements of
 /// this builder.
-fn select_guard<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
-    builder: &B,
+fn select_guard<'a, R: Rng, RT: Runtime>(
     rng: &mut R,
     netdir: &'a NetDir,
     guards: Option<&GuardMgr<RT>>,
     config: &PathConfig,
+    chosen_exit: Option<&Relay<'_>>,
+    compatible_with: Option<&OwnedChanTarget>,
+    path_kind: &'static str,
 ) -> Result<(
     MaybeOwnedRelay<'a>,
     Option<GuardMonitor>,
     Option<GuardUsable>,
 )> {
-    let chosen_exit = builder.chosen_exit();
     let path_is_fully_random = chosen_exit.is_none();
     match guards {
         Some(guardmgr) => {
@@ -379,7 +388,7 @@ fn select_guard<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
                 b.restrictions()
                     .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
             }
-            if let Some(avoid_target) = builder.compatible_with() {
+            if let Some(avoid_target) = compatible_with {
                 let mut family = RelayIdSet::new();
                 family.extend(avoid_target.identities().map(|id| id.to_owned()));
                 if let Some(avoid_relay) = netdir.by_ids(avoid_target) {
@@ -425,7 +434,7 @@ fn select_guard<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
             let selector = RelaySelector::new(RelayUsage::new_guard(), exclusion);
             let (relay, info) = selector.select_relay(rng, netdir);
             let relay = relay.ok_or_else(|| Error::NoRelay {
-                path_kind: builder.path_kind(),
+                path_kind,
                 role: "entry",
                 problem: info.to_string(),
             })?;
