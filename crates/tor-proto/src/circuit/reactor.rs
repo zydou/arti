@@ -15,8 +15,9 @@
 //!    well-formed? For open streams, the streams themselves handle this check.
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
+
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{ShouldSendEnd, StreamEnt};
+use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEnt};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -934,9 +935,9 @@ impl Reactor {
                         let hop = &mut self.hops[i];
                         // Look at all of the streams on this hop.
                         for (id, stream) in hop.map.inner().iter_mut() {
-                            if let StreamEnt::Open {
+                            if let StreamEnt::Open(OpenStreamEnt {
                                 rx, send_window, ..
-                            } = stream
+                            }) = stream
                             {
                                 // Do the stream and hop send windows allow us to obtain and
                                 // send something?
@@ -1967,13 +1968,13 @@ impl Reactor {
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         match hop.map.get_mut(streamid) {
-            Some(StreamEnt::Open {
+            Some(StreamEnt::Open(OpenStreamEnt {
                 sink,
                 send_window,
                 dropped,
                 cmd_checker,
                 ..
-            }) => {
+            })) => {
                 // The stream for this message exists, and is open.
 
                 if msg.cmd() == RelayCmd::SENDME {
@@ -2012,7 +2013,7 @@ impl Reactor {
                 }
             }
             #[cfg(feature = "hs-service")]
-            Some(StreamEnt::EndSent { .. })
+            Some(StreamEnt::EndSent(_))
                 if matches!(
                     msg.cmd(),
                     RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
@@ -2024,7 +2025,7 @@ impl Reactor {
                 hop.map.ending_msg_received(streamid)?;
                 self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
             }
-            Some(StreamEnt::EndSent { half_stream, .. }) => {
+            Some(StreamEnt::EndSent(EndSentStreamEnt { half_stream, .. })) => {
                 // We sent an end but maybe the other side hasn't heard.
 
                 match half_stream.handle_msg(msg)? {

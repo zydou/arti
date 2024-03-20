@@ -22,22 +22,39 @@ use crate::circuit::reactor::RECV_WINDOW_INIT;
 use crate::circuit::sendme::StreamRecvWindow;
 use tracing::debug;
 
+/// Entry for an open stream
+///
+/// (For the purposes of this module, an open stream is one where we have not
+/// sent or received any message indicating that the stream is ended.)
+pub(super) struct OpenStreamEnt {
+    /// Sink to send relay cells tagged for this stream into.
+    pub(super) sink: mpsc::Sender<UnparsedRelayMsg>,
+    /// Stream for cells that should be sent down this stream.
+    pub(super) rx: mpsc::Receiver<AnyRelayMsg>,
+    /// Send window, for congestion control purposes.
+    pub(super) send_window: sendme::StreamSendWindow,
+    /// Number of cells dropped due to the stream disappearing before we can
+    /// transform this into an `EndSent`.
+    pub(super) dropped: u16,
+    /// A `CmdChecker` used to tell whether cells on this stream are valid.
+    pub(super) cmd_checker: AnyCmdChecker,
+}
+
+/// Entry for a stream where we have sent an END, or other message
+/// indicating that the stream is terminated.
+pub(super) struct EndSentStreamEnt {
+    /// A "half-stream" that we use to check the validity of incoming
+    /// messages on this stream.
+    pub(super) half_stream: HalfStream,
+    /// True if the sender on this stream has been explicitly dropped;
+    /// false if we got an explicit close from `close_pending`
+    explicitly_dropped: bool,
+}
+
 /// The entry for a stream.
 pub(super) enum StreamEnt {
     /// An open stream.
-    Open {
-        /// Sink to send relay cells tagged for this stream into.
-        sink: mpsc::Sender<UnparsedRelayMsg>,
-        /// Stream for cells that should be sent down this stream.
-        rx: mpsc::Receiver<AnyRelayMsg>,
-        /// Send window, for congestion control purposes.
-        send_window: sendme::StreamSendWindow,
-        /// Number of cells dropped due to the stream disappearing before we can
-        /// transform this into an `EndSent`.
-        dropped: u16,
-        /// A `CmdChecker` used to tell whether cells on this stream are valid.
-        cmd_checker: AnyCmdChecker,
-    },
+    Open(OpenStreamEnt),
     /// A stream for which we have received an END cell, but not yet
     /// had the stream object get dropped.
     EndReceived,
@@ -46,24 +63,17 @@ pub(super) enum StreamEnt {
     ///
     /// TODO(arti#264) Can we ever throw this out? Do we really get END cells for
     /// these?
-    EndSent {
-        /// A "half-stream" that we use to check the validity of incoming
-        /// messages on this stream.
-        half_stream: HalfStream,
-        /// True if the sender on this stream has been explicitly dropped;
-        /// false if we got an explicit close from `close_pending`
-        explicitly_dropped: bool,
-    },
+    EndSent(EndSentStreamEnt),
 }
 
 impl StreamEnt {
     /// Retrieve the send window for this stream, if it is open.
     pub(super) fn send_window(&mut self) -> Option<&mut sendme::StreamSendWindow> {
         match self {
-            StreamEnt::Open {
+            StreamEnt::Open(OpenStreamEnt {
                 ref mut send_window,
                 ..
-            } => Some(send_window),
+            }) => Some(send_window),
             _ => None,
         }
     }
@@ -114,13 +124,13 @@ impl StreamMap {
         send_window: sendme::StreamSendWindow,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
-        let stream_ent = StreamEnt::Open {
+        let stream_ent = StreamEnt::Open(OpenStreamEnt {
             sink,
             rx,
             send_window,
             dropped: 0,
             cmd_checker,
-        };
+        });
         // This "65536" seems too aggressive, but it's what tor does.
         //
         // Also, going around in a loop here is (sadly) needed in order
@@ -148,13 +158,13 @@ impl StreamMap {
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
-        let stream_ent = StreamEnt::Open {
+        let stream_ent = StreamEnt::Open(OpenStreamEnt {
             sink,
             rx,
             send_window,
             dropped: 0,
             cmd_checker,
-        };
+        });
 
         let ent = self.m.entry(id);
         if let Entry::Vacant(_) = ent {
@@ -223,14 +233,14 @@ impl StreamMap {
             .ok_or_else(|| Error::from(internal!("Somehow we terminated a nonexistent stream?")))?
         {
             StreamEnt::EndReceived => Ok(ShouldSendEnd::DontSend),
-            StreamEnt::Open {
+            StreamEnt::Open(OpenStreamEnt {
                 send_window,
                 dropped,
                 cmd_checker,
                 // notably absent: the channels for sink and stream, which will get dropped and
                 // closed (meaning reads/writes from/to this stream will now fail)
                 ..
-            } => {
+            }) => {
                 // FIXME(eta): we don't copy the receive window, instead just creating a new one,
                 //             so a malicious peer can send us slightly more data than they should
                 //             be able to; see arti#230.
@@ -241,17 +251,17 @@ impl StreamMap {
                 let explicitly_dropped = why == TR::StreamTargetClosed;
                 self.m.insert(
                     id,
-                    StreamEnt::EndSent {
+                    StreamEnt::EndSent(EndSentStreamEnt {
                         half_stream,
                         explicitly_dropped,
-                    },
+                    }),
                 );
                 Ok(ShouldSendEnd::Send)
             }
-            StreamEnt::EndSent {
+            StreamEnt::EndSent(EndSentStreamEnt {
                 ref mut explicitly_dropped,
                 ..
-            } => match (*explicitly_dropped, why) {
+            }) => match (*explicitly_dropped, why) {
                 (false, TR::StreamTargetClosed) => {
                     *explicitly_dropped = true;
                     Ok(ShouldSendEnd::DontSend)
