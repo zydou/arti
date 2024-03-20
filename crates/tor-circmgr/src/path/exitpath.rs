@@ -43,6 +43,7 @@ enum ExitPathBuilderInner<'a> {
     },
 
     /// Request a path that uses a given relay as exit node.
+    #[allow(unused)]
     ChosenExit(Relay<'a>),
 }
 
@@ -91,16 +92,6 @@ impl<'a> ExitPathBuilder<'a> {
         let ports: Vec<TargetPort> = wantports.into_iter().collect();
         Self {
             inner: ExitPathBuilderInner::ExitInCountry { country, ports },
-            compatible_with: None,
-            require_stability: true,
-        }
-    }
-
-    /// Create a new builder that will try to build a path with the given exit
-    /// relay as the last hop.
-    pub(crate) fn from_chosen_exit(exit_relay: Relay<'a>) -> Self {
-        Self {
-            inner: ExitPathBuilderInner::ChosenExit(exit_relay),
             compatible_with: None,
             require_stability: true,
         }
@@ -247,6 +238,18 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::{testnet, SubnetConfig};
     use tor_rtcompat::SleepProvider;
+
+    impl<'a> ExitPathBuilder<'a> {
+        /// Create a new builder that will try to build a path with the given exit
+        /// relay as the last hop.
+        fn from_chosen_exit(exit_relay: Relay<'a>) -> Self {
+            Self {
+                inner: ExitPathBuilderInner::ChosenExit(exit_relay),
+                compatible_with: None,
+                require_stability: true,
+            }
+        }
+    }
 
     /// Returns true if both relays can appear together in the same circuit.
     fn relays_can_share_circuit(
