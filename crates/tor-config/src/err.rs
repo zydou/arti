@@ -138,10 +138,14 @@ pub enum ConfigError {
     /// We encoundered a problem with file permissions.
     #[error("Bad permissions on configuration file")]
     Permissions(#[source] fs_mistrust::Error),
-    /// Our underlying configuration library gave an error.
-    #[error("Invalid configuration data")]
-    Parse(#[source] ConfigParseError),
-    /// Encountered an IO error with a configuration file.
+    /// Our underlying configuration library gave an error while loading our
+    /// configuration.
+    #[error("Couldn't load configuration")]
+    Load(#[source] ConfigLoadError),
+    /// Encountered an IO error with a configuration file or directory.
+    ///
+    /// Note that some IO errors may be reported as `Load` errors,
+    /// due to limitations of the underlying library.
     #[error("IoError while {} {}", action, path.display_lossy())]
     Io {
         /// The action while we were trying to perform
@@ -156,7 +160,7 @@ pub enum ConfigError {
 
 /// Wrapper for our an error type from our underlying configuration library.
 #[derive(Debug, Clone)]
-pub struct ConfigParseError(figment::Error);
+pub struct ConfigLoadError(figment::Error);
 
 impl ConfigError {
     /// Wrap `err` as a ConfigError.
@@ -164,11 +168,14 @@ impl ConfigError {
     /// This is not a From implementation, since we don't want to expose our
     /// underlying configuration library.
     pub(crate) fn from_cfg_err(err: figment::Error) -> Self {
-        ConfigError::Parse(ConfigParseError(err))
+        // TODO: It would be lovely to extract IO errors from figment::Error
+        // and report them as Error::Io.  Unfortunately, it doesn't seem
+        // possible to do that given the design of figment::Error.
+        ConfigError::Load(ConfigLoadError(err))
     }
 }
 
-impl std::fmt::Display for ConfigParseError {
+impl std::fmt::Display for ConfigLoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = self.0.to_string();
         write!(f, "{}", s)?;
@@ -179,7 +186,7 @@ impl std::fmt::Display for ConfigParseError {
     }
 }
 
-impl std::error::Error for ConfigParseError {
+impl std::error::Error for ConfigLoadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.0)
     }
