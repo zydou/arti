@@ -106,7 +106,9 @@ impl HsCircStub {
     }
 }
 
-/// A kind of [`HsCircStub`].
+/// A kind of hidden service circuit stub.
+///
+/// See [hspath](crate::path::hspath) docs for more information.
 ///
 /// The structure of a stub circuit depends on whether vanguards are enabled:
 ///
