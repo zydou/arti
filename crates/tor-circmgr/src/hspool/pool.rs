@@ -5,10 +5,12 @@ use std::time::{Duration, Instant};
 use crate::hspool::HsCircStub;
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
-use tor_error::{internal, Bug};
+use tor_error::Bug;
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-use tor_guardmgr::vanguards::{VanguardConfig, VanguardMode};
+use tor_guardmgr::vanguards::VanguardConfig;
+
+use tor_guardmgr::VanguardMode;
 
 /// A collection of circuits used to fulfil onion-service-related requests.
 pub(super) struct Pool {
@@ -35,7 +37,6 @@ pub(super) struct Pool {
     /// The kind of vanguards that are in use.
     ///
     /// All the circuits from `circuits` use the type of vanguards specified here.
-    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     mode: VanguardMode,
 }
 
@@ -54,7 +55,6 @@ impl Default for Pool {
             have_been_exhausted: false,
             have_been_under_highwater: false,
             last_changed_target: None,
-            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             mode: VanguardMode::default(),
         }
     }
@@ -165,17 +165,7 @@ impl Pool {
 
     /// Returns `true` if vanguards are enabled.
     pub(super) fn vanguards_enabled(&self) -> Result<bool, Bug> {
-        cfg_if::cfg_if! {
-            if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
-                match self.mode {
-                    VanguardMode::Lite | VanguardMode::Full => Ok(true),
-                    VanguardMode::Disabled => Ok(false),
-                    _ => Err(internal!("unrecognized vanguards mode")),
-                }
-            } else {
-                Ok(false)
-            }
-        }
+        Ok(self.mode != VanguardMode::Disabled)
     }
 }
 

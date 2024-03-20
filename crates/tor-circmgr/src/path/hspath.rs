@@ -22,7 +22,8 @@ use {
     crate::path::{select_guard, MaybeOwnedRelay},
     tor_error::bad_api_usage,
     tor_guardmgr::vanguards::Layer,
-    tor_guardmgr::vanguards::{VanguardMgr, VanguardMode},
+    tor_guardmgr::vanguards::VanguardMgr,
+    tor_guardmgr::VanguardMode,
 };
 
 /// A path builder for hidden service circuits.

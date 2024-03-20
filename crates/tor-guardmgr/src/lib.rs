@@ -1842,6 +1842,38 @@ pub enum GuardRestriction {
     AvoidAllIds(RelayIdSet),
 }
 
+/// The kind of vanguards to use.
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)] //
+#[derive(derive_more::Display)] //
+#[serde(rename_all = "lowercase")]
+#[cfg(feature = "vanguards")]
+#[non_exhaustive]
+pub enum VanguardMode {
+    /// "Lite" vanguards.
+    #[default]
+    #[display(fmt = "lite")]
+    Lite,
+    /// "Full" vanguards.
+    #[display(fmt = "full")]
+    Full,
+    /// Vanguards are disabled.
+    #[display(fmt = "disabled")]
+    Disabled,
+}
+
+/// The kind of vanguards to use.
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)] //
+#[derive(derive_more::Display)] //
+#[serde(rename_all = "lowercase")]
+#[cfg(not(feature = "vanguards"))]
+#[non_exhaustive]
+pub enum VanguardMode {
+    /// Vanguards are disabled.
+    #[default]
+    #[display(fmt = "disabled")]
+    Disabled,
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
