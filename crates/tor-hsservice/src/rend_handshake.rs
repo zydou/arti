@@ -9,11 +9,11 @@ use tor_cell::relaycell::{
 };
 use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
 use tor_proto::{
-    circuit::{
-        handshake,
-        handshake::hs_ntor::{self, HsNtorHkdfKeyGenerator},
+    circuit::handshake::{
+        self,
+        hs_ntor::{self, HsNtorHkdfKeyGenerator},
     },
-    stream::IncomingStream,
+    stream::{IncomingStream, IncomingStreamRequestFilter},
 };
 
 /// An error produced while trying to process an introduction request we have
@@ -182,6 +182,27 @@ impl<R: Runtime> RendCircConnector for HsCircPool<R> {
     }
 }
 
+/// Filter callback used to enforce early requirements on streams.
+struct Filter {
+    /// Largest number of streams we will accept on a circuit at a time.
+    max_concurrent_streams: usize,
+}
+impl IncomingStreamRequestFilter for Filter {
+    fn disposition(
+        &mut self,
+        _ctx: &tor_proto::stream::IncomingStreamRequestContext<'_>,
+        circ: &tor_proto::circuit::ClientCircSyncView<'_>,
+    ) -> tor_proto::Result<tor_proto::stream::IncomingStreamRequestDisposition> {
+        if circ.n_open_streams() >= self.max_concurrent_streams {
+            // TODO: We may want to have a way to send back an END message as
+            // well and not tear down the circuit.
+            Ok(tor_proto::stream::IncomingStreamRequestDisposition::CloseCircuit)
+        } else {
+            Ok(tor_proto::stream::IncomingStreamRequestDisposition::Accept)
+        }
+    }
+}
+
 impl IntroRequest {
     /// Try to decrypt an incoming Introduce2 request, using the set of keys provided.
     pub(crate) fn decrypt_from_introduce2(
@@ -338,9 +359,14 @@ impl IntroRequest {
             .last_hop_num()
             .map_err(into_internal!("Circuit with no virtual hop"))?;
 
+        let filter = Filter {
+            // TODO #1124: implement max_concurrent_streams_per_circuit, and
+            // make this configurable.
+            max_concurrent_streams: usize::MAX,
+        };
         // Accept begins from that virtual hop
         let stream_requests = circuit
-            .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], virtual_hop)
+            .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], virtual_hop, filter)
             .await
             .map_err(E::AcceptBegins)?
             .boxed();

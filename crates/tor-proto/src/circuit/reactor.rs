@@ -35,7 +35,7 @@ use crate::crypto::cell::{
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
-use crate::stream::{AnyCmdChecker, StreamStatus};
+use crate::stream::{AnyCmdChecker, IncomingStreamRequestFilter, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use std::borrow::Borrow;
@@ -252,6 +252,9 @@ pub(super) enum CtrlMsg {
         done: ReactorResultChannel<()>,
         /// The hop that is allowed to create streams.
         hop_num: HopNum,
+        /// A filter used to check requests before passing them on.
+        #[educe(Debug(ignore))]
+        filter: Box<dyn IncomingStreamRequestFilter>,
     },
     /// Send a given control message on this circuit.
     #[cfg(feature = "send-control-msg")]
@@ -762,7 +765,8 @@ pub(super) struct IncomingStreamRequestContext {
 
 /// Data required for handling an incoming stream request.
 #[cfg(feature = "hs-service")]
-#[derive(Debug)]
+#[derive(educe::Educe)]
+#[educe(Debug)]
 struct IncomingStreamRequestHandler {
     /// A sender for sharing information about an incoming stream request.
     incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
@@ -770,6 +774,13 @@ struct IncomingStreamRequestHandler {
     cmd_checker: AnyCmdChecker,
     /// The hop to expect incoming stream requests from.
     hop_num: HopNum,
+    /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
+    /// this request, or wants to reject it immediately.
+    ///
+    /// This is an Option so that we can temporarily remove it from the handler;
+    /// see TODO notes in handle_stream_request.
+    #[educe(Debug(ignore))]
+    filter: Option<Box<dyn IncomingStreamRequestFilter>>,
 }
 
 impl Reactor {
@@ -1690,6 +1701,7 @@ impl Reactor {
                 incoming_sender,
                 hop_num,
                 done,
+                filter,
             } => {
                 // TODO: At some point we might want to add a CtrlMsg for
                 // de-registering the handler.  See comments on `allow_stream_requests`.
@@ -1697,6 +1709,7 @@ impl Reactor {
                     incoming_sender,
                     cmd_checker,
                     hop_num,
+                    filter: Some(filter),
                 };
 
                 let ret = self.set_incoming_stream_req_handler(handler);
@@ -2029,7 +2042,7 @@ impl Reactor {
                 // message, just remove the old stream from the map and stop waiting for a
                 // response
                 hop.map.ending_msg_received(streamid)?;
-                self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
+                return self.handle_incoming_stream_request(cx, msg, streamid, hopnum);
             }
             Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
                 // We sent an end but maybe the other side hasn't heard.
@@ -2065,10 +2078,13 @@ impl Reactor {
         msg: UnparsedRelayMsg,
         stream_id: StreamId,
         hop_num: HopNum,
-    ) -> Result<()> {
+    ) -> Result<CellStatus> {
+        use syncview::ClientCircSyncView;
         use tor_cell::relaycell::msg::EndReason;
         use tor_error::into_internal;
         use tor_log_ratelim::log_ratelim;
+
+        // We need to construct this early so that we don't double-borrow &mut self
 
         let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
@@ -2102,7 +2118,7 @@ impl Reactor {
         if message_closes_stream {
             hop.map.ending_msg_received(stream_id)?;
 
-            return Ok(());
+            return Ok(CellStatus::Continue);
         }
 
         let begin = msg
@@ -2111,6 +2127,45 @@ impl Reactor {
             .into_msg();
 
         let req = IncomingStreamRequest::Begin(begin);
+
+        // We need to temporarily extract the filter here so that we can drop
+        // `handler` before using `self` with the ClientCircSyncView. Otherwise,
+        // we get a borrow-checker problem with duplicate mut borrows of self.
+        //
+        // TODO: This cannot possibly be the nicest way to solve this problem!
+        // Better solutions are welcome.
+        let mut filter = handler.filter.take().expect("filter not installed");
+        let disposition = {
+            let ctx = crate::stream::IncomingStreamRequestContext { request: &req };
+            let view = ClientCircSyncView::new(self);
+            filter.disposition(&ctx, &view)
+        };
+        // Now, sadly, get the handler  again.
+        let handler = self
+            .incoming_stream_req_handler
+            .as_mut()
+            .expect("handler disappeared!");
+        // Put the filter back.
+        handler.filter = Some(filter);
+
+        {
+            use crate::stream::IncomingStreamRequestDisposition::*;
+            match disposition? {
+                Accept => {}
+                CloseCircuit => return Ok(CellStatus::CleanShutdown),
+                RejectRequest(end) => {
+                    let end_msg = AnyRelayMsgOuter::new(Some(stream_id), end.into());
+                    self.send_relay_cell(cx, hop_num, false, end_msg)?;
+                    return Ok(CellStatus::Continue);
+                }
+            }
+        }
+
+        // TODO: This is also duplicated :(
+        let hop = self
+            .hops
+            .get_mut(Into::<usize>::into(hop_num))
+            .ok_or(Error::CircuitClosed)?;
 
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (msg_tx, msg_rx) = mpsc::channel(super::CIRCUIT_BUFFER_SIZE);
@@ -2171,7 +2226,7 @@ impl Reactor {
             }
         }
 
-        Ok(())
+        Ok(CellStatus::Continue)
     }
 
     /// Helper: process a destroy cell.

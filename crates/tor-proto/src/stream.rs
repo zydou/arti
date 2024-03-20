@@ -26,7 +26,10 @@ pub use data::{DataReader, DataStream, DataWriter};
 pub(crate) use incoming::IncomingCmdChecker;
 #[cfg(feature = "hs-service")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hs-service")))]
-pub use incoming::{IncomingStream, IncomingStreamRequest};
+pub use incoming::{
+    IncomingStream, IncomingStreamRequest, IncomingStreamRequestContext,
+    IncomingStreamRequestDisposition, IncomingStreamRequestFilter,
+};
 pub use params::StreamParameters;
 pub use raw::StreamReader;
 pub use resolve::ResolveStream;

@@ -1,14 +1,12 @@
 //! Implement synchronous views of circuit internals.
 
-#![allow(dead_code, unreachable_pub)] //XXXX
-
 use super::Reactor;
 
 /// A view of a [`ClientCirc`](crate::circuit::ClientCirc)'s internals, usable in a
 /// synchronous callback.
 pub struct ClientCircSyncView<'a> {
     /// The circuit reactor used to implement this view.
-    reactor: &'a mut Reactor,
+    pub(super) reactor: &'a mut Reactor,
 }
 
 impl<'a> ClientCircSyncView<'a> {

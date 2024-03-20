@@ -98,6 +98,7 @@ use tor_cell::relaycell::StreamId;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 pub use path::{Path, PathEntry};
+pub use reactor::syncview::ClientCircSyncView;
 
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
@@ -543,6 +544,7 @@ impl ClientCirc {
         self: &Arc<ClientCirc>,
         allow_commands: &[tor_cell::relaycell::RelayCmd],
         hop_num: HopNum,
+        filter: impl crate::stream::IncomingStreamRequestFilter,
     ) -> Result<impl futures::Stream<Item = IncomingStream>> {
         use futures::stream::StreamExt;
 
@@ -559,6 +561,7 @@ impl ClientCirc {
                 incoming_sender,
                 hop_num,
                 done: tx,
+                filter: Box::new(filter),
             })
             .map_err(|_| Error::CircuitClosed)?;
 
@@ -1317,6 +1320,7 @@ mod test {
     use crate::crypto::cell::RelayCellBody;
     #[cfg(feature = "ntor_v3")]
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
+    use crate::stream::IncomingStreamRequestFilter;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
@@ -2194,6 +2198,17 @@ mod test {
         assert_eq!(p.initial_send_window(), 500);
     }
 
+    struct AllowAllStreamsFilter;
+    impl IncomingStreamRequestFilter for AllowAllStreamsFilter {
+        fn disposition(
+            &mut self,
+            _ctx: &crate::stream::IncomingStreamRequestContext<'_>,
+            _circ: &ClientCircSyncView<'_>,
+        ) -> Result<crate::stream::IncomingStreamRequestDisposition> {
+            Ok(crate::stream::IncomingStreamRequestDisposition::Accept)
+        }
+    }
+
     #[test]
     #[cfg(feature = "hs-service")]
     fn allow_stream_requests_twice() {
@@ -2205,6 +2220,7 @@ mod test {
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
                     circ.last_hop_num().unwrap(),
+                    AllowAllStreamsFilter,
                 )
                 .await
                 .unwrap();
@@ -2213,6 +2229,7 @@ mod test {
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
                     circ.last_hop_num().unwrap(),
+                    AllowAllStreamsFilter,
                 )
                 .await;
 
@@ -2238,6 +2255,7 @@ mod test {
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
                     circ.last_hop_num().unwrap(),
+                    AllowAllStreamsFilter,
                 )
                 .await
                 .unwrap();
@@ -2314,6 +2332,7 @@ mod test {
                 .allow_stream_requests(
                     &[tor_cell::relaycell::RelayCmd::BEGIN],
                     circ.last_hop_num().unwrap(),
+                    AllowAllStreamsFilter,
                 )
                 .await
                 .unwrap();
@@ -2399,7 +2418,11 @@ mod test {
 
             // Expect to receive incoming streams from hop EXPECTED_HOP
             let mut incoming = circ
-                .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], EXPECTED_HOP.into())
+                .allow_stream_requests(
+                    &[tor_cell::relaycell::RelayCmd::BEGIN],
+                    EXPECTED_HOP.into(),
+                    AllowAllStreamsFilter,
+                )
                 .await
                 .unwrap();
 
