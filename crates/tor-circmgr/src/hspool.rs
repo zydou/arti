@@ -52,6 +52,22 @@ pub enum HsCircKind {
     ClientRend,
 }
 
+impl HsCircKind {
+    /// Return the [`HsCircStubKind`] needed to build this type of circuit.
+    fn stub_kind(&self) -> HsCircStubKind {
+        match self {
+            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStubKind::Stub,
+            HsCircKind::SvcHsDir => {
+                // TODO HS-VANGUARDS: we might want this to be STUB+
+                HsCircStubKind::Stub
+            }
+            HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
+                HsCircStubKind::Extended
+            }
+        }
+    }
+}
+
 /// A hidden service circuit stub.
 ///
 /// This represents a hidden service circuit that has not yet been extended to a target.
@@ -244,22 +260,11 @@ impl<R: Runtime> HsCircPool<R> {
     where
         T: CircTarget,
     {
+        if kind == HsCircKind::ClientRend {
+            return Err(bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into());
+        }
         // TODO HS-VANGUARDS: the kind makes no difference yet, but it will at some point in the future.
-        let wanted_kind = match kind {
-            HsCircKind::ClientRend => {
-                return Err(
-                    bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into(),
-                )
-            }
-            HsCircKind::SvcIntro => HsCircStubKind::Stub,
-            HsCircKind::SvcHsDir => {
-                // TODO HS-VANGUARDS: we might want this to be STUB+
-                HsCircStubKind::Stub
-            }
-            HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
-                HsCircStubKind::Extended
-            }
-        };
+        let wanted_kind = kind.stub_kind();
 
         // For most* of these circuit types, we want to build our circuit with
         // an extra hop, since the target hop is under somebody else's control.
