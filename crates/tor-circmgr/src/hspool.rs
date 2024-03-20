@@ -96,7 +96,7 @@ impl HsCircStub {
     /// Returns `true` if this `HsCircStub`'s kind is equal to `other`,
     /// or if its kind is [`Stub`](HsCircStubKind::Stub)
     /// and `other` is [`Extended`](HsCircStubKind::Extended).
-    pub(crate) fn can_build(&self, other: HsCircStubKind) -> bool {
+    pub(crate) fn can_become(&self, other: HsCircStubKind) -> bool {
         use HsCircStubKind::*;
 
         match (self.kind, other) {
@@ -375,7 +375,7 @@ impl<R: Runtime> HsCircPool<R> {
 
             let restrictions = |circ: &HsCircStub| {
                 if vanguards_enabled {
-                    circ.can_build(kind)
+                    circ.can_become(kind)
                 } else {
                     circuit_compatible_with_target(netdir, circ, &target_exclusion)
                 }
