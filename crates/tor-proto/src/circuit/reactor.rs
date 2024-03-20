@@ -17,7 +17,7 @@
 //!    `consume_checked_msg()`.
 
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEnt};
+use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -934,8 +934,8 @@ impl Reactor {
                         }
                         let hop = &mut self.hops[i];
                         // Look at all of the streams on this hop.
-                        for (id, stream) in hop.map.inner().iter_mut() {
-                            if let StreamEnt::Open(OpenStreamEnt {
+                        for (id, stream) in hop.map.iter_mut() {
+                            if let StreamEntMut::Open(OpenStreamEnt {
                                 rx, send_window, ..
                             }) = stream
                             {
@@ -948,14 +948,14 @@ impl Reactor {
                                         Poll::Ready(Some(m)) => {
                                             stream_relaycells.push((
                                                 hop_num,
-                                                AnyRelayMsgOuter::new(Some(*id), m),
+                                                AnyRelayMsgOuter::new(Some(id), m),
                                             ));
                                         }
                                         Poll::Ready(None) => {
                                             // Stream receiver was dropped; close the stream.
                                             // We can't close it here though due to borrowck; that
                                             // will happen later.
-                                            streams_to_close.push((hop_num, *id));
+                                            streams_to_close.push((hop_num, id));
                                         }
                                         Poll::Pending => {}
                                     }
@@ -1525,18 +1525,22 @@ impl Reactor {
             if let Some(stream_id) = stream_id {
                 // We need to decrement the stream-level sendme window.
                 // Stream data cells should only be dequeued and fed into this function if
-                // the window is above zero, so we don't need to worry about enqueuing things.
-                if let Some(window) = hop.map.get_mut(stream_id).and_then(StreamEnt::send_window) {
-                    window.take(&())?;
-                } else {
-                    warn!(
-                        "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
-                        self.unique_id, stream_id
-                    );
-                    return Err(Error::CircProto(format!(
-                        "tried to send a relay cell on non-open stream {}",
-                        sv(stream_id),
-                    )));
+                // the window is above zero, so we don't need to worry about
+                // enqueuing things.
+                match hop.map.get_mut(stream_id) {
+                    Some(StreamEntMut::Open(OpenStreamEnt { send_window, .. })) => {
+                        send_window.take(&())?;
+                    }
+                    _ => {
+                        warn!(
+                            "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
+                            self.unique_id, stream_id
+                        );
+                        return Err(Error::CircProto(format!(
+                            "tried to send a relay cell on non-open stream {}",
+                            sv(stream_id),
+                        )));
+                    }
                 }
             }
         }
@@ -1968,7 +1972,7 @@ impl Reactor {
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         match hop.map.get_mut(streamid) {
-            Some(StreamEnt::Open(OpenStreamEnt {
+            Some(StreamEntMut::Open(OpenStreamEnt {
                 sink,
                 send_window,
                 dropped,
@@ -2013,7 +2017,7 @@ impl Reactor {
                 }
             }
             #[cfg(feature = "hs-service")]
-            Some(StreamEnt::EndSent(_))
+            Some(StreamEntMut::EndSent(_))
                 if matches!(
                     msg.cmd(),
                     RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
@@ -2025,7 +2029,7 @@ impl Reactor {
                 hop.map.ending_msg_received(streamid)?;
                 self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
             }
-            Some(StreamEnt::EndSent(EndSentStreamEnt { half_stream, .. })) => {
+            Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
                 // We sent an end but maybe the other side hasn't heard.
 
                 match half_stream.handle_msg(msg)? {

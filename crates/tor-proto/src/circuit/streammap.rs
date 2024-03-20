@@ -52,7 +52,7 @@ pub(super) struct EndSentStreamEnt {
 }
 
 /// The entry for a stream.
-pub(super) enum StreamEnt {
+enum StreamEnt {
     /// An open stream.
     Open(OpenStreamEnt),
     /// A stream for which we have received an END cell, but not yet
@@ -66,15 +66,27 @@ pub(super) enum StreamEnt {
     EndSent(EndSentStreamEnt),
 }
 
-impl StreamEnt {
-    /// Retrieve the send window for this stream, if it is open.
-    pub(super) fn send_window(&mut self) -> Option<&mut sendme::StreamSendWindow> {
-        match self {
-            StreamEnt::Open(OpenStreamEnt {
-                ref mut send_window,
-                ..
-            }) => Some(send_window),
-            _ => None,
+/// Mutable reference to a stream entry.
+///
+/// We don't expose `&mut StreamEnt` directly outside this module, to prevent
+/// other code from changing it from one of these variants to another: only this module is allowed to do that.
+pub(super) enum StreamEntMut<'a> {
+    /// An open stream.
+    Open(&'a mut OpenStreamEnt),
+    /// A stream for which we have received an END cell, but not yet
+    /// had the stream object get dropped.
+    EndReceived,
+    /// A stream for which we have sent an END cell but not yet received an END
+    /// cell.
+    EndSent(&'a mut EndSentStreamEnt),
+}
+
+impl<'a> From<&'a mut StreamEnt> for StreamEntMut<'a> {
+    fn from(value: &'a mut StreamEnt) -> Self {
+        match value {
+            StreamEnt::Open(e) => Self::Open(e),
+            StreamEnt::EndReceived => Self::EndReceived,
+            StreamEnt::EndSent(e) => Self::EndSent(e),
         }
     }
 }
@@ -111,9 +123,9 @@ impl StreamMap {
         }
     }
 
-    /// Get the `HashMap` inside this stream map.
-    pub(super) fn inner(&mut self) -> &mut HashMap<StreamId, StreamEnt> {
-        &mut self.m
+    /// Return an iterator over the entries in this StreamMap.
+    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = (StreamId, StreamEntMut<'_>)> {
+        self.m.iter_mut().map(|(id, ent)| (*id, ent.into()))
     }
 
     /// Add an entry to this map; return the newly allocated StreamId.
@@ -177,8 +189,8 @@ impl StreamMap {
     }
 
     /// Return the entry for `id` in this map, if any.
-    pub(super) fn get_mut(&mut self, id: StreamId) -> Option<&mut StreamEnt> {
-        self.m.get_mut(&id)
+    pub(super) fn get_mut(&mut self, id: StreamId) -> Option<StreamEntMut<'_>> {
+        self.m.get_mut(&id).map(StreamEntMut::from)
     }
 
     /// Note that we received an END message (or other message indicating the end of
@@ -354,13 +366,19 @@ mod test {
 
         // Test get_mut.
         let nonesuch_id = next_id;
-        assert!(matches!(map.get_mut(ids[0]), Some(StreamEnt::Open { .. })));
+        assert!(matches!(
+            map.get_mut(ids[0]),
+            Some(StreamEntMut::Open { .. })
+        ));
         assert!(map.get_mut(nonesuch_id).is_none());
 
         // Test end_received
         assert!(map.ending_msg_received(nonesuch_id).is_err());
         assert!(map.ending_msg_received(ids[1]).is_ok());
-        assert!(matches!(map.get_mut(ids[1]), Some(StreamEnt::EndReceived)));
+        assert!(matches!(
+            map.get_mut(ids[1]),
+            Some(StreamEntMut::EndReceived)
+        ));
         assert!(map.ending_msg_received(ids[1]).is_err());
 
         // Test terminate
@@ -372,7 +390,7 @@ mod test {
         );
         assert!(matches!(
             map.get_mut(ids[2]),
-            Some(StreamEnt::EndSent { .. })
+            Some(StreamEntMut::EndSent { .. })
         ));
         assert_eq!(
             map.terminate(ids[1], TR::ExplicitEnd).unwrap(),
