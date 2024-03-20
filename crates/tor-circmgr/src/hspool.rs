@@ -374,7 +374,15 @@ impl<R: Runtime> HsCircPool<R> {
             let vanguards_enabled = inner.pool.vanguards_enabled()?;
 
             let restrictions = |circ: &HsCircStub| {
+                // If vanguards are enabled, we no longer apply same-family or same-subnet
+                // restrictions, and we allow the guard to appear as either of the last
+                // two hope of the circuit.
                 if vanguards_enabled {
+                    // TODO HS-VANGUARDS: check if the circuit is still usable using
+                    // circuit_still_useable
+                    //
+                    // TODO HS-VANGUARDS: this is suboptimal. If we need a STUB+
+                    // circuit, we need to prefer STUB+ circuits over STUB
                     circ.can_become(kind)
                 } else {
                     circuit_compatible_with_target(netdir, circ, &target_exclusion)
