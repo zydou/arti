@@ -26,7 +26,7 @@ use safelog::Sensitive;
 use tor_cell::relaycell::hs::{
     AuthKeyType, EstablishRendezvous, IntroduceAck, RendezvousEstablished,
 };
-use tor_cell::relaycell::{RelayCellFormat, RelayMsg};
+use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_circmgr::build::circparameters_from_netparameters;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
@@ -1446,9 +1446,7 @@ impl MockableClientCirc for ClientCirc {
         handshake: impl tor_proto::circuit::handshake::KeyGenerator + Send,
         params: CircParameters,
     ) -> tor_proto::Result<()> {
-        // TODO #1067: support negotiating other formats.
-        let relay_cell_format = RelayCellFormat::V0;
-        ClientCirc::extend_virtual(self, relay_cell_format, protocol, role, handshake, params).await
+        ClientCirc::extend_virtual(self, protocol, role, handshake, params).await
     }
 }
 

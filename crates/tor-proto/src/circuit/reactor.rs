@@ -15,9 +15,11 @@
 //!    well-formed? For open streams, the streams themselves handle this check.
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
+use super::handshake::RelayCryptLayerProtocol;
 use super::streammap::{ShouldSendEnd, StreamEnt};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
     sendme, streammap, CircParameters, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
@@ -1117,12 +1119,11 @@ impl Reactor {
     /// Helper: create the first hop of a circuit.
     ///
     /// This is parameterized not just on the RNG, but a wrapper object to
-    /// build the right kind of create cell, a handshake object to perform
-    /// the cryptographic cryptographic handshake, and a layer type to
-    /// handle relay crypto after this hop is built.
-    async fn create_impl<L, FWD, REV, H, W, M>(
+    /// build the right kind of create cell, and a handshake object to perform
+    /// the cryptographic handshake.
+    async fn create_impl<H, W, M>(
         &mut self,
-        relay_cell_format: RelayCellFormat,
+        cell_protocol: RelayCryptLayerProtocol,
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
@@ -1130,9 +1131,6 @@ impl Reactor {
         msg: &M,
     ) -> Result<()>
     where
-        L: CryptInit + ClientLayer<FWD, REV> + 'static + Send,
-        FWD: OutboundClientLayer + 'static + Send,
-        REV: InboundClientLayer + 'static + Send,
         H: ClientHandshake + HandshakeAuxDataHandler,
         W: CreateHandshakeWrap,
         H::KeyGen: KeyGenerator,
@@ -1165,19 +1163,20 @@ impl Reactor {
 
         H::handle_server_aux_data(self, params, &server_msg)?;
 
-        let layer = L::construct(keygen)?;
+        let relay_cell_format = cell_protocol.relay_cell_format();
+        let BoxedClientLayer { fwd, back, binding } =
+            cell_protocol.construct_layers(HandshakeRole::Initiator, keygen)?;
 
         trace!("{}: Handshake complete; circuit created.", self.unique_id);
 
-        let (layer_fwd, layer_back, binding) = layer.split();
         let peer_id = self.channel.target().clone();
 
         self.add_hop(
             relay_cell_format,
             path::HopDetail::Relay(peer_id),
-            Box::new(layer_fwd),
-            Box::new(layer_back),
-            Some(binding),
+            fwd,
+            back,
+            binding,
             params,
         );
         Ok(())
@@ -1194,18 +1193,11 @@ impl Reactor {
         recvcreated: oneshot::Receiver<CreateResponse>,
         params: &CircParameters,
     ) -> Result<()> {
-        // In a CREATE_FAST handshake, we can't negotiate a format other than V0.
-        let relay_cell_format = RelayCellFormat::V0;
+        // In a CREATE_FAST handshake, we can't negotiate a format other than this.
+        let protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
         let wrap = CreateFastWrap;
-        self.create_impl::<Tor1RelayCrypto<RelayCellFormatV0>, _, _, CreateFastClient, _, _>(
-            relay_cell_format,
-            recvcreated,
-            &wrap,
-            &(),
-            params,
-            &(),
-        )
-        .await
+        self.create_impl::<CreateFastClient, _, _>(protocol, recvcreated, &wrap, &(), params, &())
+            .await
     }
 
     /// Use the ntor handshake to connect to the first hop of this circuit.
@@ -1219,9 +1211,8 @@ impl Reactor {
         pubkey: NtorPublicKey,
         params: &CircParameters,
     ) -> Result<()> {
-        // In an ntor handshake, we can't negotiate a format other than V0.
-        /// Local type alias to ensure consistency below.
-        type Rcf = RelayCellFormatV0;
+        // In an ntor handshake, we can't negotiate a format other than this.
+        let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
         // Exit now if we have an Ed25519 or RSA identity mismatch.
         let target = RelayIds::builder()
@@ -1234,8 +1225,8 @@ impl Reactor {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR,
         };
-        self.create_impl::<Tor1RelayCrypto<Rcf>, _, _, NtorClient, _, _>(
-            Rcf::FORMAT,
+        self.create_impl::<NtorClient, _, _>(
+            relay_cell_protocol,
             recvcreated,
             &wrap,
             &pubkey,
@@ -1264,7 +1255,7 @@ impl Reactor {
         self.channel.check_match(&target)?;
 
         // TODO: Add support for negotiating other formats.
-        let relay_cell_format = RelayCellFormat::V0;
+        let relay_cell_protocol = RelayCryptLayerProtocol::Tor1(RelayCellFormat::V0);
 
         // TODO: Set client extensions. e.g. request congestion control
         // if specified in `params`.
@@ -1273,22 +1264,16 @@ impl Reactor {
         let wrap = Create2Wrap {
             handshake_type: HandshakeType::NTOR_V3,
         };
-        match relay_cell_format {
-            RelayCellFormat::V0 => {
-                self.create_impl::<Tor1RelayCrypto<RelayCellFormatV0>, _, _, NtorV3Client, _, _>(
-                    relay_cell_format,
-                    recvcreated,
-                    &wrap,
-                    &pubkey,
-                    params,
-                    &client_extensions,
-                )
-                .await
-            }
-            _ => Err(Error::Bug(internal!(
-                "Unimplemented for format {relay_cell_format:?}"
-            ))),
-        }
+
+        self.create_impl::<NtorV3Client, _, _>(
+            relay_cell_protocol,
+            recvcreated,
+            &wrap,
+            &pubkey,
+            params,
+            &client_extensions,
+        )
+        .await
     }
 
     /// Add a hop to the end of this circuit.

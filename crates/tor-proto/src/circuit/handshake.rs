@@ -11,11 +11,13 @@
 // that can wait IMO until we have a second circuit creation mechanism for use
 // with onion services.
 
-use tor_cell::relaycell::RelayCellFormatTrait;
+use tor_cell::relaycell::{RelayCellFormat, RelayCellFormatV0};
+use tor_error::internal;
 
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, InboundClientLayer, OutboundClientLayer, Tor1Hsv3RelayCrypto,
+    Tor1RelayCrypto,
 };
 use crate::Result;
 
@@ -32,6 +34,25 @@ pub use crate::crypto::handshake::KeyGenerator;
 pub enum RelayProtocol {
     /// A variation of Tor's original protocol, using AES-256 and SHA-3.
     HsV3,
+}
+
+/// Internal counterpart of RelayProtocol; includes variants that can't be
+/// negotiated from [`extend_virtual`](crate::circuit::ClientCirc::extend_virtual).
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum RelayCryptLayerProtocol {
+    /// The original cell Tor encryption format, using AES-128 and SHA-1.
+    Tor1(RelayCellFormat),
+    /// A variation of Tor's original cell Tor encryption format, using AES-256
+    /// and SHA3-256.
+    HsV3(RelayCellFormat),
+}
+
+impl From<RelayProtocol> for RelayCryptLayerProtocol {
+    fn from(value: RelayProtocol) -> Self {
+        match value {
+            RelayProtocol::HsV3 => RelayCryptLayerProtocol::HsV3(RelayCellFormat::V0),
+        }
+    }
 }
 
 /// What role we are playing in a handshake.
@@ -55,30 +76,51 @@ pub(crate) struct BoxedClientLayer {
     pub(crate) binding: Option<CircuitBinding>,
 }
 
-impl RelayProtocol {
+impl RelayCryptLayerProtocol {
     /// Construct the cell-crypto layers that are needed for a given set of
     /// circuit hop parameters.
-    pub(crate) fn construct_layers<RCF: RelayCellFormatTrait + Send + 'static>(
+    pub(crate) fn construct_layers(
         self,
         role: HandshakeRole,
         keygen: impl KeyGenerator,
     ) -> Result<BoxedClientLayer> {
+        use RelayCellFormat::*;
+        use RelayCryptLayerProtocol::*;
+
+        let swap = role == HandshakeRole::Responder;
+        let layer = match self {
+            Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, swap)?,
+            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, swap)?,
+            _ => return Err(internal!("cell format not implemented").into()),
+        };
+
+        Ok(layer)
+    }
+
+    /// Return the cell format used by this protocol.
+    pub(crate) fn relay_cell_format(&self) -> RelayCellFormat {
         match self {
-            RelayProtocol::HsV3 => {
-                let seed_needed = Tor1Hsv3RelayCrypto::<RCF>::seed_len();
-                let seed = keygen.expand(seed_needed)?;
-                let layer = Tor1Hsv3RelayCrypto::<RCF>::initialize(&seed)?;
-                let (fwd, back, binding) = layer.split();
-                let (fwd, back) = match role {
-                    HandshakeRole::Initiator => (fwd, back),
-                    HandshakeRole::Responder => (back, fwd),
-                };
-                Ok(BoxedClientLayer {
-                    fwd: Box::new(fwd),
-                    back: Box::new(back),
-                    binding: Some(binding),
-                })
-            }
+            RelayCryptLayerProtocol::Tor1(v) => *v,
+            RelayCryptLayerProtocol::HsV3(v) => *v,
         }
     }
+}
+
+/// Helper: Construct a BoxedClientLayer for a layer type L whose inbound and outbound
+/// cryptographic states are the same type.
+fn construct<L, F>(keygen: impl KeyGenerator, swap: bool) -> Result<BoxedClientLayer>
+where
+    L: CryptInit + ClientLayer<F, F>,
+    F: OutboundClientLayer + InboundClientLayer + Send + 'static,
+{
+    let layer = L::construct(keygen)?;
+    let (mut fwd, mut back, binding) = layer.split();
+    if swap {
+        std::mem::swap(&mut fwd, &mut back);
+    }
+    Ok(BoxedClientLayer {
+        fwd: Box::new(fwd),
+        back: Box::new(back),
+        binding: Some(binding),
+    })
 }
