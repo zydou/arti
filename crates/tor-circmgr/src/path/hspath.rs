@@ -162,15 +162,8 @@ impl VanguardHsPathBuilder {
 
         // Select the guard, allowing it to appear as
         // either of the last two hops of the circuit.
-        let (l1_guard, mon, usable) = select_guard(
-            rng,
-            netdir,
-            guards,
-            config,
-            None,
-            None,
-            self.path_kind(),
-        )?;
+        let (l1_guard, mon, usable) =
+            select_guard(rng, netdir, guards, config, None, None, self.path_kind())?;
 
         // Select the vanguards
         let l2_guard = vanguards.select_vanguard(netdir, Layer::Layer2)?;
