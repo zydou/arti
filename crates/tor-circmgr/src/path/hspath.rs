@@ -71,7 +71,7 @@ use {
 /// A path builder for hidden service circuits.
 ///
 /// See the [hspath](crate::path::hspath) docs for more details.
-pub struct HsPathBuilder {
+pub(crate) struct HsPathBuilder {
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
     ///
     /// Ignored if vanguards are in use.
@@ -99,7 +99,7 @@ impl HsPathBuilder {
     }
 
     /// Try to create and return a path for a hidden service circuit stub.
-    pub fn pick_path<'a, R: Rng, RT: Runtime>(
+    pub(crate) fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,
@@ -115,7 +115,7 @@ impl HsPathBuilder {
     /// If vanguards are disabled, this has the same behavior as
     /// [pick_path](HsPathBuilder::pick_path).
     #[cfg(feature = "vanguards")]
-    pub fn pick_path_with_vanguards<'a, R: Rng, RT: Runtime>(
+    pub(crate) fn pick_path_with_vanguards<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,

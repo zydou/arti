@@ -51,7 +51,7 @@ enum ExitPathBuilderInner<'a> {
 ///
 /// NOTE: The name of this type is no longer completely apt: given some circuits,
 /// it is happy to build a circuit ending at a non-exit.
-pub struct ExitPathBuilder<'a> {
+pub(crate) struct ExitPathBuilder<'a> {
     /// The inner ExitPathBuilder state.
     inner: ExitPathBuilderInner<'a>,
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
@@ -65,7 +65,7 @@ impl<'a> ExitPathBuilder<'a> {
     /// containing all the ports in `ports`.
     ///
     /// If the list of ports is empty, tries to get any exit relay at all.
-    pub fn from_target_ports(wantports: impl IntoIterator<Item = TargetPort>) -> Self {
+    pub(crate) fn from_target_ports(wantports: impl IntoIterator<Item = TargetPort>) -> Self {
         let ports: Vec<TargetPort> = wantports.into_iter().collect();
         if ports.is_empty() {
             return Self::for_any_exit();
@@ -84,7 +84,7 @@ impl<'a> ExitPathBuilder<'a> {
     ///
     /// If the list of ports is empty, it is disregarded.
     // TODO GEOIP: this method is hacky, and should be refactored.
-    pub fn in_given_country(
+    pub(crate) fn in_given_country(
         country: CountryCode,
         wantports: impl IntoIterator<Item = TargetPort>,
     ) -> Self {
@@ -98,7 +98,7 @@ impl<'a> ExitPathBuilder<'a> {
 
     /// Create a new builder that will try to build a path with the given exit
     /// relay as the last hop.
-    pub fn from_chosen_exit(exit_relay: Relay<'a>) -> Self {
+    pub(crate) fn from_chosen_exit(exit_relay: Relay<'a>) -> Self {
         Self {
             inner: ExitPathBuilderInner::ChosenExit(exit_relay),
             compatible_with: None,
@@ -107,7 +107,7 @@ impl<'a> ExitPathBuilder<'a> {
     }
 
     /// Create a new builder that will try to get any exit relay at all.
-    pub fn for_any_exit() -> Self {
+    pub(crate) fn for_any_exit() -> Self {
         Self {
             inner: ExitPathBuilderInner::AnyExit { strict: true },
             compatible_with: None,
@@ -117,7 +117,7 @@ impl<'a> ExitPathBuilder<'a> {
 
     /// Try to create and return a path corresponding to the requirements of
     /// this builder.
-    pub fn pick_path<R: Rng, RT: Runtime>(
+    pub(crate) fn pick_path<R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,

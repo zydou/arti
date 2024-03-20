@@ -69,7 +69,7 @@ pub mod hspool;
 mod impls;
 pub mod isolation;
 mod mgr;
-pub mod path;
+pub(crate) mod path;
 mod preemptive;
 pub mod timeouts;
 mod usage;

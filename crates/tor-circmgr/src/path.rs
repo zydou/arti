@@ -3,10 +3,18 @@
 //! TODO: I'm not sure this belongs in circmgr, but this is the best place
 //! I can think of for now.  I'm also not sure this should be public.
 
-pub mod dirpath;
-pub mod exitpath;
+pub(crate) mod dirpath;
+pub(crate) mod exitpath;
+
+// Care must be taken if/when we decide to make this pub.
+//
+// The `HsPathBuilder` exposes two path building functions,
+// one that uses vanguards, and one that doesn't.
+// We want to strongly encourage the use of the vanguards-aware
+// version of the function whenever the `vanguards` feature is enabled,
+// without breaking any of its existing non-vanguard uses.
 #[cfg(feature = "hs-common")]
-pub mod hspath;
+pub(crate) mod hspath;
 
 use std::time::SystemTime;
 
