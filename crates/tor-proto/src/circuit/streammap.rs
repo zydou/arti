@@ -110,6 +110,8 @@ pub(super) struct StreamMap {
     /// The next StreamId that we should use for a newly allocated
     /// circuit.
     next_stream_id: StreamId,
+    /// The current number of streams in the Open state.
+    n_open: usize,
 }
 
 impl StreamMap {
@@ -120,12 +122,38 @@ impl StreamMap {
         StreamMap {
             m: HashMap::new(),
             next_stream_id: next_stream_id.into(),
+            n_open: 0,
         }
     }
 
     /// Return an iterator over the entries in this StreamMap.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = (StreamId, StreamEntMut<'_>)> {
         self.m.iter_mut().map(|(id, ent)| (*id, ent.into()))
+    }
+
+    /// Add one to the number of open streams.
+    fn inc_n_open(&mut self) {
+        self.n_open += 1;
+        #[cfg(test)]
+        debug_assert_eq!(self.count_n_open(), self.n_open);
+    }
+
+    /// Subtract one from the number of open streams.
+    fn dec_n_open(&mut self) {
+        self.n_open -= 1;
+        #[cfg(test)]
+        debug_assert_eq!(self.count_n_open(), self.n_open);
+    }
+
+    /// Testing only: count the number of open streams.
+    ///
+    /// Used to check that n_open is correct.
+    #[cfg(test)]
+    fn count_n_open(&self) -> usize {
+        self.m
+            .iter()
+            .filter(|(_, ent)| matches!(ent, StreamEnt::Open(_)))
+            .count()
     }
 
     /// Add an entry to this map; return the newly allocated StreamId.
@@ -153,6 +181,7 @@ impl StreamMap {
             let ent = self.m.entry(id);
             if let Entry::Vacant(_) = ent {
                 ent.or_insert(stream_ent);
+                self.inc_n_open();
                 return Ok(id);
             }
         }
@@ -181,6 +210,7 @@ impl StreamMap {
         let ent = self.m.entry(id);
         if let Entry::Vacant(_) = ent {
             ent.or_insert(stream_ent);
+            self.inc_n_open();
 
             Ok(())
         } else {
@@ -223,6 +253,8 @@ impl StreamMap {
             }
             StreamEnt::Open { .. } => {
                 stream_entry.insert(StreamEnt::EndReceived);
+                self.dec_n_open();
+
                 Ok(())
             }
         }
@@ -256,6 +288,7 @@ impl StreamMap {
                 // FIXME(eta): we don't copy the receive window, instead just creating a new one,
                 //             so a malicious peer can send us slightly more data than they should
                 //             be able to; see arti#230.
+                self.dec_n_open();
                 let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
                 recv_window.decrement_n(dropped)?;
                 // TODO: would be nice to avoid new_ref.
@@ -268,6 +301,7 @@ impl StreamMap {
                         explicitly_dropped,
                     }),
                 );
+
                 Ok(ShouldSendEnd::Send)
             }
             StreamEnt::EndSent(EndSentStreamEnt {
