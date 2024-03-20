@@ -40,6 +40,8 @@
 //!         STUB+ = G -> L2 -> L3 -> M
 //!      ```
 
+// TODO (#1339): we should be consistent with our terminology.
+
 use rand::Rng;
 use tor_linkspec::OwnedChanTarget;
 use tor_netdir::{NetDir, Relay};
