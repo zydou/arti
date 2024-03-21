@@ -127,6 +127,19 @@ pub trait SleepProvider: Clone + Send + Sync + 'static {
     fn allow_one_advance(&self, _dur: Duration) {}
 }
 
+/// A provider of reduced-precision timestamps
+///
+/// This doesn't provide any facility for sleeping.
+/// If you want to sleep based on reduced-precision timestamps,
+/// convert the desired sleep duration to `std::time::Duration`
+/// and use [`SleepProvider`].
+pub trait CoarseTimeProvider: Clone + Send + Sync + 'static {
+    /// Return the `CoarseTimeProvider`'s view of the current instant.
+    ///
+    /// This is supposed to be cheaper than `std::time::Instant::now`.
+    fn now_coarse(&self) -> crate::coarsetime::CoarseInstant;
+}
+
 /// Trait for a runtime that can block on a future.
 pub trait BlockOn: Clone + Send + Sync + 'static {
     /// Run `future` until it is ready, and return its output.

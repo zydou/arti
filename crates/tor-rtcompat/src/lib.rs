@@ -48,6 +48,7 @@
 pub(crate) mod impls;
 pub mod task;
 
+mod coarsetime;
 mod compound;
 mod opaque;
 pub mod scheduler;
@@ -59,8 +60,10 @@ use std::io;
 pub use traits::{
     BlockOn, CertifiedConn, Runtime, SleepProvider, TcpListener, TcpProvider, TlsProvider,
     UdpProvider, UdpSocket,
+    CoarseTimeProvider,
 };
 
+pub use coarsetime::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
 pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 
 /// Traits used to describe TLS connections and objects that can

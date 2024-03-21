@@ -45,6 +45,9 @@ encapsulate different runtime capabilities.
  * A runtime is a [`BlockOn`] if it can block on a future.
  * A runtime is a [`SleepProvider`] if it can make timer futures that
    become Ready after a given interval of time.
+ * A runtime is a [`CoarseTimeProvider`] if it provides a monotonic clock
+   which is fast to query,
+   but perhaps has lower-precision or lower-accuracy.
  * A runtime is a [`TcpProvider`] if it can make and receive TCP
    connections
  * A runtime is a [`TlsProvider`] if it can make TLS connections.
