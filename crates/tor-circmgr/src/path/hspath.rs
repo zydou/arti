@@ -43,7 +43,7 @@
 // TODO (#1339): we should be consistent with our terminology.
 
 use rand::Rng;
-use tor_linkspec::{HasRelayIds, OwnedChanTarget};
+use tor_linkspec::OwnedChanTarget;
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 
@@ -213,35 +213,23 @@ impl VanguardHsPathBuilder {
         // (a relay won't let you extend the circuit to itself).
         //
         // TODO #504: Unaccompanied RelayExclusions
-        let exclude_guard = RelayExclusion::exclude_identities(
-            l1_guard
-                .identities()
-                .map(|id| id.to_owned())
-                .collect(),
-        );
-        let l2_guard = vanguards.select_vanguard(
+        let exclude_guard = exclude_identities(&[&l1_guard]);
+        let l2_guard: MaybeOwnedRelay = vanguards.select_vanguard(
             netdir,
             Layer::Layer2,
             exclude_guard
-        )?;
+        )?.into();
 
         // We exclude
         //   * the L2 vanguard, because it cannot be selected again as an L3 vanguard
         //     (a relay won't let you extend the circuit to itself).
         //   * the guard, because relays won't let you extend the circuit to their previous hop
-        let already_selected = RelayExclusion::exclude_identities(
-            l2_guard
-                .relay()
-                .identities()
-                .chain(l1_guard.identities())
-                .map(|id| id.to_owned())
-                .collect(),
-        );
-        let mut hops = vec![l1_guard, MaybeOwnedRelay::from(l2_guard)];
+        let neighbor_exclusion = exclude_identities(&[&l2_guard, &l1_guard]);
+        let mut hops = vec![l1_guard, l2_guard];
 
         // If needed, select an L3 vanguard too
         if vanguards.mode() == VanguardMode::Full {
-            let l3_guard = vanguards.select_vanguard(netdir, Layer::Layer3, already_selected)?;
+            let l3_guard = vanguards.select_vanguard(netdir, Layer::Layer3, neighbor_exclusion)?;
             hops.push(MaybeOwnedRelay::from(l3_guard));
 
             // If full vanguards are enabled, we need an extra hop for STUB+:
