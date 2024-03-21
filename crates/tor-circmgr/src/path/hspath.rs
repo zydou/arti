@@ -215,7 +215,7 @@ impl VanguardHsPathBuilder {
         // TODO #504: Unaccompanied RelayExclusions
         let exclude_guard = exclude_identities(&[&l1_guard]);
         let l2_guard: MaybeOwnedRelay = vanguards
-            .select_vanguard(netdir, Layer::Layer2, exclude_guard)?
+            .select_vanguard(netdir, Layer::Layer2, &exclude_guard)?
             .into();
 
         // We exclude
@@ -228,7 +228,7 @@ impl VanguardHsPathBuilder {
         // If needed, select an L3 vanguard too
         if vanguards.mode() == VanguardMode::Full {
             let l3_guard: MaybeOwnedRelay = vanguards
-                .select_vanguard(netdir, Layer::Layer3, neighbor_exclusion)?
+                .select_vanguard(netdir, Layer::Layer3, &neighbor_exclusion)?
                 .into();
             hops.push(l3_guard.clone());
 

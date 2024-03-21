@@ -140,7 +140,7 @@ impl VanguardMgr {
         &self,
         netdir: &'a NetDir,
         layer: Layer,
-        neighbor_exclusion: RelayExclusion<'a>,
+        neighbor_exclusion: &RelayExclusion<'a>,
     ) -> Result<Vanguard<'a>, VanguardMgrError> {
         use VanguardMode::*;
 

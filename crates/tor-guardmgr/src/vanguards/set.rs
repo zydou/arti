@@ -53,7 +53,7 @@ impl VanguardSet {
     pub(super) fn pick_relay<'a>(
         &self,
         _netdir: &'a NetDir,
-        _neighbor_exclusion: RelayExclusion<'a>,
+        _neighbor_exclusion: &RelayExclusion<'a>,
     ) -> Option<Vanguard<'a>> {
         todo!()
     }
