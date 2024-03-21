@@ -1,7 +1,7 @@
 //! Code for building paths for HS circuits.
 //!
 //! The path builders defined here are used for creating hidden service stub circuits,
-//! which are three-hop circuits that have not yet been extended to a target.
+//! which are three- or four-hop circuits that have not yet been extended to a target.
 //!
 //! Stub circuits eventually become introduction, rendezvous, and HsDir circuits.
 //! For all circuit types except client rendezvous, the stubs must first be
@@ -135,6 +135,41 @@ impl HsPathBuilder {
     }
 }
 
+impl<'a> AnonymousPathBuilder<'a> for HsPathBuilder {
+    fn chosen_exit(&self) -> Option<&Relay<'_>> {
+        None
+    }
+
+    fn compatible_with(&self) -> Option<&OwnedChanTarget> {
+        self.compatible_with.as_ref()
+    }
+
+    fn path_kind(&self) -> &'static str {
+        "onion-service circuit"
+    }
+
+    fn pick_exit<'s, R: Rng>(
+        &'s self,
+        rng: &mut R,
+        netdir: &'a NetDir,
+        guard_exclusion: RelayExclusion<'a>,
+        _rs_cfg: &RelaySelectionConfig<'_>,
+    ) -> Result<(Relay<'a>, RelayUsage)> {
+        // TODO: This usage is a bit convoluted, and some onion-service-
+        // related circuits don't need this much stability.
+        let usage = RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()));
+        let selector = RelaySelector::new(usage, guard_exclusion);
+
+        let (relay, info) = selector.select_relay(rng, netdir);
+        let relay = relay.ok_or_else(|| Error::NoRelay {
+            path_kind: self.path_kind(),
+            role: "final hop",
+            problem: info.to_string(),
+        })?;
+        Ok((relay, RelayUsage::middle_relay(Some(selector.usage()))))
+    }
+}
+
 /// A path builder for hidden service circuits that use vanguards.
 ///
 /// Used by [`HsPathBuilder`] when vanguards are enabled.
@@ -173,13 +208,29 @@ impl VanguardHsPathBuilder {
             select_guard(rng, netdir, guards, config, None, None, self.path_kind())?;
 
         // Select the vanguards
-        let l2_guard = vanguards.select_vanguard(netdir, Layer::Layer2)?;
-        let mut hops = vec![l1_guard, MaybeOwnedRelay::from(l2_guard)];
+
+        // We must exclude the guard, because it cannot be selected again as an L2 vanguard
+        // (a relay won't let you extend the circuit to itself).
+        //
+        // TODO #504: Unaccompanied RelayExclusions
+        let exclude_guard = exclude_identities(&[&l1_guard]);
+        let l2_guard: MaybeOwnedRelay = vanguards
+            .select_vanguard(netdir, Layer::Layer2, &exclude_guard)?
+            .into();
+
+        // We exclude
+        //   * the L2 vanguard, because it cannot be selected again as an L3 vanguard
+        //     (a relay won't let you extend the circuit to itself).
+        //   * the guard, because relays won't let you extend the circuit to their previous hop
+        let neighbor_exclusion = exclude_identities(&[&l2_guard, &l1_guard]);
+        let mut hops = vec![l1_guard, l2_guard.clone()];
 
         // If needed, select an L3 vanguard too
         if vanguards.mode() == VanguardMode::Full {
-            let l3_guard = vanguards.select_vanguard(netdir, Layer::Layer3)?;
-            hops.push(MaybeOwnedRelay::from(l3_guard));
+            let l3_guard: MaybeOwnedRelay = vanguards
+                .select_vanguard(netdir, Layer::Layer3, &neighbor_exclusion)?
+                .into();
+            hops.push(l3_guard.clone());
 
             // If full vanguards are enabled, we need an extra hop for STUB+:
             //     STUB  = G -> L2 -> L3
@@ -188,8 +239,12 @@ impl VanguardHsPathBuilder {
                 // TODO: this usage has need_stable = true, but we probably
                 // don't necessarily need a stable relay here.
                 let usage = RelayUsage::middle_relay(None);
-                let no_exclusion = RelayExclusion::no_relays_excluded();
-                let selector = RelaySelector::new(usage, no_exclusion);
+                let neighbor_exclusion = exclude_identities(&[&l2_guard, &l3_guard]);
+                // We exclude
+                //   * the L3 vanguard, because it cannot be selected again as the following
+                //     extra hop (a relay won't let you extend the circuit to itself).
+                //   * the L2 vanguard, because relays won't let you extend the circuit to their previous hop
+                let selector = RelaySelector::new(usage, neighbor_exclusion);
 
                 let (extra_hop, info) = selector.select_relay(rng, netdir);
                 let extra_hop = extra_hop.ok_or_else(|| Error::NoRelay {
@@ -212,37 +267,16 @@ impl VanguardHsPathBuilder {
     }
 }
 
-impl<'a> AnonymousPathBuilder<'a> for HsPathBuilder {
-    fn chosen_exit(&self) -> Option<&Relay<'_>> {
-        None
-    }
+/// Build a [`RelayExclusion`] that excludes the specified relays.
+#[cfg(feature = "vanguards")]
+fn exclude_identities<'a>(exclude_ids: &[&MaybeOwnedRelay<'a>]) -> RelayExclusion<'a> {
+    use tor_linkspec::HasRelayIds;
 
-    fn compatible_with(&self) -> Option<&OwnedChanTarget> {
-        self.compatible_with.as_ref()
-    }
-
-    fn path_kind(&self) -> &'static str {
-        "onion-service circuit"
-    }
-
-    fn pick_exit<'s, R: Rng>(
-        &'s self,
-        rng: &mut R,
-        netdir: &'a NetDir,
-        guard_exclusion: RelayExclusion<'a>,
-        _rs_cfg: &RelaySelectionConfig<'_>,
-    ) -> Result<(Relay<'a>, RelayUsage)> {
-        // TODO: This usage is a bit convoluted, and some onion-service-
-        // related circuits don't need this much stability.
-        let usage = RelayUsage::middle_relay(Some(&RelayUsage::new_intro_point()));
-        let selector = RelaySelector::new(usage, guard_exclusion);
-
-        let (relay, info) = selector.select_relay(rng, netdir);
-        let relay = relay.ok_or_else(|| Error::NoRelay {
-            path_kind: self.path_kind(),
-            role: "final hop",
-            problem: info.to_string(),
-        })?;
-        Ok((relay, RelayUsage::middle_relay(Some(selector.usage()))))
-    }
+    RelayExclusion::exclude_identities(
+        exclude_ids
+            .iter()
+            .flat_map(|relay| relay.identities())
+            .map(|id| id.to_owned())
+            .collect(),
+    )
 }

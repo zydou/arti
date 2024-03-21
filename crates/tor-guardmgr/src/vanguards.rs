@@ -13,6 +13,7 @@ use tor_config::ReconfigureError;
 use tor_error::{internal, ErrorKind, HasKind};
 use tor_netdir::{NetDir, NetDirProvider};
 use tor_persist::StateMgr;
+use tor_relay_selection::RelayExclusion;
 use tor_rtcompat::Runtime;
 
 pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
@@ -116,10 +117,30 @@ impl VanguardMgr {
     }
 
     /// Return a [`Vanguard`] relay for use in the specified layer.
+    ///
+    /// The `neighbor_exclusion` must contain the relays that would neighbor this vanguard
+    /// in the path.
+    ///
+    /// Specifically, it should contain
+    ///   * the last relay in the path (the one immediately preceding the vanguard): the same relay
+    ///     cannot be used in consecutive positions in the path (a relay won't let you extend the
+    ///     circuit to itself).
+    ///   * the penultimate relay of the path, if there is one: relays don't allow extending the
+    ///     circuit to their previous hop
+    ///
+    ///  ### Example
+    ///
+    ///  If the partially built path is of the form `G - L2` and we are selecting the L3 vanguard,
+    ///  the `RelayExclusion` should contain `G` and `L2` (to prevent building a path of the form
+    ///  `G - L2 - G`, or `G - L2 - L2`).
+    ///
+    ///  If the path only contains the L1 guard (`G`), then the `RelayExclusion` should only
+    ///  exclude `G`.
     pub fn select_vanguard<'a>(
         &self,
         netdir: &'a NetDir,
         layer: Layer,
+        neighbor_exclusion: &RelayExclusion<'a>,
     ) -> Result<Vanguard<'a>, VanguardMgrError> {
         use VanguardMode::*;
 
@@ -139,7 +160,7 @@ impl VanguardMgr {
         };
 
         vanguard_set
-            .pick_relay(netdir)
+            .pick_relay(netdir, neighbor_exclusion)
             .ok_or(VanguardMgrError::NoSuitableRelay(layer))
     }
 
