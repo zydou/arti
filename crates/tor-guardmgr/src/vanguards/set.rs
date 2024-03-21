@@ -47,10 +47,13 @@ pub(super) struct VanguardSet {
 
 impl VanguardSet {
     /// Pick a relay from this set.
+    ///
+    /// See [`VanguardMgr::pick_relay`](crate::vanguards::VanguardMgr::select_vanguard)
+    /// for more information.
     pub(super) fn pick_relay<'a>(
         &self,
         _netdir: &'a NetDir,
-        _exclusion: RelayExclusion<'a>,
+        _neighbor_exclusion: RelayExclusion<'a>,
     ) -> Option<Vanguard<'a>> {
         todo!()
     }
