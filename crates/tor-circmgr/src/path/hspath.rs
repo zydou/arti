@@ -274,3 +274,17 @@ impl VanguardHsPathBuilder {
         "onion-service vanguard circuit"
     }
 }
+
+/// Build a [`RelayExclusion`] that excludes the specified relays.
+#[cfg(feature = "vanguards")]
+fn exclude_identities<'a>(exclude_ids: &[&MaybeOwnedRelay<'a>]) -> RelayExclusion<'a> {
+    use tor_linkspec::HasRelayIds;
+
+    RelayExclusion::exclude_identities(
+        exclude_ids
+            .iter()
+            .flat_map(|relay| relay.identities())
+            .map(|id| id.to_owned())
+            .collect()
+    )
+}
