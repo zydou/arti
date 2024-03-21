@@ -225,12 +225,12 @@ impl VanguardHsPathBuilder {
         //     (a relay won't let you extend the circuit to itself).
         //   * the guard, because relays won't let you extend the circuit to their previous hop
         let neighbor_exclusion = exclude_identities(&[&l2_guard, &l1_guard]);
-        let mut hops = vec![l1_guard, l2_guard];
+        let mut hops = vec![l1_guard, l2_guard.clone()];
 
         // If needed, select an L3 vanguard too
         if vanguards.mode() == VanguardMode::Full {
-            let l3_guard = vanguards.select_vanguard(netdir, Layer::Layer3, neighbor_exclusion)?;
-            hops.push(MaybeOwnedRelay::from(l3_guard));
+            let l3_guard: MaybeOwnedRelay = vanguards.select_vanguard(netdir, Layer::Layer3, neighbor_exclusion)?.into();
+            hops.push(l3_guard.clone());
 
             // If full vanguards are enabled, we need an extra hop for STUB+:
             //     STUB  = G -> L2 -> L3
@@ -239,8 +239,12 @@ impl VanguardHsPathBuilder {
                 // TODO: this usage has need_stable = true, but we probably
                 // don't necessarily need a stable relay here.
                 let usage = RelayUsage::middle_relay(None);
-                let no_exclusion = RelayExclusion::no_relays_excluded();
-                let selector = RelaySelector::new(usage, no_exclusion);
+                let neighbor_exclusion = exclude_identities(&[&l2_guard, &l3_guard]);
+                // We exclude
+                //   * the L3 vanguard, because it cannot be selected again as the following
+                //     extra hop (a relay won't let you extend the circuit to itself).
+                //   * the L2 vanguard, because relays won't let you extend the circuit to their previous hop
+                let selector = RelaySelector::new(usage, neighbor_exclusion);
 
                 let (extra_hop, info) = selector.select_relay(rng, netdir);
                 let extra_hop = extra_hop.ok_or_else(|| Error::NoRelay {
