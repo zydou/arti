@@ -13,7 +13,11 @@ use derive_more::AsMut;
 use priority_queue::priority_queue::PriorityQueue;
 use slotmap::DenseSlotMap;
 
+use tor_rtcompat::CoarseInstant;
+use tor_rtcompat::CoarseTimeProvider;
 use tor_rtcompat::SleepProvider;
+
+use crate::coarsetime::MockCoarseTimeProvider;
 
 /// Simple provider of simulated time
 ///
@@ -70,6 +74,9 @@ struct State {
     /// Current time
     now: Instant,
 
+    /// Current time (coarse)
+    coarse: MockCoarseTimeProvider,
+
     /// Current wallclock time
     wallclock: SystemTime,
 
@@ -107,6 +114,7 @@ impl Provider {
     pub fn new(now: Instant, wallclock: SystemTime) -> Self {
         let state = State {
             now,
+            coarse: MockCoarseTimeProvider::new(),
             wallclock,
             futures: Default::default(),
             unready: Default::default(),
@@ -154,6 +162,7 @@ impl Provider {
     pub fn advance(&self, d: Duration) {
         let mut state = self.lock();
         state.now += d;
+        state.coarse.advance(d);
         state.wallclock += d;
         state.wake_any();
     }
@@ -226,6 +235,12 @@ impl SleepProvider for Provider {
     }
     fn wallclock(&self) -> SystemTime {
         self.lock().wallclock
+    }
+}
+
+impl CoarseTimeProvider for Provider {
+    fn now_coarse(&self) -> CoarseInstant {
+        self.lock().coarse.now_coarse()
     }
 }
 

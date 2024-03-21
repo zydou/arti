@@ -27,7 +27,9 @@ use tracing::trace;
 
 use std::collections::HashSet;
 use std::fmt::Formatter;
-use tor_rtcompat::SleepProvider;
+use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, SleepProvider};
+
+use crate::coarsetime::MockCoarseTimeProvider;
 
 /// A dummy [`SleepProvider`] instance for testing.
 ///
@@ -162,6 +164,8 @@ struct SleepSchedule {
     /// What time do we pretend it is (monotonic)?  This value only
     /// moves forward.
     instant: Instant,
+    /// Coarse time tracker
+    coarse: MockCoarseTimeProvider,
     /// What time do we pretend it is (wall clock)? This value can move
     /// in any way, but usually moves in step with `instant`.
     wallclock: SystemTime,
@@ -214,6 +218,7 @@ impl MockSleepProvider {
         let sleepers = BinaryHeap::new();
         let state = SleepSchedule {
             instant,
+            coarse: MockCoarseTimeProvider::new(),
             wallclock,
             sleepers,
             waitfor_waker: None,
@@ -255,6 +260,7 @@ impl MockSleepProvider {
         let mut state = self.state.lock().expect("Poisoned lock for state");
         state.wallclock += dur;
         state.instant += dur;
+        state.coarse.advance(dur);
         state.fire();
     }
 
@@ -483,6 +489,12 @@ impl SleepProvider for MockSleepProvider {
             .lock()
             .expect("Poisoned lock for state")
             .wallclock
+    }
+}
+
+impl CoarseTimeProvider for MockSleepProvider {
+    fn now_coarse(&self) -> CoarseInstant {
+        self.state.lock().expect("poisoned").coarse.now_coarse()
     }
 }
 
