@@ -13,9 +13,9 @@ use std::time::{Instant, SystemTime};
 /// A runtime made of several parts, each of which implements one trait-group.
 ///
 /// The `SpawnR` component should implements [`Spawn`] and [`BlockOn`];
-/// the `SleepR` component should implement [`SleepProvider`]; the `TcpR`
-/// component should implement [`TcpProvider`]; and the `TlsR` component should
-/// implement [`TlsProvider`].
+/// the `SleepR` component should implement [`SleepProvider`];
+/// the `TcpR` component should implement [`TcpProvider`]; and
+/// the `TlsR` component should implement [`TlsProvider`].
 ///
 /// You can use this structure to create new runtimes in two ways: either by
 /// overriding a single part of an existing runtime, or by building an entirely
