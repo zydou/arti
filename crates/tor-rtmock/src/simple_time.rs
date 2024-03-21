@@ -121,7 +121,7 @@ impl Provider {
     /// Like any [`SimpleMockTimeProvider`], the time is frozen and only changes
     /// due to calls to `advance`.
     pub fn from_real() -> Self {
-        Provider::new(Instant::now(), SystemTime::now())
+        Provider::from_wallclock(SystemTime::now())
     }
     /// Return a new mock time provider starting at a specified wallclock time
     ///
