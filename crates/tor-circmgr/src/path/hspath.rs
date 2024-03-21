@@ -214,11 +214,9 @@ impl VanguardHsPathBuilder {
         //
         // TODO #504: Unaccompanied RelayExclusions
         let exclude_guard = exclude_identities(&[&l1_guard]);
-        let l2_guard: MaybeOwnedRelay = vanguards.select_vanguard(
-            netdir,
-            Layer::Layer2,
-            exclude_guard
-        )?.into();
+        let l2_guard: MaybeOwnedRelay = vanguards
+            .select_vanguard(netdir, Layer::Layer2, exclude_guard)?
+            .into();
 
         // We exclude
         //   * the L2 vanguard, because it cannot be selected again as an L3 vanguard
@@ -229,7 +227,9 @@ impl VanguardHsPathBuilder {
 
         // If needed, select an L3 vanguard too
         if vanguards.mode() == VanguardMode::Full {
-            let l3_guard: MaybeOwnedRelay = vanguards.select_vanguard(netdir, Layer::Layer3, neighbor_exclusion)?.into();
+            let l3_guard: MaybeOwnedRelay = vanguards
+                .select_vanguard(netdir, Layer::Layer3, neighbor_exclusion)?
+                .into();
             hops.push(l3_guard.clone());
 
             // If full vanguards are enabled, we need an extra hop for STUB+:
@@ -277,6 +277,6 @@ fn exclude_identities<'a>(exclude_ids: &[&MaybeOwnedRelay<'a>]) -> RelayExclusio
             .iter()
             .flat_map(|relay| relay.identities())
             .map(|id| id.to_owned())
-            .collect()
+            .collect(),
     )
 }
