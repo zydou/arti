@@ -13,6 +13,7 @@ use tor_config::ReconfigureError;
 use tor_error::{internal, ErrorKind, HasKind};
 use tor_netdir::{NetDir, NetDirProvider};
 use tor_persist::StateMgr;
+use tor_relay_selection::RelayExclusion;
 use tor_rtcompat::Runtime;
 
 pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
@@ -120,6 +121,7 @@ impl VanguardMgr {
         &self,
         netdir: &'a NetDir,
         layer: Layer,
+        exclusion: RelayExclusion<'a>,
     ) -> Result<Vanguard<'a>, VanguardMgrError> {
         use VanguardMode::*;
 
@@ -139,7 +141,7 @@ impl VanguardMgr {
         };
 
         vanguard_set
-            .pick_relay(netdir)
+            .pick_relay(netdir, exclusion)
             .ok_or(VanguardMgrError::NoSuitableRelay(layer))
     }
 

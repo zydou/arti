@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use tor_linkspec::RelayIds;
 use tor_netdir::{NetDir, Relay};
+use tor_relay_selection::RelayExclusion;
 
 /// A vanguard relay.
 //
@@ -46,7 +47,11 @@ pub(super) struct VanguardSet {
 
 impl VanguardSet {
     /// Pick a relay from this set.
-    pub(super) fn pick_relay<'a>(&self, _netdir: &'a NetDir) -> Option<Vanguard<'a>> {
+    pub(super) fn pick_relay<'a>(
+        &self,
+        _netdir: &'a NetDir,
+        _exclusion: RelayExclusion<'a>,
+    ) -> Option<Vanguard<'a>> {
         todo!()
     }
 }
