@@ -51,6 +51,7 @@ pub trait Runtime:
     + BlockOn
     + Clone
     + SleepProvider
+    + CoarseTimeProvider
     + TcpProvider
     + TlsProvider<Self::TcpStream>
     + UdpProvider
@@ -66,6 +67,7 @@ impl<T> Runtime for T where
         + BlockOn
         + Clone
         + SleepProvider
+        + CoarseTimeProvider
         + TcpProvider
         + TlsProvider<Self::TcpStream>
         + UdpProvider
