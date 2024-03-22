@@ -413,6 +413,76 @@ pub struct NetParameters {
     /// <https://spec.torproject.org/param-spec.md#HiddenServiceEnableIntroDoSRatePerSec>
     pub hs_intro_dos_rate: BoundedInt32<0, {i32::MAX}> = (25)
         from  "HiddenServiceEnableIntroDoSRatePerSec",
+
+    /// The type of vanguards to use by default when building onion service circuits:
+    ///
+    /// ```text
+    ///    0: No vanguards.
+    ///    1: Lite vanguards.
+    ///    2: Full vanguards.
+    /// ```
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub vanguards_enabled: BoundedInt32<0, 2> = (1)
+        from "vanguards-enabled",
+
+    /// If higher than `vanguards-enabled`,
+    /// and we are running an onion service,
+    /// we use this level for all our onion service circuits:
+    ///
+    /// ```text
+    ///    0: No vanguards.
+    ///    1: Lite vanguards.
+    ///    2: Full vanguards.
+    /// ```
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub vanguards_hs_service: BoundedInt32<0, 2> = (2)
+        from "vanguards-hs-service",
+
+    /// The number of guards in the L2 guard set.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub guard_hs_l2_number: BoundedInt32<1, {i32::MAX}> = (4)
+        from  "guard-hs-l2-number",
+
+    /// The minimum lifetime of L2 guards.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub guard_hs_l2_lifetime_min: BoundedInt32<1, {i32::MAX}> = (86400)
+        from  "guard-hs-l2-lifetime-min",
+
+    /// The maximum lifetime of L2 guards.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub guard_hs_l2_lifetime_max: BoundedInt32<1, {i32::MAX}> = (1036800)
+        from  "guard-hs-l2-lifetime-max",
+
+    /// The number of guards in the L3 guard set.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub guard_hs_l3_number: BoundedInt32<1, {i32::MAX}> = (8)
+        from  "guard-hs-l3-number",
+
+    /// The minimum lifetime of L3 guards.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub guard_hs_l3_lifetime_min: BoundedInt32<1, {i32::MAX}> = (3600)
+        from  "guard-hs-l3-lifetime-min",
+
+    /// The maximum lifetime of L3 guards.
+    ///
+    /// See
+    /// <https://spec.torproject.org/param-spec.md#vanguards>
+    pub guard_hs_l3_lifetime_max: BoundedInt32<1, {i32::MAX}> = (172800)
+        from  "guard-hs-l3-lifetime-max",
 }
 
 }
