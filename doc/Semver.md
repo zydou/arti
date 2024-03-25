@@ -19,7 +19,7 @@ in each crate's `README`.
 
 ## Unstable Tor crates
 
-For all tor-* and arti-* crates with 0.x version numbers:
+For all `tor-*` and `arti-*` crates with 0.x version numbers:
 
 We will do a minor version bump (0.x -> 0.y; y > x) for all crates,
 on every release (ie, roughly monthly).
@@ -49,7 +49,7 @@ export any types from unstable Tor crates, obviously.
 Crates in this category
 they may have more cautious MSRV policies than Arti as a whole.
 
-These crates might depend on tor-* crates internally,
+These crates might depend on `tor-*` crates internally,
 but this is probably undesirable;
 it's only acceptable if the utility crate has a no less firm semver policy than Arti itself.
 
