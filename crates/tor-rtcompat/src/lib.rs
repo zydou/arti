@@ -48,7 +48,7 @@
 pub(crate) mod impls;
 pub mod task;
 
-mod coarsetime;
+mod coarse_time;
 mod compound;
 mod opaque;
 pub mod scheduler;
@@ -62,7 +62,7 @@ pub use traits::{
     TlsProvider, UdpProvider, UdpSocket,
 };
 
-pub use coarsetime::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
+pub use coarse_time::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
 pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 
 /// Traits used to describe TLS connections and objects that can

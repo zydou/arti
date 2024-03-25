@@ -139,7 +139,7 @@ pub trait CoarseTimeProvider: Clone + Send + Sync + 'static {
     /// Return the `CoarseTimeProvider`'s view of the current instant.
     ///
     /// This is supposed to be cheaper than `std::time::Instant::now`.
-    fn now_coarse(&self) -> crate::coarsetime::CoarseInstant;
+    fn now_coarse(&self) -> crate::coarse_time::CoarseInstant;
 }
 
 /// Trait for a runtime that can block on a future.
