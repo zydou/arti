@@ -187,7 +187,9 @@ before you continue!
    Pick the next minor version, and, for each such crate:
    `cargo set-version -p ${CRATE} 0.${MINOR}.0`.
 
-   To do this, run for each crate with functional changes:
+   For other crates:
+
+   For each crate with functional changes:
     `cargo set-version --bump {patch|minor|major} -p ${CRATE}`.
 
    For crates with non-functional changes,
