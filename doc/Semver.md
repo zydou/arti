@@ -37,7 +37,7 @@ sufficiently solid and future-proof,
 we may switch those crates to 1.x versions.
 But we do not (as of March 2024) intend to put significant effort into making this true.
 
-## Stable crates (1.x, 2.x, ...) and published utility crates (heither `tor-*` nor `arti-*`)
+## Stable crates (1.x, 2.x, ...) and published utility crates (neither `tor-*` nor `arti-*`)
 
 We will do semver analysis:
 we track in-tree when we breaking API changes,
@@ -47,7 +47,7 @@ Crates in this category do not (non-experimentally)
 export any types from unstable Tor crates, obviously.
 
 Crates in this category
-they may have more cautious MSRV policies than Arti as a whole.
+may have more cautious MSRV policies than Arti as a whole.
 
 These crates might depend on `tor-*` crates internally,
 but this is probably undesirable;
