@@ -114,9 +114,11 @@ release?" above.
 
    Add an acknowledgement for the current sponsor(s).
 
-4. Determine what crates have semver changes.
+4. Determine what semver/version update to do to each crate.
 
    We need to sort our crates into the following tiers.
+    * Unstable (0.x) `tor-*` and `arti-*` crates.
+      (Bump minor version, to the same value for each crate.)
     * No changes were made.
       (No version bump needed)
     * Only non-functional changes were made.
@@ -127,6 +129,13 @@ release?" above.
       (Bump patchlevel if major == 0; else bump minor.)
     * APIs were broken.
       (Bump minor if major == 0; else bump major.)
+
+   For all `tor-*` and `arti-*` crates with 0.x version numbers
+   (which, as of March 2024 includes all `tor-*` crates,
+   and all `arti-*` crates apart from `arti` itself),
+   we always bump the minor version and release,
+   even if there have been no changes.
+   For other crates, things are more complicated:
 
    You can identify crates that have no changes using `maint/changed_crates`:
    ```
@@ -170,6 +179,14 @@ before you continue!
 
 2. Increase all appropriate version numbers.
 
+   For unstable (0.x) `tor-*` and `arti-*` crates,
+   determine the new minor number.
+   `maint/crate_versions  | grep -P '^tor|^arti'`
+   will show you the existing versions,
+   which should usually all be the same.
+   Pick the next minor version, and, for each such crate:
+   `cargo set-version -p ${CRATE} 0.${MINOR}.0`.
+
    To do this, run for each crate with functional changes:
     `cargo set-version --bump {patch|minor|major} -p ${CRATE}`.
 
@@ -180,6 +197,18 @@ before you continue!
    Make sure you commit `Cargo.lock` changes too.
 
 3. Check for side effects from bumping versions!
+
+   As of March 2024, you can skip this section
+   for `tor-*` and `arti-*`, since:
+     * `arti` is the only non-0.x `arti-*` or `tor-*` crate;
+	 * `arti` does not expose types from our lower-layer crates;
+	 * None other of our crates depend on `tor-*` or `arti-*` crates.
+   Therefore all necessary bumps have been done.
+
+   You may need to perform these checks
+   if there have been semver bumps
+   to non-`arti-*` or `tor-*` crates,
+   when other such crates expose their types.
 
    Does a previously unchanged crate
    depend on a crate that got a version bump?
