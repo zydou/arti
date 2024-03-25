@@ -58,9 +58,8 @@ mod traits;
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 use std::io;
 pub use traits::{
-    BlockOn, CertifiedConn, Runtime, SleepProvider, TcpListener, TcpProvider, TlsProvider,
-    UdpProvider, UdpSocket,
-    CoarseTimeProvider,
+    BlockOn, CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, TcpListener, TcpProvider,
+    TlsProvider, UdpProvider, UdpSocket,
 };
 
 pub use coarsetime::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
