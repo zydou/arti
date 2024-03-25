@@ -35,7 +35,7 @@ ie, to try to make their source code changes reasonably easy.
 When we consider that particular crates' APIs have become
 sufficiently solid and future-proof,
 we may switch those crates to 1.x versions.
-But we do not currently intend to put significant effort into making this true.
+But we do not (as of March 2024) intend to put significant effort into making this true.
 
 ## Stable crates (1.x, 2.x, ...) and published utility crates (heither `tor-*` nor `arti-*`)
 
