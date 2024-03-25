@@ -29,7 +29,7 @@ use std::collections::HashSet;
 use std::fmt::Formatter;
 use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, SleepProvider};
 
-use crate::coarse_time::MockCoarseTimeProvider;
+use crate::time_core::MockCoarseTimeProvider;
 
 /// A dummy [`SleepProvider`] instance for testing.
 ///

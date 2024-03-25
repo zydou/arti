@@ -52,7 +52,7 @@ pub mod simple_time;
 pub mod task;
 pub mod time;
 
-mod coarse_time;
+mod time_core;
 mod net_runtime;
 mod runtime;
 mod sleep_runtime;
