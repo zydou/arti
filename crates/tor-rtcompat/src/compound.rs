@@ -48,9 +48,18 @@ struct Inner<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> {
     udp: UdpR,
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> {
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+    CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+{
     /// Construct a new CompoundRuntime from its components.
-    pub fn new(spawn: SpawnR, sleep: SleepR, coarse_time: CoarseTimeR, tcp: TcpR, tls: TlsR, udp: UdpR) -> Self {
+    pub fn new(
+        spawn: SpawnR,
+        sleep: SleepR,
+        coarse_time: CoarseTimeR,
+        tcp: TcpR,
+        tls: TlsR,
+        udp: UdpR,
+    ) -> Self {
         #[allow(clippy::arc_with_non_send_sync)]
         CompoundRuntime {
             inner: Arc::new(Inner {
@@ -65,7 +74,8 @@ impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> CompoundRuntime<SpawnR, Slee
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> Spawn for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> Spawn
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
 where
     SpawnR: Spawn,
 {
@@ -76,7 +86,8 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> BlockOn for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> BlockOn
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
 where
     SpawnR: BlockOn,
     SleepR: Clone + Send + Sync + 'static,

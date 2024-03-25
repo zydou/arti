@@ -35,7 +35,14 @@ pub struct AsyncStdNativeTlsRuntime {
 
 /// Implementation type for AsyncStdRuntime.
 #[cfg(feature = "native-tls")]
-type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, RealCoarseTimeProvider, AsyncStd, NativeTlsProvider, AsyncStd>;
+type NativeTlsInner = CompoundRuntime<
+    AsyncStd,
+    AsyncStd,
+    RealCoarseTimeProvider,
+    AsyncStd,
+    NativeTlsProvider,
+    AsyncStd,
+>;
 
 #[cfg(feature = "native-tls")]
 crate::opaque::implement_opaque_runtime! {
@@ -52,7 +59,8 @@ pub struct AsyncStdRustlsRuntime {
 
 /// Implementation type for AsyncStdRustlsRuntime.
 #[cfg(feature = "rustls")]
-type RustlsInner = CompoundRuntime<AsyncStd, AsyncStd, RealCoarseTimeProvider, AsyncStd, RustlsProvider, AsyncStd>;
+type RustlsInner =
+    CompoundRuntime<AsyncStd, AsyncStd, RealCoarseTimeProvider, AsyncStd, RustlsProvider, AsyncStd>;
 
 #[cfg(feature = "rustls")]
 crate::opaque::implement_opaque_runtime! {

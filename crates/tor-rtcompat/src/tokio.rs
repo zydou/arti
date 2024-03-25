@@ -39,7 +39,8 @@ pub struct TokioNativeTlsRuntime {
 
 /// Implementation type for a TokioRuntimeHandle.
 #[cfg(feature = "native-tls")]
-type HandleInner = CompoundRuntime<Handle, Handle, RealCoarseTimeProvider, Handle, NativeTlsProvider, Handle>;
+type HandleInner =
+    CompoundRuntime<Handle, Handle, RealCoarseTimeProvider, Handle, NativeTlsProvider, Handle>;
 
 /// A [`Runtime`](crate::Runtime) built around a Handle to a tokio runtime, and `rustls`.
 #[derive(Clone)]
@@ -51,7 +52,8 @@ pub struct TokioRustlsRuntime {
 
 /// Implementation for a TokioRuntimeRustlsHandle
 #[cfg(feature = "rustls")]
-type RustlsHandleInner = CompoundRuntime<Handle, Handle, RealCoarseTimeProvider, Handle, RustlsProvider, Handle>;
+type RustlsHandleInner =
+    CompoundRuntime<Handle, Handle, RealCoarseTimeProvider, Handle, RustlsProvider, Handle>;
 
 #[cfg(feature = "native-tls")]
 crate::opaque::implement_opaque_runtime! {
