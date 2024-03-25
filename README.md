@@ -148,6 +148,13 @@ That library's API will allow you to
 make connections over the Tor network,
 and obtain streams/sinks usable from async Rust.
 
+We make fairly frequent semver bumps the Arti library API,
+and to our lower-level crates.
+However, in practice, we don't often make disruptive changes
+that aren't easy to sort out in a dependency.
+When using Arti as a library, you should be prepared to make regular updates,
+bumping your versions requirement, not just `cargo update`.
+
 ## Minimum supported Rust Version
 
 Our current Minimum Supported Rust Version (MSRV) is 1.70.
