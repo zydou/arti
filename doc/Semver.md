@@ -30,7 +30,7 @@ We will try to retain compatibility APIs (usually for 12 months at least),
 and generally try to make it easy for out-of-tree users of these crates
 to do a semver upgrade -
 ie, to try to make their source code changes reasonably easy.
-(This is a woolly goal, not a well-defined hard requirement.)
+(This is a goal, not a well-defined hard requirement.)
 
 When we consider that particular crates' APIs have become
 sufficiently solid and future-proof,
