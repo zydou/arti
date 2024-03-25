@@ -29,7 +29,7 @@ use std::collections::HashSet;
 use std::fmt::Formatter;
 use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, SleepProvider};
 
-use crate::time_core::MockCoarseTimeProvider;
+use crate::time_core::MockTimeCore;
 
 /// A dummy [`SleepProvider`] instance for testing.
 ///
@@ -161,14 +161,8 @@ impl fmt::Debug for MockSleepProvider {
 
 /// Shared backend for sleep provider and Sleeping futures.
 struct SleepSchedule {
-    /// What time do we pretend it is (monotonic)?  This value only
-    /// moves forward.
-    instant: Instant,
-    /// Coarse time tracker
-    coarse: MockCoarseTimeProvider,
-    /// What time do we pretend it is (wall clock)? This value can move
-    /// in any way, but usually moves in step with `instant`.
-    wallclock: SystemTime,
+    /// What time do we pretend it is?
+    core: MockTimeCore,
     /// Priority queue of events, in the order that we should wake them.
     sleepers: BinaryHeap<SleepEntry>,
     /// If the mock time system is being driven by a `WaitFor`, holds a `Waker` to wake up that
@@ -216,10 +210,12 @@ impl MockSleepProvider {
     pub fn new(wallclock: SystemTime) -> Self {
         let instant = Instant::now();
         let sleepers = BinaryHeap::new();
-        let state = SleepSchedule {
+        let core = MockTimeCore::new(
             instant,
-            coarse: MockCoarseTimeProvider::new(),
             wallclock,
+        );
+        let state = SleepSchedule {
+            core,
             sleepers,
             waitfor_waker: None,
             sleepers_made: 0,
@@ -258,9 +254,7 @@ impl MockSleepProvider {
         // It's not so great to unwrap here in general, but since this is
         // only testing code we don't really care.
         let mut state = self.state.lock().expect("Poisoned lock for state");
-        state.wallclock += dur;
-        state.instant += dur;
-        state.coarse.advance(dur);
+        state.core.advance(dur);
         state.fire();
     }
 
@@ -273,7 +267,7 @@ impl MockSleepProvider {
     /// the internal timer state, and the lock is poisoned.
     pub fn jump_to(&self, new_wallclock: SystemTime) {
         let mut state = self.state.lock().expect("Poisoned lock for state");
-        state.wallclock = new_wallclock;
+        state.core.jump_wallclock(new_wallclock);
     }
 
     /// Return the amount of virtual time until the next timeout
@@ -283,7 +277,7 @@ impl MockSleepProvider {
     /// timeout should elapse right now, return Some(0).
     pub(crate) fn time_until_next_timeout(&self) -> Option<Duration> {
         let state = self.state.lock().expect("Poisoned lock for state");
-        let now = state.instant;
+        let now = state.core.instant();
         state
             .sleepers
             .peek()
@@ -327,7 +321,7 @@ impl MockSleepProvider {
             // we have quota to advance up to a certain time while advances are blocked.
             // Let's see when the next timeout is, and whether it falls within that quota.
             let next_timeout = {
-                let now = state.instant;
+                let now = state.core.instant();
                 state
                     .sleepers
                     .peek()
@@ -391,7 +385,7 @@ impl SleepSchedule {
     fn fire(&mut self) {
         use std::collections::binary_heap::PeekMut;
 
-        let now = self.instant;
+        let now = self.core.instant();
         while let Some(top) = self.sleepers.peek_mut() {
             if now < top.when {
                 return;
@@ -436,7 +430,7 @@ impl SleepProvider for MockSleepProvider {
     type SleepFuture = Sleeping;
     fn sleep(&self, duration: Duration) -> Self::SleepFuture {
         let mut provider = self.state.lock().expect("Poisoned lock for state");
-        let when = provider.instant + duration;
+        let when = provider.core.instant() + duration;
         // We're making a new sleeper, so register this in the state.
         provider.sleepers_made += 1;
         trace!(
@@ -481,20 +475,21 @@ impl SleepProvider for MockSleepProvider {
     }
 
     fn now(&self) -> Instant {
-        self.state.lock().expect("Poisoned lock for state").instant
+        self.state.lock().expect("Poisoned lock for state").core.instant()
     }
 
     fn wallclock(&self) -> SystemTime {
         self.state
             .lock()
             .expect("Poisoned lock for state")
-            .wallclock
+            .core
+            .wallclock()
     }
 }
 
 impl CoarseTimeProvider for MockSleepProvider {
     fn now_coarse(&self) -> CoarseInstant {
-        self.state.lock().expect("poisoned").coarse.now_coarse()
+        self.state.lock().expect("poisoned").core.coarse().now_coarse()
     }
 }
 
@@ -535,7 +530,7 @@ impl Future for Sleeping {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         if let Some(provider) = Weak::upgrade(&self.provider) {
             let mut provider = provider.lock().expect("Poisoned lock for provider");
-            let now = provider.instant;
+            let now = provider.core.instant();
 
             if now >= self.when {
                 // The sleep time's elapsed.
