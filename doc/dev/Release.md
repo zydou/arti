@@ -177,10 +177,9 @@ before you continue!
    you can use the `bump_nodep` script:
     `./maint/bump_nodep crate1 crate2 crate3` ...
 
-3. Check for side effects from bumping versions!
+   Make sure you commit `Cargo.lock` changes too.
 
-   Is there a Cargo.lock change you forgot to commit?
-   If so, commit it.
+3. Check for side effects from bumping versions!
 
    Does a previously unchanged crate
    depend on a crate that got a version bump?
