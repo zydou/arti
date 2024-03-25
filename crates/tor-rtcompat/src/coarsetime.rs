@@ -1,5 +1,9 @@
 //! Wrapper for coarsetime.
 //!
+// (Note that this is the doc comment for a private module,
+// not public API docs.
+// So this describes the implementation and rationale.)
+//
 //! We want to be able to mock coarsetime in tor-rtmock,
 //! so we need coarse time provision to to be part of a `Runtime`.
 //!
