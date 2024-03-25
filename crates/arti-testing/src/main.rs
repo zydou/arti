@@ -297,6 +297,7 @@ impl Job {
         let runtime = tor_rtcompat::CompoundRuntime::new(
             runtime.clone(),
             runtime.clone(),
+            runtime.clone(),
             counting_tcp.clone(),
             runtime.clone(),
             runtime,

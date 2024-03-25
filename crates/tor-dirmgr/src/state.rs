@@ -1311,7 +1311,7 @@ mod test {
 
     fn make_time_shifted_runtime(now: SystemTime, rt: impl Runtime) -> impl Runtime {
         let msp = MockSleepProvider::new(now);
-        CompoundRuntime::new(rt.clone(), msp, rt.clone(), rt.clone(), rt)
+        CompoundRuntime::new(rt.clone(), msp.clone(), msp, rt.clone(), rt.clone(), rt)
     }
 
     fn make_dirmgr_config(authorities: Option<Vec<AuthorityBuilder>>) -> Arc<DirMgrConfig> {

@@ -13,6 +13,7 @@ define_derive_adhoc! {
 ///  * `#[adhoc(mock(task))]` to indicate the field implementing `Spawn + BlockOn`
 ///  * `#[adhoc(mock(net))]` to indicate the field implementing `NetProvider`
 ///  * `#[adhoc(mock(sleep))]` to indicate the field implementing `SleepProvider`
+///     and `CoarseTimeProvider`.
 // It would be nice to be able to reject misspelled or obsolete `#[adhoc(mock(THING))]`,
 // but derive-adhoc only allows us to look up known entries, not iterate.
 // However, a misspelling would result in a missing trait impl, leading to compile error.
@@ -103,6 +104,12 @@ define_derive_adhoc! {
         }
     }
 
+    impl <$tgens> CoarseTimeProvider for $ttype {
+        fn now_coarse(&self) -> CoarseInstant {
+            self.$fname.now_coarse()
+        }
+    }
+
  )
 
    // TODO this wants to be assert_impl but it fails at generics
@@ -132,6 +139,7 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::net::SocketAddr;
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
-        BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider, UdpProvider,
+        BlockOn, CoarseInstant, CoarseTimeProvider, Runtime, SleepProvider, TcpProvider,
+        TlsProvider, UdpProvider,
     };
 }

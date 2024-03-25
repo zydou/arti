@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
     // Instantiate our custom TCP provider (see implementation below).
     let tcp_rt = CustomTcpProvider { inner: rt.clone() };
     // Create a `CompoundRuntime`, swapping out the TCP part of the preferred runtime for our custom one.
-    let rt = CompoundRuntime::new(rt.clone(), rt.clone(), tcp_rt, rt.clone(), rt);
+    let rt = CompoundRuntime::new(rt.clone(), rt.clone(), rt.clone(), tcp_rt, rt.clone(), rt);
 
     eprintln!("connecting to Tor...");
     // Pass in our custom runtime using `with_runtime`.

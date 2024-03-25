@@ -1,6 +1,6 @@
 //! Entry points for use with async_std runtimes.
 pub use crate::impls::async_std::create_runtime as create_runtime_impl;
-use crate::{compound::CompoundRuntime, BlockOn};
+use crate::{compound::CompoundRuntime, BlockOn, RealCoarseTimeProvider};
 use std::io::Result as IoResult;
 
 #[cfg(feature = "native-tls")]
@@ -35,7 +35,14 @@ pub struct AsyncStdNativeTlsRuntime {
 
 /// Implementation type for AsyncStdRuntime.
 #[cfg(feature = "native-tls")]
-type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider, AsyncStd>;
+type NativeTlsInner = CompoundRuntime<
+    AsyncStd,
+    AsyncStd,
+    RealCoarseTimeProvider,
+    AsyncStd,
+    NativeTlsProvider,
+    AsyncStd,
+>;
 
 #[cfg(feature = "native-tls")]
 crate::opaque::implement_opaque_runtime! {
@@ -52,7 +59,8 @@ pub struct AsyncStdRustlsRuntime {
 
 /// Implementation type for AsyncStdRustlsRuntime.
 #[cfg(feature = "rustls")]
-type RustlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, RustlsProvider, AsyncStd>;
+type RustlsInner =
+    CompoundRuntime<AsyncStd, AsyncStd, RealCoarseTimeProvider, AsyncStd, RustlsProvider, AsyncStd>;
 
 #[cfg(feature = "rustls")]
 crate::opaque::implement_opaque_runtime! {
@@ -68,8 +76,9 @@ impl AsyncStdNativeTlsRuntime {
     /// runtime.
     pub fn create() -> IoResult<Self> {
         let rt = create_runtime_impl();
+        let ct = RealCoarseTimeProvider::new();
         Ok(AsyncStdNativeTlsRuntime {
-            inner: CompoundRuntime::new(rt, rt, rt, NativeTlsProvider::default(), rt),
+            inner: CompoundRuntime::new(rt, rt, ct, rt, NativeTlsProvider::default(), rt),
         })
     }
 
@@ -112,8 +121,9 @@ impl AsyncStdRustlsRuntime {
     /// runtime.
     pub fn create() -> IoResult<Self> {
         let rt = create_runtime_impl();
+        let ct = RealCoarseTimeProvider::new();
         Ok(AsyncStdRustlsRuntime {
-            inner: CompoundRuntime::new(rt, rt, rt, RustlsProvider::default(), rt),
+            inner: CompoundRuntime::new(rt, rt, ct, rt, RustlsProvider::default(), rt),
         })
     }
 

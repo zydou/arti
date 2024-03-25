@@ -1629,6 +1629,7 @@ mod test {
         let mock_sp = MockSleepProvider::new(now);
         let runtime = CompoundRuntime::new(
             runtime.clone(),
+            mock_sp.clone(),
             mock_sp,
             runtime.clone(),
             runtime.clone(),

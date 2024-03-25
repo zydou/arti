@@ -32,6 +32,13 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
+    impl $crate::CoarseTimeProvider for $t {
+        #[inline]
+        fn now_coarse(&self) -> $crate::CoarseInstant {
+            self.$member.now_coarse()
+        }
+    }
+
     #[async_trait::async_trait]
     impl $crate::traits::TcpProvider for $t {
         type TcpStream = <$mty as $crate::traits::TcpProvider>::TcpStream;
