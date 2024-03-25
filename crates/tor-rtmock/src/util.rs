@@ -139,7 +139,7 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::net::SocketAddr;
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
-        BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider, UdpProvider,
-        CoarseInstant, CoarseTimeProvider,
+        BlockOn, CoarseInstant, CoarseTimeProvider, Runtime, SleepProvider, TcpProvider,
+        TlsProvider, UdpProvider,
     };
 }
