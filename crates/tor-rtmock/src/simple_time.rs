@@ -17,7 +17,7 @@ use tor_rtcompat::CoarseInstant;
 use tor_rtcompat::CoarseTimeProvider;
 use tor_rtcompat::SleepProvider;
 
-use crate::time_core::MockCoarseTimeProvider;
+use crate::time_core::MockTimeCore;
 
 /// Simple provider of simulated time
 ///
@@ -71,14 +71,8 @@ pub struct SleepFuture {
 /// | DROPPED     | dropped          | absent           | absent             |
 #[derive(Debug, AsMut)]
 struct State {
-    /// Current time
-    now: Instant,
-
     /// Current time (coarse)
-    coarse: MockCoarseTimeProvider,
-
-    /// Current wallclock time
-    wallclock: SystemTime,
+    core: MockTimeCore,
 
     /// Futures; record of every existing [`SleepFuture`], including any `Waker`
     ///
@@ -113,9 +107,7 @@ impl Provider {
     /// Return a new mock time provider starting at a specified point in time
     pub fn new(now: Instant, wallclock: SystemTime) -> Self {
         let state = State {
-            now,
-            coarse: MockCoarseTimeProvider::new(),
-            wallclock,
+            core: MockTimeCore::new(now, wallclock),
             futures: Default::default(),
             unready: Default::default(),
         };
@@ -161,9 +153,7 @@ impl Provider {
     /// use [`MockExecutor::advance_*()`](crate::MockRuntime).
     pub fn advance(&self, d: Duration) {
         let mut state = self.lock();
-        state.now += d;
-        state.coarse.advance(d);
-        state.wallclock += d;
+        state.core.advance(d);
         state.wake_any();
     }
 
@@ -172,8 +162,7 @@ impl Provider {
     /// This has no effect on any sleeping futures.
     /// It only affects the return value from [`.wallclock()`](Provider::wallclock).
     pub fn jump_wallclock(&self, new_wallclock: SystemTime) {
-        let mut state = self.lock();
-        state.wallclock = new_wallclock;
+        self.lock().core.jump_wallclock(new_wallclock);
         // Really we ought to wake people up, here.
         // But absolutely every Rust API is wrong: none offer a way to sleep until a SystemTime.
         // (There might be some less-portable non-Rust APIs for that.)
@@ -194,7 +183,7 @@ impl Provider {
         let Reverse(until) = state.unready.peek()?.1;
         // The invariant (see `State`) guarantees that entries in `unready` are always `> now`,
         // so we don't whether duration_since would panic or saturate.
-        let d = until.duration_since(state.now);
+        let d = until.duration_since(state.core.instant());
         Some(d)
     }
 
@@ -209,7 +198,7 @@ impl SleepProvider for Provider {
 
     fn sleep(&self, d: Duration) -> SleepFuture {
         let mut state = self.lock();
-        let until = state.now + d;
+        let until = state.core.instant() + d;
 
         let id = state.futures.insert(None);
         state.unready.push(id, Reverse(until));
@@ -231,16 +220,16 @@ impl SleepProvider for Provider {
     }
 
     fn now(&self) -> Instant {
-        self.lock().now
+        self.lock().core.instant()
     }
     fn wallclock(&self) -> SystemTime {
-        self.lock().wallclock
+        self.lock().core.wallclock()
     }
 }
 
 impl CoarseTimeProvider for Provider {
     fn now_coarse(&self) -> CoarseInstant {
-        self.lock().coarse.now_coarse()
+        self.lock().core.coarse().now_coarse()
     }
 }
 
@@ -251,7 +240,7 @@ impl Future for SleepFuture {
         let mut state = self.prov.lock();
         if let Some((_, Reverse(scheduled))) = state.unready.get(&self.id) {
             // Presence of this entry implies scheduled > now: we are UNPOLLED or WAITING
-            assert!(*scheduled > state.now);
+            assert!(*scheduled > state.core.instant());
             let waker = Some(cx.waker().clone());
             // Make this be WAITING.  (If we're re-polled, we simply drop any previous waker.)
             *state
@@ -276,7 +265,7 @@ impl State {
         loop {
             match self.unready.peek() {
                 // Keep picking off entries with scheduled <= now
-                Some((_, Reverse(scheduled))) if *scheduled <= self.now => {
+                Some((_, Reverse(scheduled))) if *scheduled <= self.core.instant() => {
                     let (id, _) = self.unready.pop().expect("vanished");
                     // We can .take() the waker since this can only ever run once
                     // per sleep future (since it happens when we pop it from unready).
