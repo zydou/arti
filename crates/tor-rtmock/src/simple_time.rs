@@ -17,7 +17,7 @@ use tor_rtcompat::CoarseInstant;
 use tor_rtcompat::CoarseTimeProvider;
 use tor_rtcompat::SleepProvider;
 
-use crate::coarsetime::MockCoarseTimeProvider;
+use crate::coarse_time::MockCoarseTimeProvider;
 
 /// Simple provider of simulated time
 ///
