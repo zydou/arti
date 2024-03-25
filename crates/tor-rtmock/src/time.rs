@@ -210,10 +210,7 @@ impl MockSleepProvider {
     pub fn new(wallclock: SystemTime) -> Self {
         let instant = Instant::now();
         let sleepers = BinaryHeap::new();
-        let core = MockTimeCore::new(
-            instant,
-            wallclock,
-        );
+        let core = MockTimeCore::new(instant, wallclock);
         let state = SleepSchedule {
             core,
             sleepers,
@@ -475,7 +472,11 @@ impl SleepProvider for MockSleepProvider {
     }
 
     fn now(&self) -> Instant {
-        self.state.lock().expect("Poisoned lock for state").core.instant()
+        self.state
+            .lock()
+            .expect("Poisoned lock for state")
+            .core
+            .instant()
     }
 
     fn wallclock(&self) -> SystemTime {
@@ -489,7 +490,12 @@ impl SleepProvider for MockSleepProvider {
 
 impl CoarseTimeProvider for MockSleepProvider {
     fn now_coarse(&self) -> CoarseInstant {
-        self.state.lock().expect("poisoned").core.coarse().now_coarse()
+        self.state
+            .lock()
+            .expect("poisoned")
+            .core
+            .coarse()
+            .now_coarse()
     }
 }
 
