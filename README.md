@@ -154,6 +154,7 @@ However, in practice, we don't often make disruptive changes
 that aren't easy to sort out in a dependency.
 When using Arti as a library, you should be prepared to make regular updates,
 bumping your versions requirement, not just `cargo update`.
+`cargo upgrade` can help with this.
 
 See [our version update and API compatibility policy](doc/Semver.md)
 for more details.
