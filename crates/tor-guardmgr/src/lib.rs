@@ -59,6 +59,7 @@ use tor_error::internal;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget, RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
+use tor_units::BoundedInt32;
 use tracing::{debug, info, trace, warn};
 
 use tor_config::impl_standard_builder;
@@ -1859,6 +1860,18 @@ pub enum VanguardMode {
     /// Vanguards are disabled.
     #[display(fmt = "disabled")]
     Disabled,
+}
+
+#[cfg(feature = "vanguards")]
+impl From<BoundedInt32<0, 2>> for VanguardMode {
+    fn from(val: BoundedInt32<0, 2>) -> Self {
+        match val.get() {
+            0 => VanguardMode::Disabled,
+            1 => VanguardMode::Lite,
+            2 => VanguardMode::Full,
+            _ => unreachable!("BoundedInt32 was not bounded?!"),
+        }
+    }
 }
 
 /// The kind of vanguards to use.
