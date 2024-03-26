@@ -35,7 +35,7 @@ use crate::crypto::cell::{
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
-use crate::stream::{AnyCmdChecker, IncomingStreamRequestFilter, StreamStatus};
+use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use std::borrow::Borrow;
@@ -50,7 +50,7 @@ use tor_cell::relaycell::{
 };
 #[cfg(feature = "hs-service")]
 use {
-    crate::stream::{DataCmdChecker, IncomingStreamRequest},
+    crate::stream::{DataCmdChecker, IncomingStreamRequest, IncomingStreamRequestFilter},
     tor_cell::relaycell::msg::Begin,
 };
 
@@ -254,6 +254,7 @@ pub(super) enum CtrlMsg {
         hop_num: HopNum,
         /// A filter used to check requests before passing them on.
         #[educe(Debug(ignore))]
+        #[cfg(feature = "hs-service")]
         filter: Box<dyn IncomingStreamRequestFilter>,
     },
     /// Send a given control message on this circuit.

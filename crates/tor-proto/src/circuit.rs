@@ -1320,6 +1320,7 @@ mod test {
     use crate::crypto::cell::RelayCellBody;
     #[cfg(feature = "ntor_v3")]
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
+    #[cfg(feature = "hs-service")]
     use crate::stream::IncomingStreamRequestFilter;
     use chanmsg::{AnyChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
@@ -2198,7 +2199,9 @@ mod test {
         assert_eq!(p.initial_send_window(), 500);
     }
 
+    #[cfg(feature = "hs-service")]
     struct AllowAllStreamsFilter;
+    #[cfg(feature = "hs-service")]
     impl IncomingStreamRequestFilter for AllowAllStreamsFilter {
         fn disposition(
             &mut self,
