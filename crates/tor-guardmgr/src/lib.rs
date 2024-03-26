@@ -1863,8 +1863,14 @@ pub enum VanguardMode {
 }
 
 #[cfg(feature = "vanguards")]
-impl From<BoundedInt32<0, 2>> for VanguardMode {
-    fn from(val: BoundedInt32<0, 2>) -> Self {
+impl VanguardMode {
+    /// Build a `VanguardMode` from a [`NetParameters`] parameter.
+    ///
+    /// Used for converting [`vanguards_enabled`](NetParameters::vanguards_enabled)
+    /// or [`vanguards_hs_service`](NetParameters::vanguards_hs_service)
+    /// to the corresponding `VanguardMode`.
+    #[allow(dead_code)] // TODO HS-VANGUARDS
+    pub(crate) fn from_net_parameter(val: BoundedInt32<0, 2>) -> Self {
         match val.get() {
             0 => VanguardMode::Disabled,
             1 => VanguardMode::Lite,
