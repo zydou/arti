@@ -4,7 +4,7 @@ use bitvec::prelude::*;
 
 use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::reactor::CloseStreamBehavior;
-use crate::circuit::StreamTarget;
+use crate::circuit::{ClientCircSyncView, StreamTarget};
 use crate::{Error, Result};
 use tor_async_utils::oneshot;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayMsg};
@@ -168,6 +168,49 @@ impl super::CmdChecker for IncomingCmdChecker {
             .map_err(|err| Error::from_bytes_err(err, "invalid message on incoming stream"))?;
 
         Ok(())
+    }
+}
+
+/// A callback that can check whether a given stream request is acceptable
+/// immediately on its receipt.
+///
+/// This should only be used for checks that need to be done immediately, with a
+/// view of the state of the circuit.  Any other checks should, if possible, be
+/// done on the [`IncomingStream`] objects as they are received.
+pub trait IncomingStreamRequestFilter: Send + 'static {
+    /// Check an incoming stream request, and decide what to do with it.
+    ///
+    /// Implementations of this function should
+    fn disposition(
+        &mut self,
+        ctx: &IncomingStreamRequestContext<'_>,
+        circ: &ClientCircSyncView<'_>,
+    ) -> Result<IncomingStreamRequestDisposition>;
+}
+
+/// What action to take with an incoming stream request.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum IncomingStreamRequestDisposition {
+    /// Accept the request (for now) and pass it to the mpsc::Receiver
+    /// that is yielding them as [`IncomingStream``
+    Accept,
+    /// Rejected the request, and close the circuit on which it was received.
+    CloseCircuit,
+    /// Reject the request and send an END message.
+    RejectRequest(msg::End),
+}
+
+/// Information about a stream request, as passed to an [`IncomingStreamRequestFilter`].
+pub struct IncomingStreamRequestContext<'a> {
+    /// The request message itself
+    pub(crate) request: &'a IncomingStreamRequest,
+}
+
+impl<'a> IncomingStreamRequestContext<'a> {
+    /// Return a reference to the message used to request this stream.
+    pub fn request(&self) -> &'a IncomingStreamRequest {
+        self.request
     }
 }
 

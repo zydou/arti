@@ -15,8 +15,11 @@
 //!    well-formed? For open streams, the streams themselves handle this check.
 //!    For half-closed streams, the reactor handles it by calling
 //!    `consume_checked_msg()`.
+
+pub(super) mod syncview;
+
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{ShouldSendEnd, StreamEnt};
+use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -47,7 +50,7 @@ use tor_cell::relaycell::{
 };
 #[cfg(feature = "hs-service")]
 use {
-    crate::stream::{DataCmdChecker, IncomingStreamRequest},
+    crate::stream::{DataCmdChecker, IncomingStreamRequest, IncomingStreamRequestFilter},
     tor_cell::relaycell::msg::Begin,
 };
 
@@ -242,13 +245,17 @@ pub(super) enum CtrlMsg {
     #[cfg(feature = "hs-service")]
     AwaitStreamRequest {
         /// A channel for sending information about an incoming stream request.
-        incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
+        incoming_sender: mpsc::Sender<StreamReqInfo>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
         /// Oneshot channel to notify on completion.
         done: ReactorResultChannel<()>,
         /// The hop that is allowed to create streams.
         hop_num: HopNum,
+        /// A filter used to check requests before passing them on.
+        #[educe(Debug(ignore))]
+        #[cfg(feature = "hs-service")]
+        filter: Box<dyn IncomingStreamRequestFilter>,
     },
     /// Send a given control message on this circuit.
     #[cfg(feature = "send-control-msg")]
@@ -738,7 +745,7 @@ pub struct Reactor {
 /// Information about an incoming stream request.
 #[cfg(feature = "hs-service")]
 #[derive(Debug)]
-pub(super) struct IncomingStreamRequestContext {
+pub(super) struct StreamReqInfo {
     /// The [`IncomingStreamRequest`].
     pub(super) req: IncomingStreamRequest,
     /// The ID of the stream being requested.
@@ -759,14 +766,19 @@ pub(super) struct IncomingStreamRequestContext {
 
 /// Data required for handling an incoming stream request.
 #[cfg(feature = "hs-service")]
-#[derive(Debug)]
+#[derive(educe::Educe)]
+#[educe(Debug)]
 struct IncomingStreamRequestHandler {
     /// A sender for sharing information about an incoming stream request.
-    incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
+    incoming_sender: mpsc::Sender<StreamReqInfo>,
     /// A [`AnyCmdChecker`] for validating incoming stream requests.
     cmd_checker: AnyCmdChecker,
     /// The hop to expect incoming stream requests from.
     hop_num: HopNum,
+    /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
+    /// this request, or wants to reject it immediately.
+    #[educe(Debug(ignore))]
+    filter: Box<dyn IncomingStreamRequestFilter>,
 }
 
 impl Reactor {
@@ -933,10 +945,10 @@ impl Reactor {
                         }
                         let hop = &mut self.hops[i];
                         // Look at all of the streams on this hop.
-                        for (id, stream) in hop.map.inner().iter_mut() {
-                            if let StreamEnt::Open {
+                        for (id, stream) in hop.map.iter_mut() {
+                            if let StreamEntMut::Open(OpenStreamEnt {
                                 rx, send_window, ..
-                            } = stream
+                            }) = stream
                             {
                                 // Do the stream and hop send windows allow us to obtain and
                                 // send something?
@@ -947,14 +959,14 @@ impl Reactor {
                                         Poll::Ready(Some(m)) => {
                                             stream_relaycells.push((
                                                 hop_num,
-                                                AnyRelayMsgOuter::new(Some(*id), m),
+                                                AnyRelayMsgOuter::new(Some(id), m),
                                             ));
                                         }
                                         Poll::Ready(None) => {
                                             // Stream receiver was dropped; close the stream.
                                             // We can't close it here though due to borrowck; that
                                             // will happen later.
-                                            streams_to_close.push((hop_num, *id));
+                                            streams_to_close.push((hop_num, id));
                                         }
                                         Poll::Pending => {}
                                     }
@@ -1524,18 +1536,22 @@ impl Reactor {
             if let Some(stream_id) = stream_id {
                 // We need to decrement the stream-level sendme window.
                 // Stream data cells should only be dequeued and fed into this function if
-                // the window is above zero, so we don't need to worry about enqueuing things.
-                if let Some(window) = hop.map.get_mut(stream_id).and_then(StreamEnt::send_window) {
-                    window.take(&())?;
-                } else {
-                    warn!(
-                        "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
-                        self.unique_id, stream_id
-                    );
-                    return Err(Error::CircProto(format!(
-                        "tried to send a relay cell on non-open stream {}",
-                        sv(stream_id),
-                    )));
+                // the window is above zero, so we don't need to worry about
+                // enqueuing things.
+                match hop.map.get_mut(stream_id) {
+                    Some(StreamEntMut::Open(OpenStreamEnt { send_window, .. })) => {
+                        send_window.take(&())?;
+                    }
+                    _ => {
+                        warn!(
+                            "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
+                            self.unique_id, stream_id
+                        );
+                        return Err(Error::CircProto(format!(
+                            "tried to send a relay cell on non-open stream {}",
+                            sv(stream_id),
+                        )));
+                    }
                 }
             }
         }
@@ -1683,6 +1699,7 @@ impl Reactor {
                 incoming_sender,
                 hop_num,
                 done,
+                filter,
             } => {
                 // TODO: At some point we might want to add a CtrlMsg for
                 // de-registering the handler.  See comments on `allow_stream_requests`.
@@ -1690,6 +1707,7 @@ impl Reactor {
                     incoming_sender,
                     cmd_checker,
                     hop_num,
+                    filter,
                 };
 
                 let ret = self.set_incoming_stream_req_handler(handler);
@@ -1967,13 +1985,13 @@ impl Reactor {
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         match hop.map.get_mut(streamid) {
-            Some(StreamEnt::Open {
+            Some(StreamEntMut::Open(OpenStreamEnt {
                 sink,
                 send_window,
                 dropped,
                 cmd_checker,
                 ..
-            }) => {
+            })) => {
                 // The stream for this message exists, and is open.
 
                 if msg.cmd() == RelayCmd::SENDME {
@@ -2012,7 +2030,7 @@ impl Reactor {
                 }
             }
             #[cfg(feature = "hs-service")]
-            Some(StreamEnt::EndSent { .. })
+            Some(StreamEntMut::EndSent(_))
                 if matches!(
                     msg.cmd(),
                     RelayCmd::BEGIN | RelayCmd::BEGIN_DIR | RelayCmd::RESOLVE
@@ -2022,9 +2040,9 @@ impl Reactor {
                 // message, just remove the old stream from the map and stop waiting for a
                 // response
                 hop.map.ending_msg_received(streamid)?;
-                self.handle_incoming_stream_request(cx, msg, streamid, hopnum)?;
+                return self.handle_incoming_stream_request(cx, msg, streamid, hopnum);
             }
-            Some(StreamEnt::EndSent { half_stream, .. }) => {
+            Some(StreamEntMut::EndSent(EndSentStreamEnt { half_stream, .. })) => {
                 // We sent an end but maybe the other side hasn't heard.
 
                 match half_stream.handle_msg(msg)? {
@@ -2058,10 +2076,13 @@ impl Reactor {
         msg: UnparsedRelayMsg,
         stream_id: StreamId,
         hop_num: HopNum,
-    ) -> Result<()> {
+    ) -> Result<CellStatus> {
+        use syncview::ClientCircSyncView;
         use tor_cell::relaycell::msg::EndReason;
         use tor_error::into_internal;
         use tor_log_ratelim::log_ratelim;
+
+        // We need to construct this early so that we don't double-borrow &mut self
 
         let Some(handler) = self.incoming_stream_req_handler.as_mut() else {
             return Err(Error::CircProto(
@@ -2095,7 +2116,7 @@ impl Reactor {
         if message_closes_stream {
             hop.map.ending_msg_received(stream_id)?;
 
-            return Ok(());
+            return Ok(CellStatus::Continue);
         }
 
         let begin = msg
@@ -2104,6 +2125,30 @@ impl Reactor {
             .into_msg();
 
         let req = IncomingStreamRequest::Begin(begin);
+
+        {
+            use crate::stream::IncomingStreamRequestDisposition::*;
+
+            let ctx = crate::stream::IncomingStreamRequestContext { request: &req };
+            let view = ClientCircSyncView::new(&self.hops);
+
+            match handler.filter.as_mut().disposition(&ctx, &view)? {
+                Accept => {}
+                CloseCircuit => return Ok(CellStatus::CleanShutdown),
+                RejectRequest(end) => {
+                    let end_msg = AnyRelayMsgOuter::new(Some(stream_id), end.into());
+                    self.send_relay_cell(cx, hop_num, false, end_msg)?;
+                    return Ok(CellStatus::Continue);
+                }
+            }
+        }
+
+        // TODO: Sadly, we need to look up `&mut hop` yet again,
+        // since we needed to pass `&self.hops` by reference to our filter above. :(
+        let hop = self
+            .hops
+            .get_mut(Into::<usize>::into(hop_num))
+            .ok_or(Error::CircuitClosed)?;
 
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (msg_tx, msg_rx) = mpsc::channel(super::CIRCUIT_BUFFER_SIZE);
@@ -2115,7 +2160,7 @@ impl Reactor {
 
         let outcome = handler
             .incoming_sender
-            .try_send(IncomingStreamRequestContext {
+            .try_send(StreamReqInfo {
                 req,
                 stream_id,
                 hop_num,
@@ -2164,7 +2209,7 @@ impl Reactor {
             }
         }
 
-        Ok(())
+        Ok(CellStatus::Continue)
     }
 
     /// Helper: process a destroy cell.

@@ -9,11 +9,11 @@ use tor_cell::relaycell::{
 };
 use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
 use tor_proto::{
-    circuit::{
-        handshake,
-        handshake::hs_ntor::{self, HsNtorHkdfKeyGenerator},
+    circuit::handshake::{
+        self,
+        hs_ntor::{self, HsNtorHkdfKeyGenerator},
     },
-    stream::IncomingStream,
+    stream::{IncomingStream, IncomingStreamRequestFilter},
 };
 
 /// An error produced while trying to process an introduction request we have
@@ -182,6 +182,33 @@ impl<R: Runtime> RendCircConnector for HsCircPool<R> {
     }
 }
 
+/// Filter callback used to enforce early requirements on streams.
+#[derive(Clone, Debug)]
+pub(crate) struct RequestFilter {
+    /// Largest number of streams we will accept on a circuit at a time.
+    //
+    // TODO: Conceivably, this should instead be a
+    // watch::Receiver<Arc<OnionServiceConfig>>, so we can re-check the latest
+    // value of the setting every time.  Instead, we currently only copy this
+    // setting when an intro request is accepted.
+    pub(crate) max_concurrent_streams: usize,
+}
+impl IncomingStreamRequestFilter for RequestFilter {
+    fn disposition(
+        &mut self,
+        _ctx: &tor_proto::stream::IncomingStreamRequestContext<'_>,
+        circ: &tor_proto::circuit::ClientCircSyncView<'_>,
+    ) -> tor_proto::Result<tor_proto::stream::IncomingStreamRequestDisposition> {
+        if circ.n_open_streams() >= self.max_concurrent_streams {
+            // TODO: We may want to have a way to send back an END message as
+            // well and not tear down the circuit.
+            Ok(tor_proto::stream::IncomingStreamRequestDisposition::CloseCircuit)
+        } else {
+            Ok(tor_proto::stream::IncomingStreamRequestDisposition::Accept)
+        }
+    }
+}
+
 impl IntroRequest {
     /// Try to decrypt an incoming Introduce2 request, using the set of keys provided.
     pub(crate) fn decrypt_from_introduce2(
@@ -242,6 +269,7 @@ impl IntroRequest {
     /// the client.
     pub(crate) async fn establish_session(
         self,
+        filter: RequestFilter,
         hs_pool: Arc<dyn RendCircConnector>,
         provider: Arc<dyn NetDirProvider>,
     ) -> Result<OpenSession, EstablishSessionError> {
@@ -340,7 +368,7 @@ impl IntroRequest {
 
         // Accept begins from that virtual hop
         let stream_requests = circuit
-            .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], virtual_hop)
+            .allow_stream_requests(&[tor_cell::relaycell::RelayCmd::BEGIN], virtual_hop, filter)
             .await
             .map_err(E::AcceptBegins)?
             .boxed();
