@@ -442,42 +442,42 @@ pub struct NetParameters {
     pub vanguards_hs_service: BoundedInt32<0, 2> = (2)
         from "vanguards-hs-service",
 
-    /// The number of guards in the L2 guard set.
+    /// The number of vanguards in the L2 vanguard set.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
     pub guard_hs_l2_number: BoundedInt32<1, {i32::MAX}> = (4)
         from  "guard-hs-l2-number",
 
-    /// The minimum lifetime of L2 guards.
+    /// The minimum lifetime of L2 vanguards.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
     pub guard_hs_l2_lifetime_min: BoundedInt32<1, {i32::MAX}> = (86400)
         from  "guard-hs-l2-lifetime-min",
 
-    /// The maximum lifetime of L2 guards.
+    /// The maximum lifetime of L2 vanguards.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
     pub guard_hs_l2_lifetime_max: BoundedInt32<1, {i32::MAX}> = (1036800)
         from  "guard-hs-l2-lifetime-max",
 
-    /// The number of guards in the L3 guard set.
+    /// The number of vanguards in the L3 vanguard set.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
     pub guard_hs_l3_number: BoundedInt32<1, {i32::MAX}> = (8)
         from  "guard-hs-l3-number",
 
-    /// The minimum lifetime of L3 guards.
+    /// The minimum lifetime of L3 vanguards.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
     pub guard_hs_l3_lifetime_min: BoundedInt32<1, {i32::MAX}> = (3600)
         from  "guard-hs-l3-lifetime-min",
 
-    /// The maximum lifetime of L3 guards.
+    /// The maximum lifetime of L3 vanguards.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
