@@ -189,14 +189,14 @@ before you continue!
 
    For other crates:
 
-   For each crate with functional changes:
-    `cargo set-version --bump {patch|minor|major} -p ${CRATE}`.
+    * For each crate with functional changes:
+      `cargo set-version --bump {patch|minor|major} -p ${CRATE}`.
 
-   For crates with non-functional changes,
-   you can use the `bump_nodep` script:
-    `./maint/bump_nodep crate1 crate2 crate3` ...
+    * For crates with non-functional changes,
+      you can use the `bump_nodep` script:
+      `./maint/bump_nodep crate1 crate2 crate3` ...
 
-   Make sure you commit `Cargo.lock` changes too.
+   In all cases, make sure you commit `Cargo.lock` changes too.
 
 3. Check for side effects from bumping versions!
 
