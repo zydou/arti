@@ -45,10 +45,18 @@ pub enum RelayProtocol {
 /// negotiated from [`extend_virtual`](crate::circuit::ClientCirc::extend_virtual).
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum RelayCryptLayerProtocol {
-    /// The original cell Tor encryption format, using AES-128 and SHA-1.
+    /// The original Tor cell encryption protocol, using AES-128 and SHA-1.
+    ///
+    /// References:
+    /// - <https://spec.torproject.org/tor-spec/relay-cells.html>
+    /// - <https://spec.torproject.org/tor-spec/routing-relay-cells.html>
     Tor1(RelayCellFormat),
-    /// A variation of Tor's original cell Tor encryption format, using AES-256
+    /// A variation of Tor's original cell encryption protocol, using AES-256
     /// and SHA3-256.
+    ///
+    /// Reference:
+    /// - <https://spec.torproject.org/rend-spec/encrypting-user-data.html>
+    /// - <https://spec.torproject.org/rend-spec/introduction-protocol.html#INTRO-HANDSHAKE-REQS>
     #[cfg(feature = "hs-common")]
     HsV3(RelayCellFormat),
 }
