@@ -394,7 +394,7 @@ pub struct NetParameters {
     /// If set to 1, introduction points use the INTRODUCE1 rate limiting
     /// defense when no `DosParams` are sent.
     ///
-    /// See <https://spec.torproject.org/param-spec.md#HiddenServiceEnableIntroDoSDefense>
+    /// See <https://spec.torproject.org/param-spec.html#HiddenServiceEnableIntroDoSDefense>
     pub hs_intro_dos_enabled: BoundedInt32<0, 1> = (0)
         from "HiddenServiceEnableIntroDoSDefense",
 
@@ -402,7 +402,7 @@ pub struct NetParameters {
     /// limiting when no `DosParams` value is sent, in messages per second.
     ///
     /// See
-    /// <https://spec.torproject.org/param-spec.md#HiddenServiceEnableIntroDoSBurstPerSec>
+    /// <https://spec.torproject.org/param-spec.html#HiddenServiceEnableIntroDoSBurstPerSec>
     pub hs_intro_dos_max_burst: BoundedInt32<0, {i32::MAX}> = (200)
         from "HiddenServiceEnableIntroDoSBurstPerSec",
 
@@ -410,7 +410,7 @@ pub struct NetParameters {
     /// limiting when no `DosParams` value is sent.
     ///
     /// See
-    /// <https://spec.torproject.org/param-spec.md#HiddenServiceEnableIntroDoSRatePerSec>
+    /// <https://spec.torproject.org/param-spec.html#HiddenServiceEnableIntroDoSRatePerSec>
     pub hs_intro_dos_rate: BoundedInt32<0, {i32::MAX}> = (25)
         from  "HiddenServiceEnableIntroDoSRatePerSec",
 
