@@ -1,5 +1,7 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
+mod counted_map;
+
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
 use crate::stream::AnyCmdChecker;
@@ -11,8 +13,6 @@ use tor_cell::relaycell::UnparsedRelayMsg;
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 
 use futures::channel::mpsc;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::num::NonZeroU16;
 use tor_error::{bad_api_usage, internal};
 
@@ -21,6 +21,8 @@ use rand::Rng;
 use crate::circuit::reactor::RECV_WINDOW_INIT;
 use crate::circuit::sendme::StreamRecvWindow;
 use tracing::debug;
+
+use self::counted_map::{CountedHashMap, Entry};
 
 /// Entry for an open stream
 ///
@@ -101,17 +103,25 @@ pub(super) enum ShouldSendEnd {
     DontSend,
 }
 
+/// Predicate used with CountedHashMap to count open streams.
+struct IsOpen;
+impl counted_map::Predicate for IsOpen {
+    type Item = StreamEnt;
+
+    fn check(item: &Self::Item) -> bool {
+        matches!(item, StreamEnt::Open(_))
+    }
+}
+
 /// A map from stream IDs to stream entries. Each circuit has one for each
 /// hop.
 pub(super) struct StreamMap {
     /// Map from StreamId to StreamEnt.  If there is no entry for a
     /// StreamId, that stream doesn't exist.
-    m: HashMap<StreamId, StreamEnt>,
+    m: CountedHashMap<StreamId, StreamEnt, IsOpen>,
     /// The next StreamId that we should use for a newly allocated
     /// circuit.
     next_stream_id: StreamId,
-    /// The current number of streams in the Open state.
-    n_open: usize,
 }
 
 impl StreamMap {
@@ -120,45 +130,26 @@ impl StreamMap {
         let mut rng = rand::thread_rng();
         let next_stream_id: NonZeroU16 = rng.gen();
         StreamMap {
-            m: HashMap::new(),
+            m: CountedHashMap::new(),
             next_stream_id: next_stream_id.into(),
-            n_open: 0,
         }
     }
 
     /// Return an iterator over the entries in this StreamMap.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = (StreamId, StreamEntMut<'_>)> {
-        self.m.iter_mut().map(|(id, ent)| (*id, ent.into()))
-    }
-
-    /// Add one to the number of open streams.
-    fn inc_n_open(&mut self) {
-        self.n_open += 1;
-        #[cfg(test)]
-        debug_assert_eq!(self.count_n_open(), self.n_open);
-    }
-
-    /// Subtract one from the number of open streams.
-    fn dec_n_open(&mut self) {
-        self.n_open -= 1;
-        #[cfg(test)]
-        debug_assert_eq!(self.count_n_open(), self.n_open);
-    }
-
-    /// Testing only: count the number of open streams.
-    ///
-    /// Used to check that n_open is correct.
-    #[cfg(test)]
-    fn count_n_open(&self) -> usize {
-        self.m
-            .iter()
-            .filter(|(_, ent)| matches!(ent, StreamEnt::Open(_)))
-            .count()
+        // SAFETY: before we return any of the value references from this iterator,
+        // we convert them into a StreamEntMut,
+        // to prevent any changes that would change their Open status.
+        unsafe {
+            self.m
+                .iter_mut_unchecked()
+                .map(|(id, ent)| (*id, ent.into()))
+        }
     }
 
     /// Return the number of open streams in this map.
     pub(super) fn n_open_streams(&self) -> usize {
-        self.n_open
+        self.m.count()
     }
 
     /// Add an entry to this map; return the newly allocated StreamId.
@@ -184,9 +175,8 @@ impl StreamMap {
             let id: StreamId = self.next_stream_id;
             self.next_stream_id = wrapping_next_stream_id(self.next_stream_id);
             let ent = self.m.entry(id);
-            if let Entry::Vacant(_) = ent {
-                ent.or_insert(stream_ent);
-                self.inc_n_open();
+            if let Entry::Vacant(ent) = ent {
+                ent.insert(stream_ent);
                 return Ok(id);
             }
         }
@@ -213,9 +203,8 @@ impl StreamMap {
         });
 
         let ent = self.m.entry(id);
-        if let Entry::Vacant(_) = ent {
-            ent.or_insert(stream_ent);
-            self.inc_n_open();
+        if let Entry::Vacant(ent) = ent {
+            ent.insert(stream_ent);
 
             Ok(())
         } else {
@@ -225,7 +214,10 @@ impl StreamMap {
 
     /// Return the entry for `id` in this map, if any.
     pub(super) fn get_mut(&mut self, id: StreamId) -> Option<StreamEntMut<'_>> {
-        self.m.get_mut(&id).map(StreamEntMut::from)
+        // SAFETY: before we return a reference to one of this map's values,
+        // we convert it into a StreamEntMut,
+        // to prevent any changes that would change its Open status.
+        unsafe { self.m.get_mut_unchecked(&id).map(StreamEntMut::from) }
     }
 
     /// Note that we received an END message (or other message indicating the end of
@@ -258,7 +250,6 @@ impl StreamMap {
             }
             StreamEnt::Open { .. } => {
                 stream_entry.insert(StreamEnt::EndReceived);
-                self.dec_n_open();
 
                 Ok(())
             }
@@ -293,7 +284,6 @@ impl StreamMap {
                 // FIXME(eta): we don't copy the receive window, instead just creating a new one,
                 //             so a malicious peer can send us slightly more data than they should
                 //             be able to; see arti#230.
-                self.dec_n_open();
                 let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
                 recv_window.decrement_n(dropped)?;
                 // TODO: would be nice to avoid new_ref.
