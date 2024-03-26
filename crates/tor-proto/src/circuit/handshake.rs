@@ -102,12 +102,11 @@ impl RelayCryptLayerProtocol {
         use RelayCellFormat::*;
         use RelayCryptLayerProtocol::*;
 
-        let swap = role == HandshakeRole::Responder;
         match self {
-            Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, swap),
+            Tor1(V0) => construct::<Tor1RelayCrypto<RelayCellFormatV0>, _>(keygen, role),
             Tor1(_) => Err(internal!("protocol not implemented").into()),
             #[cfg(feature = "hs-common")]
-            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, swap),
+            HsV3(V0) => construct::<Tor1Hsv3RelayCrypto<RelayCellFormatV0>, _>(keygen, role),
             #[cfg(feature = "hs-common")]
             HsV3(_) => Err(internal!("protocol not implemented").into()),
         }
@@ -125,14 +124,14 @@ impl RelayCryptLayerProtocol {
 
 /// Helper: Construct a BoxedClientLayer for a layer type L whose inbound and outbound
 /// cryptographic states are the same type.
-fn construct<L, F>(keygen: impl KeyGenerator, swap: bool) -> Result<BoxedClientLayer>
+fn construct<L, F>(keygen: impl KeyGenerator, role: HandshakeRole) -> Result<BoxedClientLayer>
 where
     L: CryptInit + ClientLayer<F, F>,
     F: OutboundClientLayer + InboundClientLayer + Send + 'static,
 {
     let layer = L::construct(keygen)?;
     let (mut fwd, mut back, binding) = layer.split();
-    if swap {
+    if role == HandshakeRole::Responder {
         std::mem::swap(&mut fwd, &mut back);
     }
     Ok(BoxedClientLayer {
