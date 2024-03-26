@@ -245,7 +245,7 @@ pub(super) enum CtrlMsg {
     #[cfg(feature = "hs-service")]
     AwaitStreamRequest {
         /// A channel for sending information about an incoming stream request.
-        incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
+        incoming_sender: mpsc::Sender<StreamReqInfo>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
         /// Oneshot channel to notify on completion.
@@ -744,7 +744,7 @@ pub struct Reactor {
 /// Information about an incoming stream request.
 #[cfg(feature = "hs-service")]
 #[derive(Debug)]
-pub(super) struct IncomingStreamRequestContext {
+pub(super) struct StreamReqInfo {
     /// The [`IncomingStreamRequest`].
     pub(super) req: IncomingStreamRequest,
     /// The ID of the stream being requested.
@@ -769,7 +769,7 @@ pub(super) struct IncomingStreamRequestContext {
 #[educe(Debug)]
 struct IncomingStreamRequestHandler {
     /// A sender for sharing information about an incoming stream request.
-    incoming_sender: mpsc::Sender<IncomingStreamRequestContext>,
+    incoming_sender: mpsc::Sender<StreamReqInfo>,
     /// A [`AnyCmdChecker`] for validating incoming stream requests.
     cmd_checker: AnyCmdChecker,
     /// The hop to expect incoming stream requests from.
@@ -2177,7 +2177,7 @@ impl Reactor {
 
         let outcome = handler
             .incoming_sender
-            .try_send(IncomingStreamRequestContext {
+            .try_send(StreamReqInfo {
                 req,
                 stream_id,
                 hop_num,

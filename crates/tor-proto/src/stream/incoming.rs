@@ -201,9 +201,7 @@ pub enum IncomingStreamRequestDisposition {
     RejectRequest(msg::End),
 }
 
-/// Information about a stream request, as passed ot an IncomingStreamRequestFilter.
-//
-// XXXX: There is another type called IncomingStreamRequestContext, defined in circuit::reactor.
+/// Information about a stream request, as passed to an [`IncomingStreamRequestFilter`].
 pub struct IncomingStreamRequestContext<'a> {
     /// The request message itself
     pub(crate) request: &'a IncomingStreamRequest,

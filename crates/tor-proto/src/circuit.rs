@@ -82,7 +82,7 @@ use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 
 #[cfg(feature = "hs-service")]
 use {
-    crate::circuit::reactor::IncomingStreamRequestContext,
+    crate::circuit::reactor::StreamReqInfo,
     crate::stream::{IncomingCmdChecker, IncomingStream},
 };
 
@@ -572,7 +572,7 @@ impl ClientCirc {
 
         let circ = Arc::clone(self);
         Ok(incoming_receiver.map(move |req_ctx| {
-            let IncomingStreamRequestContext {
+            let StreamReqInfo {
                 req,
                 stream_id,
                 hop_num,
