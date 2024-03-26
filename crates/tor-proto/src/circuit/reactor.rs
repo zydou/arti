@@ -776,11 +776,8 @@ struct IncomingStreamRequestHandler {
     hop_num: HopNum,
     /// An [`IncomingStreamRequestFilter`] for checking whether the user wants
     /// this request, or wants to reject it immediately.
-    ///
-    /// This is an Option so that we can temporarily remove it from the handler;
-    /// see TODO notes in handle_stream_request.
     #[educe(Debug(ignore))]
-    filter: Option<Box<dyn IncomingStreamRequestFilter>>,
+    filter: Box<dyn IncomingStreamRequestFilter>,
 }
 
 impl Reactor {
@@ -1709,7 +1706,7 @@ impl Reactor {
                     incoming_sender,
                     cmd_checker,
                     hop_num,
-                    filter: Some(filter),
+                    filter,
                 };
 
                 let ret = self.set_incoming_stream_req_handler(handler);
@@ -2128,29 +2125,13 @@ impl Reactor {
 
         let req = IncomingStreamRequest::Begin(begin);
 
-        // We need to temporarily extract the filter here so that we can drop
-        // `handler` before using `self` with the ClientCircSyncView. Otherwise,
-        // we get a borrow-checker problem with duplicate mut borrows of self.
-        //
-        // TODO: This cannot possibly be the nicest way to solve this problem!
-        // Better solutions are welcome.
-        let mut filter = handler.filter.take().expect("filter not installed");
-        let disposition = {
-            let ctx = crate::stream::IncomingStreamRequestContext { request: &req };
-            let view = ClientCircSyncView::new(self);
-            filter.disposition(&ctx, &view)
-        };
-        // Now, sadly, get the handler  again.
-        let handler = self
-            .incoming_stream_req_handler
-            .as_mut()
-            .expect("handler disappeared!");
-        // Put the filter back.
-        handler.filter = Some(filter);
-
         {
             use crate::stream::IncomingStreamRequestDisposition::*;
-            match disposition? {
+
+            let ctx = crate::stream::IncomingStreamRequestContext { request: &req };
+            let view = ClientCircSyncView::new(&self.hops);
+
+            match handler.filter.as_mut().disposition(&ctx, &view)? {
                 Accept => {}
                 CloseCircuit => return Ok(CellStatus::CleanShutdown),
                 RejectRequest(end) => {
@@ -2161,7 +2142,8 @@ impl Reactor {
             }
         }
 
-        // TODO: This is also duplicated :(
+        // TODO: Sadly, we need to look up `&mut hop` yet again,
+        // since we needed to pass `&self.hops` by reference to our filter above. :(
         let hop = self
             .hops
             .get_mut(Into::<usize>::into(hop_num))
