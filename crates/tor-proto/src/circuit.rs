@@ -41,8 +41,12 @@
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 mod halfstream;
+
 #[cfg(feature = "hs-common")]
 pub mod handshake;
+#[cfg(not(feature = "hs-common"))]
+mod handshake;
+
 #[cfg(feature = "send-control-msg")]
 mod msghandler;
 mod path;
@@ -68,8 +72,6 @@ use crate::stream::{
 use crate::{Error, ResolveError, Result};
 use educe::Educe;
 use tor_cell::chancell::msg::HandshakeType;
-#[cfg(feature = "hs-common")]
-use tor_cell::relaycell::RelayCellFormat;
 use tor_cell::{
     chancell::{self, msg::AnyChanMsg, CircId},
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
@@ -702,24 +704,17 @@ impl ClientCirc {
     #[cfg(feature = "hs-common")]
     pub async fn extend_virtual(
         &self,
-        relay_cell_format: RelayCellFormat,
         protocol: handshake::RelayProtocol,
         role: handshake::HandshakeRole,
         seed: impl handshake::KeyGenerator,
         params: CircParameters,
     ) -> Result<()> {
-        use tor_cell::relaycell::RelayCellFormatV0;
-
         use self::handshake::BoxedClientLayer;
 
-        let BoxedClientLayer { fwd, back, binding } = match relay_cell_format {
-            RelayCellFormat::V0 => protocol.construct_layers::<RelayCellFormatV0>(role, seed)?,
-            _ => {
-                return Err(Error::Bug(internal!(
-                    "Unimplemented for format {relay_cell_format:?}"
-                )))
-            }
-        };
+        let protocol = handshake::RelayCryptLayerProtocol::from(protocol);
+        let relay_cell_format = protocol.relay_cell_format();
+
+        let BoxedClientLayer { fwd, back, binding } = protocol.construct_layers(role, seed)?;
 
         let (tx, rx) = oneshot::channel();
         let message = CtrlMsg::ExtendVirtual {

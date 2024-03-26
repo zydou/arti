@@ -6,7 +6,6 @@ use super::*;
 use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
-    RelayCellFormat,
 };
 use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
 use tor_proto::{
@@ -324,13 +323,9 @@ impl IntroRequest {
             .last_hop_num()
             .map_err(into_internal!("Circuit with no final hop"))?;
 
-        // TODO #1067: Support negotiating other formats.
-        let relay_cell_format = RelayCellFormat::V0;
-
         // Add a virtual hop.
         circuit
             .extend_virtual(
-                relay_cell_format,
                 handshake::RelayProtocol::HsV3,
                 handshake::HandshakeRole::Responder,
                 self.key_gen,
