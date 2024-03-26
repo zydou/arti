@@ -453,14 +453,14 @@ pub struct NetParameters {
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
-    pub guard_hs_l2_lifetime_min: BoundedInt32<1, {i32::MAX}> = (86400)
+    pub guard_hs_l2_lifetime_min: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (86400)
         from  "guard-hs-l2-lifetime-min",
 
     /// The maximum lifetime of L2 vanguards.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
-    pub guard_hs_l2_lifetime_max: BoundedInt32<1, {i32::MAX}> = (1036800)
+    pub guard_hs_l2_lifetime_max: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (1036800)
         from  "guard-hs-l2-lifetime-max",
 
     /// The number of vanguards in the L3 vanguard set.
@@ -474,14 +474,14 @@ pub struct NetParameters {
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
-    pub guard_hs_l3_lifetime_min: BoundedInt32<1, {i32::MAX}> = (3600)
+    pub guard_hs_l3_lifetime_min: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (3600)
         from  "guard-hs-l3-lifetime-min",
 
     /// The maximum lifetime of L3 vanguards.
     ///
     /// See
     /// <https://spec.torproject.org/param-spec.html#vanguards>
-    pub guard_hs_l3_lifetime_max: BoundedInt32<1, {i32::MAX}> = (172800)
+    pub guard_hs_l3_lifetime_max: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (172800)
         from  "guard-hs-l3-lifetime-max",
 }
 
