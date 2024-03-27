@@ -57,17 +57,6 @@ impl<'a> RelayDetails<'a> {
     pub fn is_dir_cache(&self) -> bool {
         super::rs_is_dir_cache(self.0.rs)
     }
-    /// Return true if this relay is marked as a potential Guard node.
-    ///
-    /// Note that this function _only_ checks for the presence of the Guard
-    /// flag. If you want to check for all the properties that indicate
-    /// suitability, use [`Relay::is_suitable_as_guard`] instead.
-    //
-    // TODO #504: We may want to deprecate this function; its only users are
-    // test cases.
-    pub fn is_flagged_guard(&self) -> bool {
-        self.0.rs.is_flagged_guard()
-    }
     /// Return true if this relay has the "Fast" flag.
     ///
     /// Most relays have this flag.  It indicates that the relay is suitable for
@@ -89,7 +78,7 @@ impl<'a> RelayDetails<'a> {
     /// Return true if this relay is suitable for use as a newly sampled guard,
     /// or for continuing to use as a guard.
     pub fn is_suitable_as_guard(&self) -> bool {
-        self.is_flagged_guard() && self.is_flagged_fast() && self.is_flagged_stable()
+        self.0.rs.is_flagged_guard() && self.is_flagged_fast() && self.is_flagged_stable()
     }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
@@ -163,17 +152,6 @@ impl<'a> RelayDetails<'a> {
 pub struct UncheckedRelayDetails<'a>(pub(crate) &'a super::UncheckedRelay<'a>);
 
 impl<'a> UncheckedRelayDetails<'a> {
-    /// Return true if this relay has the Guard flag.
-    ///
-    /// Note that this function _only_ checks for the presence of the Guard
-    /// flag. If you want to check for all the properties that indicate
-    /// suitability, use [`UncheckedRelay::is_suitable_as_guard`] instead.
-    //
-    // TODO #504: We may want to deprecate this function; its only users are
-    // test cases.
-    pub fn is_flagged_guard(&self) -> bool {
-        self.0.rs.is_flagged_guard()
-    }
     /// Return true if this relay is suitable for use as a newly sampled guard,
     /// or for continuing to use as a guard.
     pub fn is_suitable_as_guard(&self) -> bool {

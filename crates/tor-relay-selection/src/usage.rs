@@ -375,7 +375,10 @@ mod test {
         let (yes, no) = split_netdir(&nd, &usage);
         let p1 = |relay: &Relay<'_>| {
             let r = relay.low_level_details();
-            r.is_flagged_fast() && r.is_flagged_stable() && r.is_flagged_guard() && r.is_dir_cache()
+            r.is_flagged_fast()
+                && r.is_flagged_stable()
+                && r.is_suitable_as_guard()
+                && r.is_dir_cache()
         };
         assert!(yes.iter().all(p1));
         assert!(no.iter().all(|r| !p1(r)));

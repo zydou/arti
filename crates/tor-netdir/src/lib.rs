@@ -2581,9 +2581,7 @@ mod test {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
         let netdir = construct_netdir().unwrap_if_sufficient().unwrap();
 
-        let g_total = netdir.total_weight(WeightRole::Guard, |r| {
-            r.low_level_details().is_flagged_guard()
-        });
+        let g_total = netdir.total_weight(WeightRole::Guard, |r| r.rs.is_flagged_guard());
         // This is just the total guard weight, since all our Wxy = 1.
         assert_eq!(g_total, RelayWeight(110_000));
 
@@ -2591,7 +2589,7 @@ mod test {
         assert_eq!(g_total, RelayWeight(0));
 
         let relay = netdir.by_id(&Ed25519Identity::from([35; 32])).unwrap();
-        assert!(relay.low_level_details().is_flagged_guard());
+        assert!(relay.rs.is_flagged_guard());
         let w = netdir.relay_weight(&relay, WeightRole::Guard);
         assert_eq!(w, RelayWeight(6_000));
 

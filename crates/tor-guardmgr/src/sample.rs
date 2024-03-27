@@ -1071,14 +1071,14 @@ mod test {
             30,
             netdir
                 .relays()
-                .filter(|r| r.low_level_details().is_flagged_guard())
+                .filter(|r| r.low_level_details().is_suitable_as_guard())
                 .count()
         );
         assert_eq!(
             20,
             netdir
                 .relays()
-                .filter(|r| r.low_level_details().is_flagged_guard()
+                .filter(|r| r.low_level_details().is_suitable_as_guard()
                     && r.low_level_details().is_dir_cache())
                 .count()
         );
@@ -1102,7 +1102,7 @@ mod test {
             for guard in guards.guards.values() {
                 let id = FirstHopId::in_sample(GuardSetSelector::Default, guard.guard_id().clone());
                 let relay = id.get_relay(&netdir).unwrap();
-                assert!(relay.low_level_details().is_flagged_guard());
+                assert!(relay.low_level_details().is_suitable_as_guard());
                 assert!(relay.low_level_details().is_dir_cache());
                 assert!(guards.guards.by_all_ids(&relay).is_some());
                 {
