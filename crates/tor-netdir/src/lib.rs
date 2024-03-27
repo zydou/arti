@@ -65,6 +65,7 @@ use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
+use tor_netdoc::types::policy::PortPolicy;
 #[cfg(feature = "hs-common")]
 use {hsdir_ring::HsDirRing, std::iter};
 
@@ -1810,6 +1811,30 @@ impl<'a> UncheckedRelay<'a> {
             None
         }
     }
+    /// Return true if this relay has the Guard flag.
+    ///
+    /// Note that this function _only_ checks for the presence of the Guard
+    /// flag. If you want to check for all the properties that indicate
+    /// suitability, use [`UncheckedRelay::is_suitable_as_guard`] instead.
+    //
+    // TODO #504: We may want to deprecate this function; its only users are
+    // test cases.
+    //
+    // XXXX: Remove.
+    pub fn is_flagged_guard(&self) -> bool {
+        self.low_level_details().is_flagged_guard()
+    }
+    /// Return true if this relay is suitable for use as a newly sampled guard,
+    /// or for continuing to use as a guard.
+    // XXXX: Remove.
+    pub fn is_suitable_as_guard(&self) -> bool {
+        self.low_level_details().is_suitable_as_guard()
+    }
+    /// Return true if this relay is a potential directory cache.
+    // XXXX: Remove.
+    pub fn is_dir_cache(&self) -> bool {
+        self.low_level_details().is_dir_cache()
+    }
 
     /// Return true if this relay is a hidden service directory
     ///
@@ -1843,11 +1868,131 @@ impl<'a> Relay<'a> {
     pub fn rsa_id(&self) -> &RsaIdentity {
         self.rs.rsa_identity()
     }
+
     /// Return true if this relay and `other` seem to be the same relay.
     ///
     /// (Two relays are the same if they have the same identity.)
+    //
+    // TODO #504: Deprecate in favor of one of the better functions in HasRelayIds
     pub fn same_relay(&self, other: &Relay<'_>) -> bool {
         self.id() == other.id() && self.rsa_id() == other.rsa_id()
+    }
+
+    /// Return true if this relay allows exiting to `port` on IPv4.
+    // XXXX remove
+    pub fn supports_exit_port_ipv4(&self, port: u16) -> bool {
+        self.low_level_details().supports_exit_port_ipv4(port)
+    }
+    /// Return true if this relay allows exiting to `port` on IPv6.
+    // XXXX remove
+    pub fn supports_exit_port_ipv6(&self, port: u16) -> bool {
+        self.low_level_details().supports_exit_port_ipv6(port)
+    }
+    /// Return true if this relay is suitable for use as a directory
+    /// cache.
+    // XXXX remove
+    pub fn is_dir_cache(&self) -> bool {
+        self.low_level_details().is_dir_cache()
+    }
+    /// Return true if this relay is marked as a potential Guard node.
+    ///
+    /// Note that this function _only_ checks for the presence of the Guard
+    /// flag. If you want to check for all the properties that indicate
+    /// suitability, use [`Relay::is_suitable_as_guard`] instead.
+    //
+    // TODO #504: We may want to deprecate this function; its only users are
+    // test cases.
+    // XXXX remove
+    pub fn is_flagged_guard(&self) -> bool {
+        self.low_level_details().is_flagged_guard()
+    }
+    /// Return true if this relay has the "Fast" flag.
+    ///
+    /// Most relays have this flag.  It indicates that the relay is suitable for
+    /// circuits that need more than a minimal amount of bandwidth.
+    // XXXX remove
+    pub fn is_flagged_fast(&self) -> bool {
+        self.low_level_details().is_flagged_fast()
+    }
+    /// Return true if this relay has the "Stable" flag.
+    ///
+    /// Most relays have this flag. It indicates that the relay is suitable for
+    /// long-lived circuits.
+    // XXXX remove
+    pub fn is_flagged_stable(&self) -> bool {
+        self.low_level_details().is_flagged_stable()
+    }
+    /// Return true if this relay is a potential HS introduction point
+    pub fn is_hs_intro_point(&self) -> bool {
+        self.low_level_details().is_hs_intro_point()
+    }
+    /// Return true if this relay is suitable for use as a newly sampled guard,
+    /// or for continuing to use as a guard.
+    pub fn is_suitable_as_guard(&self) -> bool {
+        self.low_level_details().is_suitable_as_guard()
+    }
+    /// Return true if both relays are in the same subnet, as configured by
+    /// `subnet_config`.
+    ///
+    /// Two relays are considered to be in the same subnet if they
+    /// have IPv4 addresses with the same `subnets_family_v4`-bit
+    /// prefix, or if they have IPv6 addresses with the same
+    /// `subnets_family_v6`-bit prefix.
+    //
+    // XXXX remove
+    pub fn in_same_subnet(&self, other: &Relay<'_>, subnet_config: &SubnetConfig) -> bool {
+        self.low_level_details()
+            .in_same_subnet(other, subnet_config)
+    }
+    /// Return true if both relays are in the same family.
+    ///
+    /// (Every relay is considered to be in the same family as itself.)
+    //
+    // XXXX remove
+    pub fn in_same_family(&self, other: &Relay<'_>) -> bool {
+        self.low_level_details().in_same_family(other)
+    }
+
+    /// Return true if there are any ports for which this Relay can be
+    /// used for exit traffic.
+    ///
+    /// (Returns false if this relay doesn't allow exit traffic, or if it
+    /// has been flagged as a bad exit.)
+    //
+    // XXXX remove
+    pub fn policies_allow_some_port(&self) -> bool {
+        self.low_level_details().policies_allow_some_port()
+    }
+
+    /// Return the IPv4 exit policy for this relay. If the relay has been marked BadExit, return an
+    /// empty policy
+    //
+    // XXXX remove
+    pub fn ipv4_policy(&self) -> Arc<PortPolicy> {
+        self.low_level_details().ipv4_policy()
+    }
+    /// Return the IPv6 exit policy for this relay. If the relay has been marked BadExit, return an
+    /// empty policy
+    //
+    // XXXX remove
+    pub fn ipv6_policy(&self) -> Arc<PortPolicy> {
+        self.low_level_details().ipv6_policy()
+    }
+    /// Return the IPv4 exit policy declared by this relay. Contrary to [`Relay::ipv4_policy`],
+    /// this does not verify if the relay is marked BadExit.
+    //
+    // XXXX remove
+    pub fn ipv4_declared_policy(&self) -> &Arc<PortPolicy> {
+        // XXXX can't rewrite since it "references a temporary value".
+        self.md.ipv4_policy()
+    }
+    /// Return the IPv6 exit policy declared by this relay. Contrary to [`Relay::ipv6_policy`],
+    /// this does not verify if the relay is marked BadExit.
+    //
+    // XXXX remove
+    pub fn ipv6_declared_policy(&self) -> &Arc<PortPolicy> {
+        // XXXX can't rewrite since it "references a temporary value".
+        self.md.ipv6_policy()
     }
 
     /// Return a reference to this relay's "router status" entry in
