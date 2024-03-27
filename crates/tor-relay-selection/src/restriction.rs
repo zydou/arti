@@ -359,7 +359,7 @@ fn relays_in_same_extended_family(
     r1: &Relay<'_>,
     r2: &Relay<'_>,
 ) -> bool {
-    r1.in_same_family(r2) || subnet_config.any_addrs_in_same_subnet(r1, r2)
+    r1.low_level_details().in_same_family(r2) || subnet_config.any_addrs_in_same_subnet(r1, r2)
 }
 
 #[cfg(test)]

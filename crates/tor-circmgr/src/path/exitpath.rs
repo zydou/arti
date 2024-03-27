@@ -257,8 +257,9 @@ mod test {
         b: &MaybeOwnedRelay<'_>,
         subnet_config: SubnetConfig,
     ) -> bool {
+        // TODO #504: Use tor-relay-selection code instead.
         if let MaybeOwnedRelay::Relay(r) = b {
-            if a.in_same_family(r) {
+            if a.low_level_details().in_same_family(r) {
                 return false;
             };
         }
@@ -323,7 +324,7 @@ mod test {
                     MaybeOwnedRelay::Relay(r) => r,
                     MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
                 };
-                assert!(exit.ipv4_policy().allows_port(1119));
+                assert!(exit.low_level_details().ipv4_policy().allows_port(1119));
             } else {
                 panic!("Generated the wrong kind of path");
             }
@@ -367,7 +368,7 @@ mod test {
                     MaybeOwnedRelay::Relay(r) => r,
                     MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
                 };
-                assert!(exit.policies_allow_some_port());
+                assert!(exit.low_level_details().policies_allow_some_port());
             } else {
                 panic!("Generated the wrong kind of path");
             }

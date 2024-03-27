@@ -115,7 +115,7 @@ mod test {
             assert_eq!(p.len(), 1);
             assert_same_path_when_owned(&p);
             if let crate::path::TorPathInner::OneHop(r) = p.inner {
-                assert!(r.is_dir_cache());
+                assert!(r.low_level_details().is_dir_cache());
             } else {
                 panic!("Generated the wrong kind of path.");
             }

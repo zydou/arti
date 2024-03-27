@@ -111,8 +111,8 @@ impl Universe for NetDir {
         // to use it here.
         match NetDir::by_ids(self, guard) {
             Some(relay) => CandidateStatus::Present(Candidate {
-                listed_as_guard: relay.is_suitable_as_guard(),
-                is_dir_cache: relay.is_dir_cache(),
+                listed_as_guard: relay.low_level_details().is_suitable_as_guard(),
+                is_dir_cache: relay.low_level_details().is_dir_cache(),
                 owned_target: OwnedChanTarget::from_chan_target(&relay),
                 full_dir_info: true,
                 sensitivity: crate::guard::DisplayRule::Sensitive,
