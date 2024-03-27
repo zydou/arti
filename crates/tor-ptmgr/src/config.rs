@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use tor_config::{CfgPath, ConfigBuildError};
+use tor_config::{impl_standard_builder, CfgPath, ConfigBuildError};
 use tor_linkspec::PtTransportName;
 use tor_socksproto::SocksVersion;
 
@@ -63,6 +63,8 @@ pub struct TransportConfig {
     #[builder(default)]
     pub(crate) run_on_startup: bool,
 }
+
+impl_standard_builder! { TransportConfig: !Default }
 
 impl TransportConfig {
     /// Return true if this transport is managed.
