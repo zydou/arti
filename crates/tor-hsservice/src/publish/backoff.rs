@@ -6,6 +6,8 @@
 // TODO: this is a (somewhat) general-purpose utility, so it should probably be factored out of
 // tor-hsservice
 
+use tor_rtcompat::TimeoutError;
+
 use super::*;
 
 /// A runner for a fallible operation, which retries on failure according to a [`BackoffSchedule`].
@@ -60,6 +62,13 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                 return Err(BackoffError::MaxRetryCountExceeded(errors));
             }
 
+            let mut fallible_op = match self.schedule.single_attempt_timeout() {
+                Some(timeout) => Either::Left(Box::pin(
+                    self.runtime.timeout(timeout, fallible_fn()).fuse(),
+                )),
+                None => Either::Right(Box::pin(fallible_fn().map(Ok))),
+            };
+
             trace!(attempt = (retry_count + 1), "{}", self.doing);
 
             select_biased! {
@@ -68,10 +77,18 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                     // accumulated so far.
                     return Err(BackoffError::Timeout(errors))
                 }
-                res = fallible_fn().fuse() => {
-                    match res {
-                        Ok(res) => return Ok(res),
-                        Err(e) => {
+                res = fallible_op => {
+                    // TODO: the error branches in the match below have different error types,
+                    // so we must compute should_retry and delay separately, on each branch.
+                    //
+                    // We could refactor this to extract the error using
+                    // let err = match res { ... } and call err.should_retry()
+                    // and next_delay() after the match, but this will involve
+                    // rethinking the BackoffSchedule trait and/or RetriableError
+                    // (currently RetriableError is Clone, so it's not object safe).
+                    let (should_retry, delay) = match res {
+                        Ok(Ok(res)) => return Ok(res),
+                        Ok(Err(e)) => {
                             // The operation failed: check if we can retry it.
                             let should_retry = e.should_retry();
 
@@ -81,11 +98,18 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                             );
 
                             errors.push(e.clone());
+                            (e.should_retry(), self.schedule.next_delay(&e))
+                        }
+                        Err(e) => {
+                            trace!("fallible operation timed out; retrying");
+                            (e.should_retry(), self.schedule.next_delay(&e))
+                        },
+                    };
 
                             if should_retry {
                                 retry_count += 1;
 
-                                let Some(delay) = self.schedule.next_delay(&e) else {
+                                let Some(delay) = delay else {
                                     return Err(BackoffError::ExplicitStop(errors));
                                 };
 
@@ -96,9 +120,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                                 continue;
                             }
 
-                            return Err(BackoffError::FatalError(errors));
-                        }
-                    }
+                    return Err(BackoffError::FatalError(errors));
                 },
             }
         }
@@ -169,6 +191,12 @@ impl<E> From<BackoffError<E>> for RetryError<E> {
 pub(super) trait RetriableError: StdError + Clone {
     /// Whether this error is transient.
     fn should_retry(&self) -> bool;
+}
+
+impl RetriableError for TimeoutError {
+    fn should_retry(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
