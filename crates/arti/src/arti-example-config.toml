@@ -397,7 +397,10 @@
 
 ##### ONION SERVICES
 #
-# NOTE: This is not yet supported.
+# NOTE: Some of the security features needed for onion service privacy
+# are not yet implemented.  See
+# <https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md>
+# for more information.
 #
 # Configuration for an onion service.  You can include multiple
 # `[onion_services]` sections in order to configure multiple onion services.
