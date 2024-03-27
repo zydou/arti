@@ -94,7 +94,7 @@ impl<'a> RelayDetails<'a> {
     ///
     /// (Every relay is considered to be in the same family as itself.)
     pub fn in_same_family(&self, other: &Relay<'_>) -> bool {
-        if self.0.same_relay(other) {
+        if self.0.has_same_relay_ids(other) {
             return true;
         }
         self.0.md.family().contains(other.rsa_id()) && other.md.family().contains(self.0.rsa_id())

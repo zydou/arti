@@ -423,7 +423,7 @@ mod test {
             &nd,
             &RelayExclusion::exclude_specific_relays(&[relay_0.clone(), relay_5.clone()]),
         );
-        let p = |r: &Relay<'_>| !(r.same_relay(&relay_0) || r.same_relay(&relay_5));
+        let p = |r: &Relay<'_>| !(r.same_relay_ids(&relay_0) || r.same_relay_ids(&relay_5));
         assert_eq!(yes.len(), 38);
         assert_eq!(no.len(), 2);
         assert!(yes.iter().all(p));

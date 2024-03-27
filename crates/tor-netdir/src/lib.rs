@@ -1846,12 +1846,10 @@ impl<'a> Relay<'a> {
         self.rs.rsa_identity()
     }
 
-    /// Return true if this relay and `other` seem to be the same relay.
+    /// Return true if this relay has all of the same identities as `other`
     ///
-    /// (Two relays are the same if they have the same identity.)
-    //
-    // TODO #504: Deprecate in favor of one of the better functions in HasRelayIds
-    pub fn same_relay(&self, other: &Relay<'_>) -> bool {
+    /// (Callers outside of this crate should use methods from [`HasRelayIds`].
+    fn has_same_relay_ids(&self, other: &Relay<'_>) -> bool {
         self.id() == other.id() && self.rsa_id() == other.rsa_id()
     }
 
@@ -2324,9 +2322,9 @@ mod test {
         assert_eq!(r1.id(), &[1; 32].into());
         assert_eq!(r1.rsa_id(), &[1; 20].into());
 
-        assert!(r0.same_relay(&r0));
-        assert!(r1.same_relay(&r1));
-        assert!(!r1.same_relay(&r0));
+        assert!(r0.has_same_relay_ids(&r0));
+        assert!(r1.has_same_relay_ids(&r1));
+        assert!(!r1.has_same_relay_ids(&r0));
 
         assert!(r0.low_level_details().is_dir_cache());
         assert!(!r1.low_level_details().is_dir_cache());
