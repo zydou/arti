@@ -41,6 +41,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+pub mod details;
 mod err;
 #[cfg(feature = "hs-common")]
 mod hsdir_params;
@@ -1780,6 +1781,15 @@ impl MdReceiver for NetDir {
 }
 
 impl<'a> UncheckedRelay<'a> {
+    /// Return an [`UncheckedRelayDetails`] for this relay.
+    ///
+    /// Callers should generally avoid using this information directly if they can;
+    /// it's better to use a higher-level function that exposes semantic information
+    /// rather than these properties.
+    pub fn low_level_details(&self) -> details::UncheckedRelayDetails<'_> {
+        details::UncheckedRelayDetails(self)
+    }
+
     /// Return true if this relay is valid and [usable](NetDir#usable).
     ///
     /// This function should return `true` for every Relay we expose
@@ -1836,6 +1846,15 @@ impl<'a> UncheckedRelay<'a> {
 }
 
 impl<'a> Relay<'a> {
+    /// Return an [`UncheckedRelayDetails`] for this relay.
+    ///
+    /// Callers should generally avoid using this information directly if they can;
+    /// it's better to use a higher-level function that exposes semantic information
+    /// rather than these properties.
+    pub fn low_level_details(&self) -> details::RelayDetails<'_> {
+        details::RelayDetails(self)
+    }
+
     /// Return the Ed25519 ID for this relay.
     pub fn id(&self) -> &Ed25519Identity {
         self.md.ed25519_id()
