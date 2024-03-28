@@ -1943,12 +1943,6 @@ impl<'a> tor_linkspec::CircTarget for Relay<'a> {
     }
 }
 
-/// Return true if `rs` is usable as a directory cache.
-fn rs_is_dir_cache(rs: &netstatus::MdConsensusRouterStatus) -> bool {
-    use tor_protover::ProtoKind;
-    rs.is_flagged_v2dir() && rs.protovers().supports_known_subver(ProtoKind::DirCache, 2)
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

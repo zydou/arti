@@ -31,7 +31,7 @@
 
 use std::sync::Arc;
 
-use tor_netdoc::types::policy::PortPolicy;
+use tor_netdoc::{doc::netstatus, types::policy::PortPolicy};
 
 use crate::{Relay, SubnetConfig};
 
@@ -55,7 +55,7 @@ impl<'a> RelayDetails<'a> {
     /// Return true if this relay is suitable for use as a directory
     /// cache.
     pub fn is_dir_cache(&self) -> bool {
-        super::rs_is_dir_cache(self.0.rs)
+        rs_is_dir_cache(self.0.rs)
     }
     /// Return true if this relay has the "Fast" flag.
     ///
@@ -159,6 +159,12 @@ impl<'a> UncheckedRelayDetails<'a> {
     }
     /// Return true if this relay is a potential directory cache.
     pub fn is_dir_cache(&self) -> bool {
-        super::rs_is_dir_cache(self.0.rs)
+        rs_is_dir_cache(self.0.rs)
     }
+}
+
+/// Return true if `rs` is usable as a directory cache.
+fn rs_is_dir_cache(rs: &netstatus::MdConsensusRouterStatus) -> bool {
+    use tor_protover::ProtoKind;
+    rs.is_flagged_v2dir() && rs.protovers().supports_known_subver(ProtoKind::DirCache, 2)
 }
