@@ -54,7 +54,7 @@ mod graph;
 use anyhow::{anyhow, Context, Result};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use toml_edit::{Document, Item, Table, Value};
+use toml_edit::{DocumentMut, Item, Table, Value};
 
 use changes::{Change, Changes};
 
@@ -83,9 +83,9 @@ struct Crate {
     /// path to the crate's Cargo.toml
     toml_file: PathBuf,
     /// Parsed and manipulated copy of Cargo.toml
-    toml_doc: Document,
+    toml_doc: DocumentMut,
     /// Parsed and un-manipulated copy of Cargo.toml.
-    toml_doc_orig: Document,
+    toml_doc_orig: DocumentMut,
 }
 
 /// Information about a crate that we use in other crates.
@@ -137,7 +137,7 @@ impl Crate {
     fn load(p: impl AsRef<Path>) -> Result<Self> {
         let toml_file = p.as_ref().to_owned();
         let s = std::fs::read_to_string(&toml_file)?;
-        let toml_doc = s.parse::<Document>()?;
+        let toml_doc = s.parse::<DocumentMut>()?;
         let toml_doc_orig = toml_doc.clone();
         let name = toml_doc["package"]["name"]
             .as_str()
@@ -353,6 +353,13 @@ impl Crate {
         if no_annotate {
             changes.drop_annotations();
         }
+        // We have to look this up again, or else it isn't &mut.
+        let features = self
+            .toml_doc
+            .get_mut("features")
+            .ok_or_else(|| anyhow!("I thought we added 'features' earlier!"))?
+            .as_table_mut()
+            .ok_or_else(|| anyhow!("Features was not table"))?;
         changes.apply(features)?;
 
         Ok(warnings)
@@ -375,7 +382,7 @@ impl Crate {
 /// Look at a toplevel Cargo.toml and find all of the paths in workplace.members
 fn list_crate_paths(toplevel: impl AsRef<Path>) -> Result<Vec<String>> {
     let s = std::fs::read_to_string(toplevel.as_ref())?;
-    let toml_doc = s.parse::<Document>()?;
+    let toml_doc = s.parse::<DocumentMut>()?;
     Ok(toml_doc["workspace"]["members"]
         .as_array()
         .ok_or_else(|| anyhow!("workplace.members is not an array!?"))?
