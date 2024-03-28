@@ -16,3 +16,6 @@ tokio = { version = "1.7", features = ["full"] }
 # Useful to print debugging or log messages in async programs
 tracing = "0.1"
 tracing-subscriber = "0.3.17"
+
+[features]
+full = ["arti-client/full"]

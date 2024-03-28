@@ -34,7 +34,7 @@ full = [
     "tor-rtcompat/full",
     "tor-geoip?/full",
     "tor-async-utils/full",
-    "tor-protover/full",
+    "tor-protover/full", "tor-relay-selection/full",
 ]
 specific-relay = []
 
