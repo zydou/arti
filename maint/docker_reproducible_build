@@ -12,5 +12,5 @@ set -euo pipefail
 ## If you change this image, make sure also to change the one listed in
 ## the build-repro job in .gitlab-ci.yml
 exec docker run --rm -i -v "$(git rev-parse --show-toplevel)":/builds/arti \
-		-w /builds/arti rust:1.76.0-alpine3.19 \
+		-w /builds/arti rust:1.76.0-alpine3.18 \
 		sh -c "apk add bash && ./maint/reproducible_build $*"
