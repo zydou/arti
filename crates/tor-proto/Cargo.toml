@@ -29,7 +29,6 @@ full = [
     "tor-error/full",
     "tor-linkspec/full",
     "tor-llcrypto/full",
-    "tor-protover/full",
     "tor-rtcompat/full",
     "tor-rtmock/full",
     "tor-units/full",
@@ -85,7 +84,6 @@ tor-hscrypto = { path = "../tor-hscrypto", version = "0.17.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.17.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.17.0" }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.17.0" }
-tor-protover = { path = "../tor-protover", version = "0.17.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.17.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.17.0" }
 tor-units = { path = "../tor-units", version = "0.17.0" }

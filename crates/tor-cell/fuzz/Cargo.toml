@@ -10,7 +10,6 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-bytes = "0.5.6"
 libfuzzer-sys = "0.4"
 
 [dependencies.tor-cell]

@@ -16,11 +16,10 @@ hyper-util = { version = "0.1.1", features = ["tokio"] }
 safelog = { path = "../../../crates/safelog" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 tokio-util = "0.7.10"
-tor-async-utils = { path = "../../../crates/tor-async-utils" }
 tor-cell = { path = "../../../crates/tor-cell" }
 tor-hsservice = { path = "../../../crates/tor-hsservice" }
 tor-proto = { path = "../../../crates/tor-proto" }
 tracing-subscriber = "0.3.0"
 
 [features]
-full = ["arti-client/full", "safelog/full", "tor-async-utils/full", "tor-cell/full", "tor-hsservice/full", "tor-proto/full"]
+full = ["arti-client/full", "safelog/full", "tor-cell/full", "tor-hsservice/full", "tor-proto/full"]

@@ -18,7 +18,6 @@ full = [
     "bridge-client",
     "default",
     "fs-mistrust/full",
-    "retry-error/full",
     "safelog/full",
     "tor-basic-utils/full",
     "tor-checkable/full",
@@ -76,7 +75,6 @@ once_cell = "1"
 paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-retry-error = { path = "../retry-error", version = "0.5.2" }
 rusqlite = { version = "0.31.0", features = ["time"] }
 safelog = { path = "../safelog", version = "0.3.6" }
 scopeguard = "1"

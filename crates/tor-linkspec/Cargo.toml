@@ -33,10 +33,8 @@ __is_experimental = []
 base64ct = "1.5.1"
 by_address = "1"
 caret = { path = "../caret", version = "0.4.5" }
-cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
-educe = "0.4.6"
 hex = "0.4"
 itertools = "0.12.0"
 safelog = { path = "../safelog", version = "0.3.6" }

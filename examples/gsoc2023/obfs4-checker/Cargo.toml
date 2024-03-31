@@ -13,17 +13,13 @@ axum = "0.6.19"
 clap = { version = "4.3.21", features = ["derive", "wrap_help"] }
 futures = "0.3.28"
 serde = "1.0.180"
-serde_json = "1.0.104"
 time = { version = "0.3", features = ["serde"] }
-tls-api = "0.9.0"
-tls-api-native-tls = "0.9.0"
 tokio = { version = "1.7", features = ["full"] }
 tor-chanmgr = { path = "../../../crates/tor-chanmgr", features = ["pt-client", "experimental-api"] }
 tor-error = { path = "../../../crates/tor-error" }
 tor-guardmgr = { path = "../../../crates/tor-guardmgr", features = ["full"] }
 tor-proto = { path = "../../../crates/tor-proto" }
 tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
-tracing = "0.1"
 tracing-subscriber = "0.3.17"
 
 [features]

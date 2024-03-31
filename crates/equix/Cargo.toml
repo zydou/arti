@@ -33,5 +33,4 @@ thiserror = "1.0.40"
 visibility = "0.1.0"
 
 [dev-dependencies]
-hex-literal = "0.4.1"
 permutohedron = "0.2.4"

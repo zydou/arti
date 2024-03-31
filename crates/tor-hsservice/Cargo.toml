@@ -26,14 +26,12 @@ full = [
     "tor-basic-utils/full",
     "tor-bytes/full",
     "tor-cell/full",
-    "tor-cert/full",
     "tor-config/full",
     "tor-dirclient/full",
     "tor-error/full",
     "tor-keymgr/full",
     "tor-linkspec/full",
     "tor-netdoc/full",
-    "tor-units/full",
     "tor-persist/full",
     "tor-protover/full",
     "fs-mistrust/full",
@@ -41,7 +39,6 @@ full = [
 ]
 
 [dependencies]
-amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 base64ct = "1.5.1"
 derive-adhoc = "0.8"
@@ -70,7 +67,6 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.17.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.17.0" }
 tor-bytes = { version = "0.17.0", path = "../tor-bytes" }
 tor-cell = { version = "0.17.0", path = "../tor-cell", features = ["hs"] }
-tor-cert = { path = "../tor-cert", version = "0.17.0" }
 tor-circmgr = { version = "0.17.0", path = "../tor-circmgr", features = ["hs-service"] }
 tor-config = { version = "0.17.0", path = "../tor-config" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.17.0", default-features = false, features = ["hs-service"] }
@@ -91,12 +87,10 @@ tor-proto = { version = "0.17.0", path = "../tor-proto", features = [
 tor-protover = { version = "0.17.0", path = "../tor-protover" }
 tor-relay-selection = { path = "../tor-relay-selection", version = "0.17.0" }
 tor-rtcompat = { version = "0.17.0", path = "../tor-rtcompat" }
-tor-units = { path = "../tor-units", version = "0.17.0" }
 tracing = "0.1.36"
 void = "1"
 
 [dev-dependencies]
-anyhow = "1.0.72"
 libc = { version = "0.2", default-features = false }
 rmp-serde = "1"
 serde_json = "1.0.104"
