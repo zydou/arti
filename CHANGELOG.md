@@ -61,6 +61,11 @@ See [`doc/Semver.md`] for more information on this policy.
   Putting them into `Runtime` lets us replace them with mock functions
   for testing purposes.
   ([!2050])
+- The `tor-cell` relay cell API is significantly revised.
+  ([!2034], [!2045], [prop340])
+- The `allow_stream_requests()` method in `tor-proto`
+  now takes an extra argument.
+  ([!2047])
 
 ### Onion service development
 
