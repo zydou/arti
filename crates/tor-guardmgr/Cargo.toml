@@ -29,7 +29,7 @@ full = [
     "tor-protover?/full",
     "tor-rtcompat/full",
     "tor-units/full",
-    "tor-async-utils/full",
+    "tor-async-utils/full", "tor-relay-selection/full",
 ]
 experimental = ["testing", "vanguards"]
 

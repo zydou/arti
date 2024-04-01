@@ -15,3 +15,6 @@ tor-error = { path = "../../../crates/tor-error" }
 tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
 tracing = "0.1"
 tracing-subscriber = "0.3.17"
+
+[features]
+full = ["arti-client/full", "tor-error/full", "tor-rtcompat/full"]

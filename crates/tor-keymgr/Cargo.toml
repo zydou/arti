@@ -22,7 +22,7 @@ full = [
     "tor-hscrypto/full",
     "tor-llcrypto/full",
     "tor-config/full",
-    "tor-persist/full",
+    "tor-persist/full", "tor-basic-utils/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.

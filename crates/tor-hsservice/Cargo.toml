@@ -37,7 +37,7 @@ full = [
     "tor-persist/full",
     "tor-protover/full",
     "fs-mistrust/full",
-    "tor-log-ratelim/full",
+    "tor-log-ratelim/full", "tor-relay-selection/full",
 ]
 
 [dependencies]

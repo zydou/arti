@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = []
+full = ["tor-basic-utils/full", "tor-geoip?/full", "tor-linkspec/full", "tor-netdir/full", "tor-netdoc/full"]
 
 experimental = ["geoip"]
 geoip = ["tor-geoip", "tor-netdir/geoip", "__is_experimental"]

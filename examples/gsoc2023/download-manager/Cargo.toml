@@ -20,3 +20,6 @@ tokio = { version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
 tracing = "0.1"
 tracing-subscriber = "0.3.17"
+
+[features]
+full = ["arti-client/full", "arti-hyper/full", "tor-rtcompat/full"]

@@ -21,3 +21,6 @@ tor-cell = { path = "../../../crates/tor-cell" }
 tor-hsservice = { path = "../../../crates/tor-hsservice" }
 tor-proto = { path = "../../../crates/tor-proto" }
 tracing-subscriber = "0.3.0"
+
+[features]
+full = ["arti-client/full", "safelog/full", "tor-async-utils/full", "tor-cell/full", "tor-hsservice/full", "tor-proto/full"]

@@ -21,3 +21,6 @@ tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
 tor-socksproto = { path = "../../../crates/tor-socksproto" }
 tracing = "0.1"
 tracing-subscriber = "0.3.17"
+
+[features]
+full = ["arti-client/full", "tor-chanmgr/full", "tor-linkspec/full", "tor-ptmgr/full", "tor-rtcompat/full", "tor-socksproto/full"]
