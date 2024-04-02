@@ -1,7 +1,7 @@
 //! Configuration logic for onion service reverse proxy.
 
-use derive_deftly::Deftly;
 use derive_builder::Builder;
+use derive_deftly::Deftly;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, ops::RangeInclusive, str::FromStr};
 use tracing::warn;

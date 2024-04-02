@@ -46,8 +46,8 @@ pub(crate) use {
 pub(crate) use {
     async_trait::async_trait,
     base64ct::{Base64Unpadded, Encoding as _},
-    derive_deftly::{define_derive_deftly, Deftly},
     derive_builder::Builder,
+    derive_deftly::{define_derive_deftly, Deftly},
     derive_more::{Constructor, Deref, DerefMut, From, Into},
     educe::Educe,
     futures::channel::mpsc,
