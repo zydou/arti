@@ -66,7 +66,7 @@ impl MockTimeCore {
     /// Warp the wallclock (only)
     //
     // We *could* just expose the field for mutable access,
-    // but this way seems more orthogonal.
+    // but this way seems more regular.
     pub(crate) fn jump_wallclock(&mut self, new_wallclock: SystemTime) {
         self.wallclock = new_wallclock;
     }
