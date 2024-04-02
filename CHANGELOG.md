@@ -58,7 +58,7 @@ See [`doc/Semver.md`] for more information on this policy.
   where we need fast time checking more than precision.
   Putting them into `Runtime` lets us replace them with mock functions
   for testing purposes.
-  ([!2050])
+  ([!2050], [!2052])
 - The `tor-cell` relay cell API is significantly revised.
   ([!2034], [!2045], [prop340])
 - The `allow_stream_requests()` method in `tor-proto`
@@ -193,6 +193,7 @@ for funding the development of Arti!
 [!2049]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2049
 [!2050]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2050
 [!2051]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2051
+[!2051]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2052
 [!2053]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2053
 [!2054]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2054
 [!2055]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2055
