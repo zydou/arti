@@ -49,7 +49,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
         // When this timeout elapses, the `Runner` will stop retrying the fallible operation.
         //
         // A `overall_timeout` of `None` means there is no time limit for the retries.
-        let mut timeout = match self.schedule.overall_timeout() {
+        let mut overall_timeout = match self.schedule.overall_timeout() {
             Some(timeout) => Either::Left(Box::pin(self.runtime.sleep(timeout))),
             None => Either::Right(future::pending()),
         }
@@ -72,7 +72,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
             trace!(attempt = (retry_count + 1), "{}", self.doing);
 
             select_biased! {
-                res = timeout => {
+                res = overall_timeout => {
                     // The timeout has elapsed, so stop retrying and return the errors
                     // accumulated so far.
                     return Err(BackoffError::Timeout(errors))
