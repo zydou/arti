@@ -71,6 +71,10 @@ pub enum VanguardMgrError {
     #[error("No suitable relays")]
     NoSuitableRelay(Layer),
 
+    /// Could not get timely network directory.
+    #[error("Unable to get timely network directory")]
+    NetDir(#[from] tor_netdir::Error),
+
     /// Could not spawn a task.
     #[error("Unable to spawn a task")]
     Spawn(#[source] Arc<SpawnError>),
@@ -85,6 +89,7 @@ impl HasKind for VanguardMgrError {
         match self {
             // TODO HS-VANGUARDS: this is not right
             VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
+            VanguardMgrError::NetDir(e) => e.kind(),
             VanguardMgrError::Spawn(e) => e.kind(),
             VanguardMgrError::Bug(e) => e.kind(),
         }
