@@ -34,9 +34,9 @@ pub struct Vanguard<'a> {
 #[derive(Debug, Clone, Serialize, Deserialize)] //
 pub(crate) struct TimeBoundVanguard {
     /// The ID of this relay.
-    id: RelayIds,
+    pub(super) id: RelayIds,
     /// When to stop using this relay as a vanguard.
-    when: SystemTime,
+    pub(super) when: SystemTime,
 }
 
 // TODO(#1342): derive all of these?
