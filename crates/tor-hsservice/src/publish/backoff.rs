@@ -106,19 +106,19 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                         },
                     };
 
-                            if should_retry {
-                                retry_count += 1;
+                    if should_retry {
+                        retry_count += 1;
 
-                                let Some(delay) = delay else {
-                                    return Err(BackoffError::ExplicitStop(errors));
-                                };
+                        let Some(delay) = delay else {
+                            return Err(BackoffError::ExplicitStop(errors));
+                        };
 
-                                // Introduce the specified delay between retries
-                                let () = self.runtime.sleep(delay).await;
+                        // Introduce the specified delay between retries
+                        let () = self.runtime.sleep(delay).await;
 
-                                // Try again unless the entire operation has timed out.
-                                continue;
-                            }
+                        // Try again unless the entire operation has timed out.
+                        continue;
+                    }
 
                     return Err(BackoffError::FatalError(errors));
                 },
