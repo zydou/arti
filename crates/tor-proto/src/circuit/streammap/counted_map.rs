@@ -36,6 +36,11 @@ pub trait Predicate {
 /// have `P::check(value)` return `true`.
 /// It exposes this number through its [`count`](CountedHashMap::count) method,
 /// which runs in O(1) time.
+///
+/// ## Handling of panics
+///
+/// If `P::check` or `K as Hash` panics, the `CountedHashMap`'s count may become incorrect,
+/// and it is even possible that future accesses to the map might panic.
 #[derive(Clone, Debug)]
 pub struct CountedHashMap<K, V, P> {
     /// The underlying hashmap.
@@ -96,13 +101,15 @@ where
 
     /// Return a mutable iterator over the items in this map.
     ///
-    /// # Safety
+    /// # Correctness
     ///
     /// This iterator does not re-check `P` for the items.
     ///
     /// Therefore, the caller must ensure that any changes made to the items
     /// preserve the original values of `P::check`.
-    pub unsafe fn iter_mut_unchecked(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
+    ///
+    /// If the caller does not enforce this property, the count will become incorrect.
+    pub fn iter_mut_unchecked(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
         self.map.iter_mut()
     }
 
@@ -130,15 +137,16 @@ where
 
     /// Unsafely return a mutable reference to a value in this map.
     ///
-    /// # Safety
+    /// # Correctness
     ///
     /// This function does not re-check `P` for the returned value.
     ///
     /// Therefore, the caller must ensure that any changes made to the value
     /// preserve the original value of `P::check`.
+    /// If the caller does not enforce this property, the count will become incorrect.
     ///
     /// Most callers should use use `get_mut` instead.
-    pub unsafe fn get_mut_unchecked<Q>(&mut self, k: &Q) -> Option<&mut V>
+    pub fn get_mut_unchecked<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
         Q: ?Sized + Hash + Eq,
@@ -313,7 +321,9 @@ where
 ///
 /// # Panic safety
 ///
-/// This type does NOT preserve the map invariant if its `drop` method is not called.
+/// This type does NOT preserve the map invariant if its `drop` method is not called;
+/// if the caller holds this reference while a panic occurs,
+/// the count may become incorrect.
 ///
 /// TODO: we could use some kind of poisoning trickery to regain this property.
 pub struct MutRef<'a, V, P>

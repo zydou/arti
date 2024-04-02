@@ -137,14 +137,12 @@ impl StreamMap {
 
     /// Return an iterator over the entries in this StreamMap.
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = (StreamId, StreamEntMut<'_>)> {
-        // SAFETY: before we return any of the value references from this iterator,
+        // CORRECTNESS: before we return any of the value references from this iterator,
         // we convert them into a StreamEntMut,
         // to prevent any changes that would change their Open status.
-        unsafe {
-            self.m
-                .iter_mut_unchecked()
-                .map(|(id, ent)| (*id, ent.into()))
-        }
+        self.m
+            .iter_mut_unchecked()
+            .map(|(id, ent)| (*id, ent.into()))
     }
 
     /// Return the number of open streams in this map.
@@ -214,10 +212,10 @@ impl StreamMap {
 
     /// Return the entry for `id` in this map, if any.
     pub(super) fn get_mut(&mut self, id: StreamId) -> Option<StreamEntMut<'_>> {
-        // SAFETY: before we return a reference to one of this map's values,
+        // CORRECTNESS: before we return a reference to one of this map's values,
         // we convert it into a StreamEntMut,
         // to prevent any changes that would change its Open status.
-        unsafe { self.m.get_mut_unchecked(&id).map(StreamEntMut::from) }
+        self.m.get_mut_unchecked(&id).map(StreamEntMut::from)
     }
 
     /// Note that we received an END message (or other message indicating the end of
