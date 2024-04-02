@@ -14,6 +14,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use educe::Educe;
+
 /// A property that can be true or false of a given item.
 pub trait Predicate {
     /// The type of item that this predicate can check.
@@ -41,7 +43,8 @@ pub trait Predicate {
 ///
 /// If `P::check` or `K as Hash` panics, the `CountedHashMap`'s count may become incorrect,
 /// and it is even possible that future accesses to the map might panic.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Educe)]
+#[educe(Default)]
 pub struct CountedHashMap<K, V, P> {
     /// The underlying hashmap.
     map: HashMap<K, V>,
@@ -49,17 +52,6 @@ pub struct CountedHashMap<K, V, P> {
     count: usize,
     /// Marker to declare that `P` is used.
     _phantom: PhantomData<fn(P) -> P>,
-}
-
-// We can't derive Default, since it would put a Default bound on K/V/P.
-impl<K, V, P> Default for CountedHashMap<K, V, P> {
-    fn default() -> Self {
-        Self {
-            map: HashMap::new(),
-            count: 0,
-            _phantom: PhantomData,
-        }
-    }
 }
 
 impl<K, V, P> CountedHashMap<K, V, P> {
