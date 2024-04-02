@@ -227,6 +227,7 @@ mod tests {
 
     const SHORT_DELAY: Duration = Duration::from_millis(10);
     const TIMEOUT: Duration = Duration::from_millis(100);
+    const SINGLE_TIMEOUT: Duration = Duration::from_millis(50);
     const MAX_RETRIES: usize = 5;
 
     macro_rules! impl_backoff_sched {
@@ -272,6 +273,16 @@ mod tests {
         Some(SHORT_DELAY)
     );
 
+    struct BackoffWithSingleTimeout;
+
+    impl_backoff_sched!(
+        BackoffWithSingleTimeout,
+        Some(MAX_RETRIES),
+        None,
+        Some(SINGLE_TIMEOUT),
+        Some(SHORT_DELAY)
+    );
+
     /// A potentially retriable error.
     #[derive(Debug, Copy, Clone, thiserror::Error)]
     enum TestError {
@@ -294,6 +305,7 @@ mod tests {
 
     /// Run a single [`Runner`] test.
     fn run_test<E: RetriableError + Send + Sync + 'static>(
+        sleep_for: Option<Duration>,
         schedule: impl BackoffSchedule + Send + 'static,
         errors: impl Iterator<Item = E> + Send + Sync + 'static,
         expected_run_count: usize,
@@ -318,10 +330,16 @@ mod tests {
                 .spawn_identified(format!("retry runner task: {description}"), {
                     let retry_count = Arc::clone(&retry_count);
                     let errors = Arc::new(RwLock::new(errors));
+                    let runtime = runtime.clone();
                     async move {
                         if let Ok(()) = runner
                             .run(|| async {
                                 *retry_count.write().unwrap() += 1;
+
+                                if let Some(dur) = sleep_for {
+                                    runtime.sleep(dur).await;
+                                }
+
                                 Err::<(), _>(errors.write().unwrap().next().unwrap())
                             })
                             .await
@@ -337,6 +355,14 @@ mod tests {
             // upper limit for the number of retries, it's impossible to tell exactly how many
             // times the operation will be retried)
             for i in 1..=expected_run_count {
+                runtime.mock_task().progress_until_stalled().await;
+                // If our fallible_op is sleeping, advance the time until after it times out or
+                // finishes sleeping.
+                if let Some(sleep_for) = sleep_for {
+                    runtime
+                        .mock_sleep()
+                        .advance(std::cmp::min(SINGLE_TIMEOUT, sleep_for));
+                }
                 runtime.mock_task().progress_until_stalled().await;
                 runtime.mock_sleep().advance(SHORT_DELAY);
                 assert_eq!(*retry_count.read().unwrap(), i);
@@ -360,6 +386,7 @@ mod tests {
     #[test]
     fn max_retries() {
         run_test(
+            None,
             BackoffWithMaxRetries,
             iter::repeat(TestError::Transient),
             MAX_RETRIES,
@@ -380,6 +407,7 @@ mod tests {
         const EXPECTED_TOTAL_RUNS: usize = RETRIES_UNTIL_FATAL + 1;
 
         run_test(
+            None,
             BackoffWithMaxRetries,
             iter::repeat(Transient)
                 .take(RETRIES_UNTIL_FATAL)
@@ -398,11 +426,34 @@ mod tests {
         let expected_run_count = TIMEOUT.as_millis() / SHORT_DELAY.as_millis();
 
         run_test(
+            None,
             BackoffWithTimeout,
             iter::repeat(Transient),
             expected_run_count as usize,
             "backoff with timeout and no max_retries (transient errors)",
             TIMEOUT,
+        );
+    }
+
+    #[test]
+    fn single_timeout() {
+        use TestError::*;
+
+        // Each attempt will time out after SINGLE_TIMEOUT time units,
+        // and the backoff runner sleeps for SLEEP_DELAY units in between retries
+        let expected_duration = Duration::from_millis(
+            (SHORT_DELAY.as_millis() + SINGLE_TIMEOUT.as_millis()) as u64 * MAX_RETRIES as u64,
+        );
+
+        run_test(
+            // Sleep for more than SINGLE_TIMEOUT units
+            // to trigger the single_attempt_timeout() timeout
+            Some(SINGLE_TIMEOUT * 2),
+            BackoffWithSingleTimeout,
+            iter::repeat(Transient),
+            MAX_RETRIES,
+            "backoff with single timeout and max_retries and no overall timeout",
+            expected_duration,
         );
     }
 
