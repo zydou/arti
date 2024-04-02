@@ -1,6 +1,6 @@
 [package]
 name = "tor-cell"
-version = "0.16.1"
+version = "0.17.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -47,14 +47,14 @@ paste = "1"
 rand = "0.8"
 smallvec = "1.10"
 thiserror = "1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.8.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.10.0" }
-tor-cert = { path = "../tor-cert", version = "0.11.0" }
-tor-error = { path = "../tor-error", version = "0.6.0" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.6.0", optional = true }
-tor-linkspec = { path = "../tor-linkspec", version = "0.11.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.7.0" }
-tor-units = { path = "../tor-units", version = "0.6.5" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.17.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.17.0" }
+tor-cert = { path = "../tor-cert", version = "0.17.0" }
+tor-error = { path = "../tor-error", version = "0.17.0" }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.17.0", optional = true }
+tor-linkspec = { path = "../tor-linkspec", version = "0.17.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.17.0" }
+tor-units = { path = "../tor-units", version = "0.17.0" }
 
 [dev-dependencies]
 hex = "0.4"
