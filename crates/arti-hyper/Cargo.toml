@@ -1,6 +1,6 @@
 [package]
 name = "arti-hyper"
-version = "0.14.1"
+version = "0.17.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -36,7 +36,7 @@ __is_nonadditive = []
 
 [dependencies]
 anyhow = "1.0.23"
-arti-client = { path = "../arti-client", version = "0.14.1" }
+arti-client = { path = "../arti-client", version = "0.17.0" }
 educe = "0.4.6"
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"
@@ -44,8 +44,8 @@ thiserror = "1"
 tls-api = "0.9.0"
 tls-api-native-tls = "0.9.0"
 tokio = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros"] }
-tor-error = { path = "../tor-error", version = "0.6.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.10.0", features = ["tokio"] }
+tor-error = { path = "../tor-error", version = "0.17.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.17.0", features = ["tokio"] }
 
 [target.'cfg(target_vendor="apple")'.dev-dependencies]
 tls-api-openssl = "0.9.0"

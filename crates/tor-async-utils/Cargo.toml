@@ -1,6 +1,6 @@
 [package]
 name = "tor-async-utils"
-version = "0.1.5"
+version = "0.17.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
