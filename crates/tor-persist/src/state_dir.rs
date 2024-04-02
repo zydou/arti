@@ -174,7 +174,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use derive_adhoc::{define_derive_adhoc, Adhoc};
+use derive_deftly::{define_derive_deftly, Deftly};
 use derive_more::{AsRef, Deref};
 use itertools::chain;
 use serde::{de::DeserializeOwned, Serialize};
@@ -192,7 +192,7 @@ pub use crate::Error;
 #[allow(unused_imports)] // Simplifies a lot of references in our docs
 use crate::slug;
 
-define_derive_adhoc! {
+define_derive_deftly! {
     ContainsInstanceStateGuard =
 
     impl<$tgens> ContainsInstanceStateGuard for $ttype where $twheres {
@@ -867,8 +867,8 @@ impl StateDirectory {
 // it would involve an Arc<Mutex<SlugsInUseTable>> in InstanceStateHnndle and StorageHandle,
 // and Drop impls to remove unused entries (and `raw_subdir` would have imprecise checking
 // unless it returned a Drop newtype around CheckedDir).
-#[derive(Debug, Clone, Adhoc)]
-#[derive_adhoc(ContainsInstanceStateGuard)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(ContainsInstanceStateGuard)]
 pub struct InstanceStateHandle {
     /// The directory
     dir: CheckedDir,
@@ -1017,8 +1017,8 @@ fn touch_instance_dir(dir: &CheckedDir) -> Result<()> {
 /// Rust mutability-xor-sharing rules enforce proper synchronisation,
 /// unless multiple `StorageHandle`s are created
 /// using the same [`InstanceStateHandle`] and key.
-#[derive(Adhoc, Debug)] // not Clone, to enforce mutability rules (see above)
-#[derive_adhoc(ContainsInstanceStateGuard)]
+#[derive(Deftly, Debug)] // not Clone, to enforce mutability rules (see above)
+#[derive_deftly(ContainsInstanceStateGuard)]
 pub struct StorageHandle<T> {
     /// The directory and leafname
     instance_dir: CheckedDir,
@@ -1091,8 +1091,8 @@ impl<T: Serialize + DeserializeOwned> StorageHandle<T> {
 /// If you need to manage the lock, and the directory path, separately,
 /// [`raw_lock_guard`](ContainsInstanceStateGuard::raw_lock_guard)
 ///  will help.
-#[derive(Deref, Clone, Debug, Adhoc)]
-#[derive_adhoc(ContainsInstanceStateGuard)]
+#[derive(Deref, Clone, Debug, Deftly)]
+#[derive_deftly(ContainsInstanceStateGuard)]
 pub struct InstanceRawSubdir {
     /// The actual directory, as a [`fs_mistrust::CheckedDir`]
     #[deref]
@@ -1118,7 +1118,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use derive_adhoc::{derive_adhoc, Adhoc};
+    use derive_deftly::{derive_deftly_adhoc, Deftly};
     use itertools::{iproduct, Itertools};
     use serde::{Deserialize, Serialize};
     use std::collections::BTreeSet;
@@ -1253,16 +1253,17 @@ mod test {
 
         /// Reified test case spec for expiry
         //
-        // For non-`bool` fields, `#[adhoc(test = )]` gives the set of values to test.
-        #[derive(Adhoc, Eq, PartialEq, Debug)]
+        // For non-`bool` fields, `#[deftly(test = )]` gives the set of values to test.
+        #[derive(Deftly, Eq, PartialEq, Debug)]
+        #[derive_deftly_adhoc]
         struct Which {
             /// Does `name_filter` return `Live`?
             namefilter_live: bool,
             /// What is the oldest does `age_filter` will return `Live` for?
-            #[adhoc(test = "0, 2")]
+            #[deftly(test = "0, 2")]
             max_age: AgeDays,
             /// How long ago was the instance dir actually modified?
-            #[adhoc(test = "-1, 1, 3")]
+            #[deftly(test = "-1, 1, 3")]
             age: AgeDays,
             /// Does the instance dir exist?
             dir: bool,
@@ -1277,7 +1278,7 @@ mod test {
         /// (We don't bother suppressing the trailiong `_`).
         impl Display for Which {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                derive_adhoc! {
+                derive_deftly_adhoc! {
                     Which:
                     $(
                         write!(
@@ -1294,7 +1295,7 @@ mod test {
             type Err = Error;
             fn from_str(s: &str) -> Result<Self> {
                 let mut fields = s.split('_');
-                derive_adhoc! {
+                derive_deftly_adhoc! {
                     Which:
                     Ok(Which { $(
                         $fname: fields.next().unwrap()
@@ -1317,7 +1318,7 @@ mod test {
         // 0. Calculate all possible whiches
 
         let whiches = {
-            derive_adhoc!(
+            derive_deftly_adhoc!(
                 Which:
                 iproduct!(
                     $(
@@ -1328,7 +1329,7 @@ mod test {
                     [()]
                 )
             )
-            .map(derive_adhoc!(
+            .map(derive_deftly_adhoc!(
                 Which:
                 //
                 |($( $fname, ) ())| Which { $( $fname, ) }

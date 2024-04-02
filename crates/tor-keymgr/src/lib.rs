@@ -91,7 +91,7 @@ pub use dummy::*;
 pub(crate) type BoxedKeystore = Box<dyn Keystore>;
 
 #[doc(hidden)]
-pub use {derive_adhoc, inventory};
+pub use {derive_deftly, inventory};
 
 use derive_more::{AsRef, Display, From};
 use serde::{Deserialize, Serialize};

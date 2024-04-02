@@ -74,7 +74,7 @@ pub use sources::{ConfigurationSource, ConfigurationSources};
 use itertools::Itertools;
 
 #[doc(hidden)]
-pub use derive_adhoc;
+pub use derive_deftly;
 #[doc(hidden)]
 pub use flatten::flattenable_extract_fields;
 

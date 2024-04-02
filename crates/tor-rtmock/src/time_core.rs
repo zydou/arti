@@ -1,11 +1,11 @@
 //! [`MockTimeCore`] and [`MockCoarseTimeProvider`]
 
-use derive_adhoc::{define_derive_adhoc, Adhoc};
+use derive_deftly::{define_derive_deftly, Deftly};
 use std::time::{Duration, Instant, SystemTime};
 use tor_rtcompat::{CoarseDuration, CoarseInstant};
 use tor_rtcompat::{CoarseTimeProvider, RealCoarseTimeProvider};
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Derive getters for struct fields.
     ///
     /// Like `amplify::Getters` but `pub(crate)`.
@@ -29,15 +29,15 @@ define_derive_adhoc! {
 ///
 /// Arranges that they are all moved in step,
 /// unless explicitly requested otherwise.
-#[derive(Clone, Debug, Adhoc)]
-#[derive_adhoc(CrateGetters)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(CrateGetters)]
 pub(crate) struct MockTimeCore {
     /// Current time (monotonic clock)
-    #[adhoc(getter_copy)]
+    #[deftly(getter_copy)]
     instant: Instant,
 
     /// Current wallclock time
-    #[adhoc(getter_copy)]
+    #[deftly(getter_copy)]
     wallclock: SystemTime,
 
     /// Coarse time tracking

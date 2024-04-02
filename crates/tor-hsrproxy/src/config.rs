@@ -1,18 +1,18 @@
 //! Configuration logic for onion service reverse proxy.
 
-use derive_adhoc::Adhoc;
+use derive_deftly::Deftly;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, ops::RangeInclusive, str::FromStr};
 use tracing::warn;
-//use tor_config::derive_adhoc_template_Flattenable;
+//use tor_config::derive_deftly_template_Flattenable;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 
 /// Configuration for a reverse proxy running for one onion service.
 #[derive(Clone, Debug, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Debug, Serialize, Deserialize, Adhoc, Eq, PartialEq))]
-#[builder_struct_attr(derive_adhoc(tor_config::Flattenable))]
+#[builder(derive(Debug, Serialize, Deserialize, Deftly, Eq, PartialEq))]
+#[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
 pub struct ProxyConfig {
     /// A list of rules to apply to incoming requests.  If no rule
     /// matches, we take the DestroyCircuit action.

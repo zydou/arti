@@ -11,7 +11,7 @@
 
 use std::iter;
 
-use derive_adhoc::define_derive_adhoc;
+use derive_deftly::define_derive_deftly;
 use itertools::{izip, EitherOrBoth, Itertools};
 
 use super::*;
@@ -306,7 +306,7 @@ pub fn describe_via_components(
         .map_err(into_internal!("failed to build KeyPathInfo"))?)
 }
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// A helper for implementing [`KeySpecifier`]s.
     ///
     /// Applies to a struct that has some static components (`prefix`, `role`),
@@ -345,7 +345,7 @@ define_derive_adhoc! {
     ///
     /// ### Results of applying this macro
     ///
-    /// `#[derive(Adhoc)] #[derive_adhoc(KeySpecifier)] struct SomeKeySpec ...`
+    /// `#[derive(Deftly)] #[derive_deftly(KeySpecifier)] struct SomeKeySpec ...`
     /// generates:
     ///
     ///  * `impl `[`KeySpecifier`]` for SomeKeySpec`
@@ -359,30 +359,30 @@ define_derive_adhoc! {
     ///
     /// ### Custom attributes
     ///
-    ///  * **`#[adhoc(prefix)]`** (toplevel):
+    ///  * **`#[deftly(prefix)]`** (toplevel):
     ///    Specifies the fixed prefix (the first path component).
     ///    Must be a literal string.
     ///
-    ///  * **`#[adhoc(role = "...")]`** (toplevel):
+    ///  * **`#[deftly(role = "...")]`** (toplevel):
     ///    Specifies the role - the initial portion of the leafname.
     ///    This should be the name of the key in the Tor Specifications.
     ///    Must be a literal string.
-    ///    This or the field-level `#[adhoc(role)]` must be specified.
+    ///    This or the field-level `#[deftly(role)]` must be specified.
     ///
     ///  * **`[adhoc(role)]` (field):
     ///    Specifies that the role is determined at runtime.
     ///    The field type must implement [`KeyDenotator`].
     ///
-    ///  * **`#[adhoc(summary = "...")]`** (summary, mandatory):
+    ///  * **`#[deftly(summary = "...")]`** (summary, mandatory):
     ///    Specifies the summary; ends up as the `summary` field in [`KeyPathInfo`].
     ///    (See [`KeyPathInfoBuilder::summary()`].)
     ///    Must be a literal string.
     ///
-    ///  * **`#[adhoc(denotator)]`** (field):
+    ///  * **`#[deftly(denotator)]`** (field):
     ///    Designates a field that should be represented
     ///    in the key file leafname, after the role.
     ///
-    ///  * **`#[adhoc(ctor_path = "expression")]`** (toplevel):
+    ///  * **`#[deftly(ctor_path = "expression")]`** (toplevel):
     ///    Specifies that this kind of key has a representation in C Tor keystores,
     ///    and provides an expression for computing the path.
     ///    The expression should have type `impl Fn(&Self) -> CTorPath`.
@@ -390,7 +390,7 @@ define_derive_adhoc! {
     ///    If not specified, the generated [`KeySpecifier::ctor_path`]
     ///    implementation will always return `None`.
     ///
-    ///  * **`#[adhoc(fixed_path_component = "component")]`** (field):
+    ///  * **`#[deftly(fixed_path_component = "component")]`** (field):
     ///    Before this field insert a fixed path component `component`.
     ///    (Can be even used before a denotator component,
     ///    to add a final fixed path component.)
@@ -446,12 +446,12 @@ define_derive_adhoc! {
     //
     // The actual code here is necessarily rather abstract.
     ${define ARTI_PATH_COMPONENTS {
-        // #[adhoc(prefix = ...)]
+        // #[deftly(prefix = ...)]
         ${define LIT ${tmeta(prefix) as str}}
         $DO_LITERAL
 
         ${for fields {
-            // #[adhoc(fixed_path_component = ...)]
+            // #[deftly(fixed_path_component = ...)]
             ${if fmeta(fixed_path_component) {
                 // IWVNI d-a allowed arguments to use-defined expansions, but this will do
                 ${define LIT ${fmeta(fixed_path_component) as str}}
@@ -463,16 +463,16 @@ define_derive_adhoc! {
     }}
     ${define ARTI_LEAF_COMPONENTS {
         ${if tmeta(role) {
-            // #[adhoc(role = ...)] on the toplevel
+            // #[deftly(role = ...)] on the toplevel
             ${define LIT { stringify!(${snake_case ${tmeta(role)}}) }}
             $DO_ROLE_LITERAL
         }}
         ${for fields {
-            // #[adhoc(role)] on a field
+            // #[deftly(role)] on a field
             ${if F_IS_ROLE { $DO_ROLE_FIELD }}
         }}
         ${for fields {
-            // #[adhoc(denotator)]
+            // #[deftly(denotator)]
             ${if fmeta(denotator) { $DO_FIELD }}
         }}
     }}
@@ -502,7 +502,7 @@ define_derive_adhoc! {
                 // directories used by C tor. The resulting CTorPath will be prefixed with the
                 // appropriate C tor directory, based on the HsSvcKeyRole.
                 //
-                // Ie, provide the #[adhoc(ctor_path)] attribute
+                // Ie, provide the #[deftly(ctor_path)] attribute
                 Some( ${tmeta(ctor_path) as tokens} (self) )
             } else {
                 None

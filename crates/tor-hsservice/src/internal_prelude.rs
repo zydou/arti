@@ -46,7 +46,7 @@ pub(crate) use {
 pub(crate) use {
     async_trait::async_trait,
     base64ct::{Base64Unpadded, Encoding as _},
-    derive_adhoc::{define_derive_adhoc, Adhoc},
+    derive_deftly::{define_derive_deftly, Deftly},
     derive_builder::Builder,
     derive_more::{Constructor, Deref, DerefMut, From, Into},
     educe::Educe,
@@ -92,7 +92,7 @@ pub(crate) use {
     tor_hscrypto::time::TimePeriod,
     tor_hscrypto::RevisionCounter,
     tor_keymgr::{
-        derive_adhoc_template_KeySpecifier, KeyMgr, KeySpecifier,
+        derive_deftly_template_KeySpecifier, KeyMgr, KeySpecifier,
         KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern as _, KeystoreSelector,
         {KeyPath, KeyPathRange, KeySpecifierComponent},
     },

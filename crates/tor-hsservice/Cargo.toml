@@ -44,7 +44,7 @@ full = [
 amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 base64ct = "1.5.1"
-derive-adhoc = "0.8"
+derive-deftly = "0.10"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.17"
 digest = "0.10.0"

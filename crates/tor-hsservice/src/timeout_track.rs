@@ -149,7 +149,7 @@ use std::cell::Cell;
 use std::cmp::Ordering;
 use std::time::{Duration, Instant, SystemTime};
 
-use derive_adhoc::{define_derive_adhoc, Adhoc};
+use derive_deftly::{define_derive_deftly, Deftly};
 use futures::{future, select_biased, FutureExt as _};
 use itertools::chain;
 
@@ -157,7 +157,7 @@ use tor_rtcompat::{SleepProvider, SleepProviderExt as _};
 
 //========== derive-adhoc macros, which must come first ==========
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Defines methods and types which are common to trackers for `Instant` and `SystemTime`
     SingleTimeoutTracker for struct, expect items =
 
@@ -221,7 +221,7 @@ define_derive_adhoc! {
     impl Sealed for $ttype {}
 }
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Impls for `TrackingNow`, the combined tracker
     ///
     /// Defines just the methods which want to abstract over fields
@@ -270,7 +270,7 @@ define_derive_adhoc! {
   )
 }
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Defines `wait_for_earliest`
     ///
     /// Combined into this macro mostly so we only have to write the docs once
@@ -352,10 +352,10 @@ macro_rules! define_PartialOrd_via_cmp { {
 /// you should calculate the `SystemTime` at which you should time out,
 /// and compare that future planned wakeup time with this `TrackingSystemTimeNow`
 /// (via [`.cmp()`](Self::cmp) or inequality operators and [`PartialOrd`]).
-#[derive(Clone, Debug, Adhoc)]
-#[derive_adhoc(SingleTimeoutTracker, WaitForEarliest)]
-#[adhoc(track = "SystemTime")]
-#[adhoc(from_runtime = "wallclock", runtime_sleep = "sleep_until_wallclock")]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(SingleTimeoutTracker, WaitForEarliest)]
+#[deftly(track = "SystemTime")]
+#[deftly(from_runtime = "wallclock", runtime_sleep = "sleep_until_wallclock")]
 pub struct TrackingSystemTimeNow {
     /// Current time
     now: SystemTime,
@@ -383,10 +383,10 @@ type InstantEarliest = Cell<Option<Duration>>;
 /// use
 /// [`.checked_sub()`](TrackingInstantNow::checked_sub)
 /// to obtain a [`TrackingInstantOffsetNow`].
-#[derive(Clone, Debug, Adhoc)]
-#[derive_adhoc(SingleTimeoutTracker, WaitForEarliest)]
-#[adhoc(track = "Duration")]
-#[adhoc(from_runtime = "now", runtime_sleep = "sleep")]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(SingleTimeoutTracker, WaitForEarliest)]
+#[deftly(track = "Duration")]
+#[deftly(from_runtime = "now", runtime_sleep = "sleep")]
 pub struct TrackingInstantNow {
     /// Current time
     now: Instant,
@@ -424,14 +424,14 @@ pub struct TrackingInstantOffsetNow<'i> {
 ///
 /// Internally, the two kinds of timeouts are tracked separately:
 /// this contains a [`TrackingInstantNow`] and a [`TrackingSystemTimeNow`].
-#[derive(Clone, Debug, Adhoc)]
-#[derive_adhoc(CombinedTimeoutTracker, WaitForEarliest)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(CombinedTimeoutTracker, WaitForEarliest)]
 pub struct TrackingNow {
     /// For `Instant`s
-    #[adhoc(now = "Instant")]
+    #[deftly(now = "Instant")]
     instant: TrackingInstantNow,
     /// For `SystemTime`s
-    #[adhoc(now = "SystemTime")]
+    #[deftly(now = "SystemTime")]
     system_time: TrackingSystemTimeNow,
 }
 

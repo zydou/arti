@@ -1,8 +1,8 @@
 //! Internal utilities for `tor_rtmock`
 
-use derive_adhoc::define_derive_adhoc;
+use derive_deftly::define_derive_deftly;
 
-define_derive_adhoc! {
+define_derive_deftly! {
 /// Implements `Runtime` for a struct made of multiple sub-providers
 ///
 /// The type must be a struct containing
@@ -10,11 +10,11 @@ define_derive_adhoc! {
 ///
 /// The corresponding fields must be decorated with:
 ///
-///  * `#[adhoc(mock(task))]` to indicate the field implementing `Spawn + BlockOn`
-///  * `#[adhoc(mock(net))]` to indicate the field implementing `NetProvider`
-///  * `#[adhoc(mock(sleep))]` to indicate the field implementing `SleepProvider`
+///  * `#[deftly(mock(task))]` to indicate the field implementing `Spawn + BlockOn`
+///  * `#[deftly(mock(net))]` to indicate the field implementing `NetProvider`
+///  * `#[deftly(mock(sleep))]` to indicate the field implementing `SleepProvider`
 ///     and `CoarseTimeProvider`.
-// It would be nice to be able to reject misspelled or obsolete `#[adhoc(mock(THING))]`,
+// It would be nice to be able to reject misspelled or obsolete `#[deftly(mock(THING))]`,
 // but derive-adhoc only allows us to look up known entries, not iterate.
 // However, a misspelling would result in a missing trait impl, leading to compile error.
 // Likewise, duplicates result in duplicate trait impls.
@@ -120,7 +120,7 @@ define_derive_adhoc! {
 }
 
 /// Prelude that must be imported to derive
-/// [`SomeMockRuntime`](derive_adhoc_template_SomeMockRuntime)
+/// [`SomeMockRuntime`](derive_deftly_template_SomeMockRuntime)
 //
 // This could have been part of the expansion of `impl_runtime!`,
 // but it seems rather too exciting for a macro to import things as a side gig.
@@ -132,7 +132,7 @@ define_derive_adhoc! {
 // to allow it to refer to the macro in the doc comment.
 pub(crate) mod impl_runtime_prelude {
     pub(crate) use async_trait::async_trait;
-    pub(crate) use derive_adhoc::Adhoc;
+    pub(crate) use derive_deftly::Deftly;
     pub(crate) use futures::task::{FutureObj, Spawn, SpawnError};
     pub(crate) use futures::Future;
     pub(crate) use std::io::Result as IoResult;

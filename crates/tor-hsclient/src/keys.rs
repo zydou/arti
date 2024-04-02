@@ -12,9 +12,9 @@ use std::sync::Arc;
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
-use tor_keymgr::derive_adhoc_template_KeySpecifier;
+use tor_keymgr::derive_deftly_template_KeySpecifier;
 
-use derive_adhoc::Adhoc;
+use derive_deftly::Deftly;
 use derive_more::Constructor;
 
 /// Keys (if any) to use when connecting to a specific onion service.
@@ -144,11 +144,11 @@ impl HsClientSecretKeysBuilder {
     }
 }
 
-#[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier)]
-#[adhoc(prefix = "client")]
-#[adhoc(role = "KS_hsc_desc_enc")]
-#[adhoc(summary = "Descriptor decryption key")]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "client")]
+#[deftly(role = "KS_hsc_desc_enc")]
+#[deftly(summary = "Descriptor decryption key")]
 /// A key for deriving keys for decrypting HS descriptors (KS_hsc_desc_enc).
 pub struct HsClientDescEncKeypairSpecifier {
     /// The hidden service this authorization key is for.
