@@ -14,11 +14,6 @@ define_derive_deftly! {
 ///  * `#[deftly(mock(net))]` to indicate the field implementing `NetProvider`
 ///  * `#[deftly(mock(sleep))]` to indicate the field implementing `SleepProvider`
 ///     and `CoarseTimeProvider`.
-// It would be nice to be able to reject misspelled or obsolete `#[deftly(mock(THING))]`,
-// but derive-adhoc only allows us to look up known entries, not iterate.
-// However, a misspelling would result in a missing trait impl, leading to compile error.
-// Likewise, duplicates result in duplicate trait impls.
-//
 // This could perhaps be further reduced:
 // ambassador might be able to remove most of the body (although does it do async well?)
     SomeMockRuntime for struct, expect items =
