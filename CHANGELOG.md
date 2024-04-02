@@ -3,9 +3,7 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.2.1 — 1 April 2024
-
-UP TO DATE AS OF 67f1aefa231f8b30b6c534712f359c0d269e0035
+# Arti 1.2.1 — 2 April 2024
 
 Arti 1.2.1 continues development on onion services,
 and adds several important security features.
@@ -122,7 +120,7 @@ See [`doc/Semver.md`] for more information on this policy.
 
 ### Cleanups, minor features, and bugfixes
 
-- We've a bug fixed our arguments parser
+- We've fixed a bug in our arguments parser
   that previously caused `arti` to panic when run without arguments.
   ([#1311], [!2021])
 - The `tor-checkable` module now uses checked time arithmetic,
@@ -906,7 +904,7 @@ to 1.70, in accordance with our [MSRV policy].
 ### Breaking changes
 
 - Arti now requires Rust 1.70 or later. ([!1773])
-x
+
 ### Breaking changes in lower-level crates
 
 - The `LockStatus` type in tor-persist is now `#[must_use]`. ([#1753])
