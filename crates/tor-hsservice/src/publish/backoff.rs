@@ -6,6 +6,10 @@
 // TODO: this is a (somewhat) general-purpose utility, so it should probably be factored out of
 // tor-hsservice
 
+use std::pin::Pin;
+
+use futures::future::FusedFuture;
+
 use tor_rtcompat::TimeoutError;
 
 use super::*;
@@ -41,7 +45,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
     ) -> Result<T, BackoffError<E>>
     where
         E: RetriableError,
-        F: Future<Output = Result<T, E>>,
+        F: Future<Output = Result<T, E>> + Send,
     {
         let mut retry_count = 0;
         let mut errors = RetryError::in_attempt_to(self.doing.clone());
@@ -62,12 +66,11 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                 return Err(BackoffError::MaxRetryCountExceeded(errors));
             }
 
-            let mut fallible_op = match self.schedule.single_attempt_timeout() {
-                Some(timeout) => Either::Left(Box::pin(
-                    self.runtime.timeout(timeout, fallible_fn()).fuse(),
-                )),
-                None => Either::Right(Box::pin(fallible_fn().map(Ok))),
-            };
+            let mut fallible_op = optionally_timeout(
+                &self.runtime,
+                fallible_fn(),
+                self.schedule.single_attempt_timeout(),
+            );
 
             trace!(attempt = (retry_count + 1), "{}", self.doing);
 
@@ -124,6 +127,28 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                 },
             }
         }
+    }
+}
+
+/// Wrap a [`Future`] with an optional timeout.
+///
+/// If `timeout` is `Some`, returns a [`Timeout`](tor_rtcompat::Timeout)
+/// that resolves to the value of `future` if the future completes within `timeout`,
+/// or a [`TimeoutError`] if it does not.
+/// If `timeout` is `None`, returns a new future which maps the specified `future`'s
+/// output type to a `Result::Ok`.
+fn optionally_timeout<'f, R, F>(
+    runtime: &R,
+    future: F,
+    timeout: Option<Duration>,
+) -> Pin<Box<dyn FusedFuture<Output = Result<F::Output, TimeoutError>> + Send + 'f>>
+where
+    R: Runtime,
+    F: Future + Send + 'f,
+{
+    match timeout {
+        Some(timeout) => Box::pin(runtime.timeout(timeout, future).fuse()),
+        None => Box::pin(future.map(Ok)),
     }
 }
 
