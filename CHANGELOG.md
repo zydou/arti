@@ -3,6 +3,230 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.1 — 2 April 2024
+
+Arti 1.2.1 continues development on onion services,
+and adds several important security features.
+More such improvements are on the way.
+See [`doc/OnionService.md`] for instructions and caveats about running
+onion services with Arti today.
+
+This release also adds support for
+[unmanaged pluggable transports][#755],
+and begins work to improve Tor's relay cell protocol
+with support for [packed and fragmented messages][prop340].
+
+### New versioning policy
+
+Starting with this version,
+we are no longer independently tracking
+breaking and non-breaking version changes
+for the `arti-client` crate and each of the `tor-*` crates below it.
+Instead, we will _assume_
+that every release of these crates breaks API compatibility
+with the one before, and update our semantic versioning accordingly.
+(We will continue not to make gratuitous API compatiblity breaks
+on purpose.)
+
+Previously, our efforts to track
+which changes in these crates were breaking
+and which were not
+created a great deal of overhead in our development process,
+and tended to be somewhat error-prone.
+
+This change affects developers only; users should not be affected.
+This does not affect crates already at version `1.x` or higher,
+or published utility crates whose names don't start with `tor-` or `arti-`.
+
+See [`doc/Semver.md`] for more information on this policy.
+([#1005], [!2051])
+
+### Breaking changes in lower-level crates
+
+- Refactored `tor-config` to hide implementation details.
+  This will eventually allow us to migrate from `config-rs`
+  to a configuration provider with better error handling.
+  ([!2040])
+- Renamed several types in `tor-ptmgr`
+  to reflect new support for unmanaged pluggable transports.
+  ([d63d966d79f0f988])
+- The `tor_circmgr::path` module is now crate-private.
+  ([4c1eb94173521bc5])
+- The [`Runtime`] trait now includes functionality for "coarse" time,
+  backed (by default) by the [`coarsetime`] crate.
+  We use these timestamps in cases
+  where we need fast time checking more than precision.
+  Putting them into `Runtime` lets us replace them with mock functions
+  for testing purposes.
+  ([!2050], [!2052])
+- The `tor-cell` relay cell API is significantly revised.
+  ([!2034], [!2045], [prop340])
+- The `allow_stream_requests()` method in `tor-proto`
+  now takes an extra argument.
+  ([!2047])
+
+### Onion service development
+
+- Reorganize onion service code,
+  to remove an unnecessary (and inconsistently used) internal module,
+  to simplify needless imports,
+  and to generally tidy up the implementation.
+  ([#1212], [!2020])
+- Avoid using `futures::oneshot`:
+  our own `tor_basic_utils::oneshot` is safer to use
+  when `select!` may be involved.
+  ([95ed432c13c2c4b2])
+- Design work for out-of-memory handling,
+  which is necessary for onion service security.
+  ([!1997])
+- Onion services have now support a `max_concurrent_streams_per_circuit` option.
+  ([#1124], [!2047])
+- Initial implementation work
+  for onion service [vanguards],
+  which are needed to improve onion service security.
+  This is not yet complete.
+  ([#1272], [#1275], [#1276], [#1277], [#1340],
+  [!2035], [!2038], [!2046], [!2049], [!2053])
+
+### Other major features
+
+- New relay cell decoding API, in order to eventually handle
+  packed and fragmented messages.
+  ([!2034], [!2045], [prop340])
+- We now support unmanaged pluggable transports.
+  Previously, Arti only supported _managed_ pluggable transports:
+  that is, ones that it launched itself.
+  Now you can configure Arti to use a pluggable transport
+  running at a known SOCKS port.
+  ([#755], [!2043])
+
+### Documentation and examples
+
+- Improve windows documentation in `fslock-guard` and `test-temp-dir`.
+  ([!2011])
+- More documentation for our internal build and release tools.
+  ([!2028])
+- Fixed broken links in the documentation for `NetParameters`.
+  ([!2054])
+- Fixed the disclaimer about onion services in our configuration file.
+  ([!2055])
+
+### Testing
+
+- More unit tests in `fslock-guard`.
+  ([!2013])
+- More tests for `arti_client::address`.
+  ([!2029])
+
+### Cleanups, minor features, and bugfixes
+
+- We've fixed a bug in our arguments parser
+  that previously caused `arti` to panic when run without arguments.
+  ([#1311], [!2021])
+- The `tor-checkable` module now uses checked time arithmetic,
+  to avoid overflows or panics when extending tolerances.
+  ([!2031])
+- We now enforce Clippy's [`unchecked_duration_subtraction`] lint by default.
+  ([#1304], [!2008])
+- Refactor configuration watcher to receive a `Runtime`.
+  Previously it took an entire `TorClient`, unnecessarily.
+  ([!2017])
+- We now ban `std::Path::display`,
+  since it is lossy in an easy-to-overlook way.
+  We've given it a `PathExt::display_lossy` implementation
+  to be used instead.
+  ([!2027])
+- The `tor-bytes` module now behaves more sensibly
+  (typically panicking)
+  if someone tries to use `write_zeros` to extend a buffer beyond `usize::MAX`.
+  Previously it might truncate its buffer.
+  ([!2033])
+- Refactoring and improvements on the `BackoffSchedule` logic.
+  ([#1259], [!2024])
+- Moved logic for picking relays into a new `tor-relay-selection` crate,
+  to avoid duplicated code
+  and the risk of missing necessary checks when picking or examining relays.
+  ([#504], [#789], [!2002])
+- Clarify implementation of onion service timeout calculation logic,
+  to avoid possible confusion about the `hs_hops` variable.
+  ([#1332], [!2044])
+- Simplified logic and API for creating relay encryption layers.
+  ([!2048])
+- Various typo fixes in comments and messages. ([!2030], [!2032], [!2036])
+
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Brady Fomegne, Dimitris Apostolou, Jim Newsome,
+Neel Chauhan, Tobias Stoeckmann, and trinity-1686a.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+[!1997]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1997
+[!2002]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2002
+[!2008]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2008
+[!2011]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2011
+[!2013]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2013
+[!2017]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2017
+[!2020]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2020
+[!2021]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2021
+[!2024]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2024
+[!2027]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2027
+[!2028]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2028
+[!2029]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2029
+[!2030]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2030
+[!2031]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2031
+[!2032]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2032
+[!2033]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2033
+[!2034]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2034
+[!2035]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2035
+[!2036]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2036
+[!2038]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2038
+[!2040]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2040
+[!2043]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2043
+[!2044]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2044
+[!2045]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2045
+[!2046]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2046
+[!2047]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2047
+[!2048]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2048
+[!2049]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2049
+[!2050]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2050
+[!2051]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2051
+[!2051]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2052
+[!2053]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2053
+[!2054]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2054
+[!2055]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2055
+[#504]: https://gitlab.torproject.org/tpo/core/arti/-/issues/504
+[#755]: https://gitlab.torproject.org/tpo/core/arti/-/issues/755
+[#789]: https://gitlab.torproject.org/tpo/core/arti/-/issues/789
+[#1005]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1005
+[#1124]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1124
+[#1212]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1212
+[#1259]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1259
+[#1272]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1272
+[#1275]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1275
+[#1276]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1276
+[#1277]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1277
+[#1304]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1304
+[#1311]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1311
+[#1332]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1332
+[#1340]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1340
+[4c1eb94173521bc5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/4c1eb94173521bc5104449327650e20ffe32afa7
+[95ed432c13c2c4b2]: https://gitlab.torproject.org/tpo/core/arti/-/commit/95ed432c13c2c4b2d287f7a7a040576627687dbf
+[d63d966d79f0f988]: https://gitlab.torproject.org/tpo/core/arti/-/commit/d63d966d79f0f988522c76c729a5189d16275b27
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`Runtime`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.Runtime.html
+[`coarsetime`]: https://docs.rs/coarsetime/latest/coarsetime/
+[`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md
+[`doc/Semver.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/Semver.md
+[`unchecked_duration_subtraction`]: https://rust-lang.github.io/rust-clippy/master/index.html#/unchecked_duration_subtraction
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[prop340]: https://spec.torproject.org/proposals/340-packed-and-fragmented.html
+[vanguards]: https://github.com/mikeperry-tor/vanguards/blob/master/README_TECHNICAL.md
+
+
+
 # Arti 1.2.0 — 4 March 2024
 
 Arti 1.2.0 continues work on support for running onion services.
