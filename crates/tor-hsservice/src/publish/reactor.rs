@@ -1507,17 +1507,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             imm.runtime.clone(),
         );
 
-        let fallible_op = || async {
-            imm.runtime
-                .timeout(
-                    schedule
-                        .single_attempt_timeout()
-                        .ok_or_else(|| internal!("single_attempt_timeout missing"))?,
-                    Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm)),
-                )
-                .await
-                .map_err(|_t: tor_rtcompat::TimeoutError| UploadError::Timeout)?
-        };
+        let fallible_op =
+            || Self::upload_descriptor(hsdesc.clone(), netdir, hsdir, Arc::clone(&imm));
 
         let outcome: Result<(), BackoffError<UploadError>> = runner.run(fallible_op).await;
         match outcome {

@@ -6,6 +6,12 @@
 // TODO: this is a (somewhat) general-purpose utility, so it should probably be factored out of
 // tor-hsservice
 
+use std::pin::Pin;
+
+use futures::future::FusedFuture;
+
+use tor_rtcompat::TimeoutError;
+
 use super::*;
 
 /// A runner for a fallible operation, which retries on failure according to a [`BackoffSchedule`].
@@ -39,7 +45,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
     ) -> Result<T, BackoffError<E>>
     where
         E: RetriableError,
-        F: Future<Output = Result<T, E>>,
+        F: Future<Output = Result<T, E>> + Send,
     {
         let mut retry_count = 0;
         let mut errors = RetryError::in_attempt_to(self.doing.clone());
@@ -47,7 +53,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
         // When this timeout elapses, the `Runner` will stop retrying the fallible operation.
         //
         // A `overall_timeout` of `None` means there is no time limit for the retries.
-        let mut timeout = match self.schedule.overall_timeout() {
+        let mut overall_timeout = match self.schedule.overall_timeout() {
             Some(timeout) => Either::Left(Box::pin(self.runtime.sleep(timeout))),
             None => Either::Right(future::pending()),
         }
@@ -60,18 +66,32 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                 return Err(BackoffError::MaxRetryCountExceeded(errors));
             }
 
+            let mut fallible_op = optionally_timeout(
+                &self.runtime,
+                fallible_fn(),
+                self.schedule.single_attempt_timeout(),
+            );
+
             trace!(attempt = (retry_count + 1), "{}", self.doing);
 
             select_biased! {
-                res = timeout => {
+                res = overall_timeout => {
                     // The timeout has elapsed, so stop retrying and return the errors
                     // accumulated so far.
                     return Err(BackoffError::Timeout(errors))
                 }
-                res = fallible_fn().fuse() => {
-                    match res {
-                        Ok(res) => return Ok(res),
-                        Err(e) => {
+                res = fallible_op => {
+                    // TODO: the error branches in the match below have different error types,
+                    // so we must compute should_retry and delay separately, on each branch.
+                    //
+                    // We could refactor this to extract the error using
+                    // let err = match res { ... } and call err.should_retry()
+                    // and next_delay() after the match, but this will involve
+                    // rethinking the BackoffSchedule trait and/or RetriableError
+                    // (currently RetriableError is Clone, so it's not object safe).
+                    let (should_retry, delay) = match res {
+                        Ok(Ok(res)) => return Ok(res),
+                        Ok(Err(e)) => {
                             // The operation failed: check if we can retry it.
                             let should_retry = e.should_retry();
 
@@ -81,27 +101,54 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
                             );
 
                             errors.push(e.clone());
-
-                            if should_retry {
-                                retry_count += 1;
-
-                                let Some(delay) = self.schedule.next_delay(&e) else {
-                                    return Err(BackoffError::ExplicitStop(errors));
-                                };
-
-                                // Introduce the specified delay between retries
-                                let () = self.runtime.sleep(delay).await;
-
-                                // Try again unless the entire operation has timed out.
-                                continue;
-                            }
-
-                            return Err(BackoffError::FatalError(errors));
+                            (e.should_retry(), self.schedule.next_delay(&e))
                         }
+                        Err(e) => {
+                            trace!("fallible operation timed out; retrying");
+                            (e.should_retry(), self.schedule.next_delay(&e))
+                        },
+                    };
+
+                    if should_retry {
+                        retry_count += 1;
+
+                        let Some(delay) = delay else {
+                            return Err(BackoffError::ExplicitStop(errors));
+                        };
+
+                        // Introduce the specified delay between retries
+                        let () = self.runtime.sleep(delay).await;
+
+                        // Try again unless the entire operation has timed out.
+                        continue;
                     }
+
+                    return Err(BackoffError::FatalError(errors));
                 },
             }
         }
+    }
+}
+
+/// Wrap a [`Future`] with an optional timeout.
+///
+/// If `timeout` is `Some`, returns a [`Timeout`](tor_rtcompat::Timeout)
+/// that resolves to the value of `future` if the future completes within `timeout`,
+/// or a [`TimeoutError`] if it does not.
+/// If `timeout` is `None`, returns a new future which maps the specified `future`'s
+/// output type to a `Result::Ok`.
+fn optionally_timeout<'f, R, F>(
+    runtime: &R,
+    future: F,
+    timeout: Option<Duration>,
+) -> Pin<Box<dyn FusedFuture<Output = Result<F::Output, TimeoutError>> + Send + 'f>>
+where
+    R: Runtime,
+    F: Future + Send + 'f,
+{
+    match timeout {
+        Some(timeout) => Box::pin(runtime.timeout(timeout, future).fuse()),
+        None => Box::pin(future.map(Ok)),
     }
 }
 
@@ -171,6 +218,12 @@ pub(super) trait RetriableError: StdError + Clone {
     fn should_retry(&self) -> bool;
 }
 
+impl RetriableError for TimeoutError {
+    fn should_retry(&self) -> bool {
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -199,6 +252,7 @@ mod tests {
 
     const SHORT_DELAY: Duration = Duration::from_millis(10);
     const TIMEOUT: Duration = Duration::from_millis(100);
+    const SINGLE_TIMEOUT: Duration = Duration::from_millis(50);
     const MAX_RETRIES: usize = 5;
 
     macro_rules! impl_backoff_sched {
@@ -244,6 +298,16 @@ mod tests {
         Some(SHORT_DELAY)
     );
 
+    struct BackoffWithSingleTimeout;
+
+    impl_backoff_sched!(
+        BackoffWithSingleTimeout,
+        Some(MAX_RETRIES),
+        None,
+        Some(SINGLE_TIMEOUT),
+        Some(SHORT_DELAY)
+    );
+
     /// A potentially retriable error.
     #[derive(Debug, Copy, Clone, thiserror::Error)]
     enum TestError {
@@ -266,6 +330,7 @@ mod tests {
 
     /// Run a single [`Runner`] test.
     fn run_test<E: RetriableError + Send + Sync + 'static>(
+        sleep_for: Option<Duration>,
         schedule: impl BackoffSchedule + Send + 'static,
         errors: impl Iterator<Item = E> + Send + Sync + 'static,
         expected_run_count: usize,
@@ -290,10 +355,16 @@ mod tests {
                 .spawn_identified(format!("retry runner task: {description}"), {
                     let retry_count = Arc::clone(&retry_count);
                     let errors = Arc::new(RwLock::new(errors));
+                    let runtime = runtime.clone();
                     async move {
                         if let Ok(()) = runner
                             .run(|| async {
                                 *retry_count.write().unwrap() += 1;
+
+                                if let Some(dur) = sleep_for {
+                                    runtime.sleep(dur).await;
+                                }
+
                                 Err::<(), _>(errors.write().unwrap().next().unwrap())
                             })
                             .await
@@ -309,6 +380,14 @@ mod tests {
             // upper limit for the number of retries, it's impossible to tell exactly how many
             // times the operation will be retried)
             for i in 1..=expected_run_count {
+                runtime.mock_task().progress_until_stalled().await;
+                // If our fallible_op is sleeping, advance the time until after it times out or
+                // finishes sleeping.
+                if let Some(sleep_for) = sleep_for {
+                    runtime
+                        .mock_sleep()
+                        .advance(std::cmp::min(SINGLE_TIMEOUT, sleep_for));
+                }
                 runtime.mock_task().progress_until_stalled().await;
                 runtime.mock_sleep().advance(SHORT_DELAY);
                 assert_eq!(*retry_count.read().unwrap(), i);
@@ -332,6 +411,7 @@ mod tests {
     #[test]
     fn max_retries() {
         run_test(
+            None,
             BackoffWithMaxRetries,
             iter::repeat(TestError::Transient),
             MAX_RETRIES,
@@ -352,6 +432,7 @@ mod tests {
         const EXPECTED_TOTAL_RUNS: usize = RETRIES_UNTIL_FATAL + 1;
 
         run_test(
+            None,
             BackoffWithMaxRetries,
             iter::repeat(Transient)
                 .take(RETRIES_UNTIL_FATAL)
@@ -370,11 +451,34 @@ mod tests {
         let expected_run_count = TIMEOUT.as_millis() / SHORT_DELAY.as_millis();
 
         run_test(
+            None,
             BackoffWithTimeout,
             iter::repeat(Transient),
             expected_run_count as usize,
             "backoff with timeout and no max_retries (transient errors)",
             TIMEOUT,
+        );
+    }
+
+    #[test]
+    fn single_timeout() {
+        use TestError::*;
+
+        // Each attempt will time out after SINGLE_TIMEOUT time units,
+        // and the backoff runner sleeps for SLEEP_DELAY units in between retries
+        let expected_duration = Duration::from_millis(
+            (SHORT_DELAY.as_millis() + SINGLE_TIMEOUT.as_millis()) as u64 * MAX_RETRIES as u64,
+        );
+
+        run_test(
+            // Sleep for more than SINGLE_TIMEOUT units
+            // to trigger the single_attempt_timeout() timeout
+            Some(SINGLE_TIMEOUT * 2),
+            BackoffWithSingleTimeout,
+            iter::repeat(Transient),
+            MAX_RETRIES,
+            "backoff with single timeout and max_retries and no overall timeout",
+            expected_duration,
         );
     }
 
