@@ -48,7 +48,7 @@ pub struct CountedHashMap<K, V, P> {
     /// The number of elements in `map` for which `P::check` is true
     count: usize,
     /// Marker to declare that `P` is used.
-    _phantom: PhantomData<P>,
+    _phantom: PhantomData<fn(P) -> P>,
 }
 
 // We can't derive Default, since it would put a Default bound on K/V/P.
@@ -247,7 +247,7 @@ pub struct VacantEntry<'a, K, V, P> {
     /// A mutable reference to the map's count field.
     count_ref: &'a mut usize,
     /// Marker to declare that `P` is used.
-    phantom: PhantomData<P>,
+    phantom: PhantomData<fn(P) -> P>,
 }
 
 /// An occupied location in a map associated with a given key.
@@ -261,7 +261,7 @@ pub struct OccupiedEntry<'a, K, V, P> {
     /// A mutable reference to the map's count field.
     count_ref: &'a mut usize,
     /// Marker to declare that `P` is used.
-    phantom: PhantomData<P>,
+    phantom: PhantomData<fn(P) -> P>,
 }
 
 impl<'a, K, V, P> OccupiedEntry<'a, K, V, P>
@@ -337,7 +337,7 @@ where
     /// A mutable reference to the map's count field.
     count_ref: &'a mut usize,
     /// Marker to declare that `P` is used.
-    phantom: PhantomData<P>,
+    phantom: PhantomData<fn(P) -> P>,
 }
 
 impl<'a, V, P> Deref for MutRef<'a, V, P>
