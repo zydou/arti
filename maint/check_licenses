@@ -38,7 +38,6 @@ NO_LICENSE=(
     ring
     # License appears to be ISC.
     webpki
-    rustls-webpki
     # The unicode folks have their own license now that is no longer
     # "Unicode-DFS-2016" and which might not even have a SPDX
     # entry. But it still seems to be a permissive DFSG-compliant
@@ -55,7 +54,6 @@ NO_LICENSE=(
 #
 # (See https://gitlab.torproject.org/tpo/core/arti/-/issues/845)
 MPL_20_OK=(
-    # This one is pending: See https://github.com/soc/option-ext/pull/4
     option-ext
     generational-arena
     dynasm
