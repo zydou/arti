@@ -27,7 +27,7 @@ full = [
 
 [dependencies]
 anyhow = "1.0.23"
-arti = { package = "arti", path = "../arti", version = "1.2.0" }
+arti = { package = "arti", path = "../arti", version = "1.2.1" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.17.0", features = ["dirfilter"] }
 async-trait = "0.1.54"
 cfg-if = "1.0.0"
