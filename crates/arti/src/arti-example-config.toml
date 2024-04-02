@@ -179,31 +179,31 @@
 #
 #bridges = []
 
-# An example pluggable transport binary.
-# [[bridges.transports]]
+# An example managed pluggable transport binary.
+#    [[bridges.transports]]
 
 # Which pluggable transports does this binary provide?
-# protocols = ["obfs4", "obfs5"]
+#    protocols = ["obfs4", "obfs5"]
 
 # Path to the binary to be run.
-# path = "/usr/bin/obfsproxy"
+#    path = "/usr/bin/obfsproxy"
 
 # Any command-line arguments to pass to the binary (empty if not specified).
-# arguments = ["-obfs4", "-obfs5"]
+#    arguments = ["-obfs4", "-obfs5"]
 
 # Should we run this binary on startup? If false or unspecified, the binary will be
 # launched when we first attempt to use any of the transports it provides instead.
-# run_on_startup = true
+#    run_on_startup = true
 
 # An example unmanaged pluggable transport.
-# [[bridges.transports]]
+#    [[bridges.transports]]
 #
 # Which protocols does this transport provide?
-# protocols = ["obfs4"]
+#    protocols = ["obfs4"]
 #
 # Where can we contact this transport?
 # (This should be a local SOCKS5 proxy address.)
-# proxy_addr = "127.0.0.1:31337"
+#    proxy_addr = "127.0.0.1:31337"
 
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.

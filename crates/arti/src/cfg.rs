@@ -1077,6 +1077,52 @@ example config file {which:?}, uncommented={uncommented:?}
     }
 
     #[test]
+    fn transports() {
+        // Extract and uncomment our transports lines.
+        //
+        // (They're everything from  `# An example managed pluggable transport`
+        // through the start of the next
+        // section.  They start with "#    ".)
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        file.narrow(
+            (r"^# An example managed pluggable transport", true),
+            (r"^\[", false),
+        );
+        file.lines.retain(|line| line.starts_with("#    "));
+        file.strip_prefix("#    ");
+
+        let result = file.resolve::<(TorClientConfig, ArtiConfig)>();
+        #[cfg(feature = "pt-client")]
+        {
+            use arti_client::config::{pt::TransportConfig, BridgesConfig};
+            use tor_config::CfgPath;
+
+            let cfg_got = result.unwrap();
+            let bridges_got: &BridgesConfig = cfg_got.0.as_ref();
+
+            // Build the expected configuration.
+            let mut bld = BridgesConfig::builder();
+            {
+                let mut b = TransportConfig::builder();
+                b.protocols(vec!["obfs4".parse().unwrap(), "obfs5".parse().unwrap()]);
+                b.path(CfgPath::new("/usr/bin/obfsproxy".to_string()));
+                b.arguments(vec!["-obfs4".to_string(), "-obfs5".to_string()]);
+                b.run_on_startup(true);
+                bld.transports().push(b);
+            }
+            {
+                let mut b = TransportConfig::builder();
+                b.protocols(vec!["obfs4".parse().unwrap()]);
+                b.proxy_addr("127.0.0.1:31337".parse().unwrap());
+                bld.transports().push(b);
+            }
+
+            let bridges_expected = bld.build().unwrap();
+            assert_eq!(&bridges_expected, bridges_got);
+        }
+    }
+
+    #[test]
     fn onion_services() {
         // Here we require that the onion services configuration is between a
         // line labeled with "#     [onion_service" a line that looks like a

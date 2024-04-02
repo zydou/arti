@@ -704,6 +704,11 @@ impl AsRef<[BridgeConfig]> for TorClientConfig {
         }
     }
 }
+impl AsRef<BridgesConfig> for TorClientConfig {
+    fn as_ref(&self) -> &BridgesConfig {
+        &self.bridges
+    }
+}
 impl tor_guardmgr::GuardMgrConfig for TorClientConfig {
     fn bridges_enabled(&self) -> bool {
         self.bridges.bridges_enabled()
