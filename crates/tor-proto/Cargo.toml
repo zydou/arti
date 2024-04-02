@@ -68,7 +68,7 @@ hmac = "0.12.0"
 pin-project = "1"
 rand = "0.8"
 rand_core = "0.6.2"
-safelog = { path = "../safelog", version = "0.3.2" }
+safelog = { path = "../safelog", version = "0.3.6" }
 subtle = "2"
 thiserror = "1"
 tokio-crate = { package = "tokio", version = "1.7", optional = true }

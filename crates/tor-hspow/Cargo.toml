@@ -21,7 +21,7 @@ full = ["tor-hscrypto/full", "equix/full"]
 arrayvec = "0.7.4"
 blake2 = "0.10.6"
 derive_more = "0.99.3"
-equix = { path = "../equix", version = "0.1.2" }
+equix = { path = "../equix", version = "0.1.3" }
 rand = "0.8.5"
 thiserror = "1"
 tor-hscrypto = { version = "0.6.0", path = "../tor-hscrypto" }

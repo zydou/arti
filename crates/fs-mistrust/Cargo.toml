@@ -1,6 +1,6 @@
 [package]
 name = "fs-mistrust"
-version = "0.7.8"
+version = "0.7.9"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"

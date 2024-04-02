@@ -73,8 +73,8 @@ itertools = "0.12.0"
 once_cell = "1"
 pin-project = "1"
 rand = "0.8"
-retry-error = { path = "../retry-error", version = "0.5.0" }
-safelog = { path = "../safelog", version = "0.3.2" }
+retry-error = { path = "../retry-error", version = "0.5.2" }
+safelog = { path = "../safelog", version = "0.3.6" }
 serde = { version = "1.0.103", features = ["derive"] }
 static_assertions = "1"
 thiserror = "1"

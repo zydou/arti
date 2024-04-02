@@ -1,6 +1,6 @@
 [package]
 name = "equix"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["The Tor Project, Inc.", "Micah Elizabeth Scott <beth@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -27,7 +27,7 @@ compiler = ["hashx/compiler"]
 
 [dependencies]
 arrayvec = "0.7.4"
-hashx = { path = "../hashx", version = "0.1.2", default-features = false }
+hashx = { path = "../hashx", version = "0.1.3", default-features = false }
 num-traits = "0.2.15"
 thiserror = "1.0.40"
 visibility = "0.1.0"

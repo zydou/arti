@@ -45,8 +45,8 @@ itertools = "0.12.0"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 rand_core = "0.6.2"
-retry-error = { path = "../retry-error", version = "0.5.0" }
-safelog = { path = "../safelog", version = "0.3.2" }
+retry-error = { path = "../retry-error", version = "0.5.2" }
+safelog = { path = "../safelog", version = "0.3.6" }
 slotmap = "1.0.6"
 strum = { version = "0.26", features = ["derive"] }
 thiserror = "1"
