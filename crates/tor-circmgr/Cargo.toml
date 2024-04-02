@@ -25,7 +25,6 @@ full = [
     "tor-config/full",
     "tor-error/full",
     "tor-guardmgr/full",
-    "tor-hscrypto?/full",
     "tor-linkspec/full",
     "tor-netdir/full",
     "tor-netdoc/full",
@@ -54,7 +53,7 @@ experimental-api = ["visibility", "__is_experimental"]
 ntor_v3 = ["tor-proto/ntor_v3", "__is_experimental"]
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
-hs-common = ["tor-hscrypto"]
+hs-common = []
 __is_experimental = []
 
 [dependencies]
@@ -85,7 +84,6 @@ tor-config = { path = "../tor-config", version = "0.17.0" }
 tor-error = { path = "../tor-error", version = "0.17.0", features = ["tracing"] }
 tor-geoip = { path = "../tor-geoip", version = "0.17.0", optional = true }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.17.0" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.17.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.17.0" }
 tor-netdir = { path = "../tor-netdir", version = "0.17.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.17.0" }

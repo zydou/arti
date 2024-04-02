@@ -32,9 +32,7 @@ full = [
     "safelog/full",
     "tor-async-utils/full",
     "tor-basic-utils/full",
-    "tor-cell/full",
     "tor-chanmgr/full",
-    "tor-checkable/full",
     "tor-circmgr/full",
     "tor-config/full",
     "tor-error/full",
@@ -92,8 +90,6 @@ experimental = [
     "rpc",
     "vanguards",
     "tor-proto/experimental",
-    "tor-cell/experimental",
-    "tor-checkable/experimental",
     "tor-netdoc/experimental",
     "tor-dirmgr/experimental",
     "tor-circmgr/experimental",
@@ -118,23 +114,19 @@ anyhow = { version = "1.0.23", optional = true }
 cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
-directories = "5"
 educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde"] }
 futures = "0.3.14"
 hostname-validator = "1.1.1"
 humantime-serde = "1.1.1"
 libc = "0.2"
-pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 safelog = { path = "../safelog", version = "0.3.6" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.17.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.17.0" }
-tor-cell = { path = "../tor-cell", version = "0.17.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.17.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.17.0" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.17.0" }
 tor-config = { path = "../tor-config", version = "0.17.0" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.17.0", default-features = false, features = ["mmap"] }
@@ -160,7 +152,6 @@ void = "1"
 [dev-dependencies]
 anyhow = "1.0.23"
 once_cell = "1.9"
-pin-project = "1"
 strum = { version = "0.26", features = ["derive"] }
 tempfile = "3.3"
 tokio-crate = { package = "tokio", version = "1.7", features = [
@@ -171,7 +162,6 @@ tokio-crate = { package = "tokio", version = "1.7", features = [
     "time",
     "macros",
 ] }
-tokio-util = { version = "0.7.0", features = ["compat"] }
 toml = "0.8.8"
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.17.0", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.0"
