@@ -155,7 +155,7 @@ use itertools::chain;
 
 use tor_rtcompat::{SleepProvider, SleepProviderExt as _};
 
-//========== derive-adhoc macros, which must come first ==========
+//========== derive-deftly macros, which must come first ==========
 
 define_derive_deftly! {
     /// Defines methods and types which are common to trackers for `Instant` and `SystemTime`
@@ -568,7 +568,7 @@ impl<'i> TrackingInstantOffsetNow<'i> {
 }
 define_PartialOrd_via_cmp! { TrackingInstantOffsetNow<'_>, Instant, }
 
-// Combined TrackingNow cmp and PartialOrd impls done via derive-adhoc
+// Combined TrackingNow cmp and PartialOrd impls done via derive-deftly
 
 //----- checked_sub (constructor for Instant offset tracker) -----
 

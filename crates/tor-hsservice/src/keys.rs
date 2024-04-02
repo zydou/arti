@@ -14,7 +14,7 @@ use crate::internal_prelude::*;
 /// Keys that are used by publisher, which relate to our HS and a TP
 ///
 /// Derived using
-/// the derive-adhoc macro of the same name.
+/// the derive-deftly macro of the same name.
 // We'd like to link to crate::derive_deftly_template_HsTimePeriodKeySpecifier
 // but linking to a module-local macro doesn't work with rustdoc.
 trait HsTimePeriodKeySpecifier: Debug {

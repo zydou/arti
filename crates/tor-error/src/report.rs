@@ -100,7 +100,7 @@ impl ErrorReport for dyn StdError + Send + Sync {
 #[macro_export]
 macro_rules! define_asref_dyn_std_error { { $ty:ty } => {
 // TODO: It would nice if this could be generated more automatically;
-// TODO wouldn't it be nice if this was a `derive` (eg using derive-adhoc)
+// TODO wouldn't it be nice if this was a `derive` (eg using derive-deftly)
     impl AsRef<dyn std::error::Error + 'static> for $ty {
         fn as_ref(&self) -> &(dyn std::error::Error + 'static) {
             self as _

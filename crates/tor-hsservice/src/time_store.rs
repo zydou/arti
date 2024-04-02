@@ -90,7 +90,7 @@ use tracing::warn;
 
 use tor_rtcompat::SleepProvider;
 
-//---------- derive-adhoc macro for raw accessors, must come first ----------
+//---------- derive-deftly macro for raw accessors, must come first ----------
 
 define_derive_deftly! {
     /// Define `as_raw` and `from_raw` methods (for a struct with a single field)

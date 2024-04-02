@@ -100,9 +100,9 @@ define_derive_deftly! {
     //
     // Note re semver:
     //
-    // We re-export derive-adhoc's template engine, in the manner discussed by the d-a docs.
+    // We re-export derive-deftly's template engine, in the manner discussed by the d-a docs.
     // See
-    //  https://docs.rs/derive-adhoc/latest/derive_adhoc/macro.define_derive_deftly.html#exporting-a-template-for-use-by-other-crates
+    //  https://docs.rs/derive-deftly/latest/derive_deftly/macro.define_derive_deftly.html#exporting-a-template-for-use-by-other-crates
     //
     // The semantic behaviour of the template *does* have semver implications.
     pub Flattenable for struct, expect items =
@@ -182,7 +182,7 @@ define_derive_deftly! {
 /// ```
 //
 // We derive Deftly on Flatten itself so we can use
-// truly-adhoc derive_deftly_adhoc! to iterate over Flatten's two fields.
+// derive_deftly_adhoc! to iterate over Flatten's two fields.
 // This avoids us accidentally (for example) checking T's fields for passing to U.
 #[derive(Deftly, Debug, Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq, Default)]
 #[derive_deftly_adhoc]
@@ -192,7 +192,7 @@ pub struct Flatten<T, U>(pub T, pub U);
 /// Types that can be used with [`Flatten`]
 ///
 /// Usually, derived with
-/// the [`Flattenable derive-adhoc macro`](derive_deftly_template_Flattenable).
+/// the [`Flattenable derive-deftly macro`](derive_deftly_template_Flattenable).
 pub trait Flattenable {
     /// Does this type have a field named `s` ?
     fn has_field(f: &str) -> bool;
