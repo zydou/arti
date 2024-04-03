@@ -5567,6 +5567,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-memtrack"
+version = "0.17.0"
+dependencies = [
+ "futures",
+ "tor-rtcompat",
+]
+
+[[package]]
 name = "tor-netdir"
 version = "0.17.0"
 dependencies = [

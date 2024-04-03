@@ -1,0 +1,22 @@
+[package]
+name = "tor-memtrack"
+version = "0.17.0"
+authors = ["The Tor Project, Inc.", "Ian Jackson <iwj@torproject.org>"]
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Memory use tracking utilities, used by Tor software"
+keywords = ["tor", "arti"]
+# We must put *something* here and this will do
+categories = ["rust-patterns"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+futures = "0.3.14"
+tor-rtcompat = { version = "0.17.0", path = "../tor-rtcompat" }
+
+[dev-dependencies]
+
+[features]
+full = []
