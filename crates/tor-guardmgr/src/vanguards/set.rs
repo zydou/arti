@@ -2,6 +2,7 @@
 
 use std::time::SystemTime;
 
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 use tor_linkspec::RelayIds;
@@ -50,8 +51,9 @@ impl VanguardSet {
     ///
     /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
     /// for more information.
-    pub(super) fn pick_relay<'a>(
+    pub(super) fn pick_relay<'a, R: RngCore>(
         &self,
+        _rng: &mut R,
         _netdir: &'a NetDir,
         _neighbor_exclusion: &RelayExclusion<'a>,
     ) -> Option<Vanguard<'a>> {

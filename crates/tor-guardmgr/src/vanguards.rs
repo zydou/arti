@@ -9,6 +9,7 @@ mod set;
 
 use std::sync::{Arc, RwLock};
 
+use rand::RngCore;
 use tor_config::ReconfigureError;
 use tor_error::{internal, ErrorKind, HasKind};
 use tor_netdir::{NetDir, NetDirProvider};
@@ -139,8 +140,9 @@ impl<R: Runtime> VanguardMgr<R> {
     ///
     ///  If the path only contains the L1 guard (`G`), then the `RelayExclusion` should only
     ///  exclude `G`.
-    pub fn select_vanguard<'a>(
+    pub fn select_vanguard<'a, Rng: RngCore>(
         &self,
+        rng: &mut Rng,
         netdir: &'a NetDir,
         layer: Layer,
         neighbor_exclusion: &RelayExclusion<'a>,
@@ -163,7 +165,7 @@ impl<R: Runtime> VanguardMgr<R> {
         };
 
         vanguard_set
-            .pick_relay(netdir, neighbor_exclusion)
+            .pick_relay(rng, netdir, neighbor_exclusion)
             .ok_or(VanguardMgrError::NoSuitableRelay(layer))
     }
 
