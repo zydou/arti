@@ -16,6 +16,7 @@ use futures::{future, FutureExt as _};
 use futures::{select_biased, StreamExt as _};
 use rand::RngCore;
 
+use tor_basic_utils::RngExt as _;
 use tor_config::ReconfigureError;
 use tor_error::{error_report, internal, ErrorKind, HasKind};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
@@ -345,6 +346,33 @@ impl<R: Runtime> VanguardMgr<R> {
             VanguardMode::Full => todo!(),
         }
     }
+}
+
+/// Randomly select the lifetime of a vanguard from the `max(X,X)` distribution,
+/// where `X` is a uniform random value between `min_lifetime` and `max_lifetime`.
+///
+/// This ensures we are biased towards longer lifetimes.
+///
+/// See
+/// <https://spec.torproject.org/vanguards-spec/vanguards-stats.html>
+//
+// TODO(#1352): we may not want the same bias for the L2 vanguards
+fn select_lifetime<Rng: RngCore>(
+    rng: &mut Rng,
+    min_lifetime: Duration,
+    max_lifetime: Duration,
+) -> Result<Duration, VanguardMgrError> {
+    let err = || internal!("invalid consensus: vanguard min_lifetime > max_lifetime");
+
+    let l1 = rng
+        .gen_range_checked(min_lifetime..=max_lifetime)
+        .ok_or_else(err)?;
+
+    let l2 = rng
+        .gen_range_checked(min_lifetime..=max_lifetime)
+        .ok_or_else(err)?;
+
+    Ok(std::cmp::max(l1, l2))
 }
 
 /// The vanguard layer.
