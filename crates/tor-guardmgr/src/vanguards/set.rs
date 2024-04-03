@@ -62,6 +62,9 @@ impl PartialEq for TimeBoundVanguard {
 impl Eq for TimeBoundVanguard {}
 
 /// A set of vanguards, for use in a particular [`Layer`](crate::vanguards::Layer).
+///
+/// This structure is just a view over the vanguards owned by VanguardMgr.
+/// It does **not** own the vanguards.
 #[derive(Debug, Clone)] //
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
@@ -110,6 +113,27 @@ impl VanguardSet {
         good_relays.choose(rng).map(|relay| Vanguard {
             relay: relay.clone(),
         })
+    }
+
+    /// The number of vanguards we're missing.
+    pub(super) fn deficit(&self) -> usize {
+        let good_vanguards = self
+            .vanguards
+            .iter()
+            .filter(|v| v.upgrade().is_some())
+            .count();
+        self.target.saturating_sub(good_vanguards)
+    }
+
+    /// Add a vanguard to this set.
+    pub(super) fn add_vanguard(&mut self, weak: Weak<TimeBoundVanguard>) {
+        self.vanguards.push(weak);
+    }
+
+    /// Update the target size of this set, discarding or requesting additional vanguards if needed.
+    pub(super) fn update_target(&mut self, target: usize) {
+        self.discard_expired();
+        self.target = target;
     }
 
     /// Discard any expired vanguards.

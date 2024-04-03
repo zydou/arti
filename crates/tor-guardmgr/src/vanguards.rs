@@ -18,12 +18,13 @@ use rand::RngCore;
 
 use tor_basic_utils::RngExt as _;
 use tor_config::ReconfigureError;
-use tor_error::{error_report, internal, ErrorKind, HasKind};
+use tor_error::{error_report, internal, into_internal, ErrorKind, HasKind};
+use tor_linkspec::{RelayIdSet, RelayIds};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_persist::StateMgr;
-use tor_relay_selection::RelayExclusion;
+use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
 use tor_rtcompat::Runtime;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::{RetireCircuits, VanguardMode};
 
@@ -66,6 +67,11 @@ struct Inner {
     /// Removing a vanguard from the heap causes it to expire and to be removed
     /// from its corresponding [`VanguardSet`].
     vanguards: BinaryHeap<Arc<TimeBoundVanguard>>,
+    /// The most up-to-date netdir we have.
+    ///
+    /// This starts out as `None` and is initialized and kept up to date
+    /// by the [`VanguardMgr::maintain_vanguard_sets`] task.
+    netdir: Option<Arc<NetDir>>,
 }
 
 /// Whether the [`VanguardMgr::maintain_vanguard_sets`] task
@@ -127,7 +133,8 @@ impl<R: Runtime> VanguardMgr<R> {
         S: StateMgr + Send + Sync + 'static,
     {
         let VanguardConfig { mode } = config;
-        // TODO HS-VANGUARDS: read the params from the consensus
+        // Note: we start out with default vanguard params, but we adjust them
+        // as soon as we obtain a NetDir (see Self::run_once()).
         let params = VanguardParams::default();
         let l2_vanguards = VanguardSet::new(params.l2_pool_size());
         let l3_vanguards = VanguardSet::new(params.l3_pool_size());
@@ -140,6 +147,7 @@ impl<R: Runtime> VanguardMgr<R> {
             l2_vanguards,
             l3_vanguards,
             vanguards,
+            netdir: None,
         };
 
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
@@ -214,6 +222,21 @@ impl<R: Runtime> VanguardMgr<R> {
         use VanguardMode::*;
 
         let mut inner = self.inner.write().expect("poisoned lock");
+
+        // TODO HS-VANGUARDS: code smell.
+        //
+        // If select_vanguards() is called before maintain_vanguard_sets() has obtained a netdir
+        // and populated the vanguard sets, this will return a NoSuitableRelay error (because all
+        // our vanguard sets are empty).
+        //
+        // However, in practice, I don't think this can ever happen, because we don't attempt to
+        // build paths until we're done bootstrapping.
+        //
+        // If it turns out this can actually happen in practice, we can work around it by calling
+        // inner.replenish_vanguards(&self.runtime, netdir)? here (using the netdir arg rather than
+        // the one we obtained ourselves), but at that point we might as well abolish the
+        // maintain_vanguard_sets task and do everything synchronously in this function...
+
         // TODO HS-VANGUARDS: come up with something with better UX
         let vanguard_set = match (layer, inner.mode) {
             (Layer::Layer2, Full) | (Layer::Layer2, Lite) => &mut inner.l2_vanguards,
@@ -280,13 +303,18 @@ impl<R: Runtime> VanguardMgr<R> {
             }
         };
 
-        // TODO HS-VANGUARDS: we might've just removed some vanguards, so we need to check if we
-        // need to replenish any of our vanguard sets
+        // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
+        mgr.inner
+            .write()
+            .expect("poisoned lock")
+            .try_replenish_vanguards(&mgr.runtime)?;
 
         select_biased! {
             event = netdir_events.next() => {
                 if let Some(DirEvent::NewConsensus) = event {
-                    mgr.remove_unlisted(&netdir_provider.netdir(Timeliness::Timely)?);
+                    let netdir = netdir_provider.netdir(Timeliness::Timely)?;
+                    mgr.inner.write().expect("poisoned lock")
+                        .handle_netdir_update(&mgr.runtime, &netdir)?;
                 }
 
                 Ok(ShutdownStatus::Continue)
@@ -326,12 +354,6 @@ impl<R: Runtime> VanguardMgr<R> {
         Ok(None)
     }
 
-    /// Remove the vanguards that are no longer listed in `netdir`
-    fn remove_unlisted(&self, netdir: &Arc<NetDir>) {
-        let mut inner = self.inner.write().expect("poisoned lock");
-        inner.vanguards.retain(|v| netdir.by_ids(&v.id).is_some());
-    }
-
     /// Get the current [`VanguardMode`].
     pub fn mode(&self) -> VanguardMode {
         self.inner.read().expect("poisoned lock").mode
@@ -345,6 +367,169 @@ impl<R: Runtime> VanguardMgr<R> {
             VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
             VanguardMode::Full => todo!(),
         }
+    }
+}
+
+impl Inner {
+    /// If we have a `NetDir`, replenish the vanguard sets if needed.
+    fn try_replenish_vanguards<R: Runtime>(&mut self, runtime: &R) -> Result<(), VanguardMgrError> {
+        match &self.netdir {
+            Some(netdir) => {
+                // Clone the netdir to appease the borrow checker
+                // (otherwsise we end up borrowing self both as immutable and as mutable)
+                let netdir = Arc::clone(netdir);
+                self.replenish_vanguards(runtime, &netdir)?;
+            }
+            None => {
+                trace!("unable to replenish vanguard sets (netdir unavailable)");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handle potential vanguard parameter changes.
+    ///
+    /// This sets our most up-to-date `NetDir` to `netdir`,
+    /// and updates the [`VanguardSet`]s based on the [`VanguardParams`]
+    /// derived from the new `NetDir`.
+    ///
+    /// NOTE: if the new `VanguardParams` specify different lifetime ranges
+    /// than the previous `VanguardParams`, the new lifetime requirements only
+    /// apply to newly selected vanguards. They are **not** retroactively applied
+    /// to our existing vanguards.
+    //
+    // TODO(#1352): we might want to revisit this decision.
+    // We could, for example, adjust the lifetime of our existing vanguards
+    // to comply with the new lifetime requirements.
+    fn handle_netdir_update<R: Runtime>(
+        &mut self,
+        runtime: &R,
+        netdir: &Arc<NetDir>,
+    ) -> Result<(), VanguardMgrError> {
+        self.netdir = Some(Arc::clone(netdir));
+        self.remove_unlisted(netdir);
+        self.replenish_vanguards(runtime, netdir)?;
+
+        Ok(())
+    }
+
+    /// Remove the vanguards that are no longer listed in `netdir`
+    fn remove_unlisted(&mut self, netdir: &Arc<NetDir>) {
+        self.vanguards.retain(|v| netdir.by_ids(&v.id).is_some());
+    }
+
+    /// Replenish the vanguard sets if necessary, using the directory information
+    /// from the specified [`NetDir`].
+    fn replenish_vanguards<R: Runtime>(
+        &mut self,
+        runtime: &R,
+        netdir: &NetDir,
+    ) -> Result<(), VanguardMgrError> {
+        trace!("replenishing vanguard sets");
+
+        let params = VanguardParams::try_from(netdir.params())
+            .map_err(into_internal!("invalid NetParameters"))?;
+
+        // Resize the vanguard sets if necessary.
+        self.l2_vanguards.update_target(params.l2_pool_size());
+        self.l3_vanguards.update_target(params.l3_pool_size());
+        // TODO HS-VANGUARDS: It would be nice to make this mockable. It will involve adding an
+        // M: MocksForVanguards parameter to VanguardMgr, which will have to propagated throughout
+        // tor-circmgr too.
+        let mut rng = rand::thread_rng();
+        Self::replenish_set(
+            runtime,
+            &mut rng,
+            netdir,
+            &mut self.l2_vanguards,
+            &mut self.vanguards,
+            params.l2_lifetime_min(),
+            params.l2_lifetime_max(),
+        )?;
+
+        Self::replenish_set(
+            runtime,
+            &mut rng,
+            netdir,
+            &mut self.l3_vanguards,
+            &mut self.vanguards,
+            params.l3_lifetime_min(),
+            params.l3_lifetime_max(),
+        )?;
+
+        Ok(())
+    }
+
+    /// Replenish a single `VanguardSet` with however many vanguards it is short of.
+    fn replenish_set<R: Runtime, Rng: RngCore>(
+        runtime: &R,
+        rng: &mut Rng,
+        netdir: &NetDir,
+        vanguard_set: &mut VanguardSet,
+        vanguards: &mut BinaryHeap<Arc<TimeBoundVanguard>>,
+        min_lifetime: Duration,
+        max_lifetime: Duration,
+    ) -> Result<(), VanguardMgrError> {
+        let deficit = vanguard_set.deficit();
+        if deficit > 0 {
+            // Exclude the relays that are already in this vanguard set.
+            let exclude_ids = RelayIdSet::from(&*vanguard_set);
+            let exclude = RelayExclusion::exclude_identities(exclude_ids);
+            // Pick some vanguards to add to the heap.
+            let new_vanguards = Self::add_n_vanguards(
+                runtime,
+                rng,
+                netdir,
+                deficit,
+                exclude,
+                min_lifetime,
+                max_lifetime,
+            )?;
+            // The VanguardSet is populated with weak references
+            // to the vanguards we add to the heap.
+            for v in new_vanguards {
+                vanguard_set.add_vanguard(Arc::downgrade(&v));
+                vanguards.push(v);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Select `n` relays to use as vanguards.
+    ///
+    /// Each selected vanguard will have a random lifetime
+    /// between `min_lifetime` and `max_lifetime`.
+    fn add_n_vanguards<R: Runtime, Rng: RngCore>(
+        runtime: &R,
+        rng: &mut Rng,
+        netdir: &NetDir,
+        n: usize,
+        exclude: RelayExclusion,
+        min_lifetime: Duration,
+        max_lifetime: Duration,
+    ) -> Result<Vec<Arc<TimeBoundVanguard>>, VanguardMgrError> {
+        trace!(relay_count = n, "selecting relays to use as vanguards");
+
+        // TODO HS-VANGUARDS: figure out if RelayUsage::middle_relay is what we want here.
+        let vanguard_sel = RelaySelector::new(RelayUsage::middle_relay(None), exclude);
+
+        let (relays, _outcome) = vanguard_sel.select_n_relays(rng, n, netdir);
+
+        relays
+            .into_iter()
+            .map(|relay| {
+                // Pick an expiration for this vanguard.
+                let duration = select_lifetime(rng, min_lifetime, max_lifetime)?;
+                let when = runtime.wallclock() + duration;
+
+                Ok(Arc::new(TimeBoundVanguard {
+                    id: RelayIds::from_relay_ids(&relay),
+                    when,
+                }))
+            })
+            .collect::<Result<Vec<_>, _>>()
     }
 }
 
