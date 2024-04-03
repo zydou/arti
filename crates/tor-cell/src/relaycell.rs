@@ -250,6 +250,8 @@ enum RelayCellDecoderInternal {
     V0,
 }
 
+// TODO prop340: We should also fuzz RelayCellDecoder, but not in this fuzzer.
+
 /// Decodes a stream of relay cell bodies into `UnparsedRelayMsg`s.
 #[derive(Clone, Debug)]
 pub struct RelayCellDecoder {
