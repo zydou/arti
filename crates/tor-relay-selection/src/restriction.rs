@@ -359,7 +359,7 @@ fn relays_in_same_extended_family(
     r1: &Relay<'_>,
     r2: &Relay<'_>,
 ) -> bool {
-    r1.in_same_family(r2) || subnet_config.any_addrs_in_same_subnet(r1, r2)
+    r1.low_level_details().in_same_family(r2) || subnet_config.any_addrs_in_same_subnet(r1, r2)
 }
 
 #[cfg(test)]
@@ -423,7 +423,7 @@ mod test {
             &nd,
             &RelayExclusion::exclude_specific_relays(&[relay_0.clone(), relay_5.clone()]),
         );
-        let p = |r: &Relay<'_>| !(r.same_relay(&relay_0) || r.same_relay(&relay_5));
+        let p = |r: &Relay<'_>| !(r.same_relay_ids(&relay_0) || r.same_relay_ids(&relay_5));
         assert_eq!(yes.len(), 38);
         assert_eq!(no.len(), 2);
         assert!(yes.iter().all(p));

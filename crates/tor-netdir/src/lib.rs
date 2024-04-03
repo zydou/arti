@@ -41,6 +41,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+pub mod details;
 mod err;
 #[cfg(feature = "hs-common")]
 mod hsdir_params;
@@ -64,7 +65,6 @@ use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, RouterStatus};
-use tor_netdoc::types::policy::PortPolicy;
 #[cfg(feature = "hs-common")]
 use {hsdir_ring::HsDirRing, std::iter};
 
@@ -142,7 +142,7 @@ impl ConsensusRelays for NetDir {
 /// Configuration for determining when two relays have addresses "too close" in
 /// the network.
 ///
-/// Used by [`Relay::in_same_subnet()`].
+/// Used by [`Relay::low_level_details().in_same_subnet()`].
 #[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SubnetConfig {
@@ -1351,7 +1351,9 @@ impl NetDir {
     fn frac_usable_paths(&self) -> f64 {
         // TODO #504, TODO SPEC: We may want to add a set of is_flagged_fast() and/or
         // is_flagged_stable() checks here.  This will require spec clarification.
-        let f_g = self.frac_for_role(WeightRole::Guard, |u| u.is_suitable_as_guard());
+        let f_g = self.frac_for_role(WeightRole::Guard, |u| {
+            u.low_level_details().is_suitable_as_guard()
+        });
         let f_m = self.frac_for_role(WeightRole::Middle, |_| true);
         let f_e = if self.all_relays().any(|u| u.rs.is_flagged_exit()) {
             self.frac_for_role(WeightRole::Exit, |u| u.rs.is_flagged_exit())
@@ -1780,6 +1782,15 @@ impl MdReceiver for NetDir {
 }
 
 impl<'a> UncheckedRelay<'a> {
+    /// Return an [`UncheckedRelayDetails`] for this relay.
+    ///
+    /// Callers should generally avoid using this information directly if they can;
+    /// it's better to use a higher-level function that exposes semantic information
+    /// rather than these properties.
+    pub fn low_level_details(&self) -> details::UncheckedRelayDetails<'_> {
+        details::UncheckedRelayDetails(self)
+    }
+
     /// Return true if this relay is valid and [usable](NetDir#usable).
     ///
     /// This function should return `true` for every Relay we expose
@@ -1801,26 +1812,7 @@ impl<'a> UncheckedRelay<'a> {
             None
         }
     }
-    /// Return true if this relay has the Guard flag.
-    ///
-    /// Note that this function _only_ checks for the presence of the Guard
-    /// flag. If you want to check for all the properties that indicate
-    /// suitability, use [`UncheckedRelay::is_suitable_as_guard`] instead.
-    //
-    // TODO #504: We may want to deprecate this function; its only users are
-    // test cases.
-    pub fn is_flagged_guard(&self) -> bool {
-        self.rs.is_flagged_guard()
-    }
-    /// Return true if this relay is suitable for use as a newly sampled guard,
-    /// or for continuing to use as a guard.
-    pub fn is_suitable_as_guard(&self) -> bool {
-        self.rs.is_flagged_guard() && self.rs.is_flagged_fast() && self.rs.is_flagged_stable()
-    }
-    /// Return true if this relay is a potential directory cache.
-    pub fn is_dir_cache(&self) -> bool {
-        rs_is_dir_cache(self.rs)
-    }
+
     /// Return true if this relay is a hidden service directory
     ///
     /// Ie, if it is to be included in the hsdir ring.
@@ -1836,6 +1828,15 @@ impl<'a> UncheckedRelay<'a> {
 }
 
 impl<'a> Relay<'a> {
+    /// Return an [`UncheckedRelayDetails`] for this relay.
+    ///
+    /// Callers should generally avoid using this information directly if they can;
+    /// it's better to use a higher-level function that exposes semantic information
+    /// rather than these properties.
+    pub fn low_level_details(&self) -> details::RelayDetails<'_> {
+        details::RelayDetails(self)
+    }
+
     /// Return the Ed25519 ID for this relay.
     pub fn id(&self) -> &Ed25519Identity {
         self.md.ed25519_id()
@@ -1844,119 +1845,12 @@ impl<'a> Relay<'a> {
     pub fn rsa_id(&self) -> &RsaIdentity {
         self.rs.rsa_identity()
     }
-    /// Return true if this relay and `other` seem to be the same relay.
+
+    /// Return true if this relay has all of the same identities as `other`
     ///
-    /// (Two relays are the same if they have the same identity.)
-    pub fn same_relay(&self, other: &Relay<'_>) -> bool {
+    /// (Callers outside of this crate should use methods from [`HasRelayIds`].
+    fn has_same_relay_ids(&self, other: &Relay<'_>) -> bool {
         self.id() == other.id() && self.rsa_id() == other.rsa_id()
-    }
-    /// Return true if this relay allows exiting to `port` on IPv4.
-    pub fn supports_exit_port_ipv4(&self, port: u16) -> bool {
-        self.ipv4_policy().allows_port(port)
-    }
-    /// Return true if this relay allows exiting to `port` on IPv6.
-    pub fn supports_exit_port_ipv6(&self, port: u16) -> bool {
-        self.ipv6_policy().allows_port(port)
-    }
-    /// Return true if this relay is suitable for use as a directory
-    /// cache.
-    pub fn is_dir_cache(&self) -> bool {
-        rs_is_dir_cache(self.rs)
-    }
-    /// Return true if this relay is marked as a potential Guard node.
-    ///
-    /// Note that this function _only_ checks for the presence of the Guard
-    /// flag. If you want to check for all the properties that indicate
-    /// suitability, use [`Relay::is_suitable_as_guard`] instead.
-    //
-    // TODO #504: We may want to deprecate this function; its only users are
-    // test cases.
-    pub fn is_flagged_guard(&self) -> bool {
-        self.rs.is_flagged_guard()
-    }
-    /// Return true if this relay has the "Fast" flag.
-    ///
-    /// Most relays have this flag.  It indicates that the relay is suitable for
-    /// circuits that need more than a minimal amount of bandwidth.
-    pub fn is_flagged_fast(&self) -> bool {
-        self.rs.is_flagged_fast()
-    }
-    /// Return true if this relay has the "Stable" flag.
-    ///
-    /// Most relays have this flag. It indicates that the relay is suitable for
-    /// long-lived circuits.
-    pub fn is_flagged_stable(&self) -> bool {
-        self.rs.is_flagged_stable()
-    }
-    /// Return true if this relay is a potential HS introduction point
-    pub fn is_hs_intro_point(&self) -> bool {
-        self.is_flagged_fast() && self.rs.is_flagged_stable()
-    }
-    /// Return true if this relay is suitable for use as a newly sampled guard,
-    /// or for continuing to use as a guard.
-    pub fn is_suitable_as_guard(&self) -> bool {
-        self.is_flagged_guard() && self.is_flagged_fast() && self.is_flagged_stable()
-    }
-    /// Return true if both relays are in the same subnet, as configured by
-    /// `subnet_config`.
-    ///
-    /// Two relays are considered to be in the same subnet if they
-    /// have IPv4 addresses with the same `subnets_family_v4`-bit
-    /// prefix, or if they have IPv6 addresses with the same
-    /// `subnets_family_v6`-bit prefix.
-    pub fn in_same_subnet(&self, other: &Relay<'_>, subnet_config: &SubnetConfig) -> bool {
-        subnet_config.any_addrs_in_same_subnet(self, other)
-    }
-    /// Return true if both relays are in the same family.
-    ///
-    /// (Every relay is considered to be in the same family as itself.)
-    pub fn in_same_family(&self, other: &Relay<'_>) -> bool {
-        if self.same_relay(other) {
-            return true;
-        }
-        self.md.family().contains(other.rsa_id()) && other.md.family().contains(self.rsa_id())
-    }
-
-    /// Return true if there are any ports for which this Relay can be
-    /// used for exit traffic.
-    ///
-    /// (Returns false if this relay doesn't allow exit traffic, or if it
-    /// has been flagged as a bad exit.)
-    pub fn policies_allow_some_port(&self) -> bool {
-        if self.rs.is_flagged_bad_exit() {
-            return false;
-        }
-
-        self.md.ipv4_policy().allows_some_port() || self.md.ipv6_policy().allows_some_port()
-    }
-
-    /// Return the IPv4 exit policy for this relay. If the relay has been marked BadExit, return an
-    /// empty policy
-    pub fn ipv4_policy(&self) -> Arc<PortPolicy> {
-        if !self.rs.is_flagged_bad_exit() {
-            Arc::clone(self.md.ipv4_policy())
-        } else {
-            Arc::new(PortPolicy::new_reject_all())
-        }
-    }
-    /// Return the IPv6 exit policy for this relay. If the relay has been marked BadExit, return an
-    /// empty policy
-    pub fn ipv6_policy(&self) -> Arc<PortPolicy> {
-        if !self.rs.is_flagged_bad_exit() {
-            Arc::clone(self.md.ipv6_policy())
-        } else {
-            Arc::new(PortPolicy::new_reject_all())
-        }
-    }
-    /// Return the IPv4 exit policy declared by this relay. Contrary to [`Relay::ipv4_policy`],
-    /// this does not verify if the relay is marked BadExit.
-    pub fn ipv4_declared_policy(&self) -> &Arc<PortPolicy> {
-        self.md.ipv4_policy()
-    }
-    /// Return the IPv6 exit policy declared by this relay. Contrary to [`Relay::ipv6_policy`],
-    /// this does not verify if the relay is marked BadExit.
-    pub fn ipv6_declared_policy(&self) -> &Arc<PortPolicy> {
-        self.md.ipv6_policy()
     }
 
     /// Return a reference to this relay's "router status" entry in
@@ -2047,12 +1941,6 @@ impl<'a> tor_linkspec::CircTarget for Relay<'a> {
     fn protovers(&self) -> &tor_protover::Protocols {
         self.rs.protovers()
     }
-}
-
-/// Return true if `rs` is usable as a directory cache.
-fn rs_is_dir_cache(rs: &netstatus::MdConsensusRouterStatus) -> bool {
-    use tor_protover::ProtoKind;
-    rs.is_flagged_v2dir() && rs.protovers().supports_known_subver(ProtoKind::DirCache, 2)
 }
 
 #[cfg(test)]
@@ -2260,7 +2148,7 @@ mod test {
         let mut picked = [0_isize; 40];
         for _ in 0..total {
             let r = dir.pick_relay(&mut rng, WeightRole::Middle, |r| {
-                r.supports_exit_port_ipv4(80)
+                r.low_level_details().supports_exit_port_ipv4(80)
             });
             let r = r.unwrap();
             let id_byte = r.identity(RelayIdType::Rsa).unwrap().as_bytes()[0];
@@ -2291,7 +2179,7 @@ mod test {
         let mut picked = [0_isize; 40];
         for _ in 0..total / 4 {
             let relays = dir.pick_n_relays(&mut rng, 4, WeightRole::Middle, |r| {
-                r.supports_exit_port_ipv4(80)
+                r.low_level_details().supports_exit_port_ipv4(80)
             });
             assert_eq!(relays.len(), 4);
             for r in relays {
@@ -2428,56 +2316,56 @@ mod test {
         assert_eq!(r1.id(), &[1; 32].into());
         assert_eq!(r1.rsa_id(), &[1; 20].into());
 
-        assert!(r0.same_relay(&r0));
-        assert!(r1.same_relay(&r1));
-        assert!(!r1.same_relay(&r0));
+        assert!(r0.has_same_relay_ids(&r0));
+        assert!(r1.has_same_relay_ids(&r1));
+        assert!(!r1.has_same_relay_ids(&r0));
 
-        assert!(r0.is_dir_cache());
-        assert!(!r1.is_dir_cache());
-        assert!(r2.is_dir_cache());
-        assert!(!r3.is_dir_cache());
+        assert!(r0.low_level_details().is_dir_cache());
+        assert!(!r1.low_level_details().is_dir_cache());
+        assert!(r2.low_level_details().is_dir_cache());
+        assert!(!r3.low_level_details().is_dir_cache());
 
-        assert!(!r0.supports_exit_port_ipv4(80));
-        assert!(!r1.supports_exit_port_ipv4(80));
-        assert!(!r2.supports_exit_port_ipv4(80));
-        assert!(!r3.supports_exit_port_ipv4(80));
+        assert!(!r0.low_level_details().supports_exit_port_ipv4(80));
+        assert!(!r1.low_level_details().supports_exit_port_ipv4(80));
+        assert!(!r2.low_level_details().supports_exit_port_ipv4(80));
+        assert!(!r3.low_level_details().supports_exit_port_ipv4(80));
 
-        assert!(!r0.policies_allow_some_port());
-        assert!(!r1.policies_allow_some_port());
-        assert!(!r2.policies_allow_some_port());
-        assert!(!r3.policies_allow_some_port());
-        assert!(r10.policies_allow_some_port());
+        assert!(!r0.low_level_details().policies_allow_some_port());
+        assert!(!r1.low_level_details().policies_allow_some_port());
+        assert!(!r2.low_level_details().policies_allow_some_port());
+        assert!(!r3.low_level_details().policies_allow_some_port());
+        assert!(r10.low_level_details().policies_allow_some_port());
 
-        assert!(r0.in_same_family(&r0));
-        assert!(r0.in_same_family(&r1));
-        assert!(r1.in_same_family(&r0));
-        assert!(r1.in_same_family(&r1));
-        assert!(!r0.in_same_family(&r2));
-        assert!(!r2.in_same_family(&r0));
-        assert!(r2.in_same_family(&r2));
-        assert!(r2.in_same_family(&r3));
+        assert!(r0.low_level_details().in_same_family(&r0));
+        assert!(r0.low_level_details().in_same_family(&r1));
+        assert!(r1.low_level_details().in_same_family(&r0));
+        assert!(r1.low_level_details().in_same_family(&r1));
+        assert!(!r0.low_level_details().in_same_family(&r2));
+        assert!(!r2.low_level_details().in_same_family(&r0));
+        assert!(r2.low_level_details().in_same_family(&r2));
+        assert!(r2.low_level_details().in_same_family(&r3));
 
-        assert!(r0.in_same_subnet(&r10, &subnet_config));
-        assert!(r10.in_same_subnet(&r10, &subnet_config));
-        assert!(r0.in_same_subnet(&r0, &subnet_config));
-        assert!(r1.in_same_subnet(&r1, &subnet_config));
-        assert!(!r1.in_same_subnet(&r2, &subnet_config));
-        assert!(!r2.in_same_subnet(&r3, &subnet_config));
+        assert!(r0.low_level_details().in_same_subnet(&r10, &subnet_config));
+        assert!(r10.low_level_details().in_same_subnet(&r10, &subnet_config));
+        assert!(r0.low_level_details().in_same_subnet(&r0, &subnet_config));
+        assert!(r1.low_level_details().in_same_subnet(&r1, &subnet_config));
+        assert!(!r1.low_level_details().in_same_subnet(&r2, &subnet_config));
+        assert!(!r2.low_level_details().in_same_subnet(&r3, &subnet_config));
 
         // Make sure IPv6 families work.
         let subnet_config = SubnetConfig {
             subnets_family_v4: 128,
             subnets_family_v6: 96,
         };
-        assert!(r15.in_same_subnet(&r20, &subnet_config));
-        assert!(!r15.in_same_subnet(&r1, &subnet_config));
+        assert!(r15.low_level_details().in_same_subnet(&r20, &subnet_config));
+        assert!(!r15.low_level_details().in_same_subnet(&r1, &subnet_config));
 
         // Make sure that subnet configs can be disabled.
         let subnet_config = SubnetConfig {
             subnets_family_v4: 255,
             subnets_family_v6: 255,
         };
-        assert!(!r15.in_same_subnet(&r20, &subnet_config));
+        assert!(!r15.low_level_details().in_same_subnet(&r20, &subnet_config));
     }
 
     #[test]
@@ -2498,23 +2386,29 @@ mod test {
         let e12 = netdir.by_id(&Ed25519Identity::from([12; 32])).unwrap();
         let e32 = netdir.by_id(&Ed25519Identity::from([32; 32])).unwrap();
 
-        assert!(!e12.supports_exit_port_ipv4(80));
-        assert!(e32.supports_exit_port_ipv4(80));
+        assert!(!e12.low_level_details().supports_exit_port_ipv4(80));
+        assert!(e32.low_level_details().supports_exit_port_ipv4(80));
 
-        assert!(!e12.supports_exit_port_ipv6(443));
-        assert!(e32.supports_exit_port_ipv6(443));
-        assert!(!e32.supports_exit_port_ipv6(555));
+        assert!(!e12.low_level_details().supports_exit_port_ipv6(443));
+        assert!(e32.low_level_details().supports_exit_port_ipv6(443));
+        assert!(!e32.low_level_details().supports_exit_port_ipv6(555));
 
-        assert!(!e12.policies_allow_some_port());
-        assert!(e32.policies_allow_some_port());
+        assert!(!e12.low_level_details().policies_allow_some_port());
+        assert!(e32.low_level_details().policies_allow_some_port());
 
-        assert!(!e12.ipv4_policy().allows_some_port());
-        assert!(!e12.ipv6_policy().allows_some_port());
-        assert!(e32.ipv4_policy().allows_some_port());
-        assert!(e32.ipv6_policy().allows_some_port());
+        assert!(!e12.low_level_details().ipv4_policy().allows_some_port());
+        assert!(!e12.low_level_details().ipv6_policy().allows_some_port());
+        assert!(e32.low_level_details().ipv4_policy().allows_some_port());
+        assert!(e32.low_level_details().ipv6_policy().allows_some_port());
 
-        assert!(e12.ipv4_declared_policy().allows_some_port());
-        assert!(e12.ipv6_declared_policy().allows_some_port());
+        assert!(e12
+            .low_level_details()
+            .ipv4_declared_policy()
+            .allows_some_port());
+        assert!(e12
+            .low_level_details()
+            .ipv6_declared_policy()
+            .allows_some_port());
     }
 
     #[cfg(feature = "experimental-api")]
@@ -2679,7 +2573,7 @@ mod test {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
         let netdir = construct_netdir().unwrap_if_sufficient().unwrap();
 
-        let g_total = netdir.total_weight(WeightRole::Guard, |r| r.is_flagged_guard());
+        let g_total = netdir.total_weight(WeightRole::Guard, |r| r.rs.is_flagged_guard());
         // This is just the total guard weight, since all our Wxy = 1.
         assert_eq!(g_total, RelayWeight(110_000));
 
@@ -2687,7 +2581,7 @@ mod test {
         assert_eq!(g_total, RelayWeight(0));
 
         let relay = netdir.by_id(&Ed25519Identity::from([35; 32])).unwrap();
-        assert!(relay.is_flagged_guard());
+        assert!(relay.rs.is_flagged_guard());
         let w = netdir.relay_weight(&relay, WeightRole::Guard);
         assert_eq!(w, RelayWeight(6_000));
 

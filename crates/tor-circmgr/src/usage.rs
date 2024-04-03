@@ -94,8 +94,8 @@ impl ExitPolicy {
         // tor-netdir or tor-relay-selection.  That way we wouldn't need to
         // invoke these Relay-specific methods in tor-circmgr.
         Self {
-            v4: relay.ipv4_policy(),
-            v6: relay.ipv6_policy(),
+            v4: relay.low_level_details().ipv4_policy(),
+            v6: relay.low_level_details().ipv6_policy(),
         }
     }
 
@@ -652,9 +652,9 @@ pub(crate) mod test {
         assert!(!ep_bad.allows_port(TargetPort::ipv6(80)));
 
         // Check is_supported_by while we're here.
-        assert!(TargetPort::ipv4(80).is_supported_by(&web_exit));
-        assert!(!TargetPort::ipv6(80).is_supported_by(&web_exit));
-        assert!(!TargetPort::ipv6(80).is_supported_by(&bad_exit));
+        assert!(TargetPort::ipv4(80).is_supported_by(&web_exit.low_level_details()));
+        assert!(!TargetPort::ipv6(80).is_supported_by(&web_exit.low_level_details()));
+        assert!(!TargetPort::ipv6(80).is_supported_by(&bad_exit.low_level_details()));
     }
 
     #[test]
@@ -953,7 +953,7 @@ pub(crate) mod test {
         // We'll always get exits for these, since we try to build
         // paths with an exit if there are any exits.
         assert!(policy.allows_some_port());
-        assert!(last_relay.policies_allow_some_port());
+        assert!(last_relay.low_level_details().policies_allow_some_port());
         assert_isoleq!(
             usage,
             SupportedCircUsage::Exit {

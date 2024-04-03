@@ -111,8 +111,8 @@ impl Universe for NetDir {
         // to use it here.
         match NetDir::by_ids(self, guard) {
             Some(relay) => CandidateStatus::Present(Candidate {
-                listed_as_guard: relay.is_suitable_as_guard(),
-                is_dir_cache: relay.is_dir_cache(),
+                listed_as_guard: relay.low_level_details().is_suitable_as_guard(),
+                is_dir_cache: relay.low_level_details().is_dir_cache(),
                 owned_target: OwnedChanTarget::from_chan_target(&relay),
                 full_dir_info: true,
                 sensitivity: crate::guard::DisplayRule::Sensitive,
@@ -135,7 +135,8 @@ impl Universe for NetDir {
             // TODO #504 - to convert this, we need tor_relay_selector to apply
             // to UncheckedRelay.
             let total_weight = self.total_weight(tor_netdir::WeightRole::Guard, |r| {
-                r.is_suitable_as_guard() && r.is_dir_cache()
+                let d = r.low_level_details();
+                d.is_suitable_as_guard() && d.is_dir_cache()
             });
             total_weight
                 .ratio(params.max_sample_bw_fraction)

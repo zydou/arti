@@ -237,6 +237,7 @@ mod test {
     use tor_linkspec::{HasRelayIds, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::{testnet, SubnetConfig};
+    use tor_relay_selection::LowLevelRelayPredicate;
     use tor_rtcompat::SleepProvider;
 
     impl<'a> ExitPathBuilder<'a> {
@@ -251,32 +252,26 @@ mod test {
         }
     }
 
-    /// Returns true if both relays can appear together in the same circuit.
-    fn relays_can_share_circuit(
-        a: &Relay<'_>,
-        b: &MaybeOwnedRelay<'_>,
-        subnet_config: SubnetConfig,
-    ) -> bool {
-        if let MaybeOwnedRelay::Relay(r) = b {
-            if a.in_same_family(r) {
-                return false;
-            };
-        }
-
-        !subnet_config.any_addrs_in_same_subnet(a, b)
-    }
-
     impl<'a> MaybeOwnedRelay<'a> {
         fn can_share_circuit(
             &self,
             other: &MaybeOwnedRelay<'_>,
             subnet_config: SubnetConfig,
         ) -> bool {
-            match self {
-                MaybeOwnedRelay::Relay(r) => relays_can_share_circuit(r, other, subnet_config),
-                MaybeOwnedRelay::Owned(r) => {
-                    !subnet_config.any_addrs_in_same_subnet(r.as_ref(), other)
+            use MaybeOwnedRelay as M;
+            match (self, other) {
+                (M::Relay(a), M::Relay(b)) => {
+                    let ports = Default::default();
+                    let cfg = RelaySelectionConfig {
+                        long_lived_ports: &ports,
+                        subnet_config,
+                    };
+                    // This use of "low_level_predicate_permits_relay" is okay because
+                    // because we're in tests.
+                    RelayExclusion::exclude_relays_in_same_family(&cfg, vec![a.clone()])
+                        .low_level_predicate_permits_relay(b)
                 }
+                (a, b) => !subnet_config.any_addrs_in_same_subnet(a, b),
             }
         }
     }
@@ -323,7 +318,7 @@ mod test {
                     MaybeOwnedRelay::Relay(r) => r,
                     MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
                 };
-                assert!(exit.ipv4_policy().allows_port(1119));
+                assert!(exit.low_level_details().ipv4_policy().allows_port(1119));
             } else {
                 panic!("Generated the wrong kind of path");
             }
@@ -367,7 +362,7 @@ mod test {
                     MaybeOwnedRelay::Relay(r) => r,
                     MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
                 };
-                assert!(exit.policies_allow_some_port());
+                assert!(exit.low_level_details().policies_allow_some_port());
             } else {
                 panic!("Generated the wrong kind of path");
             }

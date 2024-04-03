@@ -32,7 +32,7 @@ impl TargetPort {
     }
 
     /// Return true if this port is supported by the provided Relay.
-    pub fn is_supported_by(&self, r: &tor_netdir::Relay<'_>) -> bool {
+    pub fn is_supported_by(&self, r: &tor_netdir::details::RelayDetails<'_>) -> bool {
         if self.ipv6 {
             r.supports_exit_port_ipv6(self.port)
         } else {

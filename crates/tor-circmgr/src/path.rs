@@ -213,12 +213,13 @@ impl<'a> TorPath<'a> {
     ///
     /// Assumes that Owned elements of this path are stable.
     pub(crate) fn appears_stable(&self) -> bool {
+        // TODO #504: this looks at low_level_details() in questionable way.
         match &self.inner {
-            TorPathInner::OneHop(r) => r.is_flagged_stable(),
+            TorPathInner::OneHop(r) => r.low_level_details().is_flagged_stable(),
             TorPathInner::FallbackOneHop(_) => true,
             TorPathInner::OwnedOneHop(_) => true,
             TorPathInner::Path(relays) => relays.iter().all(|maybe_owned| match maybe_owned {
-                MaybeOwnedRelay::Relay(r) => r.is_flagged_stable(),
+                MaybeOwnedRelay::Relay(r) => r.low_level_details().is_flagged_stable(),
                 MaybeOwnedRelay::Owned(_) => true,
             }),
         }

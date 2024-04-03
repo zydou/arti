@@ -1030,7 +1030,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use tor_linkspec::{HasRelayIds, RelayIdType};
-    use tor_netdir::{NetDir, Relay};
+    use tor_netdir::NetDir;
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
 
     use super::*;
@@ -1067,12 +1067,19 @@ mod test {
         .unwrap();
         // Make sure that we got the numbers we expected.
         assert_eq!(40, netdir.relays().count());
-        assert_eq!(30, netdir.relays().filter(Relay::is_flagged_guard).count());
+        assert_eq!(
+            30,
+            netdir
+                .relays()
+                .filter(|r| r.low_level_details().is_suitable_as_guard())
+                .count()
+        );
         assert_eq!(
             20,
             netdir
                 .relays()
-                .filter(|r| r.is_flagged_guard() && r.is_dir_cache())
+                .filter(|r| r.low_level_details().is_suitable_as_guard()
+                    && r.low_level_details().is_dir_cache())
                 .count()
         );
 
@@ -1095,8 +1102,8 @@ mod test {
             for guard in guards.guards.values() {
                 let id = FirstHopId::in_sample(GuardSetSelector::Default, guard.guard_id().clone());
                 let relay = id.get_relay(&netdir).unwrap();
-                assert!(relay.is_flagged_guard());
-                assert!(relay.is_dir_cache());
+                assert!(relay.low_level_details().is_suitable_as_guard());
+                assert!(relay.low_level_details().is_dir_cache());
                 assert!(guards.guards.by_all_ids(&relay).is_some());
                 {
                     assert!(!guard.is_expired(&params, SystemTime::now()));

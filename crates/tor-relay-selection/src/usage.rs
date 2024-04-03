@@ -193,8 +193,9 @@ impl RelayUsage {
 }
 
 impl LowLevelRelayPredicate for RelayUsage {
-    fn low_level_predicate_permits_relay(&self, relay: &Relay<'_>) -> bool {
+    fn low_level_predicate_permits_relay(&self, relay_in: &Relay<'_>) -> bool {
         use RelayUsageInner::*;
+        let relay = relay_in.low_level_details();
         if !relay.is_flagged_fast() {
             return false;
         }
@@ -203,17 +204,17 @@ impl LowLevelRelayPredicate for RelayUsage {
         }
         match &self.inner {
             AnyExit => relay.policies_allow_some_port(),
-            ExitToAllPorts(ports) => ports.iter().all(|p| p.is_supported_by(relay)),
+            ExitToAllPorts(ports) => ports.iter().all(|p| p.is_supported_by(&relay)),
             ExitToAnyPort {
                 stable_ports,
                 unstable_ports,
             } => {
                 if relay.is_flagged_stable()
-                    && stable_ports.iter().any(|p| p.is_supported_by(relay))
+                    && stable_ports.iter().any(|p| p.is_supported_by(&relay))
                 {
                     return true;
                 }
-                unstable_ports.iter().any(|p| p.is_supported_by(relay))
+                unstable_ports.iter().any(|p| p.is_supported_by(&relay))
             }
             Middle => true,
             // TODO: Is there a distinction we should implement?
@@ -252,7 +253,10 @@ mod test {
 
         let (yes, no) = split_netdir(&nd, &RelayUsage::any_exit(&cfg()));
 
-        let p = |r: &Relay<'_>| r.is_flagged_fast() && r.policies_allow_some_port();
+        let p = |r: &Relay<'_>| {
+            r.low_level_details().is_flagged_fast()
+                && r.low_level_details().policies_allow_some_port()
+        };
         assert!(yes.iter().all(p));
         assert!(no.iter().all(|r| !p(r)));
     }
@@ -264,7 +268,8 @@ mod test {
         let usage_stable = RelayUsage::exit_to_all_ports(&cfg(), ports_stable);
         assert!(usage_stable.need_stable);
 
-        let p1 = |r: &Relay<'_>| {
+        let p1 = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
             r.is_flagged_fast()
                 && r.is_flagged_stable()
                 && r.ipv4_policy().allows_port(22)
@@ -278,7 +283,10 @@ mod test {
         let ports_not_stable = vec![TargetPort::ipv4(80)];
         let usage_not_stable = RelayUsage::exit_to_all_ports(&cfg(), ports_not_stable);
 
-        let p2 = |r: &Relay<'_>| r.is_flagged_fast() && r.ipv4_policy().allows_port(80);
+        let p2 = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
+            r.is_flagged_fast() && r.ipv4_policy().allows_port(80)
+        };
         let (yes, no) = split_netdir(&nd, &usage_not_stable);
         assert!(yes.iter().all(p2));
         assert!(no.iter().all(|r| !p2(r)));
@@ -303,7 +311,8 @@ mod test {
             }
         }
 
-        let p = |r: &Relay<'_>| {
+        let p = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
             let port_22 = r.is_flagged_stable() && r.ipv4_policy().allows_port(22);
             let port_80 = r.ipv4_policy().allows_port(80);
             r.is_flagged_fast() && (port_22 || port_80)
@@ -328,12 +337,18 @@ mod test {
         assert!(mid_default.need_stable);
 
         let (yes, no) = split_netdir(&nd, &mid_unstable);
-        let p1 = |r: &Relay<'_>| r.is_flagged_fast();
+        let p1 = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
+            r.is_flagged_fast()
+        };
         assert!(yes.iter().all(p1));
         assert!(no.iter().all(|r| !p1(r)));
 
         let (yes, no) = split_netdir(&nd, &mid_stable);
-        let p2 = |r: &Relay<'_>| r.is_flagged_fast() && r.is_flagged_stable();
+        let p2 = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
+            r.is_flagged_fast() && r.is_flagged_stable()
+        };
         assert!(yes.iter().all(p2));
         assert!(no.iter().all(|r| !p2(r)));
     }
@@ -344,7 +359,10 @@ mod test {
         let usage = RelayUsage::new_intro_point();
 
         let (yes, no) = split_netdir(&nd, &usage);
-        let p1 = |r: &Relay<'_>| r.is_flagged_fast() && r.is_flagged_stable();
+        let p1 = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
+            r.is_flagged_fast() && r.is_flagged_stable()
+        };
         assert!(yes.iter().all(p1));
         assert!(no.iter().all(|r| !p1(r)));
     }
@@ -355,8 +373,12 @@ mod test {
         let usage = RelayUsage::new_guard();
 
         let (yes, no) = split_netdir(&nd, &usage);
-        let p1 = |r: &Relay<'_>| {
-            r.is_flagged_fast() && r.is_flagged_stable() && r.is_flagged_guard() && r.is_dir_cache()
+        let p1 = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
+            r.is_flagged_fast()
+                && r.is_flagged_stable()
+                && r.is_suitable_as_guard()
+                && r.is_dir_cache()
         };
         assert!(yes.iter().all(p1));
         assert!(no.iter().all(|r| !p1(r)));
@@ -368,7 +390,10 @@ mod test {
         let usage = RelayUsage::directory_cache();
 
         let (yes, no) = split_netdir(&nd, &usage);
-        let p1 = |r: &Relay<'_>| r.is_flagged_fast() && r.is_dir_cache();
+        let p1 = |relay: &Relay<'_>| {
+            let r = relay.low_level_details();
+            r.is_flagged_fast() && r.is_dir_cache()
+        };
         assert!(yes.iter().all(p1));
         assert!(no.iter().all(|r| !p1(r)));
     }
