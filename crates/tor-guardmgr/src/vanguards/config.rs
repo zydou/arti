@@ -79,8 +79,23 @@ impl Default for VanguardParams {
 impl TryFrom<&NetParameters> for VanguardParams {
     type Error = tor_units::Error;
 
-    fn try_from(_p: &NetParameters) -> Result<VanguardParams, Self::Error> {
-        // TODO: add the vanguards params to NetParameters
-        Ok(Default::default())
+    fn try_from(p: &NetParameters) -> Result<VanguardParams, Self::Error> {
+        // TODO HS-VANGUARDS: move the VanguardMode a VanguardParam too and consider removing
+        // VanguardConfig altogether.
+
+        // TODO HS-VANGUARDS: we will need 2 "mode"s: one for if we're running as a service,
+        // and another one for if we're running as a client.
+        //
+        // See discussion at
+        // <https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/258#note_3011734>
+
+        Ok(VanguardParams {
+            l2_pool_size: p.guard_hs_l2_number.try_into()?,
+            l2_lifetime_min: p.guard_hs_l2_lifetime_min.try_into()?,
+            l2_lifetime_max: p.guard_hs_l2_lifetime_max.try_into()?,
+            l3_pool_size: p.guard_hs_l3_number.try_into()?,
+            l3_lifetime_min: p.guard_hs_l3_lifetime_min.try_into()?,
+            l3_lifetime_max: p.guard_hs_l3_lifetime_max.try_into()?,
+        })
     }
 }
