@@ -2,7 +2,7 @@
 
 use std::str::FromStr;
 
-use derive_adhoc::{define_derive_adhoc, Adhoc};
+use derive_deftly::{define_derive_deftly, Deftly};
 use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
 use tor_persist::slug::{self, BadSlug};
@@ -11,7 +11,7 @@ use crate::{ArtiPathSyntaxError, KeyPathRange};
 
 // TODO: this is only used for ArtiPaths (we should consider turning this
 // intro a regular impl ArtiPath {} and removing the macro).
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Implement `new()`, `TryFrom<String>` in terms of `validate_str`, and `as_ref<str>`
     //
     // TODO maybe this is generally useful?  Or maybe we should find a crate?
@@ -83,8 +83,8 @@ define_derive_adhoc! {
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, Into, Display)] //
 #[derive(Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
-#[derive(Adhoc)]
-#[derive_adhoc(ValidatedString)]
+#[derive(Deftly)]
+#[derive_deftly(ValidatedString)]
 pub struct ArtiPath(String);
 
 /// A separator for `ArtiPath`s.

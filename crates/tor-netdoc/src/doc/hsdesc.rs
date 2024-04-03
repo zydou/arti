@@ -318,7 +318,7 @@ impl HsDesc {
     // TODO: We'd like to derive this, but amplify::Getters  would give us &Vec<>,
     // not &[].
     //
-    // Perhaps someday we can use derive_adhoc, or add as_ref() support?
+    // Perhaps someday we can use derive_deftly, or add as_ref() support?
     pub fn intro_points(&self) -> &[IntroPointDesc] {
         &self.intro_points
     }

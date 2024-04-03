@@ -92,7 +92,7 @@ impl KeyPath {
 ///
 /// Generally implemented on `SomeKeySpecifierPattern` by
 /// applying
-/// [`#[derive_adhoc(KeySpecifier)`](crate::derive_adhoc_template_KeySpecifier)
+/// [`#[derive_deftly(KeySpecifier)`](crate::derive_deftly_template_KeySpecifier)
 /// to `SomeKeySpecifier`.
 pub trait KeySpecifierPattern {
     /// Obtain a pattern template that matches all keys of this type.
@@ -215,7 +215,7 @@ pub struct KeyPathInfo {
     ///
     /// This should usually start with `KS_`.
     //
-    // TODO (#1195): see the comment for #[adhoc(role)] in derive.rs
+    // TODO (#1195): see the comment for #[deftly(role)] in derive.rs
     role: String,
     /// Additional information, in the form of key-value pairs.
     ///
@@ -328,7 +328,7 @@ pub trait KeySpecifier {
 /// validation rules. A `Slug` is not always a valid `KeySpecifierComponent`
 /// instance.
 ///
-/// If you are deriving [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier) for a
+/// If you are deriving [`DefaultKeySpecifier`](crate::derive_deftly_template_KeySpecifier) for a
 /// struct, all of its fields must implement this trait.
 ///
 /// If you are implementing [`KeySpecifier`] and [`KeyPathInfoExtractor`] manually rather than by
@@ -543,7 +543,7 @@ mod test {
 
     use crate::arti_path::PATH_SEP;
     use crate::test_utils::check_key_specifier;
-    use derive_adhoc::Adhoc;
+    use derive_deftly::Deftly;
     use humantime::parse_rfc3339;
     use itertools::{chain, Itertools};
     use serde::{Deserialize, Serialize};
@@ -775,19 +775,19 @@ mod test {
     fn define_key_specifier_with_fields_and_denotator() {
         let tp = test_time_period();
 
-        #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "encabulator")]
-        #[adhoc(role = "marzlevane")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "encabulator")]
+        #[deftly(role = "marzlevane")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {
             // The remaining fields
             kind: String,
             base: String,
             casing: String,
-            #[adhoc(denotator)]
+            #[deftly(denotator)]
             count: usize,
-            #[adhoc(denotator)]
+            #[deftly(denotator)]
             tp: TimePeriod,
         }
 
@@ -829,11 +829,11 @@ KeyPathInfo {
 
     #[test]
     fn define_key_specifier_no_fields() {
-        #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "encabulator")]
-        #[adhoc(role = "marzlevane")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "encabulator")]
+        #[deftly(role = "marzlevane")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {}
 
         let key_spec = TestSpecifier {};
@@ -848,13 +848,13 @@ KeyPathInfo {
 
     #[test]
     fn define_key_specifier_with_denotator() {
-        #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "encabulator")]
-        #[adhoc(role = "marzlevane")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "encabulator")]
+        #[deftly(role = "marzlevane")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {
-            #[adhoc(denotator)]
+            #[deftly(denotator)]
             count: usize,
         }
 
@@ -870,11 +870,11 @@ KeyPathInfo {
 
     #[test]
     fn define_key_specifier_with_fields() {
-        #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "encabulator")]
-        #[adhoc(role = "fan")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "encabulator")]
+        #[deftly(role = "fan")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {
             casing: String,
             /// A doc comment.
@@ -903,23 +903,23 @@ KeyPathInfo {
 
     #[test]
     fn define_key_specifier_with_multiple_denotators() {
-        #[derive(Adhoc, Debug, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "encabulator")]
-        #[adhoc(role = "fan")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "encabulator")]
+        #[deftly(role = "fan")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {
             casing: String,
             /// A doc comment.
             bearings: String,
 
-            #[adhoc(denotator)]
+            #[deftly(denotator)]
             count: usize,
 
-            #[adhoc(denotator)]
+            #[deftly(denotator)]
             length: usize,
 
-            #[adhoc(denotator)]
+            #[deftly(denotator)]
             kind: String,
         }
 
@@ -950,15 +950,15 @@ KeyPathInfo {
 
     #[test]
     fn define_key_specifier_role_field() {
-        #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "prefix")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, Eq, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "prefix")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {
-            #[adhoc(role)]
+            #[deftly(role)]
             role: String,
             i: usize,
-            #[adhoc(denotator)]
+            #[deftly(denotator)]
             den: bool,
         }
 
@@ -974,12 +974,12 @@ KeyPathInfo {
 
     #[test]
     fn define_key_specifier_ctor_path() {
-        #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "p")]
-        #[adhoc(role = "r")]
-        #[adhoc(ctor_path = "Self::ctp")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, Eq, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "p")]
+        #[deftly(role = "r")]
+        #[deftly(ctor_path = "Self::ctp")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {
             i: usize,
         }
@@ -1001,14 +1001,14 @@ KeyPathInfo {
 
     #[test]
     fn define_key_specifier_fixed_path_component() {
-        #[derive(Adhoc, Debug, Eq, PartialEq)]
-        #[derive_adhoc(KeySpecifier)]
-        #[adhoc(prefix = "prefix")]
-        #[adhoc(role = "role")]
-        #[adhoc(summary = "test key")]
+        #[derive(Deftly, Debug, Eq, PartialEq)]
+        #[derive_deftly(KeySpecifier)]
+        #[deftly(prefix = "prefix")]
+        #[deftly(role = "role")]
+        #[deftly(summary = "test key")]
         struct TestSpecifier {
             x: usize,
-            #[adhoc(fixed_path_component = "fixed")]
+            #[deftly(fixed_path_component = "fixed")]
             z: bool,
         }
 

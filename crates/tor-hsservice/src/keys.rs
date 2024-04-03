@@ -14,8 +14,8 @@ use crate::internal_prelude::*;
 /// Keys that are used by publisher, which relate to our HS and a TP
 ///
 /// Derived using
-/// the derive-adhoc macro of the same name.
-// We'd like to link to crate::derive_adhoc_template_HsTimePeriodKeySpecifier
+/// the derive-deftly macro of the same name.
+// We'd like to link to crate::derive_deftly_template_HsTimePeriodKeySpecifier
 // but linking to a module-local macro doesn't work with rustdoc.
 trait HsTimePeriodKeySpecifier: Debug {
     /// Inspect the nickname
@@ -24,7 +24,7 @@ trait HsTimePeriodKeySpecifier: Debug {
     fn period(&self) -> &TimePeriod;
 }
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Implement `HsTimePeriodKeySpecifier` for a struct with `nickname` and `period`
     HsTimePeriodKeySpecifier =
 
@@ -38,72 +38,72 @@ define_derive_adhoc! {
     }
 }
 
-#[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier)]
-#[adhoc(prefix = "hss")]
-#[adhoc(role = "KP_hs_id")]
-#[adhoc(summary = "Public part of the identity key")]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "hss")]
+#[deftly(role = "KP_hs_id")]
+#[deftly(summary = "Public part of the identity key")]
 /// The public part of the identity key of the service.
 pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
     nickname: HsNickname,
 }
 
-#[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier)]
-#[adhoc(prefix = "hss")]
-#[adhoc(role = "KS_hs_id")]
-#[adhoc(summary = "Long-term identity keypair")]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "hss")]
+#[deftly(role = "KS_hs_id")]
+#[deftly(summary = "Long-term identity keypair")]
 /// The long-term identity keypair of the service.
 pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
     pub(crate) nickname: HsNickname,
 }
 
-#[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
-#[adhoc(prefix = "hss")]
-#[adhoc(role = "KS_hs_blind_id")]
-#[adhoc(summary = "Blinded signing keypair")]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier, HsTimePeriodKeySpecifier)]
+#[deftly(prefix = "hss")]
+#[deftly(role = "KS_hs_blind_id")]
+#[deftly(summary = "Blinded signing keypair")]
 /// The blinded signing keypair.
 pub struct BlindIdKeypairSpecifier {
     /// The nickname of the  hidden service.
     pub(crate) nickname: HsNickname,
-    #[adhoc(denotator)]
+    #[deftly(denotator)]
     /// The time period associated with this key.
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
-#[adhoc(prefix = "hss")]
-#[adhoc(role = "KP_hs_blind_id")]
-#[adhoc(summary = "Blinded public key")]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier, HsTimePeriodKeySpecifier)]
+#[deftly(prefix = "hss")]
+#[deftly(role = "KP_hs_blind_id")]
+#[deftly(summary = "Blinded public key")]
 /// The blinded public key.
 pub struct BlindIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
     pub(crate) nickname: HsNickname,
-    #[adhoc(denotator)]
+    #[deftly(denotator)]
     /// The time period associated with this key.
     pub(crate) period: TimePeriod,
 }
 
-#[derive(Adhoc, PartialEq, Debug, Constructor)]
-#[derive_adhoc(KeySpecifier, HsTimePeriodKeySpecifier)]
-#[adhoc(prefix = "hss")]
-#[adhoc(role = "KS_hs_desc_sign")]
-#[adhoc(summary = "Descriptor signing key")]
+#[derive(Deftly, PartialEq, Debug, Constructor)]
+#[derive_deftly(KeySpecifier, HsTimePeriodKeySpecifier)]
+#[deftly(prefix = "hss")]
+#[deftly(role = "KS_hs_desc_sign")]
+#[deftly(summary = "Descriptor signing key")]
 /// The descriptor signing key.
 pub struct DescSigningKeypairSpecifier {
     /// The nickname of the  hidden service.
     pub(crate) nickname: HsNickname,
-    #[adhoc(denotator)]
+    #[deftly(denotator)]
     /// The time period associated with this key.
     pub(crate) period: TimePeriod,
 }
 
 /// Denotates one of the keys, in the context of a particular HS and intro point
-#[derive(Debug, Adhoc, Eq, PartialEq, strum::Display, strum::EnumString)]
+#[derive(Debug, Deftly, Eq, PartialEq, strum::Display, strum::EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub(crate) enum IptKeyRole {
     /// `k_hss_ntor`
@@ -115,19 +115,19 @@ pub(crate) enum IptKeyRole {
 impl KeySpecifierComponentViaDisplayFromStr for IptKeyRole {}
 
 /// Specifies an intro point key
-#[derive(Debug, Adhoc, Eq, PartialEq)]
-#[derive_adhoc(KeySpecifier)]
-#[adhoc(prefix = "hss")]
-#[adhoc(summary = "introduction point key")]
+#[derive(Debug, Deftly, Eq, PartialEq)]
+#[derive_deftly(KeySpecifier)]
+#[deftly(prefix = "hss")]
+#[deftly(summary = "introduction point key")]
 pub(crate) struct IptKeySpecifier {
     /// nick
     pub(crate) nick: HsNickname,
     /// which key
-    #[adhoc(fixed_path_component = "ipts")]
-    #[adhoc(role)]
+    #[deftly(fixed_path_component = "ipts")]
+    #[deftly(role)]
     pub(crate) role: IptKeyRole,
     /// lid
-    #[adhoc(denotator)]
+    #[deftly(denotator)]
     pub(crate) lid: IptLocalId,
 }
 

@@ -74,9 +74,11 @@ pub use sources::{ConfigurationSource, ConfigurationSources};
 use itertools::Itertools;
 
 #[doc(hidden)]
-pub use derive_adhoc;
+pub use derive_deftly;
 #[doc(hidden)]
 pub use flatten::flattenable_extract_fields;
+
+derive_deftly::pub_template_semver_check! { "0.10.0" }
 
 /// A set of configuration fields, represented as a set of nested K=V
 /// mappings.

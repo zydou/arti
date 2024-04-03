@@ -83,6 +83,8 @@ pub use {
 #[doc(hidden)]
 pub use key_specifier::derive as key_specifier_derive;
 
+derive_deftly::pub_template_semver_check! { "0.10.0" }
+
 #[cfg(not(feature = "keymgr"))]
 #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]
 pub use dummy::*;
@@ -91,7 +93,7 @@ pub use dummy::*;
 pub(crate) type BoxedKeystore = Box<dyn Keystore>;
 
 #[doc(hidden)]
-pub use {derive_adhoc, inventory};
+pub use {derive_deftly, inventory};
 
 use derive_more::{AsRef, Display, From};
 use serde::{Deserialize, Serialize};

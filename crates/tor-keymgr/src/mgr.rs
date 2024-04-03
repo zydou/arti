@@ -310,7 +310,7 @@ impl KeyMgr {
     ///
     /// This function uses the [`KeyPathInfoExtractor`]s registered using
     /// [`register_key_info_extractor`](crate::register_key_info_extractor),
-    /// or by [`DefaultKeySpecifier`](crate::derive_adhoc_template_KeySpecifier).
+    /// or by [`DefaultKeySpecifier`](crate::derive_deftly_template_KeySpecifier).
     pub fn describe(&self, path: &KeyPath) -> StdResult<KeyPathInfo, KeyPathError> {
         for info_extractor in &self.key_info_extractors {
             if let Ok(info) = info_extractor.describe(path) {

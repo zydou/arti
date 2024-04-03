@@ -60,18 +60,18 @@ use crate::task::{MockExecutor, SchedulingPolicy};
 ///
 ///  * Anything provided by a Rust runtime/executor project (eg anything from Tokio),
 ///    unless it is definitively established that it's runtime-agnostic.
-#[derive(Debug, Default, Clone, Getters, Adhoc)]
-#[derive_adhoc(SomeMockRuntime)]
+#[derive(Debug, Default, Clone, Getters, Deftly)]
+#[derive_deftly(SomeMockRuntime)]
 #[getter(prefix = "mock_")]
 pub struct MockRuntime {
     /// Tasks
-    #[adhoc(mock(task))]
+    #[deftly(mock(task))]
     task: MockExecutor,
     /// Time provider
-    #[adhoc(mock(sleep))]
+    #[deftly(mock(sleep))]
     sleep: SimpleMockTimeProvider,
     /// Net provider
-    #[adhoc(mock(net))]
+    #[deftly(mock(net))]
     net: MockNetProvider,
 }
 

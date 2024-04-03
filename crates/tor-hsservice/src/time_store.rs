@@ -82,7 +82,7 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime};
 
-use derive_adhoc::{define_derive_adhoc, Adhoc};
+use derive_deftly::{define_derive_deftly, Deftly};
 use serde::{Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
 use thiserror::Error;
@@ -90,9 +90,9 @@ use tracing::warn;
 
 use tor_rtcompat::SleepProvider;
 
-//---------- derive-adhoc macro for raw accessors, must come first ----------
+//---------- derive-deftly macro for raw accessors, must come first ----------
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Define `as_raw` and `from_raw` methods (for a struct with a single field)
     //
     // We provide these for the types which are serde, since we are already exposing
@@ -114,7 +114,7 @@ define_derive_adhoc! {
     }
 }
 
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Define [`Serialize`] and [`Deserialize`] via string rep or transparently, depending
     ///
     /// In human-readable formats, uses the [`Display`] and [`FromStr`].
@@ -179,8 +179,8 @@ define_derive_adhoc! {
 /// when it was stored - ie, with respect to the corresponding [`Reference`];
 /// in binary as a `u64`, in human readable formats as
 /// `T+` plus [`humantime`]'s formatting of the `Duration` in seconds.)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Adhoc)]
-#[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Deftly)]
+#[derive_deftly(RawConversions, SerdeStringOrTransparent)]
 pub struct FutureTimestamp {
     /// How far this timestamp was in the future, when we stored it
     offset: u64,
@@ -202,8 +202,8 @@ pub struct FutureTimestamp {
     fmt = "{}",
     "humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))"
 )]
-#[derive(Adhoc)]
-#[derive_adhoc(RawConversions, SerdeStringOrTransparent)]
+#[derive(Deftly)]
+#[derive_deftly(RawConversions, SerdeStringOrTransparent)]
 pub struct Reference {
     /// Unix time (at which the other timestamps were stored)
     time_t: i64,

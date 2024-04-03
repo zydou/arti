@@ -65,7 +65,7 @@ use std::fmt::{self, Display};
 use std::marker::PhantomData;
 use std::mem;
 
-use derive_adhoc::{define_derive_adhoc, derive_adhoc, Adhoc};
+use derive_deftly::{define_derive_deftly, derive_deftly_adhoc, Deftly};
 use paste::paste;
 use serde::de::{self, DeserializeSeed, Deserializer, Error as _, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Serialize, Serializer};
@@ -73,7 +73,7 @@ use serde_value::Value;
 use thiserror::Error;
 
 // Must come first so we can refer to it in docs
-define_derive_adhoc! {
+define_derive_deftly! {
     /// Derives [`Flattenable`] for a struct
     ///
     /// # Limitations
@@ -88,11 +88,11 @@ define_derive_adhoc! {
     ///
     /// ```
     /// use serde::{Serialize, Deserialize};
-    /// use derive_adhoc::Adhoc;
-    /// use tor_config::derive_adhoc_template_Flattenable;
+    /// use derive_deftly::Deftly;
+    /// use tor_config::derive_deftly_template_Flattenable;
     ///
-    /// #[derive(Serialize, Deserialize, Debug, Adhoc)]
-    /// #[derive_adhoc(Flattenable)]
+    /// #[derive(Serialize, Deserialize, Debug, Deftly)]
+    /// #[derive_deftly(Flattenable)]
     /// struct A {
     ///     a: i32,
     /// }
@@ -100,9 +100,9 @@ define_derive_adhoc! {
     //
     // Note re semver:
     //
-    // We re-export derive-adhoc's template engine, in the manner discussed by the d-a docs.
+    // We re-export derive-deftly's template engine, in the manner discussed by the d-a docs.
     // See
-    //  https://docs.rs/derive-adhoc/latest/derive_adhoc/macro.define_derive_adhoc.html#exporting-a-template-for-use-by-other-crates
+    //  https://docs.rs/derive-deftly/latest/derive_deftly/macro.define_derive_deftly.html#exporting-a-template-for-use-by-other-crates
     //
     // The semantic behaviour of the template *does* have semver implications.
     pub Flattenable for struct, expect items =
@@ -139,7 +139,7 @@ define_derive_adhoc! {
 ///
 /// `T` and `U` must both be [`Flattenable`].
 /// Usually that trait should be derived with
-/// the [`Flattenable macro`](derive_adhoc_template_Flattenable).
+/// the [`Flattenable macro`](derive_deftly_template_Flattenable).
 ///
 /// If it's desired to combine more than two structs, `Flatten` can be nested.
 ///
@@ -155,17 +155,17 @@ define_derive_adhoc! {
 ///
 /// ```
 /// use serde::{Serialize, Deserialize};
-/// use derive_adhoc::Adhoc;
-/// use tor_config::{Flatten, derive_adhoc_template_Flattenable};
+/// use derive_deftly::Deftly;
+/// use tor_config::{Flatten, derive_deftly_template_Flattenable};
 ///
-/// #[derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq)]
-/// #[derive_adhoc(Flattenable)]
+/// #[derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq)]
+/// #[derive_deftly(Flattenable)]
 /// struct A {
 ///     a: i32,
 /// }
 ///
-/// #[derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq)]
-/// #[derive_adhoc(Flattenable)]
+/// #[derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq)]
+/// #[derive_deftly(Flattenable)]
 /// struct B {
 ///     b: String,
 /// }
@@ -181,17 +181,18 @@ define_derive_adhoc! {
 /// );
 /// ```
 //
-// We derive Adhoc on Flatten itself so we can use
-// truly-adhoc derive_adhoc! to iterate over Flatten's two fields.
+// We derive Deftly on Flatten itself so we can use
+// derive_deftly_adhoc! to iterate over Flatten's two fields.
 // This avoids us accidentally (for example) checking T's fields for passing to U.
-#[derive(Adhoc, Debug, Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq, Default)]
+#[derive(Deftly, Debug, Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq, Default)]
+#[derive_deftly_adhoc]
 #[allow(clippy::exhaustive_structs)]
 pub struct Flatten<T, U>(pub T, pub U);
 
 /// Types that can be used with [`Flatten`]
 ///
 /// Usually, derived with
-/// the [`Flattenable derive-adhoc macro`](derive_adhoc_template_Flattenable).
+/// the [`Flattenable derive-deftly macro`](derive_deftly_template_Flattenable).
 pub trait Flattenable {
     /// Does this type have a field named `s` ?
     fn has_field(f: &str) -> bool;
@@ -250,7 +251,7 @@ macro_rules! call_any_for_rest { {} => {
 
 //========== Implementations of Serialize and Flattenable ==========
 
-derive_adhoc! {
+derive_deftly_adhoc! {
     Flatten expect items:
 
     impl<T, U> Serialize for Flatten<T, U>
@@ -320,7 +321,7 @@ type FlattenError = serde_value::DeserializerError;
 
 //----- part 1: disassembly -----
 
-derive_adhoc! {
+derive_deftly_adhoc! {
     Flatten expect items:
 
     // where constraint on the Deserialize impl
@@ -378,7 +379,7 @@ derive_adhoc! {
 
 //----- part 2: reassembly -----
 
-derive_adhoc! {
+derive_deftly_adhoc! {
     Flatten expect items:
 
     impl<'de, T, U> Flatten<T, U>
@@ -562,22 +563,22 @@ mod test {
 
     use std::collections::HashMap;
 
-    #[derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq)]
-    #[derive_adhoc(Flattenable)]
+    #[derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq)]
+    #[derive_deftly(Flattenable)]
     struct A {
         a: i32,
         m: HashMap<String, String>,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq)]
-    #[derive_adhoc(Flattenable)]
+    #[derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq)]
+    #[derive_deftly(Flattenable)]
     struct B {
         b: i32,
         v: Vec<String>,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq)]
-    #[derive_adhoc(Flattenable)]
+    #[derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq)]
+    #[derive_deftly(Flattenable)]
     struct C {
         c: HashMap<String, String>,
     }

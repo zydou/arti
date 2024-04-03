@@ -7,8 +7,8 @@ use tor_cell::relaycell::hs::est_intro;
 /// Configuration for one onion service.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Serialize, Deserialize, Debug, Adhoc, Eq, PartialEq))]
-#[builder_struct_attr(derive_adhoc(tor_config::Flattenable))]
+#[builder(derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq))]
+#[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.
     pub(crate) nickname: HsNickname,

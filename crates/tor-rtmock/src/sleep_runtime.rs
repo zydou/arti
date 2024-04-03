@@ -15,14 +15,14 @@ use crate::util::impl_runtime_prelude::*;
 /// The [`MockSleepProvider`] used here has some limitations.
 /// See its documentation for more information.
 /// Use [`MockRuntime`](crate::MockRuntime) for new tests.
-#[derive(Clone, Debug, Adhoc)]
-#[derive_adhoc(SomeMockRuntime)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(SomeMockRuntime)]
 pub struct MockSleepRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
-    #[adhoc(mock(task, net))]
+    #[deftly(mock(task, net))]
     runtime: R,
     /// A MockSleepProvider.  Time-related calls get delegated here.
-    #[adhoc(mock(sleep))]
+    #[deftly(mock(sleep))]
     sleep: MockSleepProvider,
 }
 

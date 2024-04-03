@@ -9,14 +9,14 @@ use crate::net::MockNetProvider;
 
 /// A wrapper Runtime that overrides the SleepProvider trait for the
 /// underlying runtime.
-#[derive(Clone, Debug, Adhoc)]
-#[derive_adhoc(SomeMockRuntime)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(SomeMockRuntime)]
 pub struct MockNetRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
-    #[adhoc(mock(task, sleep))]
+    #[deftly(mock(task, sleep))]
     runtime: R,
     /// A MockNetProvider.  Network-related calls get delegated here.
-    #[adhoc(mock(net))]
+    #[deftly(mock(net))]
     net: MockNetProvider,
 }
 
