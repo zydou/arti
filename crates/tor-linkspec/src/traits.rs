@@ -4,7 +4,6 @@
 use derive_deftly::derive_deftly_adhoc;
 use safelog::Redactable;
 use std::{fmt, iter::FusedIterator, net::SocketAddr};
-use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
 
 use crate::{ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
