@@ -7,6 +7,7 @@
 
 use std::fmt;
 
+use derive_deftly::Deftly;
 use derive_more::{Display, From};
 use safelog::Redactable;
 use tor_llcrypto::pk::{
@@ -31,7 +32,9 @@ pub(crate) mod set;
     Display,
     strum::EnumIter,
     strum::EnumCount,
+    Deftly,
 )]
+#[derive_deftly_adhoc]
 #[non_exhaustive]
 pub enum RelayIdType {
     /// An Ed25519 identity.

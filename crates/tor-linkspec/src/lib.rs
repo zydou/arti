@@ -43,6 +43,7 @@
 
 #[cfg(feature = "decode")]
 pub mod decode;
+#[macro_use]
 mod ids;
 mod ls;
 mod owned;
