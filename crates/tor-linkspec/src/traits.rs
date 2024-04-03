@@ -68,7 +68,7 @@ pub trait HasRelayIds {
 
     /// Return true if this object has any known identity.
     fn has_any_identity(&self) -> bool {
-        RelayIdType::iter().any(|id_type| self.identity(id_type).is_some())
+        RelayIdType::all_types().any(|id_type| self.identity(id_type).is_some())
     }
 
     /// Return true if this object has exactly the same relay IDs as `other`.
@@ -121,7 +121,7 @@ pub trait HasRelayIds {
     /// If additional identities are added in the future, they may taken into
     /// consideration before _or_ after the current identity types.
     fn cmp_by_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> std::cmp::Ordering {
-        for key_type in RelayIdType::iter() {
+        for key_type in RelayIdType::all_types() {
             let ordering = Ord::cmp(&self.identity(key_type), &other.identity(key_type));
             if ordering.is_ne() {
                 return ordering;
