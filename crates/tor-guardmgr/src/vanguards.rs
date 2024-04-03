@@ -11,6 +11,8 @@ use std::sync::{Arc, RwLock, Weak};
 
 use futures::task::{SpawnError, SpawnExt as _};
 use rand::RngCore;
+use set::TimeBoundVanguard;
+use std::collections::BinaryHeap;
 use tor_config::ReconfigureError;
 use tor_error::{internal, ErrorKind, HasKind};
 use tor_netdir::{NetDir, NetDirProvider};
@@ -42,9 +44,23 @@ struct Inner {
     /// Configuration parameters read from the consensus parameters.
     params: VanguardParams,
     /// The L2 vanguards.
+    ///
+    /// This is a view of the L2 vanguards from the `vanguards` heap.
     l2_vanguards: VanguardSet,
     /// The L3 vanguards.
+    ///
+    /// This is a view of the L3 vanguards from the `vanguards` heap.
     l3_vanguards: VanguardSet,
+    /// A binary heap with all our vanguards.
+    /// It contains both the `l2_vanguards` and the `l3_vanguards`.
+    ///
+    /// Storing the vanguards in a min-heap is convenient
+    /// because we need to periodically remove the expired vanguards,
+    /// and determine which vanguard will expire next.
+    ///
+    /// Removing a vanguard from the heap causes it to expire and to be removed
+    /// from its corresponding [`VanguardSet`].
+    vanguards: BinaryHeap<Arc<TimeBoundVanguard>>,
 }
 
 /// An error coming from the vanguards subsystem.
@@ -93,6 +109,7 @@ impl<R: Runtime> VanguardMgr<R> {
         let params = VanguardParams::default();
         let l2_vanguards = VanguardSet::new(params.l2_pool_size());
         let l3_vanguards = VanguardSet::new(params.l3_pool_size());
+        let vanguards = BinaryHeap::new();
 
         let inner = Inner {
             mode: *mode,
@@ -100,6 +117,7 @@ impl<R: Runtime> VanguardMgr<R> {
             params,
             l2_vanguards,
             l3_vanguards,
+            vanguards,
         };
 
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full

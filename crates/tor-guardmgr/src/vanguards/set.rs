@@ -1,5 +1,6 @@
 //! Vanguard sets
 
+use std::cmp::Ordering;
 use std::time::SystemTime;
 
 use rand::RngCore;
@@ -8,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use tor_linkspec::RelayIds;
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::RelayExclusion;
+
+use std::sync::Weak;
 
 /// A vanguard relay.
 //
@@ -29,21 +32,42 @@ pub struct Vanguard<'a> {
 /// If [Full](crate::vanguards::VanguardMode) vanguards are in use,
 /// the `TimeBoundVanguard`s from all layers are persisted to disk.
 #[derive(Debug, Clone, Serialize, Deserialize)] //
-#[derive(Eq, PartialEq, Ord, PartialOrd, Hash)] //
 pub(crate) struct TimeBoundVanguard {
     /// The ID of this relay.
     id: RelayIds,
     /// When to stop using this relay as a vanguard.
-    expiration: SystemTime,
+    when: SystemTime,
 }
 
+// TODO(#1342): derive all of these?
+impl Ord for TimeBoundVanguard {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Reversed, because we want the earlier
+        // `TimeBoundVanguard` to be "greater".
+        self.when.cmp(&other.when).reverse()
+    }
+}
+
+impl PartialOrd for TimeBoundVanguard {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for TimeBoundVanguard {
+    fn eq(&self, other: &Self) -> bool {
+        self.when == other.when
+    }
+}
+
+impl Eq for TimeBoundVanguard {}
+
 /// A set of vanguards, for use in a particular [`Layer`](crate::vanguards::Layer).
-#[derive(Debug, Clone, Serialize, Deserialize)] //
-#[derive(Eq, PartialEq, Ord, PartialOrd, Hash)] //
+#[derive(Debug, Clone)] //
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
-    vanguards: Vec<TimeBoundVanguard>,
+    vanguards: Vec<Weak<TimeBoundVanguard>>,
     /// The number of vanguards we would like to have in this set.
     target: usize,
 }
