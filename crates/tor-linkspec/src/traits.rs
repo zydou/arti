@@ -81,7 +81,7 @@ pub trait HasRelayIds {
     // NOTE: We don't make this an `Eq` method, since we want to make callers
     // choose carefully among this method, `has_all_relay_ids_from`, and any
     // similar methods we add in the future.
-    #[allow(clippy::nonminimal_bool)]
+    #[allow(clippy::nonminimal_bool)] // rust-clippy/issues/12627
     fn same_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> bool {
         // We use derive-deftly to iterate over the id types, rather than strum
         //
