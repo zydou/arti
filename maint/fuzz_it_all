@@ -8,6 +8,7 @@ echo "Using toolchain +${RUST_FUZZ_TOOLCHAIN:=nightly}. (Override with \$RUST_FU
 # if it itsn't.
 cargo "+${RUST_FUZZ_TOOLCHAIN}" -h >/dev/null
 
+# STEP 1: Build every fuzzer.
 for d in ./crates/*/fuzz; do
     pushd "$(dirname "$d")"
     for fuzzer in $(cargo fuzz list); do
@@ -17,6 +18,21 @@ for d in ./crates/*/fuzz; do
     popd
 done
 
+# STEP 2: Run static test cases
+
+for d in ./crates/*/fuzz; do
+    pushd "$(dirname "$d")"
+    for fuzzer in $(cargo fuzz list); do
+	echo "Running fuzzer '$fuzzer' on static testcases"
+	# "-runs=0" means that we won't actually do any additional fuzzing
+	# after we load the corpus.
+	cargo "+${RUST_FUZZ_TOOLCHAIN}" fuzz run "$fuzzer" -- \
+	      -runs=0
+    done
+    popd
+done
+
+# STEP 3: Run every fuzzer in a loop, for a while, then switch to the next one.
 
 #JOBS=4
 #SEED=0
