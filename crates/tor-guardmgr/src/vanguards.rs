@@ -7,8 +7,9 @@
 pub mod config;
 mod set;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Weak};
 
+use futures::task::{SpawnError, SpawnExt as _};
 use rand::RngCore;
 use tor_config::ReconfigureError;
 use tor_error::{internal, ErrorKind, HasKind};
@@ -54,6 +55,10 @@ pub enum VanguardMgrError {
     #[error("No suitable relays")]
     NoSuitableRelay(Layer),
 
+    /// Could not spawn a task.
+    #[error("Unable to spawn a task")]
+    Spawn(#[source] Arc<SpawnError>),
+
     /// An internal error occurred.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -64,6 +69,7 @@ impl HasKind for VanguardMgrError {
         match self {
             // TODO HS-VANGUARDS: this is not right
             VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
+            VanguardMgrError::Spawn(e) => e.kind(),
             VanguardMgrError::Bug(e) => e.kind(),
         }
     }
@@ -104,11 +110,25 @@ impl<R: Runtime> VanguardMgr<R> {
     }
 
     /// Launch the vanguard pool management tasks.
+    ///
+    /// This spawns [`VanguardMgr::maintain_vanguard_sets`]
+    /// which runs until the `VanguardMgr` is dropped.
     pub fn launch_background_tasks(
         self: &Arc<Self>,
-        _netdir_provider: &Arc<dyn NetDirProvider>,
-    ) -> Result<(), VanguardMgrError> {
-        todo!()
+        netdir_provider: &Arc<dyn NetDirProvider>,
+    ) -> Result<(), VanguardMgrError>
+    where
+        R: Runtime,
+    {
+        let netdir_provider = Arc::clone(netdir_provider);
+        self.runtime
+            .spawn(Self::maintain_vanguard_sets(
+                Arc::downgrade(self),
+                netdir_provider,
+            ))
+            .map_err(|e| VanguardMgrError::Spawn(Arc::new(e)))?;
+
+        Ok(())
     }
 
     /// Replace the configuration in this `VanguardMgr` with the specified `config`.
@@ -171,6 +191,17 @@ impl<R: Runtime> VanguardMgr<R> {
         vanguard_set
             .pick_relay(rng, netdir, neighbor_exclusion)
             .ok_or(VanguardMgrError::NoSuitableRelay(layer))
+    }
+
+    /// The vanguard set management task.
+    ///
+    /// This is a background task that:
+    /// * removes vanguards from the `vanguards` heap when they expire
+    /// * ensures the [`VanguardSet`]s are repopulated with new vanguards
+    ///   when the number of vanguards drops below a certain threshold
+    /// * handles `NetDir` changes, updating the vanguard set sizes as needed
+    async fn maintain_vanguard_sets(_mgr: Weak<Self>, _netdir_provider: Arc<dyn NetDirProvider>) {
+        todo!()
     }
 
     /// Get the current [`VanguardMode`].
