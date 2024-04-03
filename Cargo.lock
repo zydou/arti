@@ -5523,6 +5523,7 @@ dependencies = [
  "base64ct",
  "by_address",
  "caret",
+ "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
  "hex",

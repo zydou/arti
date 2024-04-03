@@ -1,9 +1,9 @@
 //! Declare traits to be implemented by types that describe a place
 //! that Tor can connect to, directly or indirectly.
 
+use derive_deftly::derive_deftly_adhoc;
 use safelog::Redactable;
 use std::{fmt, iter::FusedIterator, net::SocketAddr};
-use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
 
 use crate::{ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
@@ -68,7 +68,7 @@ pub trait HasRelayIds {
 
     /// Return true if this object has any known identity.
     fn has_any_identity(&self) -> bool {
-        RelayIdType::iter().any(|id_type| self.identity(id_type).is_some())
+        RelayIdType::all_types().any(|id_type| self.identity(id_type).is_some())
     }
 
     /// Return true if this object has exactly the same relay IDs as `other`.
@@ -81,8 +81,45 @@ pub trait HasRelayIds {
     // NOTE: We don't make this an `Eq` method, since we want to make callers
     // choose carefully among this method, `has_all_relay_ids_from`, and any
     // similar methods we add in the future.
+    #[allow(clippy::nonminimal_bool)] // rust-clippy/issues/12627
     fn same_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> bool {
-        RelayIdType::all_types().all(|key_type| self.identity(key_type) == other.identity(key_type))
+        // We use derive-deftly to iterate over the id types, rather than strum
+        //
+        // Empirically, with rustc 1.77.0-beta.5, this arranges that
+        //     <tor_netdir::Relay as HasRelayIds>::same_relay_ids
+        // compiles to the same asm (on amd64) as the open-coded inherent
+        //     tor_netdir::Relay::has_same_relay_ids
+        //
+        // The problem with the strum approach seems to be that the compiler doesn't inline
+        //     <RelayIdTypeIter as Iterator>::next
+        // and unroll the loop.
+        // Adding `#[inline]` and even `#[inline(always)]` to the strum output didn't help.
+        //
+        // When `next()` isn't inlined and the loop unrolled,
+        // the compiler can't inline the matching on the id type,
+        // and generate the obvious simple function.
+        //
+        // Empirically, the same results with non-inlined next() and non-unrolled loop,
+        // were obtained with:
+        //   - a simpler hand-coded Iterator struct
+        //   - that hand-coded Iterator struct locally present in tor-netdir,
+        //   - using `<[RelayIdType; ] as IntoIterator>`
+        //
+        // I experimented to see if this was a general problem with `strum`'s iterator.
+        // In a smaller test program the compiler *does* unroll and inline.
+        // I suspect that the compiler is having trouble with the complexities
+        // of disentangling `HasLegacyRelayIds` and/or comparing `Option<RelayIdRef>`.
+        //
+        // TODO: do we want to replace RelayIdType::all_types with derive-deftly
+        // in RelayIdIter, has_all_relay_ids_from, has_any_relay_id_from, etc.?
+        // If so, search this crate for all_types.
+        derive_deftly_adhoc! {
+            RelayIdType:
+            $(
+                self.identity($vtype) == other.identity($vtype) &&
+            )
+                true
+        }
     }
 
     /// Return true if this object has every relay ID that `other` does.
@@ -121,7 +158,7 @@ pub trait HasRelayIds {
     /// If additional identities are added in the future, they may taken into
     /// consideration before _or_ after the current identity types.
     fn cmp_by_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> std::cmp::Ordering {
-        for key_type in RelayIdType::iter() {
+        for key_type in RelayIdType::all_types() {
             let ordering = Ord::cmp(&self.identity(key_type), &other.identity(key_type));
             if ordering.is_ne() {
                 return ordering;
