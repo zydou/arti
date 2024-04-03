@@ -48,7 +48,7 @@ pub(super) struct VanguardSet {
 impl VanguardSet {
     /// Pick a relay from this set.
     ///
-    /// See [`VanguardMgr::pick_relay`](crate::vanguards::VanguardMgr::select_vanguard)
+    /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
     /// for more information.
     pub(super) fn pick_relay<'a>(
         &self,
