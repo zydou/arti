@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use derive_deftly::define_derive_deftly;
 use downcast_rs::Downcast;
 use once_cell::sync::Lazy;
 
@@ -9,7 +10,8 @@ use once_cell::sync::Lazy;
 ///
 /// We use [`typetag`] here so that we define `Method`s in other crates.
 ///
-/// See [`decl_method!`](crate::decl_method) for a template to declare one of these.
+/// Use [`derive_deftly(DynMethod)`](derive_deftly_template_DynMethod)
+/// for a template to declare one of these.
 ///
 /// # Note
 ///
@@ -61,21 +63,24 @@ pub struct MethodInfo_ {
 
 inventory::collect!(MethodInfo_);
 
-/// Declare that one or more space-separated types should be considered as RPC
-/// methods.
+define_derive_deftly! {
+/// Declare that one or more space-separated types should be considered
+/// as dynamically dispatchable RPC methods.
 ///
 /// # Example
 ///
 /// ```
-/// use tor_rpcbase as rpc;
+/// use tor_rpcbase::{self as rpc, templates::*};
+/// use derive_deftly::Deftly;
 ///
-/// #[derive(Debug, serde::Deserialize)]
+/// #[derive(Debug, serde::Deserialize, Deftly)]
+/// #[derive_deftly(rpc::DynMethod, rpc::HasConstTypeId_)]
+/// #[deftly(method_name = "x-example:castigate")]
 /// struct Castigate {
 ///    severity: f64,
 ///    offenses: Vec<String>,
 ///    accomplice: Option<rpc::ObjectId>,
 /// }
-/// rpc::decl_method!{ "x-example:castigate" => Castigate}
 ///
 /// impl rpc::Method for Castigate {
 ///     type Output = String;
@@ -87,21 +92,16 @@ inventory::collect!(MethodInfo_);
 ///
 /// For now you'll need to import the `typetag` crate; unfortunately, it doesn't
 /// yet behave well when used where it is not in scope as `typetag`.
-#[macro_export]
-macro_rules! decl_method {
-    {$($name:expr => $id:ident),* $(,)?}
-    =>
-    {
-        $(
-            $crate::impl_const_type_id!{$id}
-            #[typetag::deserialize(name = $name)]
-            impl $crate::DynMethod for $id {}
-            $crate::inventory::submit!{
-                $crate::MethodInfo_ { method_name : $name }
-            }
-        )*
-    }
+    pub DynMethod =
+        #[$crate::typetag::deserialize(name = ${tmeta(method_name) as str})]
+        // Note that we do not support generics in method types.
+        // If we did, we would have to give each instantiation type its own method name.
+        impl $crate::DynMethod for $ttype {}
+        $crate::inventory::submit! {
+            $crate::MethodInfo_ { method_name : ${tmeta(method_name) as str} }
+        }
 }
+pub use derive_deftly_template_DynMethod;
 
 /// Return true if `name` is the name of some method.
 pub fn is_method_name(name: &str) -> bool {

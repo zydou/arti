@@ -6,7 +6,7 @@
 //! [`TorClient::connect`].
 
 #[cfg(feature = "rpc")]
-mod rpc;
+use {derive_deftly::Deftly, tor_rpcbase::templates::*};
 
 use crate::address::{IntoTorAddr, ResolveInstructions, StreamInstructions};
 
@@ -70,6 +70,7 @@ use tracing::{debug, info};
 // implicit Arcs inside them! maybe it's time to replace much of the insides of
 // this with an Arc<TorClientInner>?
 #[derive(Clone)]
+#[cfg_attr(feature = "rpc", derive(Deftly), derive_deftly(Object))]
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,

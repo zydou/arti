@@ -7,7 +7,9 @@
 use std::sync::Arc;
 
 use super::Connection;
+use derive_deftly::Deftly;
 use tor_rpcbase as rpc;
+use tor_rpcbase::templates::*;
 
 /*
     TODO RPC: This is disabled because the design isn't really useful.
@@ -89,7 +91,9 @@ enum AuthenticationScheme {
 }
 
 /// Method to ask which authentication methods are supported.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Deftly)]
+#[derive_deftly(DynMethod, HasConstTypeId_)]
+#[deftly(method_name = "auth:query")]
 struct AuthQuery {}
 
 /// A list of supported authentication schemes and their parameters.
@@ -106,7 +110,6 @@ struct SupportedAuth {
     schemes: Vec<AuthenticationScheme>,
 }
 
-rpc::decl_method! {"auth:query" => AuthQuery}
 impl rpc::Method for AuthQuery {
     type Output = SupportedAuth;
     type Update = rpc::NoUpdates;
@@ -128,7 +131,9 @@ rpc::rpc_invoke_fn! {
 
 /// Method to implement basic authentication.  Right now only "I connected to
 /// you so I must have permission!" is supported.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Deftly)]
+#[derive_deftly(DynMethod, HasConstTypeId_)]
+#[deftly(method_name = "auth:authenticate")]
 struct Authenticate {
     /// The authentication scheme as enumerated in the spec.
     ///
@@ -143,7 +148,6 @@ struct AuthenticateReply {
     session: rpc::ObjectId,
 }
 
-rpc::decl_method! {"auth:authenticate" => Authenticate}
 impl rpc::Method for Authenticate {
     type Output = AuthenticateReply;
     type Update = rpc::NoUpdates;

@@ -19,7 +19,8 @@ full = [
     "tor-error/full",
     "tor-rpcbase/full",
     "tor-rtcompat/full",
-    "tor-bytes/full", "tor-llcrypto/full",
+    "tor-bytes/full",
+    "tor-llcrypto/full",
 ]
 
 [dependencies]
@@ -27,6 +28,7 @@ arti-client = { path = "../arti-client", version = "0.17.0", features = ["rpc"] 
 asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
+derive-deftly = "0.10.2"
 derive_more = "0.99.3"
 erased-serde = "0.4.2"
 futures = "0.3.14"

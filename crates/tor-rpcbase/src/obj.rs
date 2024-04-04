@@ -2,6 +2,7 @@
 
 pub(crate) mod cast;
 
+use derive_deftly::define_derive_deftly;
 use downcast_rs::DowncastSync;
 use serde::{Deserialize, Serialize};
 
@@ -10,11 +11,13 @@ use self::cast::CastTable;
 /// An object in our RPC system to which methods can be addressed.
 ///
 /// You shouldn't implement this trait yourself; instead, use the
-/// [`decl_object`](crate::decl_object) macro.
+/// [`derive_deftly(Object)`].
 ///
-/// See the documentation for [`decl_object`](crate::decl_object)
+/// See the documentation for [`derive_deftly(Object)`]
 /// for examples of how to declare and
 /// downcast `Object`s.
+///
+/// [`derive_deftly(Object)`]: crate::templates::derive_deftly_template_Object
 pub trait Object: DowncastSync + Send + Sync + 'static {
     /// Return true if this object should be given an identifier that allows it
     /// to be used outside of the session that generated it.
@@ -38,8 +41,8 @@ pub trait Object: DowncastSync + Send + Sync + 'static {
     /// The default implementation of this method declares that the `Object`
     /// can't be downcast into any traits.
     ///
-    /// You should not implement this method yourself; instead use the
-    /// [`decl_object`](crate::decl_object) macro.
+    /// You should not implement this method yourself; instead use
+    /// [`derive_deftly(Object)`](crate::templates::derive_deftly_template_Object).
     fn get_cast_table(&self) -> &CastTable {
         &cast::EMPTY_CAST_TABLE
     }
@@ -81,8 +84,13 @@ where
 /// # Examples
 ///
 /// ```
-/// use tor_rpcbase::{decl_object, Object, ObjectRefExt};
+/// use tor_rpcbase::{Object, ObjectRefExt, templates::*};
+/// use derive_deftly::Deftly;
 /// use std::sync::Arc;
+///
+/// #[derive(Deftly)]
+/// #[derive_deftly(Object)]
+/// #[deftly(downcastable_to = "HasFeet")]
 /// pub struct Frog {}
 /// pub trait HasFeet {
 ///     fn num_feet(&self) -> usize;
@@ -90,9 +98,6 @@ where
 /// impl HasFeet for Frog {
 ///     fn num_feet(&self) -> usize { 4 }
 /// }
-/// // Have `Frog` implement Object and declare that it can be
-/// // downcast to HasFeet.
-/// decl_object!{ Frog : [HasFeet] }
 ///
 /// /// If `obj` is a HasFeet, return how many feet it has.
 /// /// Otherwise, return 0.
@@ -125,30 +130,28 @@ impl ObjectRefExt for std::sync::Arc<dyn Object> {
     }
 }
 
+define_derive_deftly! {
 /// Declare that one or more space-separated types should be considered as
 /// RPC objects.
 ///
-/// This macro implements `Object` (and other necessary traits) for the
+/// This template implements `Object` for the
 /// target type, and can be used to cause objects to participate in the trait
 /// downcasting system.
-///
-/// You can provide multiple objects in one invocation of this macro;
-/// just separate them with a semicolon (`;`).
 ///
 /// # Examples
 ///
 /// ## Simple case, just implements `Object`.
 ///
 /// ```
-/// use tor_rpcbase as rpc;
+/// use tor_rpcbase::{self as rpc, templates::*};
+/// use derive_deftly::Deftly;
 ///
-/// #[derive(Default)]
+/// #[derive(Default, Deftly)]
+/// #[derive_deftly(Object)]
 /// struct Houseplant {
 ///    oxygen_per_sec: f64,
 ///    benign_neglect: u8
 /// }
-///
-/// rpc::decl_object!{Houseplant}
 ///
 /// // You can downcast an Object to a concrete type.
 /// use downcast_rs::DowncastSync;
@@ -161,19 +164,22 @@ impl ObjectRefExt for std::sync::Arc<dyn Object> {
 ///
 /// By default, you can use [`downcast_rs`] to downcast a `dyn Object` to its
 /// concrete type.  If you also need to be able to downcast a `dyn Object` to a given
-/// trait that it implements, you can use this syntax for `decl_object` to have
+/// trait that it implements, you can use the `downcastable_to` attributes for `Object` to have
 /// it participate in trait downcasting:
 ///
 /// ```
-/// use tor_rpcbase as rpc;
+/// use tor_rpcbase::{self as rpc, templates::*};
+/// use derive_deftly::Deftly;
 ///
+/// #[derive(Deftly)]
+/// #[derive_deftly(Object)]
+/// #[deftly(downcastable_to = "Gizmo, Doodad")]
 /// struct Frobnitz {}
+///
 /// trait Gizmo {}
 /// trait Doodad {}
 /// impl Gizmo for Frobnitz {}
 /// impl Doodad for Frobnitz {}
-///
-/// rpc::decl_object!{Frobnitz: [Gizmo, Doodad]}
 ///
 /// use std::sync::Arc;
 /// use rpc::ObjectRefExt; // for the cast_to method.
@@ -188,29 +194,20 @@ impl ObjectRefExt for std::sync::Arc<dyn Object> {
 /// but it _can_ participate in trait downcasting.  We'll try to remove this
 /// limitation in the future.
 ///
-/// The current syntax is pretty ugly; we may try to improve it in the future.
-///
 /// ```
-/// use tor_rpcbase as rpc;
+/// use tor_rpcbase::{self as rpc, templates::*};
+/// use derive_deftly::Deftly;
 ///
+/// #[derive(Deftly)]
+/// #[derive_deftly(Object)]
+/// #[deftly(downcastable_to = "ExampleTrait")]
 /// struct Generic<T,U> where T:Clone, U:PartialEq {
 ///     t: T,
 ///     u: U,
 /// }
+///
 /// trait ExampleTrait {}
 /// impl<T:Clone,U:PartialEq> ExampleTrait for Generic<T,U> {}
-/// rpc::decl_object!{
-///     Generic
-///             // First, list the generic parameters.
-///             [T,U]
-///             // Then give the contents of the where clause.
-///             // They will need to be `Send + Sync + 'static` or else you
-///             // won't be able to implement `Object`.
-///             [ T:Clone + Send + Sync + 'static,
-///               U:PartialEq + Send + Sync + 'static]
-///             // Finally, list the traits you want to downcast into.
-///             : [ExampleTrait]
-/// }
 ///
 /// use std::sync::Arc;
 /// use rpc::ObjectRefExt; // for the cast_to method.
@@ -223,59 +220,57 @@ impl ObjectRefExt for std::sync::Arc<dyn Object> {
 /// You flag any kind of Object so that its identifiers will be exported
 /// outside of the local RPC session.  (Arti uses this for Objects whose
 /// ObjectId needs to be used as a SOCKS identifier.)  To do so,
-/// add `@expose` before the object's name:
+/// use the `expose_outside_session` attribute:
 ///
 /// ```
-/// use tor_rpcbase as rpc;
+/// use tor_rpcbase::{self as rpc, templates::*};
+/// use derive_deftly::Deftly;
 ///
+/// #[derive(Deftly)]
+/// #[derive_deftly(Object)]
+/// #[deftly(expose_outside_of_session)]
 /// struct Visible {}
-///
-/// rpc::decl_object!{@expose Visible}
-
 /// ```
-#[macro_export]
-macro_rules! decl_object {
-    {$(@ $flag:ident)* $id:ident $( ; $($rest:tt)* )? }
-    =>
-    {
+    pub Object expect items =
 
-        $crate::impl_const_type_id!{$id}
-        impl $crate::Object for $id {
-            $( $crate::decl_object!{@@extra_method $flag} )*
+    impl<$tgens> $ttype where $twheres
+        // We need this restriction in case there are generics
+        // that might not impl these traits.
+        $ttype: Send + Sync + 'static,
+        $twheres
+    {
+        /// Construct a new `CastTable` for this type.
+        ///
+        /// This is a function so that we can call it multiple times as
+        /// needed if the type is generic.
+        ///
+        /// Don't invoke this yourself; instead use `decl_object!`.
+        #[doc(hidden)]
+        fn make_cast_table() -> $crate::CastTable {
+            ${if tmeta(downcastable_to) {
+                $crate::cast_table_deftness_helper!{ ${tmeta(downcastable_to)} }
+            } else {
+                $crate::CastTable::default()
+            }}
         }
+    }
 
-        $( $crate::decl_object!{$($rest)*} )?
-    };
-    {$(@ $flag:ident)* $id:ident : [$($traitname:path),*] $( ; $($rest:tt)* )? } =>
+    impl<$tgens> $crate::Object for $ttype where
+        // We need this restriction in case there are generics
+        // that might not impl these traits.
+        $ttype: Send + Sync + 'static,
+        $twheres
     {
-        $crate::impl_const_type_id!{$id}
-        $crate::decl_make_cast_table!{$id [$id] [] [] [$($traitname),*] }
-        impl $crate::Object for $id {
-            $( $crate::decl_object!{@@extra_method $flag} )*
-
-            fn get_cast_table(&self) -> &$crate::CastTable {
-                // For non-generic types, we only ever have a single CastTable,
-                // so we can just construct it once and return it.
-                use $crate::once_cell::sync::Lazy;
-                static TABLE: Lazy<$crate::CastTable> = Lazy::new(|| $id::make_cast_table());
-                &TABLE
+        ${if tmeta(expose_outside_of_session) {
+            fn expose_outside_of_session(&self) -> bool {
+                true
             }
-        }
+        }}
 
-        $( $crate::decl_object!{$($rest)*} )?
-    };
-    {$(@ $flag:ident)* $id:ident [$($param:ident),*] [$($wheres:tt)*] : [$($traitname:path),*] $( ; $($rest:tt)* )? } =>
-    {
-        // No const_type_id is possible here.  That means we can't yet put these
-        // in our dispatch table. So sad.
-        // TODO RPC: See arti#837 for work on this.
-        $crate::decl_make_cast_table!{ $id [$id<$($param),*>] [$($param),*] [$($wheres)*] [$($traitname)*]  }
-        impl<$($param),*> $crate::Object for $id<$($param),*>
-        where $($wheres)*
-        {
-            $( $crate::decl_object!{@@extra_method $flag} )*
-
-            fn get_cast_table(&self) -> &$crate::CastTable {
+        fn get_cast_table(&self) -> &$crate::CastTable {
+            // TODO RPC: Is there a better way to check "is this a generic type"?
+            // See derive-deftly#37
+            ${if approx_equal({$tgens}, {}) {
                 // For generic types, we have a potentially unbounded number
                 // of CastTables: one for each instantiation of the type.
                 // Therefore we keep a mutable add-only HashMap of CastTables.
@@ -315,18 +310,17 @@ macro_rules! decl_object {
                          .or_insert_with(|| Box::leak(Box::new(Self::make_cast_table())))
                     }
                 }
-            }
+            } else {
+                // For non-generic types, we only ever have a single CastTable,
+                // so we can just construct it once and return it.
+                use $crate::once_cell::sync::Lazy;
+                static TABLE: Lazy<$crate::CastTable> = Lazy::new(|| $ttype::make_cast_table());
+                &TABLE
+            }}
         }
-        $( $crate::decl_object!{$($rest)*} )?
-    };
-
-    {@@extra_method expose} => {
-        fn expose_outside_of_session(&self) -> bool { true }
-    };
-
-    // This production allows a terminating ; to appear in a decl_object call.
-    { } => {};
+    }
 }
+pub use derive_deftly_template_Object;
 
 #[cfg(test)]
 mod test {
@@ -345,7 +339,11 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use derive_deftly::Deftly;
 
+    #[derive(Deftly)]
+    #[derive_deftly(Object)]
+    #[deftly(downcastable_to = "HasWheels")]
     struct Bicycle {}
     trait HasWheels {
         fn num_wheels(&self) -> usize;
@@ -355,7 +353,6 @@ mod test {
             2
         }
     }
-    decl_object! { Bicycle: [HasWheels]; }
 
     #[test]
     fn standard_cast() {
@@ -365,17 +362,16 @@ mod test {
         assert_eq!(has_wheels.num_wheels(), 2);
     }
 
-    struct Crowd<T: HasWheels> {
+    #[derive(Deftly)]
+    #[derive_deftly(Object)]
+    #[deftly(downcastable_to = "HasWheels")]
+    struct Crowd<T: HasWheels + Send + Sync + 'static> {
         members: Vec<T>,
     }
-    impl<T: HasWheels> HasWheels for Crowd<T> {
+    impl<T: HasWheels + Send + Sync> HasWheels for Crowd<T> {
         fn num_wheels(&self) -> usize {
             self.members.iter().map(T::num_wheels).sum()
         }
-    }
-
-    decl_object! {
-        Crowd [T] [T:HasWheels+Send + Sync + 'static] : [HasWheels]
     }
 
     #[test]

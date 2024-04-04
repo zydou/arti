@@ -271,6 +271,7 @@ version = "0.17.0"
 dependencies = [
  "anyhow",
  "cfg-if",
+ "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
  "educe",
@@ -346,6 +347,7 @@ dependencies = [
  "asynchronous-codec",
  "base64ct",
  "bytes",
+ "derive-deftly",
  "derive_more",
  "erased-serde",
  "futures",
@@ -1325,9 +1327,9 @@ dependencies = [
 
 [[package]]
 name = "derive-deftly"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45dc26c329bd96b4d8dfe1c0b07abe22ac52561d734dfd92e45a2b7bf122c826"
+checksum = "1c73e0d22a9971c8f34e462a5ff0c7ae616c999c452d5618d5114f9d9e9f1ea4"
 dependencies = [
  "derive-deftly-macros",
  "heck 0.5.0",
@@ -1335,9 +1337,9 @@ dependencies = [
 
 [[package]]
 name = "derive-deftly-macros"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5c0147ce8a0ba5c4ec2a51d21a2fab4926e322e785f45cfdb4d681e3a379d10"
+checksum = "a1c4ff61a3e54d02b01cadefc0f4ff563fbbe7eb61eeb7924c1b3f14439faf19"
 dependencies = [
  "heck 0.5.0",
  "indexmap 2.2.6",
@@ -5803,6 +5805,7 @@ name = "tor-rpcbase"
 version = "0.17.0"
 dependencies = [
  "assert-impl",
+ "derive-deftly",
  "downcast-rs",
  "erased-serde",
  "futures",

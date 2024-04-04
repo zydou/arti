@@ -17,7 +17,7 @@ use crate::Object;
 /// particular concrete object type `O` into various `&dyn Trait` references.
 ///
 /// You shouldn't construct this on your own: instead use
-/// [`crate::decl_object!`].
+/// `derive_deftly(Object)`.
 ///
 /// You shouldn't use this directly; instead use
 /// [`ObjectRefExt`](super::ObjectRefExt).
@@ -47,8 +47,8 @@ pub struct CastTable {
 impl CastTable {
     /// Add a new entry to this `CastTable` for downcasting to TypeId.
     ///
-    /// You should not call this yourself; instead use the
-    /// [`crate::decl_object!`] macro.
+    /// You should not call this yourself; instead use
+    /// [`derive_deftly(Object)`](crate::templates::derive_deftly_template_Object)
     ///
     /// # Requirements
     ///
@@ -126,36 +126,17 @@ pub(super) static EMPTY_CAST_TABLE: Lazy<CastTable> = Lazy::new(|| CastTable {
     table: HashMap::new(),
 });
 
-/// Helper macro: Add a private `make_cast_table()` method to a given object.
+/// Helper for HasCastTable to work around derive-deftly#36.
+///
+/// Defines the body for a private make_cast_table() method.
 ///
 /// This macro is not part of `tor-rpcbase`'s public API, and is not covered
 /// by semver guarantees.
 #[doc(hidden)]
 #[macro_export]
-macro_rules! decl_make_cast_table {
-    {
-        // The name of the type that should get a make_cast_table() function.
-        $thisname:path
-        // The name of the type, plus any generic parameters.
-        [ $thistype:ty ]
-        // A list of generic parameters.
-        [$($generics:ident),*]
-        // A list of `where` constraints.
-        [$($wheres:tt)*]
-        // A list of the traits to implement downcasting for.
-        [$($traitname:path),*]
-    } => {
-        impl<$($generics),*> $thistype
-        where $($wheres)*
-        {
-            /// Construct a new `CastTable` for this type.
-            ///
-            /// This is a function so that we can call it multiple times as
-            /// needed if the type is generic.
-            ///
-            /// Don't invoke this yourself; instead use `decl_object!`.
-            #[doc(hidden)]
-            fn make_cast_table() -> $crate::CastTable {
+macro_rules! cast_table_deftness_helper{
+    // Note: We have to use tt here, since $ty can't be used in $(dyn .)
+    { $( $traitname:tt ),* } => {
                 #[allow(unused_mut)]
                 let mut table = $crate::CastTable::default();
                 $({
@@ -163,15 +144,13 @@ macro_rules! decl_make_cast_table {
                     // It works by downcasting with Any to the concrete type, and then
                     // upcasting from the concrete type to &dyn Trait.
                     let f: fn(&dyn $crate::Object) -> &(dyn $traitname + 'static) = |self_| {
-                        let self_: &$thistype  = self_.downcast_ref().unwrap();
+                        let self_: &Self = self_.downcast_ref().unwrap();
                         let self_: &dyn $traitname = self_ as _;
                         self_
                     };
                     table.insert::<dyn $traitname>(f);
                 })*
                 table
-            }
-        }
     }
 }
 
@@ -192,17 +171,17 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::templates::*;
+    use derive_deftly::Deftly;
 
     trait Tr1 {}
     trait Tr2: 'static {}
 
+    #[derive(Deftly)]
+    #[derive_deftly(Object)]
+    #[deftly(downcastable_to = "Tr1")]
     struct Simple;
     impl Tr1 for Simple {}
-    impl Object for Simple {}
-
-    decl_make_cast_table! {
-        Simple [Simple] [] [] [Tr1]
-    }
 
     #[test]
     fn check_simple() {
@@ -212,15 +191,13 @@ mod test {
         let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
     }
 
-    struct Generic<T>(T);
+    #[derive(Deftly)]
+    #[derive_deftly(Object)]
+    #[deftly(downcastable_to = "Tr1, Tr2")]
+    struct Generic<T: Send + Sync + 'static>(T);
 
-    impl<T> Tr1 for Generic<T> {}
-    impl<T: 'static> Tr2 for Generic<T> {}
-    impl<T: Send + Sync + 'static> Object for Generic<T> {}
-
-    decl_make_cast_table! {
-        Generic [Generic<T>] [T] [T: Send + Sync + 'static] [Tr1, Tr2]
-    }
+    impl<T: Send + Sync + 'static> Tr1 for Generic<T> {}
+    impl<T: Send + Sync + 'static> Tr2 for Generic<T> {}
 
     #[test]
     fn check_generic() {

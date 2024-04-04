@@ -1,5 +1,7 @@
 //! A kludgy replacement for [`std::any::TypeId`] that can be used in a constant context.
 
+use derive_deftly::define_derive_deftly;
+
 /// A less helpful variant of `std::any::TypeId` that can be created in a const
 /// context.
 ///
@@ -14,8 +16,8 @@
 /// use it outside of our dispatch code.  Once we can use `TypeId` instead, we
 /// should and will.
 ///
-/// To make a type participate in this system, use the [`impl_const_type_id`]
-/// macro.
+/// To make a type participate in this system, use
+/// `derive_deftly(HasConstTypeId_)`.
 ///
 /// The [`ConstTypeId_`] function deliberately does not implement `Eq` and
 /// friends. To compare two of these, use `TypeId::from()` to convert it into
@@ -44,29 +46,30 @@ impl From<ConstTypeId_> for std::any::TypeId {
 /// This is precisely the functionality that [`std::any::TypeId`] doesn't
 /// currently have.
 ///
-/// **Do not mention this type outside of this module.**
+/// You can implement this for your own types by using [`derive_deftly`].
+///
+/// TODO RPC:
+/// Ideally, we would never mention this type outside this module.  However,
+/// our current behavior for the `derive_deftly(Object)` template
+/// requires people derive _both_ `Object` and `HasConstTypeId_`.
+///
+/// We should refactor this.
 pub trait HasConstTypeId_ {
     const CONST_TYPE_ID_: ConstTypeId_;
 }
 
+define_derive_deftly! {
 /// Implement [`HasConstTypeId_`] for one or more types.
-///
-/// To avoid truly unpleasant consequences, this macro only works on simple
-/// identifiers, so you can't run it on arbitrary types, or on types in other
-/// modules.
-#[macro_export]
-macro_rules! impl_const_type_id {
-    { $($type:ident)* } => {
-        $(
-            impl $crate::typeid::HasConstTypeId_ for $type {
-                const CONST_TYPE_ID_: $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
-                    std::any::TypeId::of::<$type>
-                );
-            }
-        )*
+    pub HasConstTypeId_ =
+
+    impl <$ tgens > $crate::typeid::HasConstTypeId_ for $ttype
+    where $twheres {
+        const CONST_TYPE_ID_ : $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
+            std::any::TypeId::of::<$ttype>
+        );
     }
 }
-pub use impl_const_type_id;
+pub use derive_deftly_template_HasConstTypeId_;
 
 #[cfg(test)]
 mod test {
@@ -85,12 +88,19 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use assert_impl::assert_impl;
+    use derive_deftly::Deftly;
 
-    #[allow(dead_code)]
-    struct Foo(usize);
+    #[derive(Deftly)]
+    #[derive_deftly(HasConstTypeId_)]
+    struct Foo(#[allow(unused)] usize);
+
+    #[derive(Deftly)]
+    #[derive_deftly(HasConstTypeId_)]
     struct Bar {}
 
-    crate::impl_const_type_id! {Foo Bar}
+    #[derive(Deftly)]
+    #[derive_deftly(HasConstTypeId_)]
+    struct Baz<T: 'static>(#[allow(unused)] T);
 
     #[test]
     fn typeid_basics() {
@@ -106,5 +116,13 @@ mod test {
         assert_eq!(TypeId::from(Foo::CONST_TYPE_ID_), foo2.type_id());
         assert_eq!(TypeId::from(Bar::CONST_TYPE_ID_), bar.type_id());
         assert_ne!(TypeId::from(Foo::CONST_TYPE_ID_), bar.type_id());
+
+        let baz1: Baz<u8> = Baz(10);
+        let baz2: Baz<u8> = Baz(11);
+        let baz3: Baz<u16> = Baz(12);
+        assert_eq!(TypeId::from(Baz::<u8>::CONST_TYPE_ID_), baz1.type_id());
+        assert_eq!(TypeId::from(Baz::<u8>::CONST_TYPE_ID_), baz2.type_id());
+        assert_eq!(TypeId::from(Baz::<u16>::CONST_TYPE_ID_), baz3.type_id());
+        assert_ne!(TypeId::from(Baz::<u8>::CONST_TYPE_ID_), baz3.type_id());
     }
 }

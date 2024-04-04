@@ -73,20 +73,23 @@ impl InvokeEntry_ {
 /// # Example
 ///
 /// ```
-/// use tor_rpcbase::{self as rpc};
+/// use tor_rpcbase::{self as rpc, templates::*};
+/// use derive_deftly::Deftly;
 ///
 /// use futures::sink::{Sink, SinkExt};
 /// use std::sync::Arc;
 ///
-/// #[derive(Debug)]
+/// #[derive(Debug, Deftly)]
+/// #[derive_deftly(Object, HasConstTypeId_)]
 /// struct ExampleObject {}
-/// #[derive(Debug)]
+/// #[derive(Debug, Deftly)]
+/// #[derive_deftly(Object, HasConstTypeId_)]
 /// struct ExampleObject2 {}
-/// rpc::decl_object! {ExampleObject; ExampleObject2;}
 ///
-/// #[derive(Debug,serde::Deserialize)]
+/// #[derive(Debug,serde::Deserialize, Deftly)]
+/// #[derive_deftly(DynMethod, HasConstTypeId_)]
+/// #[deftly(method_name = "arti:x-example")]
 /// struct ExampleMethod {}
-/// rpc::decl_method! { "arti:x-example" => ExampleMethod}
 /// impl rpc::Method for ExampleMethod {
 ///     type Output = ExampleResult;
 ///     type Update = Progress;
@@ -303,29 +306,37 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::{Method, NoUpdates};
+    use crate::{templates::*, Method, NoUpdates};
+    use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;
     use std::sync::Arc;
 
     // Define 3 animals and one brick.
-    #[derive(Clone)]
+    #[derive(Clone, Deftly)]
+    #[derive_deftly(Object, HasConstTypeId_)]
     struct Swan;
-    #[derive(Clone)]
+    #[derive(Clone, Deftly)]
+    #[derive_deftly(Object, HasConstTypeId_)]
     struct Wombat;
-    #[derive(Clone)]
+    #[derive(Clone, Deftly)]
+    #[derive_deftly(Object, HasConstTypeId_)]
     struct Sheep;
-    #[derive(Clone)]
+    #[derive(Clone, Deftly)]
+    #[derive_deftly(Object, HasConstTypeId_)]
     struct Brick;
 
-    crate::decl_object! {Swan; Wombat; Sheep; Brick; }
-
     // Define 2 methods.
-    #[derive(Debug, serde::Deserialize)]
+    #[derive(Debug, serde::Deserialize, Deftly)]
+    #[derive_deftly(DynMethod, HasConstTypeId_)]
+    #[deftly(method_name = "x-test:getname")]
     struct GetName;
-    #[derive(Debug, serde::Deserialize)]
+
+    #[derive(Debug, serde::Deserialize, Deftly)]
+    #[derive_deftly(DynMethod, HasConstTypeId_)]
+    #[deftly(method_name = "x-test:getkids")]
     struct GetKids;
-    crate::decl_method! { "x-test:getname"=>GetName, "x-test:getkids" => GetKids}
+
     impl Method for GetName {
         type Output = Outcome;
         type Update = NoUpdates;

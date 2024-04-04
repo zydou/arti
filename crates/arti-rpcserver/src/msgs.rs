@@ -170,6 +170,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use derive_deftly::Deftly;
+    use tor_rpcbase::templates::*;
 
     /// Assert that two arguments have the same output from `std::fmt::Debug`.
     ///
@@ -184,7 +186,9 @@ mod test {
     // TODO RPC: note that the existence of this method type can potentially
     // leak into our real RPC engine when we're compiled with `test` enabled!
     // We should consider how bad this is, and maybe use a real method instead.
-    #[derive(Debug, serde::Deserialize)]
+    #[derive(Debug, serde::Deserialize, Deftly)]
+    #[derive_deftly(DynMethod, HasConstTypeId_)]
+    #[deftly(method_name = "x-test:dummy")]
     struct DummyMethod {
         #[serde(default)]
         #[allow(dead_code)]
@@ -195,8 +199,6 @@ mod test {
         type Output = DummyResponse;
         type Update = rpc::NoUpdates;
     }
-
-    tor_rpcbase::decl_method! {"x-test:dummy" => DummyMethod}
 
     #[derive(Serialize)]
     struct DummyResponse {
