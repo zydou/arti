@@ -15,7 +15,7 @@ use self::cast::CastTable;
 /// See the documentation for [`decl_object`](crate::decl_object)
 /// for examples of how to declare and
 /// downcast `Object`s.
-pub trait Object: DowncastSync {
+pub trait Object: DowncastSync + Send + Sync + 'static {
     /// Return true if this object should be given an identifier that allows it
     /// to be used outside of the session that generated it.
     ///
@@ -96,7 +96,7 @@ where
 ///
 /// /// If `obj` is a HasFeet, return how many feet it has.
 /// /// Otherwise, return 0.
-/// fn check_feet(obj: Arc<dyn Object + 'static>) -> usize {
+/// fn check_feet(obj: Arc<dyn Object>) -> usize {
 ///     let maybe_has_feet: Option<&dyn HasFeet> = obj.cast_to_trait();
 ///     match maybe_has_feet {
 ///         Some(foot_haver) => foot_haver.num_feet(),
