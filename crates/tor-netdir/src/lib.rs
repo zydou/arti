@@ -1782,7 +1782,7 @@ impl MdReceiver for NetDir {
 }
 
 impl<'a> UncheckedRelay<'a> {
-    /// Return an [`UncheckedRelayDetails`] for this relay.
+    /// Return an [`UncheckedRelayDetails`](details::UncheckedRelayDetails) for this relay.
     ///
     /// Callers should generally avoid using this information directly if they can;
     /// it's better to use a higher-level function that exposes semantic information
@@ -1828,7 +1828,7 @@ impl<'a> UncheckedRelay<'a> {
 }
 
 impl<'a> Relay<'a> {
-    /// Return an [`UncheckedRelayDetails`] for this relay.
+    /// Return a [`RelayDetails`](details::RelayDetails) for this relay.
     ///
     /// Callers should generally avoid using this information directly if they can;
     /// it's better to use a higher-level function that exposes semantic information
