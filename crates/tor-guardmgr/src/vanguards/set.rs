@@ -160,3 +160,19 @@ impl From<&VanguardSet> for RelayIdSet {
             .collect()
     }
 }
+
+// Amplify can't generate pub(super) getters, so we need to write them by hand.
+#[cfg(test)]
+impl VanguardSet {
+    /// Return the target size of this set.
+    #[cfg(test)]
+    pub(super) fn target(&self) -> usize {
+        self.target
+    }
+
+    /// Return the vanguards in this set
+    #[cfg(test)]
+    pub(super) fn vanguards(&self) -> &Vec<Weak<TimeBoundVanguard>> {
+        &self.vanguards
+    }
+}

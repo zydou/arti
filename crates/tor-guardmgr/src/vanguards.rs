@@ -573,3 +573,378 @@ pub enum Layer {
     #[display(fmt = "layer 3")]
     Layer3,
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use std::fmt;
+
+    use super::*;
+
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_linkspec::HasRelayIds;
+    use tor_netdir::{testnet, testprovider::TestNetDirProvider};
+    use tor_persist::TestingStateMgr;
+    use tor_rtmock::MockRuntime;
+    use Layer::*;
+
+    use itertools::Itertools;
+
+    impl fmt::Debug for Vanguard<'_> {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.debug_struct("Vanguard").finish()
+        }
+    }
+
+    /// Create a new VanguardMgr for testing.
+    fn new_vanguard_mgr<R: Runtime>(rt: &R) -> Arc<VanguardMgr<R>> {
+        let config = Default::default();
+        let statemgr = TestingStateMgr::new();
+        Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr).unwrap())
+    }
+
+    /// Look up the vanguard in the VanguardMgr heap.
+    fn find_in_heap<R: Runtime>(
+        vanguard: &Vanguard<'_>,
+        mgr: &VanguardMgr<R>,
+    ) -> Option<Weak<TimeBoundVanguard>> {
+        let inner = mgr.inner.read().unwrap();
+        inner
+            .vanguards
+            .iter()
+            .find(|v| {
+                let relay_ids = RelayIds::from_relay_ids(vanguard.relay());
+                v.id == relay_ids
+            })
+            .map(Arc::downgrade)
+    }
+
+    /// Look up the vanguard in the specified VanguardSet.
+    fn find_in_set<R: Runtime>(
+        vanguard: &Vanguard<'_>,
+        mgr: &VanguardMgr<R>,
+        layer: Layer,
+    ) -> Option<Weak<TimeBoundVanguard>> {
+        let inner = mgr.inner.read().unwrap();
+
+        let vanguard_set = match layer {
+            Layer2 => &inner.l2_vanguards,
+            Layer3 => &inner.l3_vanguards,
+        };
+
+        // Look up the TimeBoundVanguard that corresponds to this Vanguard,
+        // and figure out its expiry.
+        let relay_ids = RelayIds::from_relay_ids(vanguard.relay());
+        vanguard_set
+            .vanguards()
+            .iter()
+            .find(|v| v.upgrade().map(|v| v.id == relay_ids).unwrap_or_default())
+            .cloned()
+    }
+
+    /// Get the total number of vanguard entries (L2 + L3).
+    fn vanguard_count<R: Runtime>(mgr: &VanguardMgr<R>) -> usize {
+        let inner = mgr.inner.read().unwrap();
+        inner.vanguards.len()
+    }
+
+    /// Return a `Duration` representing how long until this vanguard expires.
+    fn duration_until_expiry<R: Runtime>(
+        vanguard: &Vanguard<'_>,
+        mgr: &VanguardMgr<R>,
+        runtime: &R,
+        layer: Layer,
+    ) -> Duration {
+        // Look up the TimeBoundVanguard that corresponds to this Vanguard,
+        // and figure out its expiry.
+        let vanguard = find_in_set(vanguard, mgr, layer)
+            .unwrap()
+            .upgrade()
+            .unwrap();
+
+        vanguard
+            .when
+            .duration_since(runtime.wallclock())
+            .unwrap_or_default()
+    }
+
+    /// Assert the lifetime of the specified `vanguard` is within the bounds of its `layer`.
+    fn assert_expiry_in_bounds<R: Runtime>(
+        vanguard: &Vanguard<'_>,
+        mgr: &VanguardMgr<R>,
+        runtime: &R,
+        params: &VanguardParams,
+        layer: Layer,
+    ) {
+        let (min, max) = match layer {
+            Layer2 => (params.l2_lifetime_min(), params.l2_lifetime_max()),
+            Layer3 => (params.l3_lifetime_min(), params.l3_lifetime_max()),
+        };
+
+        // This is not exactly the lifetime of the vanguard,
+        // but rather the time left until it expires (but it's close enough for our purposes).
+        let lifetime = duration_until_expiry(vanguard, mgr, runtime, layer);
+
+        assert!(
+            lifetime >= min && lifetime <= max,
+            "lifetime {lifetime:?} not between {min:?} and {max:?}",
+        );
+    }
+
+    /// Assert that the vanguard manager's pools are empty.
+    fn assert_sets_empty<R: Runtime>(vanguardmgr: &VanguardMgr<R>, params: &VanguardParams) {
+        let inner = vanguardmgr.inner.read().unwrap();
+        // The sets are initially empty
+        assert_eq!(inner.l2_vanguards.deficit(), params.l2_pool_size());
+        assert_eq!(inner.l3_vanguards.deficit(), params.l3_pool_size());
+        assert_eq!(vanguard_count(vanguardmgr), 0);
+    }
+
+    /// Assert that the vanguard manager's pools have been filled.
+    fn assert_sets_filled<R: Runtime>(vanguardmgr: &VanguardMgr<R>, params: &VanguardParams) {
+        let inner = vanguardmgr.inner.read().unwrap();
+        let l2_pool_size = params.l2_pool_size();
+        let l3_pool_size = params.l3_pool_size();
+        // The sets are initially empty
+        assert_eq!(inner.l2_vanguards.deficit(), 0);
+        assert_eq!(inner.l3_vanguards.deficit(), 0);
+        assert_eq!(vanguard_count(vanguardmgr), l2_pool_size + l3_pool_size);
+    }
+
+    /// Assert the target size of the specified vanguard set matches the target from `params`.
+    fn assert_set_targets_match_params<R: Runtime>(mgr: &VanguardMgr<R>, params: &VanguardParams) {
+        let inner = mgr.inner.read().unwrap();
+        assert_eq!(inner.l2_vanguards.target(), params.l2_pool_size());
+        assert_eq!(inner.l3_vanguards.target(), params.l3_pool_size());
+    }
+
+    /// Wait until the vanguardmgr has populated its vanguard sets.
+    async fn init_vanguard_sets(
+        runtime: MockRuntime,
+        netdir: NetDir,
+        vanguardmgr: Arc<VanguardMgr<MockRuntime>>,
+    ) -> Arc<TestNetDirProvider> {
+        let netdir_provider = Arc::new(TestNetDirProvider::new());
+        vanguardmgr
+            .launch_background_tasks(&(netdir_provider.clone() as Arc<dyn NetDirProvider>))
+            .unwrap();
+        runtime.progress_until_stalled().await;
+
+        // Call set_netdir_and_notify to trigger an event
+        netdir_provider
+            .set_netdir_and_notify(Arc::new(netdir.clone()))
+            .await;
+
+        // Wait until the vanguard mgr has finished handling the netdir event.
+        runtime.progress_until_stalled().await;
+
+        netdir_provider
+    }
+
+    #[test]
+    fn full_vanguards_disabled() {
+        MockRuntime::test_with_various(|rt| async move {
+            let vanguardmgr = new_vanguard_mgr(&rt);
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let mut rng = testing_rng();
+            let exclusion = RelayExclusion::no_relays_excluded();
+
+            // Cannot select an L3 vanguard when running in "Lite" mode.
+            let err = vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
+                .unwrap_err();
+            assert!(matches!(err, VanguardMgrError::Bug(_)), "{err:?}");
+        });
+    }
+
+    #[test]
+    fn background_task_not_spawned() {
+        MockRuntime::test_with_various(|rt| async move {
+            let vanguardmgr = new_vanguard_mgr(&rt);
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let params = VanguardParams::try_from(netdir.params()).unwrap();
+            let mut rng = testing_rng();
+            let exclusion = RelayExclusion::no_relays_excluded();
+
+            // The sets are initially empty
+            assert_sets_empty(&vanguardmgr, &params);
+
+            // VanguardMgr::launch_background tasks was not called, so select_vanguard will return
+            // an error (because the vanguard sets are empty)
+            let err = vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .unwrap_err();
+
+            assert!(
+                matches!(err, VanguardMgrError::NoSuitableRelay(Layer2)),
+                "{err:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn select_vanguards() {
+        MockRuntime::test_with_various(|rt| async move {
+            let vanguardmgr = new_vanguard_mgr(&rt);
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let params = VanguardParams::try_from(netdir.params()).unwrap();
+            let mut rng = testing_rng();
+            let exclusion = RelayExclusion::no_relays_excluded();
+
+            // The sets are initially empty
+            assert_sets_empty(&vanguardmgr, &params);
+
+            // Wait until the vanguard manager has bootstrapped
+            let _netdir_provider =
+                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+
+            assert_sets_filled(&vanguardmgr, &params);
+
+            let vanguard1 = vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .unwrap();
+            assert_expiry_in_bounds(&vanguard1, &vanguardmgr, &rt, &params, Layer2);
+
+            let exclusion = RelayExclusion::exclude_identities(
+                vanguard1
+                    .relay()
+                    .identities()
+                    .map(|id| id.to_owned())
+                    .collect(),
+            );
+
+            // TODO HS-VANGUARDS: use Layer3 once full vanguard support is implemented.
+            let vanguard2 = vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .unwrap();
+
+            assert_expiry_in_bounds(&vanguard2, &vanguardmgr, &rt, &params, Layer2);
+            // Ensure we didn't select the same vanguard twice
+            assert_ne!(
+                vanguard1.relay().identities().collect_vec(),
+                vanguard2.relay().identities().collect_vec()
+            );
+        });
+    }
+
+    /// Override the vanguard params from the netdir, returning the new VanguardParams.
+    ///
+    /// This also waits until the vanguard manager has had a chance to process the changes.
+    async fn install_new_params(
+        rt: &MockRuntime,
+        netdir_provider: &TestNetDirProvider,
+        params: impl IntoIterator<Item = (&str, i32)>,
+    ) -> VanguardParams {
+        let new_netdir = testnet::construct_custom_netdir_with_params(|_, _| {}, params, None)
+            .unwrap()
+            .unwrap_if_sufficient()
+            .unwrap();
+        let new_params = VanguardParams::try_from(new_netdir.params()).unwrap();
+
+        netdir_provider.set_netdir_and_notify(new_netdir).await;
+
+        // Wait until the vanguard mgr has finished handling the new netdir.
+        rt.progress_until_stalled().await;
+
+        new_params
+    }
+
+    #[test]
+    fn override_vanguard_set_size() {
+        MockRuntime::test_with_various(|rt| async move {
+            let vanguardmgr = new_vanguard_mgr(&rt);
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            // Wait until the vanguard manager has bootstrapped
+            let netdir_provider =
+                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+
+            let params = VanguardParams::try_from(netdir.params()).unwrap();
+            let old_size = params.l2_pool_size();
+            assert_set_targets_match_params(&vanguardmgr, &params);
+
+            const PARAMS: [(&str, i32); 2] =
+                [("guard-hs-l2-number", 1), ("guard-hs-l3-number", 10)];
+
+            let new_params = install_new_params(&rt, &netdir_provider, PARAMS).await;
+
+            // Ensure the target size was updated.
+            assert_set_targets_match_params(&vanguardmgr, &new_params);
+            {
+                let inner = vanguardmgr.inner.read().unwrap();
+                let l2_vanguards = inner.l2_vanguards.vanguards();
+                let l3_vanguards = inner.l3_vanguards.vanguards();
+                // The actual size of the set hasn't changed: it's OK to have more vanguards than
+                // needed in the set (they extraneous ones will eventually expire).
+                assert_eq!(l2_vanguards.len(), old_size);
+                // The L3 vanguard set size _has_ changed, because we've just increased
+                // the target size from 8 to 10.
+                assert_eq!(l3_vanguards.len(), 10);
+            }
+        });
+    }
+
+    #[test]
+    fn expire_vanguards() {
+        MockRuntime::test_with_various(|rt| async move {
+            let vanguardmgr = new_vanguard_mgr(&rt);
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let params = VanguardParams::try_from(netdir.params()).unwrap();
+            let mut rng = testing_rng();
+            let exclusion = RelayExclusion::no_relays_excluded();
+
+            // Wait until the vanguard manager has bootstrapped
+            let _netdir_provider =
+                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+            assert_eq!(
+                vanguard_count(&vanguardmgr),
+                params.l2_pool_size() + params.l3_pool_size()
+            );
+
+            let vanguard = vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .unwrap();
+
+            let lifetime = duration_until_expiry(&vanguard, &vanguardmgr, &rt, Layer2);
+            let heap_entry = find_in_heap(&vanguard, &vanguardmgr).unwrap();
+            let set_entry = find_in_set(&vanguard, &vanguardmgr, Layer2).unwrap();
+
+            // The entry hasn't expired yet
+            assert!(heap_entry.upgrade().is_some());
+            assert!(set_entry.upgrade().is_some());
+
+            // Wait until this vanguard expires
+            rt.advance_by(lifetime).await.unwrap();
+            rt.progress_until_stalled().await;
+
+            // The entry has expired: it no longer exists in the heap, or in the L2 vanguard set
+            assert!(heap_entry.upgrade().is_none());
+            assert!(set_entry.upgrade().is_none());
+
+            // Check that we replaced the expired vanguard with a new one:
+            assert_eq!(
+                vanguard_count(&vanguardmgr),
+                params.l2_pool_size() + params.l3_pool_size()
+            );
+
+            {
+                let inner = vanguardmgr.inner.read().unwrap();
+                let l2_vanguards = inner.l2_vanguards.vanguards();
+
+                assert_eq!(l2_vanguards.len(), params.l2_pool_size());
+            }
+        });
+    }
+}

@@ -5308,6 +5308,7 @@ dependencies = [
  "tor-protover",
  "tor-relay-selection",
  "tor-rtcompat",
+ "tor-rtmock",
  "tor-units",
  "tracing",
 ]
