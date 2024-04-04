@@ -122,7 +122,7 @@ impl HsPathBuilder {
         rng: &mut R,
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
-        vanguards: &VanguardMgr,
+        vanguards: &VanguardMgr<RT>,
         config: &PathConfig,
         now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
@@ -186,7 +186,7 @@ impl VanguardHsPathBuilder {
         rng: &mut R,
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
-        vanguards: &VanguardMgr,
+        vanguards: &VanguardMgr<RT>,
         config: &PathConfig,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         // TODO: this is copied from pick_path

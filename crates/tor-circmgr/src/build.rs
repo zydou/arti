@@ -386,7 +386,7 @@ pub struct CircuitBuilder<R: Runtime> {
     /// The vanguard manager object used for HS circuits.
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     #[allow(dead_code)] // TODO HS-VANGUARDS
-    vanguardmgr: Arc<VanguardMgr>,
+    vanguardmgr: Arc<VanguardMgr<R>>,
 }
 
 impl<R: Runtime> CircuitBuilder<R> {
@@ -399,7 +399,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         path_config: crate::PathConfig,
         storage: crate::TimeoutStateHandle,
         guardmgr: tor_guardmgr::GuardMgr<R>,
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguardmgr: VanguardMgr,
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguardmgr: VanguardMgr<R>,
     ) -> Self {
         let timeouts = timeouts::Estimator::from_storage(&storage);
 
@@ -506,7 +506,7 @@ impl<R: Runtime> CircuitBuilder<R> {
 
     /// Return a reference to this builder's `VanguardMgr`.
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-    pub(crate) fn vanguardmgr(&self) -> &VanguardMgr {
+    pub(crate) fn vanguardmgr(&self) -> &VanguardMgr<R> {
         &self.vanguardmgr
     }
 

@@ -194,7 +194,7 @@ impl<R: Runtime> CircMgr<R> {
         guardmgr.set_filter(config.path_rules().build_guard_filter());
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguardmgr = VanguardMgr::new(config.vanguard_config(), storage.clone())?;
+        let vanguardmgr = VanguardMgr::new(config.vanguard_config(), runtime.clone(), storage.clone())?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
@@ -899,8 +899,8 @@ mod test {
     use super::*;
 
     /// Helper type used to help type inference.
-    pub(crate) type OptDummyGuardMgr<'a> =
-        Option<&'a tor_guardmgr::GuardMgr<tor_rtcompat::tokio::TokioNativeTlsRuntime>>;
+    pub(crate) type OptDummyGuardMgr<'a, R = tor_rtcompat::tokio::TokioNativeTlsRuntime> =
+        Option<&'a tor_guardmgr::GuardMgr<R>>;
 
     #[test]
     fn get_params() {

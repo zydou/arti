@@ -25,9 +25,11 @@ use crate::{RetireCircuits, VanguardMode};
 
 /// The vanguard manager.
 #[allow(unused)] // TODO HS-VANGUARDS
-pub struct VanguardMgr {
+pub struct VanguardMgr<R: Runtime> {
     /// The mutable state.
     inner: RwLock<Inner>,
+    /// The runtime.
+    runtime: R,
 }
 
 /// The mutable inner state of [`VanguardMgr`].
@@ -66,12 +68,12 @@ impl HasKind for VanguardMgrError {
     }
 }
 
-impl VanguardMgr {
+impl<R: Runtime> VanguardMgr<R> {
     /// Create a new `VanguardMgr`.
     ///
     /// The `state_mgr` handle is used for persisting the "vanguards-full" guard pools to disk.
     #[allow(clippy::needless_pass_by_value)] // TODO HS-VANGUARDS
-    pub fn new<S>(config: &VanguardConfig, _state_mgr: S) -> Result<Self, VanguardMgrError>
+    pub fn new<S>(config: &VanguardConfig, runtime: R, _state_mgr: S) -> Result<Self, VanguardMgrError>
     where
         S: StateMgr + Send + Sync + 'static,
     {
@@ -88,18 +90,15 @@ impl VanguardMgr {
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
         Ok(Self {
             inner: RwLock::new(inner),
+            runtime,
         })
     }
 
     /// Launch the vanguard pool management tasks.
-    pub fn launch_background_tasks<R>(
+    pub fn launch_background_tasks(
         self: &Arc<Self>,
-        _runtime: &R,
         _netdir_provider: &Arc<dyn NetDirProvider>,
-    ) -> Result<(), VanguardMgrError>
-    where
-        R: Runtime,
-    {
+    ) -> Result<(), VanguardMgrError> {
         todo!()
     }
 

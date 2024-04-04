@@ -219,7 +219,7 @@ impl TargetCircUsage {
         rng: &mut R,
         netdir: crate::DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguards: &VanguardMgr,
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguards: &VanguardMgr<RT>,
         config: &crate::PathConfig,
         now: SystemTime,
     ) -> Result<(
@@ -536,6 +536,7 @@ pub(crate) mod test {
     use tor_netdir::testnet;
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use tor_persist::TestingStateMgr;
+    use tor_rtmock::MockRuntime;
 
     impl IsolationTokenEq for TargetCircUsage {
         fn isol_eq(&self, other: &Self) -> bool {
@@ -870,7 +871,7 @@ pub(crate) mod test {
         let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
-        let guards: OptDummyGuardMgr<'_> = None;
+        let guards: OptDummyGuardMgr<'_, MockRuntime> = None;
         let now = SystemTime::now();
 
         // Only doing basic tests for now.  We'll test the path
@@ -878,7 +879,7 @@ pub(crate) mod test {
         // and friends.
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguards = VanguardMgr::new(&Default::default(), TestingStateMgr::default()).unwrap();
+        let vanguards = VanguardMgr::new(&Default::default(), MockRuntime::new(), TestingStateMgr::default()).unwrap();
 
         // First, a one-hop directory circuit
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
@@ -978,11 +979,11 @@ pub(crate) mod test {
         .unwrap();
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
-        let guards: OptDummyGuardMgr<'_> = None;
+        let guards: OptDummyGuardMgr<'_, MockRuntime> = None;
         let now = SystemTime::now();
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguards = VanguardMgr::new(&Default::default(), TestingStateMgr::default()).unwrap();
+        let vanguards = VanguardMgr::new(&Default::default(), MockRuntime::new(), TestingStateMgr::default()).unwrap();
 
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
             .build_path(
