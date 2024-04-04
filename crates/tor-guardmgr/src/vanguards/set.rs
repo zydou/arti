@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use rand::{seq::SliceRandom as _, RngCore};
 use serde::{Deserialize, Serialize};
 
-use tor_linkspec::RelayIds;
+use tor_linkspec::{HasRelayIds as _, RelayIdSet, RelayIds};
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{LowLevelRelayPredicate as _, RelayExclusion};
 
@@ -115,5 +115,24 @@ impl VanguardSet {
     /// Discard any expired vanguards.
     fn discard_expired(&mut self) {
         self.vanguards.retain(|v| v.upgrade().is_some());
+    }
+}
+
+impl From<&VanguardSet> for RelayIdSet {
+    fn from(vanguard_set: &VanguardSet) -> Self {
+        vanguard_set
+            .vanguards
+            .iter()
+            .filter_map(|vanguard| {
+                // Skip over any dangling references
+                Some(vanguard.upgrade()?.id.clone())
+            })
+            .flat_map(|relay: RelayIds| {
+                relay
+                    .identities()
+                    .map(|id| id.to_owned())
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 }
