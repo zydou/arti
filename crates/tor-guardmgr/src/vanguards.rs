@@ -7,25 +7,29 @@
 pub mod config;
 mod set;
 
+use std::collections::BinaryHeap;
 use std::sync::{Arc, RwLock, Weak};
+use std::time::{Duration, SystemTime};
 
 use futures::task::{SpawnError, SpawnExt as _};
+use futures::{future, FutureExt as _};
+use futures::{select_biased, StreamExt as _};
 use rand::RngCore;
-use set::TimeBoundVanguard;
-use std::collections::BinaryHeap;
+
 use tor_config::ReconfigureError;
-use tor_error::{internal, ErrorKind, HasKind};
-use tor_netdir::{NetDir, NetDirProvider};
+use tor_error::{error_report, internal, ErrorKind, HasKind};
+use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_persist::StateMgr;
 use tor_relay_selection::RelayExclusion;
 use tor_rtcompat::Runtime;
+use tracing::debug;
+
+use crate::{RetireCircuits, VanguardMode};
+
+use set::{TimeBoundVanguard, VanguardSet};
 
 pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
 pub use set::Vanguard;
-
-use set::VanguardSet;
-
-use crate::{RetireCircuits, VanguardMode};
 
 /// The vanguard manager.
 #[allow(unused)] // TODO HS-VANGUARDS
@@ -61,6 +65,18 @@ struct Inner {
     /// Removing a vanguard from the heap causes it to expire and to be removed
     /// from its corresponding [`VanguardSet`].
     vanguards: BinaryHeap<Arc<TimeBoundVanguard>>,
+}
+
+/// Whether the [`VanguardMgr::maintain_vanguard_sets`] task
+/// should continue running or shut down.
+///
+/// Returned from [`VanguardMgr::run_once`].
+#[derive(Copy, Clone, Debug)]
+enum ShutdownStatus {
+    /// Continue calling `run_once`.
+    Continue,
+    /// The `VanguardMgr` was dropped, terminate the task.
+    Terminate,
 }
 
 /// An error coming from the vanguards subsystem.
@@ -223,8 +239,96 @@ impl<R: Runtime> VanguardMgr<R> {
     /// * ensures the [`VanguardSet`]s are repopulated with new vanguards
     ///   when the number of vanguards drops below a certain threshold
     /// * handles `NetDir` changes, updating the vanguard set sizes as needed
-    async fn maintain_vanguard_sets(_mgr: Weak<Self>, _netdir_provider: Arc<dyn NetDirProvider>) {
-        todo!()
+    async fn maintain_vanguard_sets(mgr: Weak<Self>, netdir_provider: Arc<dyn NetDirProvider>) {
+        loop {
+            match Self::run_once(Weak::clone(&mgr), Arc::clone(&netdir_provider)).await {
+                Ok(ShutdownStatus::Continue) => continue,
+                Ok(ShutdownStatus::Terminate) => {
+                    debug!("Vanguard manager is shutting down");
+                    break;
+                }
+                Err(e) => {
+                    error_report!(e, "Vanguard manager crashed");
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Wait until a vanguard expires or until there is a new [`NetDir`].
+    ///
+    /// This keeps `inner`'s `NetDir` up to date, removes any expired vanguards from the heap,
+    /// and replenishes the heap and `VanguardSet`s with new vanguards.
+    async fn run_once(
+        mgr: Weak<Self>,
+        netdir_provider: Arc<dyn NetDirProvider>,
+    ) -> Result<ShutdownStatus, VanguardMgrError> {
+        let mut netdir_events = netdir_provider.events().fuse();
+        let Some(mgr) = mgr.upgrade() else {
+            return Ok(ShutdownStatus::Terminate);
+        };
+
+        let now = mgr.runtime.wallclock();
+        let next_to_expire = mgr.remove_expired(now)?;
+        // A future that sleeps until the next vanguard expires
+        let sleep_fut = async {
+            if let Some(dur) = next_to_expire {
+                let () = mgr.runtime.sleep(dur).await;
+            } else {
+                future::pending::<()>().await;
+            }
+        };
+
+        // TODO HS-VANGUARDS: we might've just removed some vanguards, so we need to check if we
+        // need to replenish any of our vanguard sets
+
+        select_biased! {
+            event = netdir_events.next() => {
+                if let Some(DirEvent::NewConsensus) = event {
+                    mgr.remove_unlisted(&netdir_provider.netdir(Timeliness::Timely)?);
+                }
+
+                Ok(ShutdownStatus::Continue)
+            },
+            () = sleep_fut.fuse() => {
+                // A vanguard expired, time to run the cleanup
+                Ok(ShutdownStatus::Continue)
+            },
+        }
+    }
+
+    /// Remove any expired vanguards from the heap,
+    /// returning how long until the next vanguard will expire,
+    /// or `None` if the heap is empty.
+    ///
+    /// The `vanguards` heap contains the only strong references to the vanguards,
+    /// so removing them causes the weak references from the VanguardSets to become
+    /// dangling (the dangling references are lazily removed).
+    fn remove_expired(&self, now: SystemTime) -> Result<Option<Duration>, VanguardMgrError> {
+        let mut inner = self.inner.write().expect("poisoned lock");
+        let inner = &mut *inner;
+
+        while let Some(vanguard) = inner.vanguards.peek() {
+            if now >= vanguard.when {
+                inner.vanguards.pop();
+            } else {
+                let duration = vanguard
+                    .when
+                    .duration_since(now)
+                    .map_err(|_| internal!("when > now, but now is later than when?!"))?;
+
+                return Ok(Some(duration));
+            }
+        }
+
+        // The heap is empty
+        Ok(None)
+    }
+
+    /// Remove the vanguards that are no longer listed in `netdir`
+    fn remove_unlisted(&self, netdir: &Arc<NetDir>) {
+        let mut inner = self.inner.write().expect("poisoned lock");
+        inner.vanguards.retain(|v| netdir.by_ids(&v.id).is_some());
     }
 
     /// Get the current [`VanguardMode`].
