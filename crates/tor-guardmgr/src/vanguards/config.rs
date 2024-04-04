@@ -47,19 +47,25 @@ pub struct VanguardConfig {
 /// because like all Tor network parameters,
 /// they can be overridden via the `TorClientConfig::override_net_params`.
 #[allow(unused)] // TODO HS-VANGUARDS
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, amplify::Getters)]
 pub struct VanguardParams {
     /// The number of guards in the L2 guardset
+    #[getter(as_copy)]
     l2_pool_size: usize,
     /// The minimum lifetime of L2 guards
+    #[getter(as_copy)]
     l2_lifetime_min: Duration,
     /// The maximum lifetime of L2 guards
+    #[getter(as_copy)]
     l2_lifetime_max: Duration,
     /// The number of guards in the L3 guardset
+    #[getter(as_copy)]
     l3_pool_size: usize,
     /// The minimum lifetime of L3 guards
+    #[getter(as_copy)]
     l3_lifetime_min: Duration,
     /// The maximum lifetime of L3 guards
+    #[getter(as_copy)]
     l3_lifetime_max: Duration,
 }
 
