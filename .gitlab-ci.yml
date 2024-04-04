@@ -132,7 +132,7 @@ rust-latest-arti-extra-features:
       --target x86_64-unknown-linux-gnu
       -p arti -p tor-circmgr
       --bin arti
-      --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service
+      --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service,vanguards
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
