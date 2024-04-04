@@ -5606,6 +5606,7 @@ dependencies = [
  "humantime 2.1.0",
  "itertools 0.12.1",
  "num_enum",
+ "postage",
  "rand",
  "serde",
  "static_assertions",
