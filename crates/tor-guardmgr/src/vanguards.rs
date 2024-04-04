@@ -83,13 +83,17 @@ impl<R: Runtime> VanguardMgr<R> {
         S: StateMgr + Send + Sync + 'static,
     {
         let VanguardConfig { mode } = config;
+        // TODO HS-VANGUARDS: read the params from the consensus
+        let params = VanguardParams::default();
+        let l2_vanguards = VanguardSet::new(params.l2_pool_size());
+        let l3_vanguards = VanguardSet::new(params.l3_pool_size());
 
         let inner = Inner {
             mode: *mode,
             // TODO HS-VANGUARDS: read the params from the consensus
-            params: Default::default(),
-            l2_vanguards: Default::default(),
-            l3_vanguards: Default::default(),
+            params,
+            l2_vanguards,
+            l3_vanguards,
         };
 
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full

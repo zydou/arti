@@ -38,15 +38,25 @@ pub(crate) struct TimeBoundVanguard {
 }
 
 /// A set of vanguards, for use in a particular [`Layer`](crate::vanguards::Layer).
-#[derive(Debug, Default, Clone, Serialize, Deserialize)] //
+#[derive(Debug, Clone, Serialize, Deserialize)] //
 #[derive(Eq, PartialEq, Ord, PartialOrd, Hash)] //
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
     vanguards: Vec<TimeBoundVanguard>,
+    /// The number of vanguards we would like to have in this set.
+    target: usize,
 }
 
 impl VanguardSet {
+    /// Create a new vanguard set with the specified target size.
+    pub(super) fn new(target: usize) -> Self {
+        Self {
+            vanguards: Default::default(),
+            target,
+        }
+    }
+
     /// Pick a relay from this set.
     ///
     /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
