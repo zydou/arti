@@ -1,16 +1,15 @@
 //! Vanguard sets
 
 use std::cmp::Ordering;
+use std::sync::Weak;
 use std::time::SystemTime;
 
-use rand::RngCore;
+use rand::{seq::SliceRandom as _, RngCore};
 use serde::{Deserialize, Serialize};
 
 use tor_linkspec::RelayIds;
 use tor_netdir::{NetDir, Relay};
-use tor_relay_selection::RelayExclusion;
-
-use std::sync::Weak;
+use tor_relay_selection::{LowLevelRelayPredicate as _, RelayExclusion};
 
 /// A vanguard relay.
 //
@@ -86,11 +85,35 @@ impl VanguardSet {
     /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
     /// for more information.
     pub(super) fn pick_relay<'a, R: RngCore>(
-        &self,
-        _rng: &mut R,
-        _netdir: &'a NetDir,
-        _neighbor_exclusion: &RelayExclusion<'a>,
+        &mut self,
+        rng: &mut R,
+        netdir: &'a NetDir,
+        neighbor_exclusion: &RelayExclusion<'a>,
     ) -> Option<Vanguard<'a>> {
-        todo!()
+        self.discard_expired();
+
+        let good_relays = self
+            .vanguards
+            .iter()
+            .filter_map(|vanguard| {
+                // Skip over the vanguards that have been dropped
+                // (there shouldn't be any, because we called discard_expired earlier).
+                let vanguard = vanguard.upgrade()?;
+                // Skip over any unusable relays
+                let relay = netdir.by_ids(&vanguard.id)?;
+                neighbor_exclusion
+                    .low_level_predicate_permits_relay(&relay)
+                    .then_some(relay)
+            })
+            .collect::<Vec<_>>();
+
+        good_relays.choose(rng).map(|relay| Vanguard {
+            relay: relay.clone(),
+        })
+    }
+
+    /// Discard any expired vanguards.
+    fn discard_expired(&mut self) {
+        self.vanguards.retain(|v| v.upgrade().is_some());
     }
 }
