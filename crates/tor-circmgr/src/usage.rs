@@ -879,7 +879,12 @@ pub(crate) mod test {
         // and friends.
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguards = VanguardMgr::new(&Default::default(), MockRuntime::new(), TestingStateMgr::default()).unwrap();
+        let vanguards = VanguardMgr::new(
+            &Default::default(),
+            MockRuntime::new(),
+            TestingStateMgr::default(),
+        )
+        .unwrap();
 
         // First, a one-hop directory circuit
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
@@ -983,7 +988,12 @@ pub(crate) mod test {
         let now = SystemTime::now();
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguards = VanguardMgr::new(&Default::default(), MockRuntime::new(), TestingStateMgr::default()).unwrap();
+        let vanguards = VanguardMgr::new(
+            &Default::default(),
+            MockRuntime::new(),
+            TestingStateMgr::default(),
+        )
+        .unwrap();
 
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
             .build_path(

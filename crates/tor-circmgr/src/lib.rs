@@ -194,7 +194,8 @@ impl<R: Runtime> CircMgr<R> {
         guardmgr.set_filter(config.path_rules().build_guard_filter());
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguardmgr = VanguardMgr::new(config.vanguard_config(), runtime.clone(), storage.clone())?;
+        let vanguardmgr =
+            VanguardMgr::new(config.vanguard_config(), runtime.clone(), storage.clone())?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
