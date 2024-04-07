@@ -293,7 +293,7 @@ impl Keystore for ArtiNativeKeystore {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -315,12 +315,12 @@ mod tests {
 
     // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
     // include it once)
-    const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
+    pub(crate) const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
 
-    const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
+    pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
 
     #[derive(Default)]
-    struct TestSpecifier(String);
+    pub(crate) struct TestSpecifier(String);
 
     impl KeySpecifier for TestSpecifier {
         fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {

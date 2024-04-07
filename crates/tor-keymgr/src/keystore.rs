@@ -1,6 +1,7 @@
 //! The [`Keystore`] trait and its implementations.
 
 pub(crate) mod arti;
+pub(crate) mod ephemeral;
 
 use std::result::Result as StdResult;
 
