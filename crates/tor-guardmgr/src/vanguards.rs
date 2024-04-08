@@ -22,17 +22,20 @@ use tor_config::ReconfigureError;
 use tor_error::{error_report, internal, into_internal, ErrorKind, HasKind};
 use tor_linkspec::{RelayIdSet, RelayIds};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
-use tor_persist::StateMgr;
+use tor_persist::{DynStorageHandle, StateMgr};
 use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
 use tor_rtcompat::Runtime;
 use tracing::{debug, trace};
 
 use crate::{RetireCircuits, VanguardMode};
 
-use set::{TimeBoundVanguard, VanguardSet};
+use set::{TimeBoundVanguard, VanguardSet, VanguardSets};
 
 pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
 pub use set::Vanguard;
+
+/// The key used for storing the vanguard sets to persistent storage using `StateMgr`.
+const STORAGE_KEY: &str = "vanguards";
 
 /// The vanguard manager.
 #[allow(unused)] // TODO HS-VANGUARDS
@@ -41,6 +44,9 @@ pub struct VanguardMgr<R: Runtime> {
     inner: RwLock<Inner>,
     /// The runtime.
     runtime: R,
+    /// The persistent storage handle, used for writing the vanguard sets to disk
+    /// if full vanguards are enabled.
+    storage: DynStorageHandle<VanguardSets>,
 }
 
 /// The mutable inner state of [`VanguardMgr`].
@@ -116,7 +122,7 @@ impl<R: Runtime> VanguardMgr<R> {
     pub fn new<S>(
         _config: &VanguardConfig,
         runtime: R,
-        _state_mgr: S,
+        state_mgr: S,
         has_onion_svc: bool,
     ) -> Result<Self, VanguardMgrError>
     where
@@ -127,6 +133,7 @@ impl<R: Runtime> VanguardMgr<R> {
         let params = VanguardParams::default();
         let l2_vanguards = VanguardSet::new(params.l2_pool_size());
         let l3_vanguards = VanguardSet::new(params.l3_pool_size());
+        let storage: DynStorageHandle<VanguardSets> = state_mgr.create_handle(STORAGE_KEY);
 
         let inner = Inner {
             params,
@@ -139,6 +146,7 @@ impl<R: Runtime> VanguardMgr<R> {
         Ok(Self {
             inner: RwLock::new(inner),
             runtime,
+            storage,
         })
     }
 
