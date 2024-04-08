@@ -42,7 +42,7 @@ pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> +
 
 /// An entry for our dynamic dispatch code.
 ///
-/// These are generated using [`inventory`] by our `rpc_invoke_fn` macro;
+/// These are generated using [`inventory`] by our `static_rpc_invoke_fn` macro;
 /// they are later collected into a more efficient data structure.
 #[doc(hidden)]
 pub struct InvokeEntry_ {
@@ -118,7 +118,7 @@ impl InvokeEntry_ {
 ///     Ok(ExampleResult { text: "here is your result".into() })
 /// }
 ///
-/// rpc::rpc_invoke_fn!{
+/// rpc::static_rpc_invoke_fn!{
 ///     example(ExampleObject, ExampleMethod);
 /// }
 ///
@@ -133,28 +133,28 @@ impl InvokeEntry_ {
 ///     Ok(ExampleResult { text: "that was fast, wasn't it?".to_string() })
 /// }
 ///
-/// rpc::rpc_invoke_fn! {
+/// rpc::static_rpc_invoke_fn! {
 ///     example2(ExampleObject2, ExampleMethod) [Updates];
 /// }
 /// ```
 #[macro_export]
-macro_rules! rpc_invoke_fn {
+macro_rules! static_rpc_invoke_fn {
     {
         $funcname:ident($objtype:ty, $methodtype:ty $(,)?) $([ $($flag:ident),* $(,)?])?;
         $( $($more:tt)+ )?
     } => {
-        $crate::rpc_invoke_fn!{@imp-expand $funcname, $objtype, $methodtype, [$($($flag)*)?]}
-        $($crate::rpc_invoke_fn!{$($more)*})?
+        $crate::static_rpc_invoke_fn!{@imp-expand $funcname, $objtype, $methodtype, [$($($flag)*)?]}
+        $($crate::static_rpc_invoke_fn!{$($more)*})?
     };
     {
         @imp-expand $funcname:ident, $objtype:ty, $methodtype:ty, []
     } => {
-        $crate::rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, }
+        $crate::static_rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, }
     };
     {
         @imp-expand $funcname:ident, $objtype:ty, $methodtype:ty, [Updates]
     } => {
-        $crate::rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, sink }
+        $crate::static_rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, sink }
     };
     {
         @final $funcname:ident, $objtype:ty, $methodtype:ty, $($sinkvar:ident)?
@@ -217,7 +217,7 @@ struct FuncType {
 /// A collection of method implementations for different method and object types.
 ///
 /// A DispatchTable is constructed at run-time from entries registered with
-/// [`rpc_invoke_fn!`].
+/// [`static_rpc_invoke_fn!`].
 ///
 /// There is one for each `arti-rpcserver::RpcMgr`, shared with each `arti-rpcserver::Connection`.
 #[derive(Debug, Clone)]
@@ -229,7 +229,7 @@ pub struct DispatchTable {
 
 impl DispatchTable {
     /// Construct a `DispatchTable` from the entries registered statically via
-    /// [`rpc_invoke_fn!`].
+    /// [`static_rpc_invoke_fn!`].
     ///
     /// # Panics
     ///
@@ -417,7 +417,7 @@ mod test {
         })
     }
 
-    rpc_invoke_fn! {
+    static_rpc_invoke_fn! {
         getname_swan(Swan,GetName);
         getname_sheep(Sheep,GetName);
         getname_wombat(Wombat,GetName);

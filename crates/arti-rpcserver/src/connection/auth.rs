@@ -62,7 +62,7 @@ mod get_rpc_protocol {
             version: RpcProtocolId::Alpha,
         })
     }
-    rpc::rpc_invoke_fn! {
+    rpc::static_rpc_invoke_fn! {
         conn_get_rpc_protocol(Connection, GetRpcProtocol);
     }
 }
@@ -125,7 +125,7 @@ async fn conn_authquery(
         schemes: vec![AuthenticationScheme::InherentUnixPath],
     })
 }
-rpc::rpc_invoke_fn! {
+rpc::static_rpc_invoke_fn! {
     conn_authquery(Connection, AuthQuery);
 }
 
@@ -188,6 +188,6 @@ async fn authenticate_connection(
     let session = ctx.register_owned(session);
     Ok(AuthenticateReply { session })
 }
-rpc::rpc_invoke_fn! {
+rpc::static_rpc_invoke_fn! {
     authenticate_connection(Connection, Authenticate);
 }

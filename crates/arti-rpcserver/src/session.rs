@@ -79,7 +79,7 @@ async fn rpc_release(
     ctx.release_owned(&method.obj)?;
     Ok(rpc::Nil::default())
 }
-rpc::rpc_invoke_fn! {
+rpc::static_rpc_invoke_fn! {
     rpc_release(RpcSession,RpcRelease);
 }
 
@@ -108,6 +108,6 @@ async fn echo_on_session(
     Ok(*method)
 }
 
-rpc::rpc_invoke_fn! {
+rpc::static_rpc_invoke_fn! {
     echo_on_session(RpcSession,Echo);
 }
