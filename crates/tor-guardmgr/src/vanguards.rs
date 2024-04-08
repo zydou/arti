@@ -56,6 +56,11 @@ struct Inner {
     /// [`Full`](VanguardMode::Full) vanguard mode.
     /// Otherwise, this set is not populated, or read from.
     l3_vanguards: VanguardSet,
+    /// Whether we're running an onion service.
+    ///
+    /// Used for deciding whether to use the `vanguards_hs_service` or the
+    /// `vanguards_enabled` [`NetParameter`](tor_netdir::params::NetParameter).
+    has_onion_svc: bool,
 }
 
 /// Whether the [`VanguardMgr::maintain_vanguard_sets`] task
@@ -112,6 +117,7 @@ impl<R: Runtime> VanguardMgr<R> {
         config: &VanguardConfig,
         runtime: R,
         _state_mgr: S,
+        has_onion_svc: bool,
     ) -> Result<Self, VanguardMgrError>
     where
         S: StateMgr + Send + Sync + 'static,
@@ -127,6 +133,7 @@ impl<R: Runtime> VanguardMgr<R> {
             mode: *mode,
             l2_vanguards,
             l3_vanguards,
+            has_onion_svc,
         };
 
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
@@ -616,7 +623,7 @@ mod test {
     fn new_vanguard_mgr<R: Runtime>(rt: &R) -> Arc<VanguardMgr<R>> {
         let config = Default::default();
         let statemgr = TestingStateMgr::new();
-        Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr).unwrap())
+        Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, false).unwrap())
     }
 
     /// Look up the vanguard in the specified VanguardSet.
