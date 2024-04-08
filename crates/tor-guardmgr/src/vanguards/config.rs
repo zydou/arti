@@ -49,6 +49,14 @@ pub struct VanguardConfig {
 #[allow(unused)] // TODO HS-VANGUARDS
 #[derive(Debug, Clone, amplify::Getters)]
 pub struct VanguardParams {
+    /// The type of vanguards to use by default when building onion service circuits.
+    #[getter(as_copy)]
+    vanguards_enabled: VanguardMode,
+    /// If higher than `vanguards-enabled`,
+    /// and we are running an onion service,
+    /// we use this level for all our onion service circuits.
+    #[getter(as_copy)]
+    vanguards_hs_service: VanguardMode,
     /// The number of guards in the L2 guardset
     #[getter(as_copy)]
     l2_pool_size: usize,
@@ -72,6 +80,8 @@ pub struct VanguardParams {
 impl Default for VanguardParams {
     fn default() -> Self {
         Self {
+            vanguards_enabled: VanguardMode::default(),
+            vanguards_hs_service: VanguardMode::default(),
             l2_pool_size: DEFAULT_L2_POOL_SIZE,
             l2_lifetime_min: DEFAULT_L2_GUARD_LIFETIME_MIN,
             l2_lifetime_max: DEFAULT_L2_GUARD_LIFETIME_MAX,
@@ -127,6 +137,8 @@ impl TryFrom<&NetParameters> for VanguardParams {
         );
 
         Ok(VanguardParams {
+            vanguards_enabled: VanguardMode::from_net_parameter(p.vanguards_enabled),
+            vanguards_hs_service: VanguardMode::from_net_parameter(p.vanguards_hs_service),
             l2_pool_size: p.guard_hs_l2_number.try_into()?,
             l2_lifetime_min,
             l2_lifetime_max,
