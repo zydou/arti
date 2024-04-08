@@ -187,7 +187,7 @@ mod test {
     // leak into our real RPC engine when we're compiled with `test` enabled!
     // We should consider how bad this is, and maybe use a real method instead.
     #[derive(Debug, serde::Deserialize, Deftly)]
-    #[derive_deftly(DynMethod, HasConstTypeId_)]
+    #[derive_deftly(DynMethod)]
     #[deftly(method_name = "x-test:dummy")]
     struct DummyMethod {
         #[serde(default)]

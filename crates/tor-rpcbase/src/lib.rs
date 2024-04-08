@@ -66,7 +66,6 @@ pub use {
 pub mod templates {
     pub use crate::method::derive_deftly_template_DynMethod;
     pub use crate::obj::derive_deftly_template_Object;
-    pub use crate::typeid::derive_deftly_template_HasConstTypeId_;
 }
 
 /// An error returned from [`ContextExt::lookup`].

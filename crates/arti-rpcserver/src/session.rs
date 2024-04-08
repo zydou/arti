@@ -21,7 +21,7 @@ use tor_rpcbase::templates::*;
 ///  * Typically, after authentication, there is one `RpcSession` for the `Connection`.
 ///    But a client may authenticate more than once; each time produces a new `RpcSession`.
 #[derive(Deftly)]
-#[derive_deftly(Object, HasConstTypeId_)]
+#[derive_deftly(Object)]
 #[deftly(expose_outside_of_session)]
 pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
@@ -44,7 +44,7 @@ impl RpcSession {
 
 /// RPC method to release a single strong reference.
 #[derive(Debug, serde::Deserialize, Deftly)]
-#[derive_deftly(DynMethod, HasConstTypeId_)]
+#[derive_deftly(DynMethod)]
 #[deftly(method_name = "rpc:release")]
 struct RpcRelease {
     /// The object to release. Must be a strong reference.
@@ -85,7 +85,7 @@ rpc::rpc_invoke_fn! {
 
 /// A simple temporary method to echo a reply.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
-#[derive_deftly(DynMethod, HasConstTypeId_)]
+#[derive_deftly(DynMethod)]
 #[deftly(method_name = "arti:x-echo")]
 struct Echo {
     /// A message to echo.

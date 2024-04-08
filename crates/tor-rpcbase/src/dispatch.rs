@@ -80,14 +80,14 @@ impl InvokeEntry_ {
 /// use std::sync::Arc;
 ///
 /// #[derive(Debug, Deftly)]
-/// #[derive_deftly(Object, HasConstTypeId_)]
+/// #[derive_deftly(Object)]
 /// struct ExampleObject {}
 /// #[derive(Debug, Deftly)]
-/// #[derive_deftly(Object, HasConstTypeId_)]
+/// #[derive_deftly(Object)]
 /// struct ExampleObject2 {}
 ///
 /// #[derive(Debug,serde::Deserialize, Deftly)]
-/// #[derive_deftly(DynMethod, HasConstTypeId_)]
+/// #[derive_deftly(DynMethod)]
 /// #[deftly(method_name = "arti:x-example")]
 /// struct ExampleMethod {}
 /// impl rpc::Method for ExampleMethod {
@@ -197,8 +197,8 @@ macro_rules! rpc_invoke_fn {
         // the right types.
         $crate::inventory::submit!{
             $crate::dispatch::InvokeEntry_::new(
-                <$objtype as $crate::typeid::HasConstTypeId_>::CONST_TYPE_ID_,
-                <$methodtype as $crate::typeid::HasConstTypeId_>::CONST_TYPE_ID_,
+                $objtype::CONST_TYPE_ID_,
+                $methodtype::CONST_TYPE_ID_,
                 [<_typeerased_ $funcname >]
             )
         }
@@ -314,26 +314,26 @@ mod test {
 
     // Define 3 animals and one brick.
     #[derive(Clone, Deftly)]
-    #[derive_deftly(Object, HasConstTypeId_)]
+    #[derive_deftly(Object)]
     struct Swan;
     #[derive(Clone, Deftly)]
-    #[derive_deftly(Object, HasConstTypeId_)]
+    #[derive_deftly(Object)]
     struct Wombat;
     #[derive(Clone, Deftly)]
-    #[derive_deftly(Object, HasConstTypeId_)]
+    #[derive_deftly(Object)]
     struct Sheep;
     #[derive(Clone, Deftly)]
-    #[derive_deftly(Object, HasConstTypeId_)]
+    #[derive_deftly(Object)]
     struct Brick;
 
     // Define 2 methods.
     #[derive(Debug, serde::Deserialize, Deftly)]
-    #[derive_deftly(DynMethod, HasConstTypeId_)]
+    #[derive_deftly(DynMethod)]
     #[deftly(method_name = "x-test:getname")]
     struct GetName;
 
     #[derive(Debug, serde::Deserialize, Deftly)]
-    #[derive_deftly(DynMethod, HasConstTypeId_)]
+    #[derive_deftly(DynMethod)]
     #[deftly(method_name = "x-test:getkids")]
     struct GetKids;
 

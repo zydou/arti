@@ -1,7 +1,5 @@
 //! A kludgy replacement for [`std::any::TypeId`] that can be used in a constant context.
 
-use derive_deftly::define_derive_deftly;
-
 /// A less helpful variant of `std::any::TypeId` that can be created in a const
 /// context.
 ///
@@ -15,9 +13,6 @@ use derive_deftly::define_derive_deftly;
 /// This type and the module containing it are hidden: Nobody should actually
 /// use it outside of our dispatch code.  Once we can use `TypeId` instead, we
 /// should and will.
-///
-/// To make a type participate in this system, use
-/// `derive_deftly(HasConstTypeId_)`.
 ///
 /// The [`ConstTypeId_`] function deliberately does not implement `Eq` and
 /// friends. To compare two of these, use `TypeId::from()` to convert it into
@@ -41,36 +36,6 @@ impl From<ConstTypeId_> for std::any::TypeId {
     }
 }
 
-/// An object for which we can get a [`ConstTypeId_`] at compile time.
-///
-/// This is precisely the functionality that [`std::any::TypeId`] doesn't
-/// currently have.
-///
-/// You can implement this for your own types by using [`derive_deftly`].
-///
-/// TODO RPC:
-/// Ideally, we would never mention this type outside this module.  However,
-/// our current behavior for the `derive_deftly(Object)` template
-/// requires people derive _both_ `Object` and `HasConstTypeId_`.
-///
-/// We should refactor this.
-pub trait HasConstTypeId_ {
-    const CONST_TYPE_ID_: ConstTypeId_;
-}
-
-define_derive_deftly! {
-/// Implement [`HasConstTypeId_`] for one or more types.
-    pub HasConstTypeId_ =
-
-    impl <$ tgens > $crate::typeid::HasConstTypeId_ for $ttype
-    where $twheres {
-        const CONST_TYPE_ID_ : $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
-            std::any::TypeId::of::<$ttype>
-        );
-    }
-}
-pub use derive_deftly_template_HasConstTypeId_;
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -88,7 +53,20 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use assert_impl::assert_impl;
-    use derive_deftly::Deftly;
+    use derive_deftly::{define_derive_deftly, Deftly};
+
+    // This is the code-blob we use declare a `CONST_TYPE_ID_` member.
+    define_derive_deftly! { HasConstTypeId_ =
+        impl <$ tgens > $ttype
+        where $ttype: 'static, $twheres {
+            /// A version of `TypeId` that we can use with `inventory`.
+            #[allow(dead_code, unreachable_pub)]
+            #[doc(hidden)]
+            pub const CONST_TYPE_ID_ : $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
+                std::any::TypeId::of::<$ttype>
+            );
+        }
+    }
 
     #[derive(Deftly)]
     #[derive_deftly(HasConstTypeId_)]

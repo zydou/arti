@@ -74,7 +74,7 @@ define_derive_deftly! {
 /// use derive_deftly::Deftly;
 ///
 /// #[derive(Debug, serde::Deserialize, Deftly)]
-/// #[derive_deftly(rpc::DynMethod, rpc::HasConstTypeId_)]
+/// #[derive_deftly(rpc::DynMethod)]
 /// #[deftly(method_name = "x-example:castigate")]
 /// struct Castigate {
 ///    severity: f64,
@@ -99,6 +99,17 @@ define_derive_deftly! {
         impl $crate::DynMethod for $ttype {}
         $crate::inventory::submit! {
             $crate::MethodInfo_ { method_name : ${tmeta(method_name) as str} }
+        }
+
+        // TODO RPC: This code is duplicated; see derive_deftly#35
+        impl <$ tgens > $ttype
+        where $ttype: 'static, $twheres {
+            /// A version of `TypeId` that we can in `inventory`.
+            #[allow(dead_code, unreachable_pub)]
+            #[doc(hidden)]
+            pub const CONST_TYPE_ID_ : $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
+                std::any::TypeId::of::<$ttype>
+            );
         }
 }
 pub use derive_deftly_template_DynMethod;

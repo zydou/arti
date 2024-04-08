@@ -42,7 +42,7 @@ use tor_rpcbase::templates::*;
 /// that the client will use to do things,
 /// including an `RpcSession`.
 #[derive(Deftly)]
-#[derive_deftly(Object, HasConstTypeId_)]
+#[derive_deftly(Object)]
 pub struct Connection {
     /// The mutable state of this connection.
     inner: Mutex<Inner>,
