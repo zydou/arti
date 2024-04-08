@@ -93,6 +93,10 @@ pub enum VanguardMgrError {
     #[error("Unable to get timely network directory")]
     NetDir(#[from] tor_netdir::Error),
 
+    /// Failed to access persistent storage.
+    #[error("Failed to access persistent vanguard state")]
+    State(#[from] tor_persist::Error),
+
     /// Could not spawn a task.
     #[error("Unable to spawn a task")]
     Spawn(#[source] Arc<SpawnError>),
@@ -108,6 +112,7 @@ impl HasKind for VanguardMgrError {
             // TODO HS-VANGUARDS: this is not right
             VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
             VanguardMgrError::NetDir(e) => e.kind(),
+            VanguardMgrError::State(e) => e.kind(),
             VanguardMgrError::Spawn(e) => e.kind(),
             VanguardMgrError::Bug(e) => e.kind(),
         }
