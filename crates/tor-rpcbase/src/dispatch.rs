@@ -142,19 +142,33 @@ macro_rules! static_rpc_invoke_fn {
     {
         $funcname:ident($objtype:ty, $methodtype:ty $(,)?) $([ $($flag:ident),* $(,)?])?;
         $( $($more:tt)+ )?
-    } => {
-        $crate::static_rpc_invoke_fn!{@imp-expand $funcname, $objtype, $methodtype, [$($($flag)*)?]}
+    } => {$crate::paste::paste!{
+        $crate::decl_rpc_invoke_fn!{@imp-expand $funcname, $objtype, $methodtype, [$($($flag)*)?] }
+        $crate::inventory::submit!{
+            $crate::dispatch::InvokeEntry_::new(
+                $objtype::CONST_TYPE_ID_,
+                $methodtype::CONST_TYPE_ID_,
+                [<_typeerased_ $funcname >]
+            )
+        }
         $($crate::static_rpc_invoke_fn!{$($more)*})?
-    };
+    }};
+}
+
+/// Helper: Declare a single type-erased RPC invocation function, but do not
+/// register it or give it a means to register it.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! decl_rpc_invoke_fn{
     {
         @imp-expand $funcname:ident, $objtype:ty, $methodtype:ty, []
     } => {
-        $crate::static_rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, }
+        $crate::decl_rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, }
     };
     {
         @imp-expand $funcname:ident, $objtype:ty, $methodtype:ty, [Updates]
     } => {
-        $crate::static_rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, sink }
+        $crate::decl_rpc_invoke_fn!{@final $funcname, $objtype, $methodtype, sink }
     };
     {
         @final $funcname:ident, $objtype:ty, $methodtype:ty, $($sinkvar:ident)?
@@ -192,15 +206,6 @@ macro_rules! static_rpc_invoke_fn {
                 };
                 r
             }).boxed()
-        }
-        // Finally we use `inventory` to register the type-erased function with
-        // the right types.
-        $crate::inventory::submit!{
-            $crate::dispatch::InvokeEntry_::new(
-                $objtype::CONST_TYPE_ID_,
-                $methodtype::CONST_TYPE_ID_,
-                [<_typeerased_ $funcname >]
-            )
         }
     }}
 }
