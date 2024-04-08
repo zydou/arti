@@ -46,8 +46,8 @@ pub struct VanguardMgr<R: Runtime> {
 /// The mutable inner state of [`VanguardMgr`].
 #[allow(unused)] // TODO HS-VANGUARDS
 struct Inner {
-    /// Whether to use full, lite, or no vanguards.
-    mode: VanguardMode,
+    /// The current vanguard parameters.
+    params: VanguardParams,
     /// The L2 vanguards.
     l2_vanguards: VanguardSet,
     /// The L3 vanguards.
@@ -114,7 +114,7 @@ impl<R: Runtime> VanguardMgr<R> {
     /// The `state_mgr` handle is used for persisting the "vanguards-full" guard pools to disk.
     #[allow(clippy::needless_pass_by_value)] // TODO HS-VANGUARDS
     pub fn new<S>(
-        config: &VanguardConfig,
+        _config: &VanguardConfig,
         runtime: R,
         _state_mgr: S,
         has_onion_svc: bool,
@@ -122,7 +122,6 @@ impl<R: Runtime> VanguardMgr<R> {
     where
         S: StateMgr + Send + Sync + 'static,
     {
-        let VanguardConfig { mode } = config;
         // Note: we start out with default vanguard params, but we adjust them
         // as soon as we obtain a NetDir (see Self::run_once()).
         let params = VanguardParams::default();
@@ -130,7 +129,7 @@ impl<R: Runtime> VanguardMgr<R> {
         let l3_vanguards = VanguardSet::new(params.l3_pool_size());
 
         let inner = Inner {
-            mode: *mode,
+            params,
             l2_vanguards,
             l3_vanguards,
             has_onion_svc,
@@ -166,15 +165,11 @@ impl<R: Runtime> VanguardMgr<R> {
     }
 
     /// Replace the configuration in this `VanguardMgr` with the specified `config`.
-    pub fn reconfigure(&self, config: &VanguardConfig) -> Result<RetireCircuits, ReconfigureError> {
-        let VanguardConfig { mode } = config;
-
-        let mut inner = self.inner.write().expect("poisoned lock");
-        if *mode != inner.mode {
-            inner.mode = *mode;
-            return Ok(RetireCircuits::All);
-        }
-
+    pub fn reconfigure(
+        &self,
+        _config: &VanguardConfig,
+    ) -> Result<RetireCircuits, ReconfigureError> {
+        // TODO: there is no VanguardConfig.
         Ok(RetireCircuits::None)
     }
 
@@ -233,14 +228,14 @@ impl<R: Runtime> VanguardMgr<R> {
         // maintain_vanguard_sets task and do everything synchronously in this function...
 
         // TODO HS-VANGUARDS: come up with something with better UX
-        let vanguard_set = match (layer, inner.mode) {
+        let vanguard_set = match (layer, inner.mode()) {
             (Layer::Layer2, Full) | (Layer::Layer2, Lite) => &mut inner.l2_vanguards,
             (Layer::Layer3, Full) => &mut inner.l3_vanguards,
             // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
             _ => {
                 return Err(internal!(
                     "vanguards for layer {layer} are supported in mode {})",
-                    inner.mode
+                    inner.mode()
                 )
                 .into())
             }
@@ -317,10 +312,12 @@ impl<R: Runtime> VanguardMgr<R> {
 
         if let Some(netdir) = Self::timely_netdir(&netdir_provider)? {
             // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
+            let params = VanguardParams::try_from(netdir.params())
+                .map_err(into_internal!("invalid NetParameters"))?;
             mgr.inner
                 .write()
                 .expect("poisoned lock")
-                .replenish_vanguards(&mgr.runtime, &netdir)?;
+                .replenish_vanguards(&mgr.runtime, &netdir, &params)?;
         }
 
         select_biased! {
@@ -384,13 +381,13 @@ impl<R: Runtime> VanguardMgr<R> {
 
     /// Get the current [`VanguardMode`].
     pub fn mode(&self) -> VanguardMode {
-        self.inner.read().expect("poisoned lock").mode
+        self.inner.read().expect("poisoned lock").mode()
     }
 
     /// Flush the vanguard sets to storage, if the mode is "vanguards-full".
     #[allow(unused)] // TODO HS-VANGUARDS
     fn flush_to_storage(&self) -> Result<(), VanguardMgrError> {
-        let mode = self.inner.read().expect("poisoned lock").mode;
+        let mode = self.inner.read().expect("poisoned lock").mode();
         match mode {
             VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
             VanguardMode::Full => todo!(),
@@ -418,7 +415,14 @@ impl Inner {
         netdir: &Arc<NetDir>,
     ) -> Result<(), VanguardMgrError> {
         self.remove_unlisted(netdir);
-        self.replenish_vanguards(runtime, netdir)?;
+
+        let params = VanguardParams::try_from(netdir.params())
+            .map_err(into_internal!("invalid NetParameters"))?;
+
+        // Update our params with the new values.
+        self.update_params(params.clone());
+
+        self.replenish_vanguards(runtime, netdir, &params)?;
 
         Ok(())
     }
@@ -437,11 +441,9 @@ impl Inner {
         &mut self,
         runtime: &R,
         netdir: &NetDir,
+        params: &VanguardParams,
     ) -> Result<(), VanguardMgrError> {
         trace!("replenishing vanguard sets");
-
-        let params = VanguardParams::try_from(netdir.params())
-            .map_err(into_internal!("invalid NetParameters"))?;
 
         // Resize the vanguard sets if necessary.
         self.l2_vanguards.update_target(params.l2_pool_size());
@@ -459,7 +461,7 @@ impl Inner {
             params.l2_lifetime_max(),
         )?;
 
-        if self.mode == VanguardMode::Full {
+        if self.mode() == VanguardMode::Full {
             self.l3_vanguards.update_target(params.l3_pool_size());
             Self::replenish_set(
                 runtime,
@@ -540,6 +542,32 @@ impl Inner {
                 })
             })
             .collect::<Result<Vec<_>, _>>()
+    }
+
+    /// Update our vanguard params.
+    fn update_params(&mut self, new_params: VanguardParams) {
+        self.params = new_params;
+    }
+
+    /// Get the current [`VanguardMode`].
+    ///
+    /// If we are not running an onion service, we use the `vanguards_enabled` mode.
+    ///
+    /// If we *are* running an onion service, we use whichever of `vanguards_hs_service`
+    /// and `vanguards_enabled` is higher for all our onion service circuits.
+    fn mode(&self) -> VanguardMode {
+        if self.has_onion_svc {
+            match (
+                self.params.vanguards_enabled(),
+                self.params.vanguards_hs_service(),
+            ) {
+                (_, VanguardMode::Full) | (VanguardMode::Full, _) => VanguardMode::Full,
+                (_, VanguardMode::Lite) | (VanguardMode::Lite, _) => VanguardMode::Lite,
+                _ => VanguardMode::Disabled,
+            }
+        } else {
+            self.params.vanguards_enabled()
+        }
     }
 }
 
@@ -711,7 +739,7 @@ mod test {
         // The sets are initially empty
         assert_eq!(inner.l2_vanguards.deficit(), 0);
 
-        if inner.mode == VanguardMode::Full {
+        if inner.mode() == VanguardMode::Full {
             assert_eq!(inner.l3_vanguards.deficit(), 0);
             let l3_pool_size = params.l3_pool_size();
             assert_eq!(vanguard_count(vanguardmgr), l2_pool_size + l3_pool_size);
@@ -722,7 +750,7 @@ mod test {
     fn assert_set_targets_match_params<R: Runtime>(mgr: &VanguardMgr<R>, params: &VanguardParams) {
         let inner = mgr.inner.read().unwrap();
         assert_eq!(inner.l2_vanguards.target(), params.l2_pool_size());
-        if inner.mode == VanguardMode::Full {
+        if inner.mode() == VanguardMode::Full {
             assert_eq!(inner.l3_vanguards.target(), params.l3_pool_size());
         }
     }
