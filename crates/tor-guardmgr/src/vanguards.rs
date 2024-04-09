@@ -70,11 +70,6 @@ struct Inner {
     /// Removing a vanguard from the heap causes it to expire and to be removed
     /// from its corresponding [`VanguardSet`].
     vanguard_heap: BinaryHeap<Arc<TimeBoundVanguard>>,
-    /// The most up-to-date netdir we have.
-    ///
-    /// This starts out as `None` and is initialized and kept up to date
-    /// by the [`VanguardMgr::maintain_vanguard_sets`] task.
-    netdir: Option<Arc<NetDir>>,
 }
 
 /// Whether the [`VanguardMgr::maintain_vanguard_sets`] task
@@ -148,7 +143,6 @@ impl<R: Runtime> VanguardMgr<R> {
             l2_vanguards,
             l3_vanguards,
             vanguard_heap,
-            netdir: None,
         };
 
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
@@ -327,11 +321,13 @@ impl<R: Runtime> VanguardMgr<R> {
             }
         };
 
-        // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
-        mgr.inner
-            .write()
-            .expect("poisoned lock")
-            .try_replenish_vanguards(&mgr.runtime)?;
+        if let Some(netdir) = Self::timely_netdir(&netdir_provider)? {
+            // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
+            mgr.inner
+                .write()
+                .expect("poisoned lock")
+                .replenish_vanguards(&mgr.runtime, &netdir)?;
+        }
 
         select_biased! {
             event = netdir_events.next().fuse() => {
@@ -347,6 +343,21 @@ impl<R: Runtime> VanguardMgr<R> {
                 // A vanguard expired, time to run the cleanup
                 Ok(ShutdownStatus::Continue)
             },
+        }
+    }
+
+    /// Return a timely `NetDir`, if one is available.
+    ///
+    /// Returns `None` if no directory information is available.
+    fn timely_netdir(
+        netdir_provider: &Arc<dyn NetDirProvider>,
+    ) -> Result<Option<Arc<NetDir>>, VanguardMgrError> {
+        use tor_netdir::Error as NetDirError;
+
+        match netdir_provider.netdir(Timeliness::Timely) {
+            Ok(netdir) => Ok(Some(netdir)),
+            Err(NetDirError::NoInfo) | Err(NetDirError::NotEnoughInfo) => Ok(None),
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -395,27 +406,9 @@ impl<R: Runtime> VanguardMgr<R> {
 }
 
 impl Inner {
-    /// If we have a `NetDir`, replenish the vanguard sets if needed.
-    fn try_replenish_vanguards<R: Runtime>(&mut self, runtime: &R) -> Result<(), VanguardMgrError> {
-        match &self.netdir {
-            Some(netdir) => {
-                // Clone the netdir to appease the borrow checker
-                // (otherwsise we end up borrowing self both as immutable and as mutable)
-                let netdir = Arc::clone(netdir);
-                self.replenish_vanguards(runtime, &netdir)?;
-            }
-            None => {
-                trace!("unable to replenish vanguard sets (netdir unavailable)");
-            }
-        }
-
-        Ok(())
-    }
-
     /// Handle potential vanguard parameter changes.
     ///
-    /// This sets our most up-to-date `NetDir` to `netdir`,
-    /// and updates the [`VanguardSet`]s based on the [`VanguardParams`]
+    /// This updates the [`VanguardSet`]s based on the [`VanguardParams`]
     /// derived from the new `NetDir`.
     ///
     /// NOTE: if the new `VanguardParams` specify different lifetime ranges
@@ -431,7 +424,6 @@ impl Inner {
         runtime: &R,
         netdir: &Arc<NetDir>,
     ) -> Result<(), VanguardMgrError> {
-        self.netdir = Some(Arc::clone(netdir));
         self.remove_unlisted(netdir);
         self.replenish_vanguards(runtime, netdir)?;
 
