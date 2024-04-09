@@ -280,7 +280,13 @@ impl<R: Runtime> VanguardMgr<R> {
     async fn maintain_vanguard_sets(mgr: Weak<Self>, netdir_provider: Arc<dyn NetDirProvider>) {
         let mut netdir_events = netdir_provider.events();
         loop {
-            match Self::run_once(Weak::clone(&mgr), Arc::clone(&netdir_provider), &mut netdir_events).await {
+            match Self::run_once(
+                Weak::clone(&mgr),
+                Arc::clone(&netdir_provider),
+                &mut netdir_events,
+            )
+            .await
+            {
                 Ok(ShutdownStatus::Continue) => continue,
                 Ok(ShutdownStatus::Terminate) => {
                     debug!("Vanguard manager is shutting down");
