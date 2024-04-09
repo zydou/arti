@@ -69,7 +69,7 @@ struct Inner {
     ///
     /// Removing a vanguard from the heap causes it to expire and to be removed
     /// from its corresponding [`VanguardSet`].
-    vanguards: BinaryHeap<Arc<TimeBoundVanguard>>,
+    vanguard_heap: BinaryHeap<Arc<TimeBoundVanguard>>,
     /// The most up-to-date netdir we have.
     ///
     /// This starts out as `None` and is initialized and kept up to date
@@ -141,13 +141,13 @@ impl<R: Runtime> VanguardMgr<R> {
         let params = VanguardParams::default();
         let l2_vanguards = VanguardSet::new(params.l2_pool_size());
         let l3_vanguards = VanguardSet::new(params.l3_pool_size());
-        let vanguards = BinaryHeap::new();
+        let vanguard_heap = BinaryHeap::new();
 
         let inner = Inner {
             mode: *mode,
             l2_vanguards,
             l3_vanguards,
-            vanguards,
+            vanguard_heap,
             netdir: None,
         };
 
@@ -361,9 +361,9 @@ impl<R: Runtime> VanguardMgr<R> {
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
-        while let Some(vanguard) = inner.vanguards.peek() {
+        while let Some(vanguard) = inner.vanguard_heap.peek() {
             if now >= vanguard.when {
-                inner.vanguards.pop();
+                inner.vanguard_heap.pop();
             } else {
                 let duration = vanguard
                     .when
@@ -440,7 +440,7 @@ impl Inner {
 
     /// Remove the vanguards that are no longer listed in `netdir`
     fn remove_unlisted(&mut self, netdir: &Arc<NetDir>) {
-        self.vanguards
+        self.vanguard_heap
             .retain(|v| netdir.ids_listed(&v.id) != Some(false));
     }
 
@@ -468,7 +468,7 @@ impl Inner {
             &mut rng,
             netdir,
             &mut self.l2_vanguards,
-            &mut self.vanguards,
+            &mut self.vanguard_heap,
             params.l2_lifetime_min(),
             params.l2_lifetime_max(),
         )?;
@@ -480,7 +480,7 @@ impl Inner {
                 &mut rng,
                 netdir,
                 &mut self.l3_vanguards,
-                &mut self.vanguards,
+                &mut self.vanguard_heap,
                 params.l3_lifetime_min(),
                 params.l3_lifetime_max(),
             )?;
@@ -495,7 +495,7 @@ impl Inner {
         rng: &mut Rng,
         netdir: &NetDir,
         vanguard_set: &mut VanguardSet,
-        vanguards: &mut BinaryHeap<Arc<TimeBoundVanguard>>,
+        vanguard_heap: &mut BinaryHeap<Arc<TimeBoundVanguard>>,
         min_lifetime: Duration,
         max_lifetime: Duration,
     ) -> Result<(), VanguardMgrError> {
@@ -518,7 +518,7 @@ impl Inner {
             // to the vanguards we add to the heap.
             for v in new_vanguards {
                 vanguard_set.add_vanguard(Arc::downgrade(&v));
-                vanguards.push(v);
+                vanguard_heap.push(v);
             }
         }
 
@@ -651,7 +651,7 @@ mod test {
     ) -> Option<Weak<TimeBoundVanguard>> {
         let inner = mgr.inner.read().unwrap();
         inner
-            .vanguards
+            .vanguard_heap
             .iter()
             .find(|v| {
                 let relay_ids = RelayIds::from_relay_ids(vanguard.relay());
@@ -686,7 +686,7 @@ mod test {
     /// Get the total number of vanguard entries (L2 + L3).
     fn vanguard_count<R: Runtime>(mgr: &VanguardMgr<R>) -> usize {
         let inner = mgr.inner.read().unwrap();
-        inner.vanguards.len()
+        inner.vanguard_heap.len()
     }
 
     /// Return a `Duration` representing how long until this vanguard expires.
