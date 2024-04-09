@@ -939,10 +939,7 @@ mod test {
             // Wait until the vanguard manager has bootstrapped
             let _netdir_provider =
                 init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
-            assert_eq!(
-                vanguard_count(&vanguardmgr),
-                params.l2_pool_size()
-            );
+            assert_eq!(vanguard_count(&vanguardmgr), params.l2_pool_size());
 
             let vanguard = vanguardmgr
                 .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
@@ -965,10 +962,7 @@ mod test {
             assert!(set_entry.upgrade().is_none());
 
             // Check that we replaced the expired vanguard with a new one:
-            assert_eq!(
-                vanguard_count(&vanguardmgr),
-                params.l2_pool_size()
-            );
+            assert_eq!(vanguard_count(&vanguardmgr), params.l2_pool_size());
 
             {
                 let inner = vanguardmgr.inner.read().unwrap();
