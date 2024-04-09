@@ -170,6 +170,7 @@ impl<R: Runtime> VanguardMgr<R> {
         _config: &VanguardConfig,
     ) -> Result<RetireCircuits, ReconfigureError> {
         // TODO: there is no VanguardConfig.
+        // TODO: update has_onion_svc if the new config enables onion svc usage
         Ok(RetireCircuits::None)
     }
 
