@@ -512,7 +512,7 @@ impl Inner {
     ) -> Result<Vec<Arc<TimeBoundVanguard>>, VanguardMgrError> {
         trace!(relay_count = n, "selecting relays to use as vanguards");
 
-        // TODO HS-VANGUARDS: figure out if RelayUsage::middle_relay is what we want here.
+        // TODO(#1364): use RelayUsage::vanguard instead
         let vanguard_sel = RelaySelector::new(RelayUsage::middle_relay(None), exclude);
 
         let (relays, _outcome) = vanguard_sel.select_n_relays(rng, n, netdir);
