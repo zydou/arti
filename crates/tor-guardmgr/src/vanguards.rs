@@ -416,7 +416,8 @@ impl Inner {
 
     /// Remove the vanguards that are no longer listed in `netdir`
     fn remove_unlisted(&mut self, netdir: &Arc<NetDir>) {
-        self.vanguards.retain(|v| netdir.ids_listed(&v.id) != Some(false));
+        self.vanguards
+            .retain(|v| netdir.ids_listed(&v.id) != Some(false));
     }
 
     /// Replenish the vanguard sets if necessary, using the directory information
