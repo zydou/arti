@@ -110,6 +110,9 @@ impl VanguardSet {
             })
             .collect::<Vec<_>>();
 
+        // Note: We make a uniform choice instead of a weighted one,
+        // because we already made a bandwidth-weighted choice when we added
+        // the vanguards to this set in the first place.
         good_relays.choose(rng).map(|relay| Vanguard {
             relay: relay.clone(),
         })
