@@ -95,13 +95,44 @@ impl TryFrom<&NetParameters> for VanguardParams {
         // See discussion at
         // <https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/258#note_3011734>
 
+        /// Return a pair of `(min, max)` values representing a closed interval.
+        ///
+        /// If `min <= max`, returns `(min, max)`.
+        /// Otherwise, returns `(default_min, default_max)`.
+        fn lifetime_or_default(
+            min: Duration,
+            max: Duration,
+            default_min: Duration,
+            default_max: Duration,
+        ) -> (Duration, Duration) {
+            if min <= max {
+                (min, max)
+            } else {
+                (default_min, default_max)
+            }
+        }
+
+        let (l2_lifetime_min, l2_lifetime_max) = lifetime_or_default(
+            p.guard_hs_l2_lifetime_min.try_into()?,
+            p.guard_hs_l2_lifetime_max.try_into()?,
+            DEFAULT_L2_GUARD_LIFETIME_MIN,
+            DEFAULT_L2_GUARD_LIFETIME_MAX,
+        );
+
+        let (l3_lifetime_min, l3_lifetime_max) = lifetime_or_default(
+            p.guard_hs_l3_lifetime_min.try_into()?,
+            p.guard_hs_l3_lifetime_max.try_into()?,
+            DEFAULT_L3_GUARD_LIFETIME_MIN,
+            DEFAULT_L3_GUARD_LIFETIME_MAX,
+        );
+
         Ok(VanguardParams {
             l2_pool_size: p.guard_hs_l2_number.try_into()?,
-            l2_lifetime_min: p.guard_hs_l2_lifetime_min.try_into()?,
-            l2_lifetime_max: p.guard_hs_l2_lifetime_max.try_into()?,
+            l2_lifetime_min,
+            l2_lifetime_max,
             l3_pool_size: p.guard_hs_l3_number.try_into()?,
-            l3_lifetime_min: p.guard_hs_l3_lifetime_min.try_into()?,
-            l3_lifetime_max: p.guard_hs_l3_lifetime_max.try_into()?,
+            l3_lifetime_min,
+            l3_lifetime_max,
         })
     }
 }
