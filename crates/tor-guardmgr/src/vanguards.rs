@@ -977,9 +977,15 @@ mod test {
 
             {
                 let inner = vanguardmgr.inner.read().unwrap();
-                let l2_vanguards = inner.l2_vanguards.vanguards();
 
-                assert_eq!(l2_vanguards.len(), params.l2_pool_size());
+                let l2_count = inner
+                    .l2_vanguards
+                    .vanguards()
+                    .iter()
+                    .filter_map(|v| v.upgrade())
+                    .count();
+
+                assert_eq!(l2_count, params.l2_pool_size());
             }
         });
     }

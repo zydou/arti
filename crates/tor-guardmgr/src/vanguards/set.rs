@@ -135,7 +135,6 @@ impl VanguardSet {
 
     /// Update the target size of this set, discarding or requesting additional vanguards if needed.
     pub(super) fn update_target(&mut self, target: usize) {
-        self.discard_expired();
         self.target = target;
     }
 
