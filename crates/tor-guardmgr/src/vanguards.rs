@@ -177,7 +177,7 @@ impl<R: Runtime> VanguardMgr<R> {
         self.runtime
             .spawn(Self::maintain_vanguard_sets(
                 Arc::downgrade(self),
-                netdir_provider,
+                Arc::downgrade(&netdir_provider),
             ))
             .map_err(|e| VanguardMgrError::Spawn(Arc::new(e)))?;
 
@@ -277,12 +277,18 @@ impl<R: Runtime> VanguardMgr<R> {
     /// * ensures the [`VanguardSet`]s are repopulated with new vanguards
     ///   when the number of vanguards drops below a certain threshold
     /// * handles `NetDir` changes, updating the vanguard set sizes as needed
-    async fn maintain_vanguard_sets(mgr: Weak<Self>, netdir_provider: Arc<dyn NetDirProvider>) {
-        let mut netdir_events = netdir_provider.events();
+    async fn maintain_vanguard_sets(mgr: Weak<Self>, netdir_provider: Weak<dyn NetDirProvider>) {
+        let mut netdir_events = match netdir_provider.upgrade() {
+            Some(provider) => provider.events(),
+            None => {
+                return;
+            }
+        };
+
         loop {
             match Self::run_once(
                 Weak::clone(&mgr),
-                Arc::clone(&netdir_provider),
+                Weak::clone(&netdir_provider),
                 &mut netdir_events,
             )
             .await
@@ -306,11 +312,12 @@ impl<R: Runtime> VanguardMgr<R> {
     /// and replenishes the heap and `VanguardSet`s with new vanguards.
     async fn run_once(
         mgr: Weak<Self>,
-        netdir_provider: Arc<dyn NetDirProvider>,
+        netdir_provider: Weak<dyn NetDirProvider>,
         netdir_events: &mut BoxStream<'static, DirEvent>,
     ) -> Result<ShutdownStatus, VanguardMgrError> {
-        let Some(mgr) = mgr.upgrade() else {
-            return Ok(ShutdownStatus::Terminate);
+        let (mgr, netdir_provider) = match (mgr.upgrade(), netdir_provider.upgrade()) {
+            (Some(mgr), Some(netdir_provider)) => (mgr, netdir_provider),
+            _ => return Ok(ShutdownStatus::Terminate),
         };
 
         let now = mgr.runtime.wallclock();
