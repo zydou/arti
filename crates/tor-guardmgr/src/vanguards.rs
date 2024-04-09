@@ -48,8 +48,6 @@ pub struct VanguardMgr<R: Runtime> {
 struct Inner {
     /// Whether to use full, lite, or no vanguards.
     mode: VanguardMode,
-    /// Configuration parameters read from the consensus parameters.
-    params: VanguardParams,
     /// The L2 vanguards.
     ///
     /// This is a view of the L2 vanguards from the `vanguards` heap.
@@ -147,8 +145,6 @@ impl<R: Runtime> VanguardMgr<R> {
 
         let inner = Inner {
             mode: *mode,
-            // TODO HS-VANGUARDS: read the params from the consensus
-            params,
             l2_vanguards,
             l3_vanguards,
             vanguards,
