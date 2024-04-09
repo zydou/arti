@@ -38,7 +38,7 @@ struct Inner {
 impl TestNetDirProvider {
     /// Create a new [`TestNetDirProvider`] with no netdir available.
     pub fn new() -> Self {
-        let (event_tx, _event_rx) = broadcast::channel(0);
+        let (event_tx, _event_rx) = broadcast::channel(128);
         let inner = Inner {
             current: None,
             event_tx,
