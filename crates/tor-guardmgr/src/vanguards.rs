@@ -56,6 +56,10 @@ struct Inner {
     /// The L3 vanguards.
     ///
     /// This is a view of the L3 vanguards from the `vanguards` heap.
+    ///
+    /// The L3 vanguards are only used if we are running in
+    /// [`Full`](VanguardMode::Full) vanguard mode.
+    /// Otherwise, this set is not populated, or read from.
     l3_vanguards: VanguardSet,
     /// A binary heap with all our vanguards.
     /// It contains both the `l2_vanguards` and the `l3_vanguards`.
@@ -443,7 +447,7 @@ impl Inner {
 
         // Resize the vanguard sets if necessary.
         self.l2_vanguards.update_target(params.l2_pool_size());
-        self.l3_vanguards.update_target(params.l3_pool_size());
+
         // TODO HS-VANGUARDS: It would be nice to make this mockable. It will involve adding an
         // M: MocksForVanguards parameter to VanguardMgr, which will have to propagated throughout
         // tor-circmgr too.
@@ -458,15 +462,18 @@ impl Inner {
             params.l2_lifetime_max(),
         )?;
 
-        Self::replenish_set(
-            runtime,
-            &mut rng,
-            netdir,
-            &mut self.l3_vanguards,
-            &mut self.vanguards,
-            params.l3_lifetime_min(),
-            params.l3_lifetime_max(),
-        )?;
+        if self.mode == VanguardMode::Full {
+            self.l3_vanguards.update_target(params.l3_pool_size());
+            Self::replenish_set(
+                runtime,
+                &mut rng,
+                netdir,
+                &mut self.l3_vanguards,
+                &mut self.vanguards,
+                params.l3_lifetime_min(),
+                params.l3_lifetime_max(),
+            )?;
+        }
 
         Ok(())
     }
@@ -727,18 +734,23 @@ mod test {
     fn assert_sets_filled<R: Runtime>(vanguardmgr: &VanguardMgr<R>, params: &VanguardParams) {
         let inner = vanguardmgr.inner.read().unwrap();
         let l2_pool_size = params.l2_pool_size();
-        let l3_pool_size = params.l3_pool_size();
         // The sets are initially empty
         assert_eq!(inner.l2_vanguards.deficit(), 0);
-        assert_eq!(inner.l3_vanguards.deficit(), 0);
-        assert_eq!(vanguard_count(vanguardmgr), l2_pool_size + l3_pool_size);
+
+        if inner.mode == VanguardMode::Full {
+            assert_eq!(inner.l3_vanguards.deficit(), 0);
+            let l3_pool_size = params.l3_pool_size();
+            assert_eq!(vanguard_count(vanguardmgr), l2_pool_size + l3_pool_size);
+        }
     }
 
     /// Assert the target size of the specified vanguard set matches the target from `params`.
     fn assert_set_targets_match_params<R: Runtime>(mgr: &VanguardMgr<R>, params: &VanguardParams) {
         let inner = mgr.inner.read().unwrap();
         assert_eq!(inner.l2_vanguards.target(), params.l2_pool_size());
-        assert_eq!(inner.l3_vanguards.target(), params.l3_pool_size());
+        if inner.mode == VanguardMode::Full {
+            assert_eq!(inner.l3_vanguards.target(), params.l3_pool_size());
+        }
     }
 
     /// Wait until the vanguardmgr has populated its vanguard sets.
@@ -885,23 +897,32 @@ mod test {
             let old_size = params.l2_pool_size();
             assert_set_targets_match_params(&vanguardmgr, &params);
 
-            const PARAMS: [(&str, i32); 2] =
-                [("guard-hs-l2-number", 1), ("guard-hs-l3-number", 10)];
+            const PARAMS: [[(&str, i32); 2]; 2] = [
+                [("guard-hs-l2-number", 1), ("guard-hs-l3-number", 10)],
+                [("guard-hs-l2-number", 10), ("guard-hs-l3-number", 10)],
+            ];
 
-            let new_params = install_new_params(&rt, &netdir_provider, PARAMS).await;
+            for params in PARAMS {
+                let new_params = install_new_params(&rt, &netdir_provider, params).await;
 
-            // Ensure the target size was updated.
-            assert_set_targets_match_params(&vanguardmgr, &new_params);
-            {
-                let inner = vanguardmgr.inner.read().unwrap();
-                let l2_vanguards = inner.l2_vanguards.vanguards();
-                let l3_vanguards = inner.l3_vanguards.vanguards();
-                // The actual size of the set hasn't changed: it's OK to have more vanguards than
-                // needed in the set (they extraneous ones will eventually expire).
-                assert_eq!(l2_vanguards.len(), old_size);
-                // The L3 vanguard set size _has_ changed, because we've just increased
-                // the target size from 8 to 10.
-                assert_eq!(l3_vanguards.len(), 10);
+                // Ensure the target size was updated.
+                assert_set_targets_match_params(&vanguardmgr, &new_params);
+                {
+                    let inner = vanguardmgr.inner.read().unwrap();
+                    let l2_vanguards = inner.l2_vanguards.vanguards();
+                    let l3_vanguards = inner.l3_vanguards.vanguards();
+                    let new_l2_size = params[0].1 as usize;
+                    if new_l2_size < old_size {
+                        // The actual size of the set hasn't changed: it's OK to have more vanguards than
+                        // needed in the set (they extraneous ones will eventually expire).
+                        assert_eq!(l2_vanguards.len(), old_size);
+                    } else {
+                        // The new size is greater, so we have more L2 vanguards now.
+                        assert_eq!(l2_vanguards.len(), new_l2_size);
+                    }
+                    // There are no L3 vanguards because full vanguards are not in use.
+                    assert_eq!(l3_vanguards.len(), 0);
+                }
             }
         });
     }
@@ -920,7 +941,7 @@ mod test {
                 init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
             assert_eq!(
                 vanguard_count(&vanguardmgr),
-                params.l2_pool_size() + params.l3_pool_size()
+                params.l2_pool_size()
             );
 
             let vanguard = vanguardmgr
@@ -946,7 +967,7 @@ mod test {
             // Check that we replaced the expired vanguard with a new one:
             assert_eq!(
                 vanguard_count(&vanguardmgr),
-                params.l2_pool_size() + params.l3_pool_size()
+                params.l2_pool_size()
             );
 
             {
