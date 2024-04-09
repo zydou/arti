@@ -11,6 +11,7 @@ use std::collections::BinaryHeap;
 use std::sync::{Arc, RwLock, Weak};
 use std::time::{Duration, SystemTime};
 
+use futures::stream::BoxStream;
 use futures::task::{SpawnError, SpawnExt as _};
 use futures::{future, FutureExt as _};
 use futures::{select_biased, StreamExt as _};
@@ -277,8 +278,9 @@ impl<R: Runtime> VanguardMgr<R> {
     ///   when the number of vanguards drops below a certain threshold
     /// * handles `NetDir` changes, updating the vanguard set sizes as needed
     async fn maintain_vanguard_sets(mgr: Weak<Self>, netdir_provider: Arc<dyn NetDirProvider>) {
+        let mut netdir_events = netdir_provider.events();
         loop {
-            match Self::run_once(Weak::clone(&mgr), Arc::clone(&netdir_provider)).await {
+            match Self::run_once(Weak::clone(&mgr), Arc::clone(&netdir_provider), &mut netdir_events).await {
                 Ok(ShutdownStatus::Continue) => continue,
                 Ok(ShutdownStatus::Terminate) => {
                     debug!("Vanguard manager is shutting down");
@@ -299,8 +301,8 @@ impl<R: Runtime> VanguardMgr<R> {
     async fn run_once(
         mgr: Weak<Self>,
         netdir_provider: Arc<dyn NetDirProvider>,
+        netdir_events: &mut BoxStream<'static, DirEvent>,
     ) -> Result<ShutdownStatus, VanguardMgrError> {
-        let mut netdir_events = netdir_provider.events().fuse();
         let Some(mgr) = mgr.upgrade() else {
             return Ok(ShutdownStatus::Terminate);
         };
@@ -323,7 +325,7 @@ impl<R: Runtime> VanguardMgr<R> {
             .try_replenish_vanguards(&mgr.runtime)?;
 
         select_biased! {
-            event = netdir_events.next() => {
+            event = netdir_events.next().fuse() => {
                 if let Some(DirEvent::NewConsensus) = event {
                     let netdir = netdir_provider.netdir(Timeliness::Timely)?;
                     mgr.inner.write().expect("poisoned lock")
