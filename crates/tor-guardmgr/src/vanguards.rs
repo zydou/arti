@@ -204,6 +204,15 @@ impl<R: Runtime> VanguardMgr<R> {
     ///   * the penultimate relay of the path, if there is one: relays don't allow extending the
     ///     circuit to their previous hop
     ///
+    /// If [`Full`](VanguardMode::Full) vanguards are in use, this function can be used
+    /// for selecting both [`Layer2`](Layer::Layer2) and [`Layer3`](Layer::Layer3) vanguards.
+    ///
+    /// If [`Lite`](VanguardMode::Lite) vanguards are in use, this function can only be used
+    /// for selecting [`Layer2`](Layer::Layer2) vanguards.
+    /// It will return an error if a [`Layer3`](Layer::Layer3) is requested.
+    ///
+    /// Returns an error is vanguards are disabled.
+    ///
     ///  ### Example
     ///
     ///  If the partially built path is of the form `G - L2` and we are selecting the L3 vanguard,
