@@ -43,12 +43,31 @@ pub(crate) struct TimeBoundVanguard {
 /// Upon obtaining a `NetDir`, users of this type should update the target
 /// based on the the current [`NetParameters`](tor_netdir::params::NetParameters).
 #[derive(Default, Debug, Clone)] //
+#[derive(Serialize, Deserialize)] //
+#[serde(transparent)]
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
     vanguards: Vec<TimeBoundVanguard>,
     /// The number of vanguards we would like to have in this set.
+    ///
+    /// We do not serialize this value, as it should be derived from, and kept up to date with,
+    /// the current [`NetParameters`](tor_netdir::params::NetParameters).
+    #[serde(skip)]
     target: usize,
+}
+
+/// The L2 and L3 vanguard sets,
+/// stored in the same struct to simplify serialization.
+#[derive(Default, Debug, Clone)] //
+#[derive(Serialize, Deserialize)] //
+pub(super) struct VanguardSets {
+    /// The L2 vanguard sets.
+    pub(super) l2_vanguards: VanguardSet,
+    /// The L3 vanguard sets.
+    ///
+    /// Only used if full vanguards are enabled.
+    pub(super) l3_vanguards: VanguardSet,
 }
 
 impl VanguardSet {
