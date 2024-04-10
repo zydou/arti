@@ -122,7 +122,7 @@ impl HsPathBuilder {
         rng: &mut R,
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
-        vanguards: &VanguardMgr,
+        vanguards: &VanguardMgr<RT>,
         config: &PathConfig,
         now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
@@ -186,7 +186,7 @@ impl VanguardHsPathBuilder {
         rng: &mut R,
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
-        vanguards: &VanguardMgr,
+        vanguards: &VanguardMgr<RT>,
         config: &PathConfig,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         // TODO: this is copied from pick_path
@@ -215,7 +215,7 @@ impl VanguardHsPathBuilder {
         // TODO #504: Unaccompanied RelayExclusions
         let exclude_guard = exclude_identities(&[&l1_guard]);
         let l2_guard: MaybeOwnedRelay = vanguards
-            .select_vanguard(netdir, Layer::Layer2, &exclude_guard)?
+            .select_vanguard(rng, netdir, Layer::Layer2, &exclude_guard)?
             .into();
 
         // We exclude
@@ -228,7 +228,7 @@ impl VanguardHsPathBuilder {
         // If needed, select an L3 vanguard too
         if vanguards.mode() == VanguardMode::Full {
             let l3_guard: MaybeOwnedRelay = vanguards
-                .select_vanguard(netdir, Layer::Layer3, &neighbor_exclusion)?
+                .select_vanguard(rng, netdir, Layer::Layer3, &neighbor_exclusion)?
                 .into();
             hops.push(l3_guard.clone());
 

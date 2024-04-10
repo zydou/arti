@@ -47,19 +47,25 @@ pub struct VanguardConfig {
 /// because like all Tor network parameters,
 /// they can be overridden via the `TorClientConfig::override_net_params`.
 #[allow(unused)] // TODO HS-VANGUARDS
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, amplify::Getters)]
 pub struct VanguardParams {
     /// The number of guards in the L2 guardset
+    #[getter(as_copy)]
     l2_pool_size: usize,
     /// The minimum lifetime of L2 guards
+    #[getter(as_copy)]
     l2_lifetime_min: Duration,
     /// The maximum lifetime of L2 guards
+    #[getter(as_copy)]
     l2_lifetime_max: Duration,
     /// The number of guards in the L3 guardset
+    #[getter(as_copy)]
     l3_pool_size: usize,
     /// The minimum lifetime of L3 guards
+    #[getter(as_copy)]
     l3_lifetime_min: Duration,
     /// The maximum lifetime of L3 guards
+    #[getter(as_copy)]
     l3_lifetime_max: Duration,
 }
 
@@ -79,8 +85,54 @@ impl Default for VanguardParams {
 impl TryFrom<&NetParameters> for VanguardParams {
     type Error = tor_units::Error;
 
-    fn try_from(_p: &NetParameters) -> Result<VanguardParams, Self::Error> {
-        // TODO: add the vanguards params to NetParameters
-        Ok(Default::default())
+    fn try_from(p: &NetParameters) -> Result<VanguardParams, Self::Error> {
+        // TODO HS-VANGUARDS: move the VanguardMode a VanguardParam too and consider removing
+        // VanguardConfig altogether.
+
+        // TODO HS-VANGUARDS: we will need 2 "mode"s: one for if we're running as a service,
+        // and another one for if we're running as a client.
+        //
+        // See discussion at
+        // <https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/258#note_3011734>
+
+        /// Return a pair of `(min, max)` values representing a closed interval.
+        ///
+        /// If `min <= max`, returns `(min, max)`.
+        /// Otherwise, returns `(default_min, default_max)`.
+        fn lifetime_or_default(
+            min: Duration,
+            max: Duration,
+            default_min: Duration,
+            default_max: Duration,
+        ) -> (Duration, Duration) {
+            if min <= max {
+                (min, max)
+            } else {
+                (default_min, default_max)
+            }
+        }
+
+        let (l2_lifetime_min, l2_lifetime_max) = lifetime_or_default(
+            p.guard_hs_l2_lifetime_min.try_into()?,
+            p.guard_hs_l2_lifetime_max.try_into()?,
+            DEFAULT_L2_GUARD_LIFETIME_MIN,
+            DEFAULT_L2_GUARD_LIFETIME_MAX,
+        );
+
+        let (l3_lifetime_min, l3_lifetime_max) = lifetime_or_default(
+            p.guard_hs_l3_lifetime_min.try_into()?,
+            p.guard_hs_l3_lifetime_max.try_into()?,
+            DEFAULT_L3_GUARD_LIFETIME_MIN,
+            DEFAULT_L3_GUARD_LIFETIME_MAX,
+        );
+
+        Ok(VanguardParams {
+            l2_pool_size: p.guard_hs_l2_number.try_into()?,
+            l2_lifetime_min,
+            l2_lifetime_max,
+            l3_pool_size: p.guard_hs_l3_number.try_into()?,
+            l3_lifetime_min,
+            l3_lifetime_max,
+        })
     }
 }
