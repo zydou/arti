@@ -1083,6 +1083,13 @@ impl NetDir {
     ///
     /// Does not return [unusable](NetDir#usable) relays.
     ///
+    /// Note that a negative result from this method is not necessarily permanent:
+    /// it may be the case that a relay exists,
+    /// but we don't yet have enough information about it to know all of its IDs.
+    /// To test whether a relay is *definitely* absent,
+    /// use [`by_ids_detailed`](Self::by_ids_detailed)
+    /// or [`ids_listed`](Self::ids_listed).
+    ///
     /// # Limitations
     ///
     /// This will be very slow if `target` does not have an Ed25519 or RSA
