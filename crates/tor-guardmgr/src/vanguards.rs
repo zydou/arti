@@ -7,7 +7,7 @@
 pub mod config;
 mod set;
 
-use std::collections::BinaryHeap;
+use std::cmp;
 use std::sync::{Arc, RwLock, Weak};
 use std::time::{Duration, SystemTime};
 
@@ -49,27 +49,13 @@ struct Inner {
     /// Whether to use full, lite, or no vanguards.
     mode: VanguardMode,
     /// The L2 vanguards.
-    ///
-    /// This is a view of the L2 vanguards from the `vanguards` heap.
     l2_vanguards: VanguardSet,
     /// The L3 vanguards.
-    ///
-    /// This is a view of the L3 vanguards from the `vanguards` heap.
     ///
     /// The L3 vanguards are only used if we are running in
     /// [`Full`](VanguardMode::Full) vanguard mode.
     /// Otherwise, this set is not populated, or read from.
     l3_vanguards: VanguardSet,
-    /// A binary heap with all our vanguards.
-    /// It contains both the `l2_vanguards` and the `l3_vanguards`.
-    ///
-    /// Storing the vanguards in a min-heap is convenient
-    /// because we need to periodically remove the expired vanguards,
-    /// and determine which vanguard will expire next.
-    ///
-    /// Removing a vanguard from the heap causes it to expire and to be removed
-    /// from its corresponding [`VanguardSet`].
-    vanguard_heap: BinaryHeap<Arc<TimeBoundVanguard>>,
 }
 
 /// Whether the [`VanguardMgr::maintain_vanguard_sets`] task
@@ -136,13 +122,11 @@ impl<R: Runtime> VanguardMgr<R> {
         let params = VanguardParams::default();
         let l2_vanguards = VanguardSet::new(params.l2_pool_size());
         let l3_vanguards = VanguardSet::new(params.l3_pool_size());
-        let vanguard_heap = BinaryHeap::new();
 
         let inner = Inner {
             mode: *mode,
             l2_vanguards,
             l3_vanguards,
-            vanguard_heap,
         };
 
         // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
@@ -263,7 +247,7 @@ impl<R: Runtime> VanguardMgr<R> {
     /// The vanguard set management task.
     ///
     /// This is a background task that:
-    /// * removes vanguards from the `vanguards` heap when they expire
+    /// * removes vanguards from the L2 and L3 [`VanguardSet`]s when they expire
     /// * ensures the [`VanguardSet`]s are repopulated with new vanguards
     ///   when the number of vanguards drops below a certain threshold
     /// * handles `NetDir` changes, updating the vanguard set sizes as needed
@@ -298,8 +282,11 @@ impl<R: Runtime> VanguardMgr<R> {
 
     /// Wait until a vanguard expires or until there is a new [`NetDir`].
     ///
-    /// This keeps `inner`'s `NetDir` up to date, removes any expired vanguards from the heap,
-    /// and replenishes the heap and `VanguardSet`s with new vanguards.
+    /// This populates the L2 and L3 [`VanguardSet`]s,
+    /// and rotates the vanguards when their lifetime expires.
+    ///
+    /// Note: the L3 set is only populated with vanguards if
+    /// [`Full`](VanguardMode::Full) vanguards are enabled.
     async fn run_once(
         mgr: Weak<Self>,
         netdir_provider: Weak<dyn NetDirProvider>,
@@ -361,32 +348,31 @@ impl<R: Runtime> VanguardMgr<R> {
         }
     }
 
-    /// Remove any expired vanguards from the heap,
+    /// Remove the vanguards that have expired,
     /// returning how long until the next vanguard will expire,
-    /// or `None` if the heap is empty.
-    ///
-    /// The `vanguards` heap contains the only strong references to the vanguards,
-    /// so removing them causes the weak references from the VanguardSets to become
-    /// dangling (the dangling references are lazily removed).
+    /// or `None` if there are no vanguards in any of our sets.
     fn remove_expired(&self, now: SystemTime) -> Result<Option<Duration>, VanguardMgrError> {
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
-        while let Some(vanguard) = inner.vanguard_heap.peek() {
-            if now >= vanguard.when {
-                inner.vanguard_heap.pop();
-            } else {
-                let duration = vanguard
-                    .when
-                    .duration_since(now)
-                    .map_err(|_| internal!("when > now, but now is later than when?!"))?;
+        inner.l2_vanguards.remove_expired(now);
+        inner.l3_vanguards.remove_expired(now);
 
-                return Ok(Some(duration));
+        let l2_expiry = inner.l2_vanguards.next_expiry();
+        let l3_expiry = inner.l3_vanguards.next_expiry();
+        let expiry = match (l2_expiry, l3_expiry) {
+            (Some(e), None) | (None, Some(e)) => e,
+            (Some(e1), Some(e2)) => cmp::min(e1, e2),
+            (None, None) => {
+                // Both vanguard sets are empty
+                return Ok(None);
             }
-        }
+        };
 
-        // The heap is empty
-        Ok(None)
+        expiry
+            .duration_since(now)
+            .map_err(|_| internal!("when > now, but now is later than when?!").into())
+            .map(Some)
     }
 
     /// Get the current [`VanguardMode`].
@@ -432,12 +418,14 @@ impl Inner {
 
     /// Remove the vanguards that are no longer listed in `netdir`
     fn remove_unlisted(&mut self, netdir: &Arc<NetDir>) {
-        self.vanguard_heap
-            .retain(|v| netdir.ids_listed(&v.id) != Some(false));
+        self.l2_vanguards.remove_unlisted(netdir);
+        self.l3_vanguards.remove_unlisted(netdir);
     }
 
     /// Replenish the vanguard sets if necessary, using the directory information
     /// from the specified [`NetDir`].
+    ///
+    /// Note: the L3 set is only replenished if [`Full`](VanguardMode::Full) vanguards are enabled.
     fn replenish_vanguards<R: Runtime>(
         &mut self,
         runtime: &R,
@@ -460,7 +448,6 @@ impl Inner {
             &mut rng,
             netdir,
             &mut self.l2_vanguards,
-            &mut self.vanguard_heap,
             params.l2_lifetime_min(),
             params.l2_lifetime_max(),
         )?;
@@ -472,7 +459,6 @@ impl Inner {
                 &mut rng,
                 netdir,
                 &mut self.l3_vanguards,
-                &mut self.vanguard_heap,
                 params.l3_lifetime_min(),
                 params.l3_lifetime_max(),
             )?;
@@ -487,7 +473,6 @@ impl Inner {
         rng: &mut Rng,
         netdir: &NetDir,
         vanguard_set: &mut VanguardSet,
-        vanguard_heap: &mut BinaryHeap<Arc<TimeBoundVanguard>>,
         min_lifetime: Duration,
         max_lifetime: Duration,
     ) -> Result<(), VanguardMgrError> {
@@ -496,7 +481,7 @@ impl Inner {
             // Exclude the relays that are already in this vanguard set.
             let exclude_ids = RelayIdSet::from(&*vanguard_set);
             let exclude = RelayExclusion::exclude_identities(exclude_ids);
-            // Pick some vanguards to add to the heap.
+            // Pick some vanguards to add to the vanguard_set.
             let new_vanguards = Self::add_n_vanguards(
                 runtime,
                 rng,
@@ -506,11 +491,9 @@ impl Inner {
                 min_lifetime,
                 max_lifetime,
             )?;
-            // The VanguardSet is populated with weak references
-            // to the vanguards we add to the heap.
+
             for v in new_vanguards {
-                vanguard_set.add_vanguard(Arc::downgrade(&v));
-                vanguard_heap.push(v);
+                vanguard_set.add_vanguard(v);
             }
         }
 
@@ -529,7 +512,7 @@ impl Inner {
         exclude: RelayExclusion,
         min_lifetime: Duration,
         max_lifetime: Duration,
-    ) -> Result<Vec<Arc<TimeBoundVanguard>>, VanguardMgrError> {
+    ) -> Result<Vec<TimeBoundVanguard>, VanguardMgrError> {
         trace!(relay_count = n, "selecting relays to use as vanguards");
 
         // TODO(#1364): use RelayUsage::vanguard instead
@@ -544,10 +527,10 @@ impl Inner {
                 let duration = select_lifetime(rng, min_lifetime, max_lifetime)?;
                 let when = runtime.wallclock() + duration;
 
-                Ok(Arc::new(TimeBoundVanguard {
+                Ok(TimeBoundVanguard {
                     id: RelayIds::from_relay_ids(&relay),
                     when,
-                }))
+                })
             })
             .collect::<Result<Vec<_>, _>>()
     }
@@ -636,28 +619,12 @@ mod test {
         Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr).unwrap())
     }
 
-    /// Look up the vanguard in the VanguardMgr heap.
-    fn find_in_heap<R: Runtime>(
-        vanguard: &Vanguard<'_>,
-        mgr: &VanguardMgr<R>,
-    ) -> Option<Weak<TimeBoundVanguard>> {
-        let inner = mgr.inner.read().unwrap();
-        inner
-            .vanguard_heap
-            .iter()
-            .find(|v| {
-                let relay_ids = RelayIds::from_relay_ids(vanguard.relay());
-                v.id == relay_ids
-            })
-            .map(Arc::downgrade)
-    }
-
     /// Look up the vanguard in the specified VanguardSet.
     fn find_in_set<R: Runtime>(
-        vanguard: &Vanguard<'_>,
+        relay_ids: &RelayIds,
         mgr: &VanguardMgr<R>,
         layer: Layer,
-    ) -> Option<Weak<TimeBoundVanguard>> {
+    ) -> Option<TimeBoundVanguard> {
         let inner = mgr.inner.read().unwrap();
 
         let vanguard_set = match layer {
@@ -667,33 +634,29 @@ mod test {
 
         // Look up the TimeBoundVanguard that corresponds to this Vanguard,
         // and figure out its expiry.
-        let relay_ids = RelayIds::from_relay_ids(vanguard.relay());
         vanguard_set
             .vanguards()
             .iter()
-            .find(|v| v.upgrade().map(|v| v.id == relay_ids).unwrap_or_default())
+            .find(|v| v.id == *relay_ids)
             .cloned()
     }
 
     /// Get the total number of vanguard entries (L2 + L3).
     fn vanguard_count<R: Runtime>(mgr: &VanguardMgr<R>) -> usize {
         let inner = mgr.inner.read().unwrap();
-        inner.vanguard_heap.len()
+        inner.l2_vanguards.vanguards().len() + inner.l3_vanguards.vanguards().len()
     }
 
     /// Return a `Duration` representing how long until this vanguard expires.
     fn duration_until_expiry<R: Runtime>(
-        vanguard: &Vanguard<'_>,
+        relay_ids: &RelayIds,
         mgr: &VanguardMgr<R>,
         runtime: &R,
         layer: Layer,
     ) -> Duration {
         // Look up the TimeBoundVanguard that corresponds to this Vanguard,
         // and figure out its expiry.
-        let vanguard = find_in_set(vanguard, mgr, layer)
-            .unwrap()
-            .upgrade()
-            .unwrap();
+        let vanguard = find_in_set(relay_ids, mgr, layer).unwrap();
 
         vanguard
             .when
@@ -714,9 +677,10 @@ mod test {
             Layer3 => (params.l3_lifetime_min(), params.l3_lifetime_max()),
         };
 
+        let vanguard = RelayIds::from_relay_ids(vanguard.relay());
         // This is not exactly the lifetime of the vanguard,
         // but rather the time left until it expires (but it's close enough for our purposes).
-        let lifetime = duration_until_expiry(vanguard, mgr, runtime, layer);
+        let lifetime = duration_until_expiry(&vanguard, mgr, runtime, layer);
 
         assert!(
             lifetime >= min && lifetime <= max,
@@ -936,48 +900,70 @@ mod test {
             let vanguardmgr = new_vanguard_mgr(&rt);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
-            let mut rng = testing_rng();
-            let exclusion = RelayExclusion::no_relays_excluded();
+            let initial_l2_number = params.l2_pool_size();
 
             // Wait until the vanguard manager has bootstrapped
-            let _netdir_provider =
+            let netdir_provider =
                 init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
             assert_eq!(vanguard_count(&vanguardmgr), params.l2_pool_size());
 
-            let vanguard = vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
-                .unwrap();
+            // Find the RelayIds of the vanguard that is due to expire next
+            let vanguard_id = {
+                let inner = vanguardmgr.inner.read().unwrap();
+                let next_expiry = inner.l2_vanguards.next_expiry().unwrap();
+                inner
+                    .l2_vanguards
+                    .vanguards()
+                    .iter()
+                    .find(|v| v.when == next_expiry)
+                    .cloned()
+                    .unwrap()
+                    .id
+            };
 
-            let lifetime = duration_until_expiry(&vanguard, &vanguardmgr, &rt, Layer2);
-            let heap_entry = find_in_heap(&vanguard, &vanguardmgr).unwrap();
-            let set_entry = find_in_set(&vanguard, &vanguardmgr, Layer2).unwrap();
+            const FEWER_VANGUARDS_PARAM: [(&str, i32); 1] = [("guard-hs-l2-number", 1)];
+            // Set the number of L2 vanguards to a lower value to ensure the vanguard that is about
+            // to expire is not replaced. This allows us to test that it has indeed expired
+            // (we can't simply check that the relay is no longer is the set,
+            // because it's possible for the set to get replenished with the same relay).
+            let new_params = install_new_params(&rt, &netdir_provider, FEWER_VANGUARDS_PARAM).await;
 
-            // The entry hasn't expired yet
-            assert!(heap_entry.upgrade().is_some());
-            assert!(set_entry.upgrade().is_some());
+            // The vanguard has not expired yet.
+            let timebound_vanguard = find_in_set(&vanguard_id, &vanguardmgr, Layer2);
+            assert!(timebound_vanguard.is_some());
+            assert_eq!(vanguard_count(&vanguardmgr), initial_l2_number);
 
+            let lifetime = duration_until_expiry(&vanguard_id, &vanguardmgr, &rt, Layer2);
             // Wait until this vanguard expires
             rt.advance_by(lifetime).await.unwrap();
             rt.progress_until_stalled().await;
 
-            // The entry has expired: it no longer exists in the heap, or in the L2 vanguard set
-            assert!(heap_entry.upgrade().is_none());
-            assert!(set_entry.upgrade().is_none());
+            let timebound_vanguard = find_in_set(&vanguard_id, &vanguardmgr, Layer2);
+
+            // The vanguard expired, but was not replaced.
+            assert!(timebound_vanguard.is_none());
+            assert_eq!(vanguard_count(&vanguardmgr), initial_l2_number - 1);
+
+            // Wait until more vanguards expire. This will reduce the set size to 1
+            // (the new target size we set by overriding the params).
+            rt.advance_until_stalled().await;
+            assert_eq!(vanguard_count(&vanguardmgr), new_params.l2_pool_size());
+
+            // Update the L2 set size again, to force the vanguard manager to replenish the L2 set.
+            const MORE_VANGUARDS_PARAM: [(&str, i32); 1] = [("guard-hs-l2-number", 5)];
+            // Set the number of L2 vanguards to a lower value to ensure the vanguard that is about
+            // to expire is not replaced. This allows us to test that it has indeed expired
+            // (we can't simply check that the relay is no longer is the set,
+            // because it's possible for the set to get replenished with the same relay).
+            let new_params = install_new_params(&rt, &netdir_provider, MORE_VANGUARDS_PARAM).await;
 
             // Check that we replaced the expired vanguard with a new one:
-            assert_eq!(vanguard_count(&vanguardmgr), params.l2_pool_size());
+            assert_eq!(vanguard_count(&vanguardmgr), new_params.l2_pool_size());
 
             {
                 let inner = vanguardmgr.inner.read().unwrap();
-
-                let l2_count = inner
-                    .l2_vanguards
-                    .vanguards()
-                    .iter()
-                    .filter_map(|v| v.upgrade())
-                    .count();
-
-                assert_eq!(l2_count, params.l2_pool_size());
+                let l2_count = inner.l2_vanguards.vanguards().len();
+                assert_eq!(l2_count, new_params.l2_pool_size());
             }
         });
     }

@@ -1,7 +1,6 @@
 //! Vanguard sets
 
 use std::cmp::Ordering;
-use std::sync::Weak;
 use std::time::SystemTime;
 
 use rand::{seq::SliceRandom as _, RngCore};
@@ -69,7 +68,7 @@ impl Eq for TimeBoundVanguard {}
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
-    vanguards: Vec<Weak<TimeBoundVanguard>>,
+    vanguards: Vec<TimeBoundVanguard>,
     /// The number of vanguards we would like to have in this set.
     target: usize,
 }
@@ -93,15 +92,10 @@ impl VanguardSet {
         netdir: &'a NetDir,
         neighbor_exclusion: &RelayExclusion<'a>,
     ) -> Option<Vanguard<'a>> {
-        self.discard_expired();
-
         let good_relays = self
             .vanguards
             .iter()
             .filter_map(|vanguard| {
-                // Skip over the vanguards that have been dropped
-                // (there shouldn't be any, because we called discard_expired earlier).
-                let vanguard = vanguard.upgrade()?;
                 // Skip over any unusable relays
                 let relay = netdir.by_ids(&vanguard.id)?;
                 neighbor_exclusion
@@ -120,27 +114,33 @@ impl VanguardSet {
 
     /// The number of vanguards we're missing.
     pub(super) fn deficit(&self) -> usize {
-        let good_vanguards = self
-            .vanguards
-            .iter()
-            .filter(|v| v.upgrade().is_some())
-            .count();
-        self.target.saturating_sub(good_vanguards)
+        self.target.saturating_sub(self.vanguards.len())
     }
 
     /// Add a vanguard to this set.
-    pub(super) fn add_vanguard(&mut self, weak: Weak<TimeBoundVanguard>) {
-        self.vanguards.push(weak);
+    pub(super) fn add_vanguard(&mut self, v: TimeBoundVanguard) {
+        self.vanguards.push(v);
+    }
+
+    /// Remove the vanguards that are no longer listed in `netdir`
+    pub(super) fn remove_unlisted(&mut self, netdir: &NetDir) {
+        self.vanguards
+            .retain(|v| netdir.ids_listed(&v.id) != Some(false));
+    }
+
+    /// Remove the vanguards that are expired at the specified timestamp.
+    pub(super) fn remove_expired(&mut self, now: SystemTime) {
+        self.vanguards.retain(|v| v.when > now);
+    }
+
+    /// Find the timestamp of the vanguard that is due to expire next.
+    pub(super) fn next_expiry(&self) -> Option<SystemTime> {
+        self.vanguards.iter().map(|v| v.when).min()
     }
 
     /// Update the target size of this set, discarding or requesting additional vanguards if needed.
     pub(super) fn update_target(&mut self, target: usize) {
         self.target = target;
-    }
-
-    /// Discard any expired vanguards.
-    fn discard_expired(&mut self) {
-        self.vanguards.retain(|v| v.upgrade().is_some());
     }
 }
 
@@ -149,12 +149,10 @@ impl From<&VanguardSet> for RelayIdSet {
         vanguard_set
             .vanguards
             .iter()
-            .filter_map(|vanguard| {
-                // Skip over any dangling references
-                Some(vanguard.upgrade()?.id.clone())
-            })
-            .flat_map(|relay: RelayIds| {
-                relay
+            .flat_map(|vanguard| {
+                vanguard
+                    .id
+                    .clone()
                     .identities()
                     .map(|id| id.to_owned())
                     .collect::<Vec<_>>()
@@ -174,7 +172,7 @@ impl VanguardSet {
 
     /// Return the vanguards in this set
     #[cfg(test)]
-    pub(super) fn vanguards(&self) -> &Vec<Weak<TimeBoundVanguard>> {
+    pub(super) fn vanguards(&self) -> &Vec<TimeBoundVanguard> {
         &self.vanguards
     }
 }
