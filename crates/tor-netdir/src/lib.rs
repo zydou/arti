@@ -1083,6 +1083,13 @@ impl NetDir {
     ///
     /// Does not return [unusable](NetDir#usable) relays.
     ///
+    /// Note that a negative result from this method is not necessarily permanent:
+    /// it may be the case that a relay exists,
+    /// but we don't yet have enough information about it to know all of its IDs.
+    /// To test whether a relay is *definitely* absent,
+    /// use [`by_ids_detailed`](Self::by_ids_detailed)
+    /// or [`ids_listed`](Self::ids_listed).
+    ///
     /// # Limitations
     ///
     /// This will be very slow if `target` does not have an Ed25519 or RSA
@@ -1175,11 +1182,10 @@ impl NetDir {
     /// Return a boolean if this consensus definitely has (or does not have) a
     /// relay matching the listed identities.
     ///
-    ///
-    /// If we can't yet tell for sure, return None. Once function has returned
-    /// `Some(b)`, it will always return that value for the same `ed_id` and
-    /// `rsa_id` on this `NetDir`.  A `None` answer may later become `Some(b)`
-    /// if a microdescriptor arrives.
+    /// `Some(true)` indicates that the relay exists.
+    /// `Some(false)` indicates that the relay definitely does not exist.
+    /// `None` indicates that we can't yet tell whether such a relay exists,
+    ///  due to missing information.
     fn id_pair_listed(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<bool> {
         let r = self.by_rsa_id_unchecked(rsa_id);
         match r {
@@ -1198,13 +1204,13 @@ impl NetDir {
         }
     }
 
-    /// As `id_pair_listed`, but check whether a relay exists (or may exist)
+    /// Check whether a relay exists (or may exist)
     /// with the same identities as those in `target`.
     ///
-    /// # Limitations
-    ///
-    /// This can be inefficient if the target does not have both an ed25519 and
-    /// an rsa identity key.
+    /// `Some(true)` indicates that the relay exists.
+    /// `Some(false)` indicates that the relay definitely does not exist.
+    /// `None` indicates that we can't yet tell whether such a relay exists,
+    ///  due to missing information.
     pub fn ids_listed<T>(&self, target: &T) -> Option<bool>
     where
         T: HasRelayIds + ?Sized,
