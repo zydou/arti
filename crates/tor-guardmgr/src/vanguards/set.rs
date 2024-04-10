@@ -37,9 +37,6 @@ pub(crate) struct TimeBoundVanguard {
 }
 
 /// A set of vanguards, for use in a particular [`Layer`](crate::vanguards::Layer).
-///
-/// This structure is just a view over the vanguards owned by VanguardMgr.
-/// It does **not** own the vanguards.
 #[derive(Debug, Clone)] //
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
