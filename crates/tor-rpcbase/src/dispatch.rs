@@ -13,13 +13,44 @@
 //!     target: Arc<OBJTYPE>,
 //!     method: Box<METHODTYPE>,
 //!     ctx: Box<dyn rpc::Context>,
-//!     [ updates: rpc::UpdateSink<METHODTYPE::Update ] // this argument optional!
+//!     [ updates: rpc::UpdateSink<METHODTYPE::Update ] // this argument is optional!
 //! ) -> Result<METHODTYPE::Output, impl Into<rpc::RpcError>>
 //! { ... }
 //! ```
 //!
 //! If the "updates" argument is present,
 //! then you will need to use the `[Updates]` flag when registering this function.
+//!
+//! ## Registering RPC functions statically
+//!
+//! After writing a function in the form above,
+//! you need to register it with the RPC system so that it can be invoked on objects of the right type.
+//! The easiest way to do so is by registering it, using [`static_rpc_invoke_fn!`]:
+//!
+//! ```rust,ignore
+//! static_rpc_invoke_fn!{ my_rpc_func; my_other_rpc_func; }
+//! ```
+//!
+//! If your function takes an updates sink, the syntax is:
+//! ```rust,ignore
+//! static_rpc_invoke_fn!{ my_rpc_func [Updates]; }
+//! ```
+//!
+//! You can register particular instantiations of generic types, if they're known ahead of time:
+//! ```rust,ignore
+//! static_rpc_invoke_fn!{ my_generic_fn::<PreferredRuntime>; }
+//! ```
+//!
+//! ## Registering RPC functions at runtime.
+//!
+//! If you can't predict all the instantiations of your function in advance,
+//! you can insert them into a [`DispatchTable`] at run time:
+//! ```rust,ignore
+//! fn install_my_rpc_methods<T>(table: &mut DispatchTable) {
+//!     table.insert(invoker_ent!(my_generic_fn::<T>));
+//!     table.insert(invoker_ent!(my_generic_fn_with_update::<T>) [Updates]);
+//! }
+//! ```
 
 use std::any;
 use std::collections::HashMap;
@@ -222,9 +253,9 @@ impl InvokerEnt {
 /// see the [module documentation](self).
 #[macro_export]
 macro_rules! invoker_ent {
-    { ($func:expr) $([$($flag:ident),*])? } => {
+    { $func:ident $(::<$($fgens:ty),*>)? $([$($flag:ident),*])? } => {
         $crate::dispatch::InvokerEnt {
-            invoker: &($func as $crate::invoker_func_type!{ $([$($flag),*])? }),
+            invoker: &($func $(::<$($fgens),*>)? as $crate::invoker_func_type!{ $([$($flag),*])? }),
             file: file!(),
             line: line!(),
             function: stringify!($func)
@@ -315,11 +346,11 @@ inventory::collect!(InvokerEnt);
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $funcname:ident $([ $($flag:ident),* $(,)?])?;
+        $funcname:ident $(::<$($fgens:ty),*>)? $([ $($flag:ident),* $(,)?])?;
         $( $($more:tt)+ )?
     } => {$crate::paste::paste!{
         $crate::inventory::submit!{
-            $crate::invoker_ent!($funcname $([$($flag),*])? )
+            $crate::invoker_ent!($funcname $(::<$($fgens),*>)? $([$($flag),*])? )
         }
         $( $crate::static_rpc_invoke_fn!{ $($more)+ } )?
     }};
@@ -333,115 +364,6 @@ macro_rules! invoker_func_type {
     { } => { fn(_,_,_) -> _ };
     { [] } => { fn(_,_,_) -> _ };
     { [Updates $(,)?] } => { fn(_,_,_,_) -> _ };
-}
-
-/// Declare a group of RPC functions to call one or more [`Method`](crate::Method)s on a
-/// single type of [`Object`], and a function to install them in a dispatch table.
-///
-/// This approach is used for registering methods on a generic object.
-/// If the object type is not generic, it's probably better to use `static_rpc_invoke_fn`.
-///
-/// # Example
-///
-/// ```
-/// # use std::sync::Arc;
-/// # use derive_deftly::Deftly;
-/// // Declare a generic object type.
-/// use tor_rpcbase as rpc;
-/// #[derive(Deftly)]
-/// #[derive_deftly(rpc::Object)]
-/// pub struct Tuple<A, B>(A,B)
-/// where A: Send + Sync + 'static, B: Send + Sync + 'static;
-///
-/// // Declare a method.
-/// #[derive(Deftly, serde::Deserialize, Debug)]
-/// #[derive_deftly(rpc::DynMethod)]
-/// #[deftly(rpc(method_name = "x-example:mymethod"))]
-/// struct MyMethod;
-/// impl rpc::Method for MyMethod {
-///     type Output = Outcome;
-///     type Update = rpc::NoUpdates;
-/// }
-///
-/// #[derive(Debug,serde::Serialize)]
-/// struct Outcome {}
-///
-/// // Declare a function to implement that method for our Tuple.
-/// async fn mymethod_for_tuple<A,B>(
-///     obj: Arc<Tuple<A,B>>,
-///     method: Box<MyMethod>,
-///     ctx: Box<dyn rpc::Context>,
-/// ) -> Result<Outcome, rpc::RpcError>
-/// where A: Send + Sync + 'static,
-///       B: Send + Sync + 'static
-/// {
-///     // ..
-///     Ok(Outcome {})
-/// }
-///
-/// // Now, declare "install_mymethod::<A,B>(&mut DispatchTable)" as a function to
-/// // install the implementation above for a given A,B pair.
-/// rpc::installable_rpc_invoke_fn! {
-///     pub install_mymethod for Tuple
-///     [A,B; where A: Send + Sync + 'static, B: Send + Sync + 'static]
-///     {
-///         mymethod_for_tuple(MyMethod);
-///         // you can list more methods here.
-///     }
-/// }
-///
-/// // Now before you use this method, you need to call `install_mymethod` on
-/// // your DispatchTable.
-/// let mut table = rpc::DispatchTable::from_inventory();
-/// install_mymethod::<u64,u64>(&mut table);
-/// install_mymethod::<String,f32>(&mut table);
-/// ```
-///
-/// TODO: The syntax here is somewhat awkward, due to the difficulty
-/// of handling generics in macro_rules.
-//
-// TODO RPC: After #838 succeeds (or fails) document the syntax of this macro.
-//
-// TODO RPC: Look for ways to make it so the caller doesn't (usually) need to name the install
-// function.
-// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2079#note_3018118
-#[macro_export]
-macro_rules! installable_rpc_invoke_fn {
-    {
-        $ivis:vis $installfn:ident for $objname:ident
-        $gen:tt
-        {
-            $(
-                $funcname:ident $([ $($flag:ident),* $(,)?])?
-            );+
-            $(;)?
-        }
-    } => {
-        $crate::installable_rpc_invoke_fn!{
-            @installer
-            $ivis $installfn for $objname $gen $( $funcname $gen $([$($flag),*])? );+
-        }
-    };
-    {
-        @installer $ivis:vis $installfn:ident for $objname:ident
-        [$($tgens:ident),*; where $($twheres:tt)*]
-        $(
-            $funcname:ident
-            // This is a hack, to avoid "no expression repeating at this depth."
-            [$($tgens2:ident),*; where $($twheres2:tt)*]
-            $([ $($flag:ident),* $(,)?])?
-        );+
-    } => {$crate::paste::paste!{
-        $ivis fn $installfn <$($tgens),*> (table: &mut $crate::DispatchTable)
-        where $($twheres)*
-        {
-            $(
-                table.insert(
-                    $crate::invoker_ent!( ($funcname::<$($tgens2),*>) $([$($flag),*])? )
-                );
-            )+
-        }
-    }}
 }
 
 /// Actual types to use when looking up a function in our HashMap.
@@ -746,14 +668,24 @@ mod test {
             v: obj.kids.to_string(),
         })
     }
-    installable_rpc_invoke_fn! {
-        install_generic_fns for
-             GenericObj [T,U;
-                         where T: Send + Sync + 'static + Clone + ToString,
-                               U: Send + Sync + 'static + Clone + ToString]
-        {
-            getname_generic;
-            getkids_generic;
+
+    // We can also install specific instantiations statically.
+    static_rpc_invoke_fn! {
+        getname_generic::<u32,u32>;
+        getname_generic::<&'static str, &'static str>;
+        getkids_generic::<u32,u32>;
+        getkids_generic::<&'static str, &'static str>;
+    }
+
+    // And we can make code to install them dynamically too.
+    impl<T, U> GenericObj<T, U>
+    where
+        T: Send + Sync + 'static + Clone + ToString,
+        U: Send + Sync + 'static + Clone + ToString,
+    {
+        fn install_rpc_functions(table: &mut super::DispatchTable) {
+            table.insert(invoker_ent!(getname_generic::<T, U>));
+            table.insert(invoker_ent!(getkids_generic::<T, U>));
         }
     }
 
@@ -807,9 +739,10 @@ mod test {
             Err(InvokeError::NoImpl)
         ));
 
-        let mut table = table;
+        /*
         install_generic_fns::<&'static str, &'static str>(&mut table);
         install_generic_fns::<u32, u32>(&mut table);
+        */
         let obj1 = GenericObj {
             name: "nuncle",
             kids: "niblings",
@@ -817,10 +750,6 @@ mod test {
         let obj2 = GenericObj {
             name: 1337_u32,
             kids: 271828_u32,
-        };
-        let obj3 = GenericObj {
-            name: 1337_u64,
-            kids: 271828_u64,
         };
         assert_eq!(
             sentence(&table, obj1).await,
@@ -830,9 +759,20 @@ mod test {
             sentence(&table, obj2).await,
             r#"Hello I am a friendly {"v":"1337"} and these are my lovely {"v":"271828"}."#
         );
+
+        let obj3 = GenericObj {
+            name: 13371337_u64,
+            kids: 2718281828_u64,
+        };
         assert!(matches!(
-            invoke_helper(&table, obj3, GetKids),
+            invoke_helper(&table, obj3.clone(), GetKids),
             Err(InvokeError::NoImpl)
         ));
+        let mut table = table;
+        GenericObj::<u64, u64>::install_rpc_functions(&mut table);
+        assert_eq!(
+            sentence(&table, obj3).await,
+            r#"Hello I am a friendly {"v":"13371337"} and these are my lovely {"v":"2718281828"}."#
+        );
     }
 }
