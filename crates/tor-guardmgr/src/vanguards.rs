@@ -171,6 +171,10 @@ impl<R: Runtime> VanguardMgr<R> {
     ) -> Result<RetireCircuits, ReconfigureError> {
         // TODO: there is no VanguardConfig.
         // TODO: update has_onion_svc if the new config enables onion svc usage
+        //
+        // Perhaps we should always escalate to Full if we start running an onion service,
+        // but not decessarily downgrade to lite if we stop.
+        // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2083#note_3018173>
         Ok(RetireCircuits::None)
     }
 
