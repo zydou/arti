@@ -562,14 +562,10 @@ impl Inner {
     /// and `vanguards_enabled` is higher for all our onion service circuits.
     fn mode(&self) -> VanguardMode {
         if self.has_onion_svc {
-            match (
+            std::cmp::max(
                 self.params.vanguards_enabled(),
                 self.params.vanguards_hs_service(),
-            ) {
-                (_, VanguardMode::Full) | (VanguardMode::Full, _) => VanguardMode::Full,
-                (_, VanguardMode::Lite) | (VanguardMode::Lite, _) => VanguardMode::Lite,
-                _ => VanguardMode::Disabled,
-            }
+            )
         } else {
             self.params.vanguards_enabled()
         }

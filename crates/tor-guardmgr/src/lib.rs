@@ -1844,7 +1844,7 @@ pub enum GuardRestriction {
 }
 
 /// The kind of vanguards to use.
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)] //
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)] //
 #[derive(derive_more::Display)] //
 #[serde(rename_all = "lowercase")]
 #[cfg(feature = "vanguards")]
@@ -1853,13 +1853,13 @@ pub enum VanguardMode {
     /// "Lite" vanguards.
     #[default]
     #[display(fmt = "lite")]
-    Lite,
+    Lite = 1,
     /// "Full" vanguards.
     #[display(fmt = "full")]
-    Full,
+    Full = 2,
     /// Vanguards are disabled.
     #[display(fmt = "disabled")]
-    Disabled,
+    Disabled = 0,
 }
 
 #[cfg(feature = "vanguards")]
@@ -1881,7 +1881,7 @@ impl VanguardMode {
 }
 
 /// The kind of vanguards to use.
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)] //
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)] //
 #[derive(derive_more::Display)] //
 #[serde(rename_all = "lowercase")]
 #[cfg(not(feature = "vanguards"))]
@@ -1890,7 +1890,7 @@ pub enum VanguardMode {
     /// Vanguards are disabled.
     #[default]
     #[display(fmt = "disabled")]
-    Disabled,
+    Disabled = 0,
 }
 
 #[cfg(test)]
@@ -2092,5 +2092,13 @@ mod test {
             let (g4, _mon, _usable) = guardmgr.select_guard(dir_usage).unwrap();
             assert_eq!(g4.ed_identity(), guard.ed_identity());
         });
+    }
+
+    #[cfg(feature = "vanguards")]
+    #[test]
+    fn vanguard_mode_ord() {
+        assert!(VanguardMode::Disabled < VanguardMode::Lite);
+        assert!(VanguardMode::Disabled < VanguardMode::Full);
+        assert!(VanguardMode::Lite < VanguardMode::Full);
     }
 }
