@@ -12,7 +12,7 @@ categories = ["asynchronous"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-derive-deftly = "0.10"
+derive-deftly = "0.10.3"
 downcast-rs = "1.2.0"
 erased-serde = "0.4.2"
 futures = "0.3.14"
