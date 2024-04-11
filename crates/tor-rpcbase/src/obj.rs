@@ -320,6 +320,7 @@ define_derive_deftly! {
     }
 
     // TODO RPC: This code is duplicated; see derive_deftly#35
+    // TODO RPC: If we can't remove this code in #838, reinstate the HasConstTypeId_ trait.
     impl <$ tgens > $ttype
     where $ttype: 'static, $twheres {
         /// A version of `TypeId` that we can with `inventory`.

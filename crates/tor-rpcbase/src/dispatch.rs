@@ -137,6 +137,8 @@ impl InvokeEntry_ {
 ///     example2(ExampleObject2, ExampleMethod) [Updates];
 /// }
 /// ```
+//
+// TODO RPC: After #838 succeeds (or fails) document the syntax of this macro.
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
@@ -219,6 +221,12 @@ macro_rules! static_rpc_invoke_fn {
 ///
 /// TODO: The syntax here is somewhat awkward, due to the difficulty
 /// of handling generics in macro_rules.
+//
+// TODO RPC: After #838 succeeds (or fails) document the syntax of this macro.
+//
+// TODO RPC: Look for ways to make it so the caller doesn't (usually) need to name the install
+// function.
+// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2079#note_3018118
 #[macro_export]
 macro_rules! installable_rpc_invoke_fn {
     {
