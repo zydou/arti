@@ -883,6 +883,7 @@ pub(crate) mod test {
             &Default::default(),
             MockRuntime::new(),
             TestingStateMgr::default(),
+            false,
         )
         .unwrap();
 
@@ -992,6 +993,7 @@ pub(crate) mod test {
             &Default::default(),
             MockRuntime::new(),
             TestingStateMgr::default(),
+            false,
         )
         .unwrap();
 
