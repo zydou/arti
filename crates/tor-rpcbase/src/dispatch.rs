@@ -176,7 +176,7 @@ macro_rules! declare_invoker_impl {
                     return Err(InvokeError::Bug($crate::internal!("Wrong method type")));
                 };
                 $(
-                #[allow(redundant_closure_call)]
+                #[allow(clippy::redundant_closure_call)]
                 let $sink = {
                     ($sink_fn)(sink)
                 };
