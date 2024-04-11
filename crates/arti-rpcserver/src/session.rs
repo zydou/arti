@@ -80,7 +80,7 @@ async fn rpc_release(
     Ok(rpc::Nil::default())
 }
 rpc::static_rpc_invoke_fn! {
-    rpc_release(RpcSession,RpcRelease);
+    rpc_release;
 }
 
 /// A simple temporary method to echo a reply.
@@ -109,5 +109,5 @@ async fn echo_on_session(
 }
 
 rpc::static_rpc_invoke_fn! {
-    echo_on_session(RpcSession,Echo);
+    echo_on_session;
 }

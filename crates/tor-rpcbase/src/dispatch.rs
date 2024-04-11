@@ -241,8 +241,8 @@ impl std::fmt::Debug for InvokerEnt {
 }
 inventory::collect!(InvokerEnt);
 
-/// Declare an RPC function that will be used to call a single type of [`Method`](crate::Method) on a
-/// single type of [`Object`].
+/// Cause one or more RPC functions to be statically registered,
+/// each for handling a single Method on a single Object type.
 ///
 /// # Example
 ///
@@ -293,9 +293,7 @@ inventory::collect!(InvokerEnt);
 ///     Ok(ExampleResult { text: "here is your result".into() })
 /// }
 ///
-/// rpc::static_rpc_invoke_fn!{
-///     example(ExampleObject, ExampleMethod);
-/// }
+/// rpc::static_rpc_invoke_fn!{example;}
 ///
 /// // You can declare an example that produces updates as well:
 /// // - The fourth argument must be `UpdateSink<M::Update>`.
@@ -309,7 +307,7 @@ inventory::collect!(InvokerEnt);
 /// }
 ///
 /// rpc::static_rpc_invoke_fn! {
-///     example2(ExampleObject2, ExampleMethod) [Updates];
+///     example2 [Updates];
 /// }
 /// ```
 //
@@ -317,7 +315,7 @@ inventory::collect!(InvokerEnt);
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $funcname:ident($objtype:ty, $methodtype:ty $(,)?) $([ $($flag:ident),* $(,)?])?;
+        $funcname:ident $([ $($flag:ident),* $(,)?])?;
         $( $($more:tt)+ )?
     } => {$crate::paste::paste!{
         $crate::inventory::submit!{
@@ -414,21 +412,21 @@ macro_rules! installable_rpc_invoke_fn {
         $gen:tt
         {
             $(
-                $funcname:ident($methodtype:ty $(,)?) $([ $($flag:ident),* $(,)?])?
+                $funcname:ident $([ $($flag:ident),* $(,)?])?
             );+
             $(;)?
         }
     } => {
         $crate::installable_rpc_invoke_fn!{
             @installer
-            $ivis $installfn for $objname $gen $( $funcname($methodtype) $gen $([$($flag),*])? );+
+            $ivis $installfn for $objname $gen $( $funcname $gen $([$($flag),*])? );+
         }
     };
     {
         @installer $ivis:vis $installfn:ident for $objname:ident
         [$($tgens:ident),*; where $($twheres:tt)*]
         $(
-            $funcname:ident($methodtype:ty)
+            $funcname:ident
             // This is a hack, to avoid "no expression repeating at this depth."
             [$($tgens2:ident),*; where $($twheres2:tt)*]
             $([ $($flag:ident),* $(,)?])?
@@ -679,14 +677,14 @@ mod test {
     }
 
     static_rpc_invoke_fn! {
-        getname_swan(Swan,GetName);
-        getname_sheep(Sheep,GetName);
-        getname_wombat(Wombat,GetName);
-        getname_brick(Brick,GetName);
+        getname_swan;
+        getname_sheep;
+        getname_wombat;
+        getname_brick;
 
-        getkids_swan(Swan,GetKids);
-        getkids_sheep(Sheep,GetKids);
-        getkids_wombat(Wombat,GetKids) [Updates];
+        getkids_swan;
+        getkids_sheep;
+        getkids_wombat [Updates];
     }
 
     struct Ctx {}
@@ -754,8 +752,8 @@ mod test {
                          where T: Send + Sync + 'static + Clone + ToString,
                                U: Send + Sync + 'static + Clone + ToString]
         {
-            getname_generic(GetName);
-            getkids_generic(GetKids);
+            getname_generic;
+            getkids_generic;
         }
     }
 

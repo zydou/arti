@@ -126,7 +126,7 @@ async fn conn_authquery(
     })
 }
 rpc::static_rpc_invoke_fn! {
-    conn_authquery(Connection, AuthQuery);
+    conn_authquery;
 }
 
 /// Method to implement basic authentication.  Right now only "I connected to
@@ -189,5 +189,5 @@ async fn authenticate_connection(
     Ok(AuthenticateReply { session })
 }
 rpc::static_rpc_invoke_fn! {
-    authenticate_connection(Connection, Authenticate);
+    authenticate_connection;
 }
