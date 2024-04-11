@@ -233,7 +233,7 @@ define_derive_deftly! {
 /// ```
     pub Object expect items =
 
-    impl<$tgens> $ttype where $twheres
+    impl<$tgens> $ttype where
         // We need this restriction in case there are generics
         // that might not impl these traits.
         $ttype: Send + Sync + 'static,
