@@ -58,9 +58,15 @@ pub use obj::{Object, ObjectId, ObjectRefExt};
 pub use obj::cast::CastTable;
 #[doc(hidden)]
 pub use {
-    dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory, method::MethodInfo_,
-    once_cell, paste, tor_async_utils,
+    derive_deftly, dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory,
+    method::MethodInfo_, once_cell, paste, tor_async_utils, typetag,
 };
+
+/// Templates for use with [`derive_deftly`]
+pub mod templates {
+    pub use crate::method::derive_deftly_template_DynMethod;
+    pub use crate::obj::derive_deftly_template_Object;
+}
 
 /// An error returned from [`ContextExt::lookup`].
 ///

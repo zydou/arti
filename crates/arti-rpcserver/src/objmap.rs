@@ -387,10 +387,13 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use derive_deftly::Deftly;
+    use tor_rpcbase::templates::*;
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Deftly)]
+    #[derive_deftly(Object)]
     struct ExampleObject(String);
-    rpc::decl_object! {ExampleObject}
+
     impl ExampleObject {
         fn wrap_arc(self: Arc<Self>) -> Arc<Wrapper> {
             // SAFETY: Using `repr(transparent)` on Wrapper guarantees that
@@ -405,10 +408,10 @@ mod test {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Deftly)]
+    #[derive_deftly(Object)]
     #[repr(transparent)]
     struct Wrapper(ExampleObject);
-    rpc::decl_object! {Wrapper}
 
     #[test]
     fn arc_to_addr() {

@@ -36,7 +36,7 @@ experimental = ["keymgr"]
 
 [dependencies]
 async-trait = "0.1.54"
-derive-deftly = "0.10"
+derive-deftly = "0.10.3"
 derive_more = "0.99.3"
 educe = "0.4.6"
 either = "1"

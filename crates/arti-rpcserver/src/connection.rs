@@ -9,6 +9,7 @@ use std::{
 };
 
 use asynchronous_codec::JsonCodecError;
+use derive_deftly::Deftly;
 use futures::{
     channel::mpsc,
     stream::{FusedStream, FuturesUnordered},
@@ -29,6 +30,7 @@ use crate::{
 };
 
 use tor_rpcbase as rpc;
+use tor_rpcbase::templates::*;
 
 /// An open connection from an RPC client.  
 ///
@@ -39,6 +41,8 @@ use tor_rpcbase as rpc;
 /// Specifically, the `objects` table in `Inner` hold capabilities
 /// that the client will use to do things,
 /// including an `RpcSession`.
+#[derive(Deftly)]
+#[derive_deftly(Object)]
 pub struct Connection {
     /// The mutable state of this connection.
     inner: Mutex<Inner>,
@@ -63,7 +67,6 @@ pub struct Connection {
     /// A reference to the manager associated with this session.
     mgr: Weak<RpcMgr>,
 }
-rpc::decl_object! {Connection}
 
 /// The inner, lock-protected part of an RPC connection.
 struct Inner {

@@ -3,9 +3,11 @@
 //! A "session" is created when a user authenticates on an RPC connection.  It
 //! is the root for all other RPC capabilities.
 
+use derive_deftly::Deftly;
 use std::sync::Arc;
 
 use tor_rpcbase as rpc;
+use tor_rpcbase::templates::*;
 
 /// An authenticated RPC session: a capability through which most other RPC functionality is available
 ///
@@ -18,13 +20,15 @@ use tor_rpcbase as rpc;
 ///
 ///  * Typically, after authentication, there is one `RpcSession` for the `Connection`.
 ///    But a client may authenticate more than once; each time produces a new `RpcSession`.
+#[derive(Deftly)]
+#[derive_deftly(Object)]
+#[deftly(rpc(expose_outside_of_session))]
 pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
     #[allow(unused)]
     client: Arc<dyn rpc::Object>,
 }
-rpc::decl_object! { @expose RpcSession }
 
 impl RpcSession {
     /// Create a new session object containing a single client object.
@@ -39,7 +43,9 @@ impl RpcSession {
 }
 
 /// RPC method to release a single strong reference.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Deftly)]
+#[derive_deftly(DynMethod)]
+#[deftly(rpc(method_name = "rpc:release"))]
 struct RpcRelease {
     /// The object to release. Must be a strong reference.
     ///
@@ -59,7 +65,6 @@ struct RpcDowngrade {
     obj: rpc::ObjectId,
 }
 
-rpc::decl_method! { "rpc:release" => RpcRelease}
 impl rpc::Method for RpcRelease {
     type Output = rpc::Nil;
     type Update = rpc::NoUpdates;
@@ -74,17 +79,19 @@ async fn rpc_release(
     ctx.release_owned(&method.obj)?;
     Ok(rpc::Nil::default())
 }
-rpc::rpc_invoke_fn! {
+rpc::static_rpc_invoke_fn! {
     rpc_release(RpcSession,RpcRelease);
 }
 
 /// A simple temporary method to echo a reply.
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
+#[derive_deftly(DynMethod)]
+#[deftly(rpc(method_name = "arti:x-echo"))]
 struct Echo {
     /// A message to echo.
     msg: String,
 }
-rpc::decl_method! { "arti:x-echo" => Echo}
+
 impl rpc::Method for Echo {
     type Output = Echo;
     type Update = rpc::NoUpdates;
@@ -101,6 +108,6 @@ async fn echo_on_session(
     Ok(*method)
 }
 
-rpc::rpc_invoke_fn! {
+rpc::static_rpc_invoke_fn! {
     echo_on_session(RpcSession,Echo);
 }
