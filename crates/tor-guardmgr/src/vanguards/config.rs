@@ -99,12 +99,6 @@ impl TryFrom<&NetParameters> for VanguardParams {
         // TODO HS-VANGUARDS: move the VanguardMode a VanguardParam too and consider removing
         // VanguardConfig altogether.
 
-        // TODO HS-VANGUARDS: we will need 2 "mode"s: one for if we're running as a service,
-        // and another one for if we're running as a client.
-        //
-        // See discussion at
-        // <https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/258#note_3011734>
-
         /// Return a pair of `(min, max)` values representing a closed interval.
         ///
         /// If `min <= max`, returns `(min, max)`.
