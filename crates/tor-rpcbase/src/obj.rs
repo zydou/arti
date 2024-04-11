@@ -90,7 +90,7 @@ where
 ///
 /// #[derive(Deftly)]
 /// #[derive_deftly(Object)]
-/// #[deftly(downcastable_to = "HasFeet")]
+/// #[deftly(rpc(downcastable_to = "HasFeet"))]
 /// pub struct Frog {}
 /// pub trait HasFeet {
 ///     fn num_feet(&self) -> usize;
@@ -173,7 +173,7 @@ define_derive_deftly! {
 ///
 /// #[derive(Deftly)]
 /// #[derive_deftly(Object)]
-/// #[deftly(downcastable_to = "Gizmo, Doodad")]
+/// #[deftly(rpc(downcastable_to = "Gizmo, Doodad"))]
 /// struct Frobnitz {}
 ///
 /// trait Gizmo {}
@@ -200,7 +200,7 @@ define_derive_deftly! {
 ///
 /// #[derive(Deftly)]
 /// #[derive_deftly(Object)]
-/// #[deftly(downcastable_to = "ExampleTrait")]
+/// #[deftly(rpc(downcastable_to = "ExampleTrait"))]
 /// struct Generic<T,U> where T:Clone, U:PartialEq {
 ///     t: T,
 ///     u: U,
@@ -228,7 +228,7 @@ define_derive_deftly! {
 ///
 /// #[derive(Deftly)]
 /// #[derive_deftly(Object)]
-/// #[deftly(expose_outside_of_session)]
+/// #[deftly(rpc(expose_outside_of_session))]
 /// struct Visible {}
 /// ```
     pub Object expect items =
@@ -247,8 +247,8 @@ define_derive_deftly! {
         /// Don't invoke this yourself; instead use `decl_object!`.
         #[doc(hidden)]
         fn make_cast_table() -> $crate::CastTable {
-            ${if tmeta(downcastable_to) {
-                $crate::cast_table_deftness_helper!{ ${tmeta(downcastable_to)} }
+            ${if tmeta(rpc(downcastable_to)) {
+                $crate::cast_table_deftness_helper!{ ${tmeta(rpc(downcastable_to)) } }
             } else {
                 $crate::CastTable::default()
             }}
@@ -261,7 +261,7 @@ define_derive_deftly! {
         $ttype: Send + Sync + 'static,
         $twheres
     {
-        ${if tmeta(expose_outside_of_session) {
+        ${if tmeta(rpc(expose_outside_of_session)) {
             fn expose_outside_of_session(&self) -> bool {
                 true
             }
@@ -354,7 +354,7 @@ mod test {
 
     #[derive(Deftly)]
     #[derive_deftly(Object)]
-    #[deftly(downcastable_to = "HasWheels")]
+    #[deftly(rpc(downcastable_to = "HasWheels"))]
     struct Bicycle {}
     trait HasWheels {
         fn num_wheels(&self) -> usize;
@@ -375,7 +375,7 @@ mod test {
 
     #[derive(Deftly)]
     #[derive_deftly(Object)]
-    #[deftly(downcastable_to = "HasWheels")]
+    #[deftly(rpc(downcastable_to = "HasWheels"))]
     struct Crowd<T: HasWheels + Send + Sync + 'static> {
         members: Vec<T>,
     }

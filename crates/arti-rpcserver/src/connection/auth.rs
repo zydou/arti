@@ -93,7 +93,7 @@ enum AuthenticationScheme {
 /// Method to ask which authentication methods are supported.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(method_name = "auth:query")]
+#[deftly(rpc(method_name = "auth:query"))]
 struct AuthQuery {}
 
 /// A list of supported authentication schemes and their parameters.
@@ -133,7 +133,7 @@ rpc::static_rpc_invoke_fn! {
 /// you so I must have permission!" is supported.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(method_name = "auth:authenticate")]
+#[deftly(rpc(method_name = "auth:authenticate"))]
 struct Authenticate {
     /// The authentication scheme as enumerated in the spec.
     ///

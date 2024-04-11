@@ -75,7 +75,7 @@ define_derive_deftly! {
 ///
 /// #[derive(Debug, serde::Deserialize, Deftly)]
 /// #[derive_deftly(rpc::DynMethod)]
-/// #[deftly(method_name = "x-example:castigate")]
+/// #[deftly(rpc(method_name = "x-example:castigate"))]
 /// struct Castigate {
 ///    severity: f64,
 ///    offenses: Vec<String>,
@@ -93,12 +93,12 @@ define_derive_deftly! {
 /// For now you'll need to import the `typetag` crate; unfortunately, it doesn't
 /// yet behave well when used where it is not in scope as `typetag`.
     pub DynMethod =
-        #[$crate::typetag::deserialize(name = ${tmeta(method_name) as str})]
+        #[$crate::typetag::deserialize(name = ${tmeta(rpc(method_name)) as str})]
         // Note that we do not support generics in method types.
         // If we did, we would have to give each instantiation type its own method name.
         impl $crate::DynMethod for $ttype {}
         $crate::inventory::submit! {
-            $crate::MethodInfo_ { method_name : ${tmeta(method_name) as str} }
+            $crate::MethodInfo_ { method_name : ${tmeta(rpc(method_name)) as str} }
         }
 
         // TODO RPC: This code is duplicated; see derive_deftly#35

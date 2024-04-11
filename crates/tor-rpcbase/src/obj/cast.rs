@@ -179,7 +179,7 @@ mod test {
 
     #[derive(Deftly)]
     #[derive_deftly(Object)]
-    #[deftly(downcastable_to = "Tr1")]
+    #[deftly(rpc(downcastable_to = "Tr1"))]
     struct Simple;
     impl Tr1 for Simple {}
 
@@ -193,7 +193,7 @@ mod test {
 
     #[derive(Deftly)]
     #[derive_deftly(Object)]
-    #[deftly(downcastable_to = "Tr1, Tr2")]
+    #[deftly(rpc(downcastable_to = "Tr1, Tr2"))]
     struct Generic<T: Send + Sync + 'static>(T);
 
     impl<T: Send + Sync + 'static> Tr1 for Generic<T> {}

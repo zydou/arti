@@ -88,7 +88,7 @@ impl InvokeEntry_ {
 ///
 /// #[derive(Debug,serde::Deserialize, Deftly)]
 /// #[derive_deftly(DynMethod)]
-/// #[deftly(method_name = "arti:x-example")]
+/// #[deftly(rpc(method_name = "arti:x-example"))]
 /// struct ExampleMethod {}
 /// impl rpc::Method for ExampleMethod {
 ///     type Output = ExampleResult;
@@ -176,7 +176,7 @@ macro_rules! static_rpc_invoke_fn {
 /// // Declare a method.
 /// #[derive(Deftly, serde::Deserialize, Debug)]
 /// #[derive_deftly(rpc::DynMethod)]
-/// #[deftly(method_name = "x-example:mymethod")]
+/// #[deftly(rpc(method_name = "x-example:mymethod"))]
 /// struct MyMethod;
 /// impl rpc::Method for MyMethod {
 ///     type Output = Outcome;
@@ -450,12 +450,12 @@ mod test {
     // Define 2 methods.
     #[derive(Debug, serde::Deserialize, Deftly)]
     #[derive_deftly(DynMethod)]
-    #[deftly(method_name = "x-test:getname")]
+    #[deftly(rpc(method_name = "x-test:getname"))]
     struct GetName;
 
     #[derive(Debug, serde::Deserialize, Deftly)]
     #[derive_deftly(DynMethod)]
-    #[deftly(method_name = "x-test:getkids")]
+    #[deftly(rpc(method_name = "x-test:getkids"))]
     struct GetKids;
 
     impl Method for GetName {

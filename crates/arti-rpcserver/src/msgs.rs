@@ -188,7 +188,7 @@ mod test {
     // We should consider how bad this is, and maybe use a real method instead.
     #[derive(Debug, serde::Deserialize, Deftly)]
     #[derive_deftly(DynMethod)]
-    #[deftly(method_name = "x-test:dummy")]
+    #[deftly(rpc(method_name = "x-test:dummy"))]
     struct DummyMethod {
         #[serde(default)]
         #[allow(dead_code)]
