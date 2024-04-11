@@ -100,17 +100,6 @@ define_derive_deftly! {
         $crate::inventory::submit! {
             $crate::MethodInfo_ { method_name : ${tmeta(rpc(method_name)) as str} }
         }
-
-        // TODO RPC: This code is duplicated; see derive_deftly#35
-        impl <$ tgens > $ttype
-        where $ttype: 'static, $twheres {
-            /// A version of `TypeId` that we can in `inventory`.
-            #[allow(dead_code, unreachable_pub)]
-            #[doc(hidden)]
-            pub const CONST_TYPE_ID_ : $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
-                std::any::TypeId::of::<$ttype>
-            );
-        }
 }
 pub use derive_deftly_template_DynMethod;
 

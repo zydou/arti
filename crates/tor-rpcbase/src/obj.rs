@@ -318,18 +318,6 @@ define_derive_deftly! {
             }}
         }
     }
-
-    // TODO RPC: This code is duplicated; see derive_deftly#35
-    // TODO RPC: If we can't remove this code in #838, reinstate the HasConstTypeId_ trait.
-    impl <$ tgens > $ttype
-    where $ttype: 'static, $twheres {
-        /// A version of `TypeId` that we can with `inventory`.
-        #[allow(dead_code, unreachable_pub)]
-        #[doc(hidden)]
-        pub const CONST_TYPE_ID_ : $crate::typeid::ConstTypeId_ = $crate::typeid::ConstTypeId_(
-            std::any::TypeId::of::<$ttype>
-        );
-    }
 }
 pub use derive_deftly_template_Object;
 
