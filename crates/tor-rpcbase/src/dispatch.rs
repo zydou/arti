@@ -341,8 +341,14 @@ inventory::collect!(InvokerEnt);
 ///     example2 [Updates];
 /// }
 /// ```
-//
-// TODO RPC: After #838 succeeds (or fails) document the syntax of this macro.
+///
+/// # Syntax:
+///
+/// ```rust,ignore
+/// static_rpc_invoke_fn{
+///   ( IDENT  $(::<GENS>)? ([Updates])? ; ) *
+/// }
+/// ```
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
