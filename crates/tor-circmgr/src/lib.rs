@@ -200,7 +200,12 @@ impl<R: Runtime> CircMgr<R> {
             //
             // Perhaps this information should be provided by CircMgrConfig.
             let has_onion_svc = false;
-            VanguardMgr::new(config.vanguard_config(), runtime.clone(), storage.clone(), has_onion_svc)?
+            VanguardMgr::new(
+                config.vanguard_config(),
+                runtime.clone(),
+                storage.clone(),
+                has_onion_svc,
+            )?
         };
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
