@@ -1844,7 +1844,8 @@ pub enum GuardRestriction {
 }
 
 /// The kind of vanguards to use.
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)] //
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)] //
+#[derive(Serialize, Deserialize)] //
 #[derive(derive_more::Display)] //
 #[serde(rename_all = "lowercase")]
 #[cfg(feature = "vanguards")]
@@ -1881,7 +1882,8 @@ impl VanguardMode {
 }
 
 /// The kind of vanguards to use.
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)] //
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)] //
+#[derive(Serialize, Deserialize)] //
 #[derive(derive_more::Display)] //
 #[serde(rename_all = "lowercase")]
 #[cfg(not(feature = "vanguards"))]
