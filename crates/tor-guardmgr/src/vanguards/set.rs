@@ -37,7 +37,12 @@ pub(crate) struct TimeBoundVanguard {
 }
 
 /// A set of vanguards, for use in a particular [`Layer`](crate::vanguards::Layer).
-#[derive(Debug, Clone)] //
+///
+/// `VanguardSet`s start out with a target size of `0`.
+///
+/// Upon obtaining a `NetDir`, users of this type should update the target
+/// based on the the current [`NetParameters`](tor_netdir::params::NetParameters).
+#[derive(Default, Debug, Clone)] //
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
