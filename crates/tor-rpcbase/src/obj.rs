@@ -270,7 +270,7 @@ define_derive_deftly! {
         fn get_cast_table(&self) -> &$crate::CastTable {
             // TODO RPC: Is there a better way to check "is this a generic type"?
             // See derive-deftly#37
-            ${if approx_equal({$tgens}, {}) {
+            ${if not(approx_equal({$tgens}, {})) {
                 // For generic types, we have a potentially unbounded number
                 // of CastTables: one for each instantiation of the type.
                 // Therefore we keep a mutable add-only HashMap of CastTables.
