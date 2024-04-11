@@ -234,7 +234,7 @@ impl<R: Runtime> VanguardMgr<R> {
             // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
             _ => {
                 return Err(internal!(
-                    "vanguards for layer {layer} are supported in mode {})",
+                    "vanguards for layer {layer} are not supported in mode {})",
                     inner.mode()
                 )
                 .into())
