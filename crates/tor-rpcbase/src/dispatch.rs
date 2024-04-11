@@ -375,7 +375,7 @@ impl DispatchTable {
 
     /// Add a new entry to this DispatchTable.
     pub fn insert(&mut self, obj_id: any::TypeId, method_id: any::TypeId, func: ErasedInvokeFn) {
-        // TODO RPC: On a duplicate call, we should maybe panic?  Or we should make calls idempotent?
+        // TODO RPC: Make this call idempotent; complain if the old func is not the same as the new func.
         self.map.insert(FuncType { obj_id, method_id }, func);
     }
 
