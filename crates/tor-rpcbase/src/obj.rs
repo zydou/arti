@@ -131,8 +131,7 @@ impl ObjectRefExt for std::sync::Arc<dyn Object> {
 }
 
 define_derive_deftly! {
-/// Declare that one or more space-separated types should be considered as
-/// RPC objects.
+/// Allow a type to participate as an Object in the RPC system.
 ///
 /// This template implements `Object` for the
 /// target type, and can be used to cause objects to participate in the trait
