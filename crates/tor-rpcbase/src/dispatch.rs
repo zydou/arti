@@ -25,7 +25,7 @@
 //!
 //! After writing a function in the form above,
 //! you need to register it with the RPC system so that it can be invoked on objects of the right type.
-//! The easiest way to do so is by registering it, using [`static_rpc_invoke_fn!`]:
+//! The easiest way to do so is by registering it, using [`static_rpc_invoke_fn!`](crate::static_rpc_invoke_fn):
 //!
 //! ```rust,ignore
 //! static_rpc_invoke_fn!{ my_rpc_func; my_other_rpc_func; }
@@ -210,7 +210,7 @@ declare_invoker_impl! {
 
 /// An annotated Invoker; used to compile a [`DispatchTable`].
 ///
-/// Do not construct this type directly!  Instead, use [`invoker!`].
+/// Do not construct this type directly!  Instead, use [`invoker_ent!`](crate::invoker_ent!).
 #[allow(clippy::exhaustive_structs)]
 #[derive(Clone, Copy)]
 #[must_use]
