@@ -353,8 +353,6 @@ impl OnionService {
             status_tx.clone().into(),
         )?;
 
-        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
-
         let publisher: Publisher<R, publish::Real<R>> = Publisher::new(
             runtime,
             nickname.clone(),
@@ -365,10 +363,6 @@ impl OnionService {
             status_tx.clone().into(),
             Arc::clone(&state.keymgr),
         );
-
-        // TODO (#1083): We should pass a copy of this to the publisher and/or the
-        // IptMgr, and they should adjust it as needed.
-        let status_tx = StatusSender::new(OnionServiceStatus::new_shutdown());
 
         let svc = Arc::new(RunningOnionService {
             state,
