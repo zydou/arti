@@ -7,7 +7,6 @@
 pub mod config;
 mod set;
 
-use std::cmp;
 use std::sync::{Arc, RwLock, Weak};
 use std::time::{Duration, SystemTime};
 
@@ -17,19 +16,17 @@ use futures::{future, FutureExt as _};
 use futures::{select_biased, StreamExt as _};
 use rand::RngCore;
 
-use tor_basic_utils::RngExt as _;
 use tor_config::ReconfigureError;
 use tor_error::{error_report, internal, into_internal, ErrorKind, HasKind};
-use tor_linkspec::{RelayIdSet, RelayIds};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_persist::{DynStorageHandle, StateMgr};
-use tor_relay_selection::{RelayExclusion, RelaySelector, RelayUsage};
+use tor_relay_selection::RelayExclusion;
 use tor_rtcompat::Runtime;
-use tracing::{debug, trace};
+use tracing::debug;
 
 use crate::{RetireCircuits, VanguardMode};
 
-use set::{TimeBoundVanguard, VanguardSet, VanguardSets};
+use set::VanguardSets;
 
 pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
 pub use set::Vanguard;
@@ -54,14 +51,19 @@ pub struct VanguardMgr<R: Runtime> {
 struct Inner {
     /// The current vanguard parameters.
     params: VanguardParams,
-    /// The L2 vanguards.
-    l2_vanguards: VanguardSet,
-    /// The L3 vanguards.
+    /// The L2 and L3 vanguards.
     ///
     /// The L3 vanguards are only used if we are running in
     /// [`Full`](VanguardMode::Full) vanguard mode.
-    /// Otherwise, this set is not populated, or read from.
-    l3_vanguards: VanguardSet,
+    /// Otherwise, the L3 set is not populated, or read from.
+    ///
+    /// If [`Full`](VanguardMode::Full) vanguard mode is enabled,
+    /// the vanguard sets will be persisted to disk whenever
+    /// vanuards are rotated, added, or removed.
+    ///
+    /// The vanguard sets are updated and persisted to storage by
+    /// [`handle_netdir_update`](Inner::handle_netdir_update).
+    vanguard_sets: VanguardSets,
     /// Whether we're running an onion service.
     ///
     /// Used for deciding whether to use the `vanguards_hs_service` or the
@@ -136,14 +138,16 @@ impl<R: Runtime> VanguardMgr<R> {
         // Note: we start out with default vanguard params, but we adjust them
         // as soon as we obtain a NetDir (see Self::run_once()).
         let params = VanguardParams::default();
-        let l2_vanguards = VanguardSet::new(params.l2_pool_size());
-        let l3_vanguards = VanguardSet::new(params.l3_pool_size());
         let storage: DynStorageHandle<VanguardSets> = state_mgr.create_handle(STORAGE_KEY);
 
+        // Initially, all sets have a target size of 0.
+        // This is OK because the target is only used for repopulating the vanguard sets,
+        // and we can't repopulate the sets without a netdir.
+        // The target gets adjusted once we obtain a netdir.
+        let vanguard_sets = Default::default();
         let inner = Inner {
             params,
-            l2_vanguards,
-            l3_vanguards,
+            vanguard_sets,
             has_onion_svc,
         };
 
@@ -247,9 +251,17 @@ impl<R: Runtime> VanguardMgr<R> {
         // maintain_vanguard_sets task and do everything synchronously in this function...
 
         // TODO HS-VANGUARDS: come up with something with better UX
-        let vanguard_set = match (layer, inner.mode()) {
-            (Layer::Layer2, Full) | (Layer::Layer2, Lite) => &inner.l2_vanguards,
-            (Layer::Layer3, Full) => &inner.l3_vanguards,
+        let relay = match (layer, inner.mode()) {
+            (Layer::Layer2, Full) | (Layer::Layer2, Lite) => {
+                inner
+                    .vanguard_sets
+                    .pick_l2_relay(rng, netdir, neighbor_exclusion)
+            }
+            (Layer::Layer3, Full) => {
+                inner
+                    .vanguard_sets
+                    .pick_l3_relay(rng, netdir, neighbor_exclusion)
+            }
             // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
             _ => {
                 return Err(internal!(
@@ -260,9 +272,7 @@ impl<R: Runtime> VanguardMgr<R> {
             }
         };
 
-        vanguard_set
-            .pick_relay(rng, netdir, neighbor_exclusion)
-            .ok_or(VanguardMgrError::NoSuitableRelay(layer))
+        relay.ok_or(VanguardMgrError::NoSuitableRelay(layer))
     }
 
     /// The vanguard set management task.
@@ -343,10 +353,10 @@ impl<R: Runtime> VanguardMgr<R> {
             // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
             let params = VanguardParams::try_from(netdir.params())
                 .map_err(into_internal!("invalid NetParameters"))?;
-            mgr.inner
-                .write()
-                .expect("poisoned lock")
-                .replenish_vanguards(&mgr.runtime, &netdir, &params)?;
+            let mut inner = mgr.inner.write().expect("poisoned lock");
+            let mode = inner.mode();
+            let mut vanguard_sets = inner.vanguard_sets.as_mut();
+            vanguard_sets.replenish_vanguards(&mgr.runtime, &netdir, &params, mode)?;
         }
 
         select_biased! {
@@ -388,18 +398,12 @@ impl<R: Runtime> VanguardMgr<R> {
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
-        inner.l2_vanguards.remove_expired(now);
-        inner.l3_vanguards.remove_expired(now);
+        let mut vanguard_sets = inner.vanguard_sets.as_mut();
+        vanguard_sets.remove_expired(now);
 
-        let l2_expiry = inner.l2_vanguards.next_expiry();
-        let l3_expiry = inner.l3_vanguards.next_expiry();
-        let expiry = match (l2_expiry, l3_expiry) {
-            (Some(e), None) | (None, Some(e)) => e,
-            (Some(e1), Some(e2)) => cmp::min(e1, e2),
-            (None, None) => {
-                // Both vanguard sets are empty
-                return Ok(None);
-            }
+        let Some(expiry) = inner.vanguard_sets.next_expiry() else {
+            // Both vanguard sets are empty
+            return Ok(None);
         };
 
         expiry
@@ -443,133 +447,27 @@ impl Inner {
         runtime: &R,
         netdir: &Arc<NetDir>,
     ) -> Result<(), VanguardMgrError> {
-        self.remove_unlisted(netdir);
-
         let params = VanguardParams::try_from(netdir.params())
             .map_err(into_internal!("invalid NetParameters"))?;
 
         // Update our params with the new values.
         self.update_params(params.clone());
 
-        self.replenish_vanguards(runtime, netdir, &params)?;
+        let mode = self.mode();
+        let mut vanguard_sets = self.vanguard_sets.as_mut();
+        vanguard_sets.remove_unlisted(netdir);
+
+        // If we loaded some vanguards from persistent storage but we still need more,
+        // we select them here.
+        //
+        // If full vanguards are not enabled and we started with an empty (default)
+        // vanguard set, we populate the sets here.
+        //
+        // If we have already populated the vanguard sets in a previous iteration,
+        // this will ensure they have enough vanguards.
+        vanguard_sets.replenish_vanguards(runtime, netdir, &params, mode)?;
 
         Ok(())
-    }
-
-    /// Remove the vanguards that are no longer listed in `netdir`
-    fn remove_unlisted(&mut self, netdir: &Arc<NetDir>) {
-        self.l2_vanguards.remove_unlisted(netdir);
-        self.l3_vanguards.remove_unlisted(netdir);
-    }
-
-    /// Replenish the vanguard sets if necessary, using the directory information
-    /// from the specified [`NetDir`].
-    ///
-    /// Note: the L3 set is only replenished if [`Full`](VanguardMode::Full) vanguards are enabled.
-    fn replenish_vanguards<R: Runtime>(
-        &mut self,
-        runtime: &R,
-        netdir: &NetDir,
-        params: &VanguardParams,
-    ) -> Result<(), VanguardMgrError> {
-        trace!("replenishing vanguard sets");
-
-        // Resize the vanguard sets if necessary.
-        self.l2_vanguards.update_target(params.l2_pool_size());
-
-        // TODO HS-VANGUARDS: It would be nice to make this mockable. It will involve adding an
-        // M: MocksForVanguards parameter to VanguardMgr, which will have to propagated throughout
-        // tor-circmgr too.
-        let mut rng = rand::thread_rng();
-        Self::replenish_set(
-            runtime,
-            &mut rng,
-            netdir,
-            &mut self.l2_vanguards,
-            params.l2_lifetime_min(),
-            params.l2_lifetime_max(),
-        )?;
-
-        if self.mode() == VanguardMode::Full {
-            self.l3_vanguards.update_target(params.l3_pool_size());
-            Self::replenish_set(
-                runtime,
-                &mut rng,
-                netdir,
-                &mut self.l3_vanguards,
-                params.l3_lifetime_min(),
-                params.l3_lifetime_max(),
-            )?;
-        }
-
-        Ok(())
-    }
-
-    /// Replenish a single `VanguardSet` with however many vanguards it is short of.
-    fn replenish_set<R: Runtime, Rng: RngCore>(
-        runtime: &R,
-        rng: &mut Rng,
-        netdir: &NetDir,
-        vanguard_set: &mut VanguardSet,
-        min_lifetime: Duration,
-        max_lifetime: Duration,
-    ) -> Result<(), VanguardMgrError> {
-        let deficit = vanguard_set.deficit();
-        if deficit > 0 {
-            // Exclude the relays that are already in this vanguard set.
-            let exclude_ids = RelayIdSet::from(&*vanguard_set);
-            let exclude = RelayExclusion::exclude_identities(exclude_ids);
-            // Pick some vanguards to add to the vanguard_set.
-            let new_vanguards = Self::add_n_vanguards(
-                runtime,
-                rng,
-                netdir,
-                deficit,
-                exclude,
-                min_lifetime,
-                max_lifetime,
-            )?;
-
-            for v in new_vanguards {
-                vanguard_set.add_vanguard(v);
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Select `n` relays to use as vanguards.
-    ///
-    /// Each selected vanguard will have a random lifetime
-    /// between `min_lifetime` and `max_lifetime`.
-    fn add_n_vanguards<R: Runtime, Rng: RngCore>(
-        runtime: &R,
-        rng: &mut Rng,
-        netdir: &NetDir,
-        n: usize,
-        exclude: RelayExclusion,
-        min_lifetime: Duration,
-        max_lifetime: Duration,
-    ) -> Result<Vec<TimeBoundVanguard>, VanguardMgrError> {
-        trace!(relay_count = n, "selecting relays to use as vanguards");
-
-        let vanguard_sel = RelaySelector::new(RelayUsage::vanguard(), exclude);
-
-        let (relays, _outcome) = vanguard_sel.select_n_relays(rng, n, netdir);
-
-        relays
-            .into_iter()
-            .map(|relay| {
-                // Pick an expiration for this vanguard.
-                let duration = select_lifetime(rng, min_lifetime, max_lifetime)?;
-                let when = runtime.wallclock() + duration;
-
-                Ok(TimeBoundVanguard {
-                    id: RelayIds::from_relay_ids(&relay),
-                    when,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
     }
 
     /// Update our vanguard params.
@@ -593,33 +491,6 @@ impl Inner {
             self.params.vanguards_enabled()
         }
     }
-}
-
-/// Randomly select the lifetime of a vanguard from the `max(X,X)` distribution,
-/// where `X` is a uniform random value between `min_lifetime` and `max_lifetime`.
-///
-/// This ensures we are biased towards longer lifetimes.
-///
-/// See
-/// <https://spec.torproject.org/vanguards-spec/vanguards-stats.html>
-//
-// TODO(#1352): we may not want the same bias for the L2 vanguards
-fn select_lifetime<Rng: RngCore>(
-    rng: &mut Rng,
-    min_lifetime: Duration,
-    max_lifetime: Duration,
-) -> Result<Duration, VanguardMgrError> {
-    let err = || internal!("invalid consensus: vanguard min_lifetime > max_lifetime");
-
-    let l1 = rng
-        .gen_range_checked(min_lifetime..=max_lifetime)
-        .ok_or_else(err)?;
-
-    let l2 = rng
-        .gen_range_checked(min_lifetime..=max_lifetime)
-        .ok_or_else(err)?;
-
-    Ok(std::cmp::max(l1, l2))
 }
 
 /// The vanguard layer.
@@ -654,10 +525,12 @@ mod test {
 
     use std::fmt;
 
+    use set::TimeBoundVanguard;
+
     use super::*;
 
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_linkspec::HasRelayIds;
+    use tor_linkspec::{HasRelayIds, RelayIds};
     use tor_netdir::{testnet, testprovider::TestNetDirProvider};
     use tor_persist::TestingStateMgr;
     use tor_rtmock::MockRuntime;
@@ -668,6 +541,18 @@ mod test {
     impl fmt::Debug for Vanguard<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             f.debug_struct("Vanguard").finish()
+        }
+    }
+
+    impl Inner {
+        /// Return the L2 vanguard set.
+        pub(super) fn l2_vanguards(&self) -> &Vec<TimeBoundVanguard> {
+            self.vanguard_sets.l2_vanguards()
+        }
+
+        /// Return the L3 vanguard set.
+        pub(super) fn l3_vanguards(&self) -> &Vec<TimeBoundVanguard> {
+            self.vanguard_sets.l3_vanguards()
         }
     }
 
@@ -686,24 +571,20 @@ mod test {
     ) -> Option<TimeBoundVanguard> {
         let inner = mgr.inner.read().unwrap();
 
-        let vanguard_set = match layer {
-            Layer2 => &inner.l2_vanguards,
-            Layer3 => &inner.l3_vanguards,
+        let vanguards = match layer {
+            Layer2 => inner.l2_vanguards(),
+            Layer3 => inner.l3_vanguards(),
         };
 
         // Look up the TimeBoundVanguard that corresponds to this Vanguard,
         // and figure out its expiry.
-        vanguard_set
-            .vanguards()
-            .iter()
-            .find(|v| v.id == *relay_ids)
-            .cloned()
+        vanguards.iter().find(|v| v.id == *relay_ids).cloned()
     }
 
     /// Get the total number of vanguard entries (L2 + L3).
     fn vanguard_count<R: Runtime>(mgr: &VanguardMgr<R>) -> usize {
         let inner = mgr.inner.read().unwrap();
-        inner.l2_vanguards.vanguards().len() + inner.l3_vanguards.vanguards().len()
+        inner.l2_vanguards().len() + inner.l3_vanguards().len()
     }
 
     /// Return a `Duration` representing how long until this vanguard expires.
@@ -748,11 +629,11 @@ mod test {
     }
 
     /// Assert that the vanguard manager's pools are empty.
-    fn assert_sets_empty<R: Runtime>(vanguardmgr: &VanguardMgr<R>, params: &VanguardParams) {
+    fn assert_sets_empty<R: Runtime>(vanguardmgr: &VanguardMgr<R>) {
         let inner = vanguardmgr.inner.read().unwrap();
-        // The sets are initially empty
-        assert_eq!(inner.l2_vanguards.deficit(), params.l2_pool_size());
-        assert_eq!(inner.l3_vanguards.deficit(), params.l3_pool_size());
+        // The sets are initially empty, and the targets are set to 0
+        assert_eq!(inner.vanguard_sets.l2_vanguards_deficit(), 0);
+        assert_eq!(inner.vanguard_sets.l3_vanguards_deficit(), 0);
         assert_eq!(vanguard_count(vanguardmgr), 0);
     }
 
@@ -761,21 +642,30 @@ mod test {
         let inner = vanguardmgr.inner.read().unwrap();
         let l2_pool_size = params.l2_pool_size();
         // The sets are initially empty
-        assert_eq!(inner.l2_vanguards.deficit(), 0);
+        assert_eq!(inner.vanguard_sets.l2_vanguards_deficit(), 0);
 
         if inner.mode() == VanguardMode::Full {
-            assert_eq!(inner.l3_vanguards.deficit(), 0);
+            assert_eq!(inner.vanguard_sets.l3_vanguards_deficit(), 0);
             let l3_pool_size = params.l3_pool_size();
             assert_eq!(vanguard_count(vanguardmgr), l2_pool_size + l3_pool_size);
         }
     }
 
     /// Assert the target size of the specified vanguard set matches the target from `params`.
-    fn assert_set_targets_match_params<R: Runtime>(mgr: &VanguardMgr<R>, params: &VanguardParams) {
+    fn assert_set_vanguards_targets_match_params<R: Runtime>(
+        mgr: &VanguardMgr<R>,
+        params: &VanguardParams,
+    ) {
         let inner = mgr.inner.read().unwrap();
-        assert_eq!(inner.l2_vanguards.target(), params.l2_pool_size());
+        assert_eq!(
+            inner.vanguard_sets.l2_vanguards_target(),
+            params.l2_pool_size()
+        );
         if inner.mode() == VanguardMode::Full {
-            assert_eq!(inner.l3_vanguards.target(), params.l3_pool_size());
+            assert_eq!(
+                inner.vanguard_sets.l3_vanguards_target(),
+                params.l3_pool_size()
+            );
         }
     }
 
@@ -823,12 +713,11 @@ mod test {
         MockRuntime::test_with_various(|rt| async move {
             let vanguardmgr = new_vanguard_mgr(&rt);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
-            let params = VanguardParams::try_from(netdir.params()).unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
 
             // The sets are initially empty
-            assert_sets_empty(&vanguardmgr, &params);
+            assert_sets_empty(&vanguardmgr);
 
             // VanguardMgr::launch_background tasks was not called, so select_vanguard will return
             // an error (because the vanguard sets are empty)
@@ -853,7 +742,7 @@ mod test {
             let exclusion = RelayExclusion::no_relays_excluded();
 
             // The sets are initially empty
-            assert_sets_empty(&vanguardmgr, &params);
+            assert_sets_empty(&vanguardmgr);
 
             // Wait until the vanguard manager has bootstrapped
             let _netdir_provider =
@@ -921,7 +810,7 @@ mod test {
 
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let old_size = params.l2_pool_size();
-            assert_set_targets_match_params(&vanguardmgr, &params);
+            assert_set_vanguards_targets_match_params(&vanguardmgr, &params);
 
             const PARAMS: [[(&str, i32); 2]; 2] = [
                 [("guard-hs-l2-number", 1), ("guard-hs-l3-number", 10)],
@@ -932,11 +821,11 @@ mod test {
                 let new_params = install_new_params(&rt, &netdir_provider, params).await;
 
                 // Ensure the target size was updated.
-                assert_set_targets_match_params(&vanguardmgr, &new_params);
+                assert_set_vanguards_targets_match_params(&vanguardmgr, &new_params);
                 {
                     let inner = vanguardmgr.inner.read().unwrap();
-                    let l2_vanguards = inner.l2_vanguards.vanguards();
-                    let l3_vanguards = inner.l3_vanguards.vanguards();
+                    let l2_vanguards = inner.l2_vanguards();
+                    let l3_vanguards = inner.l3_vanguards();
                     let new_l2_size = params[0].1 as usize;
                     if new_l2_size < old_size {
                         // The actual size of the set hasn't changed: it's OK to have more vanguards than
@@ -969,10 +858,9 @@ mod test {
             // Find the RelayIds of the vanguard that is due to expire next
             let vanguard_id = {
                 let inner = vanguardmgr.inner.read().unwrap();
-                let next_expiry = inner.l2_vanguards.next_expiry().unwrap();
+                let next_expiry = inner.vanguard_sets.next_expiry().unwrap();
                 inner
-                    .l2_vanguards
-                    .vanguards()
+                    .l2_vanguards()
                     .iter()
                     .find(|v| v.when == next_expiry)
                     .cloned()
@@ -1021,7 +909,7 @@ mod test {
 
             {
                 let inner = vanguardmgr.inner.read().unwrap();
-                let l2_count = inner.l2_vanguards.vanguards().len();
+                let l2_count = inner.l2_vanguards().len();
                 assert_eq!(l2_count, new_params.l2_pool_size());
             }
         });

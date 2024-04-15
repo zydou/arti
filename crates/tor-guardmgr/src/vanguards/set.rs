@@ -1,14 +1,23 @@
 //! Vanguard sets
 
 use std::cmp;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
+use derive_deftly::{derive_deftly_adhoc, Deftly};
 use rand::{seq::SliceRandom as _, RngCore};
 use serde::{Deserialize, Serialize};
 
+use tor_basic_utils::RngExt as _;
+use tor_error::internal;
 use tor_linkspec::{HasRelayIds as _, RelayIdSet, RelayIds};
 use tor_netdir::{NetDir, Relay};
-use tor_relay_selection::{LowLevelRelayPredicate as _, RelayExclusion};
+use tor_relay_selection::{LowLevelRelayPredicate as _, RelayExclusion, RelaySelector, RelayUsage};
+use tor_rtcompat::Runtime;
+use tracing::trace;
+
+use crate::{VanguardMgrError, VanguardMode};
+
+use super::VanguardParams;
 
 /// A vanguard relay.
 //
@@ -61,7 +70,8 @@ pub(super) struct VanguardSet {
 /// The L2 and L3 vanguard sets,
 /// stored in the same struct to simplify serialization.
 #[derive(Default, Debug, Clone)] //
-#[derive(Serialize, Deserialize)] //
+#[derive(Deftly, Serialize, Deserialize)] //
+#[derive_deftly_adhoc]
 pub(super) struct VanguardSets {
     /// The L2 vanguard sets.
     pub(super) l2_vanguards: VanguardSet,
@@ -159,12 +169,159 @@ impl<'a> VanguardSetsTrackedMut<'a> {
         self.update_changed(l2_changed || l3_changed);
     }
 
+    /// Replenish the vanguard sets if necessary, using the directory information
+    /// from the specified [`NetDir`].
+    ///
+    /// Note: the L3 set is only replenished if [`Full`](VanguardMode::Full) vanguards are enabled.
+    pub(super) fn replenish_vanguards<R: Runtime>(
+        &mut self,
+        runtime: &R,
+        netdir: &NetDir,
+        params: &VanguardParams,
+        mode: VanguardMode,
+    ) -> Result<(), VanguardMgrError> {
+        trace!("replenishing vanguard sets");
+
+        // Resize the vanguard sets if necessary.
+        self.inner.l2_vanguards.update_target(params.l2_pool_size());
+
+        // TODO HS-VANGUARDS: It would be nice to make this mockable. It will involve adding an
+        // M: MocksForVanguards parameter to VanguardMgr, which will have to propagated throughout
+        // tor-circmgr too.
+        let mut rng = rand::thread_rng();
+        let mut sets_changed = Self::replenish_set(
+            runtime,
+            &mut rng,
+            netdir,
+            &mut self.inner.l2_vanguards,
+            params.l2_lifetime_min(),
+            params.l2_lifetime_max(),
+        )?;
+
+        if mode == VanguardMode::Full {
+            self.inner.l3_vanguards.update_target(params.l3_pool_size());
+            let l3_changed = Self::replenish_set(
+                runtime,
+                &mut rng,
+                netdir,
+                &mut self.inner.l3_vanguards,
+                params.l3_lifetime_min(),
+                params.l3_lifetime_max(),
+            )?;
+
+            sets_changed = sets_changed || l3_changed;
+        }
+
+        self.update_changed(sets_changed);
+
+        Ok(())
+    }
+
     /// Set the `changed` flag if `new_changed` is `true`.
     ///
     /// If `changed` is already `true`, it won't be set back to `false`.
     fn update_changed(&mut self, new_changed: bool) {
         self.changed = self.changed || new_changed;
     }
+
+    /// Replenish a single `VanguardSet` with however many vanguards it is short of.
+    fn replenish_set<R: Runtime, Rng: RngCore>(
+        runtime: &R,
+        rng: &mut Rng,
+        netdir: &NetDir,
+        vanguard_set: &mut VanguardSet,
+        min_lifetime: Duration,
+        max_lifetime: Duration,
+    ) -> Result<bool, VanguardMgrError> {
+        let mut set_changed = false;
+        let deficit = vanguard_set.deficit();
+        if deficit > 0 {
+            // Exclude the relays that are already in this vanguard set.
+            let exclude_ids = RelayIdSet::from(&*vanguard_set);
+            let exclude = RelayExclusion::exclude_identities(exclude_ids);
+            // Pick some vanguards to add to the vanguard_set.
+            let new_vanguards = Self::add_n_vanguards(
+                runtime,
+                rng,
+                netdir,
+                deficit,
+                exclude,
+                min_lifetime,
+                max_lifetime,
+            )?;
+
+            if !new_vanguards.is_empty() {
+                set_changed = true;
+            }
+
+            for v in new_vanguards {
+                vanguard_set.add_vanguard(v);
+            }
+        }
+
+        Ok(set_changed)
+    }
+
+    /// Select `n` relays to use as vanguards.
+    ///
+    /// Each selected vanguard will have a random lifetime
+    /// between `min_lifetime` and `max_lifetime`.
+    fn add_n_vanguards<R: Runtime, Rng: RngCore>(
+        runtime: &R,
+        rng: &mut Rng,
+        netdir: &NetDir,
+        n: usize,
+        exclude: RelayExclusion,
+        min_lifetime: Duration,
+        max_lifetime: Duration,
+    ) -> Result<Vec<TimeBoundVanguard>, VanguardMgrError> {
+        trace!(relay_count = n, "selecting relays to use as vanguards");
+
+        let vanguard_sel = RelaySelector::new(RelayUsage::vanguard(), exclude);
+
+        let (relays, _outcome) = vanguard_sel.select_n_relays(rng, n, netdir);
+
+        relays
+            .into_iter()
+            .map(|relay| {
+                // Pick an expiration for this vanguard.
+                let duration = select_lifetime(rng, min_lifetime, max_lifetime)?;
+                let when = runtime.wallclock() + duration;
+
+                Ok(TimeBoundVanguard {
+                    id: RelayIds::from_relay_ids(&relay),
+                    when,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }
+}
+
+/// Randomly select the lifetime of a vanguard from the `max(X,X)` distribution,
+/// where `X` is a uniform random value between `min_lifetime` and `max_lifetime`.
+///
+/// This ensures we are biased towards longer lifetimes.
+///
+/// See
+/// <https://spec.torproject.org/vanguards-spec/vanguards-stats.html>
+//
+// TODO(#1352): we may not want the same bias for the L2 vanguards
+fn select_lifetime<Rng: RngCore>(
+    rng: &mut Rng,
+    min_lifetime: Duration,
+    max_lifetime: Duration,
+) -> Result<Duration, VanguardMgrError> {
+    let err = || internal!("invalid consensus: vanguard min_lifetime > max_lifetime");
+
+    let l1 = rng
+        .gen_range_checked(min_lifetime..=max_lifetime)
+        .ok_or_else(err)?;
+
+    let l2 = rng
+        .gen_range_checked(min_lifetime..=max_lifetime)
+        .ok_or_else(err)?;
+
+    Ok(std::cmp::max(l1, l2))
 }
 
 impl VanguardSet {
@@ -264,18 +421,120 @@ impl From<&VanguardSet> for RelayIdSet {
     }
 }
 
-// Amplify can't generate pub(super) getters, so we need to write them by hand.
+// Some acccessors we need in the VanguardMgr tests.
 #[cfg(test)]
-impl VanguardSet {
-    /// Return the target size of this set.
-    #[cfg(test)]
-    pub(super) fn target(&self) -> usize {
-        self.target
-    }
+derive_deftly_adhoc! {
+    VanguardSets expect items:
 
-    /// Return the vanguards in this set
-    #[cfg(test)]
-    pub(super) fn vanguards(&self) -> &Vec<TimeBoundVanguard> {
-        &self.vanguards
+    impl VanguardSets {
+        $(
+            #[doc = concat!("Return the ", stringify!($fname))]
+            pub(super) fn $fname(&self) -> &Vec<TimeBoundVanguard> {
+                &self.$fname.vanguards
+            }
+
+            #[doc = concat!("Return the target size of the ", stringify!($fname), " set")]
+            pub(super) fn $<$fname _target>(&self) -> usize {
+                self.$fname.target
+            }
+
+            #[doc = concat!("Return the deficit of the ", stringify!($fname), " set")]
+            pub(super) fn $<$fname _deficit>(&self) -> usize {
+                self.$fname.deficit()
+            }
+
+        )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_netdir::testnet;
+    use tor_rtmock::MockRuntime;
+
+    use super::*;
+
+    #[test]
+    fn tracked_mut() {
+        MockRuntime::test_with_various(|rt| async move {
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let params = VanguardParams::try_from(netdir.params()).unwrap();
+            let mut vanguard_sets = VanguardSets::default();
+            {
+                let mut vanguard_sets_mut = vanguard_sets.as_mut();
+
+                assert!(!vanguard_sets_mut.has_changes());
+                vanguard_sets_mut
+                    .replenish_vanguards(&rt, &netdir, &params, VanguardMode::Full)
+                    .unwrap();
+                assert!(vanguard_sets_mut.has_changes());
+
+                // This should be a no-op, because the netdir hasn't changed.
+                vanguard_sets_mut.remove_unlisted(&netdir);
+                // But the changed flag is still set,
+                // because we changed the set by adding new vanguards.
+                assert!(vanguard_sets_mut.has_changes());
+            }
+
+            {
+                let mut vanguard_sets_mut = vanguard_sets.as_mut();
+                assert!(!vanguard_sets_mut.has_changes());
+                // This should be a no-op, because the netdir hasn't changed.
+                vanguard_sets_mut.remove_unlisted(&netdir);
+                assert!(!vanguard_sets_mut.has_changes());
+            }
+
+            {
+                // Pick a vanguard to remove from the consensus:
+                let mut rng = testing_rng();
+                let exclusion = RelayExclusion::no_relays_excluded();
+                let vanguard = vanguard_sets
+                    .pick_l2_relay(&mut rng, &netdir, &exclusion)
+                    .unwrap();
+
+                let new_netdir = testnet::construct_custom_netdir(|_idx, bld| {
+                    let md_so_far = bld.md.testing_md().unwrap();
+                    if md_so_far.ed25519_id() == vanguard.relay().id() {
+                        bld.omit_rs = true;
+                    }
+                })
+                .unwrap()
+                .unwrap_if_sufficient()
+                .unwrap();
+
+                let mut vanguard_sets_mut = vanguard_sets.as_mut();
+                assert!(!vanguard_sets_mut.has_changes());
+                vanguard_sets_mut.remove_unlisted(&new_netdir);
+
+                // One of the L2 vanguards is not listed in the new consensus,
+                // so it got removed by remove_unlisted.
+                assert!(vanguard_sets_mut.has_changes());
+            }
+
+            {
+                // Pick an L3 vanguard to "expire"
+                let vanguard = &vanguard_sets.l3_vanguards.vanguards[0];
+                let expiry_ts = vanguard.when;
+
+                let mut vanguard_sets_mut = vanguard_sets.as_mut();
+                vanguard_sets_mut.remove_expired(expiry_ts);
+                assert!(vanguard_sets_mut.has_changes());
+            }
+        });
     }
 }

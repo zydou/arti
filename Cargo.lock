@@ -5261,6 +5261,7 @@ version = "0.17.0"
 dependencies = [
  "amplify",
  "base64ct",
+ "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
  "dyn-clone",
