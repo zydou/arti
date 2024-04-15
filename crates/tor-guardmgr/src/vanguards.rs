@@ -343,8 +343,7 @@ impl<R: Runtime> VanguardMgr<R> {
             event = netdir_events.next().fuse() => {
                 if let Some(DirEvent::NewConsensus) = event {
                     let netdir = netdir_provider.netdir(Timeliness::Timely)?;
-                    mgr.inner.write().expect("poisoned lock")
-                        .handle_netdir_update(&mgr.runtime, &netdir)?;
+                    mgr.inner.write().expect("poisoned lock").handle_netdir_update(&mgr.runtime, &mgr.storage, &netdir)?;
                 }
 
                 Ok(ShutdownStatus::Continue)
@@ -392,7 +391,7 @@ impl<R: Runtime> VanguardMgr<R> {
                     // TODO HS-VANGUARDS: handle_netdir_update() should be renamed, because it's
                     // used for more than just handling NetDir changes (it's also used for
                     // replenishing the vanguard sets)
-                    .handle_netdir_update(&self.runtime, &netdir)?;
+                    .handle_netdir_update(&self.runtime, &self.storage, &netdir)?;
             }
         }
 
@@ -430,6 +429,7 @@ impl Inner {
     fn handle_netdir_update<R: Runtime>(
         &mut self,
         runtime: &R,
+        storage: &DynStorageHandle<VanguardSets>,
         netdir: &Arc<NetDir>,
     ) -> Result<(), VanguardMgrError> {
         let params = VanguardParams::try_from(netdir.params())
@@ -451,6 +451,11 @@ impl Inner {
         // If we have already populated the vanguard sets in a previous iteration,
         // this will ensure they have enough vanguards.
         vanguard_sets.replenish_vanguards(runtime, netdir, &params, mode)?;
+
+        // If the vanguard sets have changed, flush them to disk.
+        if vanguard_sets.has_changes() {
+            self.flush_to_storage(storage)?;
+        }
 
         Ok(())
     }
