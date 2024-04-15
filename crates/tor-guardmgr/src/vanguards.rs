@@ -316,6 +316,16 @@ impl<R: Runtime> VanguardMgr<R> {
             }
         };
 
+        // TODO HS-VANGUARDS: We should only be calling replenish_vanguards
+        // if we expired some vanguards in a previous iteration.
+        //
+        // The unconditional call to replenish_vanguards will become problematic
+        // when we add support for full vanguards:
+        // the changes will need to be flushed to disk, so we will need to:
+        //
+        //   * know if the sets have changed (because otherwise there is no point in flushing)
+        //   * only call replenish_vanguards in response to a netdir change,
+        //     or after expiring some vanguards
         if let Some(netdir) = Self::timely_netdir(&netdir_provider)? {
             // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
             let params = VanguardParams::try_from(netdir.params())
