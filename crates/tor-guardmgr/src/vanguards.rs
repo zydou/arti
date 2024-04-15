@@ -59,7 +59,7 @@ struct Inner {
     /// Whether we're running an onion service.
     ///
     /// Used for deciding whether to use the `vanguards_hs_service` or the
-    /// `vanguards_enabled` [`NetParameter`](tor_netdir::params::NetParameter).
+    /// `vanguards_enabled` [`NetParameter`](tor_netdir::params::NetParameters).
     has_onion_svc: bool,
 }
 
