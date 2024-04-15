@@ -15,6 +15,7 @@ use std::time::{Duration, Instant, SystemTime};
 ///
 /// * [`futures::task::Spawn`] to launch new background tasks.
 /// * [`SleepProvider`] to pause a task for a given amount of time.
+/// * [`CoarseTimeProvider`] for a cheaper but less accurate notion of time.
 /// * [`TcpProvider`] to launch and accept TCP connections.
 /// * [`TlsProvider`] to launch TLS connections.
 /// * [`BlockOn`] to block on a future and run it to completion
