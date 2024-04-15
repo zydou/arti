@@ -56,7 +56,7 @@ pub(crate) struct TimeBoundVanguard {
 #[derive(Serialize, Deserialize)] //
 #[serde(transparent)]
 #[allow(unused)] // TODO HS-VANGUARDS
-pub(super) struct VanguardSet {
+struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
     vanguards: Vec<TimeBoundVanguard>,
     /// The number of vanguards we would like to have in this set.
@@ -74,11 +74,11 @@ pub(super) struct VanguardSet {
 #[derive_deftly_adhoc]
 pub(super) struct VanguardSets {
     /// The L2 vanguard sets.
-    pub(super) l2_vanguards: VanguardSet,
+    l2_vanguards: VanguardSet,
     /// The L3 vanguard sets.
     ///
     /// Only used if full vanguards are enabled.
-    pub(super) l3_vanguards: VanguardSet,
+    l3_vanguards: VanguardSet,
 }
 
 impl VanguardSets {
@@ -325,19 +325,11 @@ fn select_lifetime<Rng: RngCore>(
 }
 
 impl VanguardSet {
-    /// Create a new vanguard set with the specified target size.
-    pub(super) fn new(target: usize) -> Self {
-        Self {
-            vanguards: Default::default(),
-            target,
-        }
-    }
-
     /// Pick a relay from this set.
     ///
     /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
     /// for more information.
-    pub(super) fn pick_relay<'a, R: RngCore>(
+    fn pick_relay<'a, R: RngCore>(
         &self,
         rng: &mut R,
         netdir: &'a NetDir,
@@ -364,32 +356,32 @@ impl VanguardSet {
     }
 
     /// The number of vanguards we're missing.
-    pub(super) fn deficit(&self) -> usize {
+    fn deficit(&self) -> usize {
         self.target.saturating_sub(self.vanguards.len())
     }
 
     /// Add a vanguard to this set.
-    pub(super) fn add_vanguard(&mut self, v: TimeBoundVanguard) {
+    fn add_vanguard(&mut self, v: TimeBoundVanguard) {
         self.vanguards.push(v);
     }
 
     /// Remove the vanguards that are no longer listed in `netdir`
-    pub(super) fn remove_unlisted(&mut self, netdir: &NetDir) -> bool {
+    fn remove_unlisted(&mut self, netdir: &NetDir) -> bool {
         self.retain(|v| netdir.ids_listed(&v.id) != Some(false))
     }
 
     /// Remove the vanguards that are expired at the specified timestamp.
-    pub(super) fn remove_expired(&mut self, now: SystemTime) -> bool {
+    fn remove_expired(&mut self, now: SystemTime) -> bool {
         self.retain(|v| v.when > now)
     }
 
     /// Find the timestamp of the vanguard that is due to expire next.
-    pub(super) fn next_expiry(&self) -> Option<SystemTime> {
+    fn next_expiry(&self) -> Option<SystemTime> {
         self.vanguards.iter().map(|v| v.when).min()
     }
 
     /// Update the target size of this set, discarding or requesting additional vanguards if needed.
-    pub(super) fn update_target(&mut self, target: usize) {
+    fn update_target(&mut self, target: usize) {
         self.target = target;
     }
 
