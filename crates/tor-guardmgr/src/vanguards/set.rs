@@ -72,6 +72,14 @@ pub(super) struct VanguardSets {
 }
 
 impl VanguardSets {
+    /// Return a [`VanguardSetsTrackedMut`] for mutating the vanguard sets.
+    pub(super) fn as_mut(&mut self) -> VanguardSetsTrackedMut {
+        VanguardSetsTrackedMut {
+            inner: self,
+            changed: false,
+        }
+    }
+
     /// Find the timestamp of the vanguard that is due to expire next.
     pub(super) fn next_expiry(&self) -> Option<SystemTime> {
         let l2_expiry = self.l2_vanguards.next_expiry();
@@ -110,6 +118,52 @@ impl VanguardSets {
     ) -> Option<Vanguard<'a>> {
         self.l3_vanguards
             .pick_relay(rng, netdir, neighbor_exclusion)
+    }
+}
+
+/// A handle that can be used to mutate a [`VanguardSets`] instance.
+///
+/// It keeps track of whether the `VanguardSets` was modified or not.
+///
+/// When running in full vanguards mode, [`VanguardMgr`](super::VanguardMgr)
+/// uses this to decide whether the vanguard sets are "dirty"
+/// and need to be flushed to disk.
+pub(super) struct VanguardSetsTrackedMut<'a> {
+    /// The underlying `VanguardSets`.
+    inner: &'a mut VanguardSets,
+    /// Whether the [`VanguardSets`] was mutated.
+    changed: bool,
+}
+
+impl<'a> VanguardSetsTrackedMut<'a> {
+    /// Whether the underlying [`VanguardSets`] has changed.
+    pub(super) fn has_changes(&self) -> bool {
+        self.changed
+    }
+
+    /// Remove the vanguards that are expired at the specified timestamp.
+    pub(super) fn remove_expired(&mut self, now: SystemTime) {
+        let l2_changed = self.inner.l2_vanguards.remove_expired(now);
+        let l3_changed = self.inner.l3_vanguards.remove_expired(now);
+
+        self.update_changed(l2_changed || l3_changed);
+    }
+
+    /// Remove the vanguards that are no longer listed in `netdir`.
+    ///
+    /// Returns whether either of the two sets have changed.
+    pub(super) fn remove_unlisted(&mut self, netdir: &NetDir) {
+        let l2_changed = self.inner.l2_vanguards.remove_unlisted(netdir);
+        let l3_changed = self.inner.l3_vanguards.remove_unlisted(netdir);
+
+        self.update_changed(l2_changed || l3_changed);
+    }
+
+    /// Set the `changed` flag if `new_changed` is `true`.
+    ///
+    /// If `changed` is already `true`, it won't be set back to `false`.
+    fn update_changed(&mut self, new_changed: bool) {
+        self.changed = self.changed || new_changed;
     }
 }
 
