@@ -60,7 +60,7 @@ impl VanguardSet {
     /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
     /// for more information.
     pub(super) fn pick_relay<'a, R: RngCore>(
-        &mut self,
+        &self,
         rng: &mut R,
         netdir: &'a NetDir,
         neighbor_exclusion: &RelayExclusion<'a>,
