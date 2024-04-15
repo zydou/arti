@@ -144,8 +144,9 @@ impl<R: Runtime> VanguardMgr<R> {
 
     /// Launch the vanguard pool management tasks.
     ///
-    /// This spawns [`VanguardMgr::maintain_vanguard_sets`]
-    /// which runs until the `VanguardMgr` is dropped.
+    /// These run until the `VanguardMgr` is dropped.
+    //
+    // This spawns [`VanguardMgr::maintain_vanguard_sets`].
     pub fn launch_background_tasks(
         self: &Arc<Self>,
         netdir_provider: &Arc<dyn NetDirProvider>,
