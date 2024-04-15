@@ -1,6 +1,43 @@
 #!/usr/bin/env bash
+#
+# Build every fuzzer; run them on the testing corpus, and then run them
+# in a loop.
 
 set -euo pipefail
+
+usage() {
+    echo "Usage: $0 [-d <minutes>] [-n] [-h]"
+    echo "  -d <minutes>: Switch fuzzers every <minutes>."
+    echo "  -h          : Display this message and exit."
+    echo "  -n          : Stop after building fuzzers and testing corpus."
+    echo "  -u          : Update Cargo.lock files in fuzz directories."
+}
+
+RUN_FUZZERS=yes
+DURATION=20
+UPDATE=no
+
+while getopts "d:hnu" opt; do
+    case "$opt" in
+	h)
+	    usage
+	    exit 0
+	    ;;
+	n)
+	    RUN_FUZZERS=no
+	    ;;
+	d)
+	    DURATION="$OPTARG"
+	    ;;
+	u)
+	    UPDATE=yes
+	    ;;
+	*)
+	    usage
+	    exit 1;
+	    ;;
+    esac
+done
 
 echo "Using toolchain +${RUST_FUZZ_TOOLCHAIN:=nightly}. (Override with \$RUST_FUZZ_TOOLCHAIN)"
 
@@ -8,19 +45,55 @@ echo "Using toolchain +${RUST_FUZZ_TOOLCHAIN:=nightly}. (Override with \$RUST_FU
 # if it itsn't.
 cargo "+${RUST_FUZZ_TOOLCHAIN}" -h >/dev/null
 
+# Validate that "cargo fuzz" is installed.
+cargo "+${RUST_FUZZ_TOOLCHAIN}" fuzz --help>/dev/null
+
+
+# Chdir to the source root diretory, and make sure we have the corpora checked out.
+cd "$(dirname "$0")/.."
+
+if ! test -d "./arti-corpora"; then
+    echo "Did not find 'arti-corpora' directory in $(pwd). Cannot proceed." 1>&2
+    exit 1
+fi
+
+
+# STEP 1: Build every fuzzer.
 for d in ./crates/*/fuzz; do
     pushd "$(dirname "$d")"
+    if test "$UPDATE" = yes; then
+	cargo update
+    fi
     for fuzzer in $(cargo fuzz list); do
-	echo "$fuzzer"
+
+	# TODO: Should we do a cargo update? for the fuzzer's cargo.lock?
 	cargo "+${RUST_FUZZ_TOOLCHAIN}" fuzz build "$fuzzer"
     done
     popd
 done
 
+# STEP 2: Run static test cases
+
+for d in ./crates/*/fuzz; do
+    pushd "$(dirname "$d")"
+    for fuzzer in $(cargo fuzz list); do
+	echo "Running fuzzer '$fuzzer' on static testcases"
+	# "-runs=0" means that we won't actually do any additional fuzzing
+	# after we load the corpus.
+	cargo "+${RUST_FUZZ_TOOLCHAIN}" fuzz run "$fuzzer" -- \
+	      -runs=0
+    done
+    popd
+done
+
+if test "$RUN_FUZZERS" = "no"; then
+    exit 0
+fi
+
+# STEP 3: Run every fuzzer in a loop, for a while, then switch to the next one.
 
 #JOBS=4
 #SEED=0
-DURATION=20
 
 while true; do
     for d in ./crates/*/fuzz; do
