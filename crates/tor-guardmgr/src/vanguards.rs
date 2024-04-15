@@ -329,7 +329,7 @@ impl<R: Runtime> VanguardMgr<R> {
         };
 
         let now = mgr.runtime.wallclock();
-        let next_to_expire = mgr.remove_expired(now)?;
+        let next_to_expire = mgr.rotate_expired(&netdir_provider, now)?;
         // A future that sleeps until the next vanguard expires
         let sleep_fut = async {
             if let Some(dur) = next_to_expire {
@@ -338,26 +338,6 @@ impl<R: Runtime> VanguardMgr<R> {
                 future::pending::<()>().await;
             }
         };
-
-        // TODO HS-VANGUARDS: We should only be calling replenish_vanguards
-        // if we expired some vanguards in a previous iteration.
-        //
-        // The unconditional call to replenish_vanguards will become problematic
-        // when we add support for full vanguards:
-        // the changes will need to be flushed to disk, so we will need to:
-        //
-        //   * know if the sets have changed (because otherwise there is no point in flushing)
-        //   * only call replenish_vanguards in response to a netdir change,
-        //     or after expiring some vanguards
-        if let Some(netdir) = Self::timely_netdir(&netdir_provider)? {
-            // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
-            let params = VanguardParams::try_from(netdir.params())
-                .map_err(into_internal!("invalid NetParameters"))?;
-            let mut inner = mgr.inner.write().expect("poisoned lock");
-            let mode = inner.mode();
-            let mut vanguard_sets = inner.vanguard_sets.as_mut();
-            vanguard_sets.replenish_vanguards(&mgr.runtime, &netdir, &params, mode)?;
-        }
 
         select_biased! {
             event = netdir_events.next().fuse() => {
@@ -391,15 +371,30 @@ impl<R: Runtime> VanguardMgr<R> {
         }
     }
 
-    /// Remove the vanguards that have expired,
+    /// Rotate the vanguards that have expired,
     /// returning how long until the next vanguard will expire,
     /// or `None` if there are no vanguards in any of our sets.
-    fn remove_expired(&self, now: SystemTime) -> Result<Option<Duration>, VanguardMgrError> {
+    fn rotate_expired(
+        &self,
+        netdir_provider: &Arc<dyn NetDirProvider>,
+        now: SystemTime,
+    ) -> Result<Option<Duration>, VanguardMgrError> {
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
         let mut vanguard_sets = inner.vanguard_sets.as_mut();
         vanguard_sets.remove_expired(now);
+
+        if vanguard_sets.has_changes() {
+            if let Some(netdir) = Self::timely_netdir(netdir_provider)? {
+                // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
+                inner
+                    // TODO HS-VANGUARDS: handle_netdir_update() should be renamed, because it's
+                    // used for more than just handling NetDir changes (it's also used for
+                    // replenishing the vanguard sets)
+                    .handle_netdir_update(&self.runtime, &netdir)?;
+            }
+        }
 
         let Some(expiry) = inner.vanguard_sets.next_expiry() else {
             // Both vanguard sets are empty
