@@ -120,14 +120,13 @@ impl VanguardSet {
     }
 
     /// Remove the vanguards that are no longer listed in `netdir`
-    pub(super) fn remove_unlisted(&mut self, netdir: &NetDir) {
-        self.vanguards
-            .retain(|v| netdir.ids_listed(&v.id) != Some(false));
+    pub(super) fn remove_unlisted(&mut self, netdir: &NetDir) -> bool {
+        self.retain(|v| netdir.ids_listed(&v.id) != Some(false))
     }
 
     /// Remove the vanguards that are expired at the specified timestamp.
-    pub(super) fn remove_expired(&mut self, now: SystemTime) {
-        self.vanguards.retain(|v| v.when > now);
+    pub(super) fn remove_expired(&mut self, now: SystemTime) -> bool {
+        self.retain(|v| v.when > now)
     }
 
     /// Find the timestamp of the vanguard that is due to expire next.
@@ -138,6 +137,16 @@ impl VanguardSet {
     /// Update the target size of this set, discarding or requesting additional vanguards if needed.
     pub(super) fn update_target(&mut self, target: usize) {
         self.target = target;
+    }
+
+    /// A wrapper around [`Vec::retain`] that returns whether any values were discarded.
+    fn retain<F>(&mut self, f: F) -> bool
+    where
+        F: FnMut(&TimeBoundVanguard) -> bool,
+    {
+        let old_len = self.vanguards.len();
+        self.vanguards.retain(f);
+        self.vanguards.len() < old_len
     }
 }
 
