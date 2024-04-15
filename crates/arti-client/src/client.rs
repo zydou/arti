@@ -1240,6 +1240,20 @@ impl<R: Runtime> TorClient<R> {
         &self.chanmgr
     }
 
+    /// Return a reference to this client's circuit pool.
+    ///
+    /// This function is unstable. It is only enabled if the crate was
+    /// built with the `experimental-api` feature and any of `onion-service-client`
+    /// or `onion-service-service` features. This method is required to invoke
+    /// tor_hsservice::OnionService::launch()
+    #[cfg(all(
+        feature = "experimental-api",
+        any(feature = "onion-service-client", feature = "onion-service-service")
+    ))]
+    pub fn hs_circ_pool(&self) -> &Arc<tor_circmgr::hspool::HsCircPool<R>> {
+        &self.hs_circ_pool
+    }
+
     /// Return a reference to the runtime being used by this client.
     //
     // This API is not a hostage to fortune since we already require that R: Clone,
