@@ -217,7 +217,7 @@ impl<R: Runtime> VanguardMgr<R> {
     ) -> Result<Vanguard<'a>, VanguardMgrError> {
         use VanguardMode::*;
 
-        let mut inner = self.inner.write().expect("poisoned lock");
+        let inner = self.inner.read().expect("poisoned lock");
 
         // TODO HS-VANGUARDS: code smell.
         //
@@ -235,8 +235,8 @@ impl<R: Runtime> VanguardMgr<R> {
 
         // TODO HS-VANGUARDS: come up with something with better UX
         let vanguard_set = match (layer, inner.mode()) {
-            (Layer::Layer2, Full) | (Layer::Layer2, Lite) => &mut inner.l2_vanguards,
-            (Layer::Layer3, Full) => &mut inner.l3_vanguards,
+            (Layer::Layer2, Full) | (Layer::Layer2, Lite) => &inner.l2_vanguards,
+            (Layer::Layer3, Full) => &inner.l3_vanguards,
             // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
             _ => {
                 return Err(internal!(

@@ -1,6 +1,5 @@
 //! Vanguard sets
 
-use std::cmp::Ordering;
 use std::time::SystemTime;
 
 use rand::{seq::SliceRandom as _, RngCore};
@@ -37,33 +36,7 @@ pub(crate) struct TimeBoundVanguard {
     pub(super) when: SystemTime,
 }
 
-// TODO(#1342): derive all of these?
-impl Ord for TimeBoundVanguard {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // Reversed, because we want the earlier
-        // `TimeBoundVanguard` to be "greater".
-        self.when.cmp(&other.when).reverse()
-    }
-}
-
-impl PartialOrd for TimeBoundVanguard {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for TimeBoundVanguard {
-    fn eq(&self, other: &Self) -> bool {
-        self.when == other.when
-    }
-}
-
-impl Eq for TimeBoundVanguard {}
-
 /// A set of vanguards, for use in a particular [`Layer`](crate::vanguards::Layer).
-///
-/// This structure is just a view over the vanguards owned by VanguardMgr.
-/// It does **not** own the vanguards.
 #[derive(Debug, Clone)] //
 #[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
@@ -87,7 +60,7 @@ impl VanguardSet {
     /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
     /// for more information.
     pub(super) fn pick_relay<'a, R: RngCore>(
-        &mut self,
+        &self,
         rng: &mut R,
         netdir: &'a NetDir,
         neighbor_exclusion: &RelayExclusion<'a>,
