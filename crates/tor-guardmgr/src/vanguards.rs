@@ -22,7 +22,7 @@ use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_relay_selection::RelayExclusion;
 use tor_rtcompat::Runtime;
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{RetireCircuits, VanguardMode};
 
@@ -63,6 +63,13 @@ struct Inner {
     ///
     /// The vanguard sets are updated and persisted to storage by
     /// [`handle_netdir_update`](Inner::handle_netdir_update).
+    ///
+    /// This is initialized with the vanguard sets read from the vanguard state file,
+    /// if the file exists, or with a [`Default`] `VanguardSets`, if it doesn't.
+    ///
+    /// Note: The `VanguardSets` are read from the vanguard state file
+    /// even if full vanguards are not enabled. They are *not*, however, written
+    /// to the state file unless full vanguards are in use.
     vanguard_sets: VanguardSets,
     /// Whether we're running an onion service.
     ///
@@ -140,18 +147,30 @@ impl<R: Runtime> VanguardMgr<R> {
         let params = VanguardParams::default();
         let storage: DynStorageHandle<VanguardSets> = state_mgr.create_handle(STORAGE_KEY);
 
-        // Initially, all sets have a target size of 0.
-        // This is OK because the target is only used for repopulating the vanguard sets,
-        // and we can't repopulate the sets without a netdir.
-        // The target gets adjusted once we obtain a netdir.
-        let vanguard_sets = Default::default();
+        let vanguard_sets = match storage.load()? {
+            Some(mut sets) => {
+                info!("loading vanguards from vanguard state file");
+                // Discard the now-expired the vanguards
+                let now = runtime.wallclock();
+                let _ = sets.as_mut().remove_expired(now);
+                sets
+            }
+            None => {
+                debug!("vanguard state file not found, selecting new vanguards");
+                // Initially, all sets have a target size of 0.
+                // This is OK because the target is only used for repopulating the vanguard sets,
+                // and we can't repopulate the sets without a netdir.
+                // The target gets adjusted once we obtain a netdir.
+                Default::default()
+            }
+        };
+
         let inner = Inner {
             params,
             vanguard_sets,
             has_onion_svc,
         };
 
-        // TODO HS-VANGUARDS: read the vanguards from disk if mode == VanguardsMode::Full
         Ok(Self {
             inner: RwLock::new(inner),
             runtime,
