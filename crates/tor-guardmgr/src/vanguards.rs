@@ -59,7 +59,7 @@ struct Inner {
     /// Whether we're running an onion service.
     ///
     /// Used for deciding whether to use the `vanguards_hs_service` or the
-    /// `vanguards_enabled` [`NetParameter`](tor_netdir::params::NetParameter).
+    /// `vanguards_enabled` [`NetParameter`](tor_netdir::params::NetParameters).
     has_onion_svc: bool,
 }
 
@@ -144,8 +144,9 @@ impl<R: Runtime> VanguardMgr<R> {
 
     /// Launch the vanguard pool management tasks.
     ///
-    /// This spawns [`VanguardMgr::maintain_vanguard_sets`]
-    /// which runs until the `VanguardMgr` is dropped.
+    /// These run until the `VanguardMgr` is dropped.
+    //
+    // This spawns [`VanguardMgr::maintain_vanguard_sets`].
     pub fn launch_background_tasks(
         self: &Arc<Self>,
         netdir_provider: &Arc<dyn NetDirProvider>,
