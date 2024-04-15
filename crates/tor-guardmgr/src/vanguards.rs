@@ -411,16 +411,6 @@ impl<R: Runtime> VanguardMgr<R> {
     pub fn mode(&self) -> VanguardMode {
         self.inner.read().expect("poisoned lock").mode()
     }
-
-    /// Flush the vanguard sets to storage, if the mode is "vanguards-full".
-    #[allow(unused)] // TODO HS-VANGUARDS
-    fn flush_to_storage(&self) -> Result<(), VanguardMgrError> {
-        let mode = self.inner.read().expect("poisoned lock").mode();
-        match mode {
-            VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
-            VanguardMode::Full => todo!(),
-        }
-    }
 }
 
 impl Inner {
@@ -484,6 +474,21 @@ impl Inner {
             )
         } else {
             self.params.vanguards_enabled()
+        }
+    }
+
+    /// Flush the vanguard sets to storage, if the mode is "vanguards-full".
+    #[allow(unused)] // TODO HS-VANGUARDS
+    fn flush_to_storage(
+        &self,
+        storage: &DynStorageHandle<VanguardSets>,
+    ) -> Result<(), VanguardMgrError> {
+        match self.mode() {
+            VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
+            VanguardMode::Full => {
+                debug!("the vanguards have changed; flushing vanguards to vanguard state file");
+                Ok(storage.store(&self.vanguard_sets)?)
+            }
         }
     }
 }
