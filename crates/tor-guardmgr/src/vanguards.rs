@@ -556,12 +556,21 @@ mod test {
 
     use tor_basic_utils::test_rng::testing_rng;
     use tor_linkspec::{HasRelayIds, RelayIds};
-    use tor_netdir::{testnet, testprovider::TestNetDirProvider};
+    use tor_netdir::{
+        testnet::{self, construct_custom_netdir_with_params},
+        testprovider::TestNetDirProvider,
+    };
     use tor_persist::TestingStateMgr;
     use tor_rtmock::MockRuntime;
     use Layer::*;
 
     use itertools::Itertools;
+
+    /// Enable lite vanguards for onion services.
+    const ENABLE_LITE_VANGUARDS: [(&str, i32); 1] = [("vanguards-hs-service", 1)];
+
+    /// Enable full vanguards for hidden services.
+    const ENABLE_FULL_VANGUARDS: [(&str, i32); 1] = [("vanguards-hs-service", 2)];
 
     impl fmt::Debug for Vanguard<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -585,6 +594,8 @@ mod test {
     fn new_vanguard_mgr<R: Runtime>(rt: &R, has_onion_svc: bool) -> Arc<VanguardMgr<R>> {
         let config = Default::default();
         let statemgr = TestingStateMgr::new();
+        let lock = statemgr.try_lock().unwrap();
+        assert!(lock.held());
         Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, has_onion_svc).unwrap())
     }
 
@@ -823,6 +834,55 @@ mod test {
         new_params
     }
 
+    /// Switch the vanguard "mode" of the VanguardMgr to `mode`,
+    /// by setting the vanguards-hs-service parameter.
+    async fn switch_hs_mode(
+        rt: &MockRuntime,
+        vanguardmgr: &VanguardMgr<MockRuntime>,
+        netdir_provider: &TestNetDirProvider,
+        mode: VanguardMode,
+    ) {
+        use VanguardMode::*;
+
+        let _params = match mode {
+            Lite => install_new_params(rt, netdir_provider, ENABLE_LITE_VANGUARDS).await,
+            Full => install_new_params(rt, netdir_provider, ENABLE_FULL_VANGUARDS).await,
+            Disabled => panic!("cannot disable vanguards in the vanguard tests!"),
+        };
+
+        assert_eq!(vanguardmgr.mode(), mode);
+    }
+
+    /// Use a new NetDir that excludes one of our L2 vanguards
+    async fn install_netdir_excluding_vanguard<'a>(
+        runtime: &MockRuntime,
+        vanguard: &Vanguard<'_>,
+        params: impl IntoIterator<Item = (&'a str, i32)>,
+        netdir_provider: &TestNetDirProvider,
+    ) -> NetDir {
+        let new_netdir = construct_custom_netdir_with_params(
+            |_idx, bld| {
+                let md_so_far = bld.md.testing_md().unwrap();
+                if md_so_far.ed25519_id() == vanguard.relay().id() {
+                    bld.omit_rs = true;
+                }
+            },
+            params,
+            None,
+        )
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
+        netdir_provider
+            .set_netdir_and_notify(new_netdir.clone())
+            .await;
+        // Wait until the vanguard mgr has finished handling the new netdir.
+        runtime.progress_until_stalled().await;
+
+        new_netdir
+    }
+
     #[test]
     fn override_vanguard_set_size() {
         MockRuntime::test_with_various(|rt| async move {
@@ -953,6 +1013,82 @@ mod test {
                 let l2_count = inner.l2_vanguards().len();
                 assert_eq!(l2_count, new_params.l2_pool_size());
             }
+        });
+    }
+
+    #[test]
+    fn full_vanguards_persistence() {
+        MockRuntime::test_with_various(|rt| async move {
+            let vanguardmgr = new_vanguard_mgr(&rt, true);
+
+            let netdir =
+                construct_custom_netdir_with_params(|_, _| {}, ENABLE_LITE_VANGUARDS, None)
+                    .unwrap()
+                    .unwrap_if_sufficient()
+                    .unwrap();
+            let netdir_provider =
+                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+
+            // Full vanguards are not enabled, so we don't expect anything to be written
+            // to persistent storage.
+            assert_eq!(vanguardmgr.mode(), VanguardMode::Lite);
+            assert!(vanguardmgr.storage.load().unwrap().is_none());
+
+            let mut rng = testing_rng();
+            let exclusion = RelayExclusion::no_relays_excluded();
+            assert!(vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
+                .is_err());
+
+            // Enable full vanguards again.
+            //
+            // We expect VanguardMgr to populate the L3 set, and write the VanguardSets to storage.
+            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Full).await;
+
+            let vanguard_sets_orig = vanguardmgr.storage.load().unwrap();
+            assert!(vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
+                .is_ok());
+
+            // Switch to lite vanguards.
+            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Lite).await;
+
+            // The vanguard sets should not change when switching between lite and full vanguards.
+            assert_eq!(vanguard_sets_orig, vanguardmgr.storage.load().unwrap());
+            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Full).await;
+            assert_eq!(vanguard_sets_orig, vanguardmgr.storage.load().unwrap());
+
+            // TODO HS-VANGUARDS: we may want to disable the ability to switch back to lite
+            // vanguards.
+
+            // Switch to lite vanguards and remove a relay from the consensus.
+            // The relay should *not* be persisted to storage until we switch back to full
+            // vanguards.
+            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Lite).await;
+
+            let mut rng = testing_rng();
+            let exclusion = RelayExclusion::no_relays_excluded();
+            let excluded_vanguard = vanguardmgr
+                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .unwrap();
+
+            let _ = install_netdir_excluding_vanguard(
+                &rt,
+                &excluded_vanguard,
+                ENABLE_LITE_VANGUARDS,
+                &netdir_provider,
+            )
+            .await;
+
+            // The vanguard sets from storage haven't changed, because we are in "lite" mode.
+            assert_eq!(vanguard_sets_orig, vanguardmgr.storage.load().unwrap());
+            let _ = install_netdir_excluding_vanguard(
+                &rt,
+                &excluded_vanguard,
+                ENABLE_FULL_VANGUARDS,
+                &netdir_provider,
+            )
+            .await;
         });
     }
 }
