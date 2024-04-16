@@ -888,7 +888,24 @@ mod test {
 
             // Wait until more vanguards expire. This will reduce the set size to 1
             // (the new target size we set by overriding the params).
-            rt.advance_until_stalled().await;
+            for _ in 0..initial_l2_number - 1 {
+                let vanguard_id = {
+                    let inner = vanguardmgr.inner.read().unwrap();
+                    let next_expiry = inner.vanguard_sets.next_expiry().unwrap();
+                    inner
+                        .l2_vanguards()
+                        .iter()
+                        .find(|v| v.when == next_expiry)
+                        .cloned()
+                        .unwrap()
+                        .id
+                };
+                let lifetime = duration_until_expiry(&vanguard_id, &vanguardmgr, &rt, Layer2);
+                rt.advance_by(lifetime).await.unwrap();
+
+                rt.progress_until_stalled().await;
+            }
+
             assert_eq!(vanguard_count(&vanguardmgr), new_params.l2_pool_size());
 
             // Update the L2 set size again, to force the vanguard manager to replenish the L2 set.
