@@ -582,10 +582,10 @@ mod test {
     }
 
     /// Create a new VanguardMgr for testing.
-    fn new_vanguard_mgr<R: Runtime>(rt: &R) -> Arc<VanguardMgr<R>> {
+    fn new_vanguard_mgr<R: Runtime>(rt: &R, has_onion_svc: bool) -> Arc<VanguardMgr<R>> {
         let config = Default::default();
         let statemgr = TestingStateMgr::new();
-        Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, false).unwrap())
+        Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, has_onion_svc).unwrap())
     }
 
     /// Look up the vanguard in the specified VanguardSet.
@@ -720,7 +720,7 @@ mod test {
     #[test]
     fn full_vanguards_disabled() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt);
+            let vanguardmgr = new_vanguard_mgr(&rt, false);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
@@ -736,7 +736,7 @@ mod test {
     #[test]
     fn background_task_not_spawned() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt);
+            let vanguardmgr = new_vanguard_mgr(&rt, false);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
@@ -760,7 +760,7 @@ mod test {
     #[test]
     fn select_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt);
+            let vanguardmgr = new_vanguard_mgr(&rt, false);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let mut rng = testing_rng();
@@ -827,7 +827,7 @@ mod test {
     #[test]
     fn override_vanguard_set_size() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt);
+            let vanguardmgr = new_vanguard_mgr(&rt, false);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             // Wait until the vanguard manager has bootstrapped
             let netdir_provider =
@@ -870,7 +870,7 @@ mod test {
     #[test]
     fn expire_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt);
+            let vanguardmgr = new_vanguard_mgr(&rt, false);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let initial_l2_number = params.l2_pool_size();
