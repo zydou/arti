@@ -343,7 +343,8 @@ impl<R: Runtime> VanguardMgr<R> {
             event = netdir_events.next().fuse() => {
                 if let Some(DirEvent::NewConsensus) = event {
                     let netdir = netdir_provider.netdir(Timeliness::Timely)?;
-                    mgr.inner.write().expect("poisoned lock").handle_netdir_update(&mgr.runtime, &mgr.storage, &netdir)?;
+                    mgr.inner.write().expect("poisoned lock")
+                        .handle_netdir_update(&mgr.runtime, &mgr.storage, &netdir)?;
                 }
 
                 Ok(ShutdownStatus::Continue)
