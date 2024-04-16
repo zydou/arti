@@ -407,8 +407,7 @@ impl<R: Runtime> VanguardMgr<R> {
         if vanguard_sets.has_changes() {
             if let Some(netdir) = Self::timely_netdir(netdir_provider)? {
                 // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
-                inner
-                    .update_vanguard_sets(&self.runtime, &self.storage, &netdir)?;
+                inner.update_vanguard_sets(&self.runtime, &self.storage, &netdir)?;
             }
         }
 
