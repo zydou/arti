@@ -38,7 +38,7 @@ pub struct Vanguard<'a> {
 /// by [`VanguardMgr`](crate::vanguards::VanguardMgr) as soon as they expire.
 /// If [Full](crate::vanguards::VanguardMode) vanguards are in use,
 /// the `TimeBoundVanguard`s from all layers are persisted to disk.
-#[derive(Debug, Clone, Serialize, Deserialize)] //
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)] //
 pub(crate) struct TimeBoundVanguard {
     /// The ID of this relay.
     pub(super) id: RelayIds,
@@ -52,7 +52,7 @@ pub(crate) struct TimeBoundVanguard {
 ///
 /// Upon obtaining a `NetDir`, users of this type should update the target
 /// based on the the current [`NetParameters`](tor_netdir::params::NetParameters).
-#[derive(Default, Debug, Clone)] //
+#[derive(Default, Debug, Clone, PartialEq)] //
 #[derive(Serialize, Deserialize)] //
 #[serde(transparent)]
 #[allow(unused)] // TODO HS-VANGUARDS
@@ -69,7 +69,7 @@ struct VanguardSet {
 
 /// The L2 and L3 vanguard sets,
 /// stored in the same struct to simplify serialization.
-#[derive(Default, Debug, Clone)] //
+#[derive(Default, Debug, Clone, PartialEq)] //
 #[derive(Deftly, Serialize, Deserialize)] //
 #[derive_deftly_adhoc]
 pub(super) struct VanguardSets {
