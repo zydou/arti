@@ -760,7 +760,7 @@ mod test {
     #[test]
     fn select_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, true);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let mut rng = testing_rng();
@@ -788,12 +788,11 @@ mod test {
                     .collect(),
             );
 
-            // TODO HS-VANGUARDS: use Layer3 once full vanguard support is implemented.
             let vanguard2 = vanguardmgr
-                .select_vanguard(&mut rng, &netdir, Layer2, &exclusion)
+                .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
                 .unwrap();
 
-            assert_expiry_in_bounds(&vanguard2, &vanguardmgr, &rt, &params, Layer2);
+            assert_expiry_in_bounds(&vanguard2, &vanguardmgr, &rt, &params, Layer3);
             // Ensure we didn't select the same vanguard twice
             assert_ne!(
                 vanguard1.relay().identities().collect_vec(),
