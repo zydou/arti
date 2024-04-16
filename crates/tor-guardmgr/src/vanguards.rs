@@ -297,8 +297,8 @@ impl<R: Runtime> VanguardMgr<R> {
     /// The vanguard set management task.
     ///
     /// This is a background task that:
-    /// * removes vanguards from the L2 and L3 [`VanguardSet`]s when they expire
-    /// * ensures the [`VanguardSet`]s are repopulated with new vanguards
+    /// * removes vanguards from the L2 and L3 vanguard sets when they expire
+    /// * ensures the vanguard sets are repopulated with new vanguards
     ///   when the number of vanguards drops below a certain threshold
     /// * handles `NetDir` changes, updating the vanguard set sizes as needed
     async fn maintain_vanguard_sets(mgr: Weak<Self>, netdir_provider: Weak<dyn NetDirProvider>) {
@@ -332,7 +332,7 @@ impl<R: Runtime> VanguardMgr<R> {
 
     /// Wait until a vanguard expires or until there is a new [`NetDir`].
     ///
-    /// This populates the L2 and L3 [`VanguardSet`]s,
+    /// This populates the L2 and L3 vanguard sets,
     /// and rotates the vanguards when their lifetime expires.
     ///
     /// Note: the L3 set is only populated with vanguards if
@@ -435,7 +435,7 @@ impl<R: Runtime> VanguardMgr<R> {
 impl Inner {
     /// Handle potential vanguard parameter changes.
     ///
-    /// This updates the [`VanguardSet`]s based on the [`VanguardParams`]
+    /// This updates the [`VanguardSets`]s based on the [`VanguardParams`]
     /// derived from the new `NetDir`.
     ///
     /// NOTE: if the new `VanguardParams` specify different lifetime ranges
