@@ -183,6 +183,7 @@
 #![allow(dead_code, unused_imports, unused_macros, unused_variables)] // XXXX
 
 // Internal supporting modules
+mod drop_reentrancy;
 mod internal_prelude;
 #[macro_use]
 mod refcount;
