@@ -62,7 +62,7 @@ struct Inner {
     /// vanuards are rotated, added, or removed.
     ///
     /// The vanguard sets are updated and persisted to storage by
-    /// [`handle_netdir_update`](Inner::handle_netdir_update).
+    /// [`update_vanguard_sets`](Inner::update_vanguard_sets).
     ///
     /// This is initialized with the vanguard sets read from the vanguard state file,
     /// if the file exists, or with a [`Default`] `VanguardSets`, if it doesn't.
@@ -363,7 +363,7 @@ impl<R: Runtime> VanguardMgr<R> {
                 if let Some(DirEvent::NewConsensus) = event {
                     let netdir = netdir_provider.netdir(Timeliness::Timely)?;
                     mgr.inner.write().expect("poisoned lock")
-                        .handle_netdir_update(&mgr.runtime, &mgr.storage, &netdir)?;
+                        .update_vanguard_sets(&mgr.runtime, &mgr.storage, &netdir)?;
                 }
 
                 Ok(ShutdownStatus::Continue)
@@ -408,10 +408,7 @@ impl<R: Runtime> VanguardMgr<R> {
             if let Some(netdir) = Self::timely_netdir(netdir_provider)? {
                 // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
                 inner
-                    // TODO HS-VANGUARDS: handle_netdir_update() should be renamed, because it's
-                    // used for more than just handling NetDir changes (it's also used for
-                    // replenishing the vanguard sets)
-                    .handle_netdir_update(&self.runtime, &self.storage, &netdir)?;
+                    .update_vanguard_sets(&self.runtime, &self.storage, &netdir)?;
             }
         }
 
@@ -433,10 +430,10 @@ impl<R: Runtime> VanguardMgr<R> {
 }
 
 impl Inner {
-    /// Handle potential vanguard parameter changes.
+    /// Update the vanguard sets, handling any potential vanguard parameter changes.
     ///
     /// This updates the [`VanguardSets`]s based on the [`VanguardParams`]
-    /// derived from the new `NetDir`.
+    /// derived from the new `NetDir`, replenishing the sets if necessary.
     ///
     /// NOTE: if the new `VanguardParams` specify different lifetime ranges
     /// than the previous `VanguardParams`, the new lifetime requirements only
@@ -446,7 +443,7 @@ impl Inner {
     // TODO(#1352): we might want to revisit this decision.
     // We could, for example, adjust the lifetime of our existing vanguards
     // to comply with the new lifetime requirements.
-    fn handle_netdir_update<R: Runtime>(
+    fn update_vanguard_sets<R: Runtime>(
         &mut self,
         runtime: &R,
         storage: &DynStorageHandle<VanguardSets>,
