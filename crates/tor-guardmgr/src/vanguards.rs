@@ -64,6 +64,20 @@ struct Inner {
     /// The vanguard sets are updated and persisted to storage by
     /// [`update_vanguard_sets`](Inner::update_vanguard_sets).
     ///
+    /// If the `VanguardSets` change while we are in "lite" mode,
+    /// the changes will not *not* be written to storage.
+    /// If we later switch to "full" vanguards, those previous changes still
+    /// won't be persisted to storage: we only flush to storage if the
+    /// [`VanguardSets`] change *while* we are in "full" mode
+    /// (changing the [`VanguardMode`] does not consistute a change in the `VanguardSets`).
+    //
+    // TODO HS-VANGUARDS: the correct behaviour here might be to never switch back to lite mode
+    // after enabling full vanguards. If we do that, persisting the vanguard sets will be simpler,
+    // as we can just unconditionally flush to storage if the vanguard mode is switched to full.
+    // Right now we can't do that, because we don't remember the "mode":
+    // we derive it on the fly from `has_onion_svc` and the current `VanguardParams`.
+    //
+    ///
     /// This is initialized with the vanguard sets read from the vanguard state file,
     /// if the file exists, or with a [`Default`] `VanguardSets`, if it doesn't.
     ///
