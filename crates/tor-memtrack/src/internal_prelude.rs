@@ -54,5 +54,6 @@ pub(crate) use {
 };
 
 pub(crate) use crate::{
+    config::Config,
     utils::{DefaultExtTake, Qty},
 };

@@ -185,3 +185,11 @@
 // Internal supporting modules
 mod internal_prelude;
 mod utils;
+
+// Modules with public items
+mod config;
+pub mod mtracker;
+
+//---------- re-exports at the crate root ----------
+
+pub use config::{Config, ConfigBuilder};
