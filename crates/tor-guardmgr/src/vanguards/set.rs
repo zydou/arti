@@ -13,7 +13,7 @@ use tor_linkspec::{HasRelayIds as _, RelayIdSet, RelayIds};
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{LowLevelRelayPredicate as _, RelayExclusion, RelaySelector, RelayUsage};
 use tor_rtcompat::Runtime;
-use tracing::trace;
+use tracing::{debug, trace};
 
 use crate::{VanguardMgrError, VanguardMode};
 
@@ -367,12 +367,28 @@ impl VanguardSet {
 
     /// Remove the vanguards that are no longer listed in `netdir`
     fn remove_unlisted(&mut self, netdir: &NetDir) -> bool {
-        self.retain(|v| netdir.ids_listed(&v.id) != Some(false))
+        self.retain(|v| {
+            let cond = netdir.ids_listed(&v.id) != Some(false);
+
+            if !cond {
+                debug!(id=?v.id, "Removing newly-unlisted vanguard");
+            }
+
+            cond
+        })
     }
 
     /// Remove the vanguards that are expired at the specified timestamp.
     fn remove_expired(&mut self, now: SystemTime) -> bool {
-        self.retain(|v| v.when > now)
+        self.retain(|v| {
+            let cond = v.when > now;
+
+            if !cond {
+                debug!(id=?v.id, "Removing expired vanguard");
+            }
+
+            cond
+        })
     }
 
     /// Find the timestamp of the vanguard that is due to expire next.

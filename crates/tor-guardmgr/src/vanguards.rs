@@ -412,6 +412,8 @@ impl<R: Runtime> VanguardMgr<R> {
         netdir_provider: &Arc<dyn NetDirProvider>,
         now: SystemTime,
     ) -> Result<Option<Duration>, VanguardMgrError> {
+        info!("Rotating vanguards");
+
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
