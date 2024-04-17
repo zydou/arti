@@ -163,14 +163,14 @@ impl<R: Runtime> VanguardMgr<R> {
 
         let vanguard_sets = match storage.load()? {
             Some(mut sets) => {
-                info!("loading vanguards from vanguard state file");
+                info!("Loading vanguards from vanguard state file");
                 // Discard the now-expired the vanguards
                 let now = runtime.wallclock();
                 let _ = sets.as_mut().remove_expired(now);
                 sets
             }
             None => {
-                debug!("vanguard state file not found, selecting new vanguards");
+                debug!("Vanguard state file not found, selecting new vanguards");
                 // Initially, all sets have a target size of 0.
                 // This is OK because the target is only used for repopulating the vanguard sets,
                 // and we can't repopulate the sets without a netdir.
@@ -523,7 +523,7 @@ impl Inner {
         match self.mode() {
             VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
             VanguardMode::Full => {
-                debug!("the vanguards have changed; flushing vanguards to vanguard state file");
+                debug!("The vanguards have changed; flushing vanguards to vanguard state file");
                 Ok(storage.store(&self.vanguard_sets)?)
             }
         }

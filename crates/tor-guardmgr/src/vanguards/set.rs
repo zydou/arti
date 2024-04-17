@@ -180,7 +180,7 @@ impl<'a> VanguardSetsTrackedMut<'a> {
         params: &VanguardParams,
         mode: VanguardMode,
     ) -> Result<(), VanguardMgrError> {
-        trace!("replenishing vanguard sets");
+        trace!("Replenishing vanguard sets");
 
         // Resize the vanguard sets if necessary.
         self.inner.l2_vanguards.update_target(params.l2_pool_size());
