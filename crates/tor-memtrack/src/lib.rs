@@ -30,7 +30,7 @@
 //!    one data structure that uses memory.
 //!    Each Participant is linked to *one* Account.  An account has *one or more* Participants.
 //!    (An Account can exist with zero Participants, but can't then claim memory.)
-//!    A Participant provides a `dyn Participant` to the memory system;
+//!    A Participant provides a `dyn IsParticipant` to the memory system;
 //!    in turn, the memory system provides the Participant with a `Participation` -
 //!    a handle for tracking memory alloc/free.
 //!
@@ -80,8 +80,8 @@
 //!  * Somewhere, someone must keep an `Account` to keep the account open.
 //!    Ie, the principal object corresponding to the accountholder should contain an `Account`.
 //!
-//!  * `Arc<MemoryTracker>` holds `Weak<dyn Participant>`.
-//!    If the tracker finds a `Participant` has vanished,
+//!  * `Arc<MemoryTracker>` holds `Weak<dyn IsParticipant>`.
+//!    If the tracker finds the `IsParticipant` has vanished,
 //!    it assumes this means that the Participant is being destroyed and
 //!    it can treat all of the memory it claimed as freed.
 //!
@@ -92,8 +92,8 @@
 //!  * A `Participation` does *not* keep its `Account` alive.
 //!    Ie, it has only a weak reference to the Account.
 //!
-//!  * A Participant's implementor of `Participant` may hold a `Participation`.
-//!    If the `Participant` is also the principal accountholder object,
+//!  * A Participant's implementor of `IsParticipant` may hold a `Participation`.
+//!    If the `impl IsParticipant` is also the principal accountholder object,
 //!    it must hold an `Account` too.
 //!
 //!  * Child/parent accounts do not imply any keeping-alive relationship.
@@ -103,9 +103,9 @@
 //!
 //! ```text
 //!     accountholder   =======================================>*  Participant
-//!
+//!                                                                (impl IsParticipant)
+//!           ||
 //!           ||                                                     ^     ||
-//!           ||                                                     |     ||
 //!           ||                                                     |     ||
 //!           ||                 global                     Weak<dyn>|     ||
 //!           ||                     ||                              |     ||
@@ -121,8 +121,8 @@
 //!
 //!
 //!     accountholder which is also directly the Participant ==============\
-//!                                                                       ||
-//!           ||                              ^                           ||
+//!     (impl IsParticipant)                                              ||
+//!                                           ^                           ||
 //!           ||                              |                           ||
 //!           ||                              |                           ||
 //!           ||                 global       |Weak<dyn>                  ||
