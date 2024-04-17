@@ -5570,8 +5570,26 @@ dependencies = [
 name = "tor-memtrack"
 version = "0.17.0"
 dependencies = [
+ "derive-deftly",
+ "derive_builder_fork_arti",
+ "derive_more",
+ "educe",
  "futures",
+ "itertools 0.12.1",
+ "rand",
+ "serde",
+ "slotmap",
+ "static_assertions",
+ "thiserror",
+ "tor-basic-utils",
+ "tor-config",
+ "tor-error",
+ "tor-log-ratelim",
  "tor-rtcompat",
+ "tor-rtmock",
+ "tracing",
+ "tracing-test",
+ "void",
 ]
 
 [[package]]

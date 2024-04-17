@@ -181,3 +181,6 @@
 #![allow(clippy::blocks_in_conditions)] // TODO #1176
 
 #![allow(dead_code, unused_imports, unused_macros, unused_variables)] // XXXX
+
+// Internal supporting modules
+mod internal_prelude;

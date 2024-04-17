@@ -13,10 +13,28 @@ categories = ["rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
+derive-deftly = "0.10"
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
+derive_more = "0.99.17"
+educe = "0.4.6"
 futures = "0.3.14"
+serde = { version = "1.0.103", features = ["derive"] }
+slotmap = "1.0.6"
+static_assertions = "1"
+thiserror = "1"
+tor-config = { path = "../tor-config", version = "0.17.0" }
+tor-error = { path = "../tor-error", version = "0.17.0", features = ["tracing"] }
+tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.17.0" }
 tor-rtcompat = { version = "0.17.0", path = "../tor-rtcompat" }
+tracing = "0.1.36"
+void = "1"
 
 [dev-dependencies]
+itertools = "0.12.0"
+rand = "0.8"
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.17.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.17.0" }
+tracing-test = "0.2.4"
 
 [features]
 full = []
