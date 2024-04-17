@@ -184,12 +184,18 @@
 
 // Internal supporting modules
 mod internal_prelude;
+#[macro_use]
 mod utils;
 
 // Modules with public items
 mod config;
+mod error;
 pub mod mtracker;
 
 //---------- re-exports at the crate root ----------
 
 pub use config::{Config, ConfigBuilder};
+pub use error::{Error, StartupError};
+
+/// `Result` whose `Err` is [`tor_memtrack::Error`](Error)
+pub type Result<T> = std::result::Result<T, Error>;

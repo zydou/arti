@@ -62,8 +62,8 @@ mod test {
     fn display_qty() {
         let chk = |by, s| assert_eq!(Qty(by).to_string(), s);
 
-        chk(10*1024, "0.01MiB");
-        chk(1024*1024, "1.00MiB");
-        chk(1000*1024*1024, "1000.00MiB");
+        chk(10 * 1024, "0.01MiB");
+        chk(1024 * 1024, "1.00MiB");
+        chk(1000 * 1024 * 1024, "1000.00MiB");
     }
 }
