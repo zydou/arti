@@ -1,12 +1,16 @@
 //! Memory tracker, core and low-level API
-
-// TODO XXXX
+//
+// For key internal documentation about the data structure, see the doc comment for
+// `struct State` (down in the middle of the file).
 
 use crate::internal_prelude::*;
 
 mod bookkeeping;
+mod reclaim;
+mod total_qty_notifier;
 
 use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};
+use total_qty_notifier::TotalQtyNotifier;
 
 /// Maximum amount we'll "cache" locally in a [`Participation`]
 ///
@@ -14,3 +18,942 @@ use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};
 //
 // TODO is this a good amount? should it be configurable?
 pub(crate) const MAX_CACHE: Qty = Qty(16384);
+
+/// Target cache size when we seem to be claiming
+const TARGET_CACHE_CLAIMING: Qty = Qty(MAX_CACHE.as_usize() * 3 / 4);
+/// Target cache size when we seem to be releasing
+#[allow(clippy::identity_op)] // consistency
+const TARGET_CACHE_RELEASING: Qty = Qty(MAX_CACHE.as_usize() * 1 / 4);
+
+//---------- public data types ----------
+
+/// Memory data tracker
+///
+/// Instance of the memory quota system.
+///
+/// Usually found as `Arc<MemoryQuotaTracker>`.
+#[derive(Debug)]
+pub struct MemoryQuotaTracker {
+    /// The actual tracker state etc.
+    state: Mutex<State>,
+}
+
+/// Handle onto an Account
+///
+/// An `Account` is a handle.  All clones refer to the same underlying conceptual Account.
+#[derive(Educe)]
+#[educe(Debug)]
+pub struct Account {
+    /// The account ID
+    aid: refcount::Ref<AId>,
+
+    /// The underlying tracker
+    #[educe(Debug(ignore))]
+    tracker: Arc<MemoryQuotaTracker>,
+}
+
+/// Weak handle onto an Account
+///
+/// Like [`Account`], but doesn't keep the account alive.
+/// Must be upgraded before use.
+//
+// Doesn't count for ARecord.account_clones
+//
+// We can't lift out Arc, so that the caller sees `Arc<Account>`,
+// because an Account is Arc<MemoryQuotaTracker> plus AId,
+// not Arc of something account-specific.
+#[derive(Clone, Educe)]
+#[educe(Debug)]
+pub struct WeakAccount {
+    /// The account ID
+    aid: AId,
+
+    /// The underlying tracker
+    #[educe(Debug(ignore))]
+    tracker: Weak<MemoryQuotaTracker>,
+}
+
+/// Handle onto a participant's participation in a tracker
+///
+/// `Participation` is a handle.  All clones are for use by the same conceptual Participant.
+/// It doesn't keep the underlying Account alive.
+///
+/// Variables of this type are often named `partn`.
+#[derive(Debug)]
+pub struct Participation {
+    /// Participant id
+    pid: refcount::Ref<PId>,
+
+    /// Account id
+    aid: AId,
+
+    /// The underlying tracker
+    tracker: Weak<MemoryQuotaTracker>,
+
+    /// Quota we have preemptively claimed for use by this Account
+    ///
+    /// Has been added to `PRecord.used`,
+    /// but not yet returned by `Participation::claim`.
+    ///
+    /// This cache field arranges that most of the time we don't have to hammer a
+    /// single cache line.
+    ///
+    /// The value here is bounded by a configured limit.
+    ///
+    /// Invariants on memory accounting:
+    ///
+    ///  * `Participation.local_quota < configured limit`
+    ///  * `PRecord.used = Participation.cache + Σ Participation::claim - Σ P'n::release`
+    ///    except if `PRecord` has been deleted
+    ///    (ie when we aren't tracking any more and think the Participant is `Collapsing`).
+    ///  * `Σ PRecord.used = State.total_used`
+    ///
+    /// Enforcement of these invariants is partially assured by
+    /// types in [`bookkeeping`].
+    cache: ClaimedQty,
+}
+
+/// Participants provide an impl of the hooks in this trait
+///
+/// Trait implemented by client of the memtrack API.
+///
+/// # Panic handling, "unwind safety"
+///
+/// If these methods panic, the memory tracker will tear down its records of the
+/// participant, preventing future allocations.
+///
+/// But, it's not guaranteed that these methods on `IsParticipant` won't be called again,
+/// even if they have already panicked on a previous occasion.
+/// Thus the implementations might see "broken invariants"
+/// as discussed in the docs for `std::panic::UnwindSafe`.
+///
+/// Nevertheless we don't make `RefUnwindSafe` a supertrait of `IsParticipant`.
+/// That would force the caller to mark *all* their methods unwind-safe,
+/// which is unreasonable (and probably undesirable).
+///
+/// Variables which are `IsParticipant` are often named `particip`.
+pub trait IsParticipant: Debug + Send + Sync + 'static {
+    /// Return the age of the oldest data held by this Participant
+    ///
+    /// `None` means this Participant holds no data.
+    ///
+    /// # Performance and reentrancy
+    ///
+    /// This function runs with the `MomoryQuotaTracker`'s internal global lock held.
+    /// Therefore:
+    ///
+    ///  * It must be fast.
+    ///  * it *must not* call back into methods from [`tracker`](crate::mtracker).
+    ///  * It *must not* even `Clone` or `Drop` a [`MemoryQuotaTracker`],
+    ///    [`Account`], or [`Participation`].
+    fn get_oldest(&self) -> Option<CoarseInstant>;
+
+    /// Start memory reclamation
+    ///
+    /// The Participant should start to free all of its memory,
+    /// and then return `Reclaimed::Collapsing`.
+    //
+    // In the future:
+    //
+    // Should free *at least* all memory at least as old as discard_...
+    //
+    // v1 of the actual implementation might not have `discard_everything_as_old_as`
+    // and `but_can_stop_discarding_...`,
+    // and might therefore only support Reclaimed::Collapsing
+    fn reclaim(
+        self: Arc<Self>,
+        // Future:
+        // discard_everything_as_old_as_this: RoughTime,
+        // but_can_stop_discarding_after_freeing_this_much: Qty,
+    ) -> ReclaimFuture;
+}
+
+/// Future returned by the [`IsParticipant::reclaim`] reclamation request
+pub type ReclaimFuture = Pin<Box<dyn Future<Output = Reclaimed> + Send + Sync>>;
+
+/// Outcome of [`IsParticipant::reclaim`]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[non_exhaustive]
+pub enum Reclaimed {
+    /// Participant is responding to reclamation by collapsing completely.
+    ///
+    /// All memory will be freed and `release`'d soon (if it hasn't been already).
+    /// `MemoryQuotaTracker` should forget the Participant and all memory it used, right away.
+    ///
+    /// Currently this is the only supported behaviour.
+    Collapsing,
+    // Future:
+    // /// Participant has now reclaimed some memory as instructed
+    // ///
+    // /// If this is not sufficient, tracker must call reclaim() again.
+    // /// (We may not want to implement Partial right away but the API
+    // /// ought to support it so let's think about it now, even if we don't implement it.)
+    // Partial,
+}
+
+//---------- principal data structure ----------
+
+slotmap::new_key_type! {
+    /// Identifies an Account
+    ///
+    /// After an account is torn down, the `AId` becomes invalid
+    /// and attempts to use it will give an error.
+    ///
+    /// The same `AId` won't be reused for a later Account.
+    struct AId;
+
+    /// Identifies a Participant within an Account
+    ///
+    /// Ie, PId is scoped within in the context of an account.
+    ///
+    /// As with `AId`, a `PId` is invalid after the
+    /// participation is torn down, and is not reused.
+    struct PId;
+}
+
+/// Memory tracker inner, including mutable state
+///
+/// # Module internal documentation
+///
+/// ## Data structure
+///
+///  * [`MemoryQuotaTracker`] contains mutex-protected `State`.
+///  * The `State` contains a [`SlotMap`] of account records [`ARecord`].
+///  * Each `ARecord` contains a `SlotMap` of participant records [`PRecord`].
+///
+/// The handles [`Account`], [`WeakAccount`], and [`Participation`],
+/// each contain a reference (`Arc`/`Weak`) to the `MemoryQuotaTracker`,
+/// and the necessary slotmap keys.
+///
+/// The `ARecord` and `PRecord` each contain a reference count,
+/// which is used to clean up when all the handles are gone.
+///
+/// The slotmap keys which count for the reference count (ie, strong references)
+/// are stored as [`refcount::Ref`],
+/// which helps assure correct reference counting.
+/// (Bare ids [`AId`] and [`PId`] are weak references.)
+///
+/// ## Data structure lookup
+///
+/// Given a reference to the tracker, and some ids, the macro `find_in_tracker!`
+/// is used to obtain mutable references to the `ARecord` and (if applicable) `PRecord`.
+///
+/// ## Bookkeeping
+///
+/// We use separate types for quantities of memory in various "states",
+/// rather than working with raw quantities.
+///
+/// The types, and the legitimate transactions, are in `bookkeeping`.
+///
+/// ## Reentrancy (esp. `Drop` and `Clone`)
+///
+/// When the handle structs are dropped or cloned, they must manipulate the refcount(s).
+/// So they must take the lock.
+/// Therefore, an `Account` and `Participation` may not be dropped with the lock held!
+///
+/// Internally, this is actually fairly straightforward:
+/// we take handles by reference, and constructors only make them at the last moment on return,
+/// so our internal code here, in this module, doesn't have owned handles.
+///
+/// We also need to worry about reentrantly reentering the tracker code, from user code.
+/// The user supplies a `dyn IsParticipant`.
+/// The principal methods are from [`IsParticipant`],
+/// for which we handle reentrancy in the docs.
+/// But we also implicitly invoke its `Drop` impl, which might in turn drop stuff of ours.
+/// To make sure this isn't done reentrantly, we have a special newtype around it,
+/// and defer some of our drops during reclaim.
+/// That's in `drop_reentrancy` and `tracker::reclaim::deferred_drop`.
+///
+/// The `Debug` impl isn't of concern, since we don't call it ourselves.
+/// And we don't rely on it being `Clone`, since it's in an `Arc`.
+///
+/// ## Drop bombs
+///
+/// With `#[cfg(test)]`, several of our types have "drop bombs":
+/// they cause a panic if dropped inappropriately.
+/// This is intended to detect bad code paths during testing.
+#[derive(Debug, Deref, DerefMut)]
+struct State {
+    /// Global parts of state
+    ///
+    /// Broken out to allow passing both
+    /// `&mut Global` and `&mut ARecord`/`&mut PRecord`
+    /// to some function(s).
+    #[deref]
+    #[deref_mut]
+    global: Global,
+
+    /// Accounts
+    accounts: SlotMap<AId, ARecord>,
+}
+
+/// Global parts of `State`
+#[derive(Debug)]
+struct Global {
+    /// Total memory used
+    ///
+    /// Wrapper type for ensuring we wake up the reclaimation task
+    total_used: TotalQtyNotifier,
+
+    /// Configuration
+    config: Config,
+}
+
+/// Account record, within `State.accounts`
+#[derive(Debug)]
+#[must_use = "don't just drop, call auto_release"]
+struct ARecord {
+    /// Number of clones of `Account`; to know when to tear down the account
+    refcount: refcount::Count<AId>,
+
+    /// Child accounts
+    children: Vec<AId>,
+
+    /// Participants linked to this Account
+    ps: SlotMap<PId, PRecord>,
+}
+
+/// Participant record, within `ARecord.ps`
+#[derive(Debug)]
+#[must_use = "don't just drop, call auto_release"]
+struct PRecord {
+    /// Number of clones of `Participation`; to know when to tear down the participant
+    refcount: refcount::Count<PId>,
+
+    /// Memory usage of this participant
+    ///
+    /// Not 100% accurate, can lag, and be (boundedly) an overestimate
+    used: ParticipQty,
+
+    /// The hooks provided by the Participant
+    particip: drop_reentrancy::ProtectedWeak<dyn IsParticipant>,
+}
+
+//#################### IMPLEMENTATION ####################
+
+/// Given a `&Weak<MemoryQuotaTracker>`, find an account and maybe participant
+///
+/// ### Usage templates
+///
+/// ```rust,ignore
+/// find_in_tracker! {
+///     weak_tracker => + tracker, state;
+///     aid => arecord;
+///   [ pid => precord; ]
+///   [ ?Error | ?None ]
+/// };
+///
+/// find_in_tracker! {
+///     strong_tracker => state;
+///     .. // as above
+/// };
+/// ```
+///
+/// ### Input expressions (value arguments to the macro0
+///
+///  * `weak_tracker: &Weak<MemoryQuotaTracker>` (or equivalent)
+///  * `strong_tracker: &MemoryQuotaTracker` (or equivalent)
+///  * `aid: AId`
+///  * `pid: PId`
+///
+/// ### Generated bindings (identifier arguments to the macro)
+///
+///  * `tracker: Arc<MemoryQuotaTracker>`
+///  * `state: &mut State` (borrowed from a `MutexGuard<State>` borrowed from `tracker`)
+///  * `arecord: &mut ARecord` (mut borrowed from `state.accounts`)
+///  * `precord: &mut PRecord` (mut borrowed from `arecord.ps`)
+///
+/// There is no access to the `MutexGuard` itself.
+/// For control of the mutex release point, place `find_in_tracker!` in an enclosing block.
+///
+/// ### Error handlikng
+///
+/// If the tracker, account, or participant, can't be found,
+/// the macro returns early from the enclosing scope (using `?`).
+///
+/// If `Error` is specified, applies `?` to `Err(Error::...)`.
+/// If `None` is specified, just returns `None` (by applying `?` to None`).
+//
+// This has to be a macro because it makes a self-referential set of bindings.
+// Input syntax is a bit janky because macro_rules is so bad.
+// For an internal macro with ~9 call sites it's not worth making a big parsing contraption.
+macro_rules! find_in_tracker { {
+    // This `+` is needed because otherwise it's LL1-ambiguous and macro_rules can't cope
+    $tracker_input:expr => $( + $tracker:ident, )? $state:ident;
+    $aid:expr => $arecord:ident;
+ $( $pid:expr => $precord:ident; )?
+    // Either `Error` or None, to be passed to `find_in_tracker_eh!($eh ...: ...)`
+    // (We need this to be an un-repeated un-optional binding, because
+    // it is used within some other $( ... )?, and macro_rules gets confused.)
+    ? $eh:tt
+} => {
+    let tracker = &$tracker_input;
+  $(
+    let $tracker: Arc<MemoryQuotaTracker> = find_in_tracker_eh!(
+        $eh TrackerShutdown:
+        tracker.upgrade()
+    );
+    let tracker = &$tracker;
+  )?
+    let mut state: MutexGuard<State> = find_in_tracker_eh!(
+        $eh TrackerCorrupted:
+        tracker.state.lock().ok()
+    );
+    let $state: &mut State = &mut *state;
+    let aid: AId = $aid;
+    let $arecord: &mut ARecord = find_in_tracker_eh!(
+        $eh AccountClosed:
+        $state.accounts.get_mut(aid)
+    );
+  $(
+    let pid: PId = $pid;
+    let $precord: &mut PRecord = find_in_tracker_eh!(
+        $eh ParticipantShutdown:
+        $arecord.ps.get_mut(pid)
+    );
+  )?
+} }
+/// Error handling helper for `find_in_tracker`
+macro_rules! find_in_tracker_eh {
+    { None $variant:ident: $result:expr } => { $result? };
+    { Error $variant:ident: $result:expr } => { $result.ok_or(Error::$variant)? };
+}
+
+//========== impls on public types, including public methods and trait impls ==========
+
+//---------- MemoryQuotaTracker ----------
+
+impl MemoryQuotaTracker {
+    /// Set up a new `MemoryDataTracker`
+    pub fn new<R: Spawn>(runtime: &R, config: Config) -> Result<Arc<Self>, StartupError> {
+        let (reclaim_tx, reclaim_rx) = mpsc::channel(0 /* plus num_senders, ie 1 */);
+        let total_used = TotalQtyNotifier::new_zero(reclaim_tx);
+
+        let global = Global { total_used, config };
+        let accounts = SlotMap::default();
+        let state = Mutex::new(State { global, accounts });
+        let tracker = Arc::new(MemoryQuotaTracker { state });
+
+        // We don't provide a separate `launch_background_tasks`, because this task doesn't
+        // wake up periodically, or, indeed, do anything until the tracker is used.
+
+        let for_task = Arc::downgrade(&tracker);
+        runtime.spawn(reclaim::task(for_task, reclaim_rx))?;
+
+        Ok(tracker)
+    }
+
+    /// Make a new `Account`
+    ///
+    /// To actually record memory usage, a Participant must be added.
+    //
+    // Right now, parent can't be changed after construction of an Account,
+    // so circular accounts are impossible.
+    // But, we might choose to support that in the future.
+    // Circular parent relationships might need just a little care
+    // in the reclamation loop (to avoid infinitely looping),
+    // but aren't inherently unsupportable.
+    #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reaons
+    pub fn new_account(self: &Arc<Self>, parent: Option<&Account>) -> crate::Result<Account> {
+        let mut state = self.lock()?;
+
+        let parent_aid_good = parent
+            .map(|parent| {
+                // Find and check the requested parent's Accountid
+
+                let parent_aid = *parent.aid;
+                let parent_arecord = state
+                    .accounts
+                    .get_mut(parent_aid)
+                    .ok_or(Error::AccountClosed)?;
+
+                // Can we insert the new child without reallocating?
+                if !parent_arecord.children.spare_capacity_mut().is_empty() {
+                    return Ok(parent_aid);
+                }
+
+                // No.  Well, let's do some garbage collection.
+                // (Otherwise .children might grow without bound as accounts come and go)
+                //
+                // We would like to scan the accounts array while mutating this account.
+                // Instead, steal the children array temporarily and put the filtered one back.
+                // Must be infallible!
+                //
+                // The next line can't be in the closure (confuses borrowck)
+                let mut parent_children = mem::take(&mut parent_arecord.children);
+                (|| {
+                    parent_children.retain(|child_aid| state.accounts.contains_key(*child_aid));
+
+                    // Put the filtered list back, so sanity is restored.
+                    state
+                        .accounts
+                        .get_mut(parent_aid)
+                        .expect("parent vanished!")
+                        .children = parent_children;
+                })();
+
+                Ok::<_, Error>(parent_aid)
+            })
+            .transpose()?;
+
+        // We have resolved the parent AId and prepared to add the new account to its list of
+        // children.  We still hold the lock, so nothing can have changed.
+
+        // commitment - infallible IEFE assures that so we don't do half of it
+        Ok((|| {
+            let aid = refcount::slotmap_insert(&mut state.accounts, |refcount| ARecord {
+                refcount,
+                children: vec![],
+                ps: SlotMap::default(),
+            });
+
+            if let Some(parent_aid_good) = parent_aid_good {
+                state
+                    .accounts
+                    .get_mut(parent_aid_good)
+                    .expect("parent vanished!")
+                    .children
+                    .push(*aid);
+            }
+
+            let tracker = self.clone();
+            Account { aid, tracker } // don't make this fallible, see above.
+        })())
+    }
+
+    /// Obtain the lock on the state
+    fn lock(&self) -> Result<MutexGuard<State>, TrackerCorrupted> {
+        Ok(self.state.lock()?)
+    }
+}
+
+//---------- Account ----------
+
+impl Account {
+    /// Register a new Participant
+    ///
+    /// Returns the [`Participation`], which can be used to record memory allocations.
+    ///
+    /// Often, your implementation of [`IsParticipant`] wants to contain the [`Participation`].
+    /// If so, use [`register_participant_with`](Account::register_participant_with) instead.
+    pub fn register_participant(
+        &self,
+        particip: Weak<dyn IsParticipant>,
+    ) -> Result<Participation, Error> {
+        let aid = *self.aid;
+        find_in_tracker! {
+            self.tracker => state;
+            aid => arecord;
+            ?Error
+        }
+
+        let (pid, cache) = refcount::slotmap_try_insert(&mut arecord.ps, |refcount| {
+            let mut precord = PRecord {
+                refcount,
+                used: ParticipQty::ZERO,
+                particip: drop_reentrancy::ProtectedWeak::new(particip),
+            };
+            let cache =
+                state
+                    .global
+                    .total_used
+                    .claim(&mut precord, MAX_CACHE, &state.global.config)?;
+            Ok::<_, Error>((precord, cache))
+        })?;
+
+        let tracker = Arc::downgrade(&self.tracker);
+        Ok(Participation {
+            tracker,
+            pid,
+            aid,
+            cache,
+        })
+    }
+
+    /// Set the callbacks for a Participant (identified by its weak ids)
+    fn set_participant_callbacks(
+        &self,
+        aid: AId,
+        pid: PId,
+        particip: drop_reentrancy::ProtectedWeak<dyn IsParticipant>,
+    ) -> Result<(), Error> {
+        find_in_tracker! {
+            self.tracker => state;
+            aid => arecord;
+            pid => precord;
+            ?Error
+        }
+        precord.particip = particip;
+        Ok(())
+    }
+
+    /// Register a new Participant using a constructor
+    ///
+    /// Passes `constructor` a [`Participation`] for the nascent Participant.
+    /// Returns the `P: IsParticipant` provided by the constructor.
+    ///
+    /// For use when your `impl `[`IsParticipant`] wants to own the `Participation`.
+    ///
+    /// # Re-entrancy guarantees
+    ///
+    /// The `Participation` *may* be used by `constructor` for claiming memory use,
+    /// even during construction.
+    /// `constructor` may also clone the `Participation`, etc.
+    ///
+    /// Reclamation callbacks (via the `P as IsParticipant` impl) cannot occur
+    /// until `constructor` returns.
+    ///
+    /// # Error handling
+    ///
+    /// Failures can occur before `constructor` is called,
+    /// or be detected afterwards.
+    /// If a failure is detected after `constructor` returns,
+    /// the `Arc<P>` from `constructor` will be dropped
+    /// (resulting in `P` being dropped, unless `constructor` kept another clone of it).
+    ///
+    /// `constructor` may also fail (throwing a different error type, `E`),
+    /// in which case `register_participant_with` returns `Ok(Err(E))`.
+    ///
+    /// On successful setup of the Participant, returns `Ok(Ok(Arc<P>))`.
+    pub fn register_participant_with<P: IsParticipant, E>(
+        &self,
+        now: CoarseInstant,
+        constructor: impl FnOnce(Participation) -> Result<Arc<P>, E>,
+    ) -> Result<Result<Arc<P>, E>, Error> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        /// Temporary participant, which stands in during constructon
+        #[derive(Debug)]
+        struct TemporaryParticipant {
+            /// The age, which is right now.  We hope this is all fast!
+            now: CoarseInstant,
+            /// Did someone call reclaim() ?
+            collapsing: AtomicBool,
+        }
+
+        impl IsParticipant for TemporaryParticipant {
+            fn get_oldest(&self) -> Option<CoarseInstant> {
+                Some(self.now)
+            }
+            fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+                self.collapsing.store(true, Ordering::Release);
+                Box::pin(async { Reclaimed::Collapsing })
+            }
+        }
+
+        let temp_particip = Arc::new(TemporaryParticipant {
+            now,
+            collapsing: false.into(),
+        });
+
+        let partn = self.register_participant(Arc::downgrade(&temp_particip) as _)?;
+        let aid = partn.aid;
+        let pid_weak = *partn.pid;
+
+        // We don't hold the state lock here.  register_participant took it and released it.
+        // This is important, because the constructor might call claim!
+        // (And, also, we don't want the constructor panicking to poison the whole tracker.)
+        // But it means there can be quite a lot of concurrent excitement,
+        // including, theoretically, a possible reclaim.
+        let particip = match constructor(partn) {
+            Ok(y) => y,
+            Err(e) => return Ok(Err(e)),
+        };
+        let particip = drop_reentrancy::ProtectedArc::new(particip);
+
+        // IEFE prevents use from accidentally dropping `particip` until we mean to
+        let r = (|| {
+            let weak = {
+                let weak = particip.downgrade();
+
+                // Trait cast, from Weak<P> to Weak<dyn IsParticipant>.
+                // We can only do this for a primitive, so we must unprotect
+                // the Weak, converr it, and protect it again.
+                drop_reentrancy::ProtectedWeak::new(weak.unprotect() as _)
+            };
+            self.set_participant_callbacks(aid, pid_weak, weak)?;
+
+            if temp_particip.collapsing.load(Ordering::Acquire) {
+                return Err(Error::ParticipantShutdown);
+            }
+            Ok(())
+        })();
+
+        let particip = particip.promise_dropping_is_ok();
+        r?;
+        Ok(Ok(particip))
+    }
+
+    /// Obtains a handle for the `MemoryQuotaTracker`
+    pub fn tracker(&self) -> Arc<MemoryQuotaTracker> {
+        self.tracker.clone()
+    }
+
+    /// Downgrade to a weak handle for the same Account
+    pub fn downgrade(&self) -> WeakAccount {
+        WeakAccount {
+            aid: *self.aid,
+            tracker: Arc::downgrade(&self.tracker),
+        }
+    }
+}
+
+impl Clone for Account {
+    fn clone(&self) -> Account {
+        let tracker = self.tracker.clone();
+        let aid = (|| {
+            let aid = *self.aid;
+            find_in_tracker! {
+                tracker => state;
+                aid => arecord;
+                ?None
+            }
+            let aid = refcount::Ref::new(aid, &mut arecord.refcount).ok()?;
+            // commitment point
+            Some(aid)
+        })()
+        .unwrap_or_else(|| {
+            // Either the account has been closed, or our refcount overflowed.
+            // Return a busted `Account`, which always fails when we try to use it.
+            //
+            // If the problem was a refcount overflow, we're technically violating the
+            // documented behaviour, since the returned `Account` isn't equivalent
+            // to the original.  We could instead choose to tear down the Account;
+            // that would be legal; but it's a lot of code to marginally change the
+            // behaviour for a very unlikely situation.
+            refcount::Ref::null()
+        });
+        Account { aid, tracker }
+    }
+}
+
+impl Drop for Account {
+    fn drop(&mut self) {
+        (|| {
+            find_in_tracker! {
+                self.tracker => state;
+                *self.aid => arecord;
+                ?None
+            }
+            if let Some(refcount::Garbage(mut removed)) =
+                slotmap_dec_ref!(&mut state.accounts, self.aid.take(), &mut arecord.refcount)
+            {
+                // This account is gone.  Automatically release everything.
+                removed.auto_release(state);
+            }
+            Some(())
+        })()
+        .unwrap_or_else(|| {
+            // Account has been torn down.  Dispose of the strong ref.
+            // (This has no effect except in cfg(test), when it defuses the drop bombs)
+            self.aid.take().dispose_container_destroyed();
+        });
+    }
+}
+
+//---------- WeakAccount ----------
+
+impl WeakAccount {
+    /// Upgrade to an `Account`, if the account still exists
+    pub fn upgrade(&self) -> crate::Result<Account> {
+        let aid = self.aid;
+        // (we must use a block, and can't use find_in_tracker's upgrade, because borrowck)
+        let tracker = self.tracker.upgrade().ok_or(Error::TrackerShutdown)?;
+        let aid = {
+            find_in_tracker! {
+                tracker => state;
+                aid => arecord;
+                ?Error
+            }
+            refcount::Ref::new(aid, &mut arecord.refcount)?
+            // commitment point
+        };
+        Ok(Account { aid, tracker })
+    }
+
+    /// Obtains a handle onto the `MemoryQuotaTracker`
+    ///
+    /// The returned handle is itself weak, and needs to be upgraded before use.
+    pub fn tracker(&self) -> Weak<MemoryQuotaTracker> {
+        self.tracker.clone()
+    }
+}
+
+//---------- Participation ----------
+
+impl Participation {
+    /// Record that some memory has been (or will be) allocated
+    pub fn claim(&mut self, want: usize) -> crate::Result<()> {
+        self.claim_qty(Qty(want))
+    }
+
+    /// Record that some memory has been (or will be) allocated (using `Qty`)
+    pub(crate) fn claim_qty(&mut self, want: Qty) -> crate::Result<()> {
+        if let Some(got) = self.cache.split_off(want) {
+            return got.claim_return_to_participant();
+        }
+
+        find_in_tracker! {
+            self.tracker => + tracker, state;
+            self.aid => arecord;
+            *self.pid => precord;
+            ?Error
+        };
+
+        let mut claim = |want| -> Result<ClaimedQty, _> {
+            state
+                .global
+                .total_used
+                .claim(precord, want, &state.global.config)
+        };
+        let got = claim(want)?;
+
+        if want <= TARGET_CACHE_CLAIMING {
+            // While we're here, fill the cache to TARGET_CACHE_CLAIMING.
+            // Cannot underflow: cache < want (since we failed at `got` earlier
+            // and we've just checked want <= TARGET_CACHE_CLAIMING.
+            let want_more_cache = Qty(*TARGET_CACHE_CLAIMING - *self.cache.as_raw());
+            if let Ok(add_cache) = claim(want_more_cache) {
+                // On error, just don't do this; presumably the error will show up later
+                // (we mustn't early exit here, because we've got the claim in our hand).
+                self.cache.merge_into(add_cache);
+            }
+        }
+        got.claim_return_to_participant()
+    }
+
+    /// Record that some memory has been (or will be) freed by a participant
+    pub fn release(&mut self, have: usize) // infallible
+    {
+        self.release_qty(Qty(have));
+    }
+
+    /// Record that some memory has been (or will be) freed by a participant (using `Qty`)
+    pub(crate) fn release_qty(&mut self, have: Qty) // infallible
+    {
+        let have = ClaimedQty::release_got_from_participant(have);
+        self.cache.merge_into(have);
+        if self.cache > MAX_CACHE {
+            match (|| {
+                find_in_tracker! {
+                    self.tracker => + tracker, state;
+                    self.aid => arecord;
+                    *self.pid => precord;
+                    ?None
+                }
+                let return_from_cache = Qty(*self.cache.as_raw() - *TARGET_CACHE_RELEASING);
+                let from_cache = self.cache.split_off(return_from_cache).expect("impossible");
+                state.global.total_used.release(precord, from_cache);
+                Some(())
+            })() {
+                Some(()) => {} // we've given our cache back to the tracker
+                None => {
+                    // account (or whole tracker!) is gone
+                    // throw away the cache so that we don't take this path again for a bit
+                    self.cache.take().dispose_participant_destroyed();
+                }
+            }
+        }
+    }
+
+    /// Obtain a handle onto the account
+    ///
+    /// The returned handle is weak, and needs to be upgraded before use,
+    /// since a [`Participation`] doesn't keep its Account alive.
+    ///
+    /// The returned `WeakAccount` is equivalent to
+    /// all the other account handles for the same account.
+    pub fn account(&self) -> WeakAccount {
+        WeakAccount {
+            aid: self.aid,
+            tracker: self.tracker.clone(),
+        }
+    }
+}
+
+impl Clone for Participation {
+    fn clone(&self) -> Participation {
+        let aid = self.aid;
+        let cache = ClaimedQty::ZERO;
+        let tracker: Weak<_> = self.tracker.clone();
+        let pid = (|| {
+            let pid = *self.pid;
+            find_in_tracker! {
+                self.tracker => + tracker_strong, state;
+                aid => _arecord;
+                pid => precord;
+                ?None
+            }
+            let pid = refcount::Ref::new(pid, &mut precord.refcount).ok()?;
+            // commitment point
+            Some(pid)
+        })()
+        .unwrap_or_else(|| {
+            // The account has been closed, the participant torn down, or the refcount
+            // overflowed.  We can a busted `Participation`.
+            //
+            // We *haven't* incremented the refcount, so we mustn't return pid as a strong
+            // reference.  We aren't supposed to count towards PRecord.refcount, we we *can*
+            // return the weak reference aid.  (`refcount` type-fu assures this is correct.)
+            //
+            // If the problem was refcount overflow, we're technically violating the
+            // documented behaviour.  This is OK; see comment in `<Account as Clone>::clone`.
+            refcount::Ref::null()
+        });
+        Participation {
+            aid,
+            pid,
+            cache,
+            tracker,
+        }
+    }
+}
+
+impl Drop for Participation {
+    fn drop(&mut self) {
+        (|| {
+            find_in_tracker! {
+                self.tracker => + tracker_strong, state;
+                self.aid => arecord;
+                *self.pid => precord;
+                ?None
+            }
+            // release the cached claim
+            let from_cache = self.cache.take();
+            state.global.total_used.release(precord, from_cache);
+
+            if let Some(refcount::Garbage(mut removed)) =
+                slotmap_dec_ref!(&mut arecord.ps, self.pid.take(), &mut precord.refcount)
+            {
+                // We might not have called `release` on everything, so we do that here.
+                removed.auto_release(&mut state.global);
+            }
+            Some(())
+        })()
+        .unwrap_or_else(|| {
+            // Account or Participation or tracker destroyed.
+            // (This has no effect except in cfg(test), when it defuses the drop bombs)
+            self.pid.take().dispose_container_destroyed();
+            self.cache.take().dispose_participant_destroyed();
+        });
+    }
+}
+
+//========== impls on internal types ==========
+
+impl ARecord {
+    /// Release all memory that this account's participants claimed
+    fn auto_release(&mut self, global: &mut Global) {
+        for (_pid, mut precord) in self.ps.drain() {
+            precord.auto_release(global);
+        }
+    }
+}
+
+impl PRecord {
+    /// Release all memory that this participant claimed
+    fn auto_release(&mut self, global: &mut Global) {
+        let for_teardown = self.used.for_participant_teardown();
+        global.total_used.release(self, for_teardown);
+    }
+}

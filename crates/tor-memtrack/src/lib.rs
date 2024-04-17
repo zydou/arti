@@ -198,6 +198,7 @@ pub mod mtracker;
 
 pub use config::{Config, ConfigBuilder};
 pub use error::{Error, StartupError};
+pub use mtracker::MemoryQuotaTracker;
 
 /// `Result` whose `Err` is [`tor_memtrack::Error`](Error)
 pub type Result<T> = std::result::Result<T, Error>;
