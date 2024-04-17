@@ -1,5 +1,6 @@
 //! Vanguard sets
 
+use std::cmp;
 use std::time::SystemTime;
 
 use rand::{seq::SliceRandom as _, RngCore};
@@ -68,6 +69,48 @@ pub(super) struct VanguardSets {
     ///
     /// Only used if full vanguards are enabled.
     pub(super) l3_vanguards: VanguardSet,
+}
+
+impl VanguardSets {
+    /// Find the timestamp of the vanguard that is due to expire next.
+    pub(super) fn next_expiry(&self) -> Option<SystemTime> {
+        let l2_expiry = self.l2_vanguards.next_expiry();
+        let l3_expiry = self.l3_vanguards.next_expiry();
+        match (l2_expiry, l3_expiry) {
+            (Some(e), None) | (None, Some(e)) => Some(e),
+            (Some(e1), Some(e2)) => Some(cmp::min(e1, e2)),
+            (None, None) => {
+                // Both vanguard sets are empty
+                None
+            }
+        }
+    }
+
+    /// Pick a relay from the L2 set.
+    ///
+    /// See [`VanguardSet::pick_relay`].
+    pub(super) fn pick_l2_relay<'a, R: RngCore>(
+        &self,
+        rng: &mut R,
+        netdir: &'a NetDir,
+        neighbor_exclusion: &RelayExclusion<'a>,
+    ) -> Option<Vanguard<'a>> {
+        self.l2_vanguards
+            .pick_relay(rng, netdir, neighbor_exclusion)
+    }
+
+    /// Pick a relay from the L3 set.
+    ///
+    /// See [`VanguardSet::pick_relay`].
+    pub(super) fn pick_l3_relay<'a, R: RngCore>(
+        &self,
+        rng: &mut R,
+        netdir: &'a NetDir,
+        neighbor_exclusion: &RelayExclusion<'a>,
+    ) -> Option<Vanguard<'a>> {
+        self.l3_vanguards
+            .pick_relay(rng, netdir, neighbor_exclusion)
+    }
 }
 
 impl VanguardSet {
