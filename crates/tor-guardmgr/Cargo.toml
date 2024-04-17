@@ -44,7 +44,7 @@ pt-client = ["bridge-client", "tor-linkspec/pt-client"]
 # covered by semver.
 testing = ["tor-netdir/testing", "__is_experimental"]
 # Vanguards support
-vanguards = ["__is_experimental"]
+vanguards = ["tor-relay-selection/vanguards", "__is_experimental"]
 
 __is_experimental = []
 
