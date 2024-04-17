@@ -31,6 +31,32 @@ pub enum Error {
     Bug(#[from] Bug),
 }
 
+/// Memory pressure means this data structure (or other facility) was torn down
+///
+/// Error type suitable for use by data structures and facilities
+/// which participate in memory tracking.
+///
+/// Convertible from a [`tor_memtrack::Error`](enum@Error),
+/// or constructible via `Default` or [`new`](MemoryReclaimedError::new).
+#[derive(Debug, Clone, Error, Default)]
+#[non_exhaustive]
+#[error("{0}")]
+pub struct MemoryReclaimedError(ReclaimedErrorInner);
+
+/// Content of a [`MemoryReclaimedError`]
+// Separate struct so we don't expose the variants
+#[derive(Debug, Clone, Error, Default)]
+enum ReclaimedErrorInner {
+    /// Collapsed, from `ReclaimedError::new`
+    #[error("data structure discarded due to memory pressure")]
+    #[default]
+    Collapsed,
+
+    /// Othere error from tracker
+    #[error("{0}")]
+    TrackerError(#[from] Error),
+}
+
 /// An error occurring when setting up a memory quota tracker
 #[derive(Debug, Clone, Error)]
 #[non_exhaustive]
@@ -77,6 +103,30 @@ pub(crate) enum ReclaimCrashed {
     /// Bug
     #[error("internal error")]
     Bug(#[from] Bug),
+}
+
+impl MemoryReclaimedError {
+    /// Create a new `MemoryReclaimedError` (with no additional information)
+    pub fn new() -> Self {
+        MemoryReclaimedError::default()
+    }
+}
+
+impl From<Error> for MemoryReclaimedError {
+    fn from(e: Error) -> MemoryReclaimedError {
+        MemoryReclaimedError(e.into())
+    }
+}
+
+impl HasKind for MemoryReclaimedError {
+    fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
+        use ReclaimedErrorInner as REI;
+        match &self.0 {
+            REI::Collapsed => EK::LocalResourceExhausted,
+            REI::TrackerError(e) => e.kind(),
+        }
+    }
 }
 
 impl HasKind for Error {
