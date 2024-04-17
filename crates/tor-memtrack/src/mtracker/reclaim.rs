@@ -2,6 +2,10 @@
 
 use super::*;
 
+mod deferred_drop;
+
+use deferred_drop::{DeferredDrop, GuardWithDeferredDrop};
+
 /// Internal long-running task, handling reclsmation
 ///
 /// This is the entrypoint for the rest of the `tracker`.
