@@ -4,6 +4,10 @@
 
 use crate::internal_prelude::*;
 
+mod bookkeeping;
+
+use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};
+
 /// Maximum amount we'll "cache" locally in a [`Participation`]
 ///
 /// ie maximum value of `Participation.cache`.
