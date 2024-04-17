@@ -17,7 +17,6 @@
 //
 // Anyway, these functions are mostly newtype veneers over existing functionality.
 // They're tested by the MemoryQuotaTracker's tests.
-// XXXX ^ or, they will be.
 
 use crate::internal_prelude::*;
 

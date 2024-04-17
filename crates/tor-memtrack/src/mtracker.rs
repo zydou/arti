@@ -9,6 +9,9 @@ mod bookkeeping;
 mod reclaim;
 mod total_qty_notifier;
 
+#[cfg(test)]
+mod test;
+
 use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};
 use total_qty_notifier::TotalQtyNotifier;
 
