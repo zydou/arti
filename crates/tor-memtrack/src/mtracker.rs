@@ -1,4 +1,60 @@
 //! Memory tracker, core and low-level API
+//!
+//! # Example
+//!
+//! ```
+//! use std::{collections::VecDeque, sync::{Arc, Mutex}};
+//! use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, PreferredRuntime};
+//! use tor_memtrack::{mtracker, MemoryQuotaTracker, MemoryReclaimedError};
+//! use void::{ResultVoidExt, Void};
+//!
+//! #[derive(Debug)]
+//! struct TrackingQueue(Mutex<Result<Inner, MemoryReclaimedError>>);
+//! #[derive(Debug)]
+//! struct Inner {
+//!     partn: mtracker::Participation,
+//!     data: VecDeque<(Box<[u8]>, CoarseInstant)>,
+//! }
+//!
+//! impl TrackingQueue {
+//!     fn push(&self, now: CoarseInstant, bytes: Box<[u8]>) -> Result<(), MemoryReclaimedError> {
+//!         let mut inner = self.0.lock().unwrap();
+//!         let inner = inner.as_mut().map_err(|e| e.clone())?;
+//!         inner.partn.claim(bytes.len())?;
+//!         inner.data.push_back((bytes, now));
+//!         Ok(())
+//!     }
+//! }
+//!
+//! impl mtracker::IsParticipant for TrackingQueue {
+//!     fn get_oldest(&self) -> Option<CoarseInstant> {
+//!         let inner = self.0.lock().unwrap();
+//!         Some(inner.as_ref().ok()?.data.front()?.1)
+//!     }
+//!     fn reclaim(self: Arc<Self>) -> mtracker::ReclaimFuture {
+//!         let mut inner = self.0.lock().unwrap();
+//!         *inner = Err(MemoryReclaimedError::new());
+//!         Box::pin(async { mtracker::Reclaimed::Collapsing })
+//!     }
+//! }
+//!
+//! let runtime = PreferredRuntime::create().unwrap();
+//! let config  = tor_memtrack::Config::builder().max(1024*1024*1024).build().unwrap();
+//! let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();
+//! let account = trk.new_account(None).unwrap();
+//!
+//! let queue: Arc<TrackingQueue> = account.register_participant_with(
+//!     runtime.now_coarse(),
+//!     |partn| {
+//!         Ok::<_, Void>(Arc::new(TrackingQueue(Mutex::new(Ok(Inner {
+//!             partn,
+//!             data: VecDeque::new(),
+//!         })))))
+//!     },
+//! ).unwrap().void_unwrap();
+//!
+//! queue.push(runtime.now_coarse(), Box::new([0; 24])).unwrap();
+//! ```
 //
 // For key internal documentation about the data structure, see the doc comment for
 // `struct State` (down in the middle of the file).
