@@ -56,9 +56,10 @@
 //!    To avoid too-frequent Reclamation, once Reclamation ha started,
 //!    it will continue until a low-water mark is reached, significantly lower than the quota.
 //!    I.e. the system has a hysteresis.
-//!    The only currently implemented higher-level Participant is
-//!    a queue which responds to a reclamation request
-//!    by completely destroying itself and freeing all its data.
+// TODO we haven't implemented the queue wrapper yet
+// !    The only currently implemented higher-level Participant is
+// !    a queue which responds to a reclamation request
+// !    by completely destroying itself and freeing all its data.
 //!
 //!  * **Approximate** (both in time and space):
 //!    The memory quota system is not completely precise.
@@ -72,9 +73,10 @@
 //!    during memory pressure the quota may be exceeded;
 //!    new allocations are not prevented while attempts at reclamation are ongoing.
 //!
-//!  * **Queues**:
-//!    We provide a higher-level API that wraps an mpsc queue and turns it into a Participant.
-//!
+// TODO we haven't implemented the queue wrapper yet
+// !  * **Queues**:
+// !    We provide a higher-level API that wraps an mpsc queue and turns it into a Participant.
+// !
 //! ## Ownership and Arc keeping-alive
 //!
 //!  * Somewhere, someone must keep an `Account` to keep the account open.
