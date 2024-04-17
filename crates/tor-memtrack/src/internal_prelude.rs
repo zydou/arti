@@ -56,5 +56,6 @@ pub(crate) use {
 pub(crate) use crate::{
     config::Config,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
+    refcount,
     utils::{DefaultExtTake, Qty},
 };

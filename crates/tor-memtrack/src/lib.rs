@@ -185,6 +185,7 @@
 // Internal supporting modules
 mod internal_prelude;
 #[macro_use]
+mod refcount;
 mod utils;
 
 // Modules with public items
