@@ -463,9 +463,9 @@ where
             // That is how this tracking is disabled when we want it to be.
             let want_unrecognized = !input.unrecognized.is_empty();
             if !want_unrecognized {
-                deser.0.extract()
+                deser.0.extract_lossy()
             } else {
-                let ret: Result<Des<<T as TopLevel>::Builder>, _> = deser.0.extract();
+                let ret: Result<Des<<T as TopLevel>::Builder>, _> = deser.0.extract_lossy();
 
                 match ret {
                     Ok(Des { nign, value }) => {
