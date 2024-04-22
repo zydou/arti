@@ -80,8 +80,8 @@ pub struct VanguardParams {
 impl Default for VanguardParams {
     fn default() -> Self {
         Self {
-            vanguards_enabled: VanguardMode::default(),
-            vanguards_hs_service: VanguardMode::default(),
+            vanguards_enabled: VanguardMode::Lite,
+            vanguards_hs_service: VanguardMode::Full,
             l2_pool_size: DEFAULT_L2_POOL_SIZE,
             l2_lifetime_min: DEFAULT_L2_GUARD_LIFETIME_MIN,
             l2_lifetime_max: DEFAULT_L2_GUARD_LIFETIME_MAX,
