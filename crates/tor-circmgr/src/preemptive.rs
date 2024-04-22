@@ -47,7 +47,9 @@ impl PreemptiveCircuitPredictor {
     pub(crate) fn set_config(&self, mut new_config: PreemptiveCircuitConfig) {
         self.config.map_and_replace(|cfg| {
             // Force this to stay the same, since it can't meaningfully be changed.
-            new_config.initial_predicted_ports = cfg.initial_predicted_ports.clone();
+            new_config
+                .initial_predicted_ports
+                .clone_from(&cfg.initial_predicted_ports);
             new_config
         });
     }
