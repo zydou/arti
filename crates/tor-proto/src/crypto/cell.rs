@@ -220,7 +220,7 @@ impl OutboundClientCrypt {
 
     /// Add a new layer to this OutboundClientCrypt
     pub(crate) fn add_layer(&mut self, layer: Box<dyn OutboundClientLayer + Send>) {
-        assert!(self.layers.len() < std::u8::MAX as usize);
+        assert!(self.layers.len() < u8::MAX as usize);
         self.layers.push(layer);
     }
 
@@ -250,7 +250,7 @@ impl InboundClientCrypt {
     }
     /// Add a new layer to this InboundClientCrypt
     pub(crate) fn add_layer(&mut self, layer: Box<dyn InboundClientLayer + Send>) {
-        assert!(self.layers.len() < std::u8::MAX as usize);
+        assert!(self.layers.len() < u8::MAX as usize);
         self.layers.push(layer);
     }
 

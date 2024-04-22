@@ -40,7 +40,7 @@ pub struct RetryDelay {
 const MIN_LOW_BOUND: u32 = 1000;
 
 /// Largest possible lower bound, in milliseconds.
-const MAX_LOW_BOUND: u32 = std::u32::MAX - 1;
+const MAX_LOW_BOUND: u32 = u32::MAX - 1;
 
 /// Maximum amount to multiply the previous delay by.
 const MAX_DELAY_MULT: u32 = 3;
@@ -157,7 +157,7 @@ mod test {
         rd.last_delay_ms = 1500;
         assert_eq!(rd.delay_bounds(), (1000, 4500));
         rd.last_delay_ms = 3_000_000_000;
-        assert_eq!(rd.delay_bounds(), (1000, std::u32::MAX));
+        assert_eq!(rd.delay_bounds(), (1000, u32::MAX));
         rd.reset();
         assert_eq!(rd.delay_bounds(), (1000, 1001));
     }

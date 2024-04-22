@@ -65,7 +65,7 @@ impl ChannelCodec {
             dst.write_u16(0);
             msg.encode_onto(dst)?;
             let len = dst.len() - pos - 2;
-            if len > std::u16::MAX as usize {
+            if len > u16::MAX as usize {
                 return Err(Error::Internal(internal!("ran out of space for varcell")));
             }
             // go back and set the length.

@@ -432,15 +432,15 @@ mod test {
     #[test]
     fn t_clamp() {
         assert_eq!(clamp_to_pos(32), 32);
-        assert_eq!(clamp_to_pos(std::i32::MAX), std::i32::MAX as u32);
+        assert_eq!(clamp_to_pos(i32::MAX), i32::MAX as u32);
         assert_eq!(clamp_to_pos(0), 0);
         assert_eq!(clamp_to_pos(-1), 0);
-        assert_eq!(clamp_to_pos(std::i32::MIN), 0);
+        assert_eq!(clamp_to_pos(i32::MIN), 0);
     }
 
     #[test]
     fn t_log2() {
-        assert_eq!(log2_upper(std::u64::MAX), 64);
+        assert_eq!(log2_upper(u64::MAX), 64);
         assert_eq!(log2_upper(0), 0);
         assert_eq!(log2_upper(1), 1);
         assert_eq!(log2_upper(63), 6);
