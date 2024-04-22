@@ -235,6 +235,12 @@ pub struct InvokerEnt {
 impl InvokerEnt {
     /// Return true if these two entries appear to be the same declaration
     /// for the same function.
+    //
+    // It seems like it should be possible to compare these by pointer equality, somehow.
+    // But that would have to be done by comparing `&dyn`, including their vtables,
+    // and Rust's vtables aren't at all stable.  This is a sanity check, not critical
+    // for correctness or security, so it's fine that it will catch most mistakes but
+    // not deliberate abuse or exciting stunts.
     fn same_decl(&self, other: &Self) -> bool {
         self.file == other.file && self.line == other.line && self.function == other.function
     }
