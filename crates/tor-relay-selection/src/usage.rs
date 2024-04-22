@@ -46,6 +46,9 @@ enum RelayUsageInner {
     /// Allow any relay that's suitable for continued use as a pre-existing
     /// guard.
     ContinuingGuard,
+    /// Allow any relay that's suitable as a vanguard.
+    #[cfg(feature = "vanguards")]
+    Vanguard,
     /// Allow any relay that's suitable as a one-hop directory cache.
     DirectoryCache,
 }
@@ -151,6 +154,16 @@ impl RelayUsage {
         }
     }
 
+    /// Require a relay that is suitable as a vanguard.
+    #[cfg(feature = "vanguards")]
+    pub fn vanguard() -> Self {
+        RelayUsage {
+            inner: RelayUsageInner::Vanguard,
+            // Vanguards must have the Fast, Stable, and Valid flags.
+            need_stable: true,
+        }
+    }
+
     /// Require a relay that is suitable to use for a directory request.
     ///
     /// Note that this usage is suitable for fetching consensuses, authority certificates,
@@ -172,6 +185,8 @@ impl RelayUsage {
             Middle => WeightRole::Middle,
             NewIntroPoint | ContinuingIntroPoint => WeightRole::HsIntro,
             NewGuard | ContinuingGuard => WeightRole::Guard,
+            #[cfg(feature = "vanguards")]
+            Vanguard => WeightRole::Middle,
             DirectoryCache => WeightRole::BeginDir,
         }
     }
@@ -187,6 +202,8 @@ impl RelayUsage {
             Middle => "useless for middle relay",
             NewIntroPoint | ContinuingIntroPoint => "not introduction point",
             NewGuard | ContinuingGuard => "not guard",
+            #[cfg(feature = "vanguards")]
+            Vanguard => "not usable as vanguard",
             DirectoryCache => "not directory cache",
         }
     }
@@ -223,6 +240,11 @@ impl LowLevelRelayPredicate for RelayUsage {
             // TODO: Is there a distinction we should implement?
             // TODO: Move is_suitable_as_guard logic here.
             NewGuard | ContinuingGuard => relay.is_suitable_as_guard() && relay.is_dir_cache(),
+            #[cfg(feature = "vanguards")]
+            Vanguard => {
+                // TODO: we might want to impose additional restrictions here
+                true
+            }
             DirectoryCache => relay.is_dir_cache(),
         }
     }

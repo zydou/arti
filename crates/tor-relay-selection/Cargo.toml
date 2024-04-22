@@ -15,8 +15,9 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 full = ["tor-basic-utils/full", "tor-geoip?/full", "tor-linkspec/full", "tor-netdir/full", "tor-netdoc/full"]
 
-experimental = ["geoip"]
+experimental = ["geoip", "vanguards"]
 geoip = ["tor-geoip", "tor-netdir/geoip", "__is_experimental"]
+vanguards = []
 __is_experimental = []
 
 [dependencies]
