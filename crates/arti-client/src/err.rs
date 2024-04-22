@@ -432,7 +432,7 @@ impl tor_error::HasKind for ErrorDetail {
 
 impl From<TorAddrError> for Error {
     fn from(e: TorAddrError) -> Error {
-        e.into()
+        ErrorDetail::from(e).into()
     }
 }
 
