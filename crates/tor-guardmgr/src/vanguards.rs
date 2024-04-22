@@ -166,7 +166,7 @@ impl<R: Runtime> VanguardMgr<R> {
                 info!("Loading vanguards from vanguard state file");
                 // Discard the now-expired the vanguards
                 let now = runtime.wallclock();
-                let _ = sets.as_mut().remove_expired(now);
+                let _ = sets.remove_expired(now);
                 sets
             }
             None => {
@@ -418,14 +418,12 @@ impl<R: Runtime> VanguardMgr<R> {
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
-        let mut vanguard_sets = inner.vanguard_sets.as_mut();
+        let vanguard_sets = &mut inner.vanguard_sets;
         vanguard_sets.remove_expired(now);
 
-        if vanguard_sets.has_changes() {
-            if let Some(netdir) = Self::timely_netdir(netdir_provider)? {
-                // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
-                inner.update_vanguard_sets(&self.runtime, &self.storage, &netdir)?;
-            }
+        if let Some(netdir) = Self::timely_netdir(netdir_provider)? {
+            // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
+            inner.update_vanguard_sets(&self.runtime, &self.storage, &netdir)?;
         }
 
         let Some(expiry) = inner.vanguard_sets.next_expiry() else {
@@ -472,8 +470,7 @@ impl Inner {
         self.update_params(params.clone());
 
         let mode = self.mode();
-        let mut vanguard_sets = self.vanguard_sets.as_mut();
-        vanguard_sets.remove_unlisted(netdir);
+        self.vanguard_sets.remove_unlisted(netdir);
 
         // If we loaded some vanguards from persistent storage but we still need more,
         // we select them here.
@@ -483,12 +480,10 @@ impl Inner {
         //
         // If we have already populated the vanguard sets in a previous iteration,
         // this will ensure they have enough vanguards.
-        vanguard_sets.replenish_vanguards(runtime, netdir, &params, mode)?;
+        self.vanguard_sets.replenish_vanguards(runtime, netdir, &params, mode)?;
 
-        // If the vanguard sets have changed, flush them to disk.
-        if vanguard_sets.has_changes() {
-            self.flush_to_storage(storage)?;
-        }
+        // Flush the vanguard sets to disk.
+        self.flush_to_storage(storage)?;
 
         Ok(())
     }

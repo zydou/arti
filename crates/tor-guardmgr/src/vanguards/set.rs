@@ -82,14 +82,6 @@ pub(super) struct VanguardSets {
 }
 
 impl VanguardSets {
-    /// Return a [`VanguardSetsTrackedMut`] for mutating the vanguard sets.
-    pub(super) fn as_mut(&mut self) -> VanguardSetsTrackedMut {
-        VanguardSetsTrackedMut {
-            inner: self,
-            changed: false,
-        }
-    }
-
     /// Find the timestamp of the vanguard that is due to expire next.
     pub(super) fn next_expiry(&self) -> Option<SystemTime> {
         let l2_expiry = self.l2_vanguards.next_expiry();
@@ -113,44 +105,19 @@ impl VanguardSets {
     pub(super) fn l3(&self) -> &VanguardSet {
         &self.l3_vanguards
     }
-}
-
-/// A handle that can be used to mutate a [`VanguardSets`] instance.
-///
-/// It keeps track of whether the `VanguardSets` was modified or not.
-///
-/// When running in full vanguards mode, [`VanguardMgr`](super::VanguardMgr)
-/// uses this to decide whether the vanguard sets are "dirty"
-/// and need to be flushed to disk.
-pub(super) struct VanguardSetsTrackedMut<'a> {
-    /// The underlying `VanguardSets`.
-    inner: &'a mut VanguardSets,
-    /// Whether the [`VanguardSets`] was mutated.
-    changed: bool,
-}
-
-impl<'a> VanguardSetsTrackedMut<'a> {
-    /// Whether the underlying [`VanguardSets`] has changed.
-    pub(super) fn has_changes(&self) -> bool {
-        self.changed
-    }
 
     /// Remove the vanguards that are expired at the specified timestamp.
     pub(super) fn remove_expired(&mut self, now: SystemTime) {
-        let l2_changed = self.inner.l2_vanguards.remove_expired(now);
-        let l3_changed = self.inner.l3_vanguards.remove_expired(now);
-
-        self.update_changed(l2_changed || l3_changed);
+        self.l2_vanguards.remove_expired(now);
+        self.l3_vanguards.remove_expired(now);
     }
 
     /// Remove the vanguards that are no longer listed in `netdir`.
     ///
     /// Returns whether either of the two sets have changed.
     pub(super) fn remove_unlisted(&mut self, netdir: &NetDir) {
-        let l2_changed = self.inner.l2_vanguards.remove_unlisted(netdir);
-        let l3_changed = self.inner.l3_vanguards.remove_unlisted(netdir);
-
-        self.update_changed(l2_changed || l3_changed);
+        self.l2_vanguards.remove_unlisted(netdir);
+        self.l3_vanguards.remove_unlisted(netdir);
     }
 
     /// Replenish the vanguard sets if necessary, using the directory information
@@ -167,45 +134,34 @@ impl<'a> VanguardSetsTrackedMut<'a> {
         trace!("Replenishing vanguard sets");
 
         // Resize the vanguard sets if necessary.
-        self.inner.l2_vanguards.update_target(params.l2_pool_size());
+        self.l2_vanguards.update_target(params.l2_pool_size());
 
         // TODO HS-VANGUARDS: It would be nice to make this mockable. It will involve adding an
         // M: MocksForVanguards parameter to VanguardMgr, which will have to propagated throughout
         // tor-circmgr too.
         let mut rng = rand::thread_rng();
-        let mut sets_changed = Self::replenish_set(
+        Self::replenish_set(
             runtime,
             &mut rng,
             netdir,
-            &mut self.inner.l2_vanguards,
+            &mut self.l2_vanguards,
             params.l2_lifetime_min(),
             params.l2_lifetime_max(),
         )?;
 
         if mode == VanguardMode::Full {
-            self.inner.l3_vanguards.update_target(params.l3_pool_size());
-            let l3_changed = Self::replenish_set(
+            self.l3_vanguards.update_target(params.l3_pool_size());
+            Self::replenish_set(
                 runtime,
                 &mut rng,
                 netdir,
-                &mut self.inner.l3_vanguards,
+                &mut self.l3_vanguards,
                 params.l3_lifetime_min(),
                 params.l3_lifetime_max(),
             )?;
-
-            sets_changed = sets_changed || l3_changed;
         }
 
-        self.update_changed(sets_changed);
-
         Ok(())
-    }
-
-    /// Set the `changed` flag if `new_changed` is `true`.
-    ///
-    /// If `changed` is already `true`, it won't be set back to `false`.
-    fn update_changed(&mut self, new_changed: bool) {
-        self.changed = self.changed || new_changed;
     }
 
     /// Replenish a single `VanguardSet` with however many vanguards it is short of.
@@ -350,8 +306,8 @@ impl VanguardSet {
     }
 
     /// Remove the vanguards that are no longer listed in `netdir`
-    fn remove_unlisted(&mut self, netdir: &NetDir) -> bool {
-        self.retain(|v| {
+    fn remove_unlisted(&mut self, netdir: &NetDir) {
+        self.vanguards.retain(|v| {
             let cond = netdir.ids_listed(&v.id) != Some(false);
 
             if !cond {
@@ -359,12 +315,12 @@ impl VanguardSet {
             }
 
             cond
-        })
+        });
     }
 
     /// Remove the vanguards that are expired at the specified timestamp.
-    fn remove_expired(&mut self, now: SystemTime) -> bool {
-        self.retain(|v| {
+    fn remove_expired(&mut self, now: SystemTime) {
+        self.vanguards.retain(|v| {
             let cond = v.when > now;
 
             if !cond {
@@ -372,7 +328,7 @@ impl VanguardSet {
             }
 
             cond
-        })
+        });
     }
 
     /// Find the timestamp of the vanguard that is due to expire next.
@@ -383,16 +339,6 @@ impl VanguardSet {
     /// Update the target size of this set, discarding or requesting additional vanguards if needed.
     fn update_target(&mut self, target: usize) {
         self.target = target;
-    }
-
-    /// A wrapper around [`Vec::retain`] that returns whether any values were discarded.
-    fn retain<F>(&mut self, f: F) -> bool
-    where
-        F: FnMut(&TimeBoundVanguard) -> bool,
-    {
-        let old_len = self.vanguards.len();
-        self.vanguards.retain(f);
-        self.vanguards.len() < old_len
     }
 }
 
@@ -436,98 +382,5 @@ derive_deftly_adhoc! {
             }
 
         )
-    }
-}
-
-#[cfg(test)]
-mod test {
-    // @@ begin test lint list maintained by maint/add_warning @@
-    #![allow(clippy::bool_assert_comparison)]
-    #![allow(clippy::clone_on_copy)]
-    #![allow(clippy::dbg_macro)]
-    #![allow(clippy::mixed_attributes_style)]
-    #![allow(clippy::print_stderr)]
-    #![allow(clippy::print_stdout)]
-    #![allow(clippy::single_char_pattern)]
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::unchecked_duration_subtraction)]
-    #![allow(clippy::useless_vec)]
-    #![allow(clippy::needless_pass_by_value)]
-    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-
-    use tor_basic_utils::test_rng::testing_rng;
-    use tor_netdir::testnet;
-    use tor_rtmock::MockRuntime;
-
-    use super::*;
-
-    #[test]
-    fn tracked_mut() {
-        MockRuntime::test_with_various(|rt| async move {
-            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
-            let params = VanguardParams::try_from(netdir.params()).unwrap();
-            let mut vanguard_sets = VanguardSets::default();
-            {
-                let mut vanguard_sets_mut = vanguard_sets.as_mut();
-
-                assert!(!vanguard_sets_mut.has_changes());
-                vanguard_sets_mut
-                    .replenish_vanguards(&rt, &netdir, &params, VanguardMode::Full)
-                    .unwrap();
-                assert!(vanguard_sets_mut.has_changes());
-
-                // This should be a no-op, because the netdir hasn't changed.
-                vanguard_sets_mut.remove_unlisted(&netdir);
-                // But the changed flag is still set,
-                // because we changed the set by adding new vanguards.
-                assert!(vanguard_sets_mut.has_changes());
-            }
-
-            {
-                let mut vanguard_sets_mut = vanguard_sets.as_mut();
-                assert!(!vanguard_sets_mut.has_changes());
-                // This should be a no-op, because the netdir hasn't changed.
-                vanguard_sets_mut.remove_unlisted(&netdir);
-                assert!(!vanguard_sets_mut.has_changes());
-            }
-
-            {
-                // Pick a vanguard to remove from the consensus:
-                let mut rng = testing_rng();
-                let exclusion = RelayExclusion::no_relays_excluded();
-                let vanguard = vanguard_sets
-                    .l2()
-                    .pick_relay(&mut rng, &netdir, &exclusion)
-                    .unwrap();
-
-                let new_netdir = testnet::construct_custom_netdir(|_idx, bld| {
-                    let md_so_far = bld.md.testing_md().unwrap();
-                    if md_so_far.ed25519_id() == vanguard.relay().id() {
-                        bld.omit_rs = true;
-                    }
-                })
-                .unwrap()
-                .unwrap_if_sufficient()
-                .unwrap();
-
-                let mut vanguard_sets_mut = vanguard_sets.as_mut();
-                assert!(!vanguard_sets_mut.has_changes());
-                vanguard_sets_mut.remove_unlisted(&new_netdir);
-
-                // One of the L2 vanguards is not listed in the new consensus,
-                // so it got removed by remove_unlisted.
-                assert!(vanguard_sets_mut.has_changes());
-            }
-
-            {
-                // Pick an L3 vanguard to "expire"
-                let vanguard = &vanguard_sets.l3_vanguards.vanguards[0];
-                let expiry_ts = vanguard.when;
-
-                let mut vanguard_sets_mut = vanguard_sets.as_mut();
-                vanguard_sets_mut.remove_expired(expiry_ts);
-                assert!(vanguard_sets_mut.has_changes());
-            }
-        });
     }
 }
