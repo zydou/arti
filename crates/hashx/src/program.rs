@@ -244,7 +244,7 @@ impl Program {
         macro_rules! binary_const_op {
             ($dst:ident, $src:ident, $fn:ident, $pc:ident) => {{
                 let a = regs.load(*$dst);
-                let b_sign_extended = (*$src) as i64 as u64;
+                let b_sign_extended = i64::from(*$src) as u64;
                 regs.store(*$dst, a.$fn(b_sign_extended));
                 $pc
             }};
@@ -255,8 +255,8 @@ impl Program {
         /// This stores the low 32 bits of its result for later branch tests.
         macro_rules! mulh_op {
             ($dst:ident, $src:ident, $sign:ty, $wide:ty, $pc:ident) => {{
-                let a = regs.load(*$dst) as $sign as $wide;
-                let b = regs.load(*$src) as $sign as $wide;
+                let a = <$wide>::from(regs.load(*$dst) as $sign);
+                let b = <$wide>::from(regs.load(*$src) as $sign);
                 let r = (a.wrapping_mul(b) >> 64) as u64;
                 mulh_result = r as u32;
                 regs.store(*$dst, r);
