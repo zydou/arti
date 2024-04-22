@@ -480,7 +480,8 @@ impl Inner {
         //
         // If we have already populated the vanguard sets in a previous iteration,
         // this will ensure they have enough vanguards.
-        self.vanguard_sets.replenish_vanguards(runtime, netdir, &params, mode)?;
+        self.vanguard_sets
+            .replenish_vanguards(runtime, netdir, &params, mode)?;
 
         // Flush the vanguard sets to disk.
         self.flush_to_storage(storage)?;
