@@ -284,28 +284,27 @@ impl<R: Runtime> VanguardMgr<R> {
         // maintain_vanguard_sets task and do everything synchronously in this function...
 
         // TODO HS-VANGUARDS: come up with something with better UX
-        let relay = match (layer, inner.mode()) {
-            (Layer::Layer2, Full) | (Layer::Layer2, Lite) => {
-                inner
+        let relay =
+            match (layer, inner.mode()) {
+                (Layer::Layer2, Full) | (Layer::Layer2, Lite) => inner
                     .vanguard_sets
                     .l2()
-                    .pick_relay(rng, netdir, neighbor_exclusion)
-            }
-            (Layer::Layer3, Full) => {
-                inner
-                    .vanguard_sets
-                    .l3()
-                    .pick_relay(rng, netdir, neighbor_exclusion)
-            }
-            // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
-            _ => {
-                return Err(internal!(
-                    "vanguards for layer {layer} are not supported in mode {})",
-                    inner.mode()
-                )
-                .into())
-            }
-        };
+                    .pick_relay(rng, netdir, neighbor_exclusion),
+                (Layer::Layer3, Full) => {
+                    inner
+                        .vanguard_sets
+                        .l3()
+                        .pick_relay(rng, netdir, neighbor_exclusion)
+                }
+                // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
+                _ => {
+                    return Err(internal!(
+                        "vanguards for layer {layer} are not supported in mode {})",
+                        inner.mode()
+                    )
+                    .into())
+                }
+            };
 
         relay.ok_or(VanguardMgrError::NoSuitableRelay(layer))
     }
