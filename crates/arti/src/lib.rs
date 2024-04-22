@@ -126,10 +126,17 @@ fn create_runtime() -> std::io::Result<impl Runtime> {
             use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
         } else if #[cfg(all(feature="tokio", feature="rustls"))] {
             use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            let _idempotent_ignore = rustls_crate::crypto::CryptoProvider::install_default(
+                rustls_crate::crypto::ring::default_provider(),
+
+            );
         } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
             use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
         } else if #[cfg(all(feature="async-std", feature="rustls"))] {
             use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
+            let _idempotent_ignore = rustls_crate::crypto::CryptoProvider::install_default(
+                rustls_crate::crypto::ring::default_provider(),
+            );
         } else {
             compile_error!("You must configure both an async runtime and a TLS stack. See doc/TROUBLESHOOTING.md for more.");
         }

@@ -48,13 +48,7 @@ full = [
     "tor-hsservice?/full",
 ]
 
-async-std = [
-    "arti-client/async-std",
-    "tor-rtcompat/async-std",
-    "async-ctrlc",
-    "signal-hook",
-    "signal-hook-async-std",
-]
+async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "signal-hook", "signal-hook-async-std"]
 bridge-client = ["arti-client/bridge-client"]
 dns-proxy = ["hickory-proto"]
 experimental-api = ["arti-client/experimental-api", "visibility", "__is_experimental"]
@@ -69,7 +63,7 @@ pt-client = ["bridge-client", "arti-client/pt-client"]
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
 # which in turn introduces a GPL-incompatibility.
-rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "__is_nonadditive"]
+rustls = ["arti-client/rustls", "tor-rtcompat/rustls", "rustls-crate", "__is_nonadditive"]
 
 # depends directly on arti-client/static so native-tls doesn't get automatically included
 static = ["arti-client/static", "__is_nonadditive"]
@@ -110,6 +104,7 @@ libc = "0.2"
 notify = { version = "6.0", default-features = false, features = ["macos_kqueue"] }
 paste = "1"
 rlimit = "0.10.1"
+rustls-crate = { package = "rustls", version = "0.23.5", optional = true, default-features = false, features = ["tls12", "logging", "ring"] }
 safelog = { path = "../safelog", version = "0.3.6" }
 secmem-proc = { version = "0.3.0", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }

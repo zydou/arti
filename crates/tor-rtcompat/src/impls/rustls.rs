@@ -17,6 +17,10 @@ use std::{
 /// A [`TlsProvider`] that uses `rustls`.
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
+///
+/// The application is responsible for calling `CryptoProvider::install_default_provider()`
+/// before constructing one of these providers.  If they do not, we will issue a warning,
+/// and install a default (ring) provider.
 #[cfg_attr(
     docsrs,
     doc(cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std"))))
@@ -80,6 +84,20 @@ where
 impl RustlsProvider {
     /// Construct a new [`RustlsProvider`.]
     pub(crate) fn new() -> Self {
+        if futures_rustls::rustls::crypto::CryptoProvider::get_default().is_none() {
+            // If we haven't installed a CryptoProvider at this point, we warn and install
+            // the `ring` provider.  That isn't great, but the alternative would be to
+            // panic.  Right now, that would cause many of our tests to fail.
+            tracing::warn!(
+                "Creating a RustlsRuntime, but no CryptoProvider is installed. The application \
+                            should call CryptoProvider::install_default()"
+            );
+            let _idempotent_ignore =
+                futures_rustls::rustls::crypto::CryptoProvider::install_default(
+                    futures_rustls::rustls::crypto::ring::default_provider(),
+                );
+        }
+
         // Be afraid: we are overriding the default certificate verification and
         // TLS signature checking code! See notes on `Verifier` below for
         // details.
