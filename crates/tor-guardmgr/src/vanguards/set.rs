@@ -56,7 +56,7 @@ pub(crate) struct TimeBoundVanguard {
 #[derive(Serialize, Deserialize)] //
 #[serde(transparent)]
 #[allow(unused)] // TODO HS-VANGUARDS
-struct VanguardSet {
+pub(super) struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
     vanguards: Vec<TimeBoundVanguard>,
     /// The number of vanguards we would like to have in this set.
@@ -104,30 +104,14 @@ impl VanguardSets {
         }
     }
 
-    /// Pick a relay from the L2 set.
-    ///
-    /// See [`VanguardSet::pick_relay`].
-    pub(super) fn pick_l2_relay<'a, R: RngCore>(
-        &self,
-        rng: &mut R,
-        netdir: &'a NetDir,
-        neighbor_exclusion: &RelayExclusion<'a>,
-    ) -> Option<Vanguard<'a>> {
-        self.l2_vanguards
-            .pick_relay(rng, netdir, neighbor_exclusion)
+    /// Return a reference to the L2 [`VanguardSet`].
+    pub(super) fn l2(&self) -> &VanguardSet {
+        &self.l2_vanguards
     }
 
-    /// Pick a relay from the L3 set.
-    ///
-    /// See [`VanguardSet::pick_relay`].
-    pub(super) fn pick_l3_relay<'a, R: RngCore>(
-        &self,
-        rng: &mut R,
-        netdir: &'a NetDir,
-        neighbor_exclusion: &RelayExclusion<'a>,
-    ) -> Option<Vanguard<'a>> {
-        self.l3_vanguards
-            .pick_relay(rng, netdir, neighbor_exclusion)
+    /// Return a reference to the L3 [`VanguardSet`].
+    pub(super) fn l3(&self) -> &VanguardSet {
+        &self.l3_vanguards
     }
 }
 
@@ -329,7 +313,7 @@ impl VanguardSet {
     ///
     /// See [`VanguardMgr::select_vanguard`](crate::vanguards::VanguardMgr::select_vanguard)
     /// for more information.
-    fn pick_relay<'a, R: RngCore>(
+    pub(super) fn pick_relay<'a, R: RngCore>(
         &self,
         rng: &mut R,
         netdir: &'a NetDir,
@@ -512,7 +496,8 @@ mod test {
                 let mut rng = testing_rng();
                 let exclusion = RelayExclusion::no_relays_excluded();
                 let vanguard = vanguard_sets
-                    .pick_l2_relay(&mut rng, &netdir, &exclusion)
+                    .l2()
+                    .pick_relay(&mut rng, &netdir, &exclusion)
                     .unwrap();
 
                 let new_netdir = testnet::construct_custom_netdir(|_idx, bld| {

@@ -288,12 +288,14 @@ impl<R: Runtime> VanguardMgr<R> {
             (Layer::Layer2, Full) | (Layer::Layer2, Lite) => {
                 inner
                     .vanguard_sets
-                    .pick_l2_relay(rng, netdir, neighbor_exclusion)
+                    .l2()
+                    .pick_relay(rng, netdir, neighbor_exclusion)
             }
             (Layer::Layer3, Full) => {
                 inner
                     .vanguard_sets
-                    .pick_l3_relay(rng, netdir, neighbor_exclusion)
+                    .l3()
+                    .pick_relay(rng, netdir, neighbor_exclusion)
             }
             // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
             _ => {
