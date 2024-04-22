@@ -204,8 +204,11 @@ declare_invocable_impl! {
     update_gen: U,
     update_arg: { sink: UpdateSink<U> },
     update_arg_where: { U: 'static },
-    sink_fn: (|sink:BoxedUpdateSink| Box::pin(sink.with_fn(|update: U|
-        RpcSendResult::Ok(Box::new(M::Update::from(update))))))
+    sink_fn: |sink:BoxedUpdateSink| Box::pin(
+        sink.with_fn(|update: U| RpcSendResult::Ok(
+            Box::new(M::Update::from(update))
+        )
+    ))
 }
 
 /// An annotated Invocable; used to compile a [`DispatchTable`].
