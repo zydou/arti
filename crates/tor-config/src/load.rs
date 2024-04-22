@@ -268,6 +268,11 @@ impl UnrecognizedKeys {
             }
         }
     }
+
+    /// Remove every element of this set.
+    fn clear(&mut self) {
+        *self = UK::These(BTreeSet::new());
+    }
 }
 
 /// Key in config file(s) which is disfavoured (unrecognized or deprecated)
@@ -308,9 +313,9 @@ where
     if want_disfavoured {
         T::enumerate_deprecated_keys(&mut |l: &[&str]| {
             for key in l {
-                match input.0.get(key) {
+                match input.0.find_value(key) {
                     Err(_) => {}
-                    Ok(serde::de::IgnoredAny) => {
+                    Ok(_) => {
                         deprecated.insert(key);
                     }
                 }
@@ -417,6 +422,34 @@ where
     Ok(resolve_inner(input, false)?.value)
 }
 
+/// Wrapper around T that collects ignored keys as we deserialize it.
+///
+/// (We need a helper type here since figment does not expose a `Deserializer`
+/// implementation directly.)
+struct Des<T> {
+    /// A set of the ignored keys that we found
+    nign: BTreeSet<DisfavouredKey>,
+    /// The underlying value we're deserializing.
+    value: T,
+}
+impl<'de, T> serde::Deserialize<'de> for Des<T>
+where
+    T: serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut nign = BTreeSet::new();
+        let mut recorder = |path: serde_ignored::Path<'_>| {
+            nign.insert(copy_path(&path));
+        };
+        let deser = serde_ignored::Deserializer::new(deserializer, &mut recorder);
+        let ret = serde::Deserialize::deserialize(deser);
+        Ok(Des { nign, value: ret? })
+    }
+}
+
 impl<T> Resolvable for T
 where
     T: TopLevel,
@@ -424,31 +457,31 @@ where
 {
     fn resolve(input: &mut ResolveContext) -> Result<T, ConfigResolveError> {
         let deser = input.input.clone();
-        let builder: T::Builder = {
+        let builder: Result<T::Builder, _> = {
             // If input.unrecognized.is_empty() then we don't bother tracking the
             // unrecognized keys since we would intersect with the empty set.
             // That is how this tracking is disabled when we want it to be.
             let want_unrecognized = !input.unrecognized.is_empty();
-            let ret = if !want_unrecognized {
-                deser.0.try_deserialize()
+            if !want_unrecognized {
+                deser.0.extract_lossy()
             } else {
-                let mut nign = BTreeSet::new();
-                let mut recorder = |path: serde_ignored::Path<'_>| {
-                    nign.insert(copy_path(&path));
-                };
-                let deser = serde_ignored::Deserializer::new(deser.0, &mut recorder);
-                let ret = serde::Deserialize::deserialize(deser);
-                if ret.is_err() {
-                    // If we got an error, the config might only have been partially processed,
-                    // so we might get false positives.  Disable the unrecognized tracking.
-                    nign = BTreeSet::new();
+                let ret: Result<Des<<T as TopLevel>::Builder>, _> = deser.0.extract_lossy();
+
+                match ret {
+                    Ok(Des { nign, value }) => {
+                        input.unrecognized.intersect_with(nign);
+                        Ok(value)
+                    }
+                    Err(e) => {
+                        // If we got an error, the config might only have been partially processed,
+                        // so we might get false positives.  Disable the unrecognized tracking.
+                        input.unrecognized.clear();
+                        Err(e)
+                    }
                 }
-                input.unrecognized.intersect_with(nign);
-                ret
-            };
-            ret.map_err(crate::ConfigError::from_cfg_err)?
+            }
         };
-        let built = builder.build()?;
+        let built = builder.map_err(crate::ConfigError::from_cfg_err)?.build()?;
         Ok(built)
     }
 

@@ -26,15 +26,11 @@
 use std::ffi::OsString;
 use std::{fs, io, sync::Arc};
 
+use figment::Figment;
 use void::ResultVoidExt as _;
 
 use crate::err::ConfigError;
 use crate::{CmdLine, ConfigurationTree};
-
-/// The synchronous configuration builder type we use.
-///
-/// (This is a type alias that config should really provide.)
-type ConfigBuilder = config::builder::ConfigBuilder<config::builder::DefaultState>;
 
 use std::path::{Path, PathBuf};
 
@@ -270,27 +266,25 @@ impl ConfigurationSources {
 
             // Returns Err(error) if we should bail,
             // or Ok(()) if we should ignore the error and skip the file.
-            let handle_io_error = |e: io::Error| {
+            let handle_io_error = |e: io::Error, p: &Path| {
                 if e.kind() == io::ErrorKind::NotFound && !required {
                     Result::<_, crate::ConfigError>::Ok(())
                 } else {
-                    Err(crate::ConfigError::from_cfg_err(
-                        config::ConfigError::Message(format!(
-                            "unable to access config path: {:?}: {}",
-                            &source.as_path(),
-                            e
-                        )),
-                    ))
+                    Err(crate::ConfigError::Io {
+                        action: "reading",
+                        path: p.to_owned(),
+                        err: Arc::new(e),
+                    })
                 }
             };
 
             use ConfigurationSource as CS;
             match &source {
-                CS::Dir(found) => {
-                    let dir = match fs::read_dir(found) {
+                CS::Dir(dirname) => {
+                    let dir = match fs::read_dir(dirname) {
                         Ok(y) => y,
                         Err(e) => {
-                            handle_io_error(e)?;
+                            handle_io_error(e, dirname.as_ref())?;
                             continue;
                         }
                     };
@@ -306,7 +300,7 @@ impl ConfigurationSources {
                         let found = match found {
                             Ok(y) => y,
                             Err(e) => {
-                                handle_io_error(e)?;
+                                handle_io_error(e, dirname.as_ref())?;
                                 continue;
                             }
                         };
@@ -350,7 +344,17 @@ impl FoundConfigFiles<'_> {
 
     /// Add every file and commandline source to `builder`, returning a new
     /// builder.
-    fn add_sources(self, mut builder: ConfigBuilder) -> Result<ConfigBuilder, ConfigError> {
+    fn add_sources(self, mut builder: Figment) -> Result<Figment, ConfigError> {
+        use figment::providers::Format;
+
+        // Note that we're using `merge` here.  It causes later sources' options
+        // to replace those in earlier sources, and causes arrays to be replaced
+        // rather than extended.
+        //
+        // TODO #1337: This array behavior is not necessarily ideal for all
+        // cases, but doing something smarter would probably require us to hack
+        // figment-rs or toml.
+
         for FoundConfigFile { source, must_read } in self.files {
             use ConfigurationSource as CS;
 
@@ -360,8 +364,7 @@ impl FoundConfigFiles<'_> {
                 CS::File(file) => file,
                 CS::Dir(_) => continue,
                 CS::Verbatim(text) => {
-                    builder =
-                        builder.add_source(config::File::from_str(&text, config::FileFormat::Toml));
+                    builder = builder.merge(figment::providers::Toml::string(&text));
                     continue;
                 }
             };
@@ -374,32 +377,33 @@ impl FoundConfigFiles<'_> {
                 .check(&file)
             {
                 Ok(()) => {}
-                Err(fs_mistrust::Error::NotFound(_)) if !required => {}
-                Err(e) => return Err(foreign_err(e)),
+                Err(fs_mistrust::Error::NotFound(_)) if !required => {
+                    continue;
+                }
+                Err(e) => return Err(ConfigError::Permissions(e)),
             }
 
-            // Not going to use File::with_name here, since it doesn't
-            // quite do what we want.
-            let f: config::File<_, _> = file.into();
-            builder = builder.add_source(f.format(config::FileFormat::Toml).required(required));
+            // We use file_exact here so that figment won't look in parent
+            // directories if the target file can't be found.
+            let f = figment::providers::Toml::file_exact(file);
+            builder = builder.merge(f);
         }
 
         let mut cmdline = CmdLine::new();
         for opt in &self.sources.options {
             cmdline.push_toml_line(opt.clone());
         }
-        builder = builder.add_source(cmdline);
+        builder = builder.merge(cmdline);
 
         Ok(builder)
     }
 
     /// Load the configuration into a new [`ConfigurationTree`].
     pub fn load(self) -> Result<ConfigurationTree, ConfigError> {
-        let mut builder = config::Config::builder();
+        let mut builder = Figment::new();
         builder = self.add_sources(builder)?;
-        Ok(ConfigurationTree(
-            builder.build().map_err(ConfigError::from_cfg_err)?,
-        ))
+
+        Ok(ConfigurationTree(builder))
     }
 }
 
@@ -427,14 +431,6 @@ fn is_syntactically_directory(p: &Path) -> bool {
             l2 != l
         }
     }
-}
-
-/// Convert an error `E` into a [`ConfigError`].
-fn foreign_err<E>(err: E) -> crate::ConfigError
-where
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-{
-    crate::ConfigError::from_cfg_err(config::ConfigError::Foreign(err.into()))
 }
 
 #[cfg(test)]

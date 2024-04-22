@@ -27,12 +27,12 @@ expand-paths = ["shellexpand", "directories"]
 __is_experimental = []
 
 [dependencies]
-config = { version = "0.14.0", default-features = false, features = ["toml"] }
 derive-deftly = "0.10.3"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 directories = { version = "5", optional = true }
 educe = "0.4.6"
 either = "1"
+figment = { version = "0.10.18", features = ["toml"] }
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9" }
 itertools = "0.12.0"
 once_cell = "1"

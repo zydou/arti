@@ -53,8 +53,8 @@ pub mod sources;
 
 #[doc(hidden)]
 pub mod deps {
-    pub use config;
     pub use educe;
+    pub use figment;
     pub use itertools::Itertools;
     pub use paste::paste;
     pub use serde;
@@ -86,13 +86,19 @@ derive_deftly::pub_template_semver_check! { "0.10.0" }
 /// (This is a wrapper for an underlying type provided by the library that
 /// actually does our configuration.)
 #[derive(Clone, Debug)]
-pub struct ConfigurationTree(config::Config);
+pub struct ConfigurationTree(figment::Figment);
 
 #[cfg(test)]
 impl ConfigurationTree {
     #[cfg(test)]
     pub(crate) fn get_string(&self, key: &str) -> Result<String, crate::ConfigError> {
-        self.0.get_string(key).map_err(ConfigError::from_cfg_err)
+        use figment::value::Value as V;
+        let val = self.0.find_value(key).map_err(ConfigError::from_cfg_err)?;
+        Ok(match val {
+            V::String(_, s) => s.to_string(),
+            V::Num(_, n) => n.to_i128().expect("Failed to extract i128").to_string(),
+            _ => format!("{:?}", val),
+        })
     }
 }
 
@@ -365,7 +371,7 @@ macro_rules! impl_standard_builder {
         // ^Being processed format:
         @ ( Builder                    )
           ( default                    )
-          ( try_deserialize            ) $Config    :                 $( $( $options    )* )?
+          ( extract                    ) $Config    :                 $( $( $options    )* )?
         //  ~~~~~~~~~~~~~~~              ^^^^^^^    ^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         // present iff not !Builder, !Default
         // present iff not !Default
@@ -442,8 +448,8 @@ macro_rules! impl_standard_builder {
             )?
 
             if let Some(def) = def {
-                $( // expands iff there was $try_deserialize, which is always try_deserialize
-                    let empty_config = $crate::deps::config::Config::builder().build().unwrap();
+                $( // expands iff there was $try_deserialize, which is always extract
+                    let empty_config = $crate::deps::figment::Figment::new();
                     let builder: [< $Config Builder >] = empty_config.$try_deserialize().unwrap();
                     let from_empty = builder.build().unwrap();
                     assert_eq!(def, from_empty);

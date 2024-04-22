@@ -1,7 +1,8 @@
 //! Declare error types.
 
-use std::sync::Arc;
+use std::path::PathBuf;
 
+use tor_basic_utils::PathExt as _;
 use tor_error::{ErrorKind, HasKind};
 
 /// An error related to an option passed to Arti via a configuration
@@ -130,21 +131,51 @@ impl HasKind for ReconfigureError {
     }
 }
 
-/// Wrapper for an error type from our underlying configuration library.
+/// An error that occurs while trying to read and process our configuration.
+#[derive(Debug, Clone, thiserror::Error)]
+#[non_exhaustive]
+pub enum ConfigError {
+    /// We encoundered a problem with file permissions.
+    #[error("Bad permissions on configuration file")]
+    Permissions(#[source] fs_mistrust::Error),
+    /// Our underlying configuration library gave an error while loading our
+    /// configuration.
+    #[error("Couldn't load configuration")]
+    Load(#[source] ConfigLoadError),
+    /// Encountered an IO error with a configuration file or directory.
+    ///
+    /// Note that some IO errors may be reported as `Load` errors,
+    /// due to limitations of the underlying library.
+    #[error("IoError while {} {}", action, path.display_lossy())]
+    Io {
+        /// The action while we were trying to perform
+        action: &'static str,
+        /// The path we were trying to do it to.
+        path: PathBuf,
+        /// The underlying problem
+        #[source]
+        err: std::sync::Arc<std::io::Error>,
+    },
+}
+
+/// Wrapper for our an error type from our underlying configuration library.
 #[derive(Debug, Clone)]
-pub struct ConfigError(Arc<config::ConfigError>);
+pub struct ConfigLoadError(figment::Error);
 
 impl ConfigError {
     /// Wrap `err` as a ConfigError.
     ///
     /// This is not a From implementation, since we don't want to expose our
     /// underlying configuration library.
-    pub(crate) fn from_cfg_err(err: config::ConfigError) -> Self {
-        ConfigError(Arc::new(err))
+    pub(crate) fn from_cfg_err(err: figment::Error) -> Self {
+        // TODO: It would be lovely to extract IO errors from figment::Error
+        // and report them as Error::Io.  Unfortunately, it doesn't seem
+        // possible to do that given the design of figment::Error.
+        ConfigError::Load(ConfigLoadError(err))
     }
 }
 
-impl std::fmt::Display for ConfigError {
+impl std::fmt::Display for ConfigLoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = self.0.to_string();
         write!(f, "{}", s)?;
@@ -155,7 +186,7 @@ impl std::fmt::Display for ConfigError {
     }
 }
 
-impl std::error::Error for ConfigError {
+impl std::error::Error for ConfigLoadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.0)
     }
