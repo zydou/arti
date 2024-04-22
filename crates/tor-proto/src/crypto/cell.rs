@@ -242,8 +242,8 @@ impl InboundClientCrypt {
     pub(crate) fn decrypt(&mut self, cell: &mut RelayCellBody) -> Result<(HopNum, &[u8])> {
         for (hopnum, layer) in self.layers.iter_mut().enumerate() {
             if let Some(tag) = layer.decrypt_inbound(cell) {
-                assert!(hopnum <= std::u8::MAX as usize);
-                return Ok(((hopnum as u8).into(), tag));
+                let hopnum = HopNum(u8::try_from(hopnum).expect("Somehow > 255 hops"));
+                return Ok((hopnum, tag));
             }
         }
         Err(Error::BadCellAuth)
