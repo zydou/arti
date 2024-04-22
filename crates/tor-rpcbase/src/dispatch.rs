@@ -3,6 +3,54 @@
 //! Our RPC functionality is polymorphic in Methods (what we're told to do) and
 //! Objects (the things that we give the methods to); we want to be able to
 //! provide different implementations for each method, on each object.
+//!
+//! ## Writing RPC functions
+//! <a name="func"></a>
+//!
+//! To participate in this system, an RPC function must have a particular type:
+//! ```rust,ignore
+//! async fn my_rpc_func(
+//!     target: Arc<OBJTYPE>,
+//!     method: Box<METHODTYPE>,
+//!     ctx: Box<dyn rpc::Context>,
+//!     [ updates: rpc::UpdateSink<METHODTYPE::Update ] // this argument is optional!
+//! ) -> Result<METHODTYPE::Output, impl Into<rpc::RpcError>>
+//! { ... }
+//! ```
+//!
+//! If the "updates" argument is present,
+//! then you will need to use the `[Updates]` flag when registering this function.
+//!
+//! ## Registering RPC functions statically
+//!
+//! After writing a function in the form above,
+//! you need to register it with the RPC system so that it can be invoked on objects of the right type.
+//! The easiest way to do so is by registering it, using [`static_rpc_invoke_fn!`](crate::static_rpc_invoke_fn):
+//!
+//! ```rust,ignore
+//! static_rpc_invoke_fn!{ my_rpc_func; my_other_rpc_func; }
+//! ```
+//!
+//! If your function takes an updates sink, the syntax is:
+//! ```rust,ignore
+//! static_rpc_invoke_fn!{ my_rpc_func [Updates]; }
+//! ```
+//!
+//! You can register particular instantiations of generic types, if they're known ahead of time:
+//! ```rust,ignore
+//! static_rpc_invoke_fn!{ my_generic_fn::<PreferredRuntime>; }
+//! ```
+//!
+//! ## Registering RPC functions at runtime.
+//!
+//! If you can't predict all the instantiations of your function in advance,
+//! you can insert them into a [`DispatchTable`] at run time:
+//! ```rust,ignore
+//! fn install_my_rpc_methods<T>(table: &mut DispatchTable) {
+//!     table.insert(invoker_ent!(my_generic_fn::<T>));
+//!     table.insert(invoker_ent!(my_generic_fn_with_update::<T>) [Updates]);
+//! }
+//! ```
 
 use std::any;
 use std::collections::HashMap;
@@ -12,7 +60,6 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use futures::Sink;
 
-use crate::typeid::ConstTypeId_;
 use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
 
 /// A type-erased serializable value.
@@ -30,45 +77,212 @@ pub type RpcSendResult = Result<RpcValue, SendUpdateError>;
 /// A boxed future holding the result of an RPC method.
 type RpcResultFuture = BoxFuture<'static, RpcResult>;
 
-/// A type-erased RPC-method invocation function.
-///
-/// This function takes `Arc`s rather than a reference, so that it can return a
-/// `'static` future.
-type ErasedInvokeFn =
-    fn(Arc<dyn Object>, Box<dyn DynMethod>, Box<dyn Context>, BoxedUpdateSink) -> RpcResultFuture;
-
 /// A boxed sink on which updates can be sent.
 pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> + Send>>;
 
-/// An entry for our dynamic dispatch code.
+/// A boxed sink on which updates of a particular type can be sent.
+//
+// NOTE: I'd like our functions to be able to take `impl Sink<U>` instead,
+// but that doesn't work with our macro nonsense.
+// Instead, we might choose to specialize `Invoker` if we find that the
+// extra boxing in this case ever matters.
+pub type UpdateSink<U> = Pin<Box<dyn Sink<U, Error = SendUpdateError> + Send + 'static>>;
+
+/// An installable handler for running a method on an object type.
 ///
-/// These are generated using [`inventory`] by our `static_rpc_invoke_fn` macro;
-/// they are later collected into a more efficient data structure.
-#[doc(hidden)]
-pub struct InvokeEntry_ {
-    obj_id: ConstTypeId_,
-    method_id: ConstTypeId_,
-    func: ErasedInvokeFn,
+/// Callers should not typically implement this trait directly;
+/// instead, use one of its blanket implementations.
+//
+// (This trait isn't sealed because there _are_ theoretical reasons
+// why you might want to provide a special implementation.)
+pub trait Invocable: Send + Sync + 'static {
+    /// Return the type of object that this Invokable will accept.
+    fn object_type(&self) -> any::TypeId;
+    /// Return the type of method that this Invocable will accept.
+    fn method_type(&self) -> any::TypeId;
+    /// Describe the types for this Invocable.  Used for debugging.
+    fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    /// Invoke a method on an object.
+    ///
+    /// Requires that `obj` has the type `self.object_type()`,
+    /// and that `method` has the type `self.method_type()`.
+    fn invoke(
+        &self,
+        obj: Arc<dyn Object>,
+        method: Box<dyn DynMethod>,
+        ctx: Box<dyn Context>,
+        sink: BoxedUpdateSink,
+    ) -> Result<RpcResultFuture, InvokeError>;
 }
 
-// Note that using `inventory` here means that _anybody_ can define new
-// methods!  This may not be the greatest property.
-inventory::collect!(InvokeEntry_);
+/// Helper: Declare a blanket implementation for Invocable.
+///
+/// We provide two blanket implementations:
+/// Once over a fn() taking an update sink,
+/// and once over a fn() not taking an update sink.
+macro_rules! declare_invocable_impl {
+    {
+      // These arguments are used to fill in some blanks that we need to use
+      // when handling an update sink.
+      $( update_gen: $update_gen:ident,
+         update_arg: { $sink:ident: $update_arg:ty } ,
+         update_arg_where: { $($update_arg_where:tt)+ } ,
+         sink_fn: $sink_fn:expr
+      )?
+    } => {
+        impl<M, OBJ, Fut, S, E, $($update_gen)?> Invocable
+            for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
+        where
+            M: crate::Method,
+            OBJ: Object,
+            Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
+            M::Output: From<S>,
+            RpcError: From<E>,
+            $( M::Update: From<$update_gen>, )?
+            $( $($update_arg_where)+ )?
+        {
+            fn object_type(&self) -> any::TypeId {
+                any::TypeId::of::<OBJ>()
+            }
 
-impl InvokeEntry_ {
-    /// Create a new `InvokeEntry_`.
-    #[doc(hidden)]
-    pub const fn new(obj_id: ConstTypeId_, method_id: ConstTypeId_, func: ErasedInvokeFn) -> Self {
-        InvokeEntry_ {
-            obj_id,
-            method_id,
-            func,
+            fn method_type(&self) -> any::TypeId {
+                any::TypeId::of::<M>()
+            }
+
+            fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(
+                    f,
+                    "Invocable({:?}.{:?})",
+                    any::type_name::<OBJ>(),
+                    any::type_name::<M>(),
+                )
+            }
+
+            fn invoke(
+                &self,
+                obj: Arc<dyn Object>,
+                method: Box<dyn DynMethod>,
+                ctx: Box<dyn Context>,
+                #[allow(unused)]
+                sink: BoxedUpdateSink,
+            ) -> Result<RpcResultFuture, $crate::InvokeError> {
+                use futures::FutureExt;
+                #[allow(unused)]
+                use tor_async_utils::SinkExt as _;
+                let Ok(obj) = obj.downcast_arc::<OBJ>() else {
+                   return Err(InvokeError::Bug($crate::internal!("Wrong object type")));
+                };
+                let Ok(method) = method.downcast::<M>() else {
+                    return Err(InvokeError::Bug($crate::internal!("Wrong method type")));
+                };
+                $(
+                #[allow(clippy::redundant_closure_call)]
+                let $sink = {
+                    ($sink_fn)(sink)
+                };
+                )?
+
+                Ok(
+                    (self)(obj, method, ctx $(, $sink)? )
+                        .map(|r| {
+                            let r: RpcResult = match r {
+                                Ok(v) => Ok(Box::new(M::Output::from(v))),
+                                Err(e) => Err(RpcError::from(e)),
+                            };
+                            r
+                        })
+                        .boxed()
+                )
+            }
         }
     }
 }
 
-/// Declare an RPC function that will be used to call a single type of [`Method`](crate::Method) on a
-/// single type of [`Object`].
+declare_invocable_impl! {}
+
+declare_invocable_impl! {
+    update_gen: U,
+    update_arg: { sink: UpdateSink<U> },
+    update_arg_where: { U: 'static },
+    sink_fn: |sink:BoxedUpdateSink| Box::pin(
+        sink.with_fn(|update: U| RpcSendResult::Ok(
+            Box::new(M::Update::from(update))
+        )
+    ))
+}
+
+/// An annotated Invocable; used to compile a [`DispatchTable`].
+///
+/// Do not construct this type directly!  Instead, use [`invoker_ent!`](crate::invoker_ent!).
+#[allow(clippy::exhaustive_structs)]
+#[derive(Clone, Copy)]
+#[must_use]
+pub struct InvokerEnt {
+    #[doc(hidden)]
+    pub invoker: &'static (dyn Invocable),
+
+    // These fields are used to make sure that we aren't installing different
+    // functions for the same (Object, Method) pair.
+    // This is a bit of a hack, but we can't do reliable comparison on fn(),
+    // so this is our next best thing.
+    #[doc(hidden)]
+    pub file: &'static str,
+    #[doc(hidden)]
+    pub line: u32,
+    #[doc(hidden)]
+    pub function: &'static str,
+}
+impl InvokerEnt {
+    /// Return true if these two entries appear to be the same declaration
+    /// for the same function.
+    //
+    // It seems like it should be possible to compare these by pointer equality, somehow.
+    // But that would have to be done by comparing `&dyn`, including their vtables,
+    // and Rust's vtables aren't at all stable.  This is a sanity check, not critical
+    // for correctness or security, so it's fine that it will catch most mistakes but
+    // not deliberate abuse or exciting stunts.
+    fn same_decl(&self, other: &Self) -> bool {
+        self.file == other.file && self.line == other.line && self.function == other.function
+    }
+}
+
+/// Create an [`InvokerEnt`] around a single function.
+///
+/// Syntax:
+/// ```rust,ignore
+///   invoker_ent!( function_name [flags] )
+///   invoker_ent!( (function_expr) [flags] )
+/// ```
+///
+/// Recognized flags are: `Updates`.
+/// If no flags are given,
+/// the entire `[flags]` list may be omitted.
+///
+/// The function must have the correct type for an RPC implementation function;
+/// see the [module documentation](self).
+#[macro_export]
+macro_rules! invoker_ent {
+    { $func:ident $(::<$($fgens:ty),*>)? $([$($flag:ident),*])? } => {
+        $crate::dispatch::InvokerEnt {
+            invoker: &($func $(::<$($fgens),*>)? as $crate::invoker_func_type!{ $([$($flag),*])? }),
+            file: file!(),
+            line: line!(),
+            function: stringify!($func)
+        }
+    };
+    { $func:ident $([$($flag:ident),*])? } => {
+        $crate::invoker_ent!{ ($func) $([$($flag),*])? }
+    };
+}
+impl std::fmt::Debug for InvokerEnt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.invoker.describe_invocable(f)
+    }
+}
+inventory::collect!(InvokerEnt);
+
+/// Cause one or more RPC functions to be statically registered,
+/// each for handling a single Method on a single Object type.
 ///
 /// # Example
 ///
@@ -113,219 +327,58 @@ impl InvokeEntry_ {
 /// //  - The Err variant of the result must implement Into<rpc::RpcError>.
 /// async fn example(obj: Arc<ExampleObject>,
 ///                  method: Box<ExampleMethod>,
-///                  ctx: Box<dyn rpc::Context>) -> Result<ExampleResult, rpc::RpcError> {
+///                  ctx: Box<dyn rpc::Context>,
+/// ) -> Result<ExampleResult, rpc::RpcError> {
 ///     println!("Running example method!");
 ///     Ok(ExampleResult { text: "here is your result".into() })
 /// }
 ///
-/// rpc::static_rpc_invoke_fn!{
-///     example(ExampleObject, ExampleMethod);
-/// }
+/// rpc::static_rpc_invoke_fn!{example;}
 ///
 /// // You can declare an example that produces updates as well:
-/// // - The fourth argument must be `impl Sink<M::Update> + Unpin`.
+/// // - The fourth argument must be `UpdateSink<M::Update>`.
 /// async fn example2(obj: Arc<ExampleObject2>,
 ///                   method: Box<ExampleMethod>,
 ///                   ctx: Box<dyn rpc::Context>,
-///                   mut updates: impl Sink<Progress, Error=rpc::SendUpdateError> + Unpin
+///                   mut updates: rpc::UpdateSink<Progress>
 /// ) -> Result<ExampleResult, rpc::RpcError> {
 ///     updates.send(Progress(0.90)).await?;
 ///     Ok(ExampleResult { text: "that was fast, wasn't it?".to_string() })
 /// }
 ///
 /// rpc::static_rpc_invoke_fn! {
-///     example2(ExampleObject2, ExampleMethod) [Updates];
+///     example2 [Updates];
 /// }
 /// ```
-//
-// TODO RPC: After #838 succeeds (or fails) document the syntax of this macro.
+///
+/// # Syntax:
+///
+/// ```rust,ignore
+/// static_rpc_invoke_fn{
+///   ( IDENT  $(::<GENS>)? ([Updates])? ; ) *
+/// }
+/// ```
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $funcname:ident($objtype:ty, $methodtype:ty $(,)?) $([ $($flag:ident),* $(,)?])?;
+        $funcname:ident $(::<$($fgens:ty),*>)? $([ $($flag:ident),* $(,)?])?;
         $( $($more:tt)+ )?
     } => {$crate::paste::paste!{
-        $crate::decl_rpc_invoke_fn!{@imp-expand $funcname, $objtype, $methodtype, [$($($flag)*)?] }
         $crate::inventory::submit!{
-            $crate::dispatch::InvokeEntry_::new(
-                $objtype::CONST_TYPE_ID_,
-                $methodtype::CONST_TYPE_ID_,
-                [<_typeerased_ $funcname >]
-            )
+            $crate::invoker_ent!($funcname $(::<$($fgens),*>)? $([$($flag),*])? )
         }
-        $($crate::static_rpc_invoke_fn!{$($more)*})?
+        $( $crate::static_rpc_invoke_fn!{ $($more)+ } )?
     }};
 }
 
-/// Declare a group of RPC functions to call one or more [`Method`](crate::Method)s on a
-/// single type of [`Object`], and a function to install them in a dispatch table.
-///
-/// This approach is used for registering methods on a generic object.
-/// If the object type is not generic, it's probably better to use `static_rpc_invoke_fn`.
-///
-/// # Example
-///
-/// ```
-/// # use std::sync::Arc;
-/// # use derive_deftly::Deftly;
-/// // Declare a generic object type.
-/// use tor_rpcbase as rpc;
-/// #[derive(Deftly)]
-/// #[derive_deftly(rpc::Object)]
-/// pub struct Tuple<A, B>(A,B)
-/// where A: Send + Sync + 'static, B: Send + Sync + 'static;
-///
-/// // Declare a method.
-/// #[derive(Deftly, serde::Deserialize, Debug)]
-/// #[derive_deftly(rpc::DynMethod)]
-/// #[deftly(rpc(method_name = "x-example:mymethod"))]
-/// struct MyMethod;
-/// impl rpc::Method for MyMethod {
-///     type Output = Outcome;
-///     type Update = rpc::NoUpdates;
-/// }
-///
-/// #[derive(Debug,serde::Serialize)]
-/// struct Outcome {}
-///
-/// // Declare a function to implement that method for our Tuple.
-/// async fn mymethod_for_tuple<A,B>(
-///     obj: Arc<Tuple<A,B>>,
-///     method: Box<MyMethod>,
-///     ctx: Box<dyn rpc::Context>
-/// ) -> Result<Outcome, rpc::RpcError>
-/// where A: Send + Sync + 'static,
-///       B: Send + Sync + 'static
-/// {
-///     // ..
-///     Ok(Outcome {})
-/// }
-///
-/// // Now, declare "install_mymethod::<A,B>(&mut DispatchTable)" as a function to
-/// // install the implementation above for a given A,B pair.
-/// rpc::installable_rpc_invoke_fn! {
-///     pub install_mymethod for Tuple
-///     [A,B; where A: Send + Sync + 'static, B: Send + Sync + 'static]
-///     {
-///         mymethod_for_tuple(MyMethod);
-///         // you can list more methods here.
-///     }
-/// }
-///
-/// // Now before you use this method, you need to call `install_mymethod` on
-/// // your DispatchTable.
-/// let mut table = rpc::DispatchTable::from_inventory();
-/// install_mymethod::<u64,u64>(&mut table);
-/// install_mymethod::<String,f32>(&mut table);
-/// ```
-///
-/// TODO: The syntax here is somewhat awkward, due to the difficulty
-/// of handling generics in macro_rules.
-//
-// TODO RPC: After #838 succeeds (or fails) document the syntax of this macro.
-//
-// TODO RPC: Look for ways to make it so the caller doesn't (usually) need to name the install
-// function.
-// See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2079#note_3018118
-#[macro_export]
-macro_rules! installable_rpc_invoke_fn {
-    {
-        $ivis:vis $installfn:ident for $objname:ident
-        $gen:tt
-        {
-            $(
-                $funcname:ident($methodtype:ty $(,)?) $([ $($flag:ident),* $(,)?])?
-            );+
-            $(;)?
-        }
-    } => {
-        $(
-            $crate::decl_rpc_invoke_fn!{ @imp-expand $funcname, $objname $gen, $methodtype, [$($($flag)*)?] }
-        )+
-        $crate::installable_rpc_invoke_fn!{
-            @installer
-            $ivis $installfn for $objname $gen $( $funcname($methodtype) $gen );+
-        }
-    };
-    {
-        @installer $ivis:vis $installfn:ident for $objname:ident
-        [$($tgens:ident),*; where $($twheres:tt)*]
-        $(
-            $funcname:ident($methodtype:ty)
-            // This is a hack, to avoid "no expression repeating at this depth."
-            [$($tgens2:ident),*; where $($twheres2:tt)*]
-        );+
-    } => {$crate::paste::paste!{
-        $ivis fn $installfn <$($tgens),*> (table: &mut $crate::DispatchTable)
-        where $($twheres)*
-        {
-            let obj_type = std::any::TypeId::of::<$objname <$($tgens),*>> ();
-            $(
-                table.insert(
-                    obj_type,
-                    std::any::TypeId::of::<$methodtype>(),
-                    [<_typeerased_ $funcname>]::<$($tgens2),*>
-                );
-            )+
-        }
-    }}
-}
-
-/// Helper: Declare a single type-erased RPC invocation function, but do not
-/// register it or give it a means to register it.
-#[macro_export]
+/// Given a list of flags from an invoke function,
+/// yield the function type that we need to cast to.
 #[doc(hidden)]
-macro_rules! decl_rpc_invoke_fn{
-    {
-        @imp-expand $funcname:ident, $objname:ident $([$($gen:tt)*])?, $methodtype:ty, []
-    } => {
-        $crate::decl_rpc_invoke_fn!{@final $funcname, $objname $([$($gen)*])?, $methodtype, }
-    };
-    {
-        @imp-expand $funcname:ident, $objname:ident $([$($gen:tt)*])?, $methodtype:ty, [Updates]
-    } => {
-        $crate::decl_rpc_invoke_fn!{@final $funcname, $objname $([$($gen)*])?, $methodtype, sink }
-    };
-    {
-        @final $funcname:ident, $objname:ident $([$($tgens:ident),*; where $($twheres:tt)*])?, $methodtype:ty, $($sinkvar:ident)?
-    } => {$crate::paste::paste!{
-        // We declare a type-erased version of the function that takes Arc<dyn> and Box<dyn> arguments, and returns
-        // a boxed future.
-        #[doc(hidden)]
-        fn [<_typeerased_ $funcname>] $(<$($tgens),*>)? (obj: std::sync::Arc<dyn $crate::Object>,
-                                  method: Box<dyn $crate::DynMethod>,
-                                  ctx: Box<dyn $crate::Context>,
-                                  #[allow(unused)]
-                                  sink: $crate::dispatch::BoxedUpdateSink)
-        -> $crate::futures::future::BoxFuture<'static, $crate::RpcResult>
-            $(where $($twheres)* )?
-        {
-            type Output = <$methodtype as $crate::Method>::Output;
-            use $crate::futures::FutureExt;
-            #[allow(unused)]
-            use $crate::{
-                tor_async_utils::SinkExt as _
-            };
-            let obj = obj
-                .downcast_arc::<$objname $(<$($tgens),*>)? >()
-                .unwrap_or_else(|_| panic!());
-            let method = method
-                .downcast::<$methodtype>()
-                .unwrap_or_else(|_| panic!());
-            $(
-                let $sinkvar = sink.with_fn(|update|
-                    $crate::dispatch::RpcSendResult::Ok(Box::new(update))
-                );
-            )?
-            $funcname(obj, method, ctx $(, $sinkvar)?).map(|r| {
-                let r: $crate::RpcResult = match r {
-                    Ok(v) => Ok(Box::new(Output::from(v))),
-                    Err(e) => Err($crate::RpcError::from(e))
-                };
-                r
-            }).boxed()
-        }
-    }}
+#[macro_export]
+macro_rules! invoker_func_type {
+    { } => { fn(_,_,_) -> _ };
+    { [] } => { fn(_,_,_) -> _ };
+    { [Updates $(,)?] } => { fn(_,_,_,_) -> _ };
 }
 
 /// Actual types to use when looking up a function in our HashMap.
@@ -347,7 +400,7 @@ struct FuncType {
 pub struct DispatchTable {
     /// An internal HashMap used to look up the correct function for a given
     /// method/object pair.
-    map: HashMap<FuncType, ErasedInvokeFn>,
+    map: HashMap<FuncType, InvokerEnt>,
 }
 
 impl DispatchTable {
@@ -359,32 +412,40 @@ impl DispatchTable {
     /// Panics if two entries are found for the same (method,object) types.
     pub fn from_inventory() -> Self {
         // We want to assert that there are no duplicates, so we can't use "collect"
-        let mut map = HashMap::new();
-        for ent in inventory::iter::<InvokeEntry_>() {
-            let InvokeEntry_ {
-                obj_id,
-                method_id,
-                func,
-            } = *ent;
-            let old_val = map.insert(
-                FuncType {
-                    obj_id: obj_id.into(),
-                    method_id: method_id.into(),
-                },
-                func,
-            );
-            assert!(
-                old_val.is_none(),
-                "Tried to register two RPC functions with the same type IDs!"
-            );
+        let mut this = Self {
+            map: HashMap::new(),
+        };
+        for ent in inventory::iter::<InvokerEnt>() {
+            let old_val = this.insert_inner(*ent);
+            if old_val.is_some() {
+                panic!("Tried to insert duplicate entry for {:?}", ent);
+            }
         }
-        Self { map }
+        this
+    }
+
+    /// Add a new entry to this DispatchTable, and return the old value if any.
+    fn insert_inner(&mut self, ent: InvokerEnt) -> Option<InvokerEnt> {
+        self.map.insert(
+            FuncType {
+                obj_id: ent.invoker.object_type(),
+                method_id: ent.invoker.method_type(),
+            },
+            ent,
+        )
     }
 
     /// Add a new entry to this DispatchTable.
-    pub fn insert(&mut self, obj_id: any::TypeId, method_id: any::TypeId, func: ErasedInvokeFn) {
-        // TODO RPC: Make this call idempotent; complain if the old func is not the same as the new func.
-        self.map.insert(FuncType { obj_id, method_id }, func);
+    ///
+    /// # Panics
+    ///
+    /// Panics if there was a previous entry inserted with the same (Object,Method) pair,
+    /// but (apparently) with a different implementation function, or from a macro invocation.
+    pub fn insert(&mut self, ent: InvokerEnt) {
+        if let Some(old_ent) = self.insert_inner(ent) {
+            // This is not a perfect check by any means; see `same_decl`.
+            assert!(old_ent.same_decl(&ent));
+        }
     }
 
     /// Try to find an appropriate function for calling a given RPC method on a
@@ -405,7 +466,7 @@ impl DispatchTable {
 
         let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
 
-        Ok(func(obj, method, ctx, sink))
+        func.invoker.invoke(obj, method, ctx, sink)
     }
 }
 
@@ -417,6 +478,10 @@ pub enum InvokeError {
     /// type and method type.
     #[error("No implementation for provided object and method types.")]
     NoImpl,
+
+    /// An internal problem occurred while invoking a method.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 #[cfg(test)]
@@ -440,6 +505,8 @@ mod test {
     use futures::SinkExt;
     use futures_await_test::async_test;
     use std::sync::Arc;
+
+    use super::UpdateSink;
 
     // Define 3 animals and one brick.
     #[derive(Clone, Deftly)]
@@ -538,7 +605,7 @@ mod test {
         _obj: Arc<Wombat>,
         _method: Box<GetKids>,
         _ctx: Box<dyn crate::Context>,
-        mut sink: impl futures::sink::Sink<String> + Unpin, // TODO RPC: Remove "unpin" if possible.
+        mut sink: UpdateSink<String>,
     ) -> Result<Outcome, crate::RpcError> {
         let _ignore = sink.send("brb, burrowing".to_string()).await;
         Ok(Outcome {
@@ -547,14 +614,14 @@ mod test {
     }
 
     static_rpc_invoke_fn! {
-        getname_swan(Swan,GetName);
-        getname_sheep(Sheep,GetName);
-        getname_wombat(Wombat,GetName);
-        getname_brick(Brick,GetName);
+        getname_swan;
+        getname_sheep;
+        getname_wombat;
+        getname_brick;
 
-        getkids_swan(Swan,GetKids);
-        getkids_sheep(Sheep,GetKids);
-        getkids_wombat(Wombat,GetKids) [Updates];
+        getkids_swan;
+        getkids_sheep;
+        getkids_wombat [Updates];
     }
 
     struct Ctx {}
@@ -616,14 +683,24 @@ mod test {
             v: obj.kids.to_string(),
         })
     }
-    installable_rpc_invoke_fn! {
-        install_generic_fns for
-             GenericObj [T,U;
-                         where T: Send + Sync + 'static + Clone + ToString,
-                               U: Send + Sync + 'static + Clone + ToString]
-        {
-            getname_generic(GetName);
-            getkids_generic(GetKids);
+
+    // We can also install specific instantiations statically.
+    static_rpc_invoke_fn! {
+        getname_generic::<u32,u32>;
+        getname_generic::<&'static str, &'static str>;
+        getkids_generic::<u32,u32>;
+        getkids_generic::<&'static str, &'static str>;
+    }
+
+    // And we can make code to install them dynamically too.
+    impl<T, U> GenericObj<T, U>
+    where
+        T: Send + Sync + 'static + Clone + ToString,
+        U: Send + Sync + 'static + Clone + ToString,
+    {
+        fn install_rpc_functions(table: &mut super::DispatchTable) {
+            table.insert(invoker_ent!(getname_generic::<T, U>));
+            table.insert(invoker_ent!(getkids_generic::<T, U>));
         }
     }
 
@@ -677,9 +754,10 @@ mod test {
             Err(InvokeError::NoImpl)
         ));
 
-        let mut table = table;
+        /*
         install_generic_fns::<&'static str, &'static str>(&mut table);
         install_generic_fns::<u32, u32>(&mut table);
+        */
         let obj1 = GenericObj {
             name: "nuncle",
             kids: "niblings",
@@ -687,10 +765,6 @@ mod test {
         let obj2 = GenericObj {
             name: 1337_u32,
             kids: 271828_u32,
-        };
-        let obj3 = GenericObj {
-            name: 1337_u64,
-            kids: 271828_u64,
         };
         assert_eq!(
             sentence(&table, obj1).await,
@@ -700,9 +774,20 @@ mod test {
             sentence(&table, obj2).await,
             r#"Hello I am a friendly {"v":"1337"} and these are my lovely {"v":"271828"}."#
         );
+
+        let obj3 = GenericObj {
+            name: 13371337_u64,
+            kids: 2718281828_u64,
+        };
         assert!(matches!(
-            invoke_helper(&table, obj3, GetKids),
+            invoke_helper(&table, obj3.clone(), GetKids),
             Err(InvokeError::NoImpl)
         ));
+        let mut table = table;
+        GenericObj::<u64, u64>::install_rpc_functions(&mut table);
+        assert_eq!(
+            sentence(&table, obj3).await,
+            r#"Hello I am a friendly {"v":"13371337"} and these are my lovely {"v":"2718281828"}."#
+        );
     }
 }

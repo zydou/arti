@@ -44,12 +44,10 @@ pub mod dispatch;
 mod err;
 mod method;
 mod obj;
-#[doc(hidden)]
-pub mod typeid;
 
 use std::{convert::Infallible, sync::Arc};
 
-pub use dispatch::DispatchTable;
+pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::RpcError;
 pub use method::{is_method_name, iter_method_names, DynMethod, Method, NoUpdates};
 pub use obj::{Object, ObjectId, ObjectRefExt};
@@ -59,7 +57,7 @@ pub use obj::cast::CastTable;
 #[doc(hidden)]
 pub use {
     derive_deftly, dispatch::RpcResult, downcast_rs, erased_serde, futures, inventory,
-    method::MethodInfo_, once_cell, paste, tor_async_utils, typetag,
+    method::MethodInfo_, once_cell, paste, tor_async_utils, tor_error::internal, typetag,
 };
 
 /// Templates for use with [`derive_deftly`]
