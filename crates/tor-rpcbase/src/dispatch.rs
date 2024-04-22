@@ -95,13 +95,13 @@ pub type UpdateSink<U> = Pin<Box<dyn Sink<U, Error = SendUpdateError> + Send + '
 //
 // (This trait isn't sealed because there _are_ theoretical reasons
 // why you might want to provide a special implementation.)
-pub trait Invoker: Send + Sync + 'static {
-    /// Return the type of object that this Invoker will accept.
+pub trait Invocable: Send + Sync + 'static {
+    /// Return the type of object that this Invokable will accept.
     fn object_type(&self) -> any::TypeId;
-    /// Return the type of method that this Invoker will accept.
+    /// Return the type of method that this Invocable will accept.
     fn method_type(&self) -> any::TypeId;
-    /// Describe the types for this invoker.  Used for debugging.
-    fn describe_invoker(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    /// Describe the types for this Invocable.  Used for debugging.
+    fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
     /// Invoke a method on an object.
     ///
     /// Requires that `obj` has the type `self.object_type()`,
@@ -115,12 +115,12 @@ pub trait Invoker: Send + Sync + 'static {
     ) -> Result<RpcResultFuture, InvokeError>;
 }
 
-/// Helper: Declare a blanket implementation for Invoker.
+/// Helper: Declare a blanket implementation for Invocable.
 ///
 /// We provide two blanket implementations:
 /// Once over a fn() taking an update sink,
 /// and once over a fn() not taking an update sink.
-macro_rules! declare_invoker_impl {
+macro_rules! declare_invocable_impl {
     {
       // These arguments are used to fill in some blanks that we need to use
       // when handling an update sink.
@@ -130,7 +130,7 @@ macro_rules! declare_invoker_impl {
          sink_fn: $sink_fn:expr
       )?
     } => {
-        impl<M, OBJ, Fut, S, E, $($update_gen)?> Invoker
+        impl<M, OBJ, Fut, S, E, $($update_gen)?> Invocable
             for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
             M: crate::Method,
@@ -149,10 +149,10 @@ macro_rules! declare_invoker_impl {
                 any::TypeId::of::<M>()
             }
 
-            fn describe_invoker(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(
                     f,
-                    "Invoker({:?}.{:?})",
+                    "Invocable({:?}.{:?})",
                     any::type_name::<OBJ>(),
                     any::type_name::<M>(),
                 )
@@ -198,9 +198,9 @@ macro_rules! declare_invoker_impl {
     }
 }
 
-declare_invoker_impl! {}
+declare_invocable_impl! {}
 
-declare_invoker_impl! {
+declare_invocable_impl! {
     update_gen: U,
     update_arg: { sink: UpdateSink<U> },
     update_arg_where: { U: 'static },
@@ -208,7 +208,7 @@ declare_invoker_impl! {
         RpcSendResult::Ok(Box::new(M::Update::from(update))))))
 }
 
-/// An annotated Invoker; used to compile a [`DispatchTable`].
+/// An annotated Invocable; used to compile a [`DispatchTable`].
 ///
 /// Do not construct this type directly!  Instead, use [`invoker_ent!`](crate::invoker_ent!).
 #[allow(clippy::exhaustive_structs)]
@@ -216,7 +216,7 @@ declare_invoker_impl! {
 #[must_use]
 pub struct InvokerEnt {
     #[doc(hidden)]
-    pub invoker: &'static (dyn Invoker),
+    pub invoker: &'static (dyn Invocable),
 
     // These fields are used to make sure that we aren't installing different
     // functions for the same (Object, Method) pair.
@@ -267,7 +267,7 @@ macro_rules! invoker_ent {
 }
 impl std::fmt::Debug for InvokerEnt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.invoker.describe_invoker(f)
+        self.invoker.describe_invocable(f)
     }
 }
 inventory::collect!(InvokerEnt);
