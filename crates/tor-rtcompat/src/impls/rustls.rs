@@ -17,6 +17,10 @@ use std::{
 /// A [`TlsProvider`] that uses `rustls`.
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
+///
+/// The application is responsible for calling `CryptoProvider::install_default_provider()`
+/// before constructing one of these providers.  If they do not, we will issue a warning,
+/// and install a default (ring) provider.
 #[cfg_attr(
     docsrs,
     doc(cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std"))))
