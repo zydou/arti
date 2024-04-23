@@ -3,7 +3,7 @@
 
 //! ## Intended behavour
 //!
-//! In normal operation we track very little cheaply
+//! In normal operation we try to track as little state as possible, cheaply.
 //! We do track total memory use in nominal bytes
 //! (but a little approximately).
 //!
