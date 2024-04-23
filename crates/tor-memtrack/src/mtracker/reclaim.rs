@@ -241,20 +241,7 @@ impl Reclaiming {
             None | Some(Reclaimed::Collapsing) => {}
         }
 
-        let victim_aids = {
-            let mut out = HashSet::<AId>::new();
-            let mut queue: Vec<AId> = vec![oldest_aid];
-            while let Some(aid) = queue.pop() {
-                let Some(arecord) = state.accounts.get(aid) else {
-                    // shouldn't happen but no need to panic
-                    continue;
-                };
-                if out.insert(aid) {
-                    queue.extend(arecord.children.iter().cloned());
-                }
-            }
-            out
-        };
+        let victim_aids = state.get_aid_and_children_recursively(oldest_aid);
 
         let victims: Vec<Victim> = {
             let mut particips = vec![];

@@ -1006,6 +1006,29 @@ impl Drop for Participation {
 
 //========== impls on internal types ==========
 
+impl State {
+    /// Obtain all of the descendants of `parent_aid` according to the Child relation
+    ///
+    /// The returned `HashSet` includes `parent_aid`, its children,
+    /// their children, and so on.
+    ///
+    /// Used in the reclaimation algorithm in [`reclaim`].
+    fn get_aid_and_children_recursively(&self, parent_aid: AId) -> HashSet<AId> {
+        let mut out = HashSet::<AId>::new();
+        let mut queue: Vec<AId> = vec![parent_aid];
+        while let Some(aid) = queue.pop() {
+            let Some(arecord) = self.accounts.get(aid) else {
+                // shouldn't happen but no need to panic
+                continue;
+            };
+            if out.insert(aid) {
+                queue.extend(arecord.children.iter().cloned());
+            }
+        }
+        out
+    }
+}
+
 impl ARecord {
     /// Release all memory that this account's participants claimed
     fn auto_release(&mut self, global: &mut Global) {
