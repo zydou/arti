@@ -323,7 +323,8 @@ slotmap::new_key_type! {
 /// The user supplies a `dyn IsParticipant`.
 /// The principal methods are from [`IsParticipant`],
 /// for which we handle reentrancy in the docs.
-/// But we also implicitly invoke its `Drop` impl, which might in turn drop stuff of ours.
+/// But we also implicitly invoke its `Drop` impl, which might in turn drop stuff of ours,
+/// such as [`Account`]s and [`Participation`]s, whose `Drop` impls need to take our lock.
 /// To make sure this isn't done reentrantly, we have a special newtype around it,
 /// and defer some of our drops during reclaim.
 /// That's in `drop_reentrancy` and `tracker::reclaim::deferred_drop`.
