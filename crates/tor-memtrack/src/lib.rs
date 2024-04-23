@@ -40,7 +40,7 @@
 //!    it will also request it of all that Parent's Children (but not vice versa).
 //!
 //!  * **Data age**:
-//!    Each Participant is must be able to say what the oldest data is, that it is storing.
+//!    Each Participant must be able to say what the oldest data is, that it is storing.
 //!    The reclamation policy is to try to free the oldest data.
 //!
 //!  * **Reclamation**:
