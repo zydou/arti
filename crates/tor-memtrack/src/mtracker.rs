@@ -161,7 +161,7 @@ pub struct Participation {
     ///
     /// Invariants on memory accounting:
     ///
-    ///  * `Participation.local_quota < configured limit`
+    ///  * `Participation.cache < configured limit`
     ///  * `PRecord.used = Participation.cache + Σ Participation::claim - Σ P'n::release`
     ///    except if `PRecord` has been deleted
     ///    (ie when we aren't tracking any more and think the Participant is `Collapsing`).

@@ -105,7 +105,7 @@ pub(super) trait BookkeepableQty: Default {
 /// `raw` may be accessed mutably by such functions, but a bookkept quantity type
 /// should be constructed only with `from_raw` and should not be moved out of.
 trait BookkeptQty: BookkeepableQty + DefaultExtTake {
-    /// Make a new bookkept quantity one from a raw untracked Qty
+    /// Make a new bookkept quantity from a raw untracked Qty
     ///
     fn from_raw(q: Qty) -> Self;
 
@@ -265,13 +265,13 @@ impl ParticipQty {
     /// # CORRECTNESS
     ///
     /// The data structure where this `ParticipQty` resides
-    /// must be turn down (after we return).
+    /// must be torn down (after we return).
     ///
     /// The `ClaimedQty` must be passed to [`TotalQty::release`],
-    /// passing the4 same `p_used`.
+    /// passing the same `p_used`.
     //
     // We could provide this as a single transaction function, rather than requiring
-    // two calls.  But the main code doesn't have a `TotalQty`, only a ,
+    // two calls.  But the main code doesn't have a `TotalQty`, only a `TotalQtyNotifier`,
     // so we'd need to add an additional passthrough method to `TotalQtyNotifier`,
     // which doesn't seem worth it given that there's only one call site for this fn.
     pub(super) fn for_participant_teardown(&self) -> ClaimedQty {
