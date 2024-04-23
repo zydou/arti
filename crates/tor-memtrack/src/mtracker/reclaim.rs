@@ -321,7 +321,11 @@ impl Reclaiming {
 /// Return value from the task, when it finishes due to the tracker being shut down
 struct TaskFinished;
 
-/// Reclaim memory until we reach low water
+/// Reclaim memory until we reach low water, if necessary
+///
+/// Looks to see if we're above `config.max`.
+/// If so, constructs a list of victims, and starts reclaiming from them,
+/// until we reach low water.
 async fn inner_loop(tracker: &Arc<MemoryQuotaTracker>) -> Result<(), ReclaimCrashed> {
     let mut reclaiming;
     let mut victims;
