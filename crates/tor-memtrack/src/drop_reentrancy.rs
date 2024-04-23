@@ -6,6 +6,8 @@
 //! a user-provided trait object, but where we want to prevent invoking
 //! the user's Drop impl since that may lead to reentrancy.
 //!
+//! See the section on "Reentrancy" in the docs for `mtracker::State`.
+//!
 //! Outside tests, the types in this module are equivalent to `std::sync`'s.
 //! So, we never panic in a drop in production.
 //! Dropping in the wrong place might lead to a deadlock
