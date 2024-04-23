@@ -137,6 +137,9 @@ pub struct WeakAccount {
 /// `Participation` is a handle.  All clones are for use by the same conceptual Participant.
 /// It doesn't keep the underlying Account alive.
 ///
+/// `Participation`s are created by registering new participants, 
+/// for example using [`Account::register_participant`].
+///
 /// Variables of this type are often named `partn`.
 #[derive(Debug)]
 pub struct Participation {
