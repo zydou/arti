@@ -101,7 +101,7 @@ pub struct MemoryQuotaTracker {
 ///
 /// An `Account` is a handle.  All clones refer to the same underlying conceptual Account.
 ///
-/// `Account`s are created using [`MemoryQuotaTracker::new_account`]. 
+/// `Account`s are created using [`MemoryQuotaTracker::new_account`].
 #[derive(Educe)]
 #[educe(Debug)]
 pub struct Account {
@@ -139,7 +139,7 @@ pub struct WeakAccount {
 /// `Participation` is a handle.  All clones are for use by the same conceptual Participant.
 /// It doesn't keep the underlying Account alive.
 ///
-/// `Participation`s are created by registering new participants, 
+/// `Participation`s are created by registering new participants,
 /// for example using [`Account::register_participant`].
 ///
 /// Variables of this type are often named `partn`.
