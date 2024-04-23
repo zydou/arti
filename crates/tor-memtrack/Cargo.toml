@@ -8,8 +8,7 @@ license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Memory use tracking utilities, used by Tor software"
 keywords = ["tor", "arti"]
-# We must put *something* here and this will do
-categories = ["rust-patterns"]
+categories = ["memory", "allocation"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
