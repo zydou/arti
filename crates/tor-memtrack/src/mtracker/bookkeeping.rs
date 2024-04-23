@@ -175,6 +175,13 @@ impl TotalQty {
     pub(super) fn claim(&mut self, p_used: &mut ParticipQty, want: Qty) -> Option<ClaimedQty> {
         // If poisoned, this add will fail (unless want is 0)
         let new_self = self.raw.checked_add(*want)?;
+        if new_self == usize::MAX {
+            // This would poison us.  If this happens, someone has gone mad, since
+            // we can't have allocated usize::MAX in total.  We'll be reclaiming already.
+            // We don't want to poison ourselves in this situation.  Hopefully the reclaim
+            // will collapse the errant participants.
+            return None;
+        }
         let new_p_used = p_used.raw.checked_add(*want)?;
         // commit
         self.raw = Qty(new_self);
