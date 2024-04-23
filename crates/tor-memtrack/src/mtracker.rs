@@ -203,7 +203,7 @@ pub trait IsParticipant: Debug + Send + Sync + 'static {
     ///
     /// # Performance and reentrancy
     ///
-    /// This function runs with the `MomoryQuotaTracker`'s internal global lock held.
+    /// This function runs with the `MemoryQuotaTracker`'s internal global lock held.
     /// Therefore:
     ///
     ///  * It must be fast.

@@ -133,7 +133,7 @@ type VictimResponses = Vec<(AId, Result<Reclaimed, VictimPanicked>)>;
 impl Reclaiming {
     /// Check to see if we should start reclaiming, and if so return a `Reclaiming`
     ///
-    ///  1. Checks to see if usage is abouve `max`; if not, returns `None`
+    ///  1. Checks to see if usage is above `max`; if not, returns `None`
     ///  2. Logs that we're starting reclamation
     ///  3. Calculates the heap of data ages
     fn maybe_start(state: &mut GuardWithDeferredDrop) -> Option<Self> {
