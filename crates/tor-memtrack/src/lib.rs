@@ -8,8 +8,8 @@
 //! (but a little approximately).
 //!
 //! When we exceed the quota, we engage a more expensive algorithm:
-//! we build a heap to select oldest victims.
-//! We use the heap to keep reducing memory
+//! we build a heap to select oldest victims, and
+//! we use the heap to keep reducing memory
 //! until we go below a low-water mark (hysteresis).
 //!
 //! ## Key concepts
