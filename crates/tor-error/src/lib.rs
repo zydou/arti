@@ -394,7 +394,7 @@ pub enum ErrorKind {
     /// More of a local resource was needed, than is available (or than we are allowed)
     ///
     /// For example, we tried to use more memory than permitted by our memory quota.
-    #[display(fmt = "problem with network or connection")]
+    #[display(fmt = "local resource exhausted")]
     LocalResourceExhausted,
 
     /// A problem occurred when launching or communicating with an external
