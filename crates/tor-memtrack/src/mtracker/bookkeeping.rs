@@ -124,6 +124,8 @@ impl BookkeepableQty for Qty {
 /// Total used, [`TotalQtyNotifier`].`total_used`, found in [`State`].`total_used`.
 ///
 /// Can be "poisoned", preventing further claims.
+/// (We mark it poisoned if the reclamation task crashes,
+/// since in that situation we don't want to continue to use memory, unboundedly.)
 //
 // Poisoned is indicated by We setting to `MAX`.
 #[derive(Default, Debug, Deftly, derive_more::Display)]
