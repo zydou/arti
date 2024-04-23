@@ -53,7 +53,7 @@
 //!    according to the reclamation request, and tells the Tracker when it has done so.
 //!
 //!  * **Reclamation strategy**:
-//!    To avoid too-frequent Reclamation, once Reclamation ha started,
+//!    To avoid too-frequent reclamation, once reclamation has started,
 //!    it will continue until a low-water mark is reached, significantly lower than the quota.
 //!    I.e. the system has a hysteresis.
 // TODO we haven't implemented the queue wrapper yet
