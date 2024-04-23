@@ -46,7 +46,6 @@ pub struct VanguardConfig {
 /// Note: these are not part of [`VanguardConfig`],
 /// because like all Tor network parameters,
 /// they can be overridden via the `TorClientConfig::override_net_params`.
-#[allow(unused)] // TODO HS-VANGUARDS
 #[derive(Debug, Clone, amplify::Getters)]
 pub struct VanguardParams {
     /// The type of vanguards to use by default when building onion service circuits.

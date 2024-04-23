@@ -35,7 +35,6 @@ pub use set::Vanguard;
 const STORAGE_KEY: &str = "vanguards";
 
 /// The vanguard manager.
-#[allow(unused)] // TODO HS-VANGUARDS
 pub struct VanguardMgr<R: Runtime> {
     /// The mutable state.
     inner: RwLock<Inner>,
@@ -47,7 +46,6 @@ pub struct VanguardMgr<R: Runtime> {
 }
 
 /// The mutable inner state of [`VanguardMgr`].
-#[allow(unused)] // TODO HS-VANGUARDS
 struct Inner {
     /// The current vanguard parameters.
     params: VanguardParams,
@@ -512,7 +510,6 @@ impl Inner {
     }
 
     /// Flush the vanguard sets to storage, if the mode is "vanguards-full".
-    #[allow(unused)] // TODO HS-VANGUARDS
     fn flush_to_storage(
         &self,
         storage: &DynStorageHandle<VanguardSets>,
@@ -528,7 +525,6 @@ impl Inner {
 }
 
 /// The vanguard layer.
-#[allow(unused)] // TODO HS-VANGUARDS
 #[derive(Debug, Clone, Copy, PartialEq)] //
 #[derive(derive_more::Display)] //
 #[non_exhaustive]
