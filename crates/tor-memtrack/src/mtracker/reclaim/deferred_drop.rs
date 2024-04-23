@@ -61,6 +61,14 @@ impl DerefMut for GuardWithDeferredDrop<'_> {
     }
 }
 
+// We use ProtectedArc.  In tests, that has a drop bomb which requires us to
+// call `.promise_dropping_is_ok()`, on pain of panicking.  So we must do that here.
+//
+// Outside tests, the normal drop order would be precisely correct:
+// the guard field comes first, so the compiler would drop it before the Arcs.
+// So we could make this `#[cfg(test)]` (and add some comments above about field order).
+// However, we prefer to use the same code, so that the correctness of
+// *production* GuardWithDeferredDrop is assured by the `ProtectedArc`.
 impl Drop for GuardWithDeferredDrop<'_> {
     fn drop(&mut self) {
         let guard = self.guard.take().expect("dropping twice!");
