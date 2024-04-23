@@ -1279,7 +1279,7 @@ mod test {
                 res.get(&DocId::Microdesc(d3)).unwrap().as_str(),
                 Ok("Fake micro 3")
             );
-            assert!(res.get(&d_bogus).is_none());
+            assert!(!res.contains_key(&d_bogus));
             assert_eq!(
                 res.get(&DocId::AuthCert(certid2)).unwrap().as_str(),
                 Ok("Fake certificate two")

@@ -220,7 +220,7 @@ impl OutboundClientCrypt {
 
     /// Add a new layer to this OutboundClientCrypt
     pub(crate) fn add_layer(&mut self, layer: Box<dyn OutboundClientLayer + Send>) {
-        assert!(self.layers.len() < std::u8::MAX as usize);
+        assert!(self.layers.len() < u8::MAX as usize);
         self.layers.push(layer);
     }
 
@@ -242,15 +242,15 @@ impl InboundClientCrypt {
     pub(crate) fn decrypt(&mut self, cell: &mut RelayCellBody) -> Result<(HopNum, &[u8])> {
         for (hopnum, layer) in self.layers.iter_mut().enumerate() {
             if let Some(tag) = layer.decrypt_inbound(cell) {
-                assert!(hopnum <= std::u8::MAX as usize);
-                return Ok(((hopnum as u8).into(), tag));
+                let hopnum = HopNum(u8::try_from(hopnum).expect("Somehow > 255 hops"));
+                return Ok((hopnum, tag));
             }
         }
         Err(Error::BadCellAuth)
     }
     /// Add a new layer to this InboundClientCrypt
     pub(crate) fn add_layer(&mut self, layer: Box<dyn InboundClientLayer + Send>) {
-        assert!(self.layers.len() < std::u8::MAX as usize);
+        assert!(self.layers.len() < u8::MAX as usize);
         self.layers.push(layer);
     }
 

@@ -201,7 +201,7 @@ impl FromStr for RangeEnd {
             Ok(RangeEnd::DollarSign)
         } else {
             let v: NonZeroUsize = s.parse()?;
-            if v.get() == std::usize::MAX {
+            if v.get() == usize::MAX {
                 return Err(Error::BadDiff("range cannot end at usize::MAX"));
             }
             Ok(RangeEnd::Num(v))
@@ -363,7 +363,7 @@ impl<'a> DiffCommand<'a> {
             (range.parse::<usize>()?, None)
         };
 
-        if low == std::usize::MAX {
+        if low == usize::MAX {
             return Err(Error::BadDiff("range cannot begin at usize::MAX"));
         }
 

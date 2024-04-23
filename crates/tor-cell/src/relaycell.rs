@@ -597,7 +597,7 @@ impl<M: RelayMsg> RelayMsgOuter<M> {
             ))
         })?;
         let payload_len = written - BODY_POS;
-        debug_assert!(payload_len < std::u16::MAX as usize);
+        debug_assert!(payload_len < u16::MAX as usize);
         *(<&mut [u8; 2]>::try_from(&mut body.0[LEN_POS..LEN_POS + 2])
             .expect("Two-byte slice was not two bytes long!?")) =
             (payload_len as u16).to_be_bytes();

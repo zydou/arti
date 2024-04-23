@@ -21,7 +21,7 @@ impl UniqId {
         // Relaxed ordering is fine; we don't care about how this
         // is instantiated with respect to other channels.
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        assert!(id != std::usize::MAX, "Exhausted the channel ID namespace");
+        assert!(id != usize::MAX, "Exhausted the channel ID namespace");
         UniqId(id)
     }
 }

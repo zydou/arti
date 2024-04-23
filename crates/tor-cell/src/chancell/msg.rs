@@ -127,7 +127,7 @@ impl Body for Vpadding {
 }
 impl Readable for Vpadding {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        if r.remaining() > std::u16::MAX as usize {
+        if r.remaining() > u16::MAX as usize {
             return Err(Error::InvalidMessage(
                 "Too many bytes in VPADDING cell".into(),
             ));
@@ -687,7 +687,7 @@ impl Versions {
         B: Into<Vec<u16>>,
     {
         let versions = vs.into();
-        if versions.len() < (std::u16::MAX / 2) as usize {
+        if versions.len() < (u16::MAX / 2) as usize {
             Ok(Self { versions })
         } else {
             Err(crate::Error::CantEncode("Too many versions"))
