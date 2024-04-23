@@ -94,7 +94,7 @@ impl<P: ?Sized> ProtectedArc<P> {
 #[derive(Debug)]
 struct DropBomb(Result<(), Armed>);
 
-/// Armedness of a drop bom
+/// Armedness of a drop bomb
 ///
 /// In tests, is a unit.
 /// Uninhabited outside of tests.

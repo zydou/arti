@@ -425,7 +425,7 @@ struct PRecord {
 /// There is no access to the `MutexGuard` itself.
 /// For control of the mutex release point, place `find_in_tracker!` in an enclosing block.
 ///
-/// ### Error handlikng
+/// ### Error handling
 ///
 /// If the tracker, account, or participant, can't be found,
 /// the macro returns early from the enclosing scope (using `?`).
