@@ -2,7 +2,7 @@
 
 use crate::internal_prelude::*;
 
-/// Quantity of memory used
+/// Quantity of memory used, measured in bytes.
 ///
 /// Like `usize` but `Display`s in a more friendly and less precise way
 #[derive(Debug, Clone, Copy, Hash, Default, Eq, PartialEq, Ord, PartialOrd)] //
