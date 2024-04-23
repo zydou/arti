@@ -275,10 +275,16 @@ impl Reclaiming {
             //
             victims.into_iter().map(|(aid, particip)| async move {
                 let particip = particip.promise_dropping_is_ok();
+                // We run the `.reclaim()` calls within the same task (since that's what
+                // `join_all` does).  So they all run on whatever executor thread is polling
+                // the reclamation task.
                 let reclaimed = AssertUnwindSafe(particip.reclaim())
                     .catch_unwind()
                     .await
                     .map_err(|_panicked| VictimPanicked);
+                // We drop the `ProtectedArc<dyn IsParticipant>` here, which is OK
+                // because we don't hold the lock.  Since drop isn't async, and
+                // `join_all` doesn't spawn tasks, we drop them sequentially.
                 (aid, reclaimed)
             }),
         )
