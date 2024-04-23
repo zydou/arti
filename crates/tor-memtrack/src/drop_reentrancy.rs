@@ -5,6 +5,21 @@
 //! We want this because there are places where we handle an Arc containing
 //! a user-provided trait object, but where we want to prevent invoking
 //! the user's Drop impl since that may lead to reentrancy.
+//!
+//! Outside tests, the types in this module are equivalent to `std::sync`'s.
+//! So, we never panic in a drop in production.
+//! Dropping in the wrong place might lead to a deadlock
+//! (due to mutex reentrancy)
+//! but this is far from certain:
+//! probably, while we're running, the caller has another live reference,
+//! so the drop of the underlying type won't happen now anyway.
+//!
+//! In any case, drop bombs mustn't be used in production.
+//! Not only can they escalate the severity of problems,
+//! where the program might blunder on,
+//! but also
+//! because Rust upstream are seriously considering
+//! [turning them into aborts](https://github.com/rust-lang/rfcs/pull/3288)!
 //
 // There are no separate tests for this module.  Drop bombs are hard to test for.
 // However, in an ad-hoc test, the bomb has been shown to be able to explode,
