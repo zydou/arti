@@ -347,7 +347,7 @@ async fn inner_loop(tracker: &Arc<MemoryQuotaTracker>) -> Result<(), ReclaimCras
     }
 }
 
-/// Internal long-running task, handling reclsmation - main loop
+/// Internal long-running task, handling reclamation - main loop
 ///
 /// Handles routine logging, but not termination
 async fn task_loop(
