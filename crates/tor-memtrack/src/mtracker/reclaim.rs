@@ -1,4 +1,7 @@
 //! Reclamation algorithm
+//!
+//! Implementation the of long-running [`task`] function,
+//! (which is the only export from here, the wider `mtracker` module).
 
 use super::*;
 
@@ -374,7 +377,7 @@ async fn task_loop(
 
 /// Internal long-running task, handling reclamation
 ///
-/// This is the entrypoint for the rest of the `tracker`.
+/// This is the entrypoint used by the rest of the `tracker`.
 /// It handles logging of crashes.
 pub(super) async fn task(tracker: Weak<MemoryQuotaTracker>, wakeup: mpsc::Receiver<()>) {
     match task_loop(&tracker, wakeup).await {
