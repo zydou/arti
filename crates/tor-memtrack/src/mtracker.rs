@@ -100,6 +100,8 @@ pub struct MemoryQuotaTracker {
 /// Handle onto an Account
 ///
 /// An `Account` is a handle.  All clones refer to the same underlying conceptual Account.
+///
+/// `Account`s are created using [`MemoryQuotaTracker::new_account`]. 
 #[derive(Educe)]
 #[educe(Debug)]
 pub struct Account {
