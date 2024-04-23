@@ -6,7 +6,7 @@
 //!
 //! Exceptions:
 //!
-//!  * Names that are private to a module and its submodules (eg, `publish`)
+//!  * Names that are private to a module and its submodules
 //!    are imported to the sub-modules via `use super::*`.
 //!    (Thus, the sub-module inherits the prelude from its parent.)
 //!
