@@ -380,7 +380,7 @@ pub(super) async fn task(tracker: Weak<MemoryQuotaTracker>, wakeup: mpsc::Receiv
     match task_loop(&tracker, wakeup).await {
         Ok(TaskFinished) => {}
         Err(bug) => {
-            (|| {
+            let _: Option<()> = (|| {
                 let tracker = tracker.upgrade()?;
                 let mut state = tracker.state.lock().ok()?;
                 state.total_used.set_poisoned();
