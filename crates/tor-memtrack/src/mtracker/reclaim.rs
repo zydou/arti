@@ -245,7 +245,7 @@ impl Reclaiming {
             let mut out = HashSet::<AId>::new();
             let mut queue: Vec<AId> = vec![oldest_aid];
             while let Some(aid) = queue.pop() {
-                let Some(arecord) = state.accounts.get_mut(aid) else {
+                let Some(arecord) = state.accounts.get(aid) else {
                     // shouldn't happen but no need to panic
                     continue;
                 };
