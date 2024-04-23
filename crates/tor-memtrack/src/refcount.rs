@@ -107,7 +107,7 @@ pub(crate) struct Overflow;
 ///
 /// Often used within `Option`, for clarity.  Examples:
 ///
-///  * Key whose a reference count has reached zero - see [`Ref::dispose`]
+///  * Key whose reference count has reached zero - see [`Ref::dispose`]
 ///  * Value removed from a SlotMap - see [`slotmap_dec_ref!`]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct Garbage<K>(pub(crate) K);

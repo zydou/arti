@@ -372,7 +372,7 @@ async fn task_loop(
     }
 }
 
-/// Internal long-running task, handling reclsmation
+/// Internal long-running task, handling reclamation
 ///
 /// This is the entrypoint for the rest of the `tracker`.
 /// It handles logging of crashes.

@@ -76,7 +76,7 @@ impl From<SpawnError> for StartupError {
 ///
 /// Separate type so we don't expose `PoisonError -> crate::Error` conversion
 #[derive(Debug, Clone, Error)]
-#[error("poisoned( corrupted)")]
+#[error("poisoned (corrupted)")]
 pub(crate) struct TrackerCorrupted;
 
 impl<T> From<PoisonError<T>> for TrackerCorrupted {
