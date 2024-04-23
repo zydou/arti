@@ -95,9 +95,6 @@ impl TryFrom<&NetParameters> for VanguardParams {
     type Error = tor_units::Error;
 
     fn try_from(p: &NetParameters) -> Result<VanguardParams, Self::Error> {
-        // TODO HS-VANGUARDS: move the VanguardMode a VanguardParam too and consider removing
-        // VanguardConfig altogether.
-
         /// Return a pair of `(min, max)` values representing a closed interval.
         ///
         /// If `min <= max`, returns `(min, max)`.
