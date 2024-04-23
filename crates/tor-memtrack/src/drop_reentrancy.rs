@@ -122,7 +122,7 @@ impl Armed {
 impl DropBomb {
     /// Create a new, armed, drop bomb
     ///
-    /// In tests, this will panic if it's dropped, rather than `disarm` being called.
+    /// In tests, this will panic if it's dropped without calling `disarm` beforehand.
     /// (Outside tests, there aren't any real bombs, so then it's disarmed.)
     fn new_armed() -> Self {
         DropBomb(Armed::ARMED_IF_TEST.map(Err).unwrap_or(Ok(())))

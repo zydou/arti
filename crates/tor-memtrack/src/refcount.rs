@@ -214,7 +214,7 @@ pub(crate) fn slotmap_insert<K: slotmap::Key, V>(
     ref_
 }
 
-/// Insert a new entry into a slotmap using refcounted keys, fallibly and with extra dat
+/// Insert a new entry into a slotmap using refcounted keys, fallibly and with extra data
 ///
 /// Like [`slotmap_insert`] but:
 ///  * `value_maker` can also return extra return data `RD` to the caller
