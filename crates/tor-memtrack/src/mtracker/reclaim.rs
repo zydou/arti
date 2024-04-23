@@ -324,6 +324,10 @@ async fn inner_loop(tracker: &Arc<MemoryQuotaTracker>) -> Result<(), ReclaimCras
         };
         reclaiming = r;
 
+        // Duplicating this call to reclaiming.choose_victims means we don't
+        // release the lock between `maybe_start` and `choose_victims` (here)
+        // and between `handle_victim_responses` and `choose_victims` (bellw).
+        // (Releasing the lock would not be a bug, but it's not desirable.)
         let Some(v) = reclaiming.choose_victims(&mut state_guard)? else {
             return Ok(());
         };
