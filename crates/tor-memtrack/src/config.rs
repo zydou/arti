@@ -93,7 +93,7 @@ impl ConfigBuilder {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["low_water".into(), "max".into()],
                 problem: format!(
- "low_water / max = {ratio}; must be < {MAX_LOW_WATER_RATIO}, and should be lower than that"
+ "low_water / max = {ratio}; must be <= {MAX_LOW_WATER_RATIO}, ideally considerably lower"
                 ),
             });
         }
