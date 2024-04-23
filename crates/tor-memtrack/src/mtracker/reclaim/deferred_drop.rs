@@ -65,7 +65,7 @@ impl Drop for GuardWithDeferredDrop<'_> {
     fn drop(&mut self) {
         let guard = self.guard.take().expect("dropping twice!");
         drop::<MutexGuard<_>>(guard);
-        // we just unlocked the guard, so reentrant drops are fine
+        // we just unlocked the guard, so drops that re-enter our code are fine
         for p in self.deferred_drop.drain(..) {
             p.promise_dropping_is_ok();
         }
