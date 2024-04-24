@@ -101,6 +101,7 @@ pub(crate) trait ServerHandshake {
     ///
     /// On success, return a key generator and a server handshake message
     /// to send in reply.
+    #[allow(dead_code)] // TODO #1383 ????
     fn server<R: RngCore + CryptoRng, REPLY: AuxDataReply<Self>, T: AsRef<[u8]>>(
         rng: &mut R,
         reply_fn: &mut REPLY,

@@ -82,6 +82,7 @@ where
 }
 
 /// Represents a relay's view of the crypto state on a given circuit.
+#[allow(dead_code)] // TODO #1383 ????
 pub(crate) trait RelayCrypt {
     /// Prepare a RelayCellBody to be sent towards the client.
     fn originate(&mut self, cell: &mut RelayCellBody);

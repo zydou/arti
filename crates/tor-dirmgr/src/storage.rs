@@ -281,6 +281,7 @@ pub(crate) trait Store: Send + 'static {
     /// Mark the consensus generated from `cmeta` as no longer pending.
     fn mark_consensus_usable(&mut self, cmeta: &ConsensusMeta) -> Result<()>;
     /// Remove the consensus generated from `cmeta`.
+    #[allow(dead_code)] // TODO #1383 do we want to keep this anyway
     fn delete_consensus(&mut self, cmeta: &ConsensusMeta) -> Result<()>;
 
     /// Read all of the specified authority certs from the cache.
@@ -328,6 +329,7 @@ pub(crate) trait Store: Send + 'static {
     ///
     /// It's not an error if it's not present.
     #[cfg(feature = "bridge-client")]
+    #[allow(dead_code)] // TODO #1383 is lack of call sites indication of a bug?
     fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()>;
 }
 

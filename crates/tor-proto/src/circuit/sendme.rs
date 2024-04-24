@@ -81,6 +81,7 @@ where
 /// Helper: parametrizes a window to determine its maximum and its increment.
 pub(crate) trait WindowParams {
     /// Largest allowable value for this window.
+    #[allow(dead_code)] // TODO #1383 failure to ever use this is probably a bug
     fn maximum() -> u16;
     /// Increment for this window.
     fn increment() -> u16;
