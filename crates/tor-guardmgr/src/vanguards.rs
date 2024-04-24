@@ -627,11 +627,13 @@ mod test {
     }
 
     /// Create a new VanguardMgr for testing.
-    fn new_vanguard_mgr<R: Runtime>(rt: &R, has_onion_svc: bool) -> Arc<VanguardMgr<R>> {
-        let config = Default::default();
+    fn new_vanguard_mgr<R: Runtime>(rt: &R, mode: VanguardMode) -> Arc<VanguardMgr<R>> {
+        let config = VanguardConfig { mode };
         let statemgr = TestingStateMgr::new();
         let lock = statemgr.try_lock().unwrap();
         assert!(lock.held());
+        // TODO(#1382): has_onion_svc doesn't matter right now
+        let has_onion_svc = false;
         Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, has_onion_svc).unwrap())
     }
 
@@ -716,7 +718,7 @@ mod test {
         // The sets are initially empty
         assert_eq!(inner.vanguard_sets.l2_vanguards_deficit(), 0);
 
-        if inner.mode() == VanguardMode::Full {
+        if inner.mode == VanguardMode::Full {
             assert_eq!(inner.vanguard_sets.l3_vanguards_deficit(), 0);
             let l3_pool_size = params.l3_pool_size();
             assert_eq!(vanguard_count(vanguardmgr), l2_pool_size + l3_pool_size);
@@ -733,7 +735,7 @@ mod test {
             inner.vanguard_sets.l2_vanguards_target(),
             params.l2_pool_size()
         );
-        if inner.mode() == VanguardMode::Full {
+        if inner.mode == VanguardMode::Full {
             assert_eq!(
                 inner.vanguard_sets.l3_vanguards_target(),
                 params.l3_pool_size()
@@ -767,7 +769,7 @@ mod test {
     #[test]
     fn full_vanguards_disabled() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
@@ -783,7 +785,7 @@ mod test {
     #[test]
     fn background_task_not_spawned() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
@@ -807,7 +809,8 @@ mod test {
     #[test]
     fn select_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, true);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Full);
+
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let mut rng = testing_rng();
@@ -872,6 +875,9 @@ mod test {
 
     /// Switch the vanguard "mode" of the VanguardMgr to `mode`,
     /// by setting the vanguards-hs-service parameter.
+    //
+    // TODO(#1382): use this instead of switch_hs_mode_config.
+    #[allow(unused)]
     async fn switch_hs_mode(
         rt: &MockRuntime,
         vanguardmgr: &VanguardMgr<MockRuntime>,
@@ -885,6 +891,14 @@ mod test {
             Full => install_new_params(rt, netdir_provider, ENABLE_FULL_VANGUARDS).await,
             Disabled => panic!("cannot disable vanguards in the vanguard tests!"),
         };
+
+        assert_eq!(vanguardmgr.mode(), mode);
+    }
+
+    /// Switch the vanguard "mode" of the VanguardMgr to `mode`,
+    /// by calling `VanguardMgr::reconfigure`.
+    fn switch_hs_mode_config(vanguardmgr: &VanguardMgr<MockRuntime>, mode: VanguardMode) {
+        let _ = vanguardmgr.reconfigure(&VanguardConfig { mode }).unwrap();
 
         assert_eq!(vanguardmgr.mode(), mode);
     }
@@ -922,7 +936,7 @@ mod test {
     #[test]
     fn override_vanguard_set_size() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             // Wait until the vanguard manager has bootstrapped
             let netdir_provider =
@@ -965,7 +979,7 @@ mod test {
     #[test]
     fn expire_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let initial_l2_number = params.l2_pool_size();
@@ -1055,7 +1069,7 @@ mod test {
     #[test]
     fn full_vanguards_persistence() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, true);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
 
             let netdir =
                 construct_custom_netdir_with_params(|_, _| {}, ENABLE_LITE_VANGUARDS, None)
@@ -1079,7 +1093,8 @@ mod test {
             // Enable full vanguards again.
             //
             // We expect VanguardMgr to populate the L3 set, and write the VanguardSets to storage.
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Full).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Full);
+            rt.progress_until_stalled().await;
 
             let vanguard_sets_orig = vanguardmgr.storage.load().unwrap();
             assert!(vanguardmgr
@@ -1087,11 +1102,11 @@ mod test {
                 .is_ok());
 
             // Switch to lite vanguards.
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Lite).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Lite);
 
             // The vanguard sets should not change when switching between lite and full vanguards.
             assert_eq!(vanguard_sets_orig, vanguardmgr.storage.load().unwrap());
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Full).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Full);
             assert_eq!(vanguard_sets_orig, vanguardmgr.storage.load().unwrap());
 
             // TODO HS-VANGUARDS: we may want to disable the ability to switch back to lite
@@ -1100,7 +1115,7 @@ mod test {
             // Switch to lite vanguards and remove a relay from the consensus.
             // The relay should *not* be persisted to storage until we switch back to full
             // vanguards.
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Lite).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Lite);
 
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
