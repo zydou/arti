@@ -183,6 +183,8 @@
 #![allow(clippy::blocks_in_conditions)] // TODO #1176
 
 // Internal supporting modules
+#[macro_use]
+mod drop_bomb;
 mod drop_reentrancy;
 mod internal_prelude;
 #[macro_use]

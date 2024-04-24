@@ -57,9 +57,6 @@ define_derive_deftly! {
     #[cfg(test)]
     impl Drop for $ttype {
         fn drop(&mut self) {
-            // We don't check for unwinding.
-            // We shouldn't drop a nonzero one of these even if we're panicking.
-            // If we do, it'll be a double panic => abort.
             assert_eq!(self.raw, Qty(0));
         }
     }
