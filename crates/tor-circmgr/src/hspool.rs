@@ -77,7 +77,6 @@ pub(crate) struct HsCircStub {
     /// The circuit.
     pub(crate) circ: Arc<ClientCirc>,
     /// Whether the circuit is STUB or STUB+.
-    #[allow(dead_code)] // TODO HS-VANGUARDS
     pub(crate) kind: HsCircStubKind,
 }
 
@@ -129,7 +128,6 @@ impl HsCircStub {
 ///         STUB  = G -> L2 -> L3
 ///         STUB+ = G -> L2 -> L3 -> M
 ///      ```
-#[allow(dead_code)] // TODO HS-VANGUARDS
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) enum HsCircStubKind {
     /// A stub circuit (STUB).
