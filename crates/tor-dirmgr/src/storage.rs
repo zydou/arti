@@ -263,6 +263,7 @@ pub(crate) trait Store: Send + 'static {
     /// including its valid-after time and digest.
     fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>>;
     /// Try to read the consensus corresponding to the provided metadata object.
+    #[cfg(test)]
     fn consensus_by_meta(&self, cmeta: &ConsensusMeta) -> Result<InputString>;
     /// Try to read the consensus whose SHA3-256 digests is the provided
     /// value, and its metadata.
