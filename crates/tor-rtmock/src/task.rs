@@ -605,6 +605,7 @@ impl Drop for ProgressUntilStalledFuture {
 //---------- ancillary and convenience functions ----------
 
 /// Trait to let us assert at compile time that something is nicely `Sync` etc.
+#[allow(dead_code)] // yes, we don't *use* anything from this trait
 trait EnsureSyncSend: Sync + Send + 'static {}
 impl EnsureSyncSend for ActualWaker {}
 impl EnsureSyncSend for MockExecutor {}
