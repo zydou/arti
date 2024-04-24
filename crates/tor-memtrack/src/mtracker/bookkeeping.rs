@@ -21,6 +21,8 @@ define_derive_deftly! {
     /// `#[deftly(allow_nonzero_drop)]` suppresses this drop bomb.
     BookkeptQty =
 
+    ${defcond BOMB not(tmeta(allow_nonzero_drop))}
+
     impl BookkeepableQty for $ttype {
         const ZERO: $ttype = $ttype { raw: Qty(0) };
 
@@ -53,7 +55,7 @@ define_derive_deftly! {
 
     assert_not_impl_any!($ttype: Clone, Into<Qty>, From<Qty>);
 
-  ${if not(tmeta(allow_nonzero_drop)) {
+  ${if BOMB {
     #[cfg(test)]
     impl Drop for $ttype {
         fn drop(&mut self) {
