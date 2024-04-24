@@ -195,7 +195,7 @@ impl<R: Runtime> CircMgr<R> {
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         let vanguardmgr = {
-            // TODO HS-VANGUARDS: we need a way of checking if this arti instance
+            // TODO(#1382): we need a way of checking if this arti instance
             // is running an onion service or not.
             //
             // Perhaps this information should be provided by CircMgrConfig.
