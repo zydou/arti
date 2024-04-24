@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::hspool::HsCircStub;
+use crate::hspool::{HsCircStub, HsCircStubKind};
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
 
@@ -46,6 +46,76 @@ const DEFAULT_TARGET: usize = 4;
 /// value.
 const MAX_TARGET: usize = 512;
 
+/// The fraction of circuits that should be STUB.
+///
+/// We will launch (1 - STUB_CIRC_RATIO) STUB+ circuits.
+//
+// TODO: the ideal STUB/STUB+ ratio will depend on whether arti is running as a client or as a
+// hidden service. In general, launching more STUB circuits than STUB+ ones is a safe bet, because
+// STUB circuits can become STUB+, but not vice-versa
+//
+// That being said, this value is arbitrary and might need to be tweaked.
+const STUB_CIRC_RATIO: f32 = 0.7;
+
+/// A type of circuit we would like to launch.
+///
+/// [`ForLaunch::note_circ_launched`] should be called whenever a circuit
+/// of this [`HsCircStubKind`] is launched, to decrement the internal target `count`.
+pub(super) struct ForLaunch<'a> {
+    /// The kind of circuit we want to launch.
+    kind: HsCircStubKind,
+    /// How many circuits of this kind do we need?
+    ///
+    /// This is a reference to one of the target values from [`CircsToLaunch`].
+    count: &'a mut usize,
+}
+
+impl<'a> ForLaunch<'a> {
+    /// A circuit was launched, decrement the current target for its kind.
+    pub(super) fn note_circ_launched(self) {
+        *self.count -= 1;
+    }
+
+    /// The kind of circuit we want to launch.
+    pub(super) fn kind(&self) -> HsCircStubKind {
+        self.kind
+    }
+}
+
+/// The circuits we need to launch.
+///
+/// See also the [`STUB_CIRC_RATIO`] docs.
+pub(super) struct CircsToLaunch {
+    /// The number of STUB circuits we want to launch.
+    stub_target: usize,
+    /// The number of STUB+ circuits we want to launch.
+    ext_stub_target: usize,
+}
+
+impl CircsToLaunch {
+    /// Return a [`ForLaunch`] representing a circuit we would like to launch.
+    pub(super) fn for_launch(&mut self) -> ForLaunch {
+        // We start by launching STUB circuits.
+        if self.stub_target > 0 {
+            ForLaunch {
+                kind: HsCircStubKind::Stub,
+                count: &mut self.stub_target,
+            }
+        } else {
+            // If we have enough STUB circuits, we can start launching STUB+ ones too.
+            ForLaunch {
+                kind: HsCircStubKind::Extended,
+                count: &mut self.ext_stub_target,
+            }
+        }
+    }
+
+    /// Return the total number of circuits we would currently like to launch.
+    pub(super) fn n_to_launch(&self) -> usize {
+        self.stub_target + self.ext_stub_target
+    }
+}
+
 impl Default for Pool {
     fn default() -> Self {
         Self {
@@ -78,9 +148,38 @@ impl Pool {
         self.circuits.len() <= self.target / 3
     }
 
-    /// Return the number of circuits we would currently like to launch.
-    pub(super) fn n_to_launch(&self) -> usize {
-        self.target.saturating_sub(self.circuits.len())
+    /// Return a [`CircsToLaunch`] describing the circuits we would currently like to launch.
+    pub(super) fn circs_to_launch(&self) -> CircsToLaunch {
+        CircsToLaunch {
+            stub_target: self.stubs_to_launch(),
+            ext_stub_target: self.ext_stubs_to_launch(),
+        }
+    }
+
+    /// Return the number of STUB circuits we would currently like to launch.
+    fn stubs_to_launch(&self) -> usize {
+        let target = ((self.target as f32) * STUB_CIRC_RATIO) as usize;
+        let circ_count = self
+            .circuits
+            .iter()
+            .filter(|c| c.kind == HsCircStubKind::Stub)
+            .count();
+
+        target.saturating_sub(circ_count)
+    }
+
+    /// Return the number of STUB+ circuits we would currently like to launch.
+    fn ext_stubs_to_launch(&self) -> usize {
+        let target = self.target - self.stubs_to_launch();
+        let circ_count = self
+            .circuits
+            .iter()
+            .filter(|c| c.kind == HsCircStubKind::Extended)
+            .count();
+
+        // TODO: if the number of STUB circuits >= self.target,
+        // we don't launch any STUB+ circuits
+        target.saturating_sub(circ_count)
     }
 
     /// If there is any circuit in this pool for which `f`  returns true, return one such circuit at random, and remove it from the pool.

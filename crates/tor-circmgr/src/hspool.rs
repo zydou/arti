@@ -573,13 +573,14 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
         };
         let now = pool.circmgr.mgr.peek_runtime().now();
         pool.remove_closed();
-        let mut n_to_launch = {
+        let mut circs_to_launch = {
             let mut inner = pool.inner.lock().expect("poisioned_lock");
             inner.pool.update_target_size(now);
-            inner.pool.n_to_launch()
+            inner.pool.circs_to_launch()
         };
+        let n_to_launch = circs_to_launch.n_to_launch();
         let mut max_attempts = n_to_launch * 2;
-        'inner: while n_to_launch > 0 {
+        'inner: while circs_to_launch.n_to_launch() > 0 {
             max_attempts -= 1;
             if max_attempts == 0 {
                 // We want to avoid retrying over and over in a tight loop if all our attempts
@@ -608,21 +609,21 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 // L = T - D, we'll need to spawn D circuits that consist of X STUBs and Y
                 // STUB+s, where X/Y is not necessarily N/M (but the overall STUB/STUB+ ratio
                 // *is* N/M).
-                let stub_kind = HsCircStubKind::Stub;
+                let for_launch = circs_to_launch.for_launch();
 
                 // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
                 match pool
                     .circmgr
-                    .launch_hs_unmanaged(no_target, &netdir, stub_kind)
+                    .launch_hs_unmanaged(no_target, &netdir, for_launch.kind())
                     .await
                 {
                     Ok(circ) => {
                         let circ = HsCircStub {
                             circ,
-                            kind: stub_kind,
+                            kind: for_launch.kind(),
                         };
                         pool.inner.lock().expect("poisoned lock").pool.insert(circ);
-                        n_to_launch -= 1;
+                        for_launch.note_circ_launched();
                     }
                     Err(err) => {
                         debug_report!(err, "Unable to build preemptive circuit for onion services");
