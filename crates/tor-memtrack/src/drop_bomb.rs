@@ -33,8 +33,6 @@
 //!
 //! [`DropBombCondition`] is for assuring the properties of a value that is being dropped.
 
-#![allow(dead_code)] // XXXX add tests that actually use this
-
 use crate::internal_prelude::*;
 
 #[cfg(test)]
