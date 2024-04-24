@@ -1,6 +1,6 @@
 //! Drop bombs, for assurance of postconditions when types are dropped
 //!
-//! Provides a drop bomb type: [`DropBomb`].
+//! Provides two drop bomb types: [`DropBomb`] and [`DropBombCondition`].
 //!
 //! These help assure that our algorithms are correct,
 //! by detecting when types that contain them bomb are dropped inappropriately.
@@ -30,6 +30,8 @@
 //!
 //! [`DropBomb`] is for assuring the runtime context or appropriate timing of drops
 //! (and could be used for implementing general conditions).
+//!
+//! [`DropBombCondition`] is for assuring the properties of a value that is being dropped.
 
 #![allow(dead_code)] // XXXX add tests that actually use this
 
@@ -131,7 +133,32 @@ pub(crate) struct DropBomb {
     status: Status,
 }
 
-/// Handle onto a simulated [`DropBomb`]
+/// Drop condition: for ensuring that a condition is true, on drop
+///
+/// Obtained from [`DropBombCondition::new_armed()`].
+///
+/// Instead of dropping this, you must call
+/// `drop_bomb_disarm_assert!`
+/// (or its internal function `disarm_assert()`.
+// rustdoc can't manage to make a link to this crate-private macro or cfg-test item.
+///
+/// It will often be necessary to add `#[allow(dead_code)]`
+/// on the `DropBombCondition` field of a containing type,
+/// since outside tests, the `Drop` impl will usually be configured out,
+/// and that's the only place this field is actually read.
+///
+/// # Panics
+///
+/// Panics (actually) if it is simply dropped.
+#[derive(Deftly, Debug)]
+#[derive_deftly(BombImpls)]
+pub(crate) struct DropBombCondition {
+    /// What state are we in
+    #[allow(dead_code)] // not read outside tests
+    status: Status,
+}
+
+/// Handle onto a simulated [`DropBomb`] or [`DropCondition`]
 ///
 /// Can be used to tell whether the bomb "exploded"
 /// (ie, whether `drop` would have panicked, if this had been a non-simulated bomb).
@@ -191,19 +218,121 @@ impl DropStatus for DropBomb {
     }
 }
 
+//---------- DropCondition impls ----------
+
+/// Check the condition, and disarm the bomb
+///
+/// If `CONDITION` is true, disarms the bomb; otherwise, explodes (panics).
+///
+/// # Syntax
+///
+/// ```
+/// drop_bomb_disarm_assert!(BOMB, CONDITION);
+/// drop_bomb_disarm_assert!(BOMB, CONDITION, "FORMAT", FORMAT_ARGS..);
+/// ```
+///
+/// where
+///
+///  * `BOMB: &mut DropCondition` (or something that derefs to that).
+///  * `CONDITION: bool`
+///
+/// # Example
+///
+/// ```
+/// # struct S { drop_bomb: DropCondition };
+/// # impl S { fn f(&mut self) {
+/// drop_bomb_disarm_assert!(self.drop_bomb, self.raw, Qty(0));
+/// # } }
+/// ```
+///
+/// # Explodes
+///
+/// Explodes unless the condition is satisfied.
+//
+// This macro has this long name because we can't do scoping of macro-rules macros.
+#[cfg(test)] // Should not be used outside tests, since the drop impls should be conditional
+macro_rules! drop_bomb_disarm_assert {
+    { $bomb:expr, $condition:expr $(,)? } => {
+        $bomb.disarm_assert(
+            || $condition,
+            format_args!(concat!("condition = ", stringify!($condition))),
+        )
+    };
+    { $bomb:expr, $condition:expr, $fmt:literal $($rest:tt)* } => {
+        $bomb.disarm_assert(
+            || $condition,
+            format_args!(concat!("condition = ", stringify!($condition), ": ", $fmt),
+                         $($rest)*),
+        )
+    };
+}
+
+impl DropBombCondition {
+    /// Check a condition, and disarm the bomb
+    ///
+    /// If `call()` returns true, disarms the bomb; otherwise, explodes (panics).
+    ///
+    /// # Explodes
+    ///
+    /// Explodes unless the condition is satisfied.
+    #[inline]
+    #[cfg(test)] // Should not be used outside tests, since the drop impls should be conditional
+    pub(crate) fn disarm_assert(&mut self, call: impl FnOnce() -> bool, msg: fmt::Arguments) {
+        match mem::replace(&mut self.status, S::Disarmed) {
+            S::Disarmed => {
+                // outside cfg(test), this is the usual path.
+                // placate the compiler: we ignore all our arguments
+                let _ = call;
+                let _ = msg;
+
+                #[cfg(test)]
+                panic!("disarm_assert called more than once!");
+            }
+            #[cfg(test)]
+            S::Armed => {
+                if !call() {
+                    panic!("drop condition violated: dropped, but condition is false: {msg}");
+                }
+            }
+            #[cfg(test)]
+            #[allow(clippy::print_stderr)]
+            S::ArmedSimulated(handle) => {
+                if !call() {
+                    eprintln!("drop condition violated in simulation: {msg}");
+                    handle.set_exploded();
+                }
+            }
+        }
+    }
+}
+
+/// Ideally, if you use this, your struct's other default values meet your drop condition!
+impl Default for DropBombCondition {
+    fn default() -> DropBombCondition {
+        Self::new_armed()
+    }
+}
+
+#[cfg(test)]
+impl DropStatus for DropBombCondition {
+    fn drop_status(status: Status) {
+        assert!(matches!(status, S::Disarmed));
+    }
+}
+
 //---------- SimulationHandle impls ----------
 
 #[cfg(test)]
 impl SimulationHandle {
     /// Determine whether a drop bomb would have been triggered
     ///
-    /// If the corresponding [`DropBomb]`
+    /// If the corresponding [`DropBomb]` or [`DropCondition`]
     /// would have panicked (if we weren't simulating),
     /// returns `Err`.
     ///
     /// # Panics
     ///
-    /// The corresponding `DropBomb` must have been dropped.
+    /// The corresponding `DropBomb` or `DropCondition` must have been dropped.
     /// Otherwise, calling `outcome` will (actually) panic.
     pub(crate) fn outcome(mut self) -> Result<(), SimulationExploded> {
         let panicked = Arc::into_inner(mem::take(&mut self.exploded))
@@ -327,5 +456,62 @@ mod test {
         let h = b.make_simulated();
         drop(b);
         h.expect_exploded();
+    }
+
+    struct HasBomb {
+        on_drop: Result<(), ()>,
+        bomb: DropBombCondition,
+    }
+
+    impl Drop for HasBomb {
+        fn drop(&mut self) {
+            drop_bomb_disarm_assert!(self.bomb, self.on_drop.is_ok());
+        }
+    }
+
+    #[test]
+    fn cond_ok() {
+        let hb = HasBomb {
+            on_drop: Ok(()),
+            bomb: DropBombCondition::new_armed(),
+        };
+        drop(hb);
+    }
+
+    #[test]
+    fn cond_sim_explosion() {
+        let (bomb, h) = DropBombCondition::new_simulated();
+        let hb = HasBomb {
+            on_drop: Err(()),
+            bomb,
+        };
+        drop(hb);
+        h.expect_exploded();
+    }
+
+    #[test]
+    fn cond_explosion_panic() {
+        // make an actual panic
+        let mut bomb = DropBombCondition::new_armed();
+        let _: Box<dyn Any> = catch_unwind(AssertUnwindSafe(|| {
+            bomb.disarm_assert(|| false, format_args!("testing"));
+        }))
+        .unwrap_err();
+    }
+
+    #[test]
+    fn cond_forgot_drop_impl() {
+        // pretend that we put a DropBombCondition on this,
+        // but we forgot to impl Drop and call drop_bomb_disarm_assert
+        struct ForgotDropImpl {
+            bomb: DropBombCondition,
+        }
+        let fdi = ForgotDropImpl {
+            bomb: DropBombCondition::new_armed(),
+        };
+        // pretend that fdi is being dropped
+        let mut bomb = fdi.bomb; // move out
+
+        let _: Box<dyn Any> = catch_unwind(AssertUnwindSafe(|| bomb.drop_impl())).unwrap_err();
     }
 }
