@@ -155,6 +155,7 @@ impl rpc::Method for Authenticate {
 
 /// An error during authentication.
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
+#[allow(dead_code)] // TODO RPC
 enum AuthenticationFailure {}
 
 impl tor_error::HasKind for AuthenticationFailure {
