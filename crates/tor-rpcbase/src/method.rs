@@ -87,19 +87,18 @@ define_derive_deftly! {
 ///     type Update = rpc::NoUpdates;
 /// }
 /// ```
-///
-/// # Limitations
-///
-/// For now you'll need to import the `typetag` crate; unfortunately, it doesn't
-/// yet behave well when used where it is not in scope as `typetag`.
     pub DynMethod =
-        #[$crate::typetag::deserialize(name = ${tmeta(rpc(method_name)) as str})]
+    const _: () = {
+        // Alas, `typetag does not work correctly when not in scope as `typetag`.
+        use $crate::typetag;
+        #[typetag::deserialize(name = ${tmeta(rpc(method_name)) as str})]
         // Note that we do not support generics in method types.
         // If we did, we would have to give each instantiation type its own method name.
         impl $crate::DynMethod for $ttype {}
         $crate::inventory::submit! {
             $crate::MethodInfo_ { method_name : ${tmeta(rpc(method_name)) as str} }
         }
+    };
 }
 pub use derive_deftly_template_DynMethod;
 
