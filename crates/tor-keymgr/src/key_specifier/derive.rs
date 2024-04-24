@@ -267,15 +267,6 @@ pub fn parse_key_path(
     Ok(())
 }
 
-/// Wrapper for `KeySpecifierComponent` that `Displays` via `fmt_pretty`
-struct KeySpecifierComponentPrettyHelper<'c>(&'c dyn KeySpecifierComponent);
-
-impl Display for KeySpecifierComponentPrettyHelper<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        KeySpecifierComponent::fmt_pretty(self.0, f)
-    }
-}
-
 /// Build a `KeyPathInfo` given the information about a key specifier
 ///
 /// Calling pattern, to minimise macro-generated machine code,
