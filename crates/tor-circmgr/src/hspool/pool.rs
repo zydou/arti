@@ -192,14 +192,30 @@ impl Pool {
         self.stub_target + self.ext_stub_target
     }
 
-    /// If there is any circuit in this pool for which `f`  returns true, return one such circuit at random, and remove it from the pool.
-    pub(super) fn take_one_where<R, F>(&mut self, rng: &mut R, f: F) -> Option<HsCircStub>
+    /// If there is any circuit in this pool for which `f`  returns true and that satisfies
+    /// all of the specified [`HsCircPrefs`], return one such circuit at random, and remove
+    /// it from the pool.
+    ///
+    /// If none of the circuits satisfy `prefs`, return a randomly selected circuit for which `f`
+    /// returns true, and remove it from the pool.
+    pub(super) fn take_one_where<R, F>(
+        &mut self,
+        rng: &mut R,
+        f: F,
+        prefs: &HsCircPrefs,
+    ) -> Option<HsCircStub>
     where
         R: Rng,
         F: Fn(&HsCircStub) -> bool,
     {
-        // Select a circuit satisfying `f` at random.
-        let rv = match random_idx_where(rng, &mut self.circuits[..], f) {
+        let rv = match random_idx_where(rng, &mut self.circuits[..], |circ_stub| {
+            // First, check if any circuit matches _all_ the prefs
+            circ_stub.satisfies_prefs(prefs) && f(circ_stub)
+        })
+        .or_else(|| {
+            // Select a circuit satisfying `f` at random.
+            random_idx_where(rng, &mut self.circuits[..], f)
+        }) {
             Some(idx) => Some(self.circuits.swap_remove(idx)),
             None => None,
         };
@@ -289,6 +305,21 @@ impl Pool {
     /// Returns `true` if vanguards are enabled.
     pub(super) fn vanguards_enabled(&self) -> bool {
         self.mode != VanguardMode::Disabled
+    }
+}
+
+/// Preferences for what kind of circuit to select from the pool.
+#[derive(Default, Debug, Clone)]
+pub(super) struct HsCircPrefs {
+    /// If `Some`, specifies the [`HsCircStubKind`] we would like.
+    pub(super) kind_prefs: Option<HsCircStubKind>,
+}
+
+impl HsCircPrefs {
+    /// Set the preferred [`HsCircStubKind`].
+    pub(super) fn preferred_stub_kind(&mut self, kind: HsCircStubKind) -> &mut Self {
+        self.kind_prefs = Some(kind);
+        self
     }
 }
 
