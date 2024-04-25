@@ -80,9 +80,12 @@ pub(crate) struct Ref<K: slotmap::Key> {
     /// Bind to the specific key type
     #[educe(Debug(ignore))]
     marker: PhantomData<K>,
-    /// Marker to not be Clone
-    #[educe(Debug(ignore))]
-    not_clone: NotClone,
+    /// Drop bomb
+    ///
+    /// Also forces `Ref` not to be Clone
+    #[educe(Debug(ignore), Ord(ignore), Eq(ignore), PartialEq(ignore))]
+    #[allow(dead_code)]
+    bomb: DropBombCondition,
 }
 
 // educe's Ord is open-coded and triggers clippy::non_canonical_partial_ord_impl
@@ -92,11 +95,8 @@ impl<K: slotmap::Key> PartialOrd for Ref<K> {
     }
 }
 
-/// Marker used to prevent `Ref` being `Clone`
 // Ideally we'd assert_not_impl on Ref but it has generics
-#[derive(Default, Ord, PartialOrd, Eq, PartialEq)]
-struct NotClone;
-assert_not_impl_any!(NotClone: Clone);
+assert_not_impl_any!(DropBombCondition: Clone);
 
 /// Error: refcount overflowed
 #[derive(Debug, Clone, Error, Eq, PartialEq)]
@@ -166,7 +166,7 @@ impl<K: slotmap::Key> Ref<K> {
         Ref {
             raw_key,
             marker: PhantomData,
-            not_clone: NotClone,
+            bomb: DropBombCondition::new_armed(),
         }
     }
 
@@ -232,7 +232,7 @@ pub(crate) fn slotmap_try_insert<K: slotmap::Key, V, E, RD>(
     let ref_ = Ref {
         raw_key,
         marker: PhantomData,
-        not_clone: NotClone,
+        bomb: DropBombCondition::new_armed(),
     };
     Ok((ref_, data))
 }
@@ -240,12 +240,76 @@ pub(crate) fn slotmap_try_insert<K: slotmap::Key, V, E, RD>(
 #[cfg(test)]
 impl<K: slotmap::Key> Drop for Ref<K> {
     fn drop(&mut self) {
-        assert!(self.raw_key.is_null());
+        drop_bomb_disarm_assert!(self.bomb, self.raw_key.is_null(),);
     }
 }
 
 impl From<Overflow> for Error {
     fn from(_overflow: Overflow) -> Error {
         internal!("reference count overflow in memory tracking (out-of-control subsystem?)").into()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::let_and_return)] // TODO this lint is annoying and we should disable it
+
+    use super::*;
+
+    slotmap::new_key_type! {
+        struct Id;
+    }
+    #[derive(Eq, PartialEq, Debug)]
+    struct Record {
+        refcount: Count<Id>,
+    }
+    type Map = SlotMap<Id, Record>;
+
+    fn setup() -> (Map, Ref<Id>) {
+        let mut map = Map::default();
+        let ref_ = slotmap_insert(&mut map, |refcount| Record { refcount });
+        (map, ref_)
+    }
+
+    #[test]
+    fn good() {
+        let (mut map, ref1) = setup();
+
+        let ent = map.get_mut(*ref1).unwrap();
+        let ref2 = Ref::new(*ref1, &mut ent.refcount).unwrap();
+
+        let g1: Option<Garbage<Record>> = slotmap_dec_ref!(&mut map, ref1, &mut ent.refcount);
+        assert_eq!(g1, None);
+
+        let ent = map.get_mut(*ref2).unwrap();
+        let g2: Option<Garbage<Record>> = slotmap_dec_ref!(&mut map, ref2, &mut ent.refcount);
+        assert!(g2.is_some());
+    }
+
+    #[test]
+    fn try_insert_fail() {
+        let mut map = Map::default();
+        let () = slotmap_try_insert::<_, _, _, String>(&mut map, |_refcount| Err(())).unwrap_err();
+    }
+
+    #[test]
+    fn drop_ref_without_decrement() {
+        let (_map, mut ref1) = setup();
+        let h = ref1.bomb.make_simulated();
+        drop(ref1);
+        h.expect_exploded();
     }
 }

@@ -55,6 +55,7 @@ pub(crate) use {
 
 pub(crate) use crate::{
     config::Config,
+    drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
     refcount,

@@ -17,12 +17,20 @@ use super::*;
 define_derive_deftly! {
     /// Implement [`BookkeptQty`] and its supertraits
     ///
-    /// By default, dropping when nonzero is forbidden.
-    /// `#[deftly(allow_nonzero_drop)]` suppresses this drop bomb.
+    /// By default, dropping when nonzero is forbidden,
+    /// and you must have a field `bomb: `[`DropBombCondition`].
+    /// `#[deftly(allow_nonzero_drop)]` suppresses this.
     BookkeptQty =
 
+    ${defcond BOMB not(tmeta(allow_nonzero_drop))}
+
     impl BookkeepableQty for $ttype {
-        const ZERO: $ttype = $ttype { raw: Qty(0) };
+        const ZERO: $ttype = $ttype {
+            raw: Qty(0),
+          ${if BOMB {
+            bomb: DropBombCondition::new_armed(),
+          }}
+        };
 
         fn as_raw(&self) -> Qty {
             self.raw
@@ -44,7 +52,12 @@ define_derive_deftly! {
 
     impl BookkeptQty for $ttype {
         fn from_raw(q: Qty) -> Self {
-            $ttype { raw: q }
+            $ttype {
+                raw: q,
+              ${if BOMB {
+                bomb: DropBombCondition::new_armed(),
+              }}
+            }
         }
         fn into_raw(mut self) -> Qty {
             mem::replace(&mut self.raw, Qty(0))
@@ -53,14 +66,11 @@ define_derive_deftly! {
 
     assert_not_impl_any!($ttype: Clone, Into<Qty>, From<Qty>);
 
-  ${if not(tmeta(allow_nonzero_drop)) {
+  ${if BOMB {
     #[cfg(test)]
     impl Drop for $ttype {
         fn drop(&mut self) {
-            // We don't check for unwinding.
-            // We shouldn't drop a nonzero one of these even if we're panicking.
-            // If we do, it'll be a double panic => abort.
-            assert_eq!(self.raw, Qty(0));
+            drop_bomb_disarm_assert!(self.bomb, self.raw == Qty(0));
         }
     }
   }}
@@ -143,9 +153,13 @@ pub(super) struct TotalQty {
 /// This is the total amount `claim`ed, plus the caches in each `Participation`.
 #[derive(Default, Debug, Deftly, derive_more::Display)]
 #[derive_deftly(BookkeptQty)]
+#[display(fmt = "{raw}")]
 pub(super) struct ParticipQty {
     /// See [`BookkeptQty`]
     raw: Qty,
+
+    /// See [`BookkeptQty`]
+    bomb: DropBombCondition,
 }
 
 /// "Cached" claim, on behalf of a Participant
@@ -159,10 +173,14 @@ pub(super) struct ParticipQty {
 /// to store.  The participant is supposed to track this separately somehow.
 #[derive(Default, Debug, Deftly, derive_more::Display)]
 #[derive_deftly(BookkeptQty)]
+#[display(fmt = "{raw}")]
 #[must_use]
 pub(super) struct ClaimedQty {
     /// See [`BookkeptQty`]
     raw: Qty,
+
+    /// See [`BookkeptQty`]
+    bomb: DropBombCondition,
 }
 
 impl TotalQty {
