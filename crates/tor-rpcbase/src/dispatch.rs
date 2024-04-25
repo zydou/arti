@@ -270,9 +270,6 @@ macro_rules! invoker_ent {
             function: stringify!($func)
         }
     };
-    { $func:ident $([$($flag:ident),*])? } => {
-        $crate::invoker_ent!{ ($func) $([$($flag),*])? }
-    };
 }
 impl std::fmt::Debug for InvokerEnt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
