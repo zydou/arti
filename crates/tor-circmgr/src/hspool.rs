@@ -281,7 +281,7 @@ impl<R: Runtime> HsCircPool<R> {
         if kind == HsCircKind::ClientRend {
             return Err(bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into());
         }
-        // TODO HS-VANGUARDS: the kind makes no difference yet, but it will at some point in the future.
+
         let wanted_kind = kind.stub_kind();
 
         // For most* of these circuit types, we want to build our circuit with
