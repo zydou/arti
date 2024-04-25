@@ -23,7 +23,7 @@ use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
 };
-use tracing::warn;
+use tracing::{debug, trace, warn};
 
 use std::result::Result as StdResult;
 
@@ -128,11 +128,13 @@ impl HsCircStub {
 ///         STUB  = G -> L2 -> L3
 ///         STUB+ = G -> L2 -> L3 -> M
 ///      ```
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
 pub(crate) enum HsCircStubKind {
     /// A stub circuit (STUB).
+    #[display(fmt = "STUB")]
     Stub,
     /// An extended stub circuit (STUB+).
+    #[display(fmt = "STUB+")]
     Extended,
 }
 
@@ -578,6 +580,13 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
         };
         let n_to_launch = circs_to_launch.n_to_launch();
         let mut max_attempts = n_to_launch * 2;
+
+        debug!(
+            "launching {} STUB and {} STUB+ circuits",
+            circs_to_launch.stub(),
+            circs_to_launch.ext_stub()
+        );
+
         'inner: while circs_to_launch.n_to_launch() > 0 {
             max_attempts -= 1;
             if max_attempts == 0 {
@@ -616,11 +625,13 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                     .await
                 {
                     Ok(circ) => {
+                        let kind = for_launch.kind();
                         let circ = HsCircStub {
                             circ,
-                            kind: for_launch.kind(),
+                            kind,
                         };
                         pool.inner.lock().expect("poisoned lock").pool.insert(circ);
+                        trace!("successfully launched {kind} circuit");
                         for_launch.note_circ_launched();
                     }
                     Err(err) => {

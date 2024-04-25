@@ -110,6 +110,16 @@ impl CircsToLaunch {
         }
     }
 
+    /// Return the number of STUB circuits we would like to launch.
+    pub(super) fn stub(&self) -> usize {
+        self.stub_target
+    }
+
+    /// Return the number of STUB+ circuits we would like to launch.
+    pub(super) fn ext_stub(&self) -> usize {
+        self.ext_stub_target
+    }
+
     /// Return the total number of circuits we would currently like to launch.
     pub(super) fn n_to_launch(&self) -> usize {
         self.stub_target + self.ext_stub_target
