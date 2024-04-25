@@ -245,17 +245,18 @@ impl InvokerEnt {
 ///
 /// Syntax:
 /// ```rust,ignore
-///   invoker_ent!( function_name )
-///   invoker_ent!( (function_expr) )
+///   invoker_ent!( function )
 /// ```
 ///
-/// The function must have the correct type for an RPC implementation function;
+/// The function must be a `fn` item
+/// (with all necessary generic parameters specified)
+/// with the correct type for an RPC implementation function;
 /// see the [module documentation](self).
 #[macro_export]
 macro_rules! invoker_ent {
-    { $func:ident $(::<$($fgens:ty),*>)? } => {
+    { $func:expr } => {
         $crate::dispatch::InvokerEnt {
-            invoker: $crate::invocable_func_as_dyn_invocable!($func $(::<$($fgens),*>)?),
+            invoker: $crate::invocable_func_as_dyn_invocable!($func),
             file: file!(),
             line: line!(),
             function: stringify!($func)
@@ -343,20 +344,22 @@ inventory::collect!(InvokerEnt);
 ///
 /// ```rust,ignore
 /// static_rpc_invoke_fn{
-///   ( IDENT  $(::<GENS>)?)? ; ) *
+///   function;  // zero or morea
+///   ...
 /// }
 /// ```
+///
+/// where `function` is an expression referring to a static fn item,
+/// with all necessary generics.
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $funcname:ident $(::<$($fgens:ty),*>)?;
-        $( $($more:tt)+ )?
-    } => {$crate::paste::paste!{
+        $( $func:expr; )*
+    } => {$crate::paste::paste!{ $(
         $crate::inventory::submit!{
-            $crate::invoker_ent!($funcname $(::<$($fgens),*>)?)
+            $crate::invoker_ent!($func)
         }
-        $( $crate::static_rpc_invoke_fn!{ $($more)+ } )?
-    }};
+    )* }};
 }
 
 /// Obtain `&'static dyn `[`Invocable`] for a fn item
