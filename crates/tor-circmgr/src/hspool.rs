@@ -626,10 +626,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 {
                     Ok(circ) => {
                         let kind = for_launch.kind();
-                        let circ = HsCircStub {
-                            circ,
-                            kind,
-                        };
+                        let circ = HsCircStub { circ, kind };
                         pool.inner.lock().expect("poisoned lock").pool.insert(circ);
                         trace!("successfully launched {kind} circuit");
                         for_launch.note_circ_launched();
