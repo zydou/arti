@@ -603,19 +603,6 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
                 // launching several of these in parallel.  If we do, we should think about
                 // whether taking the fastest will expose us to any attacks.
                 let no_target: Option<&OwnedCircTarget> = None;
-
-                // TODO HS-VANGUARDS: we will need to launch N STUB circuits and M STUB+
-                // circuits, for some N, M.
-                //
-                // We will need Pool to have two different targets, one for STUB circuits and
-                // another for STUB+. Otherwise, if we only know the overall circuit target, each
-                // time the pool is low on circuits we'll have no choice but to spawn both kinds of
-                // stub circuits (in a ratio of N/M), even if we don't necessarily need the deficit
-                // to be replenished in the N/M ratio. IOW, if the pool's overall target number of
-                // circuits is T = N + M, and the actual number of circuits in the pool is
-                // L = T - D, we'll need to spawn D circuits that consist of X STUBs and Y
-                // STUB+s, where X/Y is not necessarily N/M (but the overall STUB/STUB+ ratio
-                // *is* N/M).
                 let for_launch = circs_to_launch.for_launch();
 
                 // TODO HS: We should catch panics, here or in launch_hs_unmanaged.
