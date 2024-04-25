@@ -396,9 +396,7 @@ impl<R: Runtime> HsCircPool<R> {
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
                 if vanguards_enabled {
-                    // TODO HS-VANGUARDS: check if the circuit is still usable using
-                    // circuit_still_useable
-                    circ.can_become(kind)
+                    circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
                 } else {
                     circuit_compatible_with_target(netdir, circ, &target_exclusion)
                 }
