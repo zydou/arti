@@ -263,6 +263,7 @@ pub(crate) trait Store: Send + 'static {
     /// including its valid-after time and digest.
     fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>>;
     /// Try to read the consensus corresponding to the provided metadata object.
+    #[cfg(test)]
     fn consensus_by_meta(&self, cmeta: &ConsensusMeta) -> Result<InputString>;
     /// Try to read the consensus whose SHA3-256 digests is the provided
     /// value, and its metadata.
@@ -281,6 +282,7 @@ pub(crate) trait Store: Send + 'static {
     /// Mark the consensus generated from `cmeta` as no longer pending.
     fn mark_consensus_usable(&mut self, cmeta: &ConsensusMeta) -> Result<()>;
     /// Remove the consensus generated from `cmeta`.
+    #[allow(dead_code)] // TODO #1383 do we want to keep this anyway
     fn delete_consensus(&mut self, cmeta: &ConsensusMeta) -> Result<()>;
 
     /// Read all of the specified authority certs from the cache.
@@ -328,6 +330,7 @@ pub(crate) trait Store: Send + 'static {
     ///
     /// It's not an error if it's not present.
     #[cfg(feature = "bridge-client")]
+    #[allow(dead_code)] // TODO #1383 is lack of call sites indication of a bug?
     fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()>;
 }
 

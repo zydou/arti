@@ -381,6 +381,7 @@ impl Store for SqliteStore {
             Ok(None)
         }
     }
+    #[cfg(test)]
     fn consensus_by_meta(&self, cmeta: &ConsensusMeta) -> Result<InputString> {
         if let Some((text, _)) =
             self.consensus_by_sha3_digest_of_signed_part(cmeta.sha3_256_of_signed())?
