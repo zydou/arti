@@ -31,11 +31,6 @@
 //! static_rpc_invoke_fn!{ my_rpc_func; my_other_rpc_func; }
 //! ```
 //!
-//! If your function takes an updates sink, the syntax is:
-//! ```rust,ignore
-//! static_rpc_invoke_fn!{ my_rpc_func [Updates]; }
-//! ```
-//!
 //! You can register particular instantiations of generic types, if they're known ahead of time:
 //! ```rust,ignore
 //! static_rpc_invoke_fn!{ my_generic_fn::<PreferredRuntime>; }
@@ -48,7 +43,7 @@
 //! ```rust,ignore
 //! fn install_my_rpc_methods<T>(table: &mut DispatchTable) {
 //!     table.insert(invoker_ent!(my_generic_fn::<T>));
-//!     table.insert(invoker_ent!(my_generic_fn_with_update::<T>) [Updates]);
+//!     table.insert(invoker_ent!(my_generic_fn_with_update::<T>));
 //! }
 //! ```
 
@@ -250,20 +245,15 @@ impl InvokerEnt {
 ///
 /// Syntax:
 /// ```rust,ignore
-///   invoker_ent!( function_name [flags] )
-///   invoker_ent!( (function_expr) [flags] )
+///   invoker_ent!( function_name )
+///   invoker_ent!( (function_expr) )
 /// ```
-///
-/// Recognized flags are: `Updates`.
-/// If no flags are given,
-/// the entire `[flags]` list may be omitted.
 ///
 /// The function must have the correct type for an RPC implementation function;
 /// see the [module documentation](self).
 #[macro_export]
 macro_rules! invoker_ent {
-    { $func:ident $(::<$($fgens:ty),*>)? $([$($flag:ident),*])? } => {
-        // XXXX ..$flag .. is ignored
+    { $func:ident $(::<$($fgens:ty),*>)? } => {
         $crate::dispatch::InvokerEnt {
             invoker: $crate::invocable_func_as_dyn_invocable!($func $(::<$($fgens),*>)?),
             file: file!(),
@@ -345,7 +335,7 @@ inventory::collect!(InvokerEnt);
 /// }
 ///
 /// rpc::static_rpc_invoke_fn! {
-///     example2 [Updates];
+///     example2;
 /// }
 /// ```
 ///
@@ -353,17 +343,17 @@ inventory::collect!(InvokerEnt);
 ///
 /// ```rust,ignore
 /// static_rpc_invoke_fn{
-///   ( IDENT  $(::<GENS>)? ([Updates])? ; ) *
+///   ( IDENT  $(::<GENS>)?)? ; ) *
 /// }
 /// ```
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $funcname:ident $(::<$($fgens:ty),*>)? $([ $($flag:ident),* $(,)?])?;
+        $funcname:ident $(::<$($fgens:ty),*>)?;
         $( $($more:tt)+ )?
     } => {$crate::paste::paste!{
         $crate::inventory::submit!{
-            $crate::invoker_ent!($funcname $(::<$($fgens),*>)? $([$($flag),*])? )
+            $crate::invoker_ent!($funcname $(::<$($fgens),*>)?)
         }
         $( $crate::static_rpc_invoke_fn!{ $($more)+ } )?
     }};
@@ -680,7 +670,7 @@ mod test {
 
         getkids_swan;
         getkids_sheep;
-        getkids_wombat [Updates];
+        getkids_wombat;
     }
 
     struct Ctx {}
