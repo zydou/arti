@@ -579,7 +579,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
             inner.pool.n_to_launch()
         };
         let mut max_attempts = n_to_launch * 2;
-        'inner: while n_to_launch > 1 {
+        'inner: while n_to_launch > 0 {
             max_attempts -= 1;
             if max_attempts == 0 {
                 // We want to avoid retrying over and over in a tight loop if all our attempts
