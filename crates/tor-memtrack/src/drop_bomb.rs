@@ -3,7 +3,7 @@
 //! Provides two drop bomb types: [`DropBomb`] and [`DropBombCondition`].
 //!
 //! These help assure that our algorithms are correct,
-//! by detecting when types that contain them bomb are dropped inappropriately.
+//! by detecting when types that contain the bomb are dropped inappropriately.
 //!
 //! # No-op outside `#[cfg(test)]`
 //!
@@ -381,7 +381,7 @@ impl SimulationHandle {
         }
     }
 
-    /// Mark this simulated bomb has having exploded
+    /// Mark this simulated bomb as having exploded
     fn set_exploded(&self) {
         self.exploded.store(true, Ordering::Release);
     }
