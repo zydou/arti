@@ -108,6 +108,17 @@ impl RpcMgr {
         })
     }
 
+    /// Run `func` with a mutable reference to our dispatch table as an argument.
+    ///
+    /// Used to register additional methods.
+    pub fn with_dispatch_table<F, T>(&self, func: F) -> T
+    where
+        F: FnOnce(&mut rpc::DispatchTable) -> T,
+    {
+        let mut table = self.dispatch_table.write().expect("poisoned lock");
+        func(&mut table)
+    }
+
     /// Start a new session based on this RpcMgr, with a given TorClient.
     pub fn new_connection(self: &Arc<Self>) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());

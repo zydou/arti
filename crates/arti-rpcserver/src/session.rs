@@ -32,9 +32,6 @@ pub struct RpcSession {
 
 impl RpcSession {
     /// Create a new session object containing a single client object.
-    ///
-    /// TODO RPC: If `client` is not a `TorClient<PreferredRuntime>`, it won't
-    /// be possible to invoke any of its methods. See #837.
     pub fn new_with_client<R: tor_rtcompat::Runtime>(
         client: Arc<arti_client::TorClient<R>>,
     ) -> Arc<Self> {
