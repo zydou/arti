@@ -14,8 +14,11 @@ use futures::stream::BoxStream;
 use futures::task::{SpawnError, SpawnExt as _};
 use futures::{future, FutureExt as _};
 use futures::{select_biased, StreamExt as _};
+use postage::stream::Stream as _;
+use postage::watch;
 use rand::RngCore;
 
+use tor_async_utils::PostageWatchSenderExt as _;
 use tor_config::ReconfigureError;
 use tor_error::{error_report, internal, into_internal, ErrorKind, HasKind};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
@@ -35,7 +38,6 @@ pub use set::Vanguard;
 const STORAGE_KEY: &str = "vanguards";
 
 /// The vanguard manager.
-#[allow(unused)] // TODO HS-VANGUARDS
 pub struct VanguardMgr<R: Runtime> {
     /// The mutable state.
     inner: RwLock<Inner>,
@@ -47,10 +49,14 @@ pub struct VanguardMgr<R: Runtime> {
 }
 
 /// The mutable inner state of [`VanguardMgr`].
-#[allow(unused)] // TODO HS-VANGUARDS
 struct Inner {
     /// The current vanguard parameters.
     params: VanguardParams,
+    /// Whether to use full, lite, or no vanguards.
+    ///
+    // TODO(#1382): we should derive the mode from the
+    // vanguards-enabled and vanguards-hs-service consensus params.
+    mode: VanguardMode,
     /// The L2 and L3 vanguards.
     ///
     /// The L3 vanguards are only used if we are running in
@@ -87,9 +93,12 @@ struct Inner {
     vanguard_sets: VanguardSets,
     /// Whether we're running an onion service.
     ///
-    /// Used for deciding whether to use the `vanguards_hs_service` or the
-    /// `vanguards_enabled` [`NetParameter`](tor_netdir::params::NetParameters).
+    // TODO(#1382): This should be used for deciding whether to use the `vanguards_hs_service` or the
+    // `vanguards_enabled` [`NetParameter`](tor_netdir::params::NetParameters).
+    #[allow(unused)]
     has_onion_svc: bool,
+    /// A channel for sending VanguardConfig changes to the vanguard maintenance task.
+    config_tx: watch::Sender<VanguardConfig>,
 }
 
 /// Whether the [`VanguardMgr::maintain_vanguard_sets`] task
@@ -148,7 +157,7 @@ impl<R: Runtime> VanguardMgr<R> {
     /// The `state_mgr` handle is used for persisting the "vanguards-full" guard pools to disk.
     #[allow(clippy::needless_pass_by_value)] // TODO HS-VANGUARDS
     pub fn new<S>(
-        _config: &VanguardConfig,
+        config: &VanguardConfig,
         runtime: R,
         state_mgr: S,
         has_onion_svc: bool,
@@ -156,6 +165,7 @@ impl<R: Runtime> VanguardMgr<R> {
     where
         S: StateMgr + Send + Sync + 'static,
     {
+        let VanguardConfig { mode } = config;
         // Note: we start out with default vanguard params, but we adjust them
         // as soon as we obtain a NetDir (see Self::run_once()).
         let params = VanguardParams::default();
@@ -179,10 +189,13 @@ impl<R: Runtime> VanguardMgr<R> {
             }
         };
 
+        let (config_tx, _config_rx) = watch::channel();
         let inner = Inner {
             params,
+            mode: *mode,
             vanguard_sets,
             has_onion_svc,
+            config_tx,
         };
 
         Ok(Self {
@@ -205,10 +218,17 @@ impl<R: Runtime> VanguardMgr<R> {
         R: Runtime,
     {
         let netdir_provider = Arc::clone(netdir_provider);
+        let config_rx = self
+            .inner
+            .write()
+            .expect("poisoned lock")
+            .config_tx
+            .subscribe();
         self.runtime
             .spawn(Self::maintain_vanguard_sets(
                 Arc::downgrade(self),
                 Arc::downgrade(&netdir_provider),
+                config_rx,
             ))
             .map_err(|e| VanguardMgrError::Spawn(Arc::new(e)))?;
 
@@ -216,17 +236,26 @@ impl<R: Runtime> VanguardMgr<R> {
     }
 
     /// Replace the configuration in this `VanguardMgr` with the specified `config`.
-    pub fn reconfigure(
-        &self,
-        _config: &VanguardConfig,
-    ) -> Result<RetireCircuits, ReconfigureError> {
-        // TODO: there is no VanguardConfig.
-        // TODO: update has_onion_svc if the new config enables onion svc usage
+    pub fn reconfigure(&self, config: &VanguardConfig) -> Result<RetireCircuits, ReconfigureError> {
+        // TODO(#1382): abolish VanguardConfig and derive the mode from the VanguardParams
+        // and has_onion_svc instead.
+        //
+        // TODO(#1382): update has_onion_svc if the new config enables onion svc usage
         //
         // Perhaps we should always escalate to Full if we start running an onion service,
         // but not decessarily downgrade to lite if we stop.
         // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2083#note_3018173>
-        Ok(RetireCircuits::None)
+        let mut inner = self.inner.write().expect("poisoned lock");
+        if config.mode != inner.mode {
+            inner.mode = config.mode;
+
+            // Wake up the maintenance task to replenish the vanguard pools.
+            inner.config_tx.maybe_send(|_| config.clone());
+
+            Ok(RetireCircuits::All)
+        } else {
+            Ok(RetireCircuits::None)
+        }
     }
 
     /// Return a [`Vanguard`] relay for use in the specified layer.
@@ -285,7 +314,7 @@ impl<R: Runtime> VanguardMgr<R> {
 
         // TODO HS-VANGUARDS: come up with something with better UX
         let relay =
-            match (layer, inner.mode()) {
+            match (layer, inner.mode) {
                 (Layer::Layer2, Full) | (Layer::Layer2, Lite) => inner
                     .vanguard_sets
                     .l2()
@@ -300,9 +329,9 @@ impl<R: Runtime> VanguardMgr<R> {
                 _ => {
                     return Err(internal!(
                         "vanguards for layer {layer} are not supported in mode {})",
-                        inner.mode()
+                        inner.mode
                     )
-                    .into())
+                    .into());
                 }
             };
 
@@ -316,7 +345,11 @@ impl<R: Runtime> VanguardMgr<R> {
     /// * ensures the vanguard sets are repopulated with new vanguards
     ///   when the number of vanguards drops below a certain threshold
     /// * handles `NetDir` changes, updating the vanguard set sizes as needed
-    async fn maintain_vanguard_sets(mgr: Weak<Self>, netdir_provider: Weak<dyn NetDirProvider>) {
+    async fn maintain_vanguard_sets(
+        mgr: Weak<Self>,
+        netdir_provider: Weak<dyn NetDirProvider>,
+        mut config_rx: watch::Receiver<VanguardConfig>,
+    ) {
         let mut netdir_events = match netdir_provider.upgrade() {
             Some(provider) => provider.events(),
             None => {
@@ -329,6 +362,7 @@ impl<R: Runtime> VanguardMgr<R> {
                 Weak::clone(&mgr),
                 Weak::clone(&netdir_provider),
                 &mut netdir_events,
+                &mut config_rx,
             )
             .await
             {
@@ -356,6 +390,7 @@ impl<R: Runtime> VanguardMgr<R> {
         mgr: Weak<Self>,
         netdir_provider: Weak<dyn NetDirProvider>,
         netdir_events: &mut BoxStream<'static, DirEvent>,
+        config_rx: &mut watch::Receiver<VanguardConfig>,
     ) -> Result<ShutdownStatus, VanguardMgrError> {
         let (mgr, netdir_provider) = match (mgr.upgrade(), netdir_provider.upgrade()) {
             (Some(mgr), Some(netdir_provider)) => (mgr, netdir_provider),
@@ -377,6 +412,18 @@ impl<R: Runtime> VanguardMgr<R> {
             event = netdir_events.next().fuse() => {
                 if let Some(DirEvent::NewConsensus) = event {
                     let netdir = netdir_provider.netdir(Timeliness::Timely)?;
+                    mgr.inner.write().expect("poisoned lock")
+                        .update_vanguard_sets(&mgr.runtime, &mgr.storage, &netdir)?;
+                }
+
+                Ok(ShutdownStatus::Continue)
+            },
+            _config = config_rx.recv().fuse() => {
+                if let Some(netdir) = Self::timely_netdir(&netdir_provider)? {
+                    // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
+                    //
+                    // For example, if the config change enables full vanguards for the first time,
+                    // this will cause the L3 vanguard set to be populated.
                     mgr.inner.write().expect("poisoned lock")
                         .update_vanguard_sets(&mgr.runtime, &mgr.storage, &netdir)?;
                 }
@@ -439,7 +486,7 @@ impl<R: Runtime> VanguardMgr<R> {
 
     /// Get the current [`VanguardMode`].
     pub fn mode(&self) -> VanguardMode {
-        self.inner.read().expect("poisoned lock").mode()
+        self.inner.read().expect("poisoned lock").mode
     }
 }
 
@@ -469,7 +516,6 @@ impl Inner {
         // Update our params with the new values.
         self.update_params(params.clone());
 
-        let mode = self.mode();
         self.vanguard_sets.remove_unlisted(netdir);
 
         // If we loaded some vanguards from persistent storage but we still need more,
@@ -481,7 +527,7 @@ impl Inner {
         // If we have already populated the vanguard sets in a previous iteration,
         // this will ensure they have enough vanguards.
         self.vanguard_sets
-            .replenish_vanguards(runtime, netdir, &params, mode)?;
+            .replenish_vanguards(runtime, netdir, &params, self.mode)?;
 
         // Flush the vanguard sets to disk.
         self.flush_to_storage(storage)?;
@@ -494,30 +540,12 @@ impl Inner {
         self.params = new_params;
     }
 
-    /// Get the current [`VanguardMode`].
-    ///
-    /// If we are not running an onion service, we use the `vanguards_enabled` mode.
-    ///
-    /// If we *are* running an onion service, we use whichever of `vanguards_hs_service`
-    /// and `vanguards_enabled` is higher for all our onion service circuits.
-    fn mode(&self) -> VanguardMode {
-        if self.has_onion_svc {
-            std::cmp::max(
-                self.params.vanguards_enabled(),
-                self.params.vanguards_hs_service(),
-            )
-        } else {
-            self.params.vanguards_enabled()
-        }
-    }
-
     /// Flush the vanguard sets to storage, if the mode is "vanguards-full".
-    #[allow(unused)] // TODO HS-VANGUARDS
     fn flush_to_storage(
         &self,
         storage: &DynStorageHandle<VanguardSets>,
     ) -> Result<(), VanguardMgrError> {
-        match self.mode() {
+        match self.mode {
             VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
             VanguardMode::Full => {
                 debug!("The vanguards have changed; flushing vanguards to vanguard state file");
@@ -528,7 +556,6 @@ impl Inner {
 }
 
 /// The vanguard layer.
-#[allow(unused)] // TODO HS-VANGUARDS
 #[derive(Debug, Clone, Copy, PartialEq)] //
 #[derive(derive_more::Display)] //
 #[non_exhaustive]
@@ -600,11 +627,13 @@ mod test {
     }
 
     /// Create a new VanguardMgr for testing.
-    fn new_vanguard_mgr<R: Runtime>(rt: &R, has_onion_svc: bool) -> Arc<VanguardMgr<R>> {
-        let config = Default::default();
+    fn new_vanguard_mgr<R: Runtime>(rt: &R, mode: VanguardMode) -> Arc<VanguardMgr<R>> {
+        let config = VanguardConfig { mode };
         let statemgr = TestingStateMgr::new();
         let lock = statemgr.try_lock().unwrap();
         assert!(lock.held());
+        // TODO(#1382): has_onion_svc doesn't matter right now
+        let has_onion_svc = false;
         Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, has_onion_svc).unwrap())
     }
 
@@ -689,7 +718,7 @@ mod test {
         // The sets are initially empty
         assert_eq!(inner.vanguard_sets.l2_vanguards_deficit(), 0);
 
-        if inner.mode() == VanguardMode::Full {
+        if inner.mode == VanguardMode::Full {
             assert_eq!(inner.vanguard_sets.l3_vanguards_deficit(), 0);
             let l3_pool_size = params.l3_pool_size();
             assert_eq!(vanguard_count(vanguardmgr), l2_pool_size + l3_pool_size);
@@ -706,7 +735,7 @@ mod test {
             inner.vanguard_sets.l2_vanguards_target(),
             params.l2_pool_size()
         );
-        if inner.mode() == VanguardMode::Full {
+        if inner.mode == VanguardMode::Full {
             assert_eq!(
                 inner.vanguard_sets.l3_vanguards_target(),
                 params.l3_pool_size()
@@ -740,7 +769,7 @@ mod test {
     #[test]
     fn full_vanguards_disabled() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
@@ -756,7 +785,7 @@ mod test {
     #[test]
     fn background_task_not_spawned() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
@@ -780,7 +809,8 @@ mod test {
     #[test]
     fn select_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, true);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Full);
+
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let mut rng = testing_rng();
@@ -845,6 +875,9 @@ mod test {
 
     /// Switch the vanguard "mode" of the VanguardMgr to `mode`,
     /// by setting the vanguards-hs-service parameter.
+    //
+    // TODO(#1382): use this instead of switch_hs_mode_config.
+    #[allow(unused)]
     async fn switch_hs_mode(
         rt: &MockRuntime,
         vanguardmgr: &VanguardMgr<MockRuntime>,
@@ -858,6 +891,14 @@ mod test {
             Full => install_new_params(rt, netdir_provider, ENABLE_FULL_VANGUARDS).await,
             Disabled => panic!("cannot disable vanguards in the vanguard tests!"),
         };
+
+        assert_eq!(vanguardmgr.mode(), mode);
+    }
+
+    /// Switch the vanguard "mode" of the VanguardMgr to `mode`,
+    /// by calling `VanguardMgr::reconfigure`.
+    fn switch_hs_mode_config(vanguardmgr: &VanguardMgr<MockRuntime>, mode: VanguardMode) {
+        let _ = vanguardmgr.reconfigure(&VanguardConfig { mode }).unwrap();
 
         assert_eq!(vanguardmgr.mode(), mode);
     }
@@ -895,7 +936,7 @@ mod test {
     #[test]
     fn override_vanguard_set_size() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             // Wait until the vanguard manager has bootstrapped
             let netdir_provider =
@@ -938,7 +979,7 @@ mod test {
     #[test]
     fn expire_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, false);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let initial_l2_number = params.l2_pool_size();
@@ -1028,7 +1069,7 @@ mod test {
     #[test]
     fn full_vanguards_persistence() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, true);
+            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
 
             let netdir =
                 construct_custom_netdir_with_params(|_, _| {}, ENABLE_LITE_VANGUARDS, None)
@@ -1052,7 +1093,8 @@ mod test {
             // Enable full vanguards again.
             //
             // We expect VanguardMgr to populate the L3 set, and write the VanguardSets to storage.
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Full).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Full);
+            rt.progress_until_stalled().await;
 
             let vanguard_sets_orig = vanguardmgr.storage.load().unwrap();
             assert!(vanguardmgr
@@ -1060,11 +1102,11 @@ mod test {
                 .is_ok());
 
             // Switch to lite vanguards.
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Lite).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Lite);
 
             // The vanguard sets should not change when switching between lite and full vanguards.
             assert_eq!(vanguard_sets_orig, vanguardmgr.storage.load().unwrap());
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Full).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Full);
             assert_eq!(vanguard_sets_orig, vanguardmgr.storage.load().unwrap());
 
             // TODO HS-VANGUARDS: we may want to disable the ability to switch back to lite
@@ -1073,7 +1115,7 @@ mod test {
             // Switch to lite vanguards and remove a relay from the consensus.
             // The relay should *not* be persisted to storage until we switch back to full
             // vanguards.
-            switch_hs_mode(&rt, &vanguardmgr, &netdir_provider, VanguardMode::Lite).await;
+            switch_hs_mode_config(&vanguardmgr, VanguardMode::Lite);
 
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();

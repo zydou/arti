@@ -55,7 +55,6 @@ pub(crate) struct TimeBoundVanguard {
 #[derive(Default, Debug, Clone, PartialEq)] //
 #[derive(Serialize, Deserialize)] //
 #[serde(transparent)]
-#[allow(unused)] // TODO HS-VANGUARDS
 pub(super) struct VanguardSet {
     /// The time-bound vanguards of a given [`Layer`](crate::vanguards::Layer).
     vanguards: Vec<TimeBoundVanguard>,
