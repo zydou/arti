@@ -587,6 +587,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
             circs_to_launch.ext_stub()
         );
 
+        // TODO: refactor this to launch the circuits in parallel
         'inner: while circs_to_launch.n_to_launch() > 0 {
             max_attempts -= 1;
             if max_attempts == 0 {
