@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::hspool::HsCircStub;
+use crate::hspool::{HsCircStub, HsCircStubKind};
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
 
@@ -16,11 +16,11 @@ pub(super) struct Pool {
     /// The collection of circuits themselves, in no particular order.
     circuits: Vec<HsCircStub>,
 
-    /// The number of elements that we would like to have in our pool.
-    ///
-    /// We do not discard when we are _above_ this threshold, but we do
-    /// try to build when we are low.
-    target: usize,
+    /// The number of STUB elements that we would like to have in our pool.
+    stub_target: usize,
+
+    /// The number of STUB+ elements that we would like to have in our pool.
+    ext_stub_target: usize,
 
     /// True if we have exhausted our pool since the last time we decided
     /// whether to change our target level.
@@ -39,18 +39,94 @@ pub(super) struct Pool {
     mode: VanguardMode,
 }
 
-/// Our default (and minimum) target pool size.
-const DEFAULT_TARGET: usize = 4;
+/// Our default (and minimum) target STUB pool size.
+const DEFAULT_STUB_TARGET: usize = 3;
 
-/// Our maximum target pool size.  We will never let our target grow above this
+/// Our default (and minimum) target STUB+ pool size.
+const DEFAULT_EXT_STUB_TARGET: usize = 1;
+
+/// Our maximum target STUB pool size.  We will never let our STUB target grow above this
 /// value.
-const MAX_TARGET: usize = 512;
+const MAX_STUB_TARGET: usize = 384;
+
+/// Our maximum target STUB+ pool size.  We will never let our STUB+ target grow above this
+/// value.
+const MAX_EXT_STUB_TARGET: usize = 128;
+
+/// A type of circuit we would like to launch.
+///
+/// [`ForLaunch::note_circ_launched`] should be called whenever a circuit
+/// of this [`HsCircStubKind`] is launched, to decrement the internal target `count`.
+pub(super) struct ForLaunch<'a> {
+    /// The kind of circuit we want to launch.
+    kind: HsCircStubKind,
+    /// How many circuits of this kind do we need?
+    ///
+    /// This is a mutable reference to one of the target values from [`CircsToLaunch`];
+    /// we decrement it when we have launched a circuit of this type.
+    count: &'a mut usize,
+}
+
+impl<'a> ForLaunch<'a> {
+    /// A circuit was launched, decrement the current target for its kind.
+    pub(super) fn note_circ_launched(self) {
+        *self.count -= 1;
+    }
+
+    /// The kind of circuit we want to launch.
+    pub(super) fn kind(&self) -> HsCircStubKind {
+        self.kind
+    }
+}
+
+/// The circuits we need to launch.
+pub(super) struct CircsToLaunch {
+    /// The number of STUB circuits we want to launch.
+    stub_target: usize,
+    /// The number of STUB+ circuits we want to launch.
+    ext_stub_target: usize,
+}
+
+impl CircsToLaunch {
+    /// Return a [`ForLaunch`] representing a circuit we would like to launch.
+    pub(super) fn for_launch(&mut self) -> ForLaunch {
+        // We start by launching STUB circuits.
+        if self.stub_target > 0 {
+            ForLaunch {
+                kind: HsCircStubKind::Stub,
+                count: &mut self.stub_target,
+            }
+        } else {
+            // If we have enough STUB circuits, we can start launching STUB+ ones too.
+            ForLaunch {
+                kind: HsCircStubKind::Extended,
+                count: &mut self.ext_stub_target,
+            }
+        }
+    }
+
+    /// Return the number of STUB circuits we would like to launch.
+    pub(super) fn stub(&self) -> usize {
+        self.stub_target
+    }
+
+    /// Return the number of STUB+ circuits we would like to launch.
+    pub(super) fn ext_stub(&self) -> usize {
+        self.ext_stub_target
+    }
+
+    /// Return the total number of circuits we would currently like to launch.
+    pub(super) fn n_to_launch(&self) -> usize {
+        self.stub_target + self.ext_stub_target
+    }
+}
 
 impl Default for Pool {
     fn default() -> Self {
         Self {
             circuits: Vec::new(),
-            target: DEFAULT_TARGET,
+            stub_target: DEFAULT_STUB_TARGET,
+            ext_stub_target: DEFAULT_EXT_STUB_TARGET,
             have_been_exhausted: false,
             have_been_under_highwater: false,
             last_changed_target: None,
@@ -75,12 +151,45 @@ impl Pool {
 
     /// Return true if we are very low on circuits and should build more immediately.
     pub(super) fn very_low(&self) -> bool {
-        self.circuits.len() <= self.target / 3
+        self.circuits.len() <= self.target() / 3
     }
 
-    /// Return the number of circuits we would currently like to launch.
-    pub(super) fn n_to_launch(&self) -> usize {
-        self.target.saturating_sub(self.circuits.len())
+    /// Return a [`CircsToLaunch`] describing the circuits we would currently like to launch.
+    pub(super) fn circs_to_launch(&self) -> CircsToLaunch {
+        CircsToLaunch {
+            stub_target: self.stubs_to_launch(),
+            ext_stub_target: self.ext_stubs_to_launch(),
+        }
+    }
+
+    /// Return the number of STUB circuits we would currently like to launch.
+    fn stubs_to_launch(&self) -> usize {
+        let circ_count = self
+            .circuits
+            .iter()
+            .filter(|c| c.kind == HsCircStubKind::Stub)
+            .count();
+
+        self.stub_target.saturating_sub(circ_count)
+    }
+
+    /// Return the number of STUB+ circuits we would currently like to launch.
+    fn ext_stubs_to_launch(&self) -> usize {
+        let circ_count = self
+            .circuits
+            .iter()
+            .filter(|c| c.kind == HsCircStubKind::Extended)
+            .count();
+
+        self.ext_stub_target.saturating_sub(circ_count)
+    }
+
+    /// Return the total number of circuits we would like to launch.
+    ///
+    /// We do not discard when we are _above_ this threshold, but we do
+    /// try to build when we are low.
+    fn target(&self) -> usize {
+        self.stub_target + self.ext_stub_target
     }
 
     /// If there is any circuit in this pool for which `f`  returns true, return one such circuit at random, and remove it from the pool.
@@ -98,14 +207,16 @@ impl Pool {
         if self.circuits.is_empty() {
             self.have_been_exhausted = true;
             self.have_been_under_highwater = true;
-        } else if self.circuits.len() < self.target * 4 / 5 {
+        } else if self.circuits.len() < self.target() * 4 / 5 {
             self.have_been_under_highwater = true;
         }
 
         rv
     }
 
-    /// Update the target size for our pool.
+    /// Update the target sizes for our pool.
+    ///
+    /// This updates our target numbers of STUB and STUB+ circuits.
     pub(super) fn update_target_size(&mut self, now: Instant) {
         /// Minimum amount of time that must elapse between a change and a
         /// decision to grow our pool.  We use this to control the rate of
@@ -121,20 +232,33 @@ impl Pool {
         let last_changed = self.last_changed_target.get_or_insert(now);
         let time_since_last_change = now.saturating_duration_since(*last_changed);
 
+        // TODO: we may want to have separate have_been_exhausted/have_been_under_highwater
+        // flags for STUB and STUB+ circuits.
+        //
+        // TODO: stub_target and ext_stub_target currently grow/shrink at the same rate,
+        // which is not ideal.
+        //
+        // Instead, we should switch to an adaptive strategy, where the two targets are updated
+        // based on how many STUB/STUB+ circuit requests we got.
         if self.have_been_exhausted {
             if time_since_last_change < MIN_TIME_TO_GROW {
                 return;
             }
-            self.target *= 2;
+            self.stub_target *= 2;
+            self.ext_stub_target *= 2;
         } else if !self.have_been_under_highwater {
             if time_since_last_change < MIN_TIME_TO_SHRINK {
                 return;
             }
 
-            self.target /= 2;
+            self.stub_target /= 2;
+            self.ext_stub_target /= 2;
         }
         self.last_changed_target = Some(now);
-        self.target = self.target.clamp(DEFAULT_TARGET, MAX_TARGET);
+        self.stub_target = self.stub_target.clamp(DEFAULT_STUB_TARGET, MAX_STUB_TARGET);
+        self.ext_stub_target = self
+            .ext_stub_target
+            .clamp(DEFAULT_EXT_STUB_TARGET, MAX_EXT_STUB_TARGET);
         self.have_been_exhausted = false;
         self.have_been_under_highwater = false;
     }
