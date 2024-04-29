@@ -51,7 +51,7 @@ and numerous other smaller improvements.
   in implementing ephemeral onion services.
   ([#1358], [!2076])
 - Fix a bug that prevented reporting of onion service status updates.
-  ([#1361], ][!2086])
+  ([#1361], [!2086])
 - Fix a bug that would cause onion service circuit pools
   to pre-build fewer circuits than actually desired.
   ([!2101])
