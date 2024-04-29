@@ -16,11 +16,11 @@ pub(super) struct Pool {
     /// The collection of circuits themselves, in no particular order.
     circuits: Vec<HsCircStub>,
 
-    /// The number of elements that we would like to have in our pool.
-    ///
-    /// We do not discard when we are _above_ this threshold, but we do
-    /// try to build when we are low.
-    target: usize,
+    /// The number of STUB elements that we would like to have in our pool.
+    stub_target: usize,
+
+    /// The number of STUB+ elements that we would like to have in our pool.
+    ext_stub_target: usize,
 
     /// True if we have exhausted our pool since the last time we decided
     /// whether to change our target level.
@@ -39,23 +39,19 @@ pub(super) struct Pool {
     mode: VanguardMode,
 }
 
-/// Our default (and minimum) target pool size.
-const DEFAULT_TARGET: usize = 4;
+/// Our default (and minimum) target STUB pool size.
+const DEFAULT_STUB_TARGET: usize = 3;
 
-/// Our maximum target pool size.  We will never let our target grow above this
+/// Our default (and minimum) target STUB+ pool size.
+const DEFAULT_EXT_STUB_TARGET: usize = 1;
+
+/// Our maximum target STUB pool size.  We will never let our STUB target grow above this
 /// value.
-const MAX_TARGET: usize = 512;
+const MAX_STUB_TARGET: usize = 384;
 
-/// The fraction of circuits that should be STUB.
-///
-/// We will launch (1 - STUB_CIRC_RATIO) STUB+ circuits.
-//
-// TODO: the ideal STUB/STUB+ ratio will depend on whether arti is running as a client or as a
-// hidden service. In general, launching more STUB circuits than STUB+ ones is a safe bet, because
-// STUB circuits can become STUB+, but not vice-versa
-//
-// That being said, this value is arbitrary and might need to be tweaked.
-const STUB_CIRC_RATIO: f32 = 0.7;
+/// Our maximum target STUB+ pool size.  We will never let our STUB+ target grow above this
+/// value.
+const MAX_EXT_STUB_TARGET: usize = 128;
 
 /// A type of circuit we would like to launch.
 ///
@@ -131,7 +127,8 @@ impl Default for Pool {
     fn default() -> Self {
         Self {
             circuits: Vec::new(),
-            target: DEFAULT_TARGET,
+            stub_target: DEFAULT_STUB_TARGET,
+            ext_stub_target: DEFAULT_EXT_STUB_TARGET,
             have_been_exhausted: false,
             have_been_under_highwater: false,
             last_changed_target: None,
@@ -156,7 +153,7 @@ impl Pool {
 
     /// Return true if we are very low on circuits and should build more immediately.
     pub(super) fn very_low(&self) -> bool {
-        self.circuits.len() <= self.target / 3
+        self.circuits.len() <= self.target() / 3
     }
 
     /// Return a [`CircsToLaunch`] describing the circuits we would currently like to launch.
@@ -169,28 +166,32 @@ impl Pool {
 
     /// Return the number of STUB circuits we would currently like to launch.
     fn stubs_to_launch(&self) -> usize {
-        let target = ((self.target as f32) * STUB_CIRC_RATIO) as usize;
         let circ_count = self
             .circuits
             .iter()
             .filter(|c| c.kind == HsCircStubKind::Stub)
             .count();
 
-        target.saturating_sub(circ_count)
+        self.stub_target.saturating_sub(circ_count)
     }
 
     /// Return the number of STUB+ circuits we would currently like to launch.
     fn ext_stubs_to_launch(&self) -> usize {
-        let target = self.target - self.stubs_to_launch();
         let circ_count = self
             .circuits
             .iter()
             .filter(|c| c.kind == HsCircStubKind::Extended)
             .count();
 
-        // TODO: if the number of STUB circuits >= self.target,
-        // we don't launch any STUB+ circuits
-        target.saturating_sub(circ_count)
+        self.ext_stub_target.saturating_sub(circ_count)
+    }
+
+    /// Return the total number of circuits we would like to launch.
+    ///
+    /// We do not discard when we are _above_ this threshold, but we do
+    /// try to build when we are low.
+    fn target(&self) -> usize {
+        self.stub_target + self.ext_stub_target
     }
 
     /// If there is any circuit in this pool for which `f`  returns true, return one such circuit at random, and remove it from the pool.
@@ -208,14 +209,16 @@ impl Pool {
         if self.circuits.is_empty() {
             self.have_been_exhausted = true;
             self.have_been_under_highwater = true;
-        } else if self.circuits.len() < self.target * 4 / 5 {
+        } else if self.circuits.len() < self.target() * 4 / 5 {
             self.have_been_under_highwater = true;
         }
 
         rv
     }
 
-    /// Update the target size for our pool.
+    /// Update the target sizes for our pool.
+    ///
+    /// This updates our target numbers of STUB and STUB+ circuits.
     pub(super) fn update_target_size(&mut self, now: Instant) {
         /// Minimum amount of time that must elapse between a change and a
         /// decision to grow our pool.  We use this to control the rate of
@@ -231,20 +234,31 @@ impl Pool {
         let last_changed = self.last_changed_target.get_or_insert(now);
         let time_since_last_change = now.saturating_duration_since(*last_changed);
 
+        // TODO: we may want to have separate have_been_exhausted/have_been_under_highwater
+        // flags for STUB and STUB+ circuits.
+        //
+        // TODO: stub_target and ext_stub_target currently grow/shrink at the same rate,
+        // which is not ideal.
+        //
+        // Instead, we should switch to an adaptive strategy, where the two targets are updated
+        // based on how many STUB/STUB+ circuit requests we got.
         if self.have_been_exhausted {
             if time_since_last_change < MIN_TIME_TO_GROW {
                 return;
             }
-            self.target *= 2;
+            self.stub_target *= 2;
+            self.ext_stub_target *= 2;
         } else if !self.have_been_under_highwater {
             if time_since_last_change < MIN_TIME_TO_SHRINK {
                 return;
             }
 
-            self.target /= 2;
+            self.stub_target /= 2;
+            self.ext_stub_target /= 2;
         }
         self.last_changed_target = Some(now);
-        self.target = self.target.clamp(DEFAULT_TARGET, MAX_TARGET);
+        self.stub_target = self.stub_target.clamp(DEFAULT_STUB_TARGET, MAX_STUB_TARGET);
+        self.ext_stub_target = self.ext_stub_target.clamp(DEFAULT_EXT_STUB_TARGET, MAX_EXT_STUB_TARGET);
         self.have_been_exhausted = false;
         self.have_been_under_highwater = false;
     }
