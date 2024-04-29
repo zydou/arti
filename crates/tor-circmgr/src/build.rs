@@ -385,7 +385,6 @@ pub struct CircuitBuilder<R: Runtime> {
     guardmgr: tor_guardmgr::GuardMgr<R>,
     /// The vanguard manager object used for HS circuits.
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-    #[allow(dead_code)] // TODO HS-VANGUARDS
     vanguardmgr: Arc<VanguardMgr<R>>,
 }
 

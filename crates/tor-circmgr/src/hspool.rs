@@ -29,6 +29,8 @@ use std::result::Result as StdResult;
 
 pub use config::HsCircPoolConfig;
 
+use self::pool::HsCircPrefs;
+
 /// The (onion-service-related) purpose for which a given circuit is going to be
 /// used.
 ///
@@ -78,6 +80,20 @@ pub(crate) struct HsCircStub {
     pub(crate) circ: Arc<ClientCirc>,
     /// Whether the circuit is STUB or STUB+.
     pub(crate) kind: HsCircStubKind,
+}
+
+impl HsCircStub {
+    /// Whether this circuit satisfies _all_ the [`HsCircPrefs`].
+    ///
+    /// Returns `false` if any of the `prefs` are not satisfied.
+    fn satisfies_prefs(&self, prefs: &HsCircPrefs) -> bool {
+        let HsCircPrefs { kind_prefs } = prefs;
+
+        match kind_prefs {
+            Some(kind) => *kind == self.kind,
+            None => true,
+        }
+    }
 }
 
 impl Deref for HsCircStub {
@@ -265,7 +281,7 @@ impl<R: Runtime> HsCircPool<R> {
         if kind == HsCircKind::ClientRend {
             return Err(bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into());
         }
-        // TODO HS-VANGUARDS: the kind makes no difference yet, but it will at some point in the future.
+
         let wanted_kind = kind.stub_kind();
 
         // For most* of these circuit types, we want to build our circuit with
@@ -380,20 +396,22 @@ impl<R: Runtime> HsCircPool<R> {
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
                 if vanguards_enabled {
-                    // TODO HS-VANGUARDS: check if the circuit is still usable using
-                    // circuit_still_useable
-                    //
-                    // TODO HS-VANGUARDS: this is suboptimal. If we need a STUB+
-                    // circuit, we need to prefer STUB+ circuits over STUB
-                    circ.can_become(kind)
+                    circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
                 } else {
                     circuit_compatible_with_target(netdir, circ, &target_exclusion)
                 }
             };
 
-            let found_usable_circ = inner
-                .pool
-                .take_one_where(&mut rand::thread_rng(), restrictions);
+            let mut prefs = HsCircPrefs::default();
+
+            if vanguards_enabled {
+                prefs.preferred_stub_kind(kind);
+            }
+
+            let found_usable_circ =
+                inner
+                    .pool
+                    .take_one_where(&mut rand::thread_rng(), restrictions, &prefs);
 
             // Tell the background task to fire immediately if we have very few circuits
             // circuits left, or if we found nothing.
