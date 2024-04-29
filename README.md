@@ -255,6 +255,11 @@ This code is licensed under either of
 
 at your option.
 
+**However**, some parts are licensed under the GNU Lesser General
+Public License, version 3.0,
+as indicated in the `Cargo.toml`.
+This applies to `crates/equix` and `crates/hashx`,
+
 ## Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally
