@@ -105,6 +105,11 @@ impl VanguardSets {
         &self.l3_vanguards
     }
 
+    /// The total number of L2 and L3 vanguards.
+    pub(super) fn count(&self) -> usize {
+        self.l2().len() + self.l3().len()
+    }
+
     /// Remove the vanguards that are expired at the specified timestamp.
     pub(super) fn remove_expired(&mut self, now: SystemTime) {
         self.l2_vanguards.remove_expired(now);
@@ -292,6 +297,11 @@ impl VanguardSet {
         good_relays.choose(rng).map(|relay| Vanguard {
             relay: relay.clone(),
         })
+    }
+
+    /// The number of vanguards in this set.
+    fn len(&self) -> usize {
+        self.vanguards.len()
     }
 
     /// The number of vanguards we're missing.

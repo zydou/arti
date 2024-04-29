@@ -460,13 +460,16 @@ impl<R: Runtime> VanguardMgr<R> {
         netdir_provider: &Arc<dyn NetDirProvider>,
         now: SystemTime,
     ) -> Result<Option<Duration>, VanguardMgrError> {
-        info!("Rotating vanguards");
-
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
         let vanguard_sets = &mut inner.vanguard_sets;
+        let old_count = vanguard_sets.count();
         vanguard_sets.remove_expired(now);
+
+        if old_count > vanguard_sets.count() {
+            info!("Rotating vanguards");
+        }
 
         if let Some(netdir) = Self::timely_netdir(netdir_provider)? {
             // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
