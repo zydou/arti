@@ -5567,7 +5567,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tor-memtrack"
+name = "tor-memquota"
 version = "0.17.0"
 dependencies = [
  "derive-deftly",

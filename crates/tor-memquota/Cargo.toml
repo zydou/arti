@@ -1,12 +1,12 @@
 [package]
-name = "tor-memtrack"
+name = "tor-memquota"
 version = "0.17.0"
 authors = ["The Tor Project, Inc.", "Ian Jackson <iwj@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
-description = "Memory use tracking utilities, used by Tor software"
+description = "Memory use tracking and quota utilities, used by Tor software"
 keywords = ["tor", "arti"]
 categories = ["memory", "allocation"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"

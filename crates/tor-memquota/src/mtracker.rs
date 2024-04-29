@@ -1,11 +1,11 @@
-//! Memory tracker, core and low-level API
+//! Memory quota tracker, core and low-level API
 //!
 //! # Example
 //!
 //! ```
 //! use std::{collections::VecDeque, sync::{Arc, Mutex}};
 //! use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, PreferredRuntime};
-//! use tor_memtrack::{mtracker, MemoryQuotaTracker, MemoryReclaimedError};
+//! use tor_memquota::{mtracker, MemoryQuotaTracker, MemoryReclaimedError};
 //! use void::{ResultVoidExt, Void};
 //!
 //! #[derive(Debug)]
@@ -39,7 +39,7 @@
 //! }
 //!
 //! let runtime = PreferredRuntime::create().unwrap();
-//! let config  = tor_memtrack::Config::builder().max(1024*1024*1024).build().unwrap();
+//! let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();
 //! let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();
 //! let account = trk.new_account(None).unwrap();
 //!
