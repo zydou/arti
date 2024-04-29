@@ -21,6 +21,7 @@ default = [
     "bridge-client",
     "pt-client",
     "onion-service-client",
+    "vanguards",
 ]
 
 full = [
