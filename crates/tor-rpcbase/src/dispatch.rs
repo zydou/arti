@@ -31,11 +31,6 @@
 //! static_rpc_invoke_fn!{ my_rpc_func; my_other_rpc_func; }
 //! ```
 //!
-//! If your function takes an updates sink, the syntax is:
-//! ```rust,ignore
-//! static_rpc_invoke_fn!{ my_rpc_func [Updates]; }
-//! ```
-//!
 //! You can register particular instantiations of generic types, if they're known ahead of time:
 //! ```rust,ignore
 //! static_rpc_invoke_fn!{ my_generic_fn::<PreferredRuntime>; }
@@ -48,7 +43,7 @@
 //! ```rust,ignore
 //! fn install_my_rpc_methods<T>(table: &mut DispatchTable) {
 //!     table.insert(invoker_ent!(my_generic_fn::<T>));
-//!     table.insert(invoker_ent!(my_generic_fn_with_update::<T>) [Updates]);
+//!     table.insert(invoker_ent!(my_generic_fn_with_update::<T>));
 //! }
 //! ```
 
@@ -250,28 +245,22 @@ impl InvokerEnt {
 ///
 /// Syntax:
 /// ```rust,ignore
-///   invoker_ent!( function_name [flags] )
-///   invoker_ent!( (function_expr) [flags] )
+///   invoker_ent!( function )
 /// ```
 ///
-/// Recognized flags are: `Updates`.
-/// If no flags are given,
-/// the entire `[flags]` list may be omitted.
-///
-/// The function must have the correct type for an RPC implementation function;
+/// The function must be a `fn` item
+/// (with all necessary generic parameters specified)
+/// with the correct type for an RPC implementation function;
 /// see the [module documentation](self).
 #[macro_export]
 macro_rules! invoker_ent {
-    { $func:ident $(::<$($fgens:ty),*>)? $([$($flag:ident),*])? } => {
+    { $func:expr } => {
         $crate::dispatch::InvokerEnt {
-            invoker: &($func $(::<$($fgens),*>)? as $crate::invoker_func_type!{ $([$($flag),*])? }),
+            invoker: $crate::invocable_func_as_dyn_invocable!($func),
             file: file!(),
             line: line!(),
             function: stringify!($func)
         }
-    };
-    { $func:ident $([$($flag:ident),*])? } => {
-        $crate::invoker_ent!{ ($func) $([$($flag),*])? }
     };
 }
 impl std::fmt::Debug for InvokerEnt {
@@ -347,7 +336,7 @@ inventory::collect!(InvokerEnt);
 /// }
 ///
 /// rpc::static_rpc_invoke_fn! {
-///     example2 [Updates];
+///     example2;
 /// }
 /// ```
 ///
@@ -355,30 +344,94 @@ inventory::collect!(InvokerEnt);
 ///
 /// ```rust,ignore
 /// static_rpc_invoke_fn{
-///   ( IDENT  $(::<GENS>)? ([Updates])? ; ) *
+///   function;  // zero or morea
+///   ...
 /// }
 /// ```
+///
+/// where `function` is an expression referring to a static fn item,
+/// with all necessary generics.
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $funcname:ident $(::<$($fgens:ty),*>)? $([ $($flag:ident),* $(,)?])?;
-        $( $($more:tt)+ )?
-    } => {$crate::paste::paste!{
+        $( $func:expr; )*
+    } => {$crate::paste::paste!{ $(
         $crate::inventory::submit!{
-            $crate::invoker_ent!($funcname $(::<$($fgens),*>)? $([$($flag),*])? )
+            $crate::invoker_ent!($func)
         }
-        $( $crate::static_rpc_invoke_fn!{ $($more)+ } )?
-    }};
+    )* }};
 }
 
-/// Given a list of flags from an invoke function,
-/// yield the function type that we need to cast to.
+/// Obtain `&'static dyn `[`Invocable`] for a fn item
+///
+/// Given the name of a suitable fn item with all necessary generics,
+/// expands to an expression for it of type `&'static dyn Invocable`.
 #[doc(hidden)]
 #[macro_export]
-macro_rules! invoker_func_type {
-    { } => { fn(_,_,_) -> _ };
-    { [] } => { fn(_,_,_) -> _ };
-    { [Updates $(,)?] } => { fn(_,_,_,_) -> _ };
+macro_rules! invocable_func_as_dyn_invocable { { $f:expr } => { {
+    let f = &($f as _);
+    // We want ^ this `as _ ` cast to convert the fn item (as a value
+    // of its unique unnameable type) to a value of type `fn(..) -> _`.
+    // We're not allowed to write `fn(..) -> _`, though.
+    //
+    // So: we cast it to `_`, and then arrange for the type inference to have to unify
+    // the `_` with the appropriate fn type, which we obtain through further trickery.
+    if false {
+        // Putting `*f` and the return value from `panic_returning_fn_type_for`
+        // into the same array means that they must have the same type.
+        // Ie type inference can see they must be the same type.
+        //
+        // We would have preferred to write, above, something like
+        //     let f = $f as <$f as FnTypeOfFnTrait>::FnType;
+        // but the compiler refuses to let us treat the name of the fn item as a type name.
+        //
+        // We evade this problem by passing `$f` to a function that expects
+        // an impl `FnTypeOfFnTrait` and pretends that it would return the `fn` type.
+        let _: [_; 2] = [*f, $crate::dispatch::panic_returning_fn_type_for($f)];
+    }
+    // So, because of all the above, f is of type `fn(..) -> _`, which implements `Invocable`
+    // (assuming the fn item has the right signature).  So we can cast it to dyn.
+    f as &'static dyn $crate::dispatch::Invocable
+} } }
+
+/// Helper trait for obtaining (at the type level) `fn` type from an `impl Fn`
+///
+/// Implemented for all types that implement `Fn`, up to and including 6 arguments.
+/// (We only use the arities 3 and 4 right now.)
+#[doc(hidden)]
+pub trait FnTypeOfFnTrait<X> {
+    /// The `fn` type with the same arguments and return type.
+    type FnType;
+}
+/// Provide a blanket implementation of [`FnTypeOfFnTrait`] for some specific arity.
+#[doc(hidden)]
+macro_rules! impl_fn_type_of_fn_trait { { $($arg:ident)* } => {
+    impl<Func, Ret, $($arg),*> FnTypeOfFnTrait<(Ret, $($arg),*)> for Func
+    where Func: Fn($($arg),*) -> Ret {
+        type FnType = fn($($arg),*) -> Ret;
+    }
+} }
+impl_fn_type_of_fn_trait!();
+impl_fn_type_of_fn_trait!(A);
+impl_fn_type_of_fn_trait!(A B);
+impl_fn_type_of_fn_trait!(A B C);
+impl_fn_type_of_fn_trait!(A B C D);
+impl_fn_type_of_fn_trait!(A B C D E);
+impl_fn_type_of_fn_trait!(A B C D E F);
+
+/// Pretend to return a value of type `fn..` corresponding to an `impl Fn`
+///
+/// Given a function implemneting `FnTypeOfFnTrait`, ie, any `Fn` closure,
+/// pretends that it would return a value of the corresponding `fn` type.
+///
+/// Doesn't actually return a value (since that would be impossible);
+/// if this is actually executed, it panics.  So we don't execute it.
+///
+/// Instead we use the type of its mythical return value, in a non-taken branch,
+/// to drive type inference.
+#[doc(hidden)]
+pub const fn panic_returning_fn_type_for<X, F: FnTypeOfFnTrait<X>>(_: F) -> F::FnType {
+    panic!()
 }
 
 /// Actual types to use when looking up a function in our HashMap.
@@ -621,7 +674,7 @@ mod test {
 
         getkids_swan;
         getkids_sheep;
-        getkids_wombat [Updates];
+        getkids_wombat;
     }
 
     struct Ctx {}
