@@ -80,8 +80,6 @@ impl<'a> ForLaunch<'a> {
 }
 
 /// The circuits we need to launch.
-///
-/// See also the [`STUB_CIRC_RATIO`] docs.
 pub(super) struct CircsToLaunch {
     /// The number of STUB circuits we want to launch.
     stub_target: usize,
@@ -258,7 +256,9 @@ impl Pool {
         }
         self.last_changed_target = Some(now);
         self.stub_target = self.stub_target.clamp(DEFAULT_STUB_TARGET, MAX_STUB_TARGET);
-        self.ext_stub_target = self.ext_stub_target.clamp(DEFAULT_EXT_STUB_TARGET, MAX_EXT_STUB_TARGET);
+        self.ext_stub_target = self
+            .ext_stub_target
+            .clamp(DEFAULT_EXT_STUB_TARGET, MAX_EXT_STUB_TARGET);
         self.have_been_exhausted = false;
         self.have_been_under_highwater = false;
     }
