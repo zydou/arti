@@ -548,7 +548,7 @@ impl Inner {
         match self.mode {
             VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
             VanguardMode::Full => {
-                debug!("The vanguards have changed; flushing vanguards to vanguard state file");
+                debug!("The vanguards may have changed; flushing to vanguard state file");
                 Ok(storage.store(&self.vanguard_sets)?)
             }
         }
