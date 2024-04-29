@@ -393,6 +393,7 @@ pub(crate) async fn load<R: Runtime>(
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(&mut state, &mut **store)?;
+            dirmgr.update_progress(attempt_id, state.bootstrap_progress());
         }
         trace!(attempt=%attempt_id, ?outcome, "Load operation completed.");
 
@@ -565,6 +566,7 @@ pub(crate) async fn download<R: Runtime>(
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(state, &mut **store)?;
+            dirmgr.update_progress(attempt_id, state.bootstrap_progress());
         }
         if state.is_ready(Readiness::Complete) {
             trace!(attempt=%attempt_id, state=%state.describe(), "Directory is now Complete.");
@@ -637,6 +639,7 @@ pub(crate) async fn download<R: Runtime>(
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 let mut store = dirmgr.store.lock().expect("store lock poisoned");
                 let outcome = dirmgr.apply_netdir_changes(state, &mut **store);
+                dirmgr.update_progress(attempt_id, state.bootstrap_progress());
                 propagate_fatal_errors!(outcome);
             }
 
