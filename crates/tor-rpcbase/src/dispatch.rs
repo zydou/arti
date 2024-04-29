@@ -429,6 +429,7 @@ impl_fn_type_of_fn_trait!(A B C D E F);
 ///
 /// Instead we use the type of its mythical return value, in a non-taken branch,
 /// to drive type inference.
+#[doc(hidden)]
 pub const fn panic_returning_fn_type_for<X, F: FnTypeOfFnTrait<X>>(_: F) -> F::FnType {
     panic!()
 }
