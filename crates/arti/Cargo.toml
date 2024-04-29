@@ -26,6 +26,7 @@ default = [
 full = [
     "onion-service-client",
     "onion-service-service",
+    "vanguards",
     "async-std",
     "tokio",
     "native-tls",
