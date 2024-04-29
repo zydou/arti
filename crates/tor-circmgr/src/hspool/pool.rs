@@ -66,7 +66,8 @@ pub(super) struct ForLaunch<'a> {
     kind: HsCircStubKind,
     /// How many circuits of this kind do we need?
     ///
-    /// This is a reference to one of the target values from [`CircsToLaunch`].
+    /// This is a mutable reference to one of the target values from [`CircsToLaunch`];
+    /// we decrement it when we have launched a circuit of this type.
     count: &'a mut usize,
 }
 
