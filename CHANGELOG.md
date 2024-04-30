@@ -2208,8 +2208,8 @@ throughout the codebase.
 - The `StreamPrefs::connect_to_onion_services` method now can be used to
   enable or disable onion service connections, and TorClients can handle
   onion services correctly. ([!1257])
-- Provide the extended SOCKS5 error codes as documented in [proposal
-  304]. ([#736], [!1248], [!1279])
+- Provide the extended SOCKS5 error codes as documented in
+  [proposal 304]. ([#736], [!1248], [!1279])
 - Drop introduction circuits after they are no longer needed. ([!1299],
   [!1303])
 - Expire long-unused onion service circuits. ([!1287], [!1302])
