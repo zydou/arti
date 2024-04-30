@@ -3,17 +3,13 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.2.2 — ?????? May 2024
-
-TODO: Enter release date!!
+# Arti 1.2.2 — 30 April 2024
 
 Arti 1.2.2 continues improvements on previous releases,
 by improving onion service security with [Vanguards].
 This release also includes an as-yet-unused backend
 to help resist memory-exhaustion attacks,
 and numerous other smaller improvements.
-
-(TODO: Up to 6dfd6aa97611a8f3f028e61da9ed3e516b195fa6 in topo-order reverse sort.)
 
 ### Breaking changes in lower-level crates
 
