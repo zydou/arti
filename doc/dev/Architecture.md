@@ -97,7 +97,6 @@ The current crates are:
 * [`tor-checkable`](../../crates/tor-checkable/README.md) -- Traits for wrapping up signed and/or time-bound objects
 * [`tor-circmgr`](../../crates/tor-circmgr/README.md) -- circuits through the Tor network on demand.
 * [`tor-config`](../../crates/tor-config/README.md) -- Tools for configuration management in Arti
-* [`tor-congestion`](../../crates/tor-congestion/README.md) -- Algorithms for congestion control on the Tor network
 * [`tor-consdiff`](../../crates/tor-consdiff/README.md) -- Restricted ed diff and patch formats for Tor.
 * [`tor-dirclient`](../../crates/tor-dirclient/README.md) -- Implements a minimal directory client for Tor.
 * [`tor-dirmgr`](../../crates/tor-dirmgr/README.md) -- Code to fetch, store, and update Tor directory information.
