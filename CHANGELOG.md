@@ -2464,7 +2464,6 @@ development of Arti!
 [`arrayref`]: https://docs.rs/arrayref/latest/arrayref/
 [`cargo-semver-checks`]: https://crates.io/crates/cargo-semver-checks
 [`users`]: https://crates.io/crates/users
-[missing security features]: https://blog.torproject.org/announcing-vanguards-add-onion-services/
 [proposal 304]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/304-socks5-extending-hs-error-codes.txt
 [re-upgrade]: https://gitlab.torproject.org/tpo/core/arti/-/issues/808
 
