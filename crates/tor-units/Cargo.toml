@@ -1,6 +1,6 @@
 [package]
 name = "tor-units"
-version = "0.17.0"
+version = "0.18.0"
 authors = ["Dennis Jackson <git@dennisjj.co.uk>"]
 edition = "2021"
 rust-version = "1.70"
