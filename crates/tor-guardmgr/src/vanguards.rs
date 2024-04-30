@@ -464,10 +464,9 @@ impl<R: Runtime> VanguardMgr<R> {
         let inner = &mut *inner;
 
         let vanguard_sets = &mut inner.vanguard_sets;
-        let old_count = vanguard_sets.count();
-        vanguard_sets.remove_expired(now);
+        let expired_count = vanguard_sets.remove_expired(now);
 
-        if old_count > vanguard_sets.count() {
+        if expired_count > 0 {
             info!("Rotating vanguards");
         }
 

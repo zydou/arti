@@ -105,15 +105,14 @@ impl VanguardSets {
         &self.l3_vanguards
     }
 
-    /// The total number of L2 and L3 vanguards.
-    pub(super) fn count(&self) -> usize {
-        self.l2().len() + self.l3().len()
-    }
-
     /// Remove the vanguards that are expired at the specified timestamp.
-    pub(super) fn remove_expired(&mut self, now: SystemTime) {
-        self.l2_vanguards.remove_expired(now);
-        self.l3_vanguards.remove_expired(now);
+    ///
+    /// Returns the number of vanguards that were removed.
+    pub(super) fn remove_expired(&mut self, now: SystemTime) -> usize {
+        let l2_expired = self.l2_vanguards.remove_expired(now);
+        let l3_expired = self.l3_vanguards.remove_expired(now);
+
+        l2_expired + l3_expired
     }
 
     /// Remove the vanguards that are no longer listed in `netdir`.
@@ -299,11 +298,6 @@ impl VanguardSet {
         })
     }
 
-    /// The number of vanguards in this set.
-    fn len(&self) -> usize {
-        self.vanguards.len()
-    }
-
     /// The number of vanguards we're missing.
     fn deficit(&self) -> usize {
         self.target.saturating_sub(self.vanguards.len())
@@ -324,12 +318,14 @@ impl VanguardSet {
             }
 
             cond
-        });
+        })
     }
 
     /// Remove the vanguards that are expired at the specified timestamp.
-    fn remove_expired(&mut self, now: SystemTime) {
-        self.vanguards.retain(|v| {
+    ///
+    /// Returns the number of vanguards that expired.
+    fn remove_expired(&mut self, now: SystemTime) -> usize {
+        self.retain(|v| {
             let cond = v.when > now;
 
             if !cond {
@@ -337,7 +333,17 @@ impl VanguardSet {
             }
 
             cond
-        });
+        })
+    }
+
+    /// A wrapper around [`Vec::retain`] that returns the number of discarded elements.
+    fn retain<F>(&mut self, f: F) -> usize
+    where
+        F: FnMut(&TimeBoundVanguard) -> bool,
+    {
+        let old_len = self.vanguards.len();
+        self.vanguards.retain(f);
+        old_len - self.vanguards.len()
     }
 
     /// Find the timestamp of the vanguard that is due to expire next.
