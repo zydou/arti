@@ -197,6 +197,107 @@ pub struct NetParameters {
     pub cbt_max_open_circuits_for_testing: BoundedInt32<0, 14> = (10)
         from "cbtmaxopencircs",
 
+    /// Specifies which congestion control algorithm clients should use.
+    /// Current values are 0 for the fixed window algorithm and 2 for Vegas.
+    ///
+    /// TODO: Flip this to 2 once CC circuit negotiation and Flow Control is in which would be the
+    /// same default as C-tor. Reason is that we can't have it to 2 for now else it makes the
+    /// consensus download fails.
+    pub cc_alg: BoundedInt32<0, 2> = (0)
+        from "cc_alg",
+
+    /// Vegas only. This parameter defines the integer number of 'cc_sendme_inc' multiples
+    /// of gap allowed between inflight and cwnd, to still declare the cwnd full.
+    pub cc_cwnd_full_gap: BoundedInt32<0, { i16::MAX as i32 }> = (4444)
+        from "cc_cwnd_full_gap",
+    /// Vegas only. This paramter defines a low watermark in percent.
+    pub cc_cwnd_full_minpct: Percentage<BoundedInt32<0, 100>> = (25)
+        from "cc_cwnd_full_minpct",
+    /// Vegas only. This parameter governs how often a cwnd must be full.
+    pub cc_cwnd_full_per_cwnd: BoundedInt32<0, 1> = (1)
+        from "cc_cwnd_full_per_cwnd",
+
+    /// Initial congestion window for new congestion control Tor clients.
+    pub cc_cwnd_init: BoundedInt32<31, 10_000> = (4 * 31)
+        from "cc_cwnd_init",
+    /// Percentage of the current congestion window to increment by during slow start,
+    /// every congestion window.
+    pub cc_cwnd_inc_pct_ss: Percentage<BoundedInt32<1, 500>> = (50)
+        from "cc_cwnd_inc_pct_ss",
+    /// How much to increment the congestion window by during steady state,
+    /// every congestion window.
+    pub cc_cwnd_inc: BoundedInt32<1, 1000> = (31)
+        from "cc_cwnd_inc",
+    /// How often we update our congestion window, per cwnd worth of packets.
+    /// (For example, if this is 2, we will update the window twice every window.)
+    pub cc_cwnd_inc_rate: BoundedInt32<1, 250> = (1)
+        from "cc_cwnd_inc_rate",
+    /// The minimum allowed congestion window.
+    pub cc_cwnd_min: BoundedInt32<31, 1000> = (31)
+        from "cc_cwnd_min",
+    /// The maximum allowed congestion window.
+    pub cc_cwnd_max: BoundedInt32<500, { i32::MAX }> = (i32::MAX)
+        from "cc_cwnd_max",
+
+    /// This specifies the N in N-EWMA smoothing of RTT and BDP estimation,
+    /// as a percent of the number of SENDME acks in a congestion window.
+    ///
+    /// A percentage over 100% indicates smoothing with more than one
+    /// congestion window's worth of SENDMEs.
+    pub cc_ewma_cwnd_pct: Percentage<BoundedInt32<1, 255>> = (50)
+        from "cc_ewma_cwnd_pct",
+    /// This specifies the max N in N_EWMA smoothing of RTT and BDP estimation.
+    pub cc_ewma_max: BoundedInt32<2, { i32::MAX }> = (10)
+        from "cc_ewma_max",
+    /// This specifies the N in N_EWMA smoothing of RTT during Slow Start.
+    pub cc_ewma_ss: BoundedInt32<2, { i32::MAX }> = (2)
+        from "cc_ewma_ss",
+    /// Describes a percentile average between RTT_min and RTT_current_ewma,
+    /// for use to reset RTT_min, when the congestion window hits cwnd_min.
+    pub cc_rtt_reset_pct: Percentage<BoundedInt32<0, 100>> = (100)
+        from "cc_rtt_reset_pct",
+    /// Specifies how many cells a SENDME acks.
+    pub cc_sendme_inc: BoundedInt32<1, 254> = (31)
+        from "cc_sendme_inc",
+    /// This parameter provides a hard-max on the congestion window in Slow Start.
+    pub cc_ss_max: BoundedInt32<500, { i32::MAX }> = (5000)
+        from "cc_ss_max",
+
+    /// Vegas alpha parameter for an Exit circuit.
+    pub cc_vegas_alpha_exit: BoundedInt32<0, 1000> = (3 * 62)
+        from "cc_vegas_alpha_exit",
+    /// Vegas beta parameter for an Exit circuit.
+    pub cc_vegas_beta_exit: BoundedInt32<0, 1000> = (4 * 62)
+        from "cc_vegas_beta_exit",
+    /// Vegas delta parameter for an Exit circuit.
+    pub cc_vegas_delta_exit: BoundedInt32<0, 1000> = (5 * 62)
+        from "cc_vegas_delta_exit",
+    /// Vegas gamma parameter for an Exit circuit.
+    pub cc_vegas_gamma_exit: BoundedInt32<0, 1000> = (3 * 62)
+        from "cc_vegas_gamma_exit",
+
+    /// Vegas alpha parameter for an Onion circuit.
+    pub cc_vegas_alpha_onion: BoundedInt32<0, 1000> = (3 * 62)
+        from "cc_vegas_alpha_onion",
+    /// Vegas beta parameter for an Onion circuit.
+    pub cc_vegas_beta_onion: BoundedInt32<0, 1000> = (6 * 62)
+        from "cc_vegas_beta_onion",
+    /// Vegas delta parameter for an Onion circuit.
+    pub cc_vegas_delta_onion: BoundedInt32<0, 1000> = (7 * 62)
+        from "cc_vegas_delta_onion",
+    /// Vegas gamma parameter for an Onion circuit.
+    pub cc_vegas_gamma_onion: BoundedInt32<0, 1000> = (4 * 62)
+        from "cc_vegas_gamma_onion",
+
+    /// Parameter for Exit circuit that describe the the RFC3742 'cap', after which
+    /// congestion window increments are reduced. The MAX disables RFC3742.
+    pub cc_vegas_sscap_exit: BoundedInt32<100, { i32::MAX }> = (600)
+        from "cc_sscap_exit",
+    /// Parameter for Onion circuit that describe the the RFC3742 'cap', after which
+    /// congestion window increments are reduced. The MAX disables RFC3742.
+    pub cc_vegas_sscap_onion: BoundedInt32<100, { i32::MAX }> = (475)
+        from "cc_sscap_onion",
+
     /// The maximum cell window size?
     pub circuit_window: BoundedInt32<100, 1000> = (1_000)
         from "circwindow",
@@ -311,28 +412,6 @@ pub struct NetParameters {
     /// circuits stay available?
     pub unused_client_circ_timeout_while_learning_cbt: IntegerSeconds<BoundedInt32<10, 60_000>> = (3*60)
         from "cbtlearntimeout",
-
-    /// The minimum number of SENDME acks required to estimate RTT and/or bandwidth.
-    pub cc_min_sendme_acks: BoundedInt32<2, 20> = (5)
-        from "cc_bwe_min",
-    /// The "N" parameter in N-EWMA smoothing of RTT and/or bandwidth estimation, specified as a
-    /// percentage of the number of SENDME acks in a congestion window.
-    ///
-    /// A percentage over 100% indicates smoothing with more than one congestion window's worth
-    /// of SENDMEs.
-    pub cc_ewma_n_by_sendme_acks: Percentage<BoundedInt32<1, 255>> = (50)
-        from "cc_ewma_cwnd_pct",
-    /// The maximum value of the "N" parameter in N-EWMA smoothing of RTT and/or bandwidth
-    /// estimation.
-    pub cc_ewma_n_max: BoundedInt32<2, {i32::MAX}> = (10)
-        from "cc_ewma_max",
-    /// How many cells a SENDME acks under the congestion-control regime.
-    pub cc_sendme_cell_ack_count: BoundedInt32<1, 255> = (31)
-        from "cc_sendme_inc",
-    /// How often we update our congestion window, per congestion window worth of packets.
-    /// (For example, if this is 2, we will update the window twice every window.)
-    pub cc_cwnd_inc_rate: BoundedInt32<1, 250> = (1)
-        from "cc_cwnd_inc_rate",
 
     /// Lower bound on the number of INTRODUCE2 cells to allow per introduction
     /// circuit before the service decides to rotate to a new introduction
