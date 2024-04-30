@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 #
 # List our crates as they appear in Cargo.toml.
-# Prints the crate names *except* for the ones with publish=false.
-# Useful for scripting.
 
+import argparse
 import toml.decoder
 import sys
 import os.path
@@ -11,14 +10,36 @@ import os.path
 TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
 WORKSPACE_TOML = os.path.join(TOPDIR, "Cargo.toml")
 
-
 def print_crates():
     t = toml.decoder.load(WORKSPACE_TOML)
+    shown_any = False
     for path in t['workspace']['members']:
         pt = toml.decoder.load(path + "/Cargo.toml")
+        package = pt["package"]["name"]
         publish = pt["package"].get("publish")
-        if publish != False:
-            print(pt["package"]["name"])
+        show = (args.package == package if args.package is not None
+                else args.all or publish != False)
+
+        if not show: continue
+
+        shown_any = True
+        if args.version:
+            version = pt["package"]["version"]
+            print("%-23s %s" % (package, version))
+        else:
+            print(package)
+
+    assert shown_any
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        prog="list_crates_publish",
+        description="list crates (by default, only the ones to publish)",
+        )
+    parser.add_argument('--all', action='store_true', help='list even unpublished crates')
+    parser.add_argument('--version', action='store_true', help='print versions')
+    parser.add_argument('-p', '--package', help='specific crate')
+
+    global args
+    args = parser.parse_args()
     print_crates()
