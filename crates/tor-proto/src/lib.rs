@@ -53,6 +53,7 @@
 pub mod bench_utils;
 pub mod channel;
 pub mod circuit;
+mod congestion;
 mod crypto;
 pub mod memquota;
 pub mod stream;
