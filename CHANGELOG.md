@@ -1110,11 +1110,11 @@ for funding the development of Arti!
 [f26b00b3179a7e13]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f26b00b3179a7e135960972e8c922d824a62ee0e
 [f7772f127e895d96]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f7772f127e895d9655346cf69fd2134ac8e225de
 [Shadow]: https://shadow.github.io
-[Zcash Community Grants]:  https://zcashcommunitygrants.org/
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md?ref_type=heads
 [`ntor_v3`]: https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3
 [missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
-[other sponsors]:  https://www.torproject.org/about/sponsors/
+[other sponsors]: https://www.torproject.org/about/sponsors/
 [proposal 340]: https://spec.torproject.org/proposals/340-packed-and-fragmented.html
 
 
@@ -1296,9 +1296,9 @@ for funding the development of Arti!
 [c5b386fb1009a1d9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5b386fb1009a1d91a830aeb67921c6057b98a1e
 [ee96e5e454ba5db2]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ee96e5e454ba5db27daaab0f8757732994454f0b
 [MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
-[Zcash Community Grants]:  https://zcashcommunitygrants.org/
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [dalek-cryptography]: https://github.com/dalek-cryptography/
-[other sponsors]:  https://www.torproject.org/about/sponsors/
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
@@ -1488,7 +1488,7 @@ for funding the development of Arti!
 [#1078]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1078
 [#1080]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1080
 [21605d2c9e601c3a]: https://gitlab.torproject.org/tpo/core/arti/-/commit/21605d2c9e601c3a5099bfd8d8c887cbb3b36c0a
-[5d7f70c0fe515aee]:  https://gitlab.torproject.org/tpo/core/arti/-/commit/5d7f70c0fe515aee8640f336cc799b70828fd109
+[5d7f70c0fe515aee]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5d7f70c0fe515aee8640f336cc799b70828fd109
 [cfe641613e6b6f4f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cfe641613e6b6f4f55de87621eadacf24d22a939
 [`IoErrorExt`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/trait.IoErrorExt.html
 [`Requestable`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirclient/request/trait.Requestable.html
