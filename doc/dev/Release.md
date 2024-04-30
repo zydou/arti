@@ -236,16 +236,14 @@ before you continue!
 
 ## The actual release itself.
 
-1. From lowest-level to highest-level, we have to run cargo publish.  For
-   a list of crates from lowest- to highest-level, see the top-level
-   Cargo.toml.
+   Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
+   to see what it thinks.
 
-   `; for crate in $(./maint/list_crates_publish); do cargo publish -p "$crate"; done`
+   If all seems well, run it without the `--dry-run` option.
 
-   Ideally you would run this in a `set -e`, so it would fail on
-   errors, but doing that involves filtering the list of crates to
-   only list those that have changed (and therefore have had their
-   versions bumped).
+   If it fails, you may be able to rerun the script
+   after fixing the cause.
+   It is supposed to be idempotent.
 
 2. We tag the repository with `arti-v${THIS_VERSION}`
 
