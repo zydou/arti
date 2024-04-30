@@ -13,7 +13,7 @@ This release also includes an as-yet-unused backend
 to help resist memory-exhaustion attacks,
 and numerous other smaller improvements.
 
-(TODO: Up to 218671a59c21ec84ab04063a44abac3389f87578 in topo-order reverse sort.)
+(TODO: Up to 6dfd6aa97611a8f3f028e61da9ed3e516b195fa6 in topo-order reverse sort.)
 
 ### Breaking changes in lower-level crates
 
@@ -34,6 +34,8 @@ and numerous other smaller improvements.
 - Fix an inadvertent recursion bug when converting
   ` TorAddrError` to `arti_client::Error`.
   ([#1379], [3f2dcaca31992018f825])
+- Improve reliability of bootstrap status reporting.
+  ([!2107])
 
 ### Onion service development
 
@@ -42,7 +44,8 @@ and numerous other smaller improvements.
   By default, we use the `vanguards-lite` algorithm;
   the `vanguards-full` algorithm can be configured.
   ([#1272], [#1273], [#1275], [#1340], [#1353], [#1364], [#1366],
-  [!2075], [!2082], [!2083], [!2088], [!2090], [!2093], [!2099], [!2102])
+  [!2075], [!2082], [!2083], [!2088], [!2090], [!2093], [!2099],
+  [!2102], [!2104], [!2105], [!2109], [!2111])
 - Export `KeyMgrBuilderError` as a public type,
   to help external code implement its own [`KeyMgr`].
   ([!2078])
@@ -89,7 +92,7 @@ and numerous other smaller improvements.
   ([#1373], [!2089])
 - Improve documentation and license presence for our two
   LGPL-licensed crates.
-  ([#1375], [!2094])
+  ([#1375], [!2094], [!2106])
 
 ### Testing
 
