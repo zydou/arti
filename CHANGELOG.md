@@ -658,7 +658,7 @@ for funding the development of Arti!
 [bd85bffd0a388f57]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bd85bffd0a388f579d42c8a0758091232bf901a0
 [f3720ac2c0f16883]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f3720ac2c0f16883abc1597ad828f99022a0e320
 [6c9e70e39ab279aa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/6c9e70e39ab279aa99634d216847627f1cd62f2a
-[Shadow]: https://shadow.github.io/
+[Shadow]: https://shadow.github.io
 [TROVE-2024-001]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
 [`arti`]: https://tpo.pages.torproject.net/core/doc/rust/arti/index.html
@@ -2114,7 +2114,7 @@ for funding the development of Arti!
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [EquiX]: https://github.com/tevador/equix/blob/master/devlog.md
 [HashX]: https://lists.torproject.org/pipermail/tor-dev/2020-June/014381.html
-[Shadow]: https://shadow.github.io/
+[Shadow]: https://shadow.github.io
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`Conversation`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/circuit/struct.Conversation.html
 [`NetDir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/struct.NetDir.html
@@ -3330,7 +3330,7 @@ development of Arti 1.1.1!
 [#749]: https://gitlab.torproject.org/tpo/core/arti/-/issues/749
 [889206cde4ef29d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/889206cde4ef29d7d10bda546f8ad518eb09c290
 [Onion Services]: https://community.torproject.org/onion-services/
-[Shadow]: https://shadow.github.io/
+[Shadow]: https://shadow.github.io
 [Shared Random Values]: https://blog.torproject.org/mission-montreal-building-next-generation-onion-services/
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`Architecture.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/Architecture.md
