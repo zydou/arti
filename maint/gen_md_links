@@ -15,6 +15,7 @@ import re
 import subprocess
 
 LINK_PATTERN = re.compile(r'''
+  (?<!\\)      # Not after \...
   \[([^\]]*)\] # Match [, then some non-] characters, then ]...
   (?!\()       # But only when not followed by (.
 ''', re.X)
