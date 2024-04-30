@@ -37,4 +37,4 @@ tor-rtmock = { path = "../tor-rtmock", version = "0.17.0" }
 tracing-test = "0.2.4"
 
 [features]
-full = []
+full = ["tor-config/full", "tor-error/full", "tor-log-ratelim/full", "tor-rtcompat/full"]

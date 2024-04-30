@@ -90,7 +90,6 @@ experimental = [
     "error_detail",
     "geoip",
     "rpc",
-    "vanguards",
     "tor-proto/experimental",
     "tor-netdoc/experimental",
     "tor-dirmgr/experimental",
