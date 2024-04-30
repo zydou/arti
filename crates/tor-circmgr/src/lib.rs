@@ -46,7 +46,7 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
-use build::CircuitBuilder;
+use build::{CircuitBuilder, CircuitType};
 use mgr::{AbstractCirc, AbstractCircBuilder};
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
@@ -152,14 +152,14 @@ impl<'a> From<&'a NetDir> for DirInfo<'a> {
 }
 impl<'a> DirInfo<'a> {
     /// Return a set of circuit parameters for this DirInfo.
-    fn circ_params(&self) -> CircParameters {
+    fn circ_params(&self, ct: &CircuitType) -> CircParameters {
         use crate::build::circparameters_from_netparameters;
         use tor_netdir::params::NetParameters;
         // We use a common function for both cases here to be sure that
         // we look at the defaults from NetParameters code.
         match self {
-            DirInfo::Directory(d) => circparameters_from_netparameters(d.params()),
-            _ => circparameters_from_netparameters(&NetParameters::default()),
+            DirInfo::Directory(d) => circparameters_from_netparameters(d.params(), ct),
+            _ => circparameters_from_netparameters(&NetParameters::default(), ct),
         }
     }
 }
@@ -1113,9 +1113,8 @@ mod test {
         let fb = FallbackList::from([]);
         let di: DirInfo<'_> = (&fb).into();
 
-        let p1 = di.circ_params();
-        assert!(!p1.extend_by_ed25519_id());
-        assert_eq!(p1.initial_send_window(), 1000);
+        let p1 = di.circ_params(&CircuitType::Exit);
+        assert!(!p1.extend_by_ed25519_id);
 
         // Now try with a directory and configured parameters.
         let (consensus, microdescs) = tor_netdir::testnet::construct_network().unwrap();
@@ -1128,9 +1127,8 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params();
-        assert_eq!(p2.initial_send_window(), 100);
-        assert!(p2.extend_by_ed25519_id());
+        let p2 = di.circ_params(&CircuitType::Exit);
+        assert!(p2.extend_by_ed25519_id);
 
         // Now try with a bogus circwindow value.
         let (consensus, microdescs) = tor_netdir::testnet::construct_network().unwrap();
@@ -1143,9 +1141,8 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params();
-        assert_eq!(p2.initial_send_window(), 1000); // Not 100_000
-        assert!(p2.extend_by_ed25519_id());
+        let p2 = di.circ_params(&CircuitType::Exit);
+        assert!(p2.extend_by_ed25519_id);
     }
 
     fn make_circmgr<R: Runtime>(runtime: R) -> Arc<CircMgrInner<FakeBuilder<R>, R>> {

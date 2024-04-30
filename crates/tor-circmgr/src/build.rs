@@ -13,12 +13,13 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
-use tor_error::warn_report;
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
+use tor_proto::ccparams;
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
+use tor_units::Percentage;
 
 #[cfg(feature = "ntor_v3")]
 use {tor_linkspec::CircTarget, tor_protover::ProtoKind};
@@ -521,14 +522,111 @@ impl<R: Runtime> CircuitBuilder<R> {
     }
 }
 
-/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus.
-pub fn circparameters_from_netparameters(inp: &NetParameters) -> CircParameters {
-    let mut p = CircParameters::default();
-    if let Err(e) = p.set_initial_send_window(inp.circuit_window.get() as u16) {
-        warn_report!(e, "Invalid parameter in directory");
+/// Enum used to tell what is the circuit type as in what this circuit will be used for.
+///
+/// This MUST only be used to inform what a circuit is about and not used as a persistent value
+/// about a circuit type or purpose or usage.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum CircuitType {
+    /// Exit circuit.
+    Exit,
+    /// Onion service circuit.
+    OnionService,
+    /// Onion service used with vanguard
+    OnionServiceWithVanguard,
+    /// Single onion service.
+    OnionSingleService,
+}
+
+impl From<&TargetCircUsage> for CircuitType {
+    fn from(u: &TargetCircUsage) -> Self {
+        match u {
+            TargetCircUsage::Exit { .. } => CircuitType::Exit,
+            // XXX What should happen here is that HsCircBase should likely have what type of onion
+            // service (single or not). As for Vanguard, we need a way to ask the vanguard mgr?
+            #[cfg(feature = "hs-common")]
+            TargetCircUsage::HsCircBase { .. } => CircuitType::OnionService,
+            // XXX Not sure the default here is wise... I suspect all circuit type we have should
+            // be in that enum. For instance, Congestion Control is not enabled on Dir usage.
+            _ => CircuitType::Exit,
+        }
     }
-    p.set_extend_by_ed25519_id(inp.extend_by_ed25519_id.into());
-    p
+}
+
+/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus.
+pub fn circparameters_from_netparameters(inp: &NetParameters, ct: &CircuitType) -> CircParameters {
+    let cc_alg = match inp.cc_alg.get() {
+        2 => {
+            let vegas_queue_params: ccparams::VegasQueueParams = match ct {
+                CircuitType::Exit | CircuitType::OnionSingleService => (
+                    inp.cc_vegas_alpha_exit.into(),
+                    inp.cc_vegas_beta_exit.into(),
+                    inp.cc_vegas_delta_exit.into(),
+                    inp.cc_vegas_gamma_exit.into(),
+                    inp.cc_vegas_sscap_exit.into(),
+                ),
+                CircuitType::OnionService | CircuitType::OnionServiceWithVanguard => (
+                    inp.cc_vegas_alpha_onion.into(),
+                    inp.cc_vegas_beta_onion.into(),
+                    inp.cc_vegas_delta_onion.into(),
+                    inp.cc_vegas_gamma_onion.into(),
+                    inp.cc_vegas_sscap_onion.into(),
+                ),
+            }
+            .into();
+            ccparams::Algorithm::Vegas(
+                ccparams::VegasParamsBuilder::default()
+                    .cell_in_queue_params(vegas_queue_params)
+                    .ss_cwnd_max(inp.cc_ss_max.into())
+                    .cwnd_full_gap(inp.cc_cwnd_full_gap.into())
+                    .cwnd_full_min_pct(Percentage::new(
+                        inp.cc_cwnd_full_minpct.as_percent().get() as u32
+                    ))
+                    .cwnd_full_per_cwnd(inp.cc_cwnd_full_per_cwnd.into())
+                    .build()
+                    .unwrap_or_default(),
+            )
+        }
+        // Unrecognized, fallback to fixed window as in SENDME v0.
+        _ => ccparams::Algorithm::FixedWindow(
+            ccparams::FixedWindowParamsBuilder::default()
+                .circ_window_start(inp.circuit_window.get() as u16)
+                .build()
+                .unwrap_or_default(),
+        ),
+    };
+    let cwnd_params = ccparams::CongestionWindowParamsBuilder::default()
+        .cwnd_init(inp.cc_cwnd_init.into())
+        .cwnd_inc_pct_ss(Percentage::new(
+            inp.cc_cwnd_inc_pct_ss.as_percent().get() as u32
+        ))
+        .cwnd_inc(inp.cc_cwnd_inc.into())
+        .cwnd_inc_rate(inp.cc_cwnd_inc_rate.into())
+        .cwnd_min(inp.cc_cwnd_min.into())
+        .cwnd_max(inp.cc_cwnd_max.into())
+        .sendme_inc(inp.cc_sendme_inc.into())
+        .build()
+        .unwrap_or_default();
+    let rtt_params = ccparams::RoundTripEstimatorParamsBuilder::default()
+        .ewma_cwnd_pct(Percentage::new(
+            inp.cc_ewma_cwnd_pct.as_percent().get() as u32
+        ))
+        .ewma_max(inp.cc_ewma_max.into())
+        .ewma_ss_max(inp.cc_ewma_ss.into())
+        .rtt_reset_pct(Percentage::new(
+            inp.cc_rtt_reset_pct.as_percent().get() as u32
+        ))
+        .build()
+        .unwrap_or_default();
+
+    let ccontrol = ccparams::CongestionControlParamsBuilder::default()
+        .alg(cc_alg)
+        .cwnd_params(cwnd_params)
+        .rtt_params(rtt_params)
+        .build()
+        .unwrap_or_default();
+    CircParameters::new(inp.extend_by_ed25519_id.into(), ccontrol)
 }
 
 /// Helper function: spawn a future as a background task, and run it with
@@ -952,7 +1050,8 @@ mod test {
         rt.allow_one_advance(advance_initial);
         let outcome = rt.spawn_join("build-owned", async move {
             let arcbuilder = Arc::new(builder);
-            let params = CircParameters::default();
+            let params =
+                circparameters_from_netparameters(&NetParameters::default(), &CircuitType::Exit);
             arcbuilder.build_owned(path, &params, gs(), usage).await
         });
 

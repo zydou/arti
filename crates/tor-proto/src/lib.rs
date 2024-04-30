@@ -63,6 +63,7 @@ pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
 pub use channel::params::ChannelPaddingInstructions;
+pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
 
 /// A Result type for this crate.

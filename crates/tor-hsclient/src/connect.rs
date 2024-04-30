@@ -29,7 +29,7 @@ use tor_cell::relaycell::hs::{
 };
 use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
-use tor_circmgr::build::circparameters_from_netparameters;
+use tor_circmgr::build::{circparameters_from_netparameters, CircuitType};
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
@@ -1283,7 +1283,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 rend_pt: rend_pt.clone(),
             })?;
 
-        let params = circparameters_from_netparameters(self.netdir.params());
+        let params =
+            circparameters_from_netparameters(self.netdir.params(), &CircuitType::OnionService);
 
         rendezvous
             .rend_circ

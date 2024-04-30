@@ -7,6 +7,7 @@ use tor_cell::relaycell::{
     hs::intro_payload::{IntroduceHandshakePayload, OnionKey},
     msg::{Introduce2, Rendezvous1},
 };
+use tor_circmgr::build::CircuitType;
 use tor_linkspec::{decode::Strictness, verbatim::VerbatimLinkSpecCircTarget};
 use tor_proto::{
     circuit::handshake::{
@@ -342,7 +343,7 @@ impl IntroRequest {
         let circuit = circuit.ok_or_else(|| E::RendCirc(retry_err))?;
 
         // We'll need parameters to extend the virtual hop.
-        let params = circparameters_from_netparameters(netdir.params());
+        let params = circparameters_from_netparameters(netdir.params(), &CircuitType::OnionService);
 
         // We won't need the netdir any longer; stop holding the reference.
         drop(netdir);

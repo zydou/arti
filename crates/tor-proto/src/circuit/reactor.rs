@@ -1269,7 +1269,7 @@ impl Reactor {
         binding: Option<CircuitBinding>,
         params: &CircParameters,
     ) {
-        let hop = crate::circuit::reactor::CircHop::new(format, params.initial_send_window());
+        let hop = crate::circuit::reactor::CircHop::new(format, 1000);
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);

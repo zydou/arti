@@ -11,8 +11,9 @@ use std::{
 };
 
 use crate::{
-    build::CircuitBuilder, mgr::AbstractCircBuilder, timeouts, AbstractCirc, CircMgr, CircMgrInner,
-    Error, Result,
+    build::{CircuitBuilder, CircuitType},
+    mgr::AbstractCircBuilder,
+    timeouts, AbstractCirc, CircMgr, CircMgrInner, Error, Result,
 };
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
@@ -431,7 +432,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             .into());
         }
 
-        let params = crate::DirInfo::from(netdir).circ_params();
+        // TODO: Use HsCircKind and self.vanguard_mode() to derive the right CircuitType.
+        let params = crate::DirInfo::from(netdir).circ_params(&CircuitType::OnionService);
         self.extend_circ(circ, params, target).await
     }
 
@@ -638,7 +640,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         match (circuit.kind, kind) {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
-                let params = CircParameters::default();
+                let params = crate::build::circparameters_from_netparameters(
+                    netdir.params(),
+                    &CircuitType::OnionServiceWithVanguard,
+                );
                 let circ_path = circuit.circ.path_ref();
 
                 // A NAIVE circuit is a 3-hop circuit.
