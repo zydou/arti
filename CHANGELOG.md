@@ -2818,7 +2818,7 @@ Additional resources: [#807] [!1108].
 
 [!1108]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1108
 [#807]: https://gitlab.torproject.org/tpo/core/arti/-/issues/807
-[`x25519-dalek`]: https://github.com/dalek-cryptography/x25519-dalek
+[`x25519-dalek`]: https://docs.rs/x25519-dalek/latest/x25519_dalek/
 
 
 # Arti 1.1.3 — 31 March 2023
@@ -3335,7 +3335,7 @@ development of Arti 1.1.1!
 [`Architecture.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/dev/Architecture.md
 [`CtByteArray`]: https://tpo.pages.torproject.net/core/doc/rust/tor_llcrypto/util/ct/struct.CtByteArray.html
 [`Sensitive`]: https://tpo.pages.torproject.net/core/doc/rust/safelog/struct.Sensitive.html
-[`base64ct`]: https://crates.io/crates/base64ct
+[`base64ct`]: https://docs.rs/base64ct/latest/base64ct/
 [`humantime`]: https://crates.io/crates/humantime
 [`set_stream_prefs`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/struct.TorClient.html#method.set_stream_prefs
 [`shellexpand`]: https://crates.io/crates/shellexpand
@@ -3908,7 +3908,7 @@ of Arti 1.0.0!
 [`safelog`]: https://tpo.pages.torproject.net/core/doc/rust/safelog/index.html
 [`secmem_proc`]: https://crates.io/crates/secmem-proc
 [`shellexpand`]: https://crates.io/crates/shellexpand
-[`zeroize`]: https://crates.io/crates/zeroize
+[`zeroize`]: https://docs.rs/zeroize/latest/zeroize/
 [netflow logs]: https://en.wikipedia.org/wiki/NetFlow
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 
