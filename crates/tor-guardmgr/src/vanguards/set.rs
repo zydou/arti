@@ -309,8 +309,10 @@ impl VanguardSet {
     }
 
     /// Remove the vanguards that are no longer listed in `netdir`
-    fn remove_unlisted(&mut self, netdir: &NetDir) {
-        self.vanguards.retain(|v| {
+    ///
+    /// Returns the number of vanguards that were unlisted.
+    fn remove_unlisted(&mut self, netdir: &NetDir) -> usize {
+        self.retain(|v| {
             let cond = netdir.ids_listed(&v.id) != Some(false);
 
             if !cond {
