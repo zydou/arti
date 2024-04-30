@@ -168,6 +168,7 @@ else
 fi
 
 for p in $to_publish; do
+    # shellcheck disable=SC2086 # we want to split on spaces in $prefix and $CARGO
     $prefix $CARGO publish -p "$p"
 done
 
