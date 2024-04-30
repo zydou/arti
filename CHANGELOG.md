@@ -419,7 +419,7 @@ for funding the development of Arti!
 [!2049]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2049
 [!2050]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2050
 [!2051]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2051
-[!2051]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2052
+[!2052]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2052
 [!2053]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2053
 [!2054]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2054
 [!2055]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2055
