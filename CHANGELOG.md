@@ -1111,7 +1111,7 @@ for funding the development of Arti!
 [f7772f127e895d96]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f7772f127e895d9655346cf69fd2134ac8e225de
 [Shadow]: https://shadow.github.io
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
-[`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md?ref_type=heads
+[`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md
 [`ntor_v3`]: https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3
 [missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
 [other sponsors]: https://www.torproject.org/about/sponsors/
