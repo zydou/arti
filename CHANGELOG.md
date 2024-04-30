@@ -574,7 +574,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
   [async-broadcast], [signature], [config]. ([!2001], [!2004])
 - Fix `ArtiPath` creation on Windows. ([!2012])
 - Fix compilation and warnings on Windows. ([!2014], [!2009])
-- Gate `RpcConfig` behind `rpc` feature. ([[6c9e70e39ab279aa]])
+- Gate `RpcConfig` behind `rpc` feature. ([6c9e70e39ab279aa]])
 
 ### Acknowledgments
 
