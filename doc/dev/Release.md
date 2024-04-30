@@ -198,6 +198,11 @@ before you continue!
 
    In all cases, make sure you commit `Cargo.lock` changes too.
 
+   If `hashx` or `equix` were updated, you must also update
+   `crates/{hashx,equix}/bench/Cargo.lock`,
+   which aren't in the workspace for
+   [Reasons](https://gitlab.torproject.org/tpo/core/arti/-/issues/1351).
+
 3. Check for side effects from bumping versions!
 
    As of March 2024, you can skip this section
