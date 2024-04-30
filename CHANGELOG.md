@@ -3,6 +3,227 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.2 — ?????? May 2024
+
+TODO: Enter release date!!
+
+Arti 1.2.2 continues improvements on previous releases,
+by improving onion service security with [Vanguards].
+This release also includes an as-yet-unused backend
+to help resist memory-exhaustion attacks,
+and numerous other smaller improvements.
+
+(TODO: Up to 218671a59c21ec84ab04063a44abac3389f87578 in topo-order reverse sort.)
+
+### Breaking changes in lower-level crates
+
+- Refactor our [`Relay`] code to move low-level information
+  into a [`RelayDetails`] type.
+  ([#504], [!2057], [!2073])
+- The internal API for the RPC object system has been greatly revised.
+  ([!2079])
+
+### Network updates
+
+- Update to use the new identity key
+  for the `tor26` directory authority.
+  ([!2080])
+
+### Major bugfixes
+
+- Fix an inadvertent recursion bug when converting
+  ` TorAddrError` to `arti_client::Error`.
+  ([#1379], [3f2dcaca31992018f825])
+
+### Onion service development
+
+- Arti now supports [Vanguards] for improved security
+  against guard discovery for onion service circuits.
+  By default, we use the `vanguards-lite` algorithm;
+  the `vanguards-full` algorithm can be configured.
+  ([#1272], [#1273], [#1275], [#1340], [#1353], [#1364], [#1366],
+  [!2075], [!2082], [!2083], [!2088], [!2090], [!2093], [!2099], [!2102])
+- Export `KeyMgrBuilderError` as a public type,
+  to help external code implement its own [`KeyMgr`].
+  ([!2078])
+- Initial implementation for
+  an in-memory ephemeral key store, which will be useful
+  in implementing ephemeral onion services.
+  ([#1358], [!2076])
+- Fix a bug that prevented reporting of onion service status updates.
+  ([#1361], [!2086])
+- Fix a bug that would cause onion service circuit pools
+  to pre-build fewer circuits than actually desired.
+  ([!2101])
+
+### RPC development
+
+- The RPC object system has been refactored to use `derive-deftly`
+  and an improved system of method invocation.
+  Together, these changes make it easier to write RPC methods,
+  and allow support for RPC methods on generic types.
+  ([#838], [#1380], [!2079], [!2084], [!2103])
+
+### Other major features
+
+- Convert to use [`figment`] instead of [`config-rs`]
+  as our configuration backend,
+  for improved error messages.
+  ([#1267], [#1268], [!2041])
+- New `tor-memquota` backend crate to keep track of our memory usage,
+  and to help us react appropriately when we are out of memory.
+  We will use this as part of our DoS-resistance system.
+  ([#1381], [!2091], [!2100])
+
+
+### Documentation
+
+- Add cross-references to explain limitations of [`NetDir::by_ids`].
+  ([#1365], [!2081])
+- Fix a link to our Code of Conduct.
+  ([!2085])
+- Miscellaneous documentation fixes.
+  ([!2087])
+- Document some tricky assumptions and requirements in `tor-proto`'s
+  circuit reactor code.
+  ([#1373], [!2089])
+- Improve documentation and license presence for our two
+  LGPL-licensed crates.
+  ([#1375], [!2094])
+
+### Testing
+
+- Add high-level tests for pluggable transport configuration.
+  ([#1333])
+
+### Infrastructure
+
+- Adjust our license-checking code to accommodate
+  license clarifications in `rustls-webpki` and `option-ext`.
+  ([!2070])
+- Fix compilation breakage in our relaymsg fuzzing code.
+  ([#1349], [!2069])
+- Add an option to the `fuzz_it_all` script
+  for it to run only against the static corups.
+  ([#1350], [!2071])
+
+### Cleanups, minor features, and bugfixes
+
+- Remove unused dependencies from several crates.
+  ([!2068])
+- Expose `BridgesConfig` from `TorClientConfig`
+  so it can be inspected by other modules.
+  ([c5a91130fff6af25])
+- Refactor code for scheduling events in onion service code.
+  ([#1259], [!2064])
+- Update our code to use [`derive-deftly`],
+  formerly called `derive-adhoc`.
+  ([!2066])
+- Refactor `same_relay_ids` to be automatically derived.
+  ([!2072])
+- Refactor `StreamMap`'s stream-counting code to be less
+  error-prone.
+  ([#1344], [!2058])
+- Add an experimental method to expose the HS circuit pool
+  from `TorClient`.
+  ([!2077])
+- Clean up new warnings from the nightly version of Clippy.
+  ([!2096], [!2097])
+- Upgrade to rustls version 0.23.
+  ([#1377], [!2095])
+- Suppress or resolve some dead-code warnings. ([!2098])
+
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Jim Newsome, Richard Pospesel, trinity-1686a,
+Wiktor Kwapisiewicz, and VaiTon.
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+[!2041]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2041
+[!2057]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2057
+[!2058]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2058
+[!2064]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2064
+[!2066]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2066
+[!2068]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2068
+[!2069]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2069
+[!2070]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2070
+[!2071]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2071
+[!2072]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2072
+[!2073]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2073
+[!2075]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2075
+[!2076]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2076
+[!2077]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2077
+[!2078]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2078
+[!2079]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2079
+[!2080]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2080
+[!2081]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2081
+[!2082]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2082
+[!2083]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2083
+[!2084]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2084
+[!2085]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2085
+[!2086]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2086
+[!2087]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2087
+[!2088]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2088
+[!2089]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2089
+[!2090]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2090
+[!2091]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2091
+[!2093]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2093
+[!2094]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2094
+[!2095]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2095
+[!2096]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2096
+[!2097]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2097
+[!2098]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2098
+[!2099]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2099
+[!2100]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2100
+[!2101]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2101
+[!2102]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2102
+[!2103]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2103
+[#504]: https://gitlab.torproject.org/tpo/core/arti/-/issues/504
+[#838]: https://gitlab.torproject.org/tpo/core/arti/-/issues/838
+[#1259]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1259
+[#1267]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1267
+[#1268]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1268
+[#1272]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1272
+[#1273]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1273
+[#1275]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1275
+[#1333]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1333
+[#1340]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1340
+[#1344]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1344
+[#1349]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1349
+[#1350]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1350
+[#1353]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1353
+[#1358]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1358
+[#1361]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1361
+[#1364]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1364
+[#1365]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1365
+[#1366]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1366
+[#1373]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1373
+[#1375]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1375
+[#1377]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1377
+[#1379]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1379
+[#1380]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1380
+[#1381]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1381
+[3f2dcaca31992018f825]: https://gitlab.torproject.org/tpo/core/arti/-/commit/3f2dcaca31992018f825f616ed98c8055c9acf62
+[c5a91130fff6af25]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5a91130fff6af2527b38ec2c44900eb81c9b1c7
+[Vanguards]: https://github.com/mikeperry-tor/vanguards/blob/master/README_TECHNICAL.md
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`KeyMgr`]: https://docs.rs/tor-keymgr/latest/tor_keymgr/struct.KeyMgr.html
+[`NetDir::by_ids`]: https://docs.rs/tor-netdir/latest/tor_netdir/struct.NetDir.html#method.by_ids
+[`RelayDetails`]: https://docs.rs/tor-netdir/latest/tor_netdir/struct.RelayDetails.html
+[`Relay`]: https://docs.rs/tor-netdir/latest/tor_netdir/struct.Relay.html
+[`config-rs`]: https://docs.rs/config/latest/config/
+[`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
+[`figment`]: https://docs.rs/figment/latest/figment/
+[other sponsors]: https://www.torproject.org/about/sponsors/
+
+
+
+
+
 # Arti 1.2.1 — 2 April 2024
 
 Arti 1.2.1 continues development on onion services,
