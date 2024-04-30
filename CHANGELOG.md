@@ -1752,7 +1752,7 @@ high-level APIs to allow the user to actually turn it on.
 
 ### Cleanups, minor features, and smaller bugfixes
 
-- Improved error handling when a `[[bridges.transports]]` section does
+- Improved error handling when a `\[\[bridges.transports\]\]` section does
   not include any required pluggable transport. ([#880], [!1229])
 - Key manager APIs are now less tied to the SSH key format, and no
   longer require that x25519 keys be stored as ed25519 keys. ([#936],
