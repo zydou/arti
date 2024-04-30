@@ -16,6 +16,7 @@ default = []
 full = [
     "bridge-client",
     "pt-client",
+    "vanguards",
     "safelog/full",
     "tor-basic-utils/full",
     "tor-config/full",
@@ -31,7 +32,7 @@ full = [
     "tor-units/full",
     "tor-async-utils/full", "tor-relay-selection/full",
 ]
-experimental = ["testing", "vanguards"]
+experimental = ["testing"]
 
 # Support for using bridges as a client. Note that this is not the same as
 # the pt-client feature, since here we are not concerned with
@@ -39,12 +40,12 @@ experimental = ["testing", "vanguards"]
 bridge-client = ["tor-netdoc/routerdesc", "tor-protover"]
 # Support for pluggable transports.
 pt-client = ["bridge-client", "tor-linkspec/pt-client"]
+# Vanguards support
+vanguards = ["tor-relay-selection/vanguards"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["tor-netdir/testing", "__is_experimental"]
-# Vanguards support
-vanguards = ["tor-relay-selection/vanguards", "__is_experimental"]
 
 __is_experimental = []
 

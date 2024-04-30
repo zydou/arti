@@ -599,11 +599,13 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
         let n_to_launch = circs_to_launch.n_to_launch();
         let mut max_attempts = n_to_launch * 2;
 
-        debug!(
-            "launching {} STUB and {} STUB+ circuits",
-            circs_to_launch.stub(),
-            circs_to_launch.ext_stub()
-        );
+        if n_to_launch > 0 {
+            debug!(
+                "launching {} STUB and {} STUB+ circuits",
+                circs_to_launch.stub(),
+                circs_to_launch.ext_stub()
+            );
+        }
 
         // TODO: refactor this to launch the circuits in parallel
         'inner: while circs_to_launch.n_to_launch() > 0 {

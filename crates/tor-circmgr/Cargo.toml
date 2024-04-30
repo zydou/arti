@@ -18,6 +18,7 @@ full = [
     "hs-client",
     "hs-service",
     "specific-relay",
+    "vanguards",
     "retry-error/full",
     "safelog/full",
     "tor-basic-utils/full",
@@ -36,18 +37,17 @@ full = [
     "tor-protover/full", "tor-relay-selection/full",
 ]
 specific-relay = []
+vanguards = ["tor-guardmgr/vanguards"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = ["tor-guardmgr/testing", "__is_experimental"]
-# Vanguards are experimental
-vanguards = ["tor-guardmgr/vanguards", "__is_experimental"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "ntor_v3", "testing", "geoip", "vanguards"]
+experimental = ["experimental-api", "ntor_v3", "testing", "geoip"]
 geoip = ["tor-geoip", "tor-netdir/geoip", "tor-relay-selection/geoip", "__is_experimental"]
 experimental-api = ["visibility", "__is_experimental"]
 ntor_v3 = ["tor-proto/ntor_v3", "__is_experimental"]

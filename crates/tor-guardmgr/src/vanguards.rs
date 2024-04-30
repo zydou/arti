@@ -460,13 +460,15 @@ impl<R: Runtime> VanguardMgr<R> {
         netdir_provider: &Arc<dyn NetDirProvider>,
         now: SystemTime,
     ) -> Result<Option<Duration>, VanguardMgrError> {
-        info!("Rotating vanguards");
-
         let mut inner = self.inner.write().expect("poisoned lock");
         let inner = &mut *inner;
 
         let vanguard_sets = &mut inner.vanguard_sets;
-        vanguard_sets.remove_expired(now);
+        let expired_count = vanguard_sets.remove_expired(now);
+
+        if expired_count > 0 {
+            info!("Rotating vanguards");
+        }
 
         if let Some(netdir) = Self::timely_netdir(netdir_provider)? {
             // If we have a NetDir, replenish the vanguard sets that don't have enough vanguards.
@@ -548,7 +550,7 @@ impl Inner {
         match self.mode {
             VanguardMode::Lite | VanguardMode::Disabled => Ok(()),
             VanguardMode::Full => {
-                debug!("The vanguards have changed; flushing vanguards to vanguard state file");
+                debug!("The vanguards may have changed; flushing to vanguard state file");
                 Ok(storage.store(&self.vanguard_sets)?)
             }
         }

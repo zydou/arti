@@ -18,6 +18,7 @@ full = [
     "keymgr",
     "onion-service-client",
     "onion-service-service",
+    "vanguards",
     "tokio",
     "async-std",
     "native-tls",
@@ -77,6 +78,7 @@ accel-openssl = ["tor-llcrypto/with-openssl", "__is_nonadditive"]
 onion-service-client = ["tor-hsclient", "tor-hscrypto"]
 onion-service-service = ["tor-hsservice", "tor-hscrypto", "tor-persist/state-dir", "keymgr"]
 keymgr = ["tor-keymgr/keymgr", "tor-hsclient/keymgr"]
+vanguards = ["tor-guardmgr/vanguards", "tor-circmgr/vanguards"]
 
 __is_nonadditive = []
 
@@ -107,7 +109,6 @@ error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 rpc = ["tor-rpcbase", "__is_experimental"]
 __is_experimental = []
-vanguards = ["tor-guardmgr/vanguards", "tor-circmgr/vanguards", "__is_experimental"]
 
 [dependencies]
 anyhow = { version = "1.0.23", optional = true }
