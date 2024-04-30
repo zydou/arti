@@ -2648,9 +2648,9 @@ development of Arti!
 [e5fa42e1c7957db0]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e5fa42e1c7957db06e051207b450bd88c2427c85
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`fixup-features`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/fixup-features
-[`tor-cell`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/tor-cell
+[`tor-cell`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cell/index.html
 [`tor-linkspec`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/tor-linkspec
-[`tor-netdoc`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/tor-netdoc
+[`tor-netdoc`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdoc/index.html
 [catastrophic cryptographic results]: https://moderncrypto.org/mail-archive/curves/2020/001012.html
 
 
