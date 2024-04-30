@@ -24,6 +24,9 @@ mod fixed;
 mod rtt;
 /// Sendme module used for SENDME validation.
 pub(crate) mod sendme;
+/// Vegas algorithm
+mod vegas;
+
 /// Congestion control parameters exposed to the circuit manager so they can be set per circuit.
 pub mod params;
 
@@ -266,6 +269,10 @@ impl CongestionControl {
         // Use what the consensus tells us to use.
         let algorithm: Box<dyn CongestionControlAlgorithm> = match &params.alg {
             Algorithm::FixedWindow(p) => Box::new(fixed::FixedWindow::new(p.circ_window_start)),
+            Algorithm::Vegas(ref p) => {
+                let cwnd = CongestionWindow::new(&params.cwnd_params);
+                Box::new(vegas::Vegas::new(p, &state, cwnd))
+            }
         };
         Self {
             algorithm,

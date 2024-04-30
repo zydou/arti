@@ -25,6 +25,64 @@ pub struct FixedWindowParams {
 }
 impl_standard_builder! { FixedWindowParams: !Deserialize }
 
+/// Vegas queuing parameters taken from the consensus only which are different depending if the
+/// circuit is an onion service one, an exit or used for SBWS.
+#[non_exhaustive]
+#[derive(Clone, Debug, Default)]
+pub struct VegasQueueParams {
+    /// Alpha parameter is used to know when to increase the window.
+    pub alpha: u32,
+    /// Beta parameter is used to know when to decrease the window
+    pub beta: u32,
+    /// Delta parameter is used as an indicator to drop the window to this considering the current
+    /// BDP value and increment.
+    pub delta: u32,
+    /// Gamma parameter is only used in slow start and used to know when to increase or adjust the
+    /// window with the BDP.
+    pub gamma: u32,
+    /// Parameter describe the RFC3742 'cap', after which congestion window increments are reduced.
+    /// INT32_MAX disables
+    pub ss_cwnd_cap: u32,
+}
+
+/// Used when we parse at once all the specific circuit type vegas queue parameters. They are
+/// bundled in a 5-tuple and transformed with this.
+impl From<(u32, u32, u32, u32, u32)> for VegasQueueParams {
+    fn from(v: (u32, u32, u32, u32, u32)) -> Self {
+        Self {
+            alpha: v.0,
+            beta: v.1,
+            delta: v.2,
+            gamma: v.3,
+            ss_cwnd_cap: v.4,
+        }
+    }
+}
+
+/// Vegas algorithm parameters taken from the consensus.
+#[non_exhaustive]
+#[derive(Builder, Clone, Debug)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+pub struct VegasParams {
+    /// The amount of queued cells that Vegas can tolerate before reacting.
+    #[builder(default)]
+    pub cell_in_queue_params: VegasQueueParams,
+    /// A hard-max on the congestion window in Slow Start.
+    #[builder(default)]
+    pub ss_cwnd_max: u32,
+    /// This parameter defines the integer number of 'cc_sendme_inc' multiples
+    /// of gap allowed between inflight and cwnd, to still declare the cwnd full.
+    #[builder(default)]
+    pub cwnd_full_gap: u32,
+    /// This paramter defines a low watermark in percent.
+    #[builder(default = "Percentage::new(0)")]
+    pub cwnd_full_min_pct: Percentage<u32>,
+    /// This parameter governs how often a cwnd must be full.
+    #[builder(default)]
+    pub cwnd_full_per_cwnd: u32,
+}
+impl_standard_builder! { VegasParams: !Deserialize }
+
 /// The different congestion control algorithms. Each contain their parameters taken from the
 /// consensus.
 #[non_exhaustive]
@@ -32,6 +90,8 @@ impl_standard_builder! { FixedWindowParams: !Deserialize }
 pub enum Algorithm {
     /// Fixed window algorithm.
     FixedWindow(FixedWindowParams),
+    /// Vegas algorithm.
+    Vegas(VegasParams),
 }
 
 impl Default for Algorithm {
