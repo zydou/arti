@@ -403,7 +403,7 @@ coverage-aggregated:
     - cp grcov $CARGO_HOME/bin/ || cargo install grcov
     - cp $CARGO_HOME/bin/grcov .
     # Generate report
-    - ./maint/coverage all
+    - ./maint/coverage unit
   after_script:
     - cargo clean
   cache:
