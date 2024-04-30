@@ -255,10 +255,14 @@ This code is licensed under either of
 
 at your option.
 
-**However**, some parts are licensed under the GNU Lesser General
+**However**, some optional parts are licensed under the GNU Lesser General
 Public License, version 3.0,
 as indicated in the `Cargo.toml`.
-This applies to `crates/equix` and `crates/hashx`,
+This applies to `crates/equix` and `crates/hashx`.
+See [`LGPL-and-rust.md`](./doc/LGPL-and-rust.md)
+for discussion of issues concerning redistributing binaries
+containing these crates.
+
 
 ## Contribution
 
