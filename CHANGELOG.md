@@ -47,7 +47,7 @@ and numerous other smaller improvements.
   [!2075], [!2082], [!2083], [!2088], [!2090], [!2093], [!2099],
   [!2102], [!2104], [!2105], [!2109], [!2111])
 - Export `KeyMgrBuilderError` as a public type,
-  to help external code implement its own [`KeyMgr`].
+  to help external code construct its own [`KeyMgr`].
   ([!2078])
 - Initial implementation for
   an in-memory ephemeral key store, which will be useful
