@@ -3,17 +3,13 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.2.2 — ?????? May 2024
-
-TODO: Enter release date!!
+# Arti 1.2.2 — 30 April 2024
 
 Arti 1.2.2 continues improvements on previous releases,
 by improving onion service security with [Vanguards].
 This release also includes an as-yet-unused backend
 to help resist memory-exhaustion attacks,
 and numerous other smaller improvements.
-
-(TODO: Up to 218671a59c21ec84ab04063a44abac3389f87578 in topo-order reverse sort.)
 
 ### Breaking changes in lower-level crates
 
@@ -34,6 +30,8 @@ and numerous other smaller improvements.
 - Fix an inadvertent recursion bug when converting
   ` TorAddrError` to `arti_client::Error`.
   ([#1379], [3f2dcaca31992018f825])
+- Improve reliability of bootstrap status reporting.
+  ([!2107])
 
 ### Onion service development
 
@@ -42,9 +40,10 @@ and numerous other smaller improvements.
   By default, we use the `vanguards-lite` algorithm;
   the `vanguards-full` algorithm can be configured.
   ([#1272], [#1273], [#1275], [#1340], [#1353], [#1364], [#1366],
-  [!2075], [!2082], [!2083], [!2088], [!2090], [!2093], [!2099], [!2102])
+  [!2075], [!2082], [!2083], [!2088], [!2090], [!2093], [!2099],
+  [!2102], [!2104], [!2105], [!2109], [!2111])
 - Export `KeyMgrBuilderError` as a public type,
-  to help external code implement its own [`KeyMgr`].
+  to help external code construct its own [`KeyMgr`].
   ([!2078])
 - Initial implementation for
   an in-memory ephemeral key store, which will be useful
@@ -89,7 +88,7 @@ and numerous other smaller improvements.
   ([#1373], [!2089])
 - Improve documentation and license presence for our two
   LGPL-licensed crates.
-  ([#1375], [!2094])
+  ([#1375], [!2094], [!2106])
 
 ### Testing
 
@@ -182,6 +181,12 @@ for funding the development of Arti!
 [!2101]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2101
 [!2102]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2102
 [!2103]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2103
+[!2104]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2104
+[!2105]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2105
+[!2106]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2106
+[!2107]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2107
+[!2109]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2109
+[!2111]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2111
 [#504]: https://gitlab.torproject.org/tpo/core/arti/-/issues/504
 [#838]: https://gitlab.torproject.org/tpo/core/arti/-/issues/838
 [#1259]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1259
