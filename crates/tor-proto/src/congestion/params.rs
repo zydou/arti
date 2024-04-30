@@ -8,6 +8,39 @@ use derive_builder::Builder;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_units::Percentage;
 
+/// Fixed window parameters that are for the SENDME v0 world of fixed congestion window.
+#[non_exhaustive]
+#[derive(Builder, Clone, Debug)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+pub struct FixedWindowParams {
+    /// Circuit window starting point. From the "circwindow" param.
+    #[builder(default = "1000")]
+    pub circ_window_start: u16,
+    /// Circuit window minimum value.
+    #[builder(default = "100", setter(skip))]
+    pub circ_window_min: u16,
+    /// Circuit window maximum value.
+    #[builder(default = "1000", setter(skip))]
+    pub circ_window_max: u16,
+}
+impl_standard_builder! { FixedWindowParams: !Deserialize }
+
+/// The different congestion control algorithms. Each contain their parameters taken from the
+/// consensus.
+#[non_exhaustive]
+#[derive(Clone, Debug)]
+pub enum Algorithm {
+    /// Fixed window algorithm.
+    FixedWindow(FixedWindowParams),
+}
+
+impl Default for Algorithm {
+    fn default() -> Self {
+        // NOTE: Once FlowCtrl=1 is set network wide, we should switch this to Vegas.
+        Self::FixedWindow(FixedWindowParams::default())
+    }
+}
+
 /// The round trip estimator parameters taken from consensus and used to estimate the round trip
 /// time on a circuit.
 #[non_exhaustive]
@@ -66,3 +99,20 @@ pub struct CongestionWindowParams {
     pub sendme_inc: u32,
 }
 impl_standard_builder! { CongestionWindowParams: !Deserialize }
+
+/// Global congestion control parameters taken from consensus. These are per-circuit.
+#[non_exhaustive]
+#[derive(Builder, Clone, Debug)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+pub struct CongestionControlParams {
+    /// The congestion control algorithm to use.
+    #[builder(default)]
+    pub alg: Algorithm,
+    /// Congestion window parameters.
+    #[builder(default)]
+    pub cwnd_params: CongestionWindowParams,
+    /// RTT calculation parameters.
+    #[builder(default)]
+    pub rtt_params: RoundTripEstimatorParams,
+}
+impl_standard_builder! { CongestionControlParams: !Deserialize }

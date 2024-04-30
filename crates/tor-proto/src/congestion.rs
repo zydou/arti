@@ -18,16 +18,87 @@
 //! Futhermore, as we receive and emit SENDMEs, it also has entry point for those two events in
 //! order to update the state.
 
-/// Congestion control parameters exposed to the circuit manager so they can be set per circuit.
-pub mod params;
+/// Fixed window algorithm
+mod fixed;
 /// Round trip estimator module.
 mod rtt;
+/// Sendme module used for SENDME validation.
+pub(crate) mod sendme;
+/// Congestion control parameters exposed to the circuit manager so they can be set per circuit.
+pub mod params;
 
-use self::params::CongestionWindowParams;
+use std::time::Instant;
+
+use crate::{Error, Result};
+
+use self::{
+    params::{Algorithm, CongestionControlParams, CongestionWindowParams},
+    rtt::RoundtripTimeEstimator,
+    sendme::{CircTag, SendmeValidator},
+};
+
+/// This trait defines what a congestion control algorithm must implement in order to interface
+/// with the circuit reactor.
+///
+/// Note that all functions informing the algorithm, as in not getters, return a Result meaning
+/// that on error, it means we can't recover or that there is a protocol violation. In both
+/// cases, the circuit MUST be closed.
+pub(crate) trait CongestionControlAlgorithm: Send {
+    /// Return true iff the next cell is expected to be a SENDME.
+    fn is_next_cell_sendme(&self) -> bool;
+    /// Return true iff a cell can be sent on the wire according to the congestion control
+    /// algorithm.
+    fn can_send(&self) -> bool;
+    /// Return the congestion window object. The reason is returns an Option is because not all
+    /// algorithm uses one and so we avoid acting on it if so.
+    fn cwnd(&self) -> Option<&CongestionWindow>;
+
+    /// Inform the algorithm that we just got a DATA cell.
+    ///
+    /// Return true if a SENDME should be sent immediately or false if not.
+    fn data_received(&mut self) -> Result<bool>;
+    /// Inform the algorithm that we just sent a DATA cell.
+    fn data_sent(&mut self) -> Result<()>;
+    /// Inform the algorithm that we've just received a SENDME.
+    ///
+    /// This is a core function because the algorithm massively update its state when receiving a
+    /// SENDME by using the RTT value and congestion signals.
+    fn sendme_received(
+        &mut self,
+        state: &mut State,
+        rtt: &mut RoundtripTimeEstimator,
+        signals: CongestionSignals,
+    ) -> Result<()>;
+    /// Inform the algorithm that we just sent a SENDME.
+    fn sendme_sent(&mut self) -> Result<()>;
+
+    /// Test Only: Return the congestion window.
+    #[cfg(test)]
+    fn send_window(&self) -> u32;
+}
+
+/// These are congestion signals used by a congestion control algorithm to make decisions. These
+/// signals are various states of our internals. This is not an exhaustive list.
+#[derive(Copy, Clone)]
+pub(crate) struct CongestionSignals {
+    /// Indicate if the channel is blocked.
+    pub(crate) channel_blocked: bool,
+    /// The size of the channel outbound queue.
+    pub(crate) channel_outbound_size: u32,
+}
+
+impl CongestionSignals {
+    /// Constructor
+    pub(crate) fn new(channel_blocked: bool, channel_outbound_size: usize) -> Self {
+        Self {
+            channel_blocked,
+            channel_outbound_size: channel_outbound_size.saturating_add(0) as u32,
+        }
+    }
+}
 
 /// Congestion control state.
 #[derive(Copy, Clone, Default)]
-#[allow(dead_code)]
 pub(crate) enum State {
     /// The initial state any circuit starts in. Used to gradually increase the amount of data
     /// being transmitted in order to converge towards to optimal capacity.
@@ -37,7 +108,6 @@ pub(crate) enum State {
     Steady,
 }
 
-#[allow(dead_code)]
 impl State {
     /// Return true iff this is SlowStart.
     pub(crate) fn in_slow_start(&self) -> bool {
@@ -48,7 +118,6 @@ impl State {
 /// A congestion window. This is generic for all algorithms but their parameters' value will differ
 /// depending on the selected algorithm.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub(crate) struct CongestionWindow {
     /// Congestion window parameters from the consensus.
     params: CongestionWindowParams,
@@ -58,7 +127,6 @@ pub(crate) struct CongestionWindow {
     is_full: bool,
 }
 
-#[allow(dead_code)]
 impl CongestionWindow {
     /// Constructor taking consensus parameters.
     fn new(params: &CongestionWindowParams) -> Self {
@@ -172,6 +240,119 @@ impl CongestionWindow {
     #[cfg(test)]
     pub(crate) fn params(&self) -> &CongestionWindowParams {
         &self.params
+    }
+}
+
+/// Congestion control state of a hop on a circuit.
+///
+/// This controls the entire logic of congestion control and circuit level SENDMEs.
+pub(crate) struct CongestionControl {
+    /// Which congestion control state are we in?
+    state: State,
+    /// This is the SENDME validator as in it keeps track of the circuit tag found within an
+    /// authenticated SENDME cell. It can store the tags and validate a tag against our queue of
+    /// expected values.
+    sendme_validator: SendmeValidator<CircTag>,
+    /// The RTT estimator for the circuit we are attached on.
+    rtt: RoundtripTimeEstimator,
+    /// The congestion control algorithm.
+    algorithm: Box<dyn CongestionControlAlgorithm>,
+}
+
+impl CongestionControl {
+    /// Construct a new CongestionControl
+    pub(crate) fn new(params: &CongestionControlParams) -> Self {
+        let state = State::default();
+        // Use what the consensus tells us to use.
+        let algorithm: Box<dyn CongestionControlAlgorithm> = match &params.alg {
+            Algorithm::FixedWindow(p) => Box::new(fixed::FixedWindow::new(p.circ_window_start)),
+        };
+        Self {
+            algorithm,
+            rtt: RoundtripTimeEstimator::new(&params.rtt_params),
+            sendme_validator: SendmeValidator::new(),
+            state,
+        }
+    }
+
+    /// Return true iff a DATA cell is allowed to be sent based on the congestion control state.
+    pub(crate) fn can_send(&self) -> bool {
+        self.algorithm.can_send()
+    }
+
+    /// Called when a SENDME cell is received.
+    ///
+    /// An error is returned if there is a protocol violation with regards to congestion control.
+    pub(crate) fn note_sendme_received(
+        &mut self,
+        tag: CircTag,
+        signals: CongestionSignals,
+    ) -> Result<()> {
+        // This MUST be the first thing that we do that is validate the SENDME. Any error leads to
+        // closing the circuit.
+        self.sendme_validator.validate(Some(tag))?;
+
+        // Update our RTT estimate if the algorithm yields back a congestion window. RTT
+        // measurements only make sense for a congestion window. For example, FixedWindow here
+        // doesn't use it and so no need for the RTT.
+        if let Some(cwnd) = self.algorithm.cwnd() {
+            self.rtt
+                .update(Instant::now(), &self.state, cwnd)
+                .map_err(|e| Error::CircProto(e.to_string()))?;
+        }
+
+        // Notify the algorithm that we've received a SENDME.
+        self.algorithm
+            .sendme_received(&mut self.state, &mut self.rtt, signals)
+    }
+
+    /// Called when a SENDME cell is sent.
+    pub(crate) fn note_sendme_sent(&mut self) -> Result<()> {
+        self.algorithm.sendme_sent()
+    }
+
+    /// Called when a DATA cell is received.
+    ///
+    /// Returns true iff a SENDME should be sent false otherwise. An error is returned if there is
+    /// a protocol violation with regards to flow or congestion control.
+    pub(crate) fn note_data_received(&mut self) -> Result<bool> {
+        self.algorithm.data_received()
+    }
+
+    /// Called when a DATA cell is sent.
+    ///
+    /// An error is returned if there is a protocol violation with regards to flow or congestion
+    /// control.
+    pub(crate) fn note_data_sent<U>(&mut self, tag: &U) -> Result<()>
+    where
+        U: Clone + Into<CircTag>,
+    {
+        // Inform the algorithm that the data was just sent. This is important to be the very first
+        // thing so the congestion window can be updated accordingly making the following calls
+        // using the latest data.
+        self.algorithm.data_sent()?;
+
+        // If next cell is a SENDME, we need to record the tag of this cell in order to validate
+        // the next SENDME when it arrives.
+        if self.algorithm.is_next_cell_sendme() {
+            self.sendme_validator.record(tag);
+            // Only keep the SENDME timestamp if the algorithm has a congestion window.
+            if self.algorithm.cwnd().is_some() {
+                self.rtt.expect_sendme(Instant::now());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// For testing: get a copy of the current send window, and the
+    /// expected incoming tags.
+    #[cfg(test)]
+    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<CircTag>) {
+        (
+            self.algorithm.send_window(),
+            self.sendme_validator.expected_tags(),
+        )
     }
 }
 
