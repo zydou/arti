@@ -1,6 +1,6 @@
 [package]
 name = "arti-rpcserver"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2021"
 rust-version = "1.70"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
@@ -24,7 +24,7 @@ full = [
 ]
 
 [dependencies]
-arti-client = { path = "../arti-client", version = "0.17.0", features = ["rpc"] }
+arti-client = { path = "../arti-client", version = "0.18.0", features = ["rpc"] }
 asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
@@ -39,12 +39,12 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "1"
 tiny-keccak = { version = "2", features = ["kmac"] }
-tor-async-utils = { path = "../tor-async-utils", version = "0.17.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.17.0" }
-tor-error = { path = "../tor-error", version = "0.17.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.17.0" }
-tor-rpcbase = { path = "../tor-rpcbase", version = "0.17.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.17.0" }
+tor-async-utils = { path = "../tor-async-utils", version = "0.18.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.18.0" }
+tor-error = { path = "../tor-error", version = "0.18.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.18.0" }
+tor-rpcbase = { path = "../tor-rpcbase", version = "0.18.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.18.0" }
 tracing = "0.1.36"
 typetag = "0.2.7"
 weak-table = "0.3.0"
@@ -52,4 +52,4 @@ zeroize = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.17.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.18.0" }
