@@ -925,15 +925,15 @@ impl Reactor {
                     let hop_num = HopNum::from(i as u8);
                     // If we can, drain our queue of things we tried to send earlier, but
                     // couldn't due to congestion control.
-                    'hop: loop {
+                    'hop_outbound: loop {
                         if !self.channel.poll_ready(cx)? {
                             break 'outer;
                         }
                         if self.hops[i].sendwindow.window() == 0 {
-                            break 'hop;
+                            break 'hop_outbound;
                         }
                         let Some((early, cell)) = self.hops[i].outbound.pop_front() else {
-                            break 'hop;
+                            break 'hop_outbound;
                         };
                         trace!(
                             "{}: sending from hop-{}-enqueued: {:?}",
