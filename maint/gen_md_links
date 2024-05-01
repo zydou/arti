@@ -132,10 +132,16 @@ def process(s):
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) == 1 or sys.argv[1] == "-":
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="gen_md_links")
+    parser.add_argument('filename', nargs='?', default="-")
+    args = parser.parse_args()
+
+    if args.filename == '-':
         in_file = sys.stdin
     else:
-        in_file = open(sys.argv[1], 'r')
+        in_file = open(args.filename, 'r')
 
     text = in_file.read()
     print(process(text))
