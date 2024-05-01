@@ -903,106 +903,103 @@ impl Reactor {
             let mut streams_to_close = vec![];
             let mut stream_relaycells = vec![];
 
-            // Is the channel ready to receive anything at all?
-            if self.channel.poll_ready(cx)? {
-                // (using this as a named block for early returns; not actually a loop)
-                #[allow(clippy::never_loop)]
-                'outer: loop {
-                    // First, drain our queue of things we tried to send earlier, but couldn't.
-                    while let Some(msg) = self.outbound.pop_front() {
-                        trace!("{}: sending from enqueued: {:?}", self.unique_id, msg);
-                        Pin::new(&mut self.channel).start_send(msg)?;
-
-                        // `futures::Sink::start_send` dictates we need to call `poll_ready` before
-                        // each `start_send` call.
-                        if !self.channel.poll_ready(cx)? {
-                            break 'outer;
-                        }
+            // (using this as a named block for early returns; not actually a loop)
+            #[allow(clippy::never_loop)]
+            'outer: loop {
+                // First, drain our queue of things we tried to send earlier, but couldn't.
+                loop {
+                    // `futures::Sink::start_send` dictates we need to call `poll_ready` before
+                    // each `start_send` call.
+                    if !self.channel.poll_ready(cx)? {
+                        break 'outer;
                     }
-
-                    // Let's look at our hops, and streams for each hop.
-                    for i in 0..self.hops.len() {
-                        let hop_num = HopNum::from(i as u8);
-                        // If we can, drain our queue of things we tried to send earlier, but
-                        // couldn't due to congestion control.
-                        if self.hops[i].sendwindow.window() > 0 {
-                            'hop: while let Some((early, cell)) = self.hops[i].outbound.pop_front()
-                            {
-                                trace!(
-                                    "{}: sending from hop-{}-enqueued: {:?}",
-                                    self.unique_id,
-                                    i,
-                                    cell
-                                );
-                                // We know the stream has a non-empty SENDME
-                                // window because we accept at most one cell per
-                                // stream below, and only when the relevant
-                                // stream has a non-empty window and after
-                                // clearing the backlog here.
-                                //
-                                // TODO prop340: We need to be careful here when
-                                // adding fragmentation; e.g. this argument
-                                // fails to hold if we allow later breaking a
-                                // DATA message into multiple messages and cells
-                                // for packing.
-                                self.send_relay_cell(cx, hop_num, early, cell)?;
-                                if !self.channel.poll_ready(cx)? {
-                                    break 'outer;
-                                }
-                                if self.hops[i].sendwindow.window() == 0 {
-                                    break 'hop;
-                                }
-                            }
-                        }
-                        let hop = &mut self.hops[i];
-                        // Look at all of the streams on this hop.
-                        for (id, stream) in hop.map.iter_mut() {
-                            if let StreamEntMut::Open(OpenStreamEnt {
-                                rx, send_window, ..
-                            }) = stream
-                            {
-                                // Do the stream and hop send windows allow us to obtain and
-                                // send something?
-                                //
-                                // NOTE: not everything counts toward congestion
-                                // control. However, we can't easily remove
-                                // this check:
-                                // * We need to be careful not to buffer more
-                                // than ONE message per stream for the call to
-                                // `send_relay_cell` above, and potentially
-                                // closing the stream below, to be correct.
-                                // * We need to be careful about allowing
-                                // messages that *don't* count to be sent before
-                                // messages that *do*; e.g. we wouldn't want to
-                                // accept and send an END message on a stream where we
-                                // still have DATA messages queued.
-                                if send_window.window() > 0 && hop.sendwindow.window() > 0 {
-                                    match Pin::new(rx).poll_next(cx) {
-                                        Poll::Ready(Some(m)) => {
-                                            stream_relaycells.push((
-                                                hop_num,
-                                                AnyRelayMsgOuter::new(Some(id), m),
-                                            ));
-                                        }
-                                        Poll::Ready(None) => {
-                                            // Stream receiver was dropped; close the stream.
-                                            //
-                                            // We know there are no queued messages for the stream
-                                            // since we already flushed above.
-                                            //
-                                            // We can't close it here due to
-                                            // borrowck; that will happen later.
-                                            streams_to_close.push((hop_num, id));
-                                        }
-                                        Poll::Pending => {}
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    break;
+                    let Some(msg) = self.outbound.pop_front() else {
+                        break;
+                    };
+                    trace!("{}: sending from enqueued: {:?}", self.unique_id, msg);
+                    Pin::new(&mut self.channel).start_send(msg)?;
                 }
+
+                // Let's look at our hops, and streams for each hop.
+                for i in 0..self.hops.len() {
+                    let hop_num = HopNum::from(i as u8);
+                    // If we can, drain our queue of things we tried to send earlier, but
+                    // couldn't due to congestion control.
+                    if self.hops[i].sendwindow.window() > 0 {
+                        'hop: while let Some((early, cell)) = self.hops[i].outbound.pop_front()
+                        {
+                            trace!(
+                                "{}: sending from hop-{}-enqueued: {:?}",
+                                self.unique_id,
+                                i,
+                                cell
+                            );
+                            // We know the stream has a non-empty SENDME
+                            // window because we accept at most one cell per
+                            // stream below, and only when the relevant
+                            // stream has a non-empty window and after
+                            // clearing the backlog here.
+                            //
+                            // TODO prop340: We need to be careful here when
+                            // adding fragmentation; e.g. this argument
+                            // fails to hold if we allow later breaking a
+                            // DATA message into multiple messages and cells
+                            // for packing.
+                            self.send_relay_cell(cx, hop_num, early, cell)?;
+                            if !self.channel.poll_ready(cx)? {
+                                break 'outer;
+                            }
+                            if self.hops[i].sendwindow.window() == 0 {
+                                break 'hop;
+                            }
+                        }
+                    }
+                    let hop = &mut self.hops[i];
+                    // Look at all of the streams on this hop.
+                    for (id, stream) in hop.map.iter_mut() {
+                        if let StreamEntMut::Open(OpenStreamEnt {
+                            rx, send_window, ..
+                        }) = stream
+                        {
+                            // Do the stream and hop send windows allow us to obtain and
+                            // send something?
+                            //
+                            // NOTE: not everything counts toward congestion
+                            // control. However, we can't easily remove
+                            // this check:
+                            // * We need to be careful not to buffer more
+                            // than ONE message per stream for the call to
+                            // `send_relay_cell` above, and potentially
+                            // closing the stream below, to be correct.
+                            // * We need to be careful about allowing
+                            // messages that *don't* count to be sent before
+                            // messages that *do*; e.g. we wouldn't want to
+                            // accept and send an END message on a stream where we
+                            // still have DATA messages queued.
+                            if send_window.window() > 0 && hop.sendwindow.window() > 0 {
+                                match Pin::new(rx).poll_next(cx) {
+                                    Poll::Ready(Some(m)) => {
+                                        stream_relaycells
+                                            .push((hop_num, AnyRelayMsgOuter::new(Some(id), m)));
+                                    }
+                                    Poll::Ready(None) => {
+                                        // Stream receiver was dropped; close the stream.
+                                        //
+                                        // We know there are no queued messages for the stream
+                                        // since we already flushed above.
+                                        //
+                                        // We can't close it here due to
+                                        // borrowck; that will happen later.
+                                        streams_to_close.push((hop_num, id));
+                                    }
+                                    Poll::Pending => {}
+                                }
+                            }
+                        }
+                    }
+                }
+
+                break;
             }
 
             // Close the streams we said we'd close.
