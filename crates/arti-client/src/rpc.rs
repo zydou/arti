@@ -72,6 +72,11 @@ impl From<crate::status::BootstrapStatus> for ClientStatusInfo {
     }
 }
 
+// NOTE: These functions could be defined as methods on TorClient<R>.
+// I'm defining them like this to make it more clear that they are never
+// invoked as client.method(), but only via the RPC system.
+// We can revisit this later if we want.
+
 /// Invocable function to run [`GetClientStatus`] on a [`TorClient`].
 async fn get_client_status<R: Runtime>(
     client: Arc<TorClient<R>>,
