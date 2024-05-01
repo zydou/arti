@@ -957,43 +957,44 @@ impl Reactor {
                     let hop = &mut self.hops[i];
                     // Look at all of the streams on this hop.
                     for (id, stream) in hop.map.iter_mut() {
-                        if let StreamEntMut::Open(OpenStreamEnt {
+                        let StreamEntMut::Open(OpenStreamEnt {
                             rx, send_window, ..
                         }) = stream
-                        {
-                            // Do the stream and hop send windows allow us to obtain and
-                            // send something?
-                            //
-                            // NOTE: not everything counts toward congestion
-                            // control. However, we can't easily remove
-                            // this check:
-                            // * We need to be careful not to buffer more
-                            // than ONE message per stream for the call to
-                            // `send_relay_cell` above, and potentially
-                            // closing the stream below, to be correct.
-                            // * We need to be careful about allowing
-                            // messages that *don't* count to be sent before
-                            // messages that *do*; e.g. we wouldn't want to
-                            // accept and send an END message on a stream where we
-                            // still have DATA messages queued.
-                            if send_window.window() > 0 && hop.sendwindow.window() > 0 {
-                                match Pin::new(rx).poll_next(cx) {
-                                    Poll::Ready(Some(m)) => {
-                                        stream_relaycells
-                                            .push((hop_num, AnyRelayMsgOuter::new(Some(id), m)));
-                                    }
-                                    Poll::Ready(None) => {
-                                        // Stream receiver was dropped; close the stream.
-                                        //
-                                        // We know there are no queued messages for the stream
-                                        // since we already flushed above.
-                                        //
-                                        // We can't close it here due to
-                                        // borrowck; that will happen later.
-                                        streams_to_close.push((hop_num, id));
-                                    }
-                                    Poll::Pending => {}
+                        else {
+                            continue;
+                        };
+                        // Do the stream and hop send windows allow us to obtain and
+                        // send something?
+                        //
+                        // NOTE: not everything counts toward congestion
+                        // control. However, we can't easily remove
+                        // this check:
+                        // * We need to be careful not to buffer more
+                        // than ONE message per stream for the call to
+                        // `send_relay_cell` above, and potentially
+                        // closing the stream below, to be correct.
+                        // * We need to be careful about allowing
+                        // messages that *don't* count to be sent before
+                        // messages that *do*; e.g. we wouldn't want to
+                        // accept and send an END message on a stream where we
+                        // still have DATA messages queued.
+                        if send_window.window() > 0 && hop.sendwindow.window() > 0 {
+                            match Pin::new(rx).poll_next(cx) {
+                                Poll::Ready(Some(m)) => {
+                                    stream_relaycells
+                                        .push((hop_num, AnyRelayMsgOuter::new(Some(id), m)));
                                 }
+                                Poll::Ready(None) => {
+                                    // Stream receiver was dropped; close the stream.
+                                    //
+                                    // We know there are no queued messages for the stream
+                                    // since we already flushed above.
+                                    //
+                                    // We can't close it here due to
+                                    // borrowck; that will happen later.
+                                    streams_to_close.push((hop_num, id));
+                                }
+                                Poll::Pending => {}
                             }
                         }
                     }
