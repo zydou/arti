@@ -77,6 +77,12 @@ impl From<crate::status::BootstrapStatus> for ClientStatusInfo {
 // invoked as client.method(), but only via the RPC system.
 // We can revisit this later if we want.
 
+// TODO RPC: Once we have one or two more get/watch combinations,
+// we should look into some facility for automatically declaring them,
+// so that their behavior stays uniform.
+//
+// See https://gitlab.torproject.org/tpo/core/arti/-/issues/1384#note_3023659
+
 /// Invocable function to run [`GetClientStatus`] on a [`TorClient`].
 async fn get_client_status<R: Runtime>(
     client: Arc<TorClient<R>>,
