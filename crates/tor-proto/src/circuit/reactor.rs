@@ -925,34 +925,34 @@ impl Reactor {
                     let hop_num = HopNum::from(i as u8);
                     // If we can, drain our queue of things we tried to send earlier, but
                     // couldn't due to congestion control.
-                    if self.hops[i].sendwindow.window() > 0 {
-                        'hop: while let Some((early, cell)) = self.hops[i].outbound.pop_front()
-                        {
-                            trace!(
-                                "{}: sending from hop-{}-enqueued: {:?}",
-                                self.unique_id,
-                                i,
-                                cell
-                            );
-                            // We know the stream has a non-empty SENDME
-                            // window because we accept at most one cell per
-                            // stream below, and only when the relevant
-                            // stream has a non-empty window and after
-                            // clearing the backlog here.
-                            //
-                            // TODO prop340: We need to be careful here when
-                            // adding fragmentation; e.g. this argument
-                            // fails to hold if we allow later breaking a
-                            // DATA message into multiple messages and cells
-                            // for packing.
-                            self.send_relay_cell(cx, hop_num, early, cell)?;
-                            if !self.channel.poll_ready(cx)? {
-                                break 'outer;
-                            }
-                            if self.hops[i].sendwindow.window() == 0 {
-                                break 'hop;
-                            }
+                    'hop: loop {
+                        if !self.channel.poll_ready(cx)? {
+                            break 'outer;
                         }
+                        if self.hops[i].sendwindow.window() == 0 {
+                            break 'hop;
+                        }
+                        let Some((early, cell)) = self.hops[i].outbound.pop_front() else {
+                            break 'hop;
+                        };
+                        trace!(
+                            "{}: sending from hop-{}-enqueued: {:?}",
+                            self.unique_id,
+                            i,
+                            cell
+                        );
+                        // We know the stream has a non-empty SENDME
+                        // window because we accept at most one cell per
+                        // stream below, and only when the relevant
+                        // stream has a non-empty window and after
+                        // clearing the backlog here.
+                        //
+                        // TODO prop340: We need to be careful here when
+                        // adding fragmentation; e.g. this argument
+                        // fails to hold if we allow later breaking a
+                        // DATA message into multiple messages and cells
+                        // for packing.
+                        self.send_relay_cell(cx, hop_num, early, cell)?;
                     }
                     let hop = &mut self.hops[i];
                     // Look at all of the streams on this hop.
