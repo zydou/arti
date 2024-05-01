@@ -41,7 +41,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // Register methods. Needed since TorClient is generic.
     //
     // TODO: If we accumulate a large number of generics like this, we should do this elsewhere.
-    rpc_mgr.with_dispatch_table(|table| TorClient::<R>::register_rpc_methods(table));
+    rpc_mgr.register_rpc_methods(TorClient::<R>::rpc_methods());
 
     let rt_clone = runtime.clone();
     let rpc_mgr_clone = rpc_mgr.clone();
