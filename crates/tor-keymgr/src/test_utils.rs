@@ -83,3 +83,43 @@ pub(crate) mod ssh_keys {
         include_str!("../testdata/x25519_openssh_unknown_algorithm.public");
 }
 
+/// A module exporting a key specifier used for testing.
+#[cfg(test)]
+mod specifier {
+    use crate::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
+
+    /// A key specifier path.
+    pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
+
+    /// A [`KeySpecifier`] with a fixed [`ArtiPath`] prefix and custom suffix.
+    ///
+    /// The inner String is the suffix of its `ArtiPath`.
+    #[derive(Default)]
+    pub(crate) struct TestSpecifier(String);
+
+    impl TestSpecifier {
+        /// Create a new [`TestSpecifier`].
+        pub(crate) fn new(prefix: impl AsRef<str>) -> Self {
+            Self(prefix.as_ref().into())
+        }
+
+        /// Return the prefix of the [`ArtiPath`] of this specifier.
+        pub(crate) fn path_prefix() -> &'static str {
+            TEST_SPECIFIER_PATH
+        }
+    }
+
+    impl KeySpecifier for TestSpecifier {
+        fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
+            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0))
+                .map_err(|e| tor_error::internal!("{e}"))?)
+        }
+
+        fn ctor_path(&self) -> Option<CTorPath> {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) use specifier::*;
