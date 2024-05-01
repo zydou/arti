@@ -55,8 +55,7 @@ struct ClientStatusInfo {
     /// Approximate estimate of how close the client is to being ready for traffic.
     fraction: f32,
     /// If present, a description of possible problem(s) that may be stopping
-    /// the client from bootstrapping successfully.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    /// the client from using the Tor network.
     blocked: Option<String>,
 }
 
