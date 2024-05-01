@@ -309,13 +309,10 @@ pub(crate) mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::{ArtiPath, CTorPath, KeyPath};
+    use crate::test_utils::ssh_keys::*;
     use std::fs;
     use tempfile::{tempdir, TempDir};
     use tor_llcrypto::pk::ed25519;
-
-    // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
-    // include it once)
-    pub(crate) const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
 
     pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
 

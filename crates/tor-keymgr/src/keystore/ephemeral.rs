@@ -151,7 +151,7 @@ mod tests {
     // imports from arti tests
 
     use crate::keystore::arti::tests::TestSpecifier;
-    use crate::keystore::arti::tests::OPENSSH_ED25519;
+    use crate::test_utils::ssh_keys::OPENSSH_ED25519;
 
     // some helper methods
 

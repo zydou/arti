@@ -316,25 +316,10 @@ mod tests {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use super::*;
 
-    const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
-    const OPENSSH_ED25519_PUB: &str = include_str!("../../testdata/ed25519_openssh.public");
-    const OPENSSH_ED25519_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.private");
-    const OPENSSH_ED25519_PUB_BAD: &str = include_str!("../../testdata/ed25519_openssh_bad.public");
-    const OPENSSH_EXP_ED25519: &str =
-        include_str!("../../testdata/ed25519_expanded_openssh.private");
-    const OPENSSH_EXP_ED25519_PUB: &str =
-        include_str!("../../testdata/ed25519_expanded_openssh.public");
-    const OPENSSH_EXP_ED25519_BAD: &str =
-        include_str!("../../testdata/ed25519_expanded_openssh_bad.private");
-    const OPENSSH_DSA: &str = include_str!("../../testdata/dsa_openssh.private");
-    const OPENSSH_X25519: &str = include_str!("../../testdata/x25519_openssh.private");
-    const OPENSSH_X25519_PUB: &str = include_str!("../../testdata/x25519_openssh.public");
-    const OPENSSH_X25519_UNKNOWN_ALGORITHM: &str =
-        include_str!("../../testdata/x25519_openssh_unknown_algorithm.private");
-    const OPENSSH_X25519_PUB_UNKNOWN_ALGORITHM: &str =
-        include_str!("../../testdata/x25519_openssh_unknown_algorithm.public");
+    use crate::test_utils::ssh_keys::*;
+
+    use super::*;
 
     macro_rules! test_parse_ssh_format_erased {
         ($key_ty:tt, $key:expr, $expected_ty:path) => {{
