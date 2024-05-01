@@ -5848,6 +5848,7 @@ dependencies = [
  "tor-async-utils",
  "tor-error",
  "typetag",
+ "void",
 ]
 
 [[package]]
