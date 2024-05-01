@@ -263,6 +263,32 @@ macro_rules! invoker_ent {
         }
     };
 }
+
+/// Crate a `Vec<` of [`InvokerEnt`].
+///
+///
+/// See `invoker_ent` for function syntax.
+///
+/// ## Example:
+///
+/// ```rust,ignore
+/// dispatch_table.extend(invoker_ent_list![
+///    function1,
+///    function2,
+///    function3,
+/// ]);
+/// ```
+#[macro_export]
+macro_rules! invoker_ent_list {
+    { $($func:expr),* } => {
+        vec![
+            $(
+                $crate::invoker_ent!($func)
+            ),*
+        ]
+    }
+}
+
 impl std::fmt::Debug for InvokerEnt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.invoker.describe_invocable(f)
@@ -499,6 +525,18 @@ impl DispatchTable {
             // This is not a perfect check by any means; see `same_decl`.
             assert!(old_ent.same_decl(&ent));
         }
+    }
+
+    /// Add multiple new entries to this DispatchTable.
+    ///
+    /// # Panics
+    ///
+    /// As for `insert`.
+    pub fn extend<I>(&mut self, ents: I)
+    where
+        I: IntoIterator<Item = InvokerEnt>,
+    {
+        ents.into_iter().for_each(|e| self.insert(e));
     }
 
     /// Try to find an appropriate function for calling a given RPC method on a

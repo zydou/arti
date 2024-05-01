@@ -16,8 +16,10 @@ impl<R: Runtime> crate::TorClient<R> {
     /// We can't use [`rpc::static_rpc_invoke_fn`] for these, since TorClient is
     /// parameterized.
     pub fn register_rpc_methods(table: &mut rpc::DispatchTable) {
-        table.insert(rpc::invoker_ent!(get_client_status::<R>));
-        table.insert(rpc::invoker_ent!(watch_client_status::<R>));
+        table.extend(rpc::invoker_ent_list![
+            get_client_status::<R>,
+            watch_client_status::<R>
+        ]);
     }
 }
 
