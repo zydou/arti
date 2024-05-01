@@ -1,0 +1,14 @@
+[package]
+name = "generate-custom"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+base32 = "0.4"
+clap = { version = "4.3.24", features = ["derive"] }
+rand = "0.8"
+tor-llcrypto = { path = "../../../tor-llcrypto", features = ["relay", "cvt-x25519"] }
+tor-keymgr = { path = "../../", features = ["keymgr"] }
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+
+[workspace]

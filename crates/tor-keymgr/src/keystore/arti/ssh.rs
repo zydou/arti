@@ -205,6 +205,12 @@ mod tests {
             OPENSSH_ED25519_PUB_BAD,
             err = "Failed to parse OpenSSH with type Ed25519Keypair"
         );
+
+        test_parse_ssh_format_erased!(
+            Ed25519PublicKey,
+            OPENSSH_ED25519_PUB_BAD,
+            err = "Failed to parse OpenSSH with type Ed25519PublicKey"
+        );
     }
 
     #[test]
