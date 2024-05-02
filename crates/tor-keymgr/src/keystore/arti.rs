@@ -293,7 +293,7 @@ impl Keystore for ArtiNativeKeystore {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
