@@ -1,0 +1,117 @@
+#!/usr/bin/python3
+
+"""
+Extract the reference link definitions, and uses, from a .md file.
+
+They are extracted *without normalisation* - in particular,
+without case folding.  This is contrary to markdown semantics,
+but it is desirable if we want to retain the original case.
+
+When run as a program, prints a json document
+
+{
+   "used": ["anchor", ...],
+   "defined"`: {"anchor": ["target", "title"] }
+}
+
+("title" can be null instead)
+"""
+
+# Basically all markdown parsers seem to treat undefined [foo]
+# link references as literal text, including the [ ].
+# I investigated several parsers including pandoc, marked (JS),
+# and python3-markdown, and none of them seemed to have a way to
+# override this or extract a list of apparently-unreferenced links.
+#
+# mistune has a hook mechanism, which we can abuse to insert
+# instrumentation that spots when link definitions are queried,
+# during processing.
+
+import mistune
+
+class Tracking:
+    '''
+    Data structure which tracks used and defined keys.
+
+    You may access the properties `used` and `defined`;
+    `defined` mas each key to `(target, title)`.
+    `used` is a map from keys to `True`,
+
+    The keys here are *un*normalised, so they have not been lowercased.
+    '''
+    defined = {}
+    used = {}
+
+    def as_json(self):
+        return json.dumps({
+            'used': list(self.used.keys()),
+            'defined': self.defined,
+        })
+
+class TrackingBlockParser(mistune.BlockParser):
+    def __init__(self, track):
+        self.track = track
+        super().__init__()
+
+    def parse_def_link(self, m, state):
+        k = m.group(1)
+        t = m.group(2)
+        title = m.group(3)
+        self.track.defined[k] = (t, title)
+        return super().parse_def_link(m, state)
+
+class TrackingInlineParser(mistune.InlineParser):
+    def __init__(self, track, renderer):
+        self.track = track
+        super().__init__(renderer)
+
+    def parse_ref_link(self, m, state):
+        k = m.group(2) or m.group(1)
+        self.track.used[k] = True
+        return super().parse_ref_link(m, state)
+
+def extract_links(md_string):
+    """
+    Given a markdown file, as a string, returns a `TrackingDict`
+    containing information about its ref links.
+    """
+
+    track = Tracking()
+
+    # Our construction is reaching into the mistune innards more than ideal.
+    # It works with Debian's python3-mistune 2.0.4-1.
+    renderer = renderer=mistune.AstRenderer();
+    md = mistune.Markdown(
+        renderer,
+        block=TrackingBlockParser(track),
+        inline=TrackingInlineParser(track, renderer),
+    )
+    md(md_string)
+    return track
+
+if __name__ == '__main__':
+    # In theory we ought to be able to load file this as a Python module
+    # instead of running it as a script.  But this does not work
+    # because the Python module loading machinery insists that the filename
+    # must end in .py.  But script names ought not to end in .py.
+    #
+    # The recipe here
+    #    https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+    # does not work with a filename not ending in .py:
+    # "importlib.util.spec_from_file_location" returns None.
+
+    import sys
+    import json
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="extract-md-links")
+    parser.add_argument('filename', nargs='?', default="-")
+    args = parser.parse_args()
+
+    if args.filename == '-':
+        in_file = sys.stdin
+    else:
+        in_file = open(args.filename, 'r')
+
+    text = in_file.read()
+    print(extract_links(text).as_json())
