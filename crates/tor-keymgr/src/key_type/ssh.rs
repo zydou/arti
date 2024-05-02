@@ -125,6 +125,29 @@ impl UnparsedOpenSshKey {
             path,
         }
     }
+
+    /// Parse an OpenSSH key, convert the key material into a known key type, and return the
+    /// type-erased value.
+    ///
+    /// The caller is expected to downcast the value returned to a concrete type.
+    pub(crate) fn parse_ssh_format_erased(self, key_type: &KeyType) -> Result<ErasedKey> {
+        match key_type {
+            KeyType::Ed25519Keypair
+            | KeyType::X25519StaticKeypair
+            | KeyType::Ed25519ExpandedKeypair => {
+                parse_openssh!(PRIVATE self, key_type)
+            }
+            KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
+                parse_openssh!(PUBLIC self, key_type)
+            }
+            KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
+                UnknownKeyTypeError {
+                    arti_extension: arti_extension.clone(),
+                },
+            )
+            .into()),
+        }
+    }
 }
 
 /// SSH key algorithms.
@@ -274,31 +297,6 @@ impl KeyType {
             .into()),
         }
     }
-
-    /// Parse an OpenSSH key, convert the key material into a known key type, and return the
-    /// type-erased value.
-    ///
-    /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn parse_ssh_format_erased(&self, key: UnparsedOpenSshKey) -> Result<ErasedKey> {
-        // TODO: perhaps this needs to be a method on EncodableKey instead?
-
-        match &self {
-            KeyType::Ed25519Keypair
-            | KeyType::X25519StaticKeypair
-            | KeyType::Ed25519ExpandedKeypair => {
-                parse_openssh!(PRIVATE key, self)
-            }
-            KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
-                parse_openssh!(PUBLIC key, self)
-            }
-            KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
-                UnknownKeyTypeError {
-                    arti_extension: arti_extension.clone(),
-                },
-            )
-            .into()),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -325,7 +323,7 @@ mod tests {
         ($key_ty:tt, $key:expr, $expected_ty:path) => {{
             let key_type = KeyType::$key_ty;
             let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/test/path"));
-            let erased_key = key_type.parse_ssh_format_erased(key).unwrap();
+            let erased_key = key.parse_ssh_format_erased(&key_type).unwrap();
 
             assert!(erased_key.downcast::<$expected_ty>().is_ok());
         }};
@@ -333,8 +331,8 @@ mod tests {
         ($key_ty:tt, $key:expr, err = $expect_err:expr) => {{
             let key_type = KeyType::$key_ty;
             let key = UnparsedOpenSshKey::new($key.into(), PathBuf::from("/dummy/path"));
-            let err = key_type
-                .parse_ssh_format_erased(key)
+            let err = key
+                .parse_ssh_format_erased(&key_type)
                 .map(|_| "<type erased key>")
                 .unwrap_err();
 
@@ -346,8 +344,8 @@ mod tests {
     fn wrong_key_type() {
         let key_type = KeyType::Ed25519Keypair;
         let key = UnparsedOpenSshKey::new(OPENSSH_DSA.into(), PathBuf::from("/test/path"));
-        let err = key_type
-            .parse_ssh_format_erased(key)
+        let err = key
+            .parse_ssh_format_erased(&key_type)
             .map(|_| "<type erased key>")
             .unwrap_err();
 

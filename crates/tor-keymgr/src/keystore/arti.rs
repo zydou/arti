@@ -137,8 +137,8 @@ impl Keystore for ArtiNativeKeystore {
             })?,
         };
 
-        key_type
-            .parse_ssh_format_erased(UnparsedOpenSshKey::new(inner, path))
+        UnparsedOpenSshKey::new(inner, path)
+            .parse_ssh_format_erased(key_type)
             .map(Some)
     }
 
@@ -502,8 +502,8 @@ mod tests {
 
         // Insert the key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_kp = KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
+        let erased_kp = key
+            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();
 
         let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
@@ -577,8 +577,8 @@ mod tests {
 
         // Insert another key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_kp = KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
+        let erased_kp = key
+            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();
 
         let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {

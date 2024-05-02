@@ -71,8 +71,8 @@ impl Keystore for ArtiEphemeralKeystore {
             Some(openssh_key) => {
                 let unparsed_openssh_key =
                     UnparsedOpenSshKey::new(openssh_key.to_string(), Default::default());
-                key_type
-                    .parse_ssh_format_erased(unparsed_openssh_key)
+                unparsed_openssh_key
+                    .parse_ssh_format_erased(key_type)
                     .map(Some)
             }
             None => Ok(None),
@@ -103,7 +103,7 @@ impl Keystore for ArtiEphemeralKeystore {
         };
         // verify our serialised key round-trips before saving it to dictionary
         let unparsed_openssh_key = UnparsedOpenSshKey::new(openssh_key.clone(), Default::default());
-        let _ = key_type.parse_ssh_format_erased(unparsed_openssh_key)?;
+        let _ = unparsed_openssh_key.parse_ssh_format_erased(key_type)?;
 
         // save to dictionary
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
