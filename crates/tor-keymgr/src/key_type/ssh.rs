@@ -40,64 +40,6 @@ pub(crate) struct UnparsedOpenSshKey {
     path: PathBuf,
 }
 
-impl UnparsedOpenSshKey {
-    /// Create a new [`UnparsedOpenSshKey`].
-    ///
-    /// The contents of `inner` are erased on drop.
-    pub(crate) fn new(inner: String, path: PathBuf) -> Self {
-        Self {
-            inner: Zeroizing::new(inner),
-            path,
-        }
-    }
-}
-
-/// SSH key algorithms.
-//
-// Note: this contains all the types supported by ssh_key, plus variants representing
-// x25519 and expanded ed25519 keys.
-#[derive(Clone, Debug, PartialEq, derive_more::Display)]
-pub(crate) enum SshKeyAlgorithm {
-    /// Digital Signature Algorithm
-    Dsa,
-    /// Elliptic Curve Digital Signature Algorithm
-    Ecdsa,
-    /// Ed25519
-    Ed25519,
-    /// Expanded Ed25519
-    Ed25519Expanded,
-    /// X25519
-    X25519,
-    /// RSA
-    Rsa,
-    /// FIDO/U2F key with ECDSA/NIST-P256 + SHA-256
-    SkEcdsaSha2NistP256,
-    /// FIDO/U2F key with Ed25519
-    SkEd25519,
-    /// An unrecognized [`ssh_key::Algorithm`].
-    Unknown(ssh_key::Algorithm),
-}
-
-impl From<Algorithm> for SshKeyAlgorithm {
-    fn from(algo: Algorithm) -> SshKeyAlgorithm {
-        match &algo {
-            Algorithm::Dsa => SshKeyAlgorithm::Dsa,
-            Algorithm::Ecdsa { .. } => SshKeyAlgorithm::Ecdsa,
-            Algorithm::Ed25519 => SshKeyAlgorithm::Ed25519,
-            Algorithm::Rsa { .. } => SshKeyAlgorithm::Rsa,
-            Algorithm::SkEcdsaSha2NistP256 => SshKeyAlgorithm::SkEcdsaSha2NistP256,
-            Algorithm::SkEd25519 => SshKeyAlgorithm::SkEd25519,
-            Algorithm::Other(name) => match name.as_str() {
-                X25519_ALGORITHM_NAME => SshKeyAlgorithm::X25519,
-                ED25519_EXPANDED_ALGORITHM_NAME => SshKeyAlgorithm::Ed25519Expanded,
-                _ => SshKeyAlgorithm::Unknown(algo),
-            },
-            // Note: ssh_key::Algorithm is non_exhaustive, so we need this catch-all variant
-            _ => SshKeyAlgorithm::Unknown(algo),
-        }
-    }
-}
-
 /// Parse an OpenSSH key, returning its underlying [`KeyData`], if it's a public key, or
 /// [`KeypairData`], if it's a private one.
 macro_rules! parse_openssh {
@@ -171,6 +113,64 @@ macro_rules! parse_openssh {
             }.into())
         }
     }};
+}
+
+impl UnparsedOpenSshKey {
+    /// Create a new [`UnparsedOpenSshKey`].
+    ///
+    /// The contents of `inner` are erased on drop.
+    pub(crate) fn new(inner: String, path: PathBuf) -> Self {
+        Self {
+            inner: Zeroizing::new(inner),
+            path,
+        }
+    }
+}
+
+/// SSH key algorithms.
+//
+// Note: this contains all the types supported by ssh_key, plus variants representing
+// x25519 and expanded ed25519 keys.
+#[derive(Clone, Debug, PartialEq, derive_more::Display)]
+pub(crate) enum SshKeyAlgorithm {
+    /// Digital Signature Algorithm
+    Dsa,
+    /// Elliptic Curve Digital Signature Algorithm
+    Ecdsa,
+    /// Ed25519
+    Ed25519,
+    /// Expanded Ed25519
+    Ed25519Expanded,
+    /// X25519
+    X25519,
+    /// RSA
+    Rsa,
+    /// FIDO/U2F key with ECDSA/NIST-P256 + SHA-256
+    SkEcdsaSha2NistP256,
+    /// FIDO/U2F key with Ed25519
+    SkEd25519,
+    /// An unrecognized [`ssh_key::Algorithm`].
+    Unknown(ssh_key::Algorithm),
+}
+
+impl From<Algorithm> for SshKeyAlgorithm {
+    fn from(algo: Algorithm) -> SshKeyAlgorithm {
+        match &algo {
+            Algorithm::Dsa => SshKeyAlgorithm::Dsa,
+            Algorithm::Ecdsa { .. } => SshKeyAlgorithm::Ecdsa,
+            Algorithm::Ed25519 => SshKeyAlgorithm::Ed25519,
+            Algorithm::Rsa { .. } => SshKeyAlgorithm::Rsa,
+            Algorithm::SkEcdsaSha2NistP256 => SshKeyAlgorithm::SkEcdsaSha2NistP256,
+            Algorithm::SkEd25519 => SshKeyAlgorithm::SkEd25519,
+            Algorithm::Other(name) => match name.as_str() {
+                X25519_ALGORITHM_NAME => SshKeyAlgorithm::X25519,
+                ED25519_EXPANDED_ALGORITHM_NAME => SshKeyAlgorithm::Ed25519Expanded,
+                _ => SshKeyAlgorithm::Unknown(algo),
+            },
+            // Note: ssh_key::Algorithm is non_exhaustive, so we need this catch-all variant
+            _ => SshKeyAlgorithm::Unknown(algo),
+        }
+    }
 }
 
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
