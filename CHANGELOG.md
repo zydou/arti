@@ -583,7 +583,6 @@ Alexander Færøy, Jim Newsome, Tobias Stoeckmann, and trinity-1686a.
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
-[!1297]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1297
 [!1952]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1952
 [!1958]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1958
 [!1959]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1959
@@ -655,8 +654,10 @@ for funding the development of Arti!
 [83c29b0d805f908e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/83c29b0d805f908e98ed1742491f3145f547fb2e
 [Shadow]: https://shadow.github.io
 [TROVE-2024-001]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
 [`arti`]: https://tpo.pages.torproject.net/core/doc/rust/arti/index.html
+[`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md
 [`list_crates_publish`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/list_crates_publish
 [`semver-checks`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/semver-checks
 [`tor-cell`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cell/index.html
@@ -676,6 +677,8 @@ for funding the development of Arti!
 [educe]: https://crates.io/crates/educe
 [event-listener]: https://crates.io/crates/event-listener
 [f3720ac2c0f16883]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f3720ac2c0f16883abc1597ad828f99022a0e320
+[missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
+[other sponsors]: https://www.torproject.org/about/sponsors/
 [rusqlite]: https://crates.io/crates/rusqlite
 [signature]: https://crates.io/crates/signature
 
@@ -916,8 +919,12 @@ for funding the development of Arti!
 [#1255]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1255
 [#1260]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1260
 [#1261]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1261
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
 [`tor-hscrypto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hscrypto/index.html
+[`tor-netdir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/index.html
+[missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
@@ -1288,6 +1295,7 @@ for funding the development of Arti!
 [#1753]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1753
 [#723]: https://gitlab.torproject.org/tpo/core/arti/-/issues/723
 [#808]: https://gitlab.torproject.org/tpo/core/arti/-/issues/808
+[5d7f70c0fe515aee]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5d7f70c0fe515aee8640f336cc799b70828fd109
 [MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [c5b386fb1009a1d9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5b386fb1009a1d91a830aeb67921c6057b98a1e
@@ -1480,7 +1488,6 @@ for funding the development of Arti!
 [#1080]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1080
 [#751]: https://gitlab.torproject.org/tpo/core/arti/-/issues/751
 [21605d2c9e601c3a]: https://gitlab.torproject.org/tpo/core/arti/-/commit/21605d2c9e601c3a5099bfd8d8c887cbb3b36c0a
-[5d7f70c0fe515aee]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5d7f70c0fe515aee8640f336cc799b70828fd109
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`IoErrorExt`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/trait.IoErrorExt.html
 [`Requestable`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirclient/request/trait.Requestable.html
@@ -1865,7 +1872,6 @@ for funding the development of Arti!
 [9a08f04a7698ae23]: https://gitlab.torproject.org/tpo/core/arti/-/commit/9a08f04a7698ae237e352c57ebb58456e727fc93
 [HashX]: https://lists.torproject.org/pipermail/tor-dev/2020-June/014381.html
 [TROVE-2023-002]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
-[TROVE-2023-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`ClientCirc::send_raw_msg`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/circuit/struct.ClientCirc.html#method.send_raw_msg
 [`DropNotifyEofSignallable::is_eof`]: https://tpo.pages.torproject.net/core/doc/rust/tor_async_utils/trait.DropNotifyEofSignallable.html#method.is_eof
@@ -1878,7 +1884,6 @@ for funding the development of Arti!
 [f4dfc146948d491c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f4dfc146948d491c2a8da0e5e6c8c58cabdf44b4
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [top-level `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md
-[tor#40833]: https://gitlab.torproject.org/tpo/core/tor/-/issues/40833
 
 
 
@@ -3078,6 +3083,7 @@ development of Arti!
 [!1025]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1025
 [!1026]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1026
 [!1029]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1029
+[!1033]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1033
 [!976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/976
 [!990]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/990
 [!994]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/994
@@ -3091,6 +3097,7 @@ development of Arti!
 [#690]: https://gitlab.torproject.org/tpo/core/arti/-/issues/690
 [#744]: https://gitlab.torproject.org/tpo/core/arti/-/issues/744
 [#752]: https://gitlab.torproject.org/tpo/core/arti/-/issues/752
+[#756]: https://gitlab.torproject.org/tpo/core/arti/-/issues/756
 [#760]: https://gitlab.torproject.org/tpo/core/arti/-/issues/760
 [#769]: https://gitlab.torproject.org/tpo/core/arti/-/issues/769
 [#772]: https://gitlab.torproject.org/tpo/core/arti/-/issues/772
@@ -4907,6 +4914,7 @@ Chauhan, and Trinity Pointard.
 [#132]: https://gitlab.torproject.org/tpo/core/arti/-/issues/132
 [#176]: https://gitlab.torproject.org/tpo/core/arti/-/issues/176
 [#248]: https://gitlab.torproject.org/tpo/core/arti/-/issues/248
+[#275]: https://gitlab.torproject.org/tpo/core/arti/-/issues/275
 [#276]: https://gitlab.torproject.org/tpo/core/arti/-/issues/276
 [#277]: https://gitlab.torproject.org/tpo/core/arti/-/issues/277
 [#283]: https://gitlab.torproject.org/tpo/core/arti/-/issues/283
