@@ -227,8 +227,6 @@ for funding the development of Arti!
 
 
 
-
-
 # Arti 1.2.1 — 2 April 2024
 
 Arti 1.2.1 continues development on onion services,
@@ -389,6 +387,7 @@ Neel Chauhan, Tobias Stoeckmann, and trinity-1686a.
 
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
+
 [!1997]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1997
 [!2002]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2002
 [!2008]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2008
@@ -681,6 +680,7 @@ for funding the development of Arti!
 [signature]: https://crates.io/crates/signature
 
 
+
 # Arti 1.1.13 — 5 February 2024
 
 Arti 1.1.13 continues work on support for running onion services.
@@ -820,7 +820,6 @@ Alexander Færøy, Jim Newsome, and ramidzkh.
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
-
 [!1845]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1845
 [!1853]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1853
 [!1859]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1859
@@ -919,6 +918,8 @@ for funding the development of Arti!
 [#1261]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1261
 [`tor-hscrypto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hscrypto/index.html
 [`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
+
+
 
 # Arti 1.1.12 — 9 January 2024
 
@@ -1226,12 +1227,6 @@ Trinity Pointard.
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
-
-
-
-
-
-
 [!1671]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1671
 [!1694]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1694
 [!1710]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1710
@@ -1299,9 +1294,6 @@ for funding the development of Arti!
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [dalek-cryptography]: https://github.com/dalek-cryptography/
 [other sponsors]: https://www.torproject.org/about/sponsors/
-
-
-
 
 
 
@@ -1504,7 +1496,6 @@ for funding the development of Arti!
 
 
 
-
 # Arti 1.1.9 — 2 October 2023
 
 Arti 1.1.9 continues work on support for onion services in arti.
@@ -1612,7 +1603,6 @@ Emil Engler and Saksham Mittal!
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
-
 [!1537]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1537
 [!1557]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1557
 [!1564]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1564
@@ -1661,7 +1651,6 @@ for funding the development of Arti!
 [Google Summer of Code]: https://summerofcode.withgoogle.com/
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [other sponsors]: https://www.torproject.org/about/sponsors/
-
 
 
 
@@ -1785,7 +1774,6 @@ and Trinity Pointard.
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
-
 [!1229]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1229
 [!1444]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1444
 [!1446]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1446
@@ -1891,9 +1879,6 @@ for funding the development of Arti!
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [top-level `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md
 [tor#40833]: https://gitlab.torproject.org/tpo/core/tor/-/issues/40833
-
-
-
 
 
 
@@ -2125,7 +2110,6 @@ for funding the development of Arti!
 [`pwd-grp`]: https://docs.rs/crate/pwd-grp/latest
 [`tor_hsclient::ConnError::Failed`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/enum.ConnError.html#variant.Failed
 [niche optimization]: https://internals.rust-lang.org/t/forbidden-niche-values/14237
-
 
 
 
@@ -2469,10 +2453,6 @@ development of Arti!
 
 
 
-
-
-
-
 # Arti 1.1.5 — 1 June 2023
 
 Arti 1.1.5 fixes a local-only denial-of-service attack, and continues
@@ -2654,6 +2634,7 @@ development of Arti!
 [catastrophic cryptographic results]: https://moderncrypto.org/mail-archive/curves/2020/001012.html
 
 
+
 # Arti 1.1.4 — 3 May 2023
 
 Arti 1.1.4 fixes a major bug in the directory downloading code that
@@ -2802,7 +2783,6 @@ development of Arti!
 
 
 
-
 # tor-llcrypto patch release 0.4.4 — 4 April 2023
 
 On 4 April 2023, we put out a patch release (0.4.4) to `tor-llcrypto`,
@@ -2819,6 +2799,7 @@ Additional resources: [#807] [!1108].
 [!1108]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1108
 [#807]: https://gitlab.torproject.org/tpo/core/arti/-/issues/807
 [`x25519-dalek`]: https://docs.rs/x25519-dalek/latest/x25519_dalek/
+
 
 
 # Arti 1.1.3 — 31 March 2023
@@ -2927,7 +2908,6 @@ the team!
 Also, our deep thanks to [Zcash Community Grants] for funding the
 development of Arti!
 
-
 [!1030]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1030
 [!1034]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1034
 [!1037]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1037
@@ -2976,9 +2956,6 @@ development of Arti!
 [`cargo-semver-checks`]: https://crates.io/crates/cargo-semver-checks
 [`humantime`]: https://crates.io/crates/humantime
 [`tor_bytes::Reader::extract_n`]: https://tpo.pages.torproject.net/core/doc/rust/tor_bytes/struct.Reader.html#method.extract_n
-
-
-
 
 
 
@@ -3134,7 +3111,6 @@ development of Arti!
 
 
 
-
 # Arti 1.1.1 — 1 February 2023
 
 After months of work, we have a new release of Arti!
@@ -3261,7 +3237,6 @@ Michael van Straten, Neel Chauhan, and Trinity Pointard.
 Also, our deep thanks to [Zcash Community Grants] for funding the
 development of Arti 1.1.1!
 
-
 [!600]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/600
 [!915]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/915
 [!920]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/920
@@ -3344,8 +3319,6 @@ development of Arti 1.1.1!
 [proposal 304]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/304-socks5-extending-hs-error-codes.txt
 [proposal 342]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/342-decouple-hs-interval.md
 [tor#40688]: https://gitlab.torproject.org/tpo/core/tor/-/issues/40688
-
-
 
 
 
@@ -3595,7 +3568,6 @@ development of Arti 1.1.0!
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`clap` v3]: https://docs.rs/clap/3.2.23/clap/index.html
 [`hostname-validator`]: https://crates.io/crates/hostname-validator
-
 
 
 
@@ -4060,7 +4032,6 @@ Pospesel, `spongechameleon`, Trinity Pointard, and Yuan Lyu.
 
 
 
-
 # tor-dirmgr patch release 0.5.1 — 14 July 2022
 
 On 14 July 2022, we put out a patch release (0.5.1) to `tor-dirmgr`, to fix
@@ -4470,8 +4441,6 @@ Trinity Pointard.
 
 
 
-
-
 # Arti 0.2.0 — 1 Apr 2022
 
 Arti 0.2.0 makes a large number of changes to Arti's code and
@@ -4702,13 +4671,6 @@ Steven Murdoch, and Trinity Pointard.
 
 
 
-
-
-
-
-
-
-
 # Arti 0.1.0 — 1 Mar 2022
 
 Arti 0.1.0 marks another important step towards stability, and the
@@ -4807,9 +4769,6 @@ this September, will represent an even stronger API commitment.
 Thanks to everybody who has contributed to this release, including
 Daniel Schischkin, Dimitris Apostolou, Michael Prantl, tharvik, Trinity
 Pointard, and Yuan Lyu.
-
-
-
 
 [!262]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/262
 [!264]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/264
@@ -4963,6 +4922,7 @@ Chauhan, and Trinity Pointard.
 [bf8fa66d36298561cc86]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bf8fa66d36298561cc868706f748049cec23f5eb
 
 
+
 # Arti 0.0.3 — 11 Jan 2022
 
 This release adds support for preemptive circuit construction, refactors
@@ -5070,6 +5030,7 @@ Yuan Lyu!
 [`TorClient`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/struct.TorClient.html
 
 
+
 # Arti 0.0.2 — 30 Nov 2021
 
 This release tries to move us towards a more permanent API, and sets the
@@ -5131,6 +5092,8 @@ and Yuan Lyu!
 [!124]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/124
 [!136]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/136
 [efdd3275]: https://gitlab.torproject.org/tpo/core/arti/-/commit/efdd327569990cd9e4d7678bae2ac406baf7b1d5
+
+
 
 # Arti 0.0.1 — 29 Oct 2021
 
@@ -5206,6 +5169,8 @@ Trinity Pointard, Yuan Lyu, dagger, and rls!
 [!111]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/111
 [chutney]: https://gitlab.torproject.org/tpo/core/chutney
 [socks extensions]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/socks-extensions.txt
+
+
 
 # Arti 0.0.0
 
