@@ -69,7 +69,7 @@ macro_rules! parse_openssh {
             }
         })?;
 
-        let wanted_key_algo = $key_type.ssh_algorithm()?;
+        let wanted_key_algo = ssh_algorithm(&$key_type)?;
 
         if SshKeyAlgorithm::from(key.algorithm()) != wanted_key_algo {
             return Err(ArtiNativeKeystoreError::UnexpectedSshKeyType {
@@ -103,6 +103,21 @@ macro_rules! parse_openssh {
             }.into())
         }
     }};
+}
+
+/// Get the algorithm of this key type.
+fn ssh_algorithm(key_type: &KeyType) -> Result<SshKeyAlgorithm> {
+    match key_type {
+        KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => Ok(SshKeyAlgorithm::Ed25519),
+        KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => Ok(SshKeyAlgorithm::X25519),
+        KeyType::Ed25519ExpandedKeypair => Ok(SshKeyAlgorithm::Ed25519Expanded),
+        KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
+            UnknownKeyTypeError {
+                arti_extension: arti_extension.clone(),
+            },
+        )
+        .into()),
+    }
 }
 
 impl UnparsedOpenSshKey {
@@ -224,25 +239,6 @@ fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve2551
     })?;
 
     Ok(curve25519::PublicKey::from(public))
-}
-
-// TODO: this is only used by the ArtiNativeKeystore and returns a (type-erased) ArtiNativeKeystoreError,
-// so it shouldn't be a method on KeyType, but rather a standalone private function
-impl KeyType {
-    /// Get the algorithm of this key type.
-    pub(crate) fn ssh_algorithm(&self) -> Result<SshKeyAlgorithm> {
-        match self {
-            KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => Ok(SshKeyAlgorithm::Ed25519),
-            KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => Ok(SshKeyAlgorithm::X25519),
-            KeyType::Ed25519ExpandedKeypair => Ok(SshKeyAlgorithm::Ed25519Expanded),
-            KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
-                UnknownKeyTypeError {
-                    arti_extension: arti_extension.clone(),
-                },
-            )
-            .into()),
-        }
-    }
 }
 
 #[cfg(test)]
