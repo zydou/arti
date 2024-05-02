@@ -146,18 +146,19 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_llcrypto::pk::ed25519;
+
     use super::*;
 
-    use crate::test_utils::ssh_keys::OPENSSH_ED25519;
     use crate::test_utils::TestSpecifier;
 
     // some helper methods
 
     fn key() -> ErasedKey {
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), Default::default());
-        KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
-            .unwrap()
+        let mut rng = testing_rng();
+        let keypair = ed25519::Keypair::generate(&mut rng);
+        Box::new(keypair)
     }
 
     fn key_type() -> &'static KeyType {
