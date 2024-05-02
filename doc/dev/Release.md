@@ -201,7 +201,12 @@ before you continue!
    If `hashx` or `equix` have changed since the last release, you must also update
    `crates/{hashx,equix}/bench/Cargo.lock`,
    which aren't in the workspace for
-   [Reasons](https://gitlab.torproject.org/tpo/core/arti/-/issues/1351).
+   [Reasons](https://gitlab.torproject.org/tpo/core/arti/-/issues/1351):
+
+```
+		(cd crates/hashx/bench && cargo update)
+		(cd crates/equix/bench && cargo update)
+```
 
 3. Check for side effects from bumping versions!
 
