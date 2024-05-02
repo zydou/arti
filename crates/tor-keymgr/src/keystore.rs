@@ -134,8 +134,6 @@ macro_rules! ssh_to_internal_erased {
     }};
 }
 
-// XXX The convert functions below are copied from key_type/ssh.rs.
-
 /// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
 // TODO remove this allow?
 // clippy wants this whole function to be infallible because

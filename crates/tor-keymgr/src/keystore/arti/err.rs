@@ -62,10 +62,6 @@ pub(crate) enum ArtiNativeKeystoreError {
         err: Arc<ssh_key::Error>,
     },
 
-    /// Found an OpenSSH key that contains invalid key data,
-    #[error("Invalid SSH key data: {0}")]
-    InvalidSshKeyData(String),
-
     /// The OpenSSH key we retrieved is of the wrong type.
     #[error("Unexpected OpenSSH key type: wanted {wanted_key_algo}, found {found_key_algo}")]
     UnexpectedSshKeyType {
@@ -132,7 +128,6 @@ impl HasKind for ArtiNativeKeystoreError {
             KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } => {
                 ErrorKind::KeystoreCorrupted
             }
-            KE::InvalidSshKeyData(_) => ErrorKind::KeystoreCorrupted,
             KE::Bug(e) => e.kind(),
         }
     }
