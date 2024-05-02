@@ -18,7 +18,7 @@
 set -e
 
 origin='git@gitlab.torproject.org:tpo/core/arti main'
-maint="${0%/*}"
+maint="$(dirname "$0")"
 : "${CARGO:=cargo}"
 
 # Note for users of nailing-cargo: use this setting:
