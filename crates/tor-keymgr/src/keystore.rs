@@ -10,16 +10,18 @@ use rand::{CryptoRng, RngCore};
 use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair};
 use ssh_key::public::{Ed25519PublicKey, KeyData, OpaquePublicKey};
 use ssh_key::{Algorithm, AlgorithmName};
-use tor_error::internal;
+use tor_error::{internal, into_internal};
 use tor_hscrypto::pk::{
     HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair, HsDescSigningKeypair, HsIdKey,
     HsIdKeypair, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair,
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
 
-use crate::key_type::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
+use crate::key_type::ssh::{
+    SshKeyAlgorithm, ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME,
+};
 use crate::key_type::KeyType;
-use crate::{KeyPath, KeySpecifier, KeystoreId, Result};
+use crate::{Error, KeyPath, KeySpecifier, KeystoreId, Result};
 
 use downcast_rs::{impl_downcast, Downcast};
 
@@ -92,6 +94,133 @@ pub trait Keygen {
         Self: Sized;
 }
 
+/// Convert ssh_key KeyData or KeypairData to one of our key types.
+macro_rules! ssh_to_internal_erased {
+    (PRIVATE $key:expr, $algo:expr) => {{
+        ssh_to_internal_erased!(
+            $key,
+            $algo,
+            convert_ed25519_kp,
+            convert_expanded_ed25519_kp,
+            convert_x25519_kp,
+            KeypairData
+        )
+    }};
+
+    (PUBLIC $key:expr, $algo:expr) => {{
+        ssh_to_internal_erased!(
+            $key,
+            $algo,
+            convert_ed25519_pk,
+            convert_expanded_ed25519_pk,
+            convert_x25519_pk,
+            KeyData
+        )
+    }};
+
+    ($key:expr, $algo:expr, $ed25519_fn:path, $expanded_ed25519_fn:path, $x25519_fn:path, $key_data_ty:tt) => {{
+        let key = $key;
+        let algo = SshKeyAlgorithm::from($algo);
+
+        // Build the expected key type (i.e. convert ssh_key key types to the key types
+        // we're using internally).
+        match key {
+            $key_data_ty::Ed25519(key) => Ok($ed25519_fn(&key).map(Box::new)?),
+            $key_data_ty::Other(other) => match algo {
+                SshKeyAlgorithm::X25519 => Ok($x25519_fn(&other).map(Box::new)?),
+                SshKeyAlgorithm::Ed25519Expanded => Ok($expanded_ed25519_fn(&other).map(Box::new)?),
+                _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
+            },
+            _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
+        }
+    }};
+}
+
+// XXX The convert functions below are copied from key_type/ssh.rs.
+
+/// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
+// TODO remove this allow?
+// clippy wants this whole function to be infallible because
+// nowadays ed25519::Keypair can be made infallibly from bytes,
+// but is that really right?
+#[allow(clippy::unnecessary_fallible_conversions)]
+fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519::Keypair> {
+    Ok(ed25519::Keypair::try_from(&key.private.to_bytes())
+        .map_err(|_| internal!("bad ed25519 keypair"))?)
+}
+
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::StaticKeypair`].
+fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519::StaticKeypair> {
+    let public: [u8; 32] = key
+        .public
+        .as_ref()
+        .try_into()
+        .map_err(|_| internal!("bad x25519 public key length"))?;
+
+    let secret: [u8; 32] = key
+        .private
+        .as_ref()
+        .try_into()
+        .map_err(|_| internal!("bad x25519 secret key length"))?;
+
+    Ok(curve25519::StaticKeypair {
+        public: public.into(),
+        secret: secret.into(),
+    })
+}
+
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to an [`ed25519::ExpandedKeypair`].
+fn convert_expanded_ed25519_kp(
+    key: &ssh_key::private::OpaqueKeypair,
+) -> Result<ed25519::ExpandedKeypair> {
+    let public = ed25519::PublicKey::try_from(key.public.as_ref())
+        .map_err(|_| internal!("bad expanded ed25519 public key "))?;
+
+    let keypair = ed25519::ExpandedKeypair::from_secret_key_bytes(
+        key.private
+            .as_ref()
+            .try_into()
+            .map_err(|_| internal!("bad length on expanded ed25519 secret key ",))?,
+    )
+    .ok_or_else(|| internal!("bad expanded ed25519 secret key "))?;
+
+    if &public != keypair.public() {
+        return Err(internal!("mismatched ed25519 keypair",).into());
+    }
+
+    Ok(keypair)
+}
+
+/// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
+fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
+    Ok(ed25519::PublicKey::from_bytes(key.as_ref())
+        .map_err(|_| internal!("bad ed25519 public key "))?)
+}
+
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to an [`ed25519::PublicKey`].
+///
+/// This function always returns an error because the custom `ed25519-expanded@spec.torproject.org`
+/// SSH algorithm should not be used for ed25519 public keys (only for expanded ed25519 key
+/// _pairs_). This function is needed for the [`ssh_to_internal_erased!`] macro.
+fn convert_expanded_ed25519_pk(
+    _key: &ssh_key::public::OpaquePublicKey,
+) -> Result<ed25519::PublicKey> {
+    Err(internal!(
+        "invalid ed25519 public key (ed25519 public keys should be stored as ssh-ed25519)",
+    )
+    .into())
+}
+
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
+fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve25519::PublicKey> {
+    let public: [u8; 32] = key
+        .as_ref()
+        .try_into()
+        .map_err(|_| internal!("bad x25519 public key length"))?;
+
+    Ok(curve25519::PublicKey::from(public))
+}
+
 /// A public key or a keypair.
 #[derive(From, Clone, Debug)]
 #[non_exhaustive]
@@ -116,6 +245,25 @@ impl SshKeyData {
         match self {
             SshKeyData::Public(_) => Err(self),
             SshKeyData::Private(keypair_data) => Ok(keypair_data),
+        }
+    }
+
+    /// Convert the key material into a known key type,
+    /// and return the type-erased value.
+    ///
+    /// The caller is expected to downcast the value returned to the correct concrete type.
+    pub fn into_erased(self) -> Result<ErasedKey> {
+        match self {
+            SshKeyData::Private(key) => {
+                let algorithm = key
+                    .algorithm()
+                    .map_err(into_internal!("unsupported key type"))?;
+                ssh_to_internal_erased!(PRIVATE key, algorithm)
+            }
+            SshKeyData::Public(key) => {
+                let algorithm = key.algorithm();
+                ssh_to_internal_erased!(PUBLIC key, algorithm)
+            }
         }
     }
 }
