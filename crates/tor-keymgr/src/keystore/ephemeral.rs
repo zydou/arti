@@ -5,11 +5,6 @@ pub(crate) mod err;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use ssh_key::private::PrivateKey;
-use ssh_key::{LineEnding, PublicKey};
-use zeroize::Zeroizing;
-
-use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;
 use crate::{
@@ -19,8 +14,6 @@ use crate::{
 
 /// The identifier of a key stored in the `ArtiEphemeralKeystore`.
 type KeyIdent = (ArtiPath, KeyType);
-/// The value of a key stored in `ArtiEphemeralKeystore`
-type KeyValue = Zeroizing<String>;
 
 /// The Ephemeral Arti key store
 ///
@@ -31,7 +24,7 @@ pub struct ArtiEphemeralKeystore {
     /// Identifier hard-coded to 'ephemeral'
     id: KeystoreId,
     /// Keys stored as openssl-encoded zeroizing strings
-    key_dictionary: Arc<Mutex<HashMap<KeyIdent, KeyValue>>>,
+    key_dictionary: Arc<Mutex<HashMap<KeyIdent, SshKeyData>>>,
 }
 
 impl ArtiEphemeralKeystore {
@@ -68,12 +61,9 @@ impl Keystore for ArtiEphemeralKeystore {
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
         match key_dictionary.get(&(arti_path.clone(), key_type.clone())) {
-            Some(openssh_key) => {
-                let unparsed_openssh_key =
-                    UnparsedOpenSshKey::new(openssh_key.to_string(), Default::default());
-                unparsed_openssh_key
-                    .parse_ssh_format_erased(key_type)
-                    .map(Some)
+            Some(key) => {
+                let key: ErasedKey = key.clone().into_erased()?;
+                Ok(Some(key))
             }
             None => Ok(None),
         }
@@ -88,26 +78,11 @@ impl Keystore for ArtiEphemeralKeystore {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
-        // serialise key to string
-        let ssh_data = key.as_ssh_key_data()?;
-        let comment = "";
-        let openssh_key = match ssh_data {
-            SshKeyData::Public(key_data) => PublicKey::new(key_data, comment)
-                .to_openssh()
-                .map_err(ArtiEphemeralKeystoreError::SshKeySerialize)?,
-            SshKeyData::Private(keypair) => PrivateKey::new(keypair, comment)
-                .map_err(ArtiEphemeralKeystoreError::SshKeySerialize)?
-                .to_openssh(LineEnding::LF)
-                .map_err(ArtiEphemeralKeystoreError::SshKeySerialize)?
-                .to_string(),
-        };
-        // verify our serialised key round-trips before saving it to dictionary
-        let unparsed_openssh_key = UnparsedOpenSshKey::new(openssh_key.clone(), Default::default());
-        let _ = unparsed_openssh_key.parse_ssh_format_erased(key_type)?;
+        let key_data = key.as_ssh_key_data()?;
 
         // save to dictionary
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
-        let _ = key_dictionary.insert((arti_path, key_type.clone()), openssh_key.into());
+        let _ = key_dictionary.insert((arti_path, key_type.clone()), key_data);
         Ok(())
     }
 
