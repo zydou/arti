@@ -37,6 +37,14 @@ maint-checks:
     - ./maint/add_warning --check
     - ./maint/shebang
 
+maint-check-changelog:
+  stage: test
+  image: debian:bookworm-slim
+  script:
+    - apt-get update && apt-get install -y python3-mistune git
+    - git fetch --unshallow $ORIGIN
+    - ./maint/update-md-links --check CHANGELOG.md
+
 # non-blocking for now, see
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/581
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
