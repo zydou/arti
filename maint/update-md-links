@@ -64,6 +64,8 @@ parser = argparse.ArgumentParser(
     description="update links in a markdown document",
 )
 parser.add_argument('filename')
+parser.add_argument('--check', action='store_true',
+                    help='Check that everything is up to date; make no changes')
 
 args = parser.parse_args()
 
@@ -257,4 +259,11 @@ if troubles != 0:
     print('trouble, not installing %s' % new_filename, file=sys.stderr)
     sys.exit(12)
 
-os.rename(new_filename, args.filename)
+if args.check:
+    r = subprocess.run(['diff', '-u', '--', args.filename, new_filename])
+    if r.returncode == 1:
+        print('CHANGELOG links not up to date.', file=sys.stderr)
+        sys.exit(1)
+    assert(r.returncode == 0)
+else:
+    os.rename(new_filename, args.filename)
