@@ -187,8 +187,6 @@ for funding the development of Arti!
 [!2107]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2107
 [!2109]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2109
 [!2111]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2111
-[#504]: https://gitlab.torproject.org/tpo/core/arti/-/issues/504
-[#838]: https://gitlab.torproject.org/tpo/core/arti/-/issues/838
 [#1259]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1259
 [#1267]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1267
 [#1268]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1268
@@ -212,8 +210,9 @@ for funding the development of Arti!
 [#1379]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1379
 [#1380]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1380
 [#1381]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1381
+[#504]: https://gitlab.torproject.org/tpo/core/arti/-/issues/504
+[#838]: https://gitlab.torproject.org/tpo/core/arti/-/issues/838
 [3f2dcaca31992018f825]: https://gitlab.torproject.org/tpo/core/arti/-/commit/3f2dcaca31992018f825f616ed98c8055c9acf62
-[c5a91130fff6af25]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5a91130fff6af2527b38ec2c44900eb81c9b1c7
 [Vanguards]: https://github.com/mikeperry-tor/vanguards/blob/master/README_TECHNICAL.md
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`KeyMgr`]: https://docs.rs/tor-keymgr/latest/tor_keymgr/struct.KeyMgr.html
@@ -223,6 +222,7 @@ for funding the development of Arti!
 [`config-rs`]: https://docs.rs/config/latest/config/
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
 [`figment`]: https://docs.rs/figment/latest/figment/
+[c5a91130fff6af25]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5a91130fff6af2527b38ec2c44900eb81c9b1c7
 [other sponsors]: https://www.torproject.org/about/sponsors/
 
 
@@ -422,9 +422,6 @@ for funding the development of Arti!
 [!2053]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2053
 [!2054]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2054
 [!2055]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2055
-[#504]: https://gitlab.torproject.org/tpo/core/arti/-/issues/504
-[#755]: https://gitlab.torproject.org/tpo/core/arti/-/issues/755
-[#789]: https://gitlab.torproject.org/tpo/core/arti/-/issues/789
 [#1005]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1005
 [#1124]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1124
 [#1212]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1212
@@ -437,15 +434,18 @@ for funding the development of Arti!
 [#1311]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1311
 [#1332]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1332
 [#1340]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1340
+[#504]: https://gitlab.torproject.org/tpo/core/arti/-/issues/504
+[#755]: https://gitlab.torproject.org/tpo/core/arti/-/issues/755
+[#789]: https://gitlab.torproject.org/tpo/core/arti/-/issues/789
 [4c1eb94173521bc5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/4c1eb94173521bc5104449327650e20ffe32afa7
 [95ed432c13c2c4b2]: https://gitlab.torproject.org/tpo/core/arti/-/commit/95ed432c13c2c4b2d287f7a7a040576627687dbf
-[d63d966d79f0f988]: https://gitlab.torproject.org/tpo/core/arti/-/commit/d63d966d79f0f988522c76c729a5189d16275b27
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`Runtime`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.Runtime.html
 [`coarsetime`]: https://docs.rs/coarsetime/latest/coarsetime/
 [`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md
 [`doc/Semver.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/Semver.md
 [`unchecked_duration_subtraction`]: https://rust-lang.github.io/rust-clippy/master/index.html#/unchecked_duration_subtraction
+[d63d966d79f0f988]: https://gitlab.torproject.org/tpo/core/arti/-/commit/d63d966d79f0f988522c76c729a5189d16275b27
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [prop340]: https://spec.torproject.org/proposals/340-packed-and-fragmented.html
 [vanguards]: https://github.com/mikeperry-tor/vanguards/blob/master/README_TECHNICAL.md
@@ -584,11 +584,11 @@ Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
 [!1297]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1297
-[!1961]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1961
 [!1952]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1952
 [!1958]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1958
 [!1959]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1959
 [!1960]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1960
+[!1961]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1961
 [!1963]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1963
 [!1965]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1965
 [!1966]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1966
@@ -650,13 +650,9 @@ for funding the development of Arti!
 [1040df929f643a2f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1040df929f643a2fd2a1ccb0400f1dd2f2beac98
 [1a900081e945679e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1a900081e945679e80d29797ae00c206f2cd78f1
 [489a2555f28daa6d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/489a2555f28daa6d5f523480f434f27292783abd
+[6c9e70e39ab279aa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/6c9e70e39ab279aa99634d216847627f1cd62f2a
 [72c021555e1095f1]: https://gitlab.torproject.org/tpo/core/arti/-/commit/72c021555e1095f1be3f658acac5655b54842347
 [83c29b0d805f908e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/83c29b0d805f908e98ed1742491f3145f547fb2e
-[b03e5d5e11c52faf]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b03e5d5e11c52faf441294c8c883a2dfbc0d2021
-[b515baf27f194470]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b515baf27f1944708285849503dfcd08bb7ac73b
-[bd85bffd0a388f57]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bd85bffd0a388f579d42c8a0758091232bf901a0
-[f3720ac2c0f16883]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f3720ac2c0f16883abc1597ad828f99022a0e320
-[6c9e70e39ab279aa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/6c9e70e39ab279aa99634d216847627f1cd62f2a
 [Shadow]: https://shadow.github.io
 [TROVE-2024-001]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
@@ -672,10 +668,14 @@ for funding the development of Arti!
 [`tor-keymgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_keymgr/index.html
 [`tor-persist`]: https://tpo.pages.torproject.net/core/doc/rust/tor_persist/index.html
 [async-broadcast]: https://crates.io/crates/async-broadcast
+[b03e5d5e11c52faf]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b03e5d5e11c52faf441294c8c883a2dfbc0d2021
+[b515baf27f194470]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b515baf27f1944708285849503dfcd08bb7ac73b
+[bd85bffd0a388f57]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bd85bffd0a388f579d42c8a0758091232bf901a0
 [config]: https://crates.io/crates/config
 [curve25519-dalek]: https://crates.io/crates/curve25519-dalek
 [educe]: https://crates.io/crates/educe
 [event-listener]: https://crates.io/crates/event-listener
+[f3720ac2c0f16883]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f3720ac2c0f16883abc1597ad828f99022a0e320
 [rusqlite]: https://crates.io/crates/rusqlite
 [signature]: https://crates.io/crates/signature
 
@@ -916,8 +916,8 @@ for funding the development of Arti!
 [#1255]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1255
 [#1260]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1260
 [#1261]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1261
-[`tor-hscrypto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hscrypto/index.html
 [`tor-hsclient`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/index.html
+[`tor-hscrypto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hscrypto/index.html
 
 
 
@@ -1080,9 +1080,8 @@ for funding the development of Arti!
 [!1841]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1841
 [!1843]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1843
 [!1847]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1847
+[!1851]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1851
 [!1852]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1852
-[#775]: https://gitlab.torproject.org/tpo/core/arti/-/issues/775
-[#967]: https://gitlab.torproject.org/tpo/core/arti/-/issues/967
 [#1019]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1019
 [#1043]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1043
 [#1071]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1071
@@ -1091,29 +1090,30 @@ for funding the development of Arti!
 [#1089]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1089
 [#1097]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1097
 [#1108]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1108
+[#1126]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1126
 [#1127]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1127
 [#1129]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1129
 [#1130]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1130
 [#1132]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1132
 [#1142]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1142
+[#1147]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1147
+[#1151]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1151
 [#1155]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1155
 [#1157]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1157
 [#1175]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1175
-[!1851]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1851
-[#1126]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1126
-[#1147]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1147
-[#1151]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1151
+[#775]: https://gitlab.torproject.org/tpo/core/arti/-/issues/775
+[#967]: https://gitlab.torproject.org/tpo/core/arti/-/issues/967
 [00903e22bb978295]: https://gitlab.torproject.org/tpo/core/arti/-/commit/00903e22bb9782958135a7061dcfb523e4ebc91f
 [1990bbdffd87abaa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1990bbdffd87abaa6fa70fc29a9b2d191e35575a
 [1ac515c183bf8c1d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1ac515c183bf8c1d7e07bccd0fdbd3644041b250
 [49ece08bafc115ce]: https://gitlab.torproject.org/tpo/core/arti/-/commit/49ece08bafc115ce99ced38f659ac7f72bab947b
 [4d7aeeab57577c98]: https://gitlab.torproject.org/tpo/core/arti/-/commit/4d7aeeab57577c98a15aa78ef5cd5de7652f39e8
-[f26b00b3179a7e13]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f26b00b3179a7e135960972e8c922d824a62ee0e
-[f7772f127e895d96]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f7772f127e895d9655346cf69fd2134ac8e225de
 [Shadow]: https://shadow.github.io
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`doc/OnionService.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/OnionService.md
 [`ntor_v3`]: https://spec.torproject.org/tor-spec/create-created-cells.html#ntor-v3
+[f26b00b3179a7e13]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f26b00b3179a7e135960972e8c922d824a62ee0e
+[f7772f127e895d96]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f7772f127e895d9655346cf69fd2134ac8e225de
 [missing security features]: https://gitlab.torproject.org/tpo/core/arti/-/issues/?label_name%5B%5D=Onion%20Services%3A%20Improved%20Security
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [proposal 340]: https://spec.torproject.org/proposals/340-packed-and-fragmented.html
@@ -1258,10 +1258,10 @@ for funding the development of Arti!
 [!1751]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1751
 [!1752]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1752
 [!1755]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1755
+[!1756]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1756
 [!1759]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1759
 [!1760]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1760
 [!1762]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1762
-[!1756]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1756
 [!1765]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1765
 [!1767]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1767
 [!1771]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1771
@@ -1269,8 +1269,6 @@ for funding the development of Arti!
 [!1774]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1774
 [!1779]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1779
 [!1780]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1780
-[#723]: https://gitlab.torproject.org/tpo/core/arti/-/issues/723
-[#808]: https://gitlab.torproject.org/tpo/core/arti/-/issues/808
 [#1024]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1024
 [#1037]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1037
 [#1053]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1053
@@ -1288,11 +1286,13 @@ for funding the development of Arti!
 [#1114]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1114
 [#1117]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1117
 [#1753]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1753
-[c5b386fb1009a1d9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5b386fb1009a1d91a830aeb67921c6057b98a1e
-[ee96e5e454ba5db2]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ee96e5e454ba5db27daaab0f8757732994454f0b
+[#723]: https://gitlab.torproject.org/tpo/core/arti/-/issues/723
+[#808]: https://gitlab.torproject.org/tpo/core/arti/-/issues/808
 [MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
+[c5b386fb1009a1d9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c5b386fb1009a1d91a830aeb67921c6057b98a1e
 [dalek-cryptography]: https://github.com/dalek-cryptography/
+[ee96e5e454ba5db2]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ee96e5e454ba5db27daaab0f8757732994454f0b
 [other sponsors]: https://www.torproject.org/about/sponsors/
 
 
@@ -1470,7 +1470,6 @@ for funding the development of Arti!
 [!1703]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1703
 [!1711]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1711
 [!1712]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1712
-[#751]: https://gitlab.torproject.org/tpo/core/arti/-/issues/751
 [#1039]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1039
 [#1051]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1051
 [#1059]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1059
@@ -1479,9 +1478,10 @@ for funding the development of Arti!
 [#1065]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1065
 [#1078]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1078
 [#1080]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1080
+[#751]: https://gitlab.torproject.org/tpo/core/arti/-/issues/751
 [21605d2c9e601c3a]: https://gitlab.torproject.org/tpo/core/arti/-/commit/21605d2c9e601c3a5099bfd8d8c887cbb3b36c0a
 [5d7f70c0fe515aee]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5d7f70c0fe515aee8640f336cc799b70828fd109
-[cfe641613e6b6f4f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cfe641613e6b6f4f55de87621eadacf24d22a939
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`IoErrorExt`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/trait.IoErrorExt.html
 [`Requestable`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirclient/request/trait.Requestable.html
 [`tor-basic-utils`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/index.html
@@ -1491,7 +1491,7 @@ for funding the development of Arti!
 [`tor-proto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/index.html
 [a bug in `FusedFuture for oneshot::Receiver`]: https://github.com/rust-lang/futures-rs/issues/2455
 [a bug in `config-rs`]: https://github.com/mehcode/config-rs/issues/464
-[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[cfe641613e6b6f4f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cfe641613e6b6f4f55de87621eadacf24d22a939
 [other sponsors]: https://www.torproject.org/about/sponsors/
 
 
@@ -1840,6 +1840,10 @@ for funding the development of Arti!
 [!1550]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1550
 [!1555]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1555
 [!1559]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1559
+[#1000]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1000
+[#1009]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1009
+[#1010]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1010
+[#1013]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1013
 [#864]: https://gitlab.torproject.org/tpo/core/arti/-/issues/864
 [#880]: https://gitlab.torproject.org/tpo/core/arti/-/issues/880
 [#936]: https://gitlab.torproject.org/tpo/core/arti/-/issues/936
@@ -1858,15 +1862,7 @@ for funding the development of Arti!
 [#994]: https://gitlab.torproject.org/tpo/core/arti/-/issues/994
 [#996]: https://gitlab.torproject.org/tpo/core/arti/-/issues/996
 [#998]: https://gitlab.torproject.org/tpo/core/arti/-/issues/998
-[#1000]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1000
-[#1009]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1009
-[#1010]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1010
-[#1013]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1013
 [9a08f04a7698ae23]: https://gitlab.torproject.org/tpo/core/arti/-/commit/9a08f04a7698ae237e352c57ebb58456e727fc93
-[bbed17ba4a44a4690ad6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bbed17ba4a44a4690ad68e34844329d6542cc184
-[cd6c4674dc560d9c1dc3]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cd6c4674dc560d9c1dc355cac627edac32138f2c
-[eee3bb8822dd22a4]: https://gitlab.torproject.org/tpo/core/arti/-/commit/eee3bb8822dd22a48b58bfb9a42cb0eaa952138d
-[f4dfc146948d491c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f4dfc146948d491c2a8da0e5e6c8c58cabdf44b4
 [HashX]: https://lists.torproject.org/pipermail/tor-dev/2020-June/014381.html
 [TROVE-2023-002]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2023-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
@@ -1876,6 +1872,10 @@ for funding the development of Arti!
 [`OnionAddressDisabled`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/enum.ErrorDetail.html#variant.OnionAddressDisabled
 [`start_conversation`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/circuit/struct.ClientCirc.html#method.start_conversation
 [`tor-proto`]: https://tpo.pages.torproject.net/core/doc/rust/tor_proto/index.html
+[bbed17ba4a44a4690ad6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bbed17ba4a44a4690ad68e34844329d6542cc184
+[cd6c4674dc560d9c1dc3]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cd6c4674dc560d9c1dc355cac627edac32138f2c
+[eee3bb8822dd22a4]: https://gitlab.torproject.org/tpo/core/arti/-/commit/eee3bb8822dd22a48b58bfb9a42cb0eaa952138d
+[f4dfc146948d491c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f4dfc146948d491c2a8da0e5e6c8c58cabdf44b4
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [top-level `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md
 [tor#40833]: https://gitlab.torproject.org/tpo/core/tor/-/issues/40833
@@ -2094,9 +2094,6 @@ for funding the development of Arti!
 [#961]: https://gitlab.torproject.org/tpo/core/arti/-/issues/961
 [36b9d11ecb122e1e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/36b9d11ecb122e1ea82a13fa963c35e023f14d3a
 [5b97b0b2ce31b3db]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5b97b0b2ce31b3dbe1ab9cf0d33109457d1aea47
-[c98894cebc60e223]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c98894cebc60e223d9067636337b8e737d08ad51
-[cdafa2ce0191f612]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cdafa2ce0191f612342252e56dfeee86cf29e68f
-[other sponsors]: https://www.torproject.org/about/sponsors/
 [EquiX]: https://github.com/tevador/equix/blob/master/devlog.md
 [HashX]: https://lists.torproject.org/pipermail/tor-dev/2020-June/014381.html
 [Shadow]: https://shadow.github.io
@@ -2109,7 +2106,10 @@ for funding the development of Arti!
 [`fs-mistrust`]: https://tpo.pages.torproject.net/core/doc/rust/fs_mistrust/index.html
 [`pwd-grp`]: https://docs.rs/crate/pwd-grp/latest
 [`tor_hsclient::ConnError::Failed`]: https://tpo.pages.torproject.net/core/doc/rust/tor_hsclient/enum.ConnError.html#variant.Failed
+[c98894cebc60e223]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c98894cebc60e223d9067636337b8e737d08ad51
+[cdafa2ce0191f612]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cdafa2ce0191f612342252e56dfeee86cf29e68f
 [niche optimization]: https://internals.rust-lang.org/t/forbidden-niche-values/14237
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
@@ -2413,7 +2413,6 @@ development of Arti!
 [!1339]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1339
 [!1340]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1340
 [!1342]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1342
-[#98]: https://gitlab.torproject.org/tpo/core/arti/-/issues/98
 [#736]: https://gitlab.torproject.org/tpo/core/arti/-/issues/736
 [#787]: https://gitlab.torproject.org/tpo/core/arti/-/issues/787
 [#863]: https://gitlab.torproject.org/tpo/core/arti/-/issues/863
@@ -2433,6 +2432,7 @@ development of Arti!
 [#926]: https://gitlab.torproject.org/tpo/core/arti/-/issues/926
 [#928]: https://gitlab.torproject.org/tpo/core/arti/-/issues/928
 [#935]: https://gitlab.torproject.org/tpo/core/arti/-/issues/935
+[#98]: https://gitlab.torproject.org/tpo/core/arti/-/issues/98
 [1691c353924f89cc]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1691c353924f89cc9026b67578a84959840bb987
 [205b6d176c4a619b]: https://gitlab.torproject.org/tpo/core/arti/-/commit/205b6d176c4a619b8665ca4095471aea07be29ca
 [25db56777c0042a9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/25db56777c0042a93daa7b37fc4a31e27181dc7d
@@ -2441,13 +2441,13 @@ development of Arti!
 [589fefd581e962a7]: https://gitlab.torproject.org/tpo/core/arti/-/commit/589fefd581e962a7f071142bbc047b6e22adea19
 [58babcb756f6427c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/58babcb756f6427cc76f2d44a1663f07405563d7
 [686d5cf2093322e4]: https://gitlab.torproject.org/tpo/core/arti/-/commit/686d5cf2093322e4408513daf832af6693fa67a9
-[a902f320b5b31812]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a902f320b5b31812fabc42b95a38b5453f050e7f
-[bb6115103aad177c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bb6115103aad177c0b57918b1cb8cf0e8280223e
 [README.md]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`arrayref`]: https://docs.rs/arrayref/latest/arrayref/
 [`cargo-semver-checks`]: https://crates.io/crates/cargo-semver-checks
 [`users`]: https://crates.io/crates/users
+[a902f320b5b31812]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a902f320b5b31812fabc42b95a38b5453f050e7f
+[bb6115103aad177c]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bb6115103aad177c0b57918b1cb8cf0e8280223e
 [proposal 304]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/304-socks5-extending-hs-error-codes.txt
 [re-upgrade]: https://gitlab.torproject.org/tpo/core/arti/-/issues/808
 
@@ -2624,14 +2624,14 @@ development of Arti!
 [02785ca6505572bd]: https://gitlab.torproject.org/tpo/core/arti/-/commit/02785ca6505572bdbfaa560178f299e30f7bc7e8
 [18cb1671c4135b3d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/18cb1671c4135b3d875dd0a296f5d2ae19c3d0c5
 [7ce808b75bb500f2]: https://gitlab.torproject.org/tpo/core/arti/-/commit/7ce808b75bb500f27ce7837d4f76cbf7fc1ee705
-[d7ab388faf96f53e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/d7ab388faf96f53e7981e8307f51a16e7891627b
-[e5fa42e1c7957db0]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e5fa42e1c7957db06e051207b450bd88c2427c85
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`fixup-features`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint/fixup-features
 [`tor-cell`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cell/index.html
 [`tor-linkspec`]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/tor-linkspec
 [`tor-netdoc`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdoc/index.html
 [catastrophic cryptographic results]: https://moderncrypto.org/mail-archive/curves/2020/001012.html
+[d7ab388faf96f53e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/d7ab388faf96f53e7981e8307f51a16e7891627b
+[e5fa42e1c7957db0]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e5fa42e1c7957db06e051207b450bd88c2427c85
 
 
 
@@ -3062,11 +3062,6 @@ Dimitris Apostolou, Emil Engler, and Shady Katy.
 Also, our deep thanks to [Zcash Community Grants] for funding the
 development of Arti!
 
-[!976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/976
-[!990]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/990
-[!994]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/994
-[!997]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/997
-[!999]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/999
 [!1004]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1004
 [!1006]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1006
 [!1008]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1008
@@ -3083,7 +3078,11 @@ development of Arti!
 [!1025]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1025
 [!1026]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1026
 [!1029]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1029
-[#7]: https://gitlab.torproject.org/tpo/core/arti/-/issues/7
+[!976]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/976
+[!990]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/990
+[!994]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/994
+[!997]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/997
+[!999]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/999
 [#525]: https://gitlab.torproject.org/tpo/core/arti/-/issues/525
 [#578]: https://gitlab.torproject.org/tpo/core/arti/-/issues/578
 [#579]: https://gitlab.torproject.org/tpo/core/arti/-/issues/579
@@ -3097,17 +3096,18 @@ development of Arti!
 [#772]: https://gitlab.torproject.org/tpo/core/arti/-/issues/772
 [#773]: https://gitlab.torproject.org/tpo/core/arti/-/issues/773
 [#776]: https://gitlab.torproject.org/tpo/core/arti/-/issues/776
+[#7]: https://gitlab.torproject.org/tpo/core/arti/-/issues/7
 [266c61f7213dbec7]: https://gitlab.torproject.org/tpo/core/arti/-/commit/266c61f7213dbec7feacac256bd87329837535e2
 [5521df0909ff7afa]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5521df0909ff7afa2d78304c9376861dfcf7041a
-[bb2ab7c2a3e0994bb43]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bb2ab7c2a3e0994bb438188511688b5b039cae29
-[ca3b33a1afc58b84]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ca3b33a1afc58b84cc7a39ea3845a82f17cee0da
-[f69d7f96ac40dda5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f69d7f96ac40dda53a8f4f6c01557195faaeff7c
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`IntegerMinutes`]: https://tpo.pages.torproject.net/core/doc/rust/tor_units/struct.IntegerMinutes.html
 [`PartialNetDir::fill_from_previous_netdir()`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/struct.PartialNetDir.html#method.fill_from_previous_netdir
 [`tor-netdir`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/index.html
 [`tor-netdoc`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdoc/index.html
 [`typed_index_collections`]: https://docs.rs/typed-index-collections/latest/typed_index_collections/
+[bb2ab7c2a3e0994bb43]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bb2ab7c2a3e0994bb438188511688b5b039cae29
+[ca3b33a1afc58b84]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ca3b33a1afc58b84cc7a39ea3845a82f17cee0da
+[f69d7f96ac40dda5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/f69d7f96ac40dda53a8f4f6c01557195faaeff7c
 
 
 
@@ -3537,6 +3537,7 @@ development of Arti 1.1.0!
 [!893]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/893
 [!901]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/901
 [!903]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/903
+["Minimum supported Rust Version" in `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md#minimum-supported-rust-version
 [#174]: https://gitlab.torproject.org/tpo/core/arti/-/issues/174
 [#303]: https://gitlab.torproject.org/tpo/core/arti/-/issues/303
 [#394]: https://gitlab.torproject.org/tpo/core/arti/-/issues/394
@@ -3560,14 +3561,13 @@ development of Arti 1.1.0!
 [#659]: https://gitlab.torproject.org/tpo/core/arti/-/issues/659
 [19fdf196d89e670f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/19fdf196d89e670f3487caa756a8194076f9226b
 [95a95076a77f4447]: https://gitlab.torproject.org/tpo/core/arti/-/commit/95a95076a77f44478736464a6249bee345713ecc
-[b08073c2d43d7be5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b08073c2d43d7be58db62d6c6a51721dc6f797f1
-[c41305d1100d9685]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c41305d1100d96854707eef988380e01ad2a5782
-[dc55272602cbc9ff]: https://gitlab.torproject.org/tpo/core/arti/-/commit/dc55272602cbc9ff3b792a9e4231533d4a12e007
-["Minimum supported Rust Version" in `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md#minimum-supported-rust-version
 [Shadow]: https://shadow.github.io
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`clap` v3]: https://docs.rs/clap/3.2.23/clap/index.html
 [`hostname-validator`]: https://crates.io/crates/hostname-validator
+[b08073c2d43d7be5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b08073c2d43d7be58db62d6c6a51721dc6f797f1
+[c41305d1100d9685]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c41305d1100d96854707eef988380e01ad2a5782
+[dc55272602cbc9ff]: https://gitlab.torproject.org/tpo/core/arti/-/commit/dc55272602cbc9ff3b792a9e4231533d4a12e007
 
 
 
@@ -3846,7 +3846,6 @@ of Arti 1.0.0!
 [!702]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/702
 [!705]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/705
 [!706]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/706
-[#62]: https://gitlab.torproject.org/tpo/core/arti/-/issues/62
 [#254]: https://gitlab.torproject.org/tpo/core/arti/-/issues/254
 [#271]: https://gitlab.torproject.org/tpo/core/arti/-/issues/271
 [#316]: https://gitlab.torproject.org/tpo/core/arti/-/issues/316
@@ -3870,9 +3869,9 @@ of Arti 1.0.0!
 [#549]: https://gitlab.torproject.org/tpo/core/arti/-/issues/549
 [#555]: https://gitlab.torproject.org/tpo/core/arti/-/issues/555
 [#557]: https://gitlab.torproject.org/tpo/core/arti/-/issues/557
+[#62]: https://gitlab.torproject.org/tpo/core/arti/-/issues/62
 [0f133de6b90e799d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/0f133de6b90e799d37fdcd9dc75f9f94acb6bb6c
-[a7bb3a73b4dfb0e8]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a7bb3a73b4dfb0e8e0f36994de3d31389d4997b9
-[e8fcf2b0383f49a6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e8fcf2b0383f49a6d927cb094fdc00f766e82580
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`NetDirProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/trait.NetDirProvider.html
 [`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
 [`arti`]: https://tpo.pages.torproject.net/core/doc/rust/arti/index.html
@@ -3881,8 +3880,9 @@ of Arti 1.0.0!
 [`secmem_proc`]: https://crates.io/crates/secmem-proc
 [`shellexpand`]: https://crates.io/crates/shellexpand
 [`zeroize`]: https://docs.rs/zeroize/latest/zeroize/
+[a7bb3a73b4dfb0e8]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a7bb3a73b4dfb0e8e0f36994de3d31389d4997b9
+[e8fcf2b0383f49a6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e8fcf2b0383f49a6d927cb094fdc00f766e82580
 [netflow logs]: https://en.wikipedia.org/wiki/NetFlow
-[Zcash Community Grants]: https://zcashcommunitygrants.org/
 
 
 
@@ -4152,7 +4152,6 @@ Neel Chauhan, Orhun Parmaksız, Steven Murdoch, and Trinity Pointard.
 [!600]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/600
 [!601]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/601
 [!604]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/604
-[#93]: https://gitlab.torproject.org/tpo/core/arti/-/issues/93
 [#154]: https://gitlab.torproject.org/tpo/core/arti/-/issues/154
 [#323]: https://gitlab.torproject.org/tpo/core/arti/-/issues/323
 [#441]: https://gitlab.torproject.org/tpo/core/arti/-/issues/441
@@ -4167,6 +4166,7 @@ Neel Chauhan, Orhun Parmaksız, Steven Murdoch, and Trinity Pointard.
 [#493]: https://gitlab.torproject.org/tpo/core/arti/-/issues/493
 [#497]: https://gitlab.torproject.org/tpo/core/arti/-/issues/497
 [#499]: https://gitlab.torproject.org/tpo/core/arti/-/issues/499
+[#93]: https://gitlab.torproject.org/tpo/core/arti/-/issues/93
 [2223398eb1670c15]: https://gitlab.torproject.org/tpo/core/arti/-/commit/2223398eb1670c159151bc9aae5fed346b88c904
 [3ba3b26842254cfd]: https://gitlab.torproject.org/tpo/core/arti/-/commit/3ba3b26842254cfd9033ea37b44b746895bcbd02
 [89f9e1decb7872d6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/89f9e1decb7872d688d126fe41ab28b6bd0504a0
@@ -4303,8 +4303,6 @@ Pointard.
 [#465]: https://gitlab.torproject.org/tpo/core/arti/-/issues/465
 [#466]: https://gitlab.torproject.org/tpo/core/arti/-/issues/466
 [#467]: https://gitlab.torproject.org/tpo/core/arti/-/issues/467
-[ee9730cab4e4b21e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ee9730cab4e4b21ec40d05becd4c9f54a92d7c29
-[ef2640acfaf9f873]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ef2640acfaf9f873ca3de5253aae93b5032e659a
 [CONTRIBUTING.md]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/CONTRIBUTING.md
 [`DirMgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/struct.DirMgr.html
 [`Runtime`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.Runtime.html
@@ -4314,6 +4312,8 @@ Pointard.
 [`serde`]: https://serde.rs/
 [`tinystr`]: https://docs.rs/tinystr/latest/tinystr/
 [coverage reports]: https://tpo.pages.torproject.net/core/arti/coverage/
+[ee9730cab4e4b21e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ee9730cab4e4b21ec40d05becd4c9f54a92d7c29
+[ef2640acfaf9f873]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ef2640acfaf9f873ca3de5253aae93b5032e659a
 [git hooks]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint
 
 
@@ -4622,7 +4622,6 @@ Steven Murdoch, and Trinity Pointard.
 [!436]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/436
 [!439]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/439
 [!442]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/442
-[#90]: https://gitlab.torproject.org/tpo/core/arti/-/issues/90
 [#150]: https://gitlab.torproject.org/tpo/core/arti/-/issues/150
 [#220]: https://gitlab.torproject.org/tpo/core/arti/-/issues/220
 [#267]: https://gitlab.torproject.org/tpo/core/arti/-/issues/267
@@ -4652,9 +4651,8 @@ Steven Murdoch, and Trinity Pointard.
 [#414]: https://gitlab.torproject.org/tpo/core/arti/-/issues/414
 [#415]: https://gitlab.torproject.org/tpo/core/arti/-/issues/415
 [#418]: https://gitlab.torproject.org/tpo/core/arti/-/issues/418
+[#90]: https://gitlab.torproject.org/tpo/core/arti/-/issues/90
 [87a3f6b58a5e75f7]: https://gitlab.torproject.org/tpo/core/arti/-/commit/87a3f6b58a5e75f7060a6797b8e1b33175fd5329
-[cb103e04cf4d9853]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cb103e04cf4d985333a6949f0fd646258dcedcd2
-[eed1f06662366511]: https://gitlab.torproject.org/tpo/core/arti/-/commit/eed1f06662366511fe5fd15ac0ab0cb69497f2cf
 [RFC 8305]: https://datatracker.ietf.org/doc/html/rfc8305
 [`DirMgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/struct.DirMgr.html
 [`DirProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/trait.DirProvider.html
@@ -4665,6 +4663,8 @@ Steven Murdoch, and Trinity Pointard.
 [`derive_more`]: https://docs.rs/derive_more/latest/derive_more/index.html
 [`educe`]:  https://docs.rs/educe/latest/educe/
 [`tor-basic-utils`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/index.html
+[cb103e04cf4d9853]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cb103e04cf4d985333a6949f0fd646258dcedcd2
+[eed1f06662366511]: https://gitlab.torproject.org/tpo/core/arti/-/commit/eed1f06662366511fe5fd15ac0ab0cb69497f2cf
 [forked version of `shellexpand`]: https://crates.io/crates/shellexpand-fork
 [proposal 336]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/336-randomize-guard-retries.md
 [stream isolation API]: https://tpo.pages.torproject.net/core/doc/rust/tor_circmgr/isolation/index.html
@@ -4795,7 +4795,6 @@ Pointard, and Yuan Lyu.
 [!364]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/364
 [!366]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/366
 [!368]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/368
-[#41]: https://gitlab.torproject.org/tpo/core/arti/-/issues/41
 [#210]: https://gitlab.torproject.org/tpo/core/arti/-/issues/210
 [#270]: https://gitlab.torproject.org/tpo/core/arti/-/issues/270
 [#278]: https://gitlab.torproject.org/tpo/core/arti/-/issues/278
@@ -4809,6 +4808,7 @@ Pointard, and Yuan Lyu.
 [#348]: https://gitlab.torproject.org/tpo/core/arti/-/issues/348
 [#350]: https://gitlab.torproject.org/tpo/core/arti/-/issues/350
 [#365]: https://gitlab.torproject.org/tpo/core/arti/-/issues/365
+[#41]: https://gitlab.torproject.org/tpo/core/arti/-/issues/41
 [arti-hyper]: https://tpo.pages.torproject.net/core/doc/rust/arti_hyper/index.html
 [hyper]: https://crates.io/crates/hyper
 [lazy-initialized]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-client/examples/lazy-init.rs
@@ -4904,8 +4904,6 @@ Chauhan, and Trinity Pointard.
 [!263]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/263
 [!268]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/268
 [!269]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/269
-[#86]: https://gitlab.torproject.org/tpo/core/arti/-/issues/86
-[#96]: https://gitlab.torproject.org/tpo/core/arti/-/issues/96
 [#132]: https://gitlab.torproject.org/tpo/core/arti/-/issues/132
 [#176]: https://gitlab.torproject.org/tpo/core/arti/-/issues/176
 [#248]: https://gitlab.torproject.org/tpo/core/arti/-/issues/248
@@ -4917,6 +4915,8 @@ Chauhan, and Trinity Pointard.
 [#294]: https://gitlab.torproject.org/tpo/core/arti/-/issues/294
 [#297]: https://gitlab.torproject.org/tpo/core/arti/-/issues/297
 [#299]: https://gitlab.torproject.org/tpo/core/arti/-/issues/299
+[#86]: https://gitlab.torproject.org/tpo/core/arti/-/issues/86
+[#96]: https://gitlab.torproject.org/tpo/core/arti/-/issues/96
 [1d5a480f79e7d878ff]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1d5a480f79e7d878ff291e6e8fc5225e17328919
 [7ff16fc252c0121f6607]: https://gitlab.torproject.org/tpo/core/arti/-/commit/7ff16fc252c0121f660709a0dda9639eb7131d34
 [bf8fa66d36298561cc86]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bf8fa66d36298561cc868706f748049cec23f5eb
@@ -5003,7 +5003,6 @@ Thanks to everybody who has contributed to this release, including dagon,
 Daniel Eades, Muhammad Falak R Wani, Neel Chauhan, Trinity Pointard, and
 Yuan Lyu!
 
-[!90]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/90
 [!135]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/135
 [!137]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/137
 [!139]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/139
@@ -5023,6 +5022,7 @@ Yuan Lyu!
 [!224]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/224
 [!227]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/227
 [!229]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/229
+[!90]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/90
 [#231]: https://gitlab.torproject.org/tpo/core/arti/-/issues/231
 [214c251e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/214c251e41a7583397cc5939b9447b89752ee323
 [`TcpProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.TcpProvider.html
@@ -5081,16 +5081,16 @@ Thanks to everybody who's contributed to this release, including dagon,
 Daniel Eades, Dimitris Apostolou, Neel Chauhan, S0AndS0, Trinity Pointard,
 and Yuan Lyu!
 
-[#23]: https://gitlab.torproject.org/tpo/core/arti/-/issues/23
-[#84]: https://gitlab.torproject.org/tpo/core/arti/-/issues/84
+[!124]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/124
+[!136]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/136
+[!62]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/62
 [#124]: https://gitlab.torproject.org/tpo/core/arti/-/issues/124
 [#205]: https://gitlab.torproject.org/tpo/core/arti/-/issues/205
 [#217]: https://gitlab.torproject.org/tpo/core/arti/-/issues/217
 [#230]: https://gitlab.torproject.org/tpo/core/arti/-/issues/230
+[#23]: https://gitlab.torproject.org/tpo/core/arti/-/issues/23
 [#242]: https://gitlab.torproject.org/tpo/core/arti/-/issues/242
-[!62]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/62
-[!124]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/124
-[!136]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/136
+[#84]: https://gitlab.torproject.org/tpo/core/arti/-/issues/84
 [efdd3275]: https://gitlab.torproject.org/tpo/core/arti/-/commit/efdd327569990cd9e4d7678bae2ac406baf7b1d5
 
 
@@ -5146,6 +5146,19 @@ Armstead, Daniel Eades, Dimitris Apostolou, Eugene Lomov, Felipe
 Lema, Jani Monoses, Lennart Kloock, Neel Chauhan, S0AndS0, Smitty,
 Trinity Pointard, Yuan Lyu, dagger, and rls!
 
+[!104]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/104
+[!109]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/109
+[!111]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/111
+[!68]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/68
+[!69]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/69
+[!70]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/70
+[!73]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/73
+[!86]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/86
+[!88]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/88
+[#130]: https://gitlab.torproject.org/tpo/core/arti/-/issues/130
+[#165]: https://gitlab.torproject.org/tpo/core/arti/-/issues/165
+[#185]: https://gitlab.torproject.org/tpo/core/arti/-/issues/185
+[#194]: https://gitlab.torproject.org/tpo/core/arti/-/issues/194
 [#33]: https://gitlab.torproject.org/tpo/core/arti/-/issues/33
 [#43]: https://gitlab.torproject.org/tpo/core/arti/-/issues/43
 [#57]: https://gitlab.torproject.org/tpo/core/arti/-/issues/57
@@ -5154,19 +5167,6 @@ Trinity Pointard, Yuan Lyu, dagger, and rls!
 [#73]: https://gitlab.torproject.org/tpo/core/arti/-/issues/73
 [#74]: https://gitlab.torproject.org/tpo/core/arti/-/issues/74
 [#85]: https://gitlab.torproject.org/tpo/core/arti/-/issues/85
-[#130]: https://gitlab.torproject.org/tpo/core/arti/-/issues/130
-[#165]: https://gitlab.torproject.org/tpo/core/arti/-/issues/165
-[#185]: https://gitlab.torproject.org/tpo/core/arti/-/issues/185
-[#194]: https://gitlab.torproject.org/tpo/core/arti/-/issues/194
-[!68]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/68
-[!69]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/69
-[!70]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/70
-[!73]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/73
-[!86]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/86
-[!88]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/88
-[!104]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/104
-[!109]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/109
-[!111]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/111
 [chutney]: https://gitlab.torproject.org/tpo/core/chutney
 [socks extensions]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/socks-extensions.txt
 
