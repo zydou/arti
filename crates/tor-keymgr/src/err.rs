@@ -9,6 +9,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::key_type::ssh::SshKeyAlgorithm;
 use crate::KeyPathError;
 
 /// An Error type for this crate.
@@ -34,6 +35,10 @@ pub enum Error {
     #[error("Key already exists")]
     KeyAlreadyExists,
 
+    /// Attempted to use an unsupported key.
+    #[error("Unsupported key algorithm {0}")]
+    UnsupportedKeyAlgorithm(SshKeyAlgorithm),
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -54,6 +59,7 @@ impl HasKind for Error {
             E::Keystore(e) => e.kind(),
             E::Corruption(_) => EK::KeystoreCorrupted,
             E::KeyAlreadyExists => EK::BadApiUsage, // TODO: not strictly right
+            E::UnsupportedKeyAlgorithm(_) => EK::BadApiUsage,
             E::Bug(e) => e.kind(),
         }
     }
