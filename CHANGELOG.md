@@ -3537,7 +3537,7 @@ development of Arti 1.1.0!
 [!893]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/893
 [!901]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/901
 [!903]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/903
-["Minimum supported Rust Version" in `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md#minimum-supported-rust-version
+["Minimum Supported Rust Version" in `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md#minimum-supported-rust-version
 [#174]: https://gitlab.torproject.org/tpo/core/arti/-/issues/174
 [#303]: https://gitlab.torproject.org/tpo/core/arti/-/issues/303
 [#394]: https://gitlab.torproject.org/tpo/core/arti/-/issues/394
@@ -4307,7 +4307,7 @@ Pointard.
 [`DirMgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/struct.DirMgr.html
 [`Runtime`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.Runtime.html
 [`Sink::prepare_send_from`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/futures/trait.SinkExt.html#tymethod.prepare_send_from
-[`TorConfig`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/config/struct.TorClientConfig.html
+[`TorClientConfig`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/config/struct.TorClientConfig.html
 [`cargo-husky`]: https://github.com/rhysd/cargo-husky
 [`serde`]: https://serde.rs/
 [`tinystr`]: https://docs.rs/tinystr/latest/tinystr/
