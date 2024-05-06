@@ -16,8 +16,8 @@ import subprocess
 # entirely.
 
 WANT_LINTS = """
-#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
-#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
+#![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
 #![warn(missing_docs)]
 #![warn(noop_method_call)]
 #![warn(unreachable_pub)]
@@ -100,12 +100,20 @@ PAT = re.compile(r'^ *#!\[(?:cfg_attr\(.*)?(allow|deny|warn)')
 opts = None
 deferred_errors = []
 
-
 class ImproperFile(Exception):
     def __init__(self, lno, message):
         self.lno = lno
         self.message = message
 
+def strip_lints_containing(s):
+    """Remove every lint containing 's'."""
+    def rmv_lints(inp, s):
+        return "\n".join(line for line in inp.split("\n") if not s in line)
+
+    global WANT_LINTS
+    global TEST_LINTS
+    WANT_LINTS = rmv_lints(WANT_LINTS, s)
+    TEST_LINTS = rmv_lints(TEST_LINTS, s)
 
 def filter_file(lints, inp, outp, insist):
     in_lint_list = None
@@ -204,6 +212,11 @@ def main(lints, files):
         files = files.decode('utf-8').rstrip('\n').split('\n')
         always_insist = False
 
+    if opts.ci_nightly:
+        strip_lints_containing("@@REMOVE_WHEN(ci_arti_nightly)")
+    if opts.ci_stable:
+        strip_lints_containing("@@REMOVE_WHEN(ci_arti_stable)")
+
     for fn in files:
         process(lints, fn, always_insist)
 
@@ -217,6 +230,8 @@ def main(lints, files):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('standardise Rust lint blocks')
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--ci-nightly', action='store_true')
+    parser.add_argument('--ci-stable', action='store_true')
     parser.add_argument('file', nargs='*')
     opts = parser.parse_args()
 
