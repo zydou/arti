@@ -17,8 +17,9 @@ impl<R: Runtime> crate::TorClient<R> {
     /// parameterized.
     pub fn rpc_methods() -> Vec<rpc::dispatch::InvokerEnt> {
         rpc::invoker_ent_list![
-            get_client_status::<R>, //
-            watch_client_status::<R>
+            get_client_status::<R>,
+            watch_client_status::<R>,
+            isolated_client::<R>,
         ]
     }
 }
@@ -112,4 +113,27 @@ async fn watch_client_status<R: Runtime>(
 
     // This can only happen if the client exits.
     Ok(rpc::NIL)
+}
+
+/// RPC method: Return an owned ID for a new isolated client instance.
+#[derive(Deftly, Debug, Serialize, Deserialize)]
+#[derive_deftly(rpc::DynMethod)]
+#[deftly(rpc(method_name = "arti::isolated-client"))]
+#[non_exhaustive]
+pub struct IsolatedClient {}
+
+impl rpc::Method for IsolatedClient {
+    type Output = rpc::SingletonId;
+    type Update = rpc::NoUpdates;
+}
+
+/// RPC method implementation: return a new isolated client based on a given client.
+async fn isolated_client<R: Runtime>(
+    client: Arc<TorClient<R>>,
+    _method: Box<IsolatedClient>,
+    ctx: Box<dyn rpc::Context>,
+) -> Result<rpc::SingletonId, rpc::RpcError> {
+    let new_client = Arc::new(client.isolated_client());
+    let client_id = ctx.register_owned(new_client);
+    Ok(rpc::SingletonId::from(client_id))
 }

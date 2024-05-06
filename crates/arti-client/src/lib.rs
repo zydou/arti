@@ -45,7 +45,7 @@ mod address;
 mod builder;
 mod client;
 #[cfg(feature = "rpc")]
-mod rpc;
+pub mod rpc;
 mod util;
 
 pub mod config;
