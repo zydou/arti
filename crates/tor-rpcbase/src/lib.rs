@@ -174,3 +174,11 @@ impl<T: Context> ContextExt for T {}
 pub struct Nil {}
 /// An instance of rpc::Nil.
 pub const NIL: Nil = Nil {};
+
+/// Common return type for RPC methods that return a single object ID
+/// and nothing else.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, derive_more::From)]
+pub struct SingletonId {
+    /// The ID of the object that we're returning.
+    id: ObjectId,
+}

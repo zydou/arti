@@ -5834,6 +5834,7 @@ version = "0.18.0"
 dependencies = [
  "assert-impl",
  "derive-deftly",
+ "derive_more",
  "downcast-rs",
  "erased-serde",
  "futures",
