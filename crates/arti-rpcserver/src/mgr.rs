@@ -108,6 +108,36 @@ impl RpcMgr {
         })
     }
 
+    /// Extend our method dispatch table with the method entries in `entries`.
+    ///
+    /// Ignores any entries that
+    ///
+    /// # Panics
+    ///
+    /// Panics if any entries are conflicting, according to the logic of
+    /// [`DispatchTable::insert`](rpc::DispatchTable::insert)
+    pub fn register_rpc_methods<I>(&self, entries: I)
+    where
+        I: IntoIterator<Item = rpc::dispatch::InvokerEnt>,
+    {
+        // TODO: Conceivably we might want to get a read lock on the RPC dispatch table,
+        // check for the presence of these entries, and only take the write lock
+        // if the entries are absent.  But for now, this function is called during
+        // RpcMgr initialization, so there's no reason to optimize it.
+        self.with_dispatch_table(|table| table.extend(entries));
+    }
+
+    /// Run `func` with a mutable reference to our dispatch table as an argument.
+    ///
+    /// Used to register additional methods.
+    pub fn with_dispatch_table<F, T>(&self, func: F) -> T
+    where
+        F: FnOnce(&mut rpc::DispatchTable) -> T,
+    {
+        let mut table = self.dispatch_table.write().expect("poisoned lock");
+        func(&mut table)
+    }
+
     /// Start a new session based on this RpcMgr, with a given TorClient.
     pub fn new_connection(self: &Arc<Self>) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());

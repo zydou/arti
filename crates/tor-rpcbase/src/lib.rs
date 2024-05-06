@@ -172,3 +172,5 @@ impl<T: Context> ContextExt for T {}
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Default)]
 #[non_exhaustive]
 pub struct Nil {}
+/// An instance of rpc::Nil.
+pub const NIL: Nil = Nil {};
