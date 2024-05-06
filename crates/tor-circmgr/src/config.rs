@@ -390,17 +390,13 @@ pub(crate) mod test_config {
     /// Testing configuration, with public fields
     #[derive(Default, derive_more::AsRef)]
     #[allow(clippy::exhaustive_structs)]
+    #[allow(missing_docs)]
     #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
     pub struct TestConfig {
-        ///
         pub path_rules: PathConfig,
-        ///
         pub circuit_timing: CircuitTiming,
-        ///
         pub preemptive_circuits: PreemptiveCircuitConfig,
-        ///
         pub guardmgr: tor_guardmgr::TestConfig,
-        ///
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         pub vanguard_config: VanguardConfig,
     }
