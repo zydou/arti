@@ -26,7 +26,7 @@ impl<R: Runtime> crate::TorClient<R> {
 /// RPC method: Return the current ClientStatusInfo.
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
-#[deftly(rpc(method_name = "get-client-status"))]
+#[deftly(rpc(method_name = "arti:get-client-status"))]
 struct GetClientStatus {}
 
 impl rpc::Method for GetClientStatus {
@@ -39,7 +39,7 @@ impl rpc::Method for GetClientStatus {
 /// (This method can return updates that have no visible changes.)
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
-#[deftly(rpc(method_name = "watch-client-status"))]
+#[deftly(rpc(method_name = "arti:watch-client-status"))]
 struct WatchClientStatus {}
 
 impl rpc::Method for WatchClientStatus {
