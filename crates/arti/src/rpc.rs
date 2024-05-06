@@ -42,6 +42,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     //
     // TODO: If we accumulate a large number of generics like this, we should do this elsewhere.
     rpc_mgr.register_rpc_methods(TorClient::<R>::rpc_methods());
+    rpc_mgr.register_rpc_methods(RpcSession::<R>::rpc_methods());
 
     let rt_clone = runtime.clone();
     let rpc_mgr_clone = rpc_mgr.clone();

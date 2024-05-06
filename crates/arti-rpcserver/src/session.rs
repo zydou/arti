@@ -3,8 +3,10 @@
 //! A "session" is created when a user authenticates on an RPC connection.  It
 //! is the root for all other RPC capabilities.
 
+use arti_client::TorClient;
 use derive_deftly::Deftly;
 use std::sync::Arc;
+use tor_rtcompat::Runtime;
 
 use tor_rpcbase as rpc;
 use tor_rpcbase::templates::*;
@@ -23,19 +25,25 @@ use tor_rpcbase::templates::*;
 #[derive(Deftly)]
 #[derive_deftly(Object)]
 #[deftly(rpc(expose_outside_of_session))]
-pub struct RpcSession {
+pub struct RpcSession<R: Runtime> {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
     #[allow(unused)]
-    client: Arc<dyn rpc::Object>,
+    client: Arc<TorClient<R>>,
 }
 
-impl RpcSession {
+impl<R: Runtime> RpcSession<R> {
     /// Create a new session object containing a single client object.
-    pub fn new_with_client<R: tor_rtcompat::Runtime>(
-        client: Arc<arti_client::TorClient<R>>,
-    ) -> Arc<Self> {
+    pub fn new_with_client(client: Arc<arti_client::TorClient<R>>) -> Arc<Self> {
         Arc::new(Self { client })
+    }
+
+    /// Ensure that every RPC method is registered for this instantiation of TorClient.
+    ///
+    /// We can't use [`rpc::static_rpc_invoke_fn`] for these, since TorClient is
+    /// parameterized.
+    pub fn rpc_methods() -> Vec<rpc::dispatch::InvokerEnt> {
+        rpc::invoker_ent_list![rpc_release::<R>, echo_on_session::<R>]
     }
 }
 
@@ -68,16 +76,13 @@ impl rpc::Method for RpcRelease {
 }
 
 /// Implementation for calling "release" on a Session.
-async fn rpc_release(
-    _obj: Arc<RpcSession>,
+async fn rpc_release<R: Runtime>(
+    _obj: Arc<RpcSession<R>>,
     method: Box<RpcRelease>,
     ctx: Box<dyn rpc::Context>,
 ) -> Result<rpc::Nil, rpc::RpcError> {
     ctx.release_owned(&method.obj)?;
     Ok(rpc::Nil::default())
-}
-rpc::static_rpc_invoke_fn! {
-    rpc_release;
 }
 
 /// A simple temporary method to echo a reply.
@@ -97,14 +102,10 @@ impl rpc::Method for Echo {
 /// Implementation for calling "echo" on a Session.
 ///
 /// TODO RPC: Remove this. It shouldn't exist.
-async fn echo_on_session(
-    _obj: Arc<RpcSession>,
+async fn echo_on_session<R: Runtime>(
+    _obj: Arc<RpcSession<R>>,
     method: Box<Echo>,
     _ctx: Box<dyn rpc::Context>,
 ) -> Result<Echo, rpc::RpcError> {
     Ok(*method)
-}
-
-rpc::static_rpc_invoke_fn! {
-    echo_on_session;
 }
