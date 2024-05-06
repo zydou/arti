@@ -438,9 +438,6 @@ mod test {
     use std::sync::Arc;
     use std::sync::Mutex;
 
-    #[derive(Debug, Eq, PartialEq)]
-    struct TestError(char);
-
     #[async_test]
     async fn prepare_send() {
         // Early versions of this used unfold quite a lot more, but it is not really
