@@ -58,7 +58,7 @@ enum PathInner {
 /// `LiteralPath` exists to arrange that `PathInner::Literal`'s (de)serialization
 /// does not overlap with `PathInner::Shell`'s.
 struct LiteralPath {
-    ///
+    /// The underlying `PathBuf`.
     literal: PathBuf,
 }
 

@@ -259,7 +259,7 @@ where
 #[pin_project]
 #[must_use]
 pub struct SinkPrepareSendFuture<'w, IF, OS, OM> {
-    ///
+    /// Underlying future that will yield a message.
     #[pin]
     generator: IF,
 
@@ -296,9 +296,9 @@ pub struct SinkPrepareSendFuture<'w, IF, OS, OM> {
 /// encounter an error when producing the output message.
 #[must_use]
 pub struct SinkSendable<'w, OS, OM> {
-    ///
+    /// Reference to underlying output sink.
     output: Pin<&'w mut OS>,
-    ///
+    /// Marker to ensure that `OM` is used.
     tw: PhantomData<fn(OM)>,
 }
 
@@ -320,7 +320,7 @@ where
                 $self_.output.as_mut().expect(BAD_POLL_MSG).as_mut()
             };
         }
-        ///
+        /// Message to give when panicking because of improper extra poll.
         const BAD_POLL_MSG: &str =
             "future from SinkPrepareExt::prepare_send_from (SinkPrepareSendFuture) \
                  polled after returning Ready(Ok)";
@@ -437,9 +437,6 @@ mod test {
     use std::convert::Infallible;
     use std::sync::Arc;
     use std::sync::Mutex;
-
-    #[derive(Debug, Eq, PartialEq)]
-    struct TestError(char);
 
     #[async_test]
     async fn prepare_send() {

@@ -147,9 +147,6 @@ mod test {
     use futures::select_biased;
     use futures_await_test::async_test;
 
-    #[derive(Debug, Eq, PartialEq)]
-    struct TestError(char);
-
     #[async_test]
     async fn postage_sender_ext() {
         use futures::stream::StreamExt;

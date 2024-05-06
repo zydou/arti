@@ -109,6 +109,7 @@ define_derive_deftly! {
 ///
 /// To use: implement this, and derive deftly
 /// [`BombImpls`](derive_deftly_template_BombImpls).
+#[allow(unused)]
 trait DropStatus {
     /// Handles dropping of a `Self` with this `status` field value
     fn drop_status(status: Status);

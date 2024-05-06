@@ -176,7 +176,7 @@ rust-nightly:
     # cfg flag for nightly, and a cargo "feature" would be bad with --all-features.)
     - (echo; cat clippy-nightly.toml) >>clippy.toml
     - cargo clippy --all-features --tests -- --cfg ci_arti_nightly -D clippy::dbg_macro
-    - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
+    - RUSTDOCFLAGS="-Aunexpected-cfgs -Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
   after_script:
     - cargo clean
 
