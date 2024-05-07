@@ -58,15 +58,14 @@ heading_re = re.compile(r'(\#+)\s')
 instruction_re = re.compile(r'\<\!\-\-\@\@\s+update-md-links\s*(.*\S)\s*\-\-\>\s*$')
 instruction_val_re = re.compile(r'\s*([-0-9a-z]+)\s+(.*\S)\s*')
 
+#---------- set up globals: parse command line and read the input file ----------
+
 # "instructions" we understand in comments like this:
 # <!--@@ update-md-links INSTRUCTION VALUE -->
-
 instructions = {
     'split-heading-level': 0,
     'section-blank-lines': 1,
 }
-
-#---------- parse command line and read the input file ----------
 
 parser = argparse.ArgumentParser(
     prog="update-md-links",
@@ -77,20 +76,21 @@ parser.add_argument('--check', action='store_true',
                     help='Check that everything is up to date; make no changes')
 
 args = parser.parse_args()
-
 md = list(open(args.filename, 'r'))
 
-#---------- principal data structure ----------
+#---------- types used in our data structures ----------
+
+Anchor = str
+Target = str
+Source = str
 
 # One definition, of `t`, with human-readable source `source`, at md line `md_i`
 #
 # The link definition might be from maint/gen_md_links, in which case `md_i` is `None`.
 Def = collections.namedtuple('Def', ['t', 'source', 'md_i'])
 
-# Definitions we have found
-#
-# Maps the link anchor to a list of `Def`s.
-link_defs = {}
+Defs = dict[Anchor, list[Def]];
+Resolved = dict[Anchor, Target]
 
 # One section (if we have `split-heading-level` of other than 0).
 #
@@ -98,12 +98,6 @@ link_defs = {}
 # `defs_t2i` maps link target to a list of line numbers it's defined on
 # `a_needed` will be set to True when we find it actually contains any link
 Section = collections.namedtuple('Section', ['start', 'end', 'defs_t2i', 'a_needed'])
-sections = []
-
-# namedtuple has defaults= but it gives every fresh tuple an aliased copy of the
-# same value!  So we provide this constructor.
-def new_section(start, end):
-    sections.append(Section(start, end, {}, {}))
 
 #---------- utility functions ----------
 
@@ -138,186 +132,239 @@ def is_link_def(l):
     if g is None: return None
     return g.groups()
 
-def record_link_def(a, t, source, md_i):
-    '''
-    Record that anchor `a` is defined to have target url `t`.
-
-    `source` and `md_i` are as for `Def`.
-
-    `t` may be the empty string (and for output from `gen_md_links`, often is).
-    '''
-    link_defs.setdefault(a, []).append(Def(t, source, md_i))
-
 #---------- search for instructions ----------
 
-for i in range(0, len(md)):
-    l = md[i]
-    source = '%s:%d' % (args.filename, i + 1)
+def process_instructions():
+    '''
+    Looks for instructions and updates the global `instructions`.
+    '''
 
-    g = instruction_re.fullmatch(l)
-    if not g: continue
+    for i in range(0, len(md)):
+        l = md[i]
+        source = '%s:%d' % (args.filename, i + 1)
 
-    g = instruction_val_re.fullmatch(g.group(1))
-    if g:
-        k, v = g.groups()
-        if k not in instructions:
-            trouble('%s: unknown value instruction %s' % (source, k))
-        instructions[k] = v
-        continue
+        g = instruction_re.fullmatch(l)
+        if not g: continue
 
-    trouble('%s: unknown instruction' % source)
+        g = instruction_val_re.fullmatch(g.group(1))
+        if g:
+            k, v = g.groups()
+            if k not in instructions:
+                trouble('%s: unknown value instruction %s' % (source, k))
+            instructions[k] = v
+            continue
+
+        trouble('%s: unknown instruction' % source)
 
 #---------- break input into sections ----------
 
-section_start = 0
-link_defs = {}
+def split_input() -> list[Section]:
+    '''
+    Parse `md` into sections.
+    '''
 
-for i in range(0, len(md)):
-    l = md[i]
-    lno = i + 1
+    sections = []
 
-    g = heading_re.match(l)
-    if g and len(g.group(1)) == int(instructions['split-heading-level']):
-        if i != section_start:
-            new_section(section_start, i)
-        section_start = i
+    section_start = 0
 
-new_section(section_start, len(md))
+    # namedtuple has defaults= but it gives every fresh tuple an aliased copy of the
+    # same value!  So we provide this constructor.
+    def new_section(start, end):
+        sections.append(Section(start, end, {}, {}))
 
-for s in sections:
-    #---------- for each section, find existing link def lines ----------
-
-    for i in range(s.start, s.end):
-        lno = i + 1
+    for i in range(0, len(md)):
         l = md[i]
-        at = is_link_def(l)
-        if at:
+        lno = i + 1
+
+        g = heading_re.match(l)
+        if g and len(g.group(1)) == int(instructions['split-heading-level']):
+            if i != section_start:
+                new_section(section_start, i)
+            section_start = i
+
+    new_section(section_start, len(md))
+
+    return sections
+
+#---------- scan input sections' contents ----------
+
+def scan_sections(sections: list[Section]) -> Defs:
+    '''
+    Scans each section in `sections`
+    '''
+    link_defs: Defs = {}
+
+    def record_link_def(a, t, source, md_i):
+        '''
+        Record that anchor `a` is defined to have target url `t`.
+
+        `source` and `md_i` are as for `Def`.
+
+        `t` may be the empty string (and for output from `gen_md_links`, often is).
+        '''
+        link_defs.setdefault(a, []).append(Def(t, source, md_i))
+
+    for s in sections:
+        #---------- for each section, find existing link def lines ----------
+
+        for i in range(s.start, s.end):
+            lno = i + 1
+            l = md[i]
+            at = is_link_def(l)
+            if at:
+                a, t = at
+                record_link_def(a, t, "%s:%d" % (args.filename, lno), i)
+                s.defs_t2i.setdefault(t, []).append(i)
+
+        #---------- for each section, run gen_md_links ----------
+
+        text_file = tempfile.TemporaryFile(mode = 'w+', buffering=True)
+        for i in range(s.start, s.end):
+            print(md[i], file=text_file)
+        text_file.flush()
+        text_file.seek(0, 0)
+        gen_links_output = subprocess.Popen(
+            ['maint/gen_md_links', '--', '-'],
+            stdin=text_file, stdout=subprocess.PIPE, encoding='utf-8',
+        )
+        assert gen_links_output.stdout
+        for l in gen_links_output.stdout:
+            l = l.strip()
+            if l == "": continue
+            at = is_link_def(l)
+            if at is None:
+                print('gen_md_links produced bad output line %s (for %s:%d..%d)'
+                      % (repr(l), args.filename, s.start+1, s.end),
+                      file=sys.stderr)
+                sys.exit(12)
             a, t = at
-            record_link_def(a, t, "%s:%d" % (args.filename, lno), i)
-            s.defs_t2i.setdefault(t, []).append(i)
+            record_link_def(a, t, "gen_md_links", None)
+            s.a_needed[a] = True
 
-    #---------- for each section, run gen_md_links ----------
+        gen_links_output.wait()
+        check_returncode(gen_links_output)
 
-    text_file = tempfile.TemporaryFile(mode = 'w+', buffering=True)
-    for i in range(s.start, s.end):
-        print(md[i], file=text_file)
-    text_file.flush()
-    text_file.seek(0, 0)
-    gen_links_output = subprocess.Popen(
-        ['maint/gen_md_links', '--', '-'],
-        stdin=text_file, stdout=subprocess.PIPE, encoding='utf-8',
-    )
-    for l in gen_links_output.stdout:
-        l = l.strip()
-        if l == "": continue
-        at = is_link_def(l)
-        if at is None:
-            print('gen_md_links produced bad output line %s (for %s:%d..%d)'
-                  % (repr(l), args.filename, s.start+1, s.end),
-                  file=sys.stderr)
-            sys.exit(12)
-        a, t = at
-        record_link_def(a, t, "gen_md_links", None)
-        s.a_needed[a] = True
-
-    gen_links_output.wait()
-    check_returncode(gen_links_output)
+    return link_defs
 
 #---------- reconcile definitions ----------
 
-# Resolved link definitions.
-#
-# Maps each anchor `a` to its resolved target url `t`
-link_def = {}
+def resolve_definitions(link_defs: Defs) -> Resolved:
+    '''
+    Resolve link definitions.
+    '''
+    link_def = {}
 
-for a, defs in link_defs.items():
-    candidates = {}
-    for d in defs:
-        if d.t.strip() != "":
-            candidates.setdefault(d.t, []).append(d.source)
-
-    ts = list(candidates.keys())
-    if len(ts) > 1:
-        trouble("conflicting definitions for [%s]" % a)
-        done = {}
+    for a, defs in link_defs.items():
+        candidates: dict[Target, list[Source]] = {}
         for d in defs:
-            t = d.t
-            if done.get(t): continue
-            done[t] = True
-            print("  candidate %s" % t, file=sys.stderr)
-            for d in defs:
-                if d.t != t: continue
-                print("    defined %s" % d.source, file=sys.stderr)
-    if len(ts) == 0:
-        ts.append("XX" + "XX")
+            if d.t.strip() != "":
+                candidates.setdefault(d.t, []).append(d.source)
 
-    link_def[a] = ts[0]
+        ts = list(candidates.keys())
+        if len(ts) > 1:
+            trouble("conflicting definitions for [%s]" % a)
+            done: dict[Target, bool] = {}
+            for d in defs:
+                t = d.t
+                if done.get(t): continue
+                done[t] = True
+                print("  candidate %s" % t, file=sys.stderr)
+                for d in defs:
+                    if d.t != t: continue
+                    print("    defined %s" % d.source, file=sys.stderr)
+        if len(ts) == 0:
+            ts.append("XX" + "XX")
+
+        link_def[a] = ts[0]
+
+    return link_def
 
 #---------- collate outputs ----------
 
-for s in sections:
-    linkcoll_start = s.end
-    while True:
-        if linkcoll_start <= s.start: break
-        prev = linkcoll_start-1
-        prev_l = md[prev]
-        if prev_l.strip() != "" and not is_link_def(prev_l):
-            break
-        linkcoll_start = prev
+def collate_insert_outputs(sections: list[Section], link_defs: Defs, link_def: Resolved):
+    '''
+    Collate link definitions into each section
 
-    if linkcoll_start <= s.start: continue # section contains only links, ignore it
+    Updates `md` in place.
+    '''
+    for s in sections:
+        linkcoll_start = s.end
+        while True:
+            if linkcoll_start <= s.start: break
+            prev = linkcoll_start-1
+            prev_l = md[prev]
+            if prev_l.strip() != "" and not is_link_def(prev_l):
+                break
+            linkcoll_start = prev
 
-    if not s.a_needed: continue # section contains no link anchors, ignore it
+        if linkcoll_start <= s.start: continue # section contains only links, ignore it
 
-    # Now linkcoll_start is the start of the link collection for this section.
-    # (Including blank lines either siude of the link collection.)
+        if not s.a_needed: continue # section contains no link anchors, ignore it
 
-    new_collection = []
+        # Now linkcoll_start is the start of the link collection for this section.
+        # (Including blank lines either siude of the link collection.)
 
-    for a in s.a_needed:
-        found = False
-        for d in link_defs[a]:
-            i = d.md_i
-            if i is None: continue
-            if i < s.start or i >= linkcoll_start: continue
-            found = True
-            break
-        if not found:
-            new_collection.append("[%s]: %s\n" % (a, link_def[a]))
+        new_collection = []
 
-    # delete old collection
-    for i in range(linkcoll_start, s.end):
-        md[i] = ""
+        for a in s.a_needed:
+            found = False
+            for d in link_defs[a]:
+                i = d.md_i
+                if i is None: continue
+                if i < s.start or i >= linkcoll_start: continue
+                found = True
+                break
+            if not found:
+                new_collection.append("[%s]: %s\n" % (a, link_def[a]))
 
-    o = ""
-    if len(new_collection) != 0:
-        new_collection.sort()
-        o += "\n" + "".join(new_collection)
+        # delete old collection
+        for i in range(linkcoll_start, s.end):
+            md[i] = ""
 
-    if s.end != len(md):
-        for i in range(0, int(instructions['section-blank-lines'])):
-            o += "\n"
+        o = ""
+        if len(new_collection) != 0:
+            new_collection.sort()
+            o += "\n" + "".join(new_collection)
 
-    md[linkcoll_start-1] += o
+        if s.end != len(md):
+            for i in range(0, int(instructions['section-blank-lines'])):
+                o += "\n"
+
+        md[linkcoll_start-1] += o
 
 #---------- write output ----------
 
-new_filename = "%s.tmp" % args.filename
-output = open(new_filename, 'w', buffering=True)
-for l in md:
-    print(l, file=output, end='')
-output.close()
+def write_output():
+    '''
+    Writes the output file
 
-if troubles != 0:
-    print('trouble, not installing %s' % new_filename, file=sys.stderr)
-    sys.exit(12)
+    Writes to a `.tmp`, and then runs diff, or installs it, as appropriate.
+    '''
+    new_filename = "%s.tmp" % args.filename
+    output = open(new_filename, 'w', buffering=True)
+    for l in md:
+        print(l, file=output, end='')
+    output.close()
 
-if args.check:
-    r = subprocess.run(['diff', '-u', '--', args.filename, new_filename])
-    if r.returncode == 1:
-        print('CHANGELOG links not up to date.', file=sys.stderr)
-        sys.exit(1)
-    check_returncode(r)
-    os.remove(new_filename)
-else:
-    os.rename(new_filename, args.filename)
+    if troubles != 0:
+        print('trouble, not installing %s' % new_filename, file=sys.stderr)
+        sys.exit(12)
+
+    if args.check:
+        r = subprocess.run(['diff', '-u', '--', args.filename, new_filename])
+        if r.returncode == 1:
+            print('CHANGELOG links not up to date.', file=sys.stderr)
+            sys.exit(1)
+        check_returncode(r)
+        os.remove(new_filename)
+    else:
+        os.rename(new_filename, args.filename)
+
+#---------- main program ----------
+
+process_instructions()
+sections = split_input()
+link_defs = scan_sections(sections)
+link_def = resolve_definitions(link_defs)
+collate_insert_outputs(sections, link_defs, link_def)
+write_output()
