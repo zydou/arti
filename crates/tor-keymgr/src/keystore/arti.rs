@@ -293,7 +293,7 @@ impl Keystore for ArtiNativeKeystore {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -308,30 +308,12 @@ pub(crate) mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, CTorPath, KeyPath};
+    use crate::test_utils::ssh_keys::*;
+    use crate::test_utils::TestSpecifier;
+    use crate::{ArtiPath, KeyPath};
     use std::fs;
     use tempfile::{tempdir, TempDir};
     use tor_llcrypto::pk::ed25519;
-
-    // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
-    // include it once)
-    pub(crate) const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
-
-    pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
-
-    #[derive(Default)]
-    pub(crate) struct TestSpecifier(String);
-
-    impl KeySpecifier for TestSpecifier {
-        fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
-            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0))
-                .map_err(|e| tor_error::internal!("{e}"))?)
-        }
-
-        fn ctor_path(&self) -> Option<CTorPath> {
-            None
-        }
-    }
 
     fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
         let rel_key_path = key_store
@@ -501,7 +483,7 @@ pub(crate) mod tests {
             true
         );
 
-        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+        assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
     }
 
     #[test]
@@ -547,7 +529,7 @@ pub(crate) mod tests {
             &KeyType::Ed25519Keypair,
             true
         );
-        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+        assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
     }
 
     #[test]
@@ -591,7 +573,7 @@ pub(crate) mod tests {
     fn list() {
         // Initialize the key store
         let (key_store, _keystore_dir) = init_keystore(true);
-        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+        assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
 
         // Insert another key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
@@ -603,15 +585,15 @@ pub(crate) mod tests {
             panic!("failed to downcast key to ed25519::Keypair")
         };
 
-        let key_spec = TestSpecifier("-i-am-a-suffix".into());
+        let key_spec = TestSpecifier::new("-i-am-a-suffix");
         let ed_key_type = KeyType::Ed25519Keypair;
 
         assert!(key_store.insert(&*key, &key_spec, &ed_key_type).is_ok());
 
         assert_contains_arti_paths!(
             [
-                TEST_SPECIFIER_PATH,
-                format!("{TEST_SPECIFIER_PATH}-i-am-a-suffix"),
+                TestSpecifier::path_prefix(),
+                format!("{}-i-am-a-suffix", TestSpecifier::path_prefix()),
             ],
             key_store.list().unwrap()
         );
