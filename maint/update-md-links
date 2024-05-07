@@ -9,7 +9,7 @@
 # New links are added to the next to the first place in the file
 # where links are defined.
 #
-# When we don't know what a link target should be, we emit XXXX.
+# When we don't know what a link target should be, we emit four Xs.
 
 
 # ALGORITHM
@@ -201,7 +201,7 @@ for a, defs in link_defs.items():
                 if d.t != t: continue
                 print("    defined %s" % d.source, file=sys.stderr)
     if len(ts) == 0:
-        ts.append("XXXX")
+        ts.append("XX" + "XX")
 
     link_def[a] = ts[0]
 
