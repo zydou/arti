@@ -24,6 +24,9 @@ license = "LGPL-3.0-only"
 default = ["compiler"]
 full = ["compiler", "hashx/full"]
 compiler = ["hashx/compiler"]
+experimental = []
+bucket-array-api = ["__is_experimental"]
+__is_experimental = []
 
 [dependencies]
 arrayvec = "0.7.4"
