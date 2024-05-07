@@ -132,7 +132,7 @@ def strip_lints_containing(s):
         return "\n".join(line for line in inp.split("\n") if not s in line)
 
     global LINT_LISTS
-    LINT_LISTS = dict((k, rmv_lints(v,s)) for (k,v) in LINT_LISTS)
+    LINT_LISTS = dict((k, rmv_lints(v,s)) for (k,v) in LINT_LISTS.items())
 
 def filter_file(lints, inp, outp, insist):
     in_lint_list = None
