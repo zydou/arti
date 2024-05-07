@@ -162,6 +162,8 @@ macro_rules! restricted_msg {
             }
         }
 
+        #[allow(unexpected_cfgs)]
+        const _: () = {
         $(
             #[cfg(feature = $omit_from)]
         )?
@@ -178,7 +180,10 @@ macro_rules! restricted_msg {
                 }
             }
         }
+    };
 
+        #[allow(unexpected_cfgs)]
+        const _: () = {
         $(
             #[cfg(feature = $omit_from)]
         )?
@@ -198,6 +203,8 @@ macro_rules! restricted_msg {
                 })
             }
         }
+        };
+
         $(
             $( #[cfg(feature=$feat)] )?
             impl From<$msg_mod :: $case> for $name {
