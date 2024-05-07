@@ -181,10 +181,14 @@ mod tests {
         assert!(key_store
             .insert(key().as_ref(), key_spec().as_ref(), key_type())
             .is_ok());
-        assert!(key_store
+
+        let key = key_store
             .get(key_spec().as_ref(), key_type())
             .unwrap()
-            .is_some());
+            .unwrap();
+
+        // Ensure the returned key is of the right type
+        assert!(key.downcast::<ed25519::Keypair>().is_ok());
     }
 
     #[test]
