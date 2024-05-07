@@ -78,6 +78,8 @@ esac
 
 #===== checks and preparation =====
 
+jq </dev/null . || fail "jq is not installed, try   apt install jq"
+
 #----- check that we are identical to our main repo's `main`
 
 # shellcheck disable=SC2086 # we want to split on spaces in $origin
