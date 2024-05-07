@@ -3,12 +3,10 @@
 pub(crate) mod arti;
 pub(crate) mod ephemeral;
 
-use std::result::Result as StdResult;
-
 use rand::{CryptoRng, RngCore};
 use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair};
 use ssh_key::public::{Ed25519PublicKey, KeyData, OpaquePublicKey};
-use ssh_key::{Algorithm, AlgorithmName};
+use ssh_key::{Algorithm, AlgorithmName, LineEnding, PrivateKey, PublicKey};
 use tor_error::{internal, into_internal};
 use tor_hscrypto::pk::{
     HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair, HsDescSigningKeypair, HsIdKey,
@@ -219,7 +217,12 @@ fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve2551
 /// A public key or a keypair.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub enum SshKeyData {
+pub struct SshKeyData(SshKeyDataInner);
+
+/// The inner representation of a public key or a keypair.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+enum SshKeyDataInner {
     /// The [`KeyData`] of a public key.
     Public(KeyData),
     /// The [`KeypairData`] of a private key.
@@ -227,20 +230,65 @@ pub enum SshKeyData {
 }
 
 impl SshKeyData {
-    /// Returns the [`KeyData`], if this is a public key. Otherwise returns `Err(self)`.
-    pub fn into_public(self) -> StdResult<KeyData, Self> {
-        match self {
-            SshKeyData::Public(key_data) => Ok(key_data),
-            SshKeyData::Private(_) => Err(self),
-        }
+    /// Try to covnert a [`KeyData`] to [`SshKeyData`].
+    ///
+    /// Returns an error if this type of [`KeyData`] is not supported.
+    pub(crate) fn try_from_key_data(key: KeyData) -> Result<Self> {
+        let algo = SshKeyAlgorithm::from(key.algorithm());
+        let () = match key {
+            KeyData::Ed25519(_) => Ok(()),
+            KeyData::Other(_) => match algo {
+                SshKeyAlgorithm::X25519 => Ok(()),
+                _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
+            },
+            _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
+        }?;
+
+        Ok(Self(SshKeyDataInner::Public(key)))
     }
 
-    /// Returns the [`KeypairData`], if this is a private key. Otherwise returns `Err(self)`.
-    pub fn into_private(self) -> StdResult<KeypairData, Self> {
-        match self {
-            SshKeyData::Public(_) => Err(self),
-            SshKeyData::Private(keypair_data) => Ok(keypair_data),
-        }
+    /// Try to covnert a [`KeypairData`] to [`SshKeyData`].
+    ///
+    /// Returns an error if this type of [`KeypairData`] is not supported.
+    pub(crate) fn try_from_keypair_data(key: KeypairData) -> Result<Self> {
+        let algo = SshKeyAlgorithm::from(key
+            .algorithm()
+            .map_err(into_internal!("encrypted keys are not yet supported"))?);
+        let () = match key {
+            KeypairData::Ed25519(_) => Ok(()),
+            KeypairData::Other(_) => match algo {
+                SshKeyAlgorithm::X25519 => Ok(()),
+                SshKeyAlgorithm::Ed25519Expanded => Ok(()),
+                _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
+            },
+            _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
+        }?;
+
+        Ok(Self(SshKeyDataInner::Private(key)))
+    }
+
+    /// Encode this key as an OpenSSH-formatted key using the specified `comment`
+    pub(crate) fn to_openssh_string(&self, comment: &str) -> Result<String> {
+        let openssh_key = match &self.0 {
+            SshKeyDataInner::Public(key_data) => {
+                let openssh_key = PublicKey::new(key_data.clone(), comment);
+
+                openssh_key
+                    .to_openssh()
+                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
+            }
+            SshKeyDataInner::Private(keypair) => {
+                let openssh_key = PrivateKey::new(keypair.clone(), comment)
+                    .map_err(|_| tor_error::internal!("failed to create SSH private key"))?;
+
+                openssh_key
+                    .to_openssh(LineEnding::LF)
+                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
+                    .to_string()
+            }
+        };
+
+        Ok(openssh_key)
     }
 
     /// Convert the key material into a known key type,
@@ -248,14 +296,14 @@ impl SshKeyData {
     ///
     /// The caller is expected to downcast the value returned to the correct concrete type.
     pub fn into_erased(self) -> Result<ErasedKey> {
-        match self {
-            SshKeyData::Private(key) => {
+        match self.0 {
+            SshKeyDataInner::Private(key) => {
                 let algorithm = key
                     .algorithm()
                     .map_err(into_internal!("unsupported key type"))?;
                 ssh_to_internal_erased!(PRIVATE key, algorithm)
             }
-            SshKeyData::Public(key) => {
+            SshKeyDataInner::Public(key) => {
                 let algorithm = key.algorithm();
                 ssh_to_internal_erased!(PUBLIC key, algorithm)
             }
@@ -275,45 +323,6 @@ pub(crate) use sealed::Sealed;
 
 #[cfg(not(test))]
 use sealed::Sealed;
-
-impl TryFrom<KeyData> for SshKeyData {
-    type Error = crate::Error;
-
-    fn try_from(key: KeyData) -> StdResult<Self, Self::Error> {
-        let algo = SshKeyAlgorithm::from(key.algorithm());
-        let () = match key {
-            KeyData::Ed25519(_) => Ok(()),
-            KeyData::Other(_) => match algo {
-                SshKeyAlgorithm::X25519 => Ok(()),
-                _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
-            },
-            _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
-        }?;
-
-        Ok(Self::Public(key))
-    }
-}
-
-impl TryFrom<KeypairData> for SshKeyData {
-    type Error = crate::Error;
-
-    fn try_from(key: KeypairData) -> StdResult<Self, Self::Error> {
-        let algo = SshKeyAlgorithm::from(key
-            .algorithm()
-            .map_err(into_internal!("encrypted keys are not yet supported"))?);
-        let () = match key {
-            KeypairData::Ed25519(_) => Ok(()),
-            KeypairData::Other(_) => match algo {
-                SshKeyAlgorithm::X25519 => Ok(()),
-                SshKeyAlgorithm::Ed25519Expanded => Ok(()),
-                _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
-            },
-            _ => Err(Error::UnsupportedKeyAlgorithm(algo)),
-        }?;
-
-        Ok(Self::Private(key))
-    }
-}
 
 /// A key that can be serialized to, and deserialized from, a format used by a
 /// [`Keystore`].
@@ -367,7 +376,7 @@ impl EncodableKey for curve25519::StaticKeypair {
         );
         let keypair = OpaqueKeypair::new(self.secret.to_bytes().to_vec(), ssh_public);
 
-        ssh_key::private::KeypairData::Other(keypair).try_into()
+        SshKeyData::try_from_keypair_data(ssh_key::private::KeypairData::Other(keypair))
     }
 }
 
@@ -388,7 +397,7 @@ impl EncodableKey for curve25519::PublicKey {
         let ssh_public =
             OpaquePublicKey::new(self.to_bytes().to_vec(), Algorithm::Other(algorithm_name));
 
-        KeyData::Other(ssh_public).try_into()
+        SshKeyData::try_from_key_data(KeyData::Other(ssh_public))
     }
 }
 
@@ -417,7 +426,7 @@ impl EncodableKey for ed25519::Keypair {
             private: Ed25519PrivateKey::from_bytes(self.as_bytes()),
         };
 
-        KeypairData::Ed25519(keypair).try_into()
+        SshKeyData::try_from_keypair_data(KeypairData::Ed25519(keypair))
     }
 }
 
@@ -434,7 +443,7 @@ impl EncodableKey for ed25519::PublicKey {
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
         let key_data = Ed25519PublicKey(self.to_bytes());
 
-        ssh_key::public::KeyData::Ed25519(key_data).try_into()
+        SshKeyData::try_from_key_data(ssh_key::public::KeyData::Ed25519(key_data))
     }
 }
 
@@ -470,7 +479,7 @@ impl EncodableKey for ed25519::ExpandedKeypair {
 
         let keypair = OpaqueKeypair::new(self.to_secret_key_bytes().to_vec(), ssh_public);
 
-        ssh_key::private::KeypairData::Other(keypair).try_into()
+        SshKeyData::try_from_keypair_data(ssh_key::private::KeypairData::Other(keypair))
     }
 }
 

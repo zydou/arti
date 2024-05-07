@@ -17,13 +17,9 @@ use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
-use ssh_key::private::PrivateKey;
-use ssh_key::{LineEnding, PublicKey};
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
-
-use super::SshKeyData;
 
 /// The Arti key store.
 ///
@@ -168,24 +164,7 @@ impl Keystore for ArtiNativeKeystore {
         // TODO (#1095): decide what information, if any, to put in the comment
         let comment = "";
 
-        let openssh_key = match key {
-            SshKeyData::Public(key_data) => {
-                let openssh_key = PublicKey::new(key_data, comment);
-
-                openssh_key
-                    .to_openssh()
-                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
-            }
-            SshKeyData::Private(keypair) => {
-                let openssh_key = PrivateKey::new(keypair, comment)
-                    .map_err(|_| tor_error::internal!("failed to create SSH private key"))?;
-
-                openssh_key
-                    .to_openssh(LineEnding::LF)
-                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
-                    .to_string()
-            }
-        };
+        let openssh_key = key.to_openssh_string(comment)?;
 
         Ok(self
             .keystore_dir
