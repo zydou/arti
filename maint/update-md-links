@@ -71,14 +71,15 @@ args = parser.parse_args()
 
 md = list(open(args.filename, 'r'))
 
-link_defs = {}
 
 Def = collections.namedtuple('Def', ['t', 'source', 'md_i'])
 
+link_defs = {}
+Section = collections.namedtuple('Section', ['start', 'end', 'defs_t2i', 'a_needed'])
 sections = []
+
 # namedtuple has defaults= but it gives every fresh tuple an aliased copy of the
 # same value!
-Section = collections.namedtuple('Section', ['start', 'end', 'defs_t2i', 'a_needed'])
 def new_section(start, end):
     sections.append(Section(start, end, {}, {}))
 
