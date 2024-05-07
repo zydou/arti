@@ -43,6 +43,7 @@
 
 import argparse
 import collections
+import filecmp
 import os
 import re
 import subprocess
@@ -353,11 +354,15 @@ def write_output():
     if args.check:
         r = subprocess.run(['diff', '-u', '--', args.filename, new_filename])
         if r.returncode == 1:
-            print('CHANGELOG links not up to date.', file=sys.stderr)
+            print('%s links not up to date.' % args.filename, file=sys.stderr)
             sys.exit(1)
         check_returncode(r)
         os.remove(new_filename)
     else:
+        if filecmp.cmp(args.filename, new_filename):
+            print("%s unchanged" % args.filename)
+        else:
+            print("%s *updated*!" % args.filename)
         os.rename(new_filename, args.filename)
 
 #---------- main program ----------
