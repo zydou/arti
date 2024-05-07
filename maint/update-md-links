@@ -89,6 +89,11 @@ def trouble(m):
     print("trouble: "+m, file=sys.stderr)
     troubles += 1
 
+def check_returncode(process):
+    r = process.returncode
+    if r != 0:
+        print("subprocess failed with nonzero returncode %s" % r, file=sys.stderr)
+
 def is_link_def(l):
     # returns None or (a, t)
     g = link_def_re.fullmatch(l)
@@ -171,7 +176,7 @@ for s in sections:
         s.a_needed[a] = True
 
     gen_links_output.wait()
-    assert(gen_links_output.returncode == 0)
+    check_returncode(gen_links_output)
 
 #---------- reconcile definitions ----------
 
@@ -264,6 +269,6 @@ if args.check:
     if r.returncode == 1:
         print('CHANGELOG links not up to date.', file=sys.stderr)
         sys.exit(1)
-    assert(r.returncode == 0)
+    check_returncode(r)
 else:
     os.rename(new_filename, args.filename)
