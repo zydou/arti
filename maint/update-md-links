@@ -49,15 +49,24 @@ import subprocess
 import sys
 import tempfile
 
+#---------- "constant" definitions ----------
+
+# regexps
+
 link_def_re = re.compile(r'\[([^][]+)\]\:\s?(.*)\n?')
 heading_re = re.compile(r'(\#+)\s')
 instruction_re = re.compile(r'\<\!\-\-\@\@\s+update-md-links\s*(.*\S)\s*\-\-\>\s*$')
 instruction_val_re = re.compile(r'\s*([-0-9a-z]+)\s+(.*\S)\s*')
 
+# "instructions" we understand in comments like this:
+# <!--@@ update-md-links INSTRUCTION VALUE -->
+
 instructions = {
     'split-heading-level': 0,
     'section-blank-lines': 1,
 }
+
+#---------- parse command line and read the input file ----------
 
 parser = argparse.ArgumentParser(
     prog="update-md-links",
@@ -71,37 +80,72 @@ args = parser.parse_args()
 
 md = list(open(args.filename, 'r'))
 
+#---------- principal data structure ----------
 
+# One definition, of `t`, with human-readable source `source`, at md line `md_i`
+#
+# The link definition might be from maint/gen_md_links, in which case `md_i` is `None`.
 Def = collections.namedtuple('Def', ['t', 'source', 'md_i'])
 
+# Definitions we have found
+#
+# Maps the link anchor to a list of `Def`s.
 link_defs = {}
+
+# One section (if we have `split-heading-level` of other than 0).
+#
+# Comprises lines [`start`, `end`).
+# `defs_t2i` maps link target to a list of line numbers it's defined on
+# `a_needed` will be set to True when we find it actually contains any link
 Section = collections.namedtuple('Section', ['start', 'end', 'defs_t2i', 'a_needed'])
 sections = []
 
 # namedtuple has defaults= but it gives every fresh tuple an aliased copy of the
-# same value!
+# same value!  So we provide this constructor.
 def new_section(start, end):
     sections.append(Section(start, end, {}, {}))
+
+#---------- utility functions ----------
 
 troubles = 0
 
 def trouble(m):
+    '''
+    Record a "trouble" - a nonfatal problem.
+
+    Prints the message `m` to stderr, and increments `troubles`, so we exit nonzero, later.
+    '''
     global troubles
     print("trouble: "+m, file=sys.stderr)
     troubles += 1
 
 def check_returncode(process):
+    '''
+    Check `process.returncode`; if it's not zero, print an error message and exit nonzero.
+    '''
     r = process.returncode
     if r != 0:
         print("subprocess failed with nonzero returncode %s" % r, file=sys.stderr)
 
 def is_link_def(l):
-    # returns None or (a, t)
+    '''
+    Is the line `l` in the syntax of a link definition?
+
+    If so returns `(a, t)` where `a` is the anchor and `t` the target.
+    Otherwise returns None.
+    '''
     g = link_def_re.fullmatch(l)
     if g is None: return None
     return g.groups()
 
 def record_link_def(a, t, source, md_i):
+    '''
+    Record that anchor `a` is defined to have target url `t`.
+
+    `source` and `md_i` are as for `Def`.
+
+    `t` may be the empty string (and for output from `gen_md_links`, often is).
+    '''
     link_defs.setdefault(a, []).append(Def(t, source, md_i))
 
 #---------- search for instructions ----------
@@ -181,6 +225,9 @@ for s in sections:
 
 #---------- reconcile definitions ----------
 
+# Resolved link definitions.
+#
+# Maps each anchor `a` to its resolved target url `t`
 link_def = {}
 
 for a, defs in link_defs.items():
