@@ -336,7 +336,7 @@ pub(crate) trait Store: Send + 'static {
 
 /// Value in the bridge descriptor cache
 #[derive(Clone, Debug)]
-#[cfg_attr(not(feature = "bridge_client"), allow(dead_code))]
+#[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
 pub(crate) struct CachedBridgeDescriptor {
     /// When we fetched this
     pub(crate) fetched: SystemTime,
