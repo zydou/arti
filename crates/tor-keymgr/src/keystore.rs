@@ -264,9 +264,28 @@ impl SshKeyData {
     }
 }
 
+/// Seal preventing external types from implementing `EncodableKey`.
+mod sealed {
+    /// Sealed
+    pub trait Sealed {}
+}
+
+// TODO: refactor the keymgr tests to not require a custom EncodableKey impl.
+#[cfg(test)]
+pub(crate) use sealed::Sealed;
+
+#[cfg(not(test))]
+use sealed::Sealed;
+
 /// A key that can be serialized to, and deserialized from, a format used by a
 /// [`Keystore`].
-pub trait EncodableKey: Downcast {
+//
+// Sealed, because the supported key types form a closed set.
+// When adding a new `EncodableKey` impl, you must also update
+// [`SshKeyData::into_erased`](crate::SshKeyData::into_erased) to
+// return the corresponding concrete type implementing `EncodableKey`
+// (as a `dyn EncodableKey`).
+pub trait EncodableKey: Downcast + Sealed {
     /// The type of the key.
     fn key_type() -> KeyType
     where
@@ -290,6 +309,8 @@ impl Keygen for curve25519::StaticKeypair {
     }
 }
 
+impl Sealed for curve25519::StaticKeypair {}
+
 impl EncodableKey for curve25519::StaticKeypair {
     fn key_type() -> KeyType
     where
@@ -311,6 +332,8 @@ impl EncodableKey for curve25519::StaticKeypair {
         Ok(ssh_key::private::KeypairData::Other(keypair).into())
     }
 }
+
+impl Sealed for curve25519::PublicKey {}
 
 impl EncodableKey for curve25519::PublicKey {
     fn key_type() -> KeyType
@@ -340,6 +363,8 @@ impl Keygen for ed25519::Keypair {
     }
 }
 
+impl Sealed for ed25519::Keypair {}
+
 impl EncodableKey for ed25519::Keypair {
     fn key_type() -> KeyType
     where
@@ -357,6 +382,8 @@ impl EncodableKey for ed25519::Keypair {
         Ok(KeypairData::Ed25519(keypair).into())
     }
 }
+
+impl Sealed for ed25519::PublicKey {}
 
 impl EncodableKey for ed25519::PublicKey {
     fn key_type() -> KeyType
@@ -383,6 +410,8 @@ impl Keygen for ed25519::ExpandedKeypair {
         Ok((&keypair).into())
     }
 }
+
+impl Sealed for ed25519::ExpandedKeypair {}
 
 impl EncodableKey for ed25519::ExpandedKeypair {
     fn key_type() -> KeyType

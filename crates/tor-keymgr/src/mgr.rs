@@ -408,6 +408,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::keystore::Sealed;
     use crate::{ArtiPath, ArtiPathUnavailableError, ErasedKey, KeyPath, KeyType, SshKeyData};
     use std::collections::HashMap;
     use std::result::Result as StdResult;
@@ -429,6 +430,8 @@ mod tests {
             Ok("generated_test_key".into())
         }
     }
+
+    impl Sealed for TestKey {}
 
     impl EncodableKey for TestKey {
         fn key_type() -> KeyType
