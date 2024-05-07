@@ -29,19 +29,19 @@ pub(super) struct UnparsedOpenSshKey {
 /// Parse an OpenSSH key, returning its corresponding [`SshKeyData`].
 macro_rules! parse_openssh {
     (PRIVATE $key:expr, $key_type:expr) => {{
-        SshKeyData::from(parse_openssh!(
+        SshKeyData::try_from(parse_openssh!(
             $key,
             $key_type,
             ssh_key::private::PrivateKey::from_openssh
-        ).key_data().clone())
+        ).key_data().clone())?
     }};
 
     (PUBLIC $key:expr, $key_type:expr) => {{
-        SshKeyData::from(parse_openssh!(
+        SshKeyData::try_from(parse_openssh!(
             $key,
             $key_type,
             ssh_key::public::PublicKey::from_openssh
-        ).key_data().clone())
+        ).key_data().clone())?
     }};
 
     ($key:expr, $key_type:expr, $parse_fn:path) => {{
