@@ -140,8 +140,7 @@ def process_instructions():
     Looks for instructions and updates the global `instructions`.
     '''
 
-    for i in range(0, len(md)):
-        l = md[i]
+    for i, l in enumerate(md):
         source = '%s:%d' % (args.filename, i + 1)
 
         g = instruction_re.fullmatch(l)
@@ -173,8 +172,7 @@ def split_input() -> list[Section]:
     def new_section(start, end):
         sections.append(Section(start, end, {}, {}))
 
-    for i in range(0, len(md)):
-        l = md[i]
+    for i, l in enumerate(md):
         lno = i + 1
 
         g = heading_re.match(l)
