@@ -72,6 +72,13 @@ TEST_LINTS = """
 #![allow(clippy::needless_pass_by_value)]
 """
 
+# ---------- list of lints to apply or disapply *in examples* ----------
+
+EXAMPLE_LINTS = """
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
+""" + TEST_LINTS.strip()
+
+
 # ---------- some notes about lints we might use - NOT USED by any code here ----------
 
 SOON = """
@@ -97,6 +104,20 @@ DECIDED_NOT = """
 
 PAT = re.compile(r'^ *#!\[(?:cfg_attr\(.*)?(allow|deny|warn)')
 
+LINT_LISTS = {
+    'lint' : WANT_LINTS,
+    'test lint' : TEST_LINTS,
+    'example lint' : EXAMPLE_LINTS,
+}
+# The start delimeter is a regular comment.
+START_LINE = re.compile(r'^(\s*)// @@ begin (.*) list')
+
+# End delimiter is Rustdoc containing an HTML comment, because rustfmt
+# *really really* hates comments that come after things.
+# Finishing the automaintained block with just a blank line is too much of a hazard.
+# It does end up in the output HTML from Rustdoc, but it is harmless there.
+END_LINE = re.compile(r'^\s*//! <!-- @@ end (.*) list')
+
 opts = None
 deferred_errors = []
 
@@ -110,10 +131,8 @@ def strip_lints_containing(s):
     def rmv_lints(inp, s):
         return "\n".join(line for line in inp.split("\n") if not s in line)
 
-    global WANT_LINTS
-    global TEST_LINTS
-    WANT_LINTS = rmv_lints(WANT_LINTS, s)
-    TEST_LINTS = rmv_lints(TEST_LINTS, s)
+    global LINT_LISTS
+    LINT_LISTS = dict((k, rmv_lints(v,s)) for (k,v) in LINT_LISTS.items())
 
 def filter_file(lints, inp, outp, insist):
     in_lint_list = None
@@ -122,40 +141,25 @@ def filter_file(lints, inp, outp, insist):
     for line in inp.readlines():
         lno += 1
 
-        line_starts = None
-        line_ends = None
-        line_stripped = line.lstrip(' ')
-        if line_stripped.startswith("// @@ begin lint list"):
-            line_starts = 'main'
-        elif line_stripped.startswith("// @@ begin test lint list"):
-            line_starts = 'test'
-        elif line_stripped.startswith("//! <!-- @@ end lint list"):
-            line_ends = 'main'
-        elif line_stripped.startswith("//! <!-- @@ end test lint list"):
-            line_ends = 'test'
-
-        if line_starts:
+        if (start_match := START_LINE.match(line)):
             if in_lint_list:
                 raise ImproperFile(
                     lno, 'found "@@ begin lint list" but inside lint list')
             found_lint_list = True
-            in_lint_list = line_starts
-            indent = line[0: len(line) - len(line_stripped)]
-        elif line_ends:
-            # End delimiter is Rustdoc containing an HTML comment, because rustfmt
-            # *really really* hates comments that come after things.
-            # Finishing the automaintained block with just a blank line is too much of a hazard.
-            # It does end up in the output HTML from Rustdoc, but it is harmless there.
+            indent = start_match.group(1)
+            in_lint_list = start_match.group(2)
+        elif (end_match := END_LINE.match(line)):
             if not in_lint_list:
                 raise ImproperFile(
                     lno, 'found "@@ end lint list" but not inside lint list')
-            if in_lint_list != line_ends:
+            if in_lint_list != end_match.group(1):
                 raise ImproperFile(lno, 'found end tag ' +
-                                   line_ends+' but expected '+in_lint_list)
-            if in_lint_list == 'test':
-                lints = TEST_LINTS
-            else:
-                lints = WANT_LINTS
+                                   end_match.group(1)+' but expected '+in_lint_list)
+
+            try:
+                lints = LINT_LISTS[in_lint_list]
+            except KeyError:
+                raise ImproperFile(lno, "No such lint list as " + in_lint_list)
             for lint in lints.strip().split('\n'):
                 outp.write(indent + lint + '\n')
             in_lint_list = None
