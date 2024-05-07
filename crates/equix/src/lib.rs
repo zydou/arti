@@ -47,8 +47,9 @@ mod err;
 mod solution;
 mod solver;
 
-// Export bucket_array::mem API only to the fuzzer
-#[cfg(feature = "bucket-array-api")]
+// Export bucket_array::mem API only to the fuzzer.
+// (This is not stable; you should not use it except for testing.)
+#[cfg(feature = "bucket-array")]
 pub use bucket_array::mem::{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit};
 
 use hashx::{HashX, HashXBuilder};
