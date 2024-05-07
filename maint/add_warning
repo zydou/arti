@@ -72,6 +72,13 @@ TEST_LINTS = """
 #![allow(clippy::needless_pass_by_value)]
 """
 
+# ---------- list of lints to apply or disapply *in examples* ----------
+
+EXAMPLE_LINTS = """
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
+""" + TEST_LINTS.strip()
+
+
 # ---------- some notes about lints we might use - NOT USED by any code here ----------
 
 SOON = """
@@ -100,6 +107,7 @@ PAT = re.compile(r'^ *#!\[(?:cfg_attr\(.*)?(allow|deny|warn)')
 LINT_LISTS = {
     'lint' : WANT_LINTS,
     'test lint' : TEST_LINTS,
+    'example lint' : EXAMPLE_LINTS,
 }
 # The start delimeter is a regular comment.
 START_LINE = re.compile(r'^(\s*)// @@ begin (.*) list')
