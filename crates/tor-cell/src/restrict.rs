@@ -164,45 +164,45 @@ macro_rules! restricted_msg {
 
         #[allow(unexpected_cfgs)]
         const _: () = {
-        $(
-            #[cfg(feature = $omit_from)]
-        )?
-        impl From<$name> for $any_msg {
-            fn from(msg: $name) -> $any_msg {
-                match msg {
-                    $(
-                        $( #[cfg(feature=$feat)] )?
-                        $name::$case(b) => Self::$case(b),
-                    )*
-                    $(
-                        $name::$unrecognized(u) => $any_msg::Unrecognized(u),
-                    )?
+            $(
+                #[cfg(feature = $omit_from)]
+            )?
+            impl From<$name> for $any_msg {
+                fn from(msg: $name) -> $any_msg {
+                    match msg {
+                        $(
+                            $( #[cfg(feature=$feat)] )?
+                            $name::$case(b) => Self::$case(b),
+                        )*
+                        $(
+                            $name::$unrecognized(u) => $any_msg::Unrecognized(u),
+                        )?
+                    }
                 }
             }
-        }
-    };
+        };
 
         #[allow(unexpected_cfgs)]
         const _: () = {
-        $(
-            #[cfg(feature = $omit_from)]
-        )?
-        impl TryFrom<$any_msg> for $name {
-            type Error = $any_msg;
-            fn try_from(msg: $any_msg) -> std::result::Result<$name, $any_msg> {
-                Ok(match msg {
-                    $(
-                        $( #[cfg(feature=$feat)] )?
-                        $any_msg::$case(b) => $name::$case(b),
-                    )*
-                    $(
-                        $any_msg::Unrecognized(u) => Self::$unrecognized(u),
-                    )?
-                    #[allow(unreachable_patterns)]
-                    other => return Err(other),
-                })
+            $(
+                #[cfg(feature = $omit_from)]
+            )?
+            impl TryFrom<$any_msg> for $name {
+                type Error = $any_msg;
+                fn try_from(msg: $any_msg) -> std::result::Result<$name, $any_msg> {
+                    Ok(match msg {
+                        $(
+                            $( #[cfg(feature=$feat)] )?
+                            $any_msg::$case(b) => $name::$case(b),
+                        )*
+                        $(
+                            $any_msg::Unrecognized(u) => Self::$unrecognized(u),
+                        )?
+                        #[allow(unreachable_patterns)]
+                        other => return Err(other),
+                    })
+                }
             }
-        }
         };
 
         $(
