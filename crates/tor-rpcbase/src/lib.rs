@@ -50,7 +50,7 @@ use std::{convert::Infallible, sync::Arc};
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::RpcError;
 pub use method::{is_method_name, iter_method_names, DynMethod, Method, NoUpdates};
-pub use obj::{Object, ObjectId, ObjectRefExt};
+pub use obj::{Object, ObjectArcExt, ObjectId};
 
 #[doc(hidden)]
 pub use obj::cast::CastTable;

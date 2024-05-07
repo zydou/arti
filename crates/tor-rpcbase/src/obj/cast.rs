@@ -7,6 +7,7 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    sync::Arc,
 };
 
 use once_cell::sync::Lazy;
@@ -20,7 +21,7 @@ use crate::Object;
 /// `derive_deftly(Object)`.
 ///
 /// You shouldn't use this directly; instead use
-/// [`ObjectRefExt`](super::ObjectRefExt).
+/// [`ObjectArcExt`](super::ObjectArcExt).
 ///
 /// Note that the concrete object type `O`
 /// is *not* represented in the type of `CastTable`;
@@ -78,6 +79,12 @@ impl CastTable {
         self.insert_erased(TypeId::of::<&'static T>(), Box::new(func) as _);
     }
 
+    /// As [`insert`](CastTable::insert), but instead takes a function
+    /// that downcasts from `Arc<dyn Object>` to `Arc<dyn T>`.
+    pub fn insert_arc<T: 'static + ?Sized>(&mut self, func: fn(Arc<dyn Object>) -> Arc<T>) {
+        self.insert_erased(TypeId::of::<Arc<T>>(), Box::new(func) as _);
+    }
+
     /// Implementation for adding an entry to the `CastTable`
     ///
     /// Broken out for clarity and to reduce monomorphisation.
@@ -102,6 +109,7 @@ impl CastTable {
     /// `T` should be `dyn Tr`.
     /// If `T` is not one of the `dyn Tr` for which `insert` was called,
     /// returns `None`.
+    ///
     /// # Panics
     ///
     /// Panics if the concrete type of `obj` does not match `O`.
@@ -115,6 +123,32 @@ impl CastTable {
             .downcast_ref()
             .expect("Incorrect cast-function type found in cast table!");
         Some(caster(obj))
+    }
+
+    /// As [`cast_object_to`](CastTable::cast_object_to), but returns an `Arc<dyn Tr>`.
+    ///
+    /// If `T` is not one of the `dyn Tr` types for which `insert_arc` was called,
+    /// return `Err(obj)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the concrete type of `obj` does not match `O`.
+    ///
+    /// May panic if any of the Requirements for [`CastTable::insert_arc`] were
+    /// violated.
+    pub fn cast_object_to_arc<T: 'static + ?Sized>(
+        &self,
+        obj: Arc<dyn Object>,
+    ) -> Result<Arc<T>, Arc<dyn Object>> {
+        let target_type = TypeId::of::<Arc<T>>();
+        let caster = match self.table.get(&target_type) {
+            Some(c) => c,
+            None => return Err(obj),
+        };
+        let caster: &fn(Arc<dyn Object>) -> Arc<T> = caster
+            .downcast_ref()
+            .expect("Incorrect cast-function type found in cast table!");
+        Ok(caster(obj))
     }
 }
 
@@ -149,6 +183,18 @@ macro_rules! cast_table_deftness_helper{
                         self_
                     };
                     table.insert::<dyn $traitname>(f);
+                }
+                {
+                    use std::sync::Arc;
+                    let f: fn(Arc<dyn $crate::Object>) -> Arc<dyn $traitname> = |self_| {
+                        let self_: Arc<Self> = self_
+                            .downcast_arc()
+                            .ok()
+                            .expect("used with incorrect type");
+                        let self_: Arc<dyn $traitname> = self_ as _;
+                        self_
+                    };
+                    table.insert_arc::<dyn $traitname>(f);
                 })*
                 table
     }
@@ -189,6 +235,10 @@ mod test {
         let tab = Simple::make_cast_table();
         let obj: &dyn Object = &concrete;
         let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
+
+        let arc = Arc::new(Simple);
+        let arc_obj: Arc<dyn Object> = arc.clone();
+        let _cast: Arc<dyn Tr1> = tab.cast_object_to_arc(arc_obj).ok().expect("cast failed");
     }
 
     #[derive(Deftly)]
@@ -205,5 +255,9 @@ mod test {
         let tab = Generic::<&'static str>::make_cast_table();
         let obj: &dyn Object = &gen;
         let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
+
+        let arc = Arc::new(Generic("bar"));
+        let arc_obj: Arc<dyn Object> = arc.clone();
+        let _cast: Arc<dyn Tr2> = tab.cast_object_to_arc(arc_obj).ok().expect("cast failed");
     }
 }
