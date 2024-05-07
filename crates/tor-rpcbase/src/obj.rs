@@ -75,7 +75,7 @@ where
     }
 }
 
-/// Extension trait for `dyn Object` and similar to support convenient
+/// Extension trait for `Arc<dyn Object>` to support convenient
 /// downcasting to `dyn Trait`.
 ///
 /// You don't need to use this for downcasting to an object's concrete
@@ -117,8 +117,13 @@ pub trait ObjectRefExt {
     fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T>;
 }
 
-impl ObjectRefExt for dyn Object {
-    fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T> {
+impl dyn Object {
+    /// Try to cast this `Object` to a `T`.  On success, return a reference to
+    /// T; on failure, return None.
+    ///
+    /// This method is only for casting to `&dyn Trait`;
+    /// see [`ObjectRefExt`] for limitations.
+    pub fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T> {
         let table = self.get_cast_table();
         table.cast_object_to(self)
     }
@@ -126,7 +131,8 @@ impl ObjectRefExt for dyn Object {
 
 impl ObjectRefExt for std::sync::Arc<dyn Object> {
     fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T> {
-        self.as_ref().cast_to_trait()
+        let obj: &dyn Object = self.as_ref();
+        obj.cast_to_trait()
     }
 }
 
