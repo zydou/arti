@@ -270,5 +270,6 @@ if args.check:
         print('CHANGELOG links not up to date.', file=sys.stderr)
         sys.exit(1)
     check_returncode(r)
+    os.remove(new_filename)
 else:
     os.rename(new_filename, args.filename)
