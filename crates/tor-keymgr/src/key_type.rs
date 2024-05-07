@@ -36,7 +36,14 @@
 // in a database.  But we don't need or want to write a generic "look up stuff in a database" API;
 // that can be (at least for now) a bespoke API just for HS client auth."
 
+use ssh_key::private::KeypairData;
+use ssh_key::public::KeyData;
+use ssh_key::Algorithm;
 use thiserror::Error;
+use tor_error::internal;
+
+use crate::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
+use crate::Result;
 
 /// Declare and implement the `KeyType` enum.
 ///
@@ -111,6 +118,38 @@ macro_rules! declare_key_type {
                     },
                 }
             }
+        }
+    }
+}
+
+impl KeyType {
+    /// Return the `KeyType` of the specified [`KeyData`].
+    ///
+    /// Returns an error if the [`KeyData`] is of an unsupported type.
+    pub(crate) fn try_from_key_data(key: &KeyData) -> Result<KeyType> {
+        match key.algorithm() {
+            Algorithm::Ed25519 => Ok(KeyType::Ed25519PublicKey),
+            Algorithm::Other(algo) if algo.as_str() == X25519_ALGORITHM_NAME => {
+                Ok(KeyType::X25519PublicKey)
+            }
+            _ => Err(internal!("invalid key data").into()),
+        }
+    }
+
+    /// Return the `KeyType` of the specified [`KeypairData`].
+    ///
+    /// Returns an error if the [`KeypairData`] is of an unsupported type.
+    pub(crate) fn try_from_keypair_data(key: &KeypairData) -> Result<KeyType> {
+        let algo = key.algorithm().map_err(|e| internal!("invalid algr {e}"))?;
+        match algo {
+            Algorithm::Ed25519 => Ok(KeyType::Ed25519Keypair),
+            Algorithm::Other(algo) if algo.as_str() == X25519_ALGORITHM_NAME => {
+                Ok(KeyType::X25519StaticKeypair)
+            }
+            Algorithm::Other(algo) if algo.as_str() == ED25519_EXPANDED_ALGORITHM_NAME => {
+                Ok(KeyType::Ed25519ExpandedKeypair)
+            }
+            _ => Err(internal!("invalid keypair data").into()),
         }
     }
 }

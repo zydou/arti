@@ -310,6 +310,17 @@ impl SshKeyData {
             }
         }
     }
+
+    /// Return the [`KeyType`] of this OpenSSH key.
+    ///
+    /// Returns an error if the underlying key material is [`KeypairData::Encrypted`],
+    /// or if its algorithm is unsupported.
+    pub fn key_type(&self) -> Result<KeyType> {
+        match &self.0 {
+            SshKeyDataInner::Public(k) => KeyType::try_from_key_data(k),
+            SshKeyDataInner::Private(k) => KeyType::try_from_keypair_data(k),
+        }
+    }
 }
 
 /// Seal preventing external types from implementing `EncodableKey`.
