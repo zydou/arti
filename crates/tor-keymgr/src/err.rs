@@ -9,7 +9,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::key_type::ssh::SshKeyAlgorithm;
+use crate::ssh::SshKeyAlgorithm;
 use crate::KeyPathError;
 
 /// An Error type for this crate.

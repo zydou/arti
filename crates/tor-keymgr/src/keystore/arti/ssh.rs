@@ -5,9 +5,9 @@
 
 use ssh_key::private::KeypairData;
 use ssh_key::public::KeyData;
-use ssh_key::Algorithm;
 
 use crate::keystore::arti::err::ArtiNativeKeystoreError;
+use crate::ssh::SshKeyAlgorithm;
 use crate::{ErasedKey, KeyType, Result};
 
 use tor_llcrypto::pk::{curve25519, ed25519};
@@ -15,17 +15,7 @@ use zeroize::Zeroizing;
 
 use std::path::PathBuf;
 
-use super::UnknownKeyTypeError;
-
-/// The algorithm string for x25519 SSH keys.
-///
-/// See <https://spec.torproject.org/ssh-protocols.html>
-pub(crate) const X25519_ALGORITHM_NAME: &str = "x25519@spec.torproject.org";
-
-/// The algorithm string for expanded ed25519 SSH keys.
-///
-/// See <https://spec.torproject.org/ssh-protocols.html>
-pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@spec.torproject.org";
+use crate::UnknownKeyTypeError;
 
 /// An unparsed OpenSSH key.
 ///
@@ -33,7 +23,7 @@ pub(crate) const ED25519_EXPANDED_ALGORITHM_NAME: &str = "ed25519-expanded@spec.
 /// value is unchecked/unvalidated, and might not actually be a valid OpenSSH key.
 ///
 /// The inner value is zeroed on drop.
-pub(crate) struct UnparsedOpenSshKey {
+pub(super) struct UnparsedOpenSshKey {
     /// The contents of an OpenSSH key file.
     inner: Zeroizing<String>,
     /// The path of the file (for error reporting).
@@ -119,7 +109,7 @@ impl UnparsedOpenSshKey {
     /// Create a new [`UnparsedOpenSshKey`].
     ///
     /// The contents of `inner` are erased on drop.
-    pub(crate) fn new(inner: String, path: PathBuf) -> Self {
+    pub(super) fn new(inner: String, path: PathBuf) -> Self {
         Self {
             inner: Zeroizing::new(inner),
             path,
@@ -130,7 +120,7 @@ impl UnparsedOpenSshKey {
     /// type-erased value.
     ///
     /// The caller is expected to downcast the value returned to a concrete type.
-    pub(crate) fn parse_ssh_format_erased(self, key_type: &KeyType) -> Result<ErasedKey> {
+    pub(super) fn parse_ssh_format_erased(self, key_type: &KeyType) -> Result<ErasedKey> {
         match key_type {
             KeyType::Ed25519Keypair
             | KeyType::X25519StaticKeypair
@@ -146,52 +136,6 @@ impl UnparsedOpenSshKey {
                 },
             )
             .into()),
-        }
-    }
-}
-
-/// SSH key algorithms.
-//
-// Note: this contains all the types supported by ssh_key, plus variants representing
-// x25519 and expanded ed25519 keys.
-#[derive(Clone, Debug, PartialEq, derive_more::Display)]
-pub(crate) enum SshKeyAlgorithm {
-    /// Digital Signature Algorithm
-    Dsa,
-    /// Elliptic Curve Digital Signature Algorithm
-    Ecdsa,
-    /// Ed25519
-    Ed25519,
-    /// Expanded Ed25519
-    Ed25519Expanded,
-    /// X25519
-    X25519,
-    /// RSA
-    Rsa,
-    /// FIDO/U2F key with ECDSA/NIST-P256 + SHA-256
-    SkEcdsaSha2NistP256,
-    /// FIDO/U2F key with Ed25519
-    SkEd25519,
-    /// An unrecognized [`ssh_key::Algorithm`].
-    Unknown(ssh_key::Algorithm),
-}
-
-impl From<Algorithm> for SshKeyAlgorithm {
-    fn from(algo: Algorithm) -> SshKeyAlgorithm {
-        match &algo {
-            Algorithm::Dsa => SshKeyAlgorithm::Dsa,
-            Algorithm::Ecdsa { .. } => SshKeyAlgorithm::Ecdsa,
-            Algorithm::Ed25519 => SshKeyAlgorithm::Ed25519,
-            Algorithm::Rsa { .. } => SshKeyAlgorithm::Rsa,
-            Algorithm::SkEcdsaSha2NistP256 => SshKeyAlgorithm::SkEcdsaSha2NistP256,
-            Algorithm::SkEd25519 => SshKeyAlgorithm::SkEd25519,
-            Algorithm::Other(name) => match name.as_str() {
-                X25519_ALGORITHM_NAME => SshKeyAlgorithm::X25519,
-                ED25519_EXPANDED_ALGORITHM_NAME => SshKeyAlgorithm::Ed25519Expanded,
-                _ => SshKeyAlgorithm::Unknown(algo),
-            },
-            // Note: ssh_key::Algorithm is non_exhaustive, so we need this catch-all variant
-            _ => SshKeyAlgorithm::Unknown(algo),
         }
     }
 }
@@ -282,6 +226,8 @@ fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve2551
     Ok(curve25519::PublicKey::from(public))
 }
 
+// TODO: this is only used by the ArtiNativeKeystore and returns a (type-erased) ArtiNativeKeystoreError,
+// so it shouldn't be a method on KeyType, but rather a standalone private function
 impl KeyType {
     /// Get the algorithm of this key type.
     pub(crate) fn ssh_algorithm(&self) -> Result<SshKeyAlgorithm> {

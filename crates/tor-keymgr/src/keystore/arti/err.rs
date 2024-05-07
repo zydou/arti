@@ -1,6 +1,6 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
-use crate::key_type::ssh::SshKeyAlgorithm;
+use crate::ssh::SshKeyAlgorithm;
 use crate::{ArtiPathSyntaxError, KeyType, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 

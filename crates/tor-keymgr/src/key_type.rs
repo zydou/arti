@@ -38,8 +38,6 @@
 
 use thiserror::Error;
 
-pub(crate) mod ssh;
-
 /// Declare and implement the `KeyType` enum.
 ///
 /// Each of the `variant`s is mapped to the specified `str_repr`.
@@ -140,7 +138,7 @@ declare_key_type! {
 #[error("unknown key type: arti_extension={arti_extension}")]
 pub struct UnknownKeyTypeError {
     /// The extension used for keys of this type in an Arti keystore.
-    arti_extension: String,
+    pub(crate) arti_extension: String,
 }
 
 #[cfg(test)]

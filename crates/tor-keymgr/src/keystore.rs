@@ -17,10 +17,8 @@ use tor_hscrypto::pk::{
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
 
-use crate::key_type::ssh::{
-    SshKeyAlgorithm, ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME,
-};
 use crate::key_type::KeyType;
+use crate::ssh::{SshKeyAlgorithm, ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
 use crate::{Error, KeyPath, KeySpecifier, KeystoreId, Result};
 
 use downcast_rs::{impl_downcast, Downcast};
