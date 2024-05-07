@@ -39,6 +39,10 @@
 //! certain to never increment the counter without actually writing to the
 //! [`MaybeUninit`]. See [`BucketState::insert`].
 
+// We need to allow this warning because we conditionally make some private
+// functions public, but their documentation links to private types.
+#![allow(rustdoc::private_intra_doc_links)]
+
 use num_traits::{One, Zero};
 use std::alloc;
 use std::mem::MaybeUninit;
@@ -56,7 +60,7 @@ use std::ops::{Add, Range};
 /// This memory is always assumed to be uninitialized unless we hold a mutable
 /// reference that's associated with information about specific fields that
 /// were initialized during the reference's lifetime.
-#[cfg_attr(fuzzing, visibility::make(pub))]
+#[cfg_attr(feature = "bucket-array", visibility::make(pub))]
 pub(crate) unsafe trait Uninit: Copy {
     /// Allocate new uninitialized memory, returning a new Box.
     fn alloc() -> Box<Self> {
@@ -77,7 +81,7 @@ pub(crate) unsafe trait Uninit: Copy {
 ///
 /// Implements [`Uninit`]. Structs and unions made from `BucketArrayMemory`
 /// can be soundly marked as [`Uninit`].
-#[cfg_attr(fuzzing, visibility::make(pub))]
+#[cfg_attr(feature = "bucket-array", visibility::make(pub))]
 #[derive(Copy, Clone)]
 pub(crate) struct BucketArrayMemory<
     // Number of buckets
@@ -97,7 +101,7 @@ pub(crate) struct BucketArrayMemory<
 unsafe impl<const N: usize, const M: usize, T: Copy> Uninit for BucketArrayMemory<N, M, T> {}
 
 /// Types that can be used as a count of items in a bucket
-#[cfg_attr(fuzzing, visibility::make(pub))]
+#[cfg_attr(feature = "bucket-array", visibility::make(pub))]
 pub(crate) trait Count: Copy + Zero + One + Into<usize> + Add<Self, Output = Self> {}
 
 impl<T: Copy + Zero + One + Into<usize> + Add<Self, Output = Self>> Count for T {}
@@ -163,7 +167,7 @@ impl<const N: usize, const CAP: usize, C: Count> BucketState<N, CAP, C> {
 }
 
 /// Concrete binding between one [`BucketState`] and one [`BucketArrayMemory`]
-#[cfg_attr(fuzzing, visibility::make(pub))]
+#[cfg_attr(feature = "bucket-array", visibility::make(pub))]
 pub(crate) struct BucketArray<
     // Lifetime for mutable reference to the backing memory
     'a,
@@ -184,7 +188,7 @@ pub(crate) struct BucketArray<
 
 impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N, CAP, C, A> {
     /// A new [`BucketArray`] wraps a new [`BucketState`] and some possibly-recycled [`BucketArrayMemory`]
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     pub(crate) fn new(mem: &'a mut BucketArrayMemory<N, CAP, A>) -> Self {
         Self {
             mem,
@@ -195,7 +199,7 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
     /// Look up the valid item range for a particular bucket.
     ///
     /// Panics if the bucket index is out of range.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     #[inline(always)]
     pub(crate) fn item_range(&self, bucket: usize) -> Range<usize> {
         self.state.item_range(bucket)
@@ -204,7 +208,7 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
     /// Look up the value of one item in one bucket.
     ///
     /// Panics if the indices are out of range.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     #[inline(always)]
     pub(crate) fn item_value(&self, bucket: usize, item: usize) -> A {
         assert!(self.state.item_range(bucket).contains(&item));
@@ -216,7 +220,11 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
     /// Append a new item to a bucket.
     ///
     /// If the bucket is full, returns `Err(())` and makes no changes.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(
+        feature = "bucket-array",
+        visibility::make(pub),
+        allow(clippy::result_unit_err)
+    )]
     #[inline(always)]
     pub(crate) fn insert(&mut self, bucket: usize, value: A) -> Result<(), ()> {
         self.state.insert(bucket, |item| {
@@ -226,7 +234,7 @@ impl<'a, const N: usize, const CAP: usize, C: Count, A: Copy> BucketArray<'a, N,
 }
 
 /// Concrete binding between one [`BucketState`] and a pair of [`BucketArrayMemory`]
-#[cfg_attr(fuzzing, visibility::make(pub))]
+#[cfg_attr(feature = "bucket-array", visibility::make(pub))]
 pub(crate) struct BucketArrayPair<
     // Lifetime for mutable reference to the first backing memory
     'a,
@@ -255,7 +263,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
     BucketArrayPair<'a, 'b, N, CAP, C, A, B>
 {
     /// A new [`BucketArray`] wraps a new [`BucketState`] and two [`BucketArrayMemory`]
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     pub(crate) fn new(
         mem_a: &'a mut BucketArrayMemory<N, CAP, A>,
         mem_b: &'b mut BucketArrayMemory<N, CAP, B>,
@@ -270,7 +278,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
     /// Look up the valid item range for a particular bucket.
     ///
     /// Panics if the bucket index is out of range.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     #[inline(always)]
     pub(crate) fn item_range(&self, bucket: usize) -> Range<usize> {
         self.state.item_range(bucket)
@@ -279,7 +287,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
     /// Look up the first value for one item in one bucket.
     ///
     /// Panics if the indices are out of range.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     #[inline(always)]
     pub(crate) fn item_value_first(&self, bucket: usize, item: usize) -> A {
         assert!(self.state.item_range(bucket).contains(&item));
@@ -291,7 +299,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
     /// Look up the second value for one item in one bucket.
     ///
     /// Panics if the indices are out of range.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     #[inline(always)]
     pub(crate) fn item_value_second(&self, bucket: usize, item: usize) -> B {
         assert!(self.state.item_range(bucket).contains(&item));
@@ -303,7 +311,11 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
     /// Append a new item pair to a bucket.
     ///
     /// If the bucket is full, returns Err(()) and makes no changes.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(
+        feature = "bucket-array",
+        visibility::make(pub),
+        allow(clippy::result_unit_err)
+    )]
     #[inline(always)]
     pub(crate) fn insert(&mut self, bucket: usize, first: A, second: B) -> Result<(), ()> {
         self.state.insert(bucket, |item| {
@@ -314,7 +326,7 @@ impl<'a, 'b, const N: usize, const CAP: usize, C: Count, A: Copy, B: Copy>
 
     /// Transfer the [`BucketState`] to a new single [`BucketArray`],
     /// keeping the second half and dropping the first.
-    #[cfg_attr(fuzzing, visibility::make(pub))]
+    #[cfg_attr(feature = "bucket-array", visibility::make(pub))]
     pub(crate) fn drop_first(self) -> BucketArray<'b, N, CAP, C, B> {
         BucketArray {
             mem: self.mem_b,

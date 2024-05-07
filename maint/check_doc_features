@@ -13,7 +13,7 @@ additional_required = {}
 
 # Not interested in the low-level interfaces we provide only for fuzzing
 additional_provided['equix'] = [
-    ('{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit}', 'fuzzing'),
+    ('{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit}', 'feature = "bucket-array"'),
 ]
 
 # PreferredRuntime has a somewhat more complexe rule for existing
