@@ -99,7 +99,8 @@ rust-latest:
     - cargo test --verbose --target x86_64-unknown-linux-gnu
     - rustup component add clippy
     - rustup show
-    - cargo clippy --all-features --all-targets -- --cfg ci_arti_stable -D warnings
+    - ./maint/add_warning --ci-stable
+    - cargo clippy --all-features --all-targets -- -D warnings
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
     - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
@@ -171,12 +172,10 @@ rust-nightly:
     - rustup component add clippy
     # We check these extra warnings on CI only, since we don't want to forbid them while developing.
 
-    # The --cfg allows us to write #![cfg_attr(ci_arti_nightly, allow(clippy::needless_borrow))]
-    # and similar, for when nightly clippy has false positives.  (There is no builtin
-    # cfg flag for nightly, and a cargo "feature" would be bad with --all-features.)
     - (echo; cat clippy-nightly.toml) >>clippy.toml
-    - cargo clippy --all-features --tests -- --cfg ci_arti_nightly -D clippy::dbg_macro
-    - RUSTDOCFLAGS="-Aunexpected-cfgs -Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
+    - ./maint/add_warning --ci-nightly
+    - cargo clippy --all-features --tests -- -D clippy::dbg_macro
+    - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
   after_script:
     - cargo clean
 
