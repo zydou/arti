@@ -39,6 +39,10 @@
 //! certain to never increment the counter without actually writing to the
 //! [`MaybeUninit`]. See [`BucketState::insert`].
 
+// We need to allow this warning because we conditionally make some private
+// functions public, but their documentation links to private types.
+#![allow(rustdoc::private_intra_doc_links)]
+
 use num_traits::{One, Zero};
 use std::alloc;
 use std::mem::MaybeUninit;
