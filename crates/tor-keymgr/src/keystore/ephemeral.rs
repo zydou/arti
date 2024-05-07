@@ -18,12 +18,12 @@ type KeyIdent = (ArtiPath, KeyType);
 /// The Ephemeral Arti key store
 ///
 /// This is a purely in-memory key store. Keys written to this store
-/// are never written to disk, and are stored in-memory as `Zeroizing<String>`.
+/// are never written to disk, and are stored in-memory as [`SshKeyData`].
 /// Keys saved in this Keystore do not persist between restarts!
 pub struct ArtiEphemeralKeystore {
     /// Identifier hard-coded to 'ephemeral'
     id: KeystoreId,
-    /// Keys stored as openssl-encoded zeroizing strings
+    /// Keys stored as [`SshKeyData`].
     key_dictionary: Arc<Mutex<HashMap<KeyIdent, SshKeyData>>>,
 }
 
