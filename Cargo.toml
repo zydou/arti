@@ -50,6 +50,7 @@ members = [
     "crates/tor-dirclient",
     "crates/tor-dirmgr",
     "crates/tor-keymgr",
+    "crates/tor-keymgr/testdata/generate-custom",
     "crates/tor-hsclient",
     "crates/tor-hsservice",
     "crates/tor-hsrproxy",

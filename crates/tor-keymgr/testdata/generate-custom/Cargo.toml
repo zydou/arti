@@ -10,5 +10,3 @@ rand = "0.8"
 tor-llcrypto = { path = "../../../tor-llcrypto", features = ["relay", "cvt-x25519"] }
 tor-keymgr = { path = "../../", features = ["keymgr"] }
 rand_core = { version = "0.6.4", features = ["getrandom"] }
-
-[workspace]
