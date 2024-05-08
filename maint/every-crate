@@ -11,7 +11,7 @@ x () {
     "$@"
 }
 
-for crate in $(maint/list_crates); do
+for crate in $(maint/list_crates_publish --all); do
     echo ==================== "$crate" ====================
     # allow $CARGO to contain multiple words
     # shellcheck disable=SC2086
