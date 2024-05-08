@@ -160,6 +160,10 @@ mod tests {
         &KeyType::Ed25519Keypair
     }
 
+    fn key_type_bad() -> &'static KeyType {
+        &KeyType::X25519StaticKeypair
+    }
+
     fn key_spec() -> Box<dyn KeySpecifier> {
         Box::<TestSpecifier>::default()
     }
@@ -215,6 +219,18 @@ mod tests {
     fn insert() {
         let key_store = ArtiEphemeralKeystore::new("test-ephemeral".to_string());
 
+        // verify inserting a key with the wrong key type fails
+        assert!(key_store
+            .insert(key().as_ref(), key_spec().as_ref(), key_type_bad())
+            .is_err());
+        // further ensure theres is no sideffects
+        assert!(!key_store
+            .contains(key_spec().as_ref(), key_type_bad())
+            .unwrap());
+        assert!(key_store
+            .get(key_spec().as_ref(), key_type_bad())
+            .unwrap()
+            .is_none());
         assert!(key_store.list().unwrap().is_empty());
 
         // verify inserting a goood key succeeds
