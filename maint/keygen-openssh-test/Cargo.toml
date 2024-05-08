@@ -2,6 +2,12 @@
 name = "keygen-openssh-test"
 version = "0.1.0"
 edition = "2021"
+publish = false
+authors = ["The Tor Project, Inc.", "Gabriela Moldovan <gabi@torproject.org>"]
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Tool used by arti to generate OpenSSH keys for testing"
 
 [dependencies]
 base32 = "0.4"
