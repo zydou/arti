@@ -48,7 +48,7 @@ def print_crates(args: argparse.Namespace):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        prog="list_crates_publish",
+        prog="list_crates",
         description="list crates (by default, only the ones to publish)",
         )
     parser.add_argument('--all', action='store_true', help='list even unpublished crates')
