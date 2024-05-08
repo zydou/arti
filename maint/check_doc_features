@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-from list_crates import crate_list
+from list_crates_publish import list_crates
 from collections import Counter
 
 # This contains annotations the script think are missing, but actually they don't need to be there
@@ -136,7 +136,8 @@ def for_each_rs(path, fn):
     return res
 
 def main():
-    for crate in crate_list():
+    for crate_info in list_crates():
+        crate = crate_info.name
         print(f"processing {crate}")
         crate_path = f"crates/{crate}/src"
         required = for_each_rs(crate_path, extract_feature_pub_use) + additional_required.get(crate, [])
