@@ -1,6 +1,19 @@
-# Generate custom test keys
+# Generate test OpenSSH keys
 
-A script for generating expanded-ed25519 and x25519 keys for testing.
+The `crates/tor-keymgr/tesdata` test OpenSSH keys were generated with:
+
+```bash
+./maint/keygen-openssh-test/generate.sh
+```
+
+## `keygen-open-ssh-test` usage
+
+The `keygen-open-ssh-test` binary crate is a helper for
+generating expanded-ed25519 and x25519 keys.
+
+You shouldn't need to run `keygen-open-ssh-test` directly.
+Instead, prefer using the provided `generate.sh` script to
+generate the test keys.
 
 ```
 Generate an OpenSSH keypair
@@ -42,7 +55,7 @@ Options:
 
 ```
 
-## Example
+### Example
 
 Generate an expanded Ed25519 OpenSSH private key in `expanded-ed25519-ssh-key.private`:
 
