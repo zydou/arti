@@ -251,9 +251,10 @@ impl SshKeyData {
     ///
     /// Returns an error if this type of [`KeypairData`] is not supported.
     pub(crate) fn try_from_keypair_data(key: KeypairData) -> Result<Self> {
-        let algo = SshKeyAlgorithm::from(key
-            .algorithm()
-            .map_err(into_internal!("encrypted keys are not yet supported"))?);
+        let algo = SshKeyAlgorithm::from(
+            key.algorithm()
+                .map_err(into_internal!("encrypted keys are not yet supported"))?,
+        );
         let () = match key {
             KeypairData::Ed25519(_) => Ok(()),
             KeypairData::Other(_) => match algo {
