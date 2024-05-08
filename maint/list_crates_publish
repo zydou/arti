@@ -7,27 +7,42 @@ import toml.decoder
 import sys
 import os.path
 
+from typing import Iterator
+from dataclasses import dataclass
+
 TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
 WORKSPACE_TOML = os.path.join(TOPDIR, "Cargo.toml")
 
-def print_crates():
+@dataclass
+class Crate:
+    '''Information about one crate'''
+    name: str
+    publish: bool
+    version: str
+
+def list_crates() -> Iterator[Crate]:
+    '''
+    Iterator over all the crates in the workspace.
+    '''
     t = toml.decoder.load(WORKSPACE_TOML)
-    shown_any = False
     for path in t['workspace']['members']:
         pt = toml.decoder.load(path + "/Cargo.toml")
         package = pt["package"]["name"]
         publish = pt["package"].get("publish")
-        show = (args.package == package if args.package is not None
-                else args.all or publish != False)
+        version = pt["package"]["version"]
+        yield Crate(package, publish, version)
 
+def print_crates(args: argparse.Namespace):
+    shown_any = False
+    for c in list_crates():
+        show = (args.package == c.name if args.package is not None
+                else args.all or c.publish != False)
         if not show: continue
-
         shown_any = True
         if args.version:
-            version = pt["package"]["version"]
-            print("%-23s %s" % (package, version))
+            print("%-23s %s" % (c.name, c.version))
         else:
-            print(package)
+            print(c.name)
 
     assert shown_any
 
@@ -40,6 +55,5 @@ if __name__ == '__main__':
     parser.add_argument('--version', action='store_true', help='print versions')
     parser.add_argument('-p', '--package', help='specific crate')
 
-    global args
     args = parser.parse_args()
-    print_crates()
+    print_crates(args)
