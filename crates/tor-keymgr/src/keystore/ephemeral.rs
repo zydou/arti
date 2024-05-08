@@ -5,6 +5,8 @@ pub(crate) mod err;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use tor_error::internal;
+
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;
 use crate::{
@@ -79,6 +81,24 @@ impl Keystore for ArtiEphemeralKeystore {
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_data = key.as_ssh_key_data()?;
+
+        // TODO: add key_type validation to Keystore::get and Keystore::remove.
+        // The presence of a key with a mismatched key_type can be either due to keystore
+        // corruption, or API misuse. We will need a new error type and corresponding ErrorKind for
+        // that).
+        //
+        // TODO: add key_type validation to ArtiNativeKeystore
+        if &key_data.key_type()? != key_type {
+            // This can never happen unless:
+            //   * Keystore::insert is called directly with an incorrect KeyType for `key`, or
+            //   * Keystore::insert is called via KeyMgr, but the EncodableKey implementation of
+            //   the key is broken. EncodableKey can't be implemented by external types,
+            //   so a broken implementation means we have an internal bug.
+            return Err(internal!(
+                "the specified KeyType does not match key type of the inserted key?!"
+            )
+            .into());
+        }
 
         // save to dictionary
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
