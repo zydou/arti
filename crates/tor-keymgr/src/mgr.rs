@@ -438,7 +438,9 @@ mod tests {
         fn new(meta: &str) -> Self {
             let mut rng = testing_rng();
             TestKey {
-                key: ed25519::Keypair::generate(&mut rng).as_ssh_key_data().unwrap(),
+                key: ed25519::Keypair::generate(&mut rng)
+                    .as_ssh_key_data()
+                    .unwrap(),
                 meta: meta.into(),
             }
         }
@@ -577,10 +579,10 @@ mod tests {
                         meta: format!("{}_{value}", self.id()),
                     };
 
-                    self.inner.write().unwrap().insert(
-                        (key_spec.arti_path().unwrap(), key_type.clone()),
-                        key
-                    );
+                    self.inner
+                        .write()
+                        .unwrap()
+                        .insert((key_spec.arti_path().unwrap(), key_type.clone()), key);
 
                     Ok(())
                 }
@@ -669,7 +671,9 @@ mod tests {
 
         assert!(old_key.is_none());
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore2_coot".to_string()),
         );
 
@@ -686,7 +690,9 @@ mod tests {
         assert_eq!(old_key, "keystore2_coot");
         // Check that the original value was overwritten:
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore2_gull".to_string()),
         );
         // Insert a key into the default keystore
@@ -699,7 +705,9 @@ mod tests {
             .unwrap();
         assert!(old_key.is_none());
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier2).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier2)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_moorhen".to_string())
         );
 
@@ -721,7 +729,9 @@ mod tests {
 
             // Ensure the key now exists in `store`.
             assert_eq!(
-                mgr.get::<TestKey>(&TestKeySpecifier3).unwrap().map(|k| k.meta),
+                mgr.get::<TestKey>(&TestKeySpecifier3)
+                    .unwrap()
+                    .map(|k| k.meta),
                 Some(format!("{store}_cormorant"))
             );
         }
@@ -729,7 +739,9 @@ mod tests {
         // The key exists in all key stores, but if no keystore_id is specified, we return the
         // value from the first key store it is found in (in this case, Keystore1)
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier3).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier3)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_cormorant".to_string())
         );
     }
@@ -756,7 +768,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore2_coot".to_string())
         );
 
@@ -773,11 +787,10 @@ mod tests {
             .unwrap());
 
         // Try to remove the key from the default key store
-        assert!(
-            mgr.remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Default)
-                .unwrap()
-                .is_none(),
-        );
+        assert!(mgr
+            .remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Default)
+            .unwrap()
+            .is_none(),);
 
         // The key still exists in Keystore2
         assert!(mgr.secondary_stores[0]
@@ -790,7 +803,8 @@ mod tests {
                 &TestKeySpecifier1,
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap())
             )
-            .unwrap().map(|k| k.meta),
+            .unwrap()
+            .map(|k| k.meta),
             Some("keystore2_coot".to_string())
         );
 
@@ -815,9 +829,10 @@ mod tests {
         .unwrap();
 
         // There is no corresponding public key entry.
-        assert!(
-            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap().is_none(),
-        );
+        assert!(mgr
+            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
+            .unwrap()
+            .is_none(),);
 
         // Try to generate a new key (overwrite = false)
         let err = mgr
@@ -833,14 +848,17 @@ mod tests {
 
         // The previous entry was not overwritten because overwrite = false
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_coot".to_string())
         );
 
         // We don't store public keys in the keystore
-        assert!(
-            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap().is_none(),
-        );
+        assert!(mgr
+            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
+            .unwrap()
+            .is_none(),);
 
         // Try to generate a new key (overwrite = true)
         let key = mgr
@@ -855,14 +873,17 @@ mod tests {
         assert_eq!(key.meta, "generated_test_key".to_string());
 
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_generated_test_key".to_string())
         );
 
         // We don't store public keys in the keystore
-        assert!(
-            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap().is_none(),
-        );
+        assert!(mgr
+            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
+            .unwrap()
+            .is_none(),);
     }
 
     #[test]
@@ -893,12 +914,15 @@ mod tests {
                 KeystoreSelector::Default,
                 &mut testing_rng()
             )
-            .unwrap().meta,
+            .unwrap()
+            .meta,
             "keystore2_coot".to_string(),
         );
 
         assert_eq!(
-            mgr.get_entry::<TestKey>(&entry_desc1).unwrap().map(|k| k.meta),
+            mgr.get_entry::<TestKey>(&entry_desc1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore2_coot".to_string())
         );
 
@@ -911,18 +935,23 @@ mod tests {
                 KeystoreSelector::Id(&keystore3),
                 &mut testing_rng()
             )
-            .unwrap().meta,
+            .unwrap()
+            .meta,
             "generated_test_key".to_string(),
         );
 
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier2).unwrap().map(|k| k.meta),
+            mgr.get::<TestKey>(&TestKeySpecifier2)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore3_generated_test_key".to_string())
         );
 
         let entry_desc2 = entry_descriptor(TestKeySpecifier2, &keystore3);
         assert_eq!(
-            mgr.get_entry::<TestKey>(&entry_desc2).unwrap().map(|k| k.meta),
+            mgr.get_entry::<TestKey>(&entry_desc2)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore3_generated_test_key".to_string()),
         );
 
