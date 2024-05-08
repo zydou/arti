@@ -4,7 +4,7 @@ import toml.decoder
 import sys
 import os.path
 import os
-import list_crates
+import list_crates_publish
 from subprocess import run
 
 TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
@@ -104,8 +104,8 @@ def test_crate(crate):
     # TODO test random combination?
 
 def main():
-    for crate in list_crates.crate_list():
-        test_crate(crate)
+    for crate in list_crates_publish.list_crates():
+        test_crate(crate.name)
 
 if __name__ == '__main__':
     main()
