@@ -2102,18 +2102,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "generate-custom"
-version = "0.1.0"
-dependencies = [
- "base32",
- "clap",
- "rand",
- "rand_core",
- "tor-keymgr",
- "tor-llcrypto",
-]
-
-[[package]]
 name = "generational-arena"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2694,6 +2682,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
 dependencies = [
  "cpufeatures",
+]
+
+[[package]]
+name = "keygen-openssh-test"
+version = "0.1.0"
+dependencies = [
+ "base32",
+ "clap",
+ "rand",
+ "rand_core",
+ "tor-keymgr",
+ "tor-llcrypto",
 ]
 
 [[package]]

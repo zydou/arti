@@ -4,11 +4,22 @@
 
 set -eou pipefail
 
-GENERATE_PATH="./generate-custom"
-MANIFEST_PATH="$GENERATE_PATH/Cargo.toml"
-BIN_PATH="$GENERATE_PATH/target/debug/generate-custom"
+DIR=$(dirname "$0")
+GENERATE_PATH=$(realpath "$DIR")
+PACKAGE="keygen-openssh-test"
+BIN_PATH="$GENERATE_PATH/../../target/debug/${PACKAGE}"
 EXPANDED_ED25519="ed25519_expanded_openssh"
 X25519="x25519_openssh"
+
+if ! test -d "./crates/tor-keymgr"; then
+    echo "Did not find './crates/tor-keymgr' directory in $(pwd). Cannot proceed." 1>&2
+    echo "Hint: run this script from the workspace root" 1>&2
+    exit 1
+fi
+
+cd crates/tor-keymgr
+mkdir -p testdata
+cd testdata
 
 mangle_ed25519_private() (
     sed -i '2ahello' "$1"
@@ -33,7 +44,7 @@ mv ed25519_openssh_bad.pub ed25519_openssh_bad.public
 mangle_ed25519_private ed25519_openssh_bad.private
 mangle_ed25519_public ed25519_openssh_bad.public
 
-cargo build --manifest-path "$MANIFEST_PATH"
+cargo build -p $PACKAGE
 
 "$BIN_PATH" --key-type expanded-ed25519 \
    --private \
