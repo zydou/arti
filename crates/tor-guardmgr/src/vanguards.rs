@@ -311,7 +311,6 @@ impl<R: Runtime> VanguardMgr<R> {
         // the one we obtained ourselves), but at that point we might as well abolish the
         // maintain_vanguard_sets task and do everything synchronously in this function...
 
-        // TODO HS-VANGUARDS: come up with something with better UX
         let relay =
             match (layer, inner.mode) {
                 (Layer::Layer2, Full) | (Layer::Layer2, Lite) => inner
