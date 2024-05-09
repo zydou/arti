@@ -20,9 +20,6 @@ use crate::{VanguardMgrError, VanguardMode};
 use super::VanguardParams;
 
 /// A vanguard relay.
-//
-// TODO HS-VANGUARDS: this is currently just a Relay newtype (if it doesn't grow any additional
-// fields, we might want to consider removing it and using Relay instead).
 #[derive(Clone, amplify::Getters)]
 pub struct Vanguard<'a> {
     /// The relay.
@@ -139,9 +136,6 @@ impl VanguardSets {
         // Resize the vanguard sets if necessary.
         self.l2_vanguards.update_target(params.l2_pool_size());
 
-        // TODO HS-VANGUARDS: It would be nice to make this mockable. It will involve adding an
-        // M: MocksForVanguards parameter to VanguardMgr, which will have to propagated throughout
-        // tor-circmgr too.
         let mut rng = rand::thread_rng();
         Self::replenish_set(
             runtime,
@@ -296,6 +290,11 @@ impl VanguardSet {
         good_relays.choose(rng).map(|relay| Vanguard {
             relay: relay.clone(),
         })
+    }
+
+    /// Whether this vanguard set is empty.
+    pub(super) fn is_empty(&self) -> bool {
+        self.vanguards.is_empty()
     }
 
     /// The number of vanguards we're missing.
