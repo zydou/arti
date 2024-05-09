@@ -20,9 +20,6 @@ use crate::{VanguardMgrError, VanguardMode};
 use super::VanguardParams;
 
 /// A vanguard relay.
-//
-// TODO HS-VANGUARDS: this is currently just a Relay newtype (if it doesn't grow any additional
-// fields, we might want to consider removing it and using Relay instead).
 #[derive(Clone, amplify::Getters)]
 pub struct Vanguard<'a> {
     /// The relay.
