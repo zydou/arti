@@ -240,7 +240,7 @@ impl<R: Runtime> VanguardMgr<R> {
     /// for selecting [`Layer2`](Layer::Layer2) vanguards.
     /// It will return an error if a [`Layer3`](Layer::Layer3) is requested.
     ///
-    /// Returns an error is vanguards are disabled.
+    /// Returns an error if vanguards are disabled.
     ///
     ///  ### Example
     ///
