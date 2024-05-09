@@ -70,7 +70,12 @@ use tracing::{debug, info};
 // implicit Arcs inside them! maybe it's time to replace much of the insides of
 // this with an Arc<TorClientInner>?
 #[derive(Clone)]
-#[cfg_attr(feature = "rpc", derive(Deftly), derive_deftly(Object))]
+#[cfg_attr(
+    feature = "rpc",
+    derive(Deftly),
+    derive_deftly(Object),
+    deftly(rpc(expose_outside_of_session))
+)]
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,

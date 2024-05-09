@@ -9,13 +9,13 @@ use weak_table::WeakValueHashMap;
 use crate::{
     connection::{Connection, ConnectionId},
     globalid::{GlobalId, MacKey},
-    RpcAuthentication, RpcSession,
+    RpcAuthentication,
 };
 
 /// A function we use to construct Session objects in response to authentication.
 //
 // TODO RPC: Perhaps this should return a Result?
-type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<RpcSession> + Send + Sync>;
+type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + Send + Sync>;
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///
@@ -93,10 +93,9 @@ pub(crate) struct Inner {
 
 impl RpcMgr {
     /// Create a new RpcMgr.
-    ///
     pub fn new<F>(make_session: F) -> Arc<Self>
     where
-        F: Fn(&RpcAuthentication) -> Arc<RpcSession> + Send + Sync + 'static,
+        F: Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + Send + Sync + 'static,
     {
         Arc::new(RpcMgr {
             global_id_mac_key: MacKey::new(&mut rand::thread_rng()),
@@ -189,7 +188,7 @@ impl RpcMgr {
     }
 
     /// Construct a new object to serve as the `session` for a connection.
-    pub(crate) fn create_session(&self, auth: &RpcAuthentication) -> Arc<RpcSession> {
+    pub(crate) fn create_session(&self, auth: &RpcAuthentication) -> Arc<dyn rpc::Object> {
         (self.session_factory)(auth)
     }
 }

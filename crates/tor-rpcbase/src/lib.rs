@@ -50,7 +50,7 @@ use std::{convert::Infallible, sync::Arc};
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::RpcError;
 pub use method::{is_method_name, iter_method_names, DynMethod, Method, NoUpdates};
-pub use obj::{Object, ObjectId, ObjectRefExt};
+pub use obj::{Object, ObjectArcExt, ObjectId};
 
 #[doc(hidden)]
 pub use obj::cast::CastTable;
@@ -174,3 +174,11 @@ impl<T: Context> ContextExt for T {}
 pub struct Nil {}
 /// An instance of rpc::Nil.
 pub const NIL: Nil = Nil {};
+
+/// Common return type for RPC methods that return a single object ID
+/// and nothing else.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, derive_more::From)]
+pub struct SingletonId {
+    /// The ID of the object that we're returning.
+    id: ObjectId,
+}

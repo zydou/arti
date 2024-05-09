@@ -41,6 +41,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod cancel;
+mod codecs;
 mod connection;
 mod err;
 mod globalid;
@@ -48,7 +49,6 @@ mod mgr;
 mod msgs;
 mod objmap;
 mod session;
-mod streams;
 
 pub use connection::{auth::RpcAuthentication, Connection, ConnectionError};
 pub use mgr::RpcMgr;

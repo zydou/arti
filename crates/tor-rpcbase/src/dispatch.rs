@@ -282,7 +282,7 @@ macro_rules! invoker_ent {
 /// ```
 #[macro_export]
 macro_rules! invoker_ent_list {
-    { $($func:expr),* } => {
+    { $($func:expr),* $(,)? } => {
         vec![
             $(
                 $crate::invoker_ent!($func)
