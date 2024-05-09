@@ -5,13 +5,14 @@
 //! [vanguards spec]: https://spec.torproject.org/vanguards-spec/index.html.
 
 pub mod config;
+mod err;
 mod set;
 
 use std::sync::{Arc, RwLock, Weak};
 use std::time::{Duration, SystemTime};
 
 use futures::stream::BoxStream;
-use futures::task::{SpawnError, SpawnExt as _};
+use futures::task::SpawnExt as _;
 use futures::{future, FutureExt as _};
 use futures::{select_biased, StreamExt as _};
 use postage::stream::Stream as _;
@@ -20,7 +21,7 @@ use rand::RngCore;
 
 use tor_async_utils::PostageWatchSenderExt as _;
 use tor_config::ReconfigureError;
-use tor_error::{error_report, internal, into_internal, ErrorKind, HasKind};
+use tor_error::{error_report, internal, into_internal};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_relay_selection::RelayExclusion;
@@ -32,6 +33,7 @@ use crate::{RetireCircuits, VanguardMode};
 use set::VanguardSets;
 
 pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
+pub use err::VanguardMgrError;
 pub use set::Vanguard;
 
 /// The key used for storing the vanguard sets to persistent storage using `StateMgr`.
@@ -111,44 +113,6 @@ enum ShutdownStatus {
     Continue,
     /// The `VanguardMgr` was dropped, terminate the task.
     Terminate,
-}
-
-/// An error coming from the vanguards subsystem.
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum VanguardMgrError {
-    /// Could not find a suitable relay to use for the specifier layer.
-    #[error("No suitable relays")]
-    NoSuitableRelay(Layer),
-
-    /// Could not get timely network directory.
-    #[error("Unable to get timely network directory")]
-    NetDir(#[from] tor_netdir::Error),
-
-    /// Failed to access persistent storage.
-    #[error("Failed to access persistent vanguard state")]
-    State(#[from] tor_persist::Error),
-
-    /// Could not spawn a task.
-    #[error("Unable to spawn a task")]
-    Spawn(#[source] Arc<SpawnError>),
-
-    /// An internal error occurred.
-    #[error("Internal error")]
-    Bug(#[from] tor_error::Bug),
-}
-
-impl HasKind for VanguardMgrError {
-    fn kind(&self) -> ErrorKind {
-        match self {
-            // TODO HS-VANGUARDS: this is not right
-            VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
-            VanguardMgrError::NetDir(e) => e.kind(),
-            VanguardMgrError::State(e) => e.kind(),
-            VanguardMgrError::Spawn(e) => e.kind(),
-            VanguardMgrError::Bug(e) => e.kind(),
-        }
-    }
 }
 
 impl<R: Runtime> VanguardMgr<R> {
