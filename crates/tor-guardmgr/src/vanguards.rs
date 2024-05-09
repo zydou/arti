@@ -155,7 +155,6 @@ impl<R: Runtime> VanguardMgr<R> {
     /// Create a new `VanguardMgr`.
     ///
     /// The `state_mgr` handle is used for persisting the "vanguards-full" guard pools to disk.
-    #[allow(clippy::needless_pass_by_value)] // TODO HS-VANGUARDS
     pub fn new<S>(
         config: &VanguardConfig,
         runtime: R,
