@@ -54,8 +54,7 @@ impl HasKind for VanguardMgrError {
         match self {
             VanguardMgrError::BootstrapRequired { .. } => ErrorKind::BootstrapRequired,
             VanguardMgrError::LayerNotSupported { .. } => ErrorKind::BadApiUsage,
-            // TODO HS-VANGUARDS: this is not right
-            VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
+            VanguardMgrError::NoSuitableRelay(_) => ErrorKind::NoPath,
             VanguardMgrError::NetDir(e) => e.kind(),
             VanguardMgrError::State(e) => e.kind(),
             VanguardMgrError::Spawn(e) => e.kind(),
