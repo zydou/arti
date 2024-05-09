@@ -1,16 +1,18 @@
 //! Declare RPC functionality on for the `arti-client` crate.
 
+use async_trait::async_trait;
 use derive_deftly::Deftly;
 use futures::{SinkExt as _, StreamExt as _};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
+use tor_proto::stream::DataStream;
 
 use tor_rpcbase as rpc;
 use tor_rtcompat::Runtime;
 
-use crate::TorClient;
+use crate::{StreamPrefs, TorAddr, TorClient};
 
-impl<R: Runtime> crate::TorClient<R> {
+impl<R: Runtime> TorClient<R> {
     /// Ensure that every RPC method is registered for this instantiation of TorClient.
     ///
     /// We can't use [`rpc::static_rpc_invoke_fn`] for these, since TorClient is
@@ -136,4 +138,78 @@ async fn isolated_client<R: Runtime>(
     let new_client = Arc::new(client.isolated_client());
     let client_id = ctx.register_owned(new_client);
     Ok(rpc::SingletonId::from(client_id))
+}
+
+/// Type-erased error returned by ClientConnectionTarget.
+pub trait ClientConnectionError: std::error::Error + tor_error::HasKind + Send + Sync {}
+impl<E> ClientConnectionError for E where E: std::error::Error + tor_error::HasKind + Send + Sync {}
+
+/// Type alias for a Result return by ClientConnectionTarget
+pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
+
+/// An RPC-visible object that can be used as the target of SOCKS operations,
+/// or other application-level connection attempts.
+///
+/// Only the RPC subsystem should use this type.
+//
+// TODO RPC: Conceivably, we would like to apply this trait to types in lower-level crates: for
+// example, we could put it onto ClientCirc, and let the application launch streams on a circuit
+// directly.  But if we did that, we wouldn't be able to downcast an ClientCirc from Arc<dyn Object>
+// to this trait. Perhaps we need a clever solution.
+//
+// TODO RPC: This trait, along with ClientConnection{Error,Result},  have names that are just too
+// long.
+#[async_trait]
+pub trait ClientConnectionTarget: Send + Sync {
+    /// As [`TorClient::connect_with_prefs`].
+    async fn connect_with_prefs(
+        &self,
+        target: &TorAddr,
+        prefs: &StreamPrefs,
+    ) -> ClientConnectionResult<DataStream>;
+
+    /// As [`TorClient::resolve_with_prefs`].
+    async fn resolve_with_prefs(
+        &self,
+        hostname: &str,
+        prefs: &StreamPrefs,
+    ) -> ClientConnectionResult<Vec<IpAddr>>;
+
+    /// As [`TorClient::resolve_ptr_with_prefs`].
+    async fn resolve_ptr_with_prefs(
+        &self,
+        addr: IpAddr,
+        prefs: &StreamPrefs,
+    ) -> ClientConnectionResult<Vec<String>>;
+}
+
+#[async_trait]
+impl<R: Runtime> ClientConnectionTarget for TorClient<R> {
+    async fn connect_with_prefs(
+        &self,
+        target: &TorAddr,
+        prefs: &StreamPrefs,
+    ) -> ClientConnectionResult<DataStream> {
+        TorClient::connect_with_prefs(self, target, prefs)
+            .await
+            .map_err(|e| Box::new(e) as _)
+    }
+    async fn resolve_with_prefs(
+        &self,
+        hostname: &str,
+        prefs: &StreamPrefs,
+    ) -> ClientConnectionResult<Vec<IpAddr>> {
+        TorClient::resolve_with_prefs(self, hostname, prefs)
+            .await
+            .map_err(|e| Box::new(e) as _)
+    }
+    async fn resolve_ptr_with_prefs(
+        &self,
+        addr: IpAddr,
+        prefs: &StreamPrefs,
+    ) -> ClientConnectionResult<Vec<String>> {
+        TorClient::resolve_ptr_with_prefs(self, addr, prefs)
+            .await
+            .map_err(|e| Box::new(e) as _)
+    }
 }

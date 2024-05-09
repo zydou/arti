@@ -111,6 +111,7 @@ __is_experimental = []
 
 [dependencies]
 anyhow = { version = "1.0.23", optional = true }
+async-trait = "0.1.54"
 cfg-if = "1.0.0"
 derive-deftly = "0.10.3"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }

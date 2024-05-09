@@ -14,11 +14,13 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
-use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
+#[allow(unused)]
+use arti_client::HasKind;
+use arti_client::{ErrorKind, IntoTorAddr as _, StreamPrefs, TorClient};
 use tor_config::Listen;
 use tor_error::warn_report;
 #[cfg(feature = "rpc")]
-use tor_rpcbase as rpc;
+use tor_rpcbase::{self as rpc, ObjectArcExt as _};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -173,18 +175,33 @@ struct SocksConnContext<R: Runtime> {
 /// the address of the client that connected to the Socks port.
 type ConnIsolation = (usize, IpAddr);
 
+/// Define a macro to return the type that we use to represent Arti sessions.
+///
+/// TODO RPC: This is ugly! We can't use a type alias (e.g. `type Foo<R> = ...`) for parameterization reasons.
+/// Under no circumstances should this awful thing propagate outside this module.
+/// XXXX do not merge unless this is resolved.
+#[cfg(feature = "rpc")]
+macro_rules! session_type {
+    () => { Arc<dyn arti_client::rpc::ClientConnectionTarget> };
+}
+/// Define a macro to return the type we use to represent Arti sessions.
+#[cfg(not(feature = "rpc"))]
+macro_rules! session_type {
+    () => { TorClient<R>};
+}
+
 impl<R: Runtime> SocksConnContext<R> {
     /// Interpret a SOCKS request and our input information to determine which
     /// TorClient object and StreamPrefs we should use.
     ///
     /// TODO RPC: This API is horrible and needs revision; once it gets it, we
-    /// should document it much better.
+    /// should document it much better. XXXX Do not merge unless this is resolved.
     fn get_prefs_and_session(
         &self,
         request: &SocksRequest,
         target_addr: &str,
         conn_isolation: ConnIsolation,
-    ) -> Result<(StreamPrefs, TorClient<R>)> {
+    ) -> Result<(StreamPrefs, session_type!())> {
         use AuthInterpretation as AI;
 
         // Determine whether we want to ask for IPv4/IPv6 addresses.
@@ -197,16 +214,13 @@ impl<R: Runtime> SocksConnContext<R> {
                     let session = mgr
                         .lookup_object(&session)
                         .context("no such session found")?;
-                    // TODO RPC: At this point we need to extract a TorClient
-                    // (or something we can use like one!) from the `Arc<dyn
-                    // Object> we have.  We also need to extract something that
-                    // we can use to register the DataStreamCtrl object once we
-                    // have one.
-                    let _ = session;
-                    let _ = stream_id;
+                    let target: Arc<dyn arti_client::rpc::ClientConnectionTarget> = session
+                        .cast_to_arc_trait()
+                        .map_err(|_| anyhow!("Target did not implement ClientConnectionTarget"))?;
 
-                    // TODO RPC: This is a placeholder; remove it!
-                    self.tor_client.clone()
+                    let _ = stream_id; // We can ignore this; it will no longer be used. XXXX
+
+                    target
                 } else {
                     return Err(anyhow!("no rpc manager found!?"));
                 }
@@ -217,7 +231,10 @@ impl<R: Runtime> SocksConnContext<R> {
                 // rule is that two streams may only share a circuit if they have
                 // the same values for all of these properties.)
                 prefs.set_isolation(SocksIsolationKey(conn_isolation, auth));
-                self.tor_client.clone()
+                let client = self.tor_client.clone();
+                #[cfg(feature = "rpc")]
+                let client = Arc::new(client);
+                client
             }
         };
 
@@ -326,9 +343,8 @@ where
         SocksCmd::CONNECT => {
             // The SOCKS request wants us to connect to a given address.
             // So, launch a connection over Tor.
-            let tor_stream = tor_client
-                .connect_with_prefs((addr.clone(), port), &prefs)
-                .await;
+            let tor_addr = (addr.clone(), port).into_tor_addr()?;
+            let tor_stream = tor_client.connect_with_prefs(&tor_addr, &prefs).await;
             let tor_stream = match tor_stream {
                 Ok(s) => s,
                 Err(e) => return reply_error(&mut socks_w, &request, e.kind()).await,

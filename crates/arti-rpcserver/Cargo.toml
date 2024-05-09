@@ -25,6 +25,7 @@ full = [
 
 [dependencies]
 arti-client = { path = "../arti-client", version = "0.18.0", features = ["rpc"] }
+async-trait = "0.1.54"
 asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
