@@ -292,6 +292,11 @@ impl VanguardSet {
         })
     }
 
+    /// Whether this vanguard set is empty.
+    pub(super) fn is_empty(&self) -> bool {
+        self.vanguards.is_empty()
+    }
+
     /// The number of vanguards we're missing.
     fn deficit(&self) -> usize {
         self.target.saturating_sub(self.vanguards.len())

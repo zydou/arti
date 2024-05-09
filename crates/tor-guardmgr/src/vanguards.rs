@@ -242,6 +242,15 @@ impl<R: Runtime> VanguardMgr<R> {
     ///
     /// Returns an error if vanguards are disabled.
     ///
+    /// Returns a [`NoSuitableRelay`](VanguardMgrError::NoSuitableRelay) error
+    /// if none of our vanguards satisfy the `layer` and `neighbor_exlusion` requirements.
+    ///
+    /// Returns a [`BootstrapRequired`](VanguardMgrError::BootstrapRequired) error
+    /// if called before the vanguard manager has finished bootstrapping,
+    /// or if all the vanguards have become unusable
+    /// (by expiring or no longer being listed in the consensus)
+    /// and we are unable to replenish them.
+    ///
     ///  ### Example
     ///
     ///  If the partially built path is of the form `G - L2` and we are selecting the L3 vanguard,
@@ -261,19 +270,14 @@ impl<R: Runtime> VanguardMgr<R> {
 
         let inner = self.inner.read().expect("poisoned lock");
 
-        // TODO HS-VANGUARDS: code smell.
-        //
-        // If select_vanguards() is called before maintain_vanguard_sets() has obtained a netdir
-        // and populated the vanguard sets, this will return a NoSuitableRelay error (because all
-        // our vanguard sets are empty).
-        //
-        // However, in practice, I don't think this can ever happen, because we don't attempt to
-        // build paths until we're done bootstrapping.
-        //
-        // If it turns out this can actually happen in practice, we can work around it by calling
-        // inner.replenish_vanguards(&self.runtime, netdir)? here (using the netdir arg rather than
-        // the one we obtained ourselves), but at that point we might as well abolish the
-        // maintain_vanguard_sets task and do everything synchronously in this function...
+        // All our vanguard sets are empty. This means select_vanguards() was called before
+        // maintain_vanguard_sets() managed to obtain a netdir and populate the vanguard sets,
+        // or all the vanguards have become unusable and we have been unable to replenish them.
+        if inner.vanguard_sets.l2().is_empty() && inner.vanguard_sets.l3().is_empty() {
+            return Err(VanguardMgrError::BootstrapRequired {
+                action: "select vanguard",
+            });
+        }
 
         let relay =
             match (layer, inner.mode) {
@@ -737,6 +741,10 @@ mod test {
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
+            // Wait until the vanguard manager has bootstrapped
+            // (otherwise we'll get a BootstrapRequired error)
+            let _netdir_provider =
+                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
 
             // Cannot select an L3 vanguard when running in "Lite" mode.
             let err = vanguardmgr
@@ -764,7 +772,7 @@ mod test {
                 .unwrap_err();
 
             assert!(
-                matches!(err, VanguardMgrError::NoSuitableRelay(Layer2)),
+                matches!(err, VanguardMgrError::BootstrapRequired { action: "select vanguard" }),
                 "{err:?}"
             );
         });
