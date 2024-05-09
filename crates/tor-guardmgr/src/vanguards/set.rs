@@ -139,9 +139,6 @@ impl VanguardSets {
         // Resize the vanguard sets if necessary.
         self.l2_vanguards.update_target(params.l2_pool_size());
 
-        // TODO HS-VANGUARDS: It would be nice to make this mockable. It will involve adding an
-        // M: MocksForVanguards parameter to VanguardMgr, which will have to propagated throughout
-        // tor-circmgr too.
         let mut rng = rand::thread_rng();
         Self::replenish_set(
             runtime,
