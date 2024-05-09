@@ -11,6 +11,14 @@ use crate::vanguards::Layer;
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum VanguardMgrError {
+    /// Attempted to use an unbootstrapped `VanguardMgr` for something that
+    /// requires bootstrapping to have completed.
+    #[error("Cannot {action} with unbootstrapped vanguard manager")]
+    BootstrapRequired {
+        /// What we were trying to do that required bootstrapping.
+        action: &'static str,
+    },
+
     /// Could not find a suitable relay to use for the specifier layer.
     #[error("No suitable relays")]
     NoSuitableRelay(Layer),
@@ -35,6 +43,7 @@ pub enum VanguardMgrError {
 impl HasKind for VanguardMgrError {
     fn kind(&self) -> ErrorKind {
         match self {
+            VanguardMgrError::BootstrapRequired { .. } => ErrorKind::BootstrapRequired,
             // TODO HS-VANGUARDS: this is not right
             VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
             VanguardMgrError::NetDir(e) => e.kind(),
