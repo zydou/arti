@@ -3,26 +3,23 @@
 //! See the [`ArtiNativeKeystore`] docs for more details.
 
 pub(crate) mod err;
+pub(crate) mod ssh;
 
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
+use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
-use ssh_key::private::PrivateKey;
-use ssh_key::{LineEnding, PublicKey};
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
-
-use super::SshKeyData;
 
 /// The Arti key store.
 ///
@@ -137,8 +134,8 @@ impl Keystore for ArtiNativeKeystore {
             })?,
         };
 
-        key_type
-            .parse_ssh_format_erased(UnparsedOpenSshKey::new(inner, path))
+        UnparsedOpenSshKey::new(inner, path)
+            .parse_ssh_format_erased(key_type)
             .map(Some)
     }
 
@@ -167,24 +164,7 @@ impl Keystore for ArtiNativeKeystore {
         // TODO (#1095): decide what information, if any, to put in the comment
         let comment = "";
 
-        let openssh_key = match key {
-            SshKeyData::Public(key_data) => {
-                let openssh_key = PublicKey::new(key_data, comment);
-
-                openssh_key
-                    .to_openssh()
-                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
-            }
-            SshKeyData::Private(keypair) => {
-                let openssh_key = PrivateKey::new(keypair, comment)
-                    .map_err(|_| tor_error::internal!("failed to create SSH private key"))?;
-
-                openssh_key
-                    .to_openssh(LineEnding::LF)
-                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
-                    .to_string()
-            }
-        };
+        let openssh_key = key.to_openssh_string(comment)?;
 
         Ok(self
             .keystore_dir
@@ -502,8 +482,8 @@ mod tests {
 
         // Insert the key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_kp = KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
+        let erased_kp = key
+            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();
 
         let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
@@ -577,8 +557,8 @@ mod tests {
 
         // Insert another key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_kp = KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
+        let erased_kp = key
+            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();
 
         let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {

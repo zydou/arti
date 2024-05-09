@@ -408,27 +408,57 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::keystore::Sealed;
     use crate::{ArtiPath, ArtiPathUnavailableError, ErasedKey, KeyPath, KeyType, SshKeyData};
     use std::collections::HashMap;
     use std::result::Result as StdResult;
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.
-    type TestKey = String;
+    #[derive(Clone, Debug)]
+    struct TestKey {
+        /// The underlying key.
+        key: SshKeyData,
+        /// Some metadata about the key
+        meta: String,
+    }
 
     /// The corresponding fake public key type.
-    type TestPublicKey = String;
+    #[derive(Clone, Debug)]
+    struct TestPublicKey {
+        /// The underlying key.
+        key: SshKeyData,
+    }
+
+    impl TestKey {
+        /// Create a new test key with the specified metadata.
+        fn new(meta: &str) -> Self {
+            let mut rng = testing_rng();
+            TestKey {
+                key: ed25519::Keypair::generate(&mut rng)
+                    .as_ssh_key_data()
+                    .unwrap(),
+                meta: meta.into(),
+            }
+        }
+    }
 
     impl Keygen for TestKey {
-        fn generate(_rng: &mut dyn KeygenRng) -> Result<Self>
+        fn generate(mut rng: &mut dyn KeygenRng) -> Result<Self>
         where
             Self: Sized,
         {
-            Ok("generated_test_key".into())
+            Ok(TestKey {
+                key: ed25519::Keypair::generate(&mut rng).as_ssh_key_data()?,
+                meta: "generated_test_key".into(),
+            })
         }
     }
+
+    impl Sealed for TestKey {}
 
     impl EncodableKey for TestKey {
         fn key_type() -> KeyType
@@ -440,15 +470,39 @@ mod tests {
         }
 
         fn as_ssh_key_data(&self) -> Result<SshKeyData> {
-            // (Ab)use the encrypted variant for testing purposes
-            Ok(SshKeyData::Private(
-                ssh_key::private::KeypairData::Encrypted(self.as_bytes().to_vec()),
-            ))
+            Ok(self.key.clone())
         }
     }
 
     impl ToEncodableKey for TestKey {
-        type Key = TestKey;
+        type Key = Self;
+
+        fn to_encodable_key(self) -> Self::Key {
+            self
+        }
+
+        fn from_encodable_key(key: Self::Key) -> Self {
+            key
+        }
+    }
+
+    impl Sealed for TestPublicKey {}
+
+    impl EncodableKey for TestPublicKey {
+        fn key_type() -> KeyType
+        where
+            Self: Sized,
+        {
+            KeyType::Ed25519PublicKey
+        }
+
+        fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+            Ok(self.key.clone())
+        }
+    }
+
+    impl ToEncodableKey for TestPublicKey {
+        type Key = Self;
 
         fn to_encodable_key(self) -> Self::Key {
             self
@@ -518,15 +572,17 @@ mod tests {
                     key_spec: &dyn KeySpecifier,
                     key_type: &KeyType,
                 ) -> Result<()> {
-                    let key = key.as_ssh_key_data()?;
-                    let key_bytes = key.into_private().unwrap().encrypted().unwrap().to_vec();
+                    let key = key.downcast_ref::<TestKey>().unwrap();
+                    let value = &key.meta;
+                    let key = TestKey {
+                        key: key.as_ssh_key_data()?,
+                        meta: format!("{}_{value}", self.id()),
+                    };
 
-                    let value = String::from_utf8(key_bytes).unwrap();
-
-                    self.inner.write().unwrap().insert(
-                        (key_spec.arti_path().unwrap(), key_type.clone()),
-                        format!("{}_{value}", self.id()),
-                    );
+                    self.inner
+                        .write()
+                        .unwrap()
+                        .insert((key_spec.arti_path().unwrap(), key_type.clone()), key);
 
                     Ok(())
                 }
@@ -607,7 +663,7 @@ mod tests {
         // Insert a key into Keystore2
         let old_key = mgr
             .insert(
-                "coot".to_string(),
+                TestKey::new("coot"),
                 &TestKeySpecifier1,
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
             )
@@ -615,36 +671,43 @@ mod tests {
 
         assert!(old_key.is_none());
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
-            Some("keystore2_coot".to_string())
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
+            Some("keystore2_coot".to_string()),
         );
 
         // Insert a different key using the _same_ key specifier.
         let old_key = mgr
             .insert(
-                "gull".to_string(),
+                TestKey::new("gull"),
                 &TestKeySpecifier1,
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
             )
-            .unwrap();
-        assert_eq!(old_key, Some("keystore2_coot".to_string()));
+            .unwrap()
+            .unwrap()
+            .meta;
+        assert_eq!(old_key, "keystore2_coot");
         // Check that the original value was overwritten:
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
-            Some("keystore2_gull".to_string())
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
+            Some("keystore2_gull".to_string()),
         );
-
         // Insert a key into the default keystore
         let old_key = mgr
             .insert(
-                "moorhen".to_string(),
+                TestKey::new("moorhen"),
                 &TestKeySpecifier2,
                 KeystoreSelector::Default,
             )
             .unwrap();
         assert!(old_key.is_none());
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier2)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_moorhen".to_string())
         );
 
@@ -657,7 +720,7 @@ mod tests {
         for store in ["keystore3", "keystore2", "keystore1"] {
             let old_key = mgr
                 .insert(
-                    "cormorant".to_string(),
+                    TestKey::new("cormorant"),
                     &TestKeySpecifier3,
                     KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
                 )
@@ -666,7 +729,9 @@ mod tests {
 
             // Ensure the key now exists in `store`.
             assert_eq!(
-                mgr.get::<TestKey>(&TestKeySpecifier3).unwrap(),
+                mgr.get::<TestKey>(&TestKeySpecifier3)
+                    .unwrap()
+                    .map(|k| k.meta),
                 Some(format!("{store}_cormorant"))
             );
         }
@@ -674,7 +739,9 @@ mod tests {
         // The key exists in all key stores, but if no keystore_id is specified, we return the
         // value from the first key store it is found in (in this case, Keystore1)
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier3).unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier3)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_cormorant".to_string())
         );
     }
@@ -695,13 +762,15 @@ mod tests {
 
         // Insert a key into Keystore2
         mgr.insert(
-            "coot".to_string(),
+            TestKey::new("coot"),
             &TestKeySpecifier1,
             KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
         )
         .unwrap();
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore2_coot".to_string())
         );
 
@@ -718,11 +787,10 @@ mod tests {
             .unwrap());
 
         // Try to remove the key from the default key store
-        assert_eq!(
-            mgr.remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Default)
-                .unwrap(),
-            None
-        );
+        assert!(mgr
+            .remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Default)
+            .unwrap()
+            .is_none(),);
 
         // The key still exists in Keystore2
         assert!(mgr.secondary_stores[0]
@@ -735,7 +803,8 @@ mod tests {
                 &TestKeySpecifier1,
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap())
             )
-            .unwrap(),
+            .unwrap()
+            .map(|k| k.meta),
             Some("keystore2_coot".to_string())
         );
 
@@ -753,17 +822,17 @@ mod tests {
             .unwrap();
 
         mgr.insert(
-            "coot".to_string(),
+            TestKey::new("coot"),
             &TestKeySpecifier1,
             KeystoreSelector::Default,
         )
         .unwrap();
 
         // There is no corresponding public key entry.
-        assert_eq!(
-            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
-            None
-        );
+        assert!(mgr
+            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
+            .unwrap()
+            .is_none(),);
 
         // Try to generate a new key (overwrite = false)
         let err = mgr
@@ -779,15 +848,17 @@ mod tests {
 
         // The previous entry was not overwritten because overwrite = false
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_coot".to_string())
         );
 
         // We don't store public keys in the keystore
-        assert_eq!(
-            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
-            None,
-        );
+        assert!(mgr
+            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
+            .unwrap()
+            .is_none(),);
 
         // Try to generate a new key (overwrite = true)
         let key = mgr
@@ -799,18 +870,20 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(key, "generated_test_key".to_string());
+        assert_eq!(key.meta, "generated_test_key".to_string());
 
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier1).unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore1_generated_test_key".to_string())
         );
 
         // We don't store public keys in the keystore
-        assert_eq!(
-            mgr.get::<TestPublicKey>(&TestPublicKeySpecifier1).unwrap(),
-            None,
-        );
+        assert!(mgr
+            .get::<TestPublicKey>(&TestPublicKeySpecifier1)
+            .unwrap()
+            .is_none(),);
     }
 
     #[test]
@@ -828,7 +901,7 @@ mod tests {
         assert!(mgr.get_entry::<TestKey>(&entry_desc1).unwrap().is_none());
 
         mgr.insert(
-            "coot".to_string(),
+            TestKey::new("coot"),
             &TestKeySpecifier1,
             KeystoreSelector::Id(&keystore2),
         )
@@ -841,12 +914,15 @@ mod tests {
                 KeystoreSelector::Default,
                 &mut testing_rng()
             )
-            .unwrap(),
-            "keystore2_coot".to_string()
+            .unwrap()
+            .meta,
+            "keystore2_coot".to_string(),
         );
 
         assert_eq!(
-            mgr.get_entry::<TestKey>(&entry_desc1).unwrap(),
+            mgr.get_entry::<TestKey>(&entry_desc1)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore2_coot".to_string())
         );
 
@@ -859,19 +935,24 @@ mod tests {
                 KeystoreSelector::Id(&keystore3),
                 &mut testing_rng()
             )
-            .unwrap(),
-            "generated_test_key".to_string()
+            .unwrap()
+            .meta,
+            "generated_test_key".to_string(),
         );
 
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier2).unwrap(),
+            mgr.get::<TestKey>(&TestKeySpecifier2)
+                .unwrap()
+                .map(|k| k.meta),
             Some("keystore3_generated_test_key".to_string())
         );
 
         let entry_desc2 = entry_descriptor(TestKeySpecifier2, &keystore3);
         assert_eq!(
-            mgr.get_entry::<TestKey>(&entry_desc2).unwrap(),
-            Some("keystore3_generated_test_key".to_string())
+            mgr.get_entry::<TestKey>(&entry_desc2)
+                .unwrap()
+                .map(|k| k.meta),
+            Some("keystore3_generated_test_key".to_string()),
         );
 
         let arti_pat = KeyPathPattern::Arti("*".to_string());

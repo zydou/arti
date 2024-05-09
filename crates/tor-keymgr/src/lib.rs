@@ -48,6 +48,7 @@ mod arti_path;
 pub mod config;
 mod err;
 mod key_specifier;
+pub(crate) mod ssh;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
@@ -69,6 +70,7 @@ pub use key_specifier::{
     KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
     KeySpecifierPattern,
 };
+pub use ssh::SshKeyAlgorithm;
 
 #[cfg(feature = "keymgr")]
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
