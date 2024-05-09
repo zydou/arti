@@ -5,6 +5,7 @@
 
 use arti_client::TorClient;
 use derive_deftly::Deftly;
+use rpc::static_rpc_invoke_fn;
 use std::sync::Arc;
 use tor_rtcompat::Runtime;
 
@@ -25,30 +26,36 @@ use tor_rpcbase::templates::*;
 #[derive(Deftly)]
 #[derive_deftly(Object)]
 #[deftly(rpc(expose_outside_of_session))]
-pub struct RpcSession<R: Runtime> {
+pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
     #[allow(unused)]
-    client: Arc<TorClient<R>>,
+    client: Arc<dyn Client>,
 }
 
-impl<R: Runtime> RpcSession<R> {
-    /// Create a new session object containing a single client object.
-    pub fn new_with_client(client: Arc<arti_client::TorClient<R>>) -> Arc<Self> {
-        Arc::new(Self { client })
+/// Type-erased `TorClient``, as used within an RpcSession.
+trait Client: rpc::Object {
+    /// Return a new isolated TorClient.
+    fn isolated_client(&self) -> Arc<dyn rpc::Object>;
+
+    /// Upcast `self` to an rpc::Object.
+    fn upcast_arc(self: Arc<Self>) -> Arc<dyn rpc::Object>;
+}
+
+impl<R: Runtime> Client for TorClient<R> {
+    fn isolated_client(&self) -> Arc<dyn rpc::Object> {
+        Arc::new(TorClient::isolated_client(self))
     }
 
-    /// Ensure that every RPC method is registered for this instantiation of TorClient.
-    ///
-    /// We can't use [`rpc::static_rpc_invoke_fn`] for these, since TorClient is
-    /// parameterized.
-    pub fn rpc_methods() -> Vec<rpc::dispatch::InvokerEnt> {
-        rpc::invoker_ent_list![
-            rpc_release::<R>,
-            echo_on_session::<R>,
-            get_client_on_session::<R>,
-            isolated_client_on_session::<R>,
-        ]
+    fn upcast_arc(self: Arc<Self>) -> Arc<dyn rpc::Object> {
+        self
+    }
+}
+
+impl RpcSession {
+    /// Create a new session object containing a single client object.
+    pub fn new_with_client<R: Runtime>(client: Arc<arti_client::TorClient<R>>) -> Arc<Self> {
+        Arc::new(Self { client })
     }
 }
 
@@ -81,8 +88,8 @@ impl rpc::Method for RpcRelease {
 }
 
 /// Implementation for calling "release" on a Session.
-async fn rpc_release<R: Runtime>(
-    _obj: Arc<RpcSession<R>>,
+async fn rpc_release(
+    _obj: Arc<RpcSession>,
     method: Box<RpcRelease>,
     ctx: Box<dyn rpc::Context>,
 ) -> Result<rpc::Nil, rpc::RpcError> {
@@ -107,15 +114,15 @@ impl rpc::Method for Echo {
 /// Implementation for calling "echo" on a Session.
 ///
 /// TODO RPC: Remove this. It shouldn't exist.
-async fn echo_on_session<R: Runtime>(
-    _obj: Arc<RpcSession<R>>,
+async fn echo_on_session(
+    _obj: Arc<RpcSession>,
     method: Box<Echo>,
     _ctx: Box<dyn rpc::Context>,
 ) -> Result<Echo, rpc::RpcError> {
     Ok(*method)
 }
 
-/// An RPC method to return the
+/// An RPC method to return the default client for a session.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "arti:get-client"))]
@@ -127,23 +134,30 @@ impl rpc::Method for GetClient {
 }
 
 /// Implement GetClient on an RpcSession.
-async fn get_client_on_session<R: Runtime>(
-    session: Arc<RpcSession<R>>,
+async fn get_client_on_session(
+    session: Arc<RpcSession>,
     _method: Box<GetClient>,
     ctx: Box<dyn rpc::Context>,
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
     Ok(rpc::SingletonId::from(
-        // TODO RPC: This relies (somewhat) on deduplication propertis for register_owned.
-        ctx.register_owned(session.client.clone()),
+        // TODO RPC: This relies (somewhat) on deduplication properties for register_owned.
+        ctx.register_owned(session.client.clone().upcast_arc()),
     ))
 }
 
 /// Implement IsolatedClient on an RpcSession.
-async fn isolated_client_on_session<R: Runtime>(
-    session: Arc<RpcSession<R>>,
+async fn isolated_client_on_session(
+    session: Arc<RpcSession>,
     _method: Box<arti_client::rpc::IsolatedClient>,
     ctx: Box<dyn rpc::Context>,
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
-    let new_client = Arc::new(session.client.isolated_client());
+    let new_client = session.client.isolated_client();
     Ok(rpc::SingletonId::from(ctx.register_owned(new_client)))
+}
+
+static_rpc_invoke_fn! {
+    rpc_release;
+    echo_on_session;
+    get_client_on_session;
+    isolated_client_on_session;
 }
