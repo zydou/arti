@@ -573,7 +573,7 @@ mod test {
 
         declare_exceptions(
             None,
-            None, // TODO HS-VANGUARDS: add vanguards config to example
+            Some(InNew),
             FeatureDependent,
             &[
                 // Vanguards-specific settings
