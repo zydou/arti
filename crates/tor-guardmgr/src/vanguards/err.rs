@@ -5,7 +5,7 @@ use std::sync::Arc;
 use futures::task::SpawnError;
 use tor_error::{ErrorKind, HasKind};
 
-use crate::vanguards::Layer;
+use crate::vanguards::{Layer, VanguardMode};
 
 /// An error coming from the vanguards subsystem.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -17,6 +17,15 @@ pub enum VanguardMgrError {
     BootstrapRequired {
         /// What we were trying to do that required bootstrapping.
         action: &'static str,
+    },
+
+    /// Attempted to select a vanguard layer that is not supported in the current [`VanguardMode`],
+    #[error("{layer} vanguards are not supported in {mode} mode")]
+    LayerNotSupported {
+        /// The layer we tried to select a vanguard for.
+        layer: Layer,
+        /// The [`VanguardMode`] we are in.
+        mode: VanguardMode,
     },
 
     /// Could not find a suitable relay to use for the specifier layer.
@@ -44,6 +53,7 @@ impl HasKind for VanguardMgrError {
     fn kind(&self) -> ErrorKind {
         match self {
             VanguardMgrError::BootstrapRequired { .. } => ErrorKind::BootstrapRequired,
+            VanguardMgrError::LayerNotSupported { .. } => ErrorKind::BadApiUsage,
             // TODO HS-VANGUARDS: this is not right
             VanguardMgrError::NoSuitableRelay(_) => ErrorKind::Other,
             VanguardMgrError::NetDir(e) => e.kind(),

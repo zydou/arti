@@ -291,13 +291,11 @@ impl<R: Runtime> VanguardMgr<R> {
                         .l3()
                         .pick_relay(rng, netdir, neighbor_exclusion)
                 }
-                // TODO HS-VANGUARDS: perhaps we need a dedicated error variant for this
                 _ => {
-                    return Err(internal!(
-                        "vanguards for layer {layer} are not supported in mode {})",
-                        inner.mode
-                    )
-                    .into());
+                    return Err(VanguardMgrError::LayerNotSupported {
+                        layer,
+                        mode: inner.mode,
+                    });
                 }
             };
 
@@ -750,7 +748,16 @@ mod test {
             let err = vanguardmgr
                 .select_vanguard(&mut rng, &netdir, Layer3, &exclusion)
                 .unwrap_err();
-            assert!(matches!(err, VanguardMgrError::Bug(_)), "{err:?}");
+            assert!(
+                matches!(
+                    err,
+                    VanguardMgrError::LayerNotSupported {
+                        layer: Layer::Layer3,
+                        mode: VanguardMode::Lite
+                    }
+                ),
+                "{err}"
+            );
         });
     }
 
