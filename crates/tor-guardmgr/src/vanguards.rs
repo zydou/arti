@@ -772,7 +772,12 @@ mod test {
                 .unwrap_err();
 
             assert!(
-                matches!(err, VanguardMgrError::BootstrapRequired { action: "select vanguard" }),
+                matches!(
+                    err,
+                    VanguardMgrError::BootstrapRequired {
+                        action: "select vanguard"
+                    }
+                ),
                 "{err:?}"
             );
         });
