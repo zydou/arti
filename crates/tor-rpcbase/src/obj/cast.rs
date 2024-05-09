@@ -35,14 +35,27 @@ pub struct CastTable {
     /// Every entry in this table must contain:
     ///
     ///   * A key that is `typeid::of::<&'static dyn Tr>()` for some trait `Tr`.
-    ///   * A function of type `fn(&dyn Object) -> &dyn Tr` for the same trait
-    ///     `Tr`. This function must accept a `&dyn Object` whose concrete type
-    ///     is actually `O`, and it SHOULD panic for other input types.
+    ///   * A [`Caster`] whose functions are suitable for casting objects from this table's
+    ///     type to `dyn Tr`.
+    table: HashMap<TypeId, Caster>,
+}
+
+/// A single entry in a `CastTable`.
+///
+/// Each `Caster` exists for one concrete object type "`O`", and one trait type "`Tr`".
+///
+/// Note that we use `Box` here in order to support generic types: you can't
+/// get a `&'static` reference to a function that takes a generic type in
+/// current rust.
+struct Caster {
+    /// Actual type: `fn(Arc<dyn Object>) -> Arc<dyn Tr>`
     ///
-    /// Note that we use `Box` here in order to support generic types: you can't
-    /// get a `&'static` reference to a function that takes a generic type in
-    /// current rust.
-    table: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    /// Panics if Object does not have the expected type (`O`).
+    cast_to_ref: Box<dyn Any + Send + Sync>,
+    /// Actual type: `fn(Arc<dyn Object>) -> Arc<dyn Tr>`
+    ///
+    /// Panics if Object does not have the expected type (`O`).
+    cast_to_arc: Box<dyn Any + Send + Sync>,
 }
 
 impl CastTable {
@@ -56,8 +69,11 @@ impl CastTable {
     /// `T` must be `dyn Tr` for some trait `Tr`.
     /// (Not checked by the compiler.)
     ///
-    /// `func` is a downcaster from `&dyn Object` to `&dyn Tr`.
-    /// `func` SHOULD
+    /// `cast_to_ref` is a downcaster from `&dyn Object` to `&dyn Tr`.
+    ///
+    /// `cast_to_arc` is a downcaster from `Arc<dyn Object>` to `Arc<dyn Tr>``
+    ///
+    /// These functions SHOULD
     /// panic if the concrete type of its argument is not the concrete type `O`
     /// associated with this `CastTable`.
     ///
@@ -75,14 +91,17 @@ impl CastTable {
     // We insert and look up by `TypeId::of::<&'static dyn SomeTrait>`,
     // which must mean `&'static (dyn SomeTrait + 'static)`
     // since a 'static reference to anything non-'static is an ill-formed type.
-    pub fn insert<T: 'static + ?Sized>(&mut self, func: fn(&dyn Object) -> &T) {
-        self.insert_erased(TypeId::of::<&'static T>(), Box::new(func) as _);
-    }
-
-    /// As [`insert`](CastTable::insert), but instead takes a function
-    /// that downcasts from `Arc<dyn Object>` to `Arc<dyn T>`.
-    pub fn insert_arc<T: 'static + ?Sized>(&mut self, func: fn(Arc<dyn Object>) -> Arc<T>) {
-        self.insert_erased(TypeId::of::<Arc<T>>(), Box::new(func) as _);
+    pub fn insert<T: 'static + ?Sized>(
+        &mut self,
+        cast_to_ref: fn(&dyn Object) -> &T,
+        cast_to_arc: fn(Arc<dyn Object>) -> Arc<T>,
+    ) {
+        let type_id = TypeId::of::<&'static T>();
+        let caster = Caster {
+            cast_to_ref: Box::new(cast_to_ref),
+            cast_to_arc: Box::new(cast_to_arc),
+        };
+        self.insert_erased(type_id, caster);
     }
 
     /// Implementation for adding an entry to the `CastTable`
@@ -94,8 +113,8 @@ impl CastTable {
     /// Like `insert`, but less compile-time checking.
     /// `type_id` is the identity of `&'static dyn Tr`,
     /// and `func` has been boxed and type-erased.
-    fn insert_erased(&mut self, type_id: TypeId, func: Box<dyn Any + Send + Sync>) {
-        let old_val = self.table.insert(type_id, func);
+    fn insert_erased(&mut self, type_id: TypeId, caster: Caster) {
+        let old_val = self.table.insert(type_id, caster);
         assert!(
             old_val.is_none(),
             "Tried to insert a duplicate entry in a cast table.",
@@ -118,8 +137,9 @@ impl CastTable {
     /// violated.
     pub fn cast_object_to<'a, T: 'static + ?Sized>(&self, obj: &'a dyn Object) -> Option<&'a T> {
         let target_type = TypeId::of::<&'static T>();
-        let caster = self.table.get(&target_type)?.as_ref();
+        let caster = self.table.get(&target_type)?;
         let caster: &fn(&dyn Object) -> &T = caster
+            .cast_to_ref
             .downcast_ref()
             .expect("Incorrect cast-function type found in cast table!");
         Some(caster(obj))
@@ -140,12 +160,13 @@ impl CastTable {
         &self,
         obj: Arc<dyn Object>,
     ) -> Result<Arc<T>, Arc<dyn Object>> {
-        let target_type = TypeId::of::<Arc<T>>();
+        let target_type = TypeId::of::<&'static T>();
         let caster = match self.table.get(&target_type) {
             Some(c) => c,
             None => return Err(obj),
         };
         let caster: &fn(Arc<dyn Object>) -> Arc<T> = caster
+            .cast_to_arc
             .downcast_ref()
             .expect("Incorrect cast-function type found in cast table!");
         Ok(caster(obj))
@@ -174,19 +195,16 @@ macro_rules! cast_table_deftness_helper{
                 #[allow(unused_mut)]
                 let mut table = $crate::CastTable::default();
                 $({
-                    // `f` is the actual function that does the downcasting.
+                    use std::sync::Arc;
+                    // These are the actual functions that does the downcasting.
                     // It works by downcasting with Any to the concrete type, and then
                     // upcasting from the concrete type to &dyn Trait.
-                    let f: fn(&dyn $crate::Object) -> &(dyn $traitname + 'static) = |self_| {
+                    let cast_to_ref: fn(&dyn $crate::Object) -> &(dyn $traitname + 'static) = |self_| {
                         let self_: &Self = self_.downcast_ref().unwrap();
                         let self_: &dyn $traitname = self_ as _;
                         self_
                     };
-                    table.insert::<dyn $traitname>(f);
-                }
-                {
-                    use std::sync::Arc;
-                    let f: fn(Arc<dyn $crate::Object>) -> Arc<dyn $traitname> = |self_| {
+                    let cast_to_arc: fn(Arc<dyn $crate::Object>) -> Arc<dyn $traitname> = |self_| {
                         let self_: Arc<Self> = self_
                             .downcast_arc()
                             .ok()
@@ -194,7 +212,7 @@ macro_rules! cast_table_deftness_helper{
                         let self_: Arc<dyn $traitname> = self_ as _;
                         self_
                     };
-                    table.insert_arc::<dyn $traitname>(f);
+                    table.insert::<dyn $traitname>(cast_to_ref, cast_to_arc);
                 })*
                 table
     }
