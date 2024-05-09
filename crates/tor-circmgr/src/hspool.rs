@@ -17,7 +17,7 @@ use tor_error::debug_report;
 use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, OwnedCircTarget};
 use tor_netdir::{NetDir, NetDirProvider, Relay};
-use tor_proto::circuit::{self, ClientCirc};
+use tor_proto::circuit::{self, CircParameters, ClientCirc};
 use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
 use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
@@ -304,6 +304,20 @@ impl<R: Runtime> HsCircPool<R> {
             .into());
         }
 
+        let params = crate::DirInfo::from(netdir).circ_params();
+        self.extend_circ(circ, params, target).await
+    }
+
+    /// Try to extend a circuit to the specified target hop.
+    async fn extend_circ<T>(
+        &self,
+        circ: HsCircStub,
+        params: CircParameters,
+        target: T,
+    ) -> Result<Arc<ClientCirc>>
+    where
+        T: CircTarget,
+    {
         // Estimate how long it will take to extend it one more hop, and
         // construct a timeout as appropriate.
         let n_hops = circ.n_hops();
@@ -315,7 +329,6 @@ impl<R: Runtime> HsCircPool<R> {
         );
 
         // Make a future to extend the circuit.
-        let params = crate::DirInfo::from(netdir).circ_params();
         let extend_future = circ
             .extend_ntor(&target, &params)
             .map_err(|error| Error::Protocol {
