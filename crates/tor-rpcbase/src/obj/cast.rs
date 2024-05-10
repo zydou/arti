@@ -71,7 +71,7 @@ impl CastTable {
     ///
     /// `cast_to_ref` is a downcaster from `&dyn Object` to `&dyn Tr`.
     ///
-    /// `cast_to_arc` is a downcaster from `Arc<dyn Object>` to `Arc<dyn Tr>``
+    /// `cast_to_arc` is a downcaster from `Arc<dyn Object>` to `Arc<dyn Tr>`.
     ///
     /// These functions SHOULD
     /// panic if the concrete type of its argument is not the concrete type `O`
@@ -154,7 +154,7 @@ impl CastTable {
     ///
     /// Panics if the concrete type of `obj` does not match `O`.
     ///
-    /// May panic if any of the Requirements for [`CastTable::insert_arc`] were
+    /// May panic if any of the Requirements for [`CastTable::insert`] were
     /// violated.
     pub fn cast_object_to_arc<T: 'static + ?Sized>(
         &self,
