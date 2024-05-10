@@ -143,6 +143,11 @@ async fn isolated_client<R: Runtime>(
 /// Type-erased error returned by ClientConnectionTarget.
 pub trait ClientConnectionError: std::error::Error + tor_error::HasKind + Send + Sync {}
 impl<E> ClientConnectionError for E where E: std::error::Error + tor_error::HasKind + Send + Sync {}
+impl std::error::Error for Box<dyn ClientConnectionError> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.as_ref().source()
+    }
+}
 
 /// Type alias for a Result return by ClientConnectionTarget
 pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;

@@ -367,6 +367,7 @@ dependencies = [
  "tor-bytes",
  "tor-error",
  "tor-llcrypto",
+ "tor-proto",
  "tor-rpcbase",
  "tor-rtcompat",
  "tracing",

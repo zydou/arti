@@ -354,6 +354,13 @@ impl StreamPrefs {
         self
     }
 
+    /// Return true if this stream has been configured as "optimistic".
+    ///
+    /// See [`StreamPrefs::optimistic`] for more info.
+    pub fn is_optimistic(&self) -> bool {
+        self.optimistic_stream
+    }
+
     /// Indicate whether connection to a hidden service (`.onion` service) should be allowed
     ///
     /// If `Explicit(false)`, attempts to connect to Onion Services will be forced to fail with
