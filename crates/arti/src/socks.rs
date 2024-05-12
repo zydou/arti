@@ -217,20 +217,17 @@ impl<R: Runtime> SocksConnContext<R> {
 
         #[cfg(feature = "rpc")]
         if let Some(session) = interp.assign_to_session {
-            {
-                // XXXX remove this indentation
-                if let Some(mgr) = &self.rpc_mgr {
-                    let session = mgr
-                        .lookup_object(&session)
-                        .context("no such session found")?;
-                    let target: Arc<dyn arti_client::rpc::ClientConnectionTarget> = session
-                        .cast_to_arc_trait()
-                        .map_err(|_| anyhow!("Target did not implement ClientConnectionTarget"))?;
+            if let Some(mgr) = &self.rpc_mgr {
+                let session = mgr
+                    .lookup_object(&session)
+                    .context("no such session found")?;
+                let target: Arc<dyn arti_client::rpc::ClientConnectionTarget> = session
+                    .cast_to_arc_trait()
+                    .map_err(|_| anyhow!("Target did not implement ClientConnectionTarget"))?;
 
-                    return Ok((prefs, target));
-                } else {
-                    return Err(anyhow!("no rpc manager found!?"));
-                }
+                return Ok((prefs, target));
+            } else {
+                return Err(anyhow!("no rpc manager found!?"));
             }
         }
 
