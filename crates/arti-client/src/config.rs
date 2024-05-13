@@ -25,12 +25,6 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
 pub use tor_guardmgr::bridge::BridgeParseError;
 
-#[cfg(all(
-    feature = "vanguards",
-    any(feature = "onion-service-client", feature = "onion-service-service")
-))]
-pub use tor_guardmgr::vanguards::VanguardConfig;
-
 use tor_guardmgr::bridge::BridgeConfig;
 use tor_keymgr::config::arti::{ArtiNativeKeystoreConfig, ArtiNativeKeystoreConfigBuilder};
 
