@@ -181,7 +181,7 @@ before you continue!
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
-   `maint/list_crates_publish --versions  | grep -P '^tor|^arti'`
+   `maint/list_crates --versions  | grep -P '^tor|^arti'`
    will show you the existing versions,
    which should usually all be the same.
    Pick the next minor version, and, for each such crate:
@@ -256,7 +256,7 @@ before you continue!
    `git tag -s "arti-v${THIS_VERSION}`.
 
    In the tag message, be sure to include the output of
-   `./maint/list_crates_publish --version`.
+   `./maint/list_crates --version`.
 
    (Note to self: if you find that gpg can't find your yubikey,
    you'll need to run

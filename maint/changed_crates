@@ -58,11 +58,6 @@ if [ -z "$TAG" ]; then
 fi
 
 for crate in $("${TOP}/maint/list_crates"); do
-    if [ ! -d "${TOP}/crates/${crate}" ]; then
-	echo "    Skipping example crate ${crate}" >&2
-	continue
-    fi
-
     if git diff --quiet "$TAG..HEAD" "${TOP}/crates/${crate}"; then
 	whisper "$crate: No change."
 	:
