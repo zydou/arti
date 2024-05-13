@@ -141,12 +141,29 @@ async fn isolated_client<R: Runtime>(
 }
 
 /// Type-erased error returned by ClientConnectionTarget.
-pub trait ClientConnectionError: std::error::Error + tor_error::HasKind + Send + Sync {}
-impl<E> ClientConnectionError for E where E: std::error::Error + tor_error::HasKind + Send + Sync {}
+//
+// TODO RPC: It would be handy if this implemented HasErrorHint, but HasErrorHint is sealed.
+// Perhaps we could go and solve our problem by implementing HasErrorHint on dyn StdError?
+pub trait ClientConnectionError:
+    std::error::Error + tor_error::HasKind + Send + Sync + seal::Sealed
+{
+}
+impl<E> seal::Sealed for E where E: std::error::Error + tor_error::HasKind + Send + Sync {}
+impl<E> ClientConnectionError for E where
+    E: std::error::Error + tor_error::HasKind + Send + Sync + seal::Sealed
+{
+}
 impl std::error::Error for Box<dyn ClientConnectionError> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         self.as_ref().source()
     }
+}
+
+/// module to seal the ClientConnectionError trait.
+mod seal {
+    /// hidden trait to seal the ClientConnectionError trait.
+    #[allow(unreachable_pub)]
+    pub trait Sealed {}
 }
 
 /// Type alias for a Result return by ClientConnectionTarget
