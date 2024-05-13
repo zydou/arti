@@ -58,12 +58,8 @@ pub mod onion_service {
 }
 
 /// Types for configuring vanguards.
-#[cfg(all(
-    feature = "vanguards",
-    any(feature = "onion-service-client", feature = "onion-service-service")
-))]
 pub mod vanguards {
-    pub use tor_guardmgr::vanguards::{VanguardConfig, VanguardConfigBuilder};
+    pub use tor_guardmgr::{VanguardConfig, VanguardConfigBuilder};
 }
 
 /// Configuration for client behavior relating to addresses.
@@ -632,10 +628,6 @@ pub struct TorClientConfig {
     pub(crate) stream_timeouts: StreamTimeoutConfig,
 
     /// Information about vanguards.
-    #[cfg(all(
-        feature = "vanguards",
-        any(feature = "onion-service-client", feature = "onion-service-service")
-    ))]
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) vanguards: vanguards::VanguardConfig,
@@ -662,7 +654,7 @@ impl tor_circmgr::CircMgrConfig for TorClientConfig {
         feature = "vanguards",
         any(feature = "onion-service-client", feature = "onion-service-service")
     ))]
-    fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig {
+    fn vanguard_config(&self) -> &tor_guardmgr::VanguardConfig {
         &self.vanguards
     }
 }
@@ -675,7 +667,7 @@ impl tor_circmgr::hspool::HsCircPoolConfig for TorClientConfig {
         feature = "vanguards",
         any(feature = "onion-service-client", feature = "onion-service-service")
     ))]
-    fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig {
+    fn vanguard_config(&self) -> &tor_guardmgr::VanguardConfig {
         &self.vanguards
     }
 }

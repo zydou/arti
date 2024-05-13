@@ -114,6 +114,8 @@ use sample::{GuardSet, Universe, UniverseRef};
 
 use crate::ids::{FirstHopIdInner, GuardId};
 
+use tor_config::ConfigBuildError;
+
 /// A "guard manager" that selects and remembers a persistent set of
 /// guard nodes.
 ///
@@ -1878,6 +1880,19 @@ impl VanguardMode {
             _ => unreachable!("BoundedInt32 was not bounded?!"),
         }
     }
+}
+
+/// Vanguards configuration.
+#[derive(Debug, Default, Clone, Eq, PartialEq, derive_builder::Builder)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[derive(amplify::Getters)]
+pub struct VanguardConfig {
+    /// The kind of vanguards to use.
+    #[builder_field_attr(serde(default))]
+    #[builder(default)]
+    #[getter(as_copy)]
+    mode: VanguardMode,
 }
 
 /// The kind of vanguards to use.

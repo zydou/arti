@@ -20,6 +20,6 @@ define_accessor_trait! {
 
         /// Access the field
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        fn vanguard_config(&self) -> &tor_guardmgr::vanguards::VanguardConfig;
+        fn vanguard_config(&self) -> &tor_guardmgr::VanguardConfig;
     }
 }

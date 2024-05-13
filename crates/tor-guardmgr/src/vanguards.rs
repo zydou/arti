@@ -32,7 +32,8 @@ use crate::{RetireCircuits, VanguardMode};
 
 use set::VanguardSets;
 
-pub use config::{VanguardConfig, VanguardConfigBuilder, VanguardParams};
+use crate::VanguardConfig;
+pub use config::VanguardParams;
 pub use err::VanguardMgrError;
 pub use set::Vanguard;
 
