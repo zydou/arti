@@ -35,8 +35,10 @@ enum Inner {
     /// Newly constructed: Waiting for a SOCKS command.
     Unused(Arc<dyn ClientConnectionTarget>),
 
-    /// Intermediate state: got a SOCKS command, but have not yet acted on it.
-    Waiting,
+    /// The actual connection is being made, ie we are within `connect_with_prefs`
+    ///
+    /// If the state is `Launching`, no one except `connect_with_prefs` may change it.
+    Launching,
 
     /// Stream constructed; may or may not be connected.
     Stream(Arc<DataStreamCtrl>),
@@ -114,10 +116,12 @@ impl ClientConnectionTarget for RpcDataStream {
     ) -> ClientConnectionResult<arti_client::DataStream> {
         // Extract the connector.
         //
-        // We temporarily put this RpcDataStream into a Waiting state, since
-        // we do not want to hold the lock while we invoke async methods on it.
+        // As we do this, we put this RpcDataStream into a Launching state.
+        //
+        // (`Launching`` wouldn't need to exist if we `connect_with_prefs` were synchronous,
+        // but it isn't synchronous, so `Launching` is an observable state.)
         let connector = self
-            .take_connector(Inner::Waiting)
+            .take_connector(Inner::Launching)
             .map_err(|e| Box::new(e) as _)?;
 
         let mut prefs = prefs.clone();
