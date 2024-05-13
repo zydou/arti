@@ -4,7 +4,7 @@
 //! and layers, but which don't depend on specific elements of the Tor system.
 
 use std::borrow::Cow;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::iter;
 use std::net;
 use std::num::NonZeroU16;
@@ -88,6 +88,25 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
             _ => return Err(InvalidBoolOrAuto {}),
         })
     }
+}
+
+/// A serializable value, or auto.
+#[derive(Clone, Copy, Hash, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
+#[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "T: Serialize, for<'de2> T: Deserialize<'de2>")]
+pub enum ExplicitOrAuto<T>
+where
+    for<'de2> T: Deserialize<'de2>,
+    T: Debug + Serialize,
+{
+    /// Automatic
+    #[default]
+    #[serde(rename = "auto")]
+    Auto,
+    /// Explicitly specified
+    #[serde(untagged)]
+    Explicit(T),
 }
 
 /// Padding enablement - rough amount of padding requested
@@ -420,7 +439,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     struct TestConfigFile {
         #[serde(default)]
         something_enabled: BoolOrAuto,
@@ -430,6 +449,12 @@ mod test {
 
         #[serde(default)]
         listen: Option<Listen>,
+
+        #[serde(default)]
+        auto_or_string: ExplicitOrAuto<String>,
+
+        #[serde(default)]
+        auto_or_bool: ExplicitOrAuto<bool>,
     }
 
     #[test]
@@ -601,5 +626,75 @@ mod test {
             ListenItem::General("1.2.3.4:5678".parse().unwrap()),
         ]);
         assert_eq!(multi_addr.to_string(), "localhost port 1234, 1.2.3.4:5678");
+    }
+
+    #[test]
+    fn explicit_or_auto() {
+        use ExplicitOrAuto as EOA;
+
+        let chk = |eoa: EOA<String>, s| {
+            let tc: TestConfigFile = toml::from_str(s).expect(s);
+            assert_eq!(
+                format!("{:?}", eoa),
+                format!("{:?}", tc.auto_or_string),
+                "{:?}",
+                s
+            );
+        };
+
+        chk(EOA::Auto, r#"auto_or_string = "auto""#);
+        chk(
+            EOA::Explicit("not auto".into()),
+            r#"auto_or_string = "not auto""#,
+        );
+        // "Auto" is not the same is "auto"
+        chk(EOA::Explicit("Auto".into()), r#"auto_or_string = "Auto""#);
+
+        let chk_e = |s| {
+            let tc: Result<TestConfigFile, _> = toml::from_str(s);
+            let _ = tc.expect_err(s);
+        };
+
+        chk_e(r#"auto_or_string = 1"#);
+        chk_e(r#"auto_or_string = []"#);
+        chk_e(r#"auto_or_string = {}"#);
+
+        let chk = |eoa: EOA<bool>, s| {
+            let tc: TestConfigFile = toml::from_str(s).expect(s);
+            assert_eq!(
+                format!("{:?}", eoa),
+                format!("{:?}", tc.auto_or_bool),
+                "{:?}",
+                s
+            );
+        };
+
+        // ExplicitOrAuto<bool> works just like BoolOrAuto
+        chk(EOA::Auto, r#"auto_or_bool = "auto""#);
+        chk(EOA::Explicit(false), r#"auto_or_bool = false"#);
+
+        chk_e(r#"auto_or_bool= "not bool or auto""#);
+
+        let mut config = TestConfigFile::default();
+        let toml = toml::to_string(&config).unwrap();
+        assert_eq!(
+            toml,
+            r#"something_enabled = "auto"
+padding = "normal"
+auto_or_string = "auto"
+auto_or_bool = "auto"
+"#
+        );
+
+        config.auto_or_bool = ExplicitOrAuto::Explicit(true);
+        let toml = toml::to_string(&config).unwrap();
+        assert_eq!(
+            toml,
+            r#"something_enabled = "auto"
+padding = "normal"
+auto_or_string = "auto"
+auto_or_bool = true
+"#
+        );
     }
 }
