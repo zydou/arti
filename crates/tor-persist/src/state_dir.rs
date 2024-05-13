@@ -1544,6 +1544,7 @@ mod test {
         /// Callbacks for stunt purge
         ///
         /// `self == None` means we've called `age_filter` already.
+        #[allow(non_local_definitions)] // rust-lang/rust#125068
         impl InstancePurgeHandler for Option<&'_ Expect> {
             fn kind(&self) -> &'static str {
                 KIND
