@@ -156,7 +156,7 @@ impl<R: Runtime> VanguardMgr<R> {
         let (config_tx, _config_rx) = watch::channel();
         let inner = Inner {
             params,
-            mode: *mode,
+            mode: mode.into(),
             vanguard_sets,
             has_onion_svc,
             config_tx,
@@ -210,8 +210,9 @@ impl<R: Runtime> VanguardMgr<R> {
         // but not decessarily downgrade to lite if we stop.
         // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2083#note_3018173>
         let mut inner = self.inner.write().expect("poisoned lock");
-        if config.mode != inner.mode {
-            inner.mode = config.mode;
+        let new_mode = VanguardMode::from(&config.mode);
+        if new_mode != inner.mode {
+            inner.mode = new_mode;
 
             // Wake up the maintenance task to replenish the vanguard pools.
             inner.config_tx.maybe_send(|_| config.clone());
@@ -554,6 +555,7 @@ mod test {
     use std::fmt;
 
     use set::TimeBoundVanguard;
+    use tor_config::ExplicitOrAuto;
 
     use super::*;
 
@@ -595,7 +597,7 @@ mod test {
 
     /// Create a new VanguardMgr for testing.
     fn new_vanguard_mgr<R: Runtime>(rt: &R, mode: VanguardMode) -> Arc<VanguardMgr<R>> {
-        let config = VanguardConfig { mode };
+        let config = VanguardConfig { mode: ExplicitOrAuto::Explicit(mode) };
         let statemgr = TestingStateMgr::new();
         let lock = statemgr.try_lock().unwrap();
         assert!(lock.held());
@@ -883,7 +885,7 @@ mod test {
     /// Switch the vanguard "mode" of the VanguardMgr to `mode`,
     /// by calling `VanguardMgr::reconfigure`.
     fn switch_hs_mode_config(vanguardmgr: &VanguardMgr<MockRuntime>, mode: VanguardMode) {
-        let _ = vanguardmgr.reconfigure(&VanguardConfig { mode }).unwrap();
+        let _ = vanguardmgr.reconfigure(&VanguardConfig { mode: ExplicitOrAuto::Explicit(mode) }).unwrap();
 
         assert_eq!(vanguardmgr.mode(), mode);
     }

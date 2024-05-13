@@ -62,9 +62,9 @@ use tor_proto::ClockSkew;
 use tor_units::BoundedInt32;
 use tracing::{debug, info, trace, warn};
 
-use tor_config::impl_standard_builder;
 use tor_config::ReconfigureError;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
+use tor_config::{impl_standard_builder, ExplicitOrAuto};
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
@@ -1892,7 +1892,16 @@ pub struct VanguardConfig {
     #[builder_field_attr(serde(default))]
     #[builder(default)]
     #[getter(as_copy)]
-    mode: VanguardMode,
+    mode: ExplicitOrAuto<VanguardMode>,
+}
+
+impl From<&ExplicitOrAuto<VanguardMode>> for VanguardMode {
+    fn from(eoa: &ExplicitOrAuto<VanguardMode>) -> Self {
+        match eoa {
+            ExplicitOrAuto::Auto => Self::default(),
+            ExplicitOrAuto::Explicit(mode) => *mode,
+        }
+    }
 }
 
 /// The kind of vanguards to use.

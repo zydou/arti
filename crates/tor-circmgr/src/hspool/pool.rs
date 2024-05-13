@@ -291,7 +291,7 @@ impl Pool {
         &mut self,
         config: &VanguardConfig,
     ) -> Result<(), tor_config::ReconfigureError> {
-        let mode = config.mode();
+        let mode = (&config.mode()).into();
 
         if self.mode != mode {
             self.mode = mode;
