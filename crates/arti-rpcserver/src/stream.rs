@@ -30,23 +30,41 @@ pub(crate) struct RpcDataStream {
     inner: Mutex<Inner>,
 }
 
-/// The inner state of a DataStream
+/// The inner state of an `RpcDataStream`.
+///
+/// A stream is created in the "Unused" state.
 enum Inner {
     /// Newly constructed: Waiting for a SOCKS command.
+    ///
+    /// This is the initial state for every RpcDataStream.
+    ///
+    /// It may become `Launching` or `UsedToResolve`.
     Unused(Arc<dyn ClientConnectionTarget>),
 
     /// The actual connection is being made, ie we are within `connect_with_prefs`
     ///
     /// If the state is `Launching`, no one except `connect_with_prefs` may change it.
+    ///
+    /// From this state, a stream may become `Stream`, or `StreamFailed`.
     Launching,
 
     /// Stream constructed; may or may not be connected.
+    ///
+    /// A stream does not exit this state.  Even if the stream is closed or fails,
+    /// its `DataStreamCtrl` remains until it is dropped.
     Stream(Arc<DataStreamCtrl>),
 
     /// Stream was used for a resolve or resolve_ptr request; there is no underlying stream.
+    ///
+    /// A stream does not exit this state, even if resolve request fails.
+    //
+    // TODO RPC: We may want to make this state hold more information if someday we
+    // make DNS requests into objects that we can inspect while they are running.
     UsedToResolve,
 
     /// Failed to construct the tor_proto::DataStream object.
+    ///
+    /// A stream does not exit this state.
     StreamFailed,
 }
 
