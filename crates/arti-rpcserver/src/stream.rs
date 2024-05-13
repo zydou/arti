@@ -69,7 +69,7 @@ enum Inner {
 }
 
 /// Error returned by an operations from RpcDataStream.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 enum DataStreamError {
     /// Application tried to provide an identifier for an RpcDataStream,
     /// but that RpcDataStream had already been used previously.

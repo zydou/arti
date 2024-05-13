@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use derive_deftly::Deftly;
+use dyn_clone::DynClone;
 use futures::{SinkExt as _, StreamExt as _};
 use serde::{Deserialize, Serialize};
 use std::{net::IpAddr, sync::Arc};
@@ -145,12 +146,12 @@ async fn isolated_client<R: Runtime>(
 // TODO RPC: It would be handy if this implemented HasErrorHint, but HasErrorHint is sealed.
 // Perhaps we could go and solve our problem by implementing HasErrorHint on dyn StdError?
 pub trait ClientConnectionError:
-    std::error::Error + tor_error::HasKind + Send + Sync + seal::Sealed
+    std::error::Error + tor_error::HasKind + DynClone + Send + Sync + seal::Sealed
 {
 }
-impl<E> seal::Sealed for E where E: std::error::Error + tor_error::HasKind + Send + Sync {}
+impl<E> seal::Sealed for E where E: std::error::Error + tor_error::HasKind + DynClone + Send + Sync {}
 impl<E> ClientConnectionError for E where
-    E: std::error::Error + tor_error::HasKind + Send + Sync + seal::Sealed
+    E: std::error::Error + tor_error::HasKind + DynClone + Send + Sync + seal::Sealed
 {
 }
 impl std::error::Error for Box<dyn ClientConnectionError> {
@@ -158,6 +159,7 @@ impl std::error::Error for Box<dyn ClientConnectionError> {
         self.as_ref().source()
     }
 }
+dyn_clone::clone_trait_object!(ClientConnectionError);
 
 /// module to seal the ClientConnectionError trait.
 mod seal {
