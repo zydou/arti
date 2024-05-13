@@ -9,6 +9,7 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::io::Result as IoResult;
+use std::marker::PhantomData;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[cfg(feature = "rpc")]
 use std::sync::Arc;
@@ -181,33 +182,45 @@ struct SocksConnContext<R: Runtime> {
 /// the address of the client that connected to the Socks port.
 type ConnIsolation = (usize, IpAddr);
 
-/// Define a macro to return the type that we use to represent Arti sessions.
-///
-/// TODO RPC: This is ugly! We can't use a type alias (e.g. `type Foo<R> = ...`) for parameterization reasons.
-/// Under no circumstances should this awful thing propagate outside this module.
-/// XXXX do not merge unless this is resolved.
-#[cfg(feature = "rpc")]
-macro_rules! session_type {
-    () => { Arc<dyn arti_client::rpc::ClientConnectionTarget> };
-}
-/// Define a macro to return the type we use to represent Arti sessions.
-#[cfg(not(feature = "rpc"))]
-macro_rules! session_type {
-    () => { TorClient<R>};
+cfg_if::cfg_if! {
+    if #[cfg(feature="rpc")] {
+        /// A type returned by get_prefs_and_session,
+        /// and used to launch data streams or resolve attempts.
+        ///
+        /// TODO RPC: This is quite ugly; we should do something better.
+        /// At least, we should never expose this outside the socks module.
+        type ConnTarget<R> = (
+            Arc<dyn arti_client::rpc::ClientConnectionTarget>,
+            // This PhantomData is present so that ConnTarget
+            // can be parameterized.
+            PhantomData<R>
+        );
+    } else {
+        /// A type returned by get_prefs_and_session,
+        /// and used to launch data streams or resolve attempts.
+        ///
+        /// TODO RPC: This is quite ugly; we should do something better.
+        /// At least, we should never expose this outside the socks module.
+        type ConnTarget<R> = (
+            TorClient<R>,
+            // This PhantomData is present so that get_prefs_and_session
+            // can return a 2-tuple unconditionally.
+            PhantomData<R>
+        );
+    }
 }
 
 impl<R: Runtime> SocksConnContext<R> {
     /// Interpret a SOCKS request and our input information to determine which
-    /// TorClient object and StreamPrefs we should use.
+    /// TorClient / ClientConnectionTarget object and StreamPrefs we should use.
     ///
-    /// TODO RPC: This API is horrible and needs revision; once it gets it, we
-    /// should document it much better. XXXX Do not merge unless this is resolved.
+    /// TODO RPC: The return type here is a bit ugly.
     fn get_prefs_and_session(
         &self,
         request: &SocksRequest,
         target_addr: &str,
         conn_isolation: ConnIsolation,
-    ) -> Result<(StreamPrefs, session_type!())> {
+    ) -> Result<(StreamPrefs, ConnTarget<R>)> {
         // Determine whether we want to ask for IPv4/IPv6 addresses.
         let mut prefs = stream_preference(request, target_addr);
 
@@ -225,7 +238,7 @@ impl<R: Runtime> SocksConnContext<R> {
                     .cast_to_arc_trait()
                     .map_err(|_| anyhow!("Target did not implement ClientConnectionTarget"))?;
 
-                return Ok((prefs, target));
+                return Ok((prefs, (target, PhantomData)));
             } else {
                 return Err(anyhow!("no rpc manager found!?"));
             }
@@ -235,7 +248,7 @@ impl<R: Runtime> SocksConnContext<R> {
         #[cfg(feature = "rpc")]
         let client = Arc::new(client);
 
-        Ok((prefs, client))
+        Ok((prefs, (client, PhantomData)))
     }
 }
 
@@ -334,7 +347,8 @@ where
         port
     );
 
-    let (prefs, tor_client) = context.get_prefs_and_session(&request, &addr, isolation_info)?;
+    let (prefs, (tor_client, _)) =
+        context.get_prefs_and_session(&request, &addr, isolation_info)?;
 
     match request.command() {
         SocksCmd::CONNECT => {
