@@ -175,6 +175,10 @@ pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
 /// or other application-level connection attempts.
 ///
 /// Only the RPC subsystem should use this type.
+///
+/// Semantically, you can consider this trait as a collection of three Methods
+/// that certain RPC objects implement.  We aren't implementing this directly
+/// as rpc::Methods because they cannot (currently) return non-Serialize types.
 //
 // TODO RPC: Conceivably, we would like to apply this trait to types in lower-level crates: for
 // example, we could put it onto ClientCirc, and let the application launch streams on a circuit
@@ -183,6 +187,9 @@ pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
 //
 // TODO RPC: This trait, along with ClientConnection{Error,Result},  have names that are just too
 // long.
+//
+// TODO RPC: We might like to replace this with a special kind of RPC method;
+// see #1403.
 #[async_trait]
 pub trait ClientConnectionTarget: Send + Sync {
     /// As [`TorClient::connect_with_prefs`].
