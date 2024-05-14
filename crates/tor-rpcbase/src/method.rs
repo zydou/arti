@@ -40,8 +40,11 @@ pub trait DeserMethod: DynMethod {
 /// Prefer to implement this trait, rather than `DynMethod` or `DeserMethod`.
 /// (Those traits represent a type-erased method, with statically-unknown `Output` and
 /// `Update` types.)
-//
-// XXXX document when things should be serialize, and the implications thereof.
+///
+/// All Methods can be invoked via `DispatchTable::invoke_special`.
+/// To be invoked from the RPC system, a methods associated `Output` and `Update` types
+/// must additionally implement `Serialize`, and its `Error` type must implement
+/// `Into<RpcError>`
 pub trait Method: DynMethod {
     /// A type returned by this method on success.
     type Output: Send + 'static;

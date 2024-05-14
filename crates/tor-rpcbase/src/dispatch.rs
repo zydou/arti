@@ -85,7 +85,8 @@ pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> +
 // extra boxing in this case ever matters.
 pub type UpdateSink<U> = Pin<Box<dyn Sink<U, Error = SendUpdateError> + Send + 'static>>;
 
-/// XXXX: Document.
+/// Type returned by DispatchTable::invoke_special, to represent a future containing
+/// a type-erased type.
 type SpecialResultFuture = BoxFuture<'static, Box<dyn any::Any>>;
 
 /// An installable handler for running a method on an object type.
@@ -103,7 +104,14 @@ pub trait Invocable: Send + Sync + 'static {
     /// Describe the types for this Invocable.  Used for debugging.
     fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
 
-    /// XXXX Document
+    /// Invoke this method on an object.
+    ///
+    /// Requires that `obj` has the type `self.object_type()`,
+    /// and that `method` has the type `self.method_type()`.
+    ///
+    /// Unlike `RpcInvocable::invoke()`, does not convert the resulting types
+    /// into serializable formats, and does not require that they _can be_
+    /// so converted.
     fn invoke_special(
         &self,
         obj: Arc<dyn Object>,
@@ -112,7 +120,7 @@ pub trait Invocable: Send + Sync + 'static {
     ) -> Result<SpecialResultFuture, InvokeError>;
 }
 
-/// XXXX
+/// Subtrait of `Invocable` that requires its outputs to be serializable as RPC replies.
 pub trait RpcInvocable: Invocable {
     /// Invoke a method on an object.
     ///
@@ -315,12 +323,18 @@ impl InvokerEnt {
 /// Syntax:
 /// ```rust,ignore
 ///   invoker_ent!( function )
+///   invoker_ent!( @special function )
 /// ```
 ///
 /// The function must be a `fn` item
 /// (with all necessary generic parameters specified)
 /// with the correct type for an RPC implementation function;
 /// see the [module documentation](self).
+///
+/// If the function is marked as @special,
+/// it does not have to return a type serializable as an RPC message,
+/// and it will not be exposed as an RPC function.
+/// You will still be able to invoke it with `DispatchTable::invoke_special`.
 #[macro_export]
 macro_rules! invoker_ent {
     { $func:expr } => {
@@ -650,7 +664,11 @@ impl DispatchTable {
             .invoke(obj, method, ctx, sink)
     }
 
-    /// XXXX: Invoke a method without type erasure.
+    /// Invoke the given method on `obj` within `ctx`, and return its
+    /// actual result type.
+    ///
+    /// Unlike `invoke`, this method does not return a type-erased result,
+    /// and does not require that the result can be serialized as an RPC object.
     pub async fn invoke_special<M: crate::Method>(
         &self,
         obj: Arc<dyn Object>,
