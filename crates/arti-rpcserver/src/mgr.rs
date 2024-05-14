@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, RwLock, Weak};
 
 use rand::Rng;
 use tor_rpcbase as rpc;
+use tracing::warn;
 use weak_table::WeakValueHashMap;
 
 use crate::{
@@ -97,6 +98,11 @@ impl RpcMgr {
     where
         F: Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + Send + Sync + 'static,
     {
+        let problems = rpc::check_method_names([]);
+        for (m, err) in problems {
+            warn!("Internal issue: Invalid RPC method name {m:?}: {err}");
+        }
+
         Arc::new(RpcMgr {
             global_id_mac_key: MacKey::new(&mut rand::thread_rng()),
             dispatch_table: Arc::new(RwLock::new(rpc::DispatchTable::from_inventory())),

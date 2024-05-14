@@ -115,3 +115,74 @@ pub fn is_method_name(name: &str) -> bool {
 pub fn iter_method_names() -> impl Iterator<Item = &'static str> {
     inventory::iter::<MethodInfo_>().map(|mi| mi.method_name)
 }
+
+/// Error representing an "invalid" method name.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum InvalidMethodName {
+    /// The method doesn't have a ':' to demarcate its namespace.
+    #[error("Method has no namespace separator")]
+    NoNamespace,
+
+    /// The method's namespace is not one we recognize.
+    #[error("Method has unrecognized namespace")]
+    UnrecognizedNamespace,
+
+    /// The method's name is not in snake_case.
+    #[error("Method name has unexpected format")]
+    BadMethodName,
+}
+
+/// Check whether `method` is an expected and well-formed method name.
+fn is_valid_method_name(
+    recognized_namespaces: &HashSet<&str>,
+    method: &str,
+) -> Result<(), InvalidMethodName> {
+    // Return true if scope is recognized.
+    let scope_ok = |s: &str| s.starts_with("x-") || recognized_namespaces.contains(&s);
+    /// Return true if name is in acceptable format.
+    fn name_ok(n: &str) -> bool {
+        let mut chars = n.chars();
+        let Some(first) = chars.next() else {
+            return false;
+        };
+        first.is_ascii_lowercase()
+            && chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+    }
+    let (scope, name) = method
+        .split_once(':')
+        .ok_or(InvalidMethodName::NoNamespace)?;
+
+    if !scope_ok(scope) {
+        return Err(InvalidMethodName::UnrecognizedNamespace);
+    }
+    if !name_ok(name) {
+        return Err(InvalidMethodName::BadMethodName);
+    }
+
+    Ok(())
+}
+
+/// Check whether we have any method names that do not conform to our conventions.
+///
+/// Violations of these conventions won't stop the RPC system from working, but they may result in
+/// annoyances with namespacing, .
+///
+/// If provided, `additional_namespaces` is a list of namespaces other than our standard ones that
+/// we should accept.
+///
+/// Returns a `Vec` of method names that violate our rules, along with the rules that they violate.
+pub fn check_method_names<'a>(
+    additional_namespaces: impl IntoIterator<Item = &'a str>,
+) -> Vec<(&'static str, InvalidMethodName)> {
+    let mut recognized_namespaces: HashSet<&str> = additional_namespaces.into_iter().collect();
+    recognized_namespaces.extend(["arti", "rpc", "auth"]);
+
+    iter_method_names()
+        .filter_map(|name| {
+            is_valid_method_name(&recognized_namespaces, name)
+                .err()
+                .map(|e| (name, e))
+        })
+        .collect()
+}
