@@ -9,7 +9,7 @@ use std::io::{self, Write as _};
 use std::iter;
 use std::mem;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 use futures::pin_mut;
@@ -193,7 +193,11 @@ enum TaskState {
 /// Consequently, a `Waker` mustn't either.
 struct ActualWaker {
     /// Executor state
-    data: ArcMutexData,
+    ///
+    /// The Waker musn't to hold a strong reference to the executor,
+    /// since typically a task holds a future that holds a Waker,
+    /// and the exeuctor holds the task - so that would be a cycle.
+    data: Weak<Mutex<Data>>,
 
     /// Which task this is
     id: TaskId,
@@ -475,7 +479,7 @@ impl MockExecutor {
 
             // Poll the selected task
             let waker = ActualWaker {
-                data: self.data.clone(),
+                data: Arc::downgrade(&self.data.0),
                 id,
             }
             .new_waker();
@@ -534,11 +538,20 @@ impl Data {
 }
 
 impl ActualWaker {
+    /// Obtain a strong reference to the executor's data
+    fn upgrade_data(&self) -> Option<ArcMutexData> {
+        Some(ArcMutexData(self.data.upgrade()?))
+    }
+
     /// Wake the task corresponding to this `ActualWaker`
     ///
     /// This is like `<Self as std::task::Wake>::wake()` but takes `&self`, not `Arc`
     fn wake(&self) {
-        let mut data = self.data.lock();
+        let Some(data) = self.upgrade_data() else {
+            // The executor is gone!  Don't try to wake.
+            return;
+        };
+        let mut data = data.lock();
         trace!("MockExecutor {:?} wake", &self.id);
         let Some(task) = data.tasks.get_mut(self.id) else {
             return;
@@ -754,8 +767,9 @@ impl Clone for ActualWaker {
     fn clone(&self) -> Self {
         let id = self.id;
 
-        {
-            let mut data = self.data.lock();
+        if let Some(data) = self.upgrade_data() {
+            // If the executor is gone, there is nothing to adjust
+            let mut data = data.lock();
             if let Some(task) = data.tasks.get_mut(self.id) {
                 match &mut task.state {
                     Awake => trace!("MockExecutor cloned waker for awake task {id:?}"),
