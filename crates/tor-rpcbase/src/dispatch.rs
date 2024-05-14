@@ -864,6 +864,10 @@ mod test {
         fn release_owned(&self, _object: &crate::ObjectId) -> Result<(), crate::LookupError> {
             todo!()
         }
+
+        fn dispatch_table(&self) -> &Arc<std::sync::RwLock<crate::DispatchTable>> {
+            todo!()
+        }
     }
 
     #[derive(Deftly, Clone)]

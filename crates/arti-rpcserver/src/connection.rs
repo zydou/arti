@@ -532,6 +532,10 @@ impl rpc::Context for RequestContext {
             Err(rpc::LookupError::NoObject(id.clone()))
         }
     }
+
+    fn dispatch_table(&self) -> &Arc<std::sync::RwLock<rpc::DispatchTable>> {
+        &self.conn.dispatch_table
+    }
 }
 
 /// An error given when an RPC request is cancelled.
