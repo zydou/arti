@@ -407,18 +407,19 @@ impl Connection {
         self: &Arc<Self>,
         tx_updates: rpc::dispatch::BoxedUpdateSink,
         obj: rpc::ObjectId,
-        method: Box<dyn rpc::DynMethod>,
+        method: Box<dyn rpc::DeserMethod>,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
         let obj = self.lookup_object(&obj)?;
 
         let context: Box<dyn rpc::Context> = Box::new(RequestContext {
             conn: Arc::clone(self),
         });
-        let invoke_future = self
-            .dispatch_table
-            .read()
-            .expect("lock poisoned")
-            .invoke(obj, method, context, tx_updates)?;
+        let invoke_future = self.dispatch_table.read().expect("lock poisoned").invoke(
+            obj,
+            method.upcast_box(),
+            context,
+            tx_updates,
+        )?;
 
         // Note that we drop the read lock before we await this future!
         invoke_future.await
