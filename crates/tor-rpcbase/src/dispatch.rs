@@ -320,11 +320,25 @@ impl InvokerEnt {
 #[macro_export]
 macro_rules! invoker_ent {
     { $func:expr } => {
+        $crate::invoker_ent!{ @@impl
+            func: ($func),
+            rpc_invoker:
+                (Some($crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::RpcInvocable))),
+        }
+    };
+    { @special $func:expr } => {
+        $crate::invoker_ent!{ @@impl
+            func: ($func),
+            rpc_invoker: (None),
+        }
+    };
+    { @@impl
+            func: ($func:expr),
+            rpc_invoker:  ($rpc_invoker:expr),
+    }  => {
         $crate::dispatch::InvokerEnt {
             invoker: $crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::Invocable),
-            rpc_invoker: Some(
-                $crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::RpcInvocable)
-            ),
+            rpc_invoker: $rpc_invoker,
             file: file!(),
             line: line!(),
             function: stringify!($func)
@@ -348,10 +362,10 @@ macro_rules! invoker_ent {
 /// ```
 #[macro_export]
 macro_rules! invoker_ent_list {
-    { $($func:expr),* $(,)? } => {
+    { $($(@$tag:ident)* $func:expr),* $(,)? } => {
         vec![
             $(
-                $crate::invoker_ent!($func)
+                $crate::invoker_ent!($(@$tag)* $func)
             ),*
         ]
     }
@@ -448,10 +462,10 @@ inventory::collect!(InvokerEnt);
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $( $func:expr; )*
+        $( $(@$tag:ident)* $func:expr; )*
     } => {$crate::paste::paste!{ $(
         $crate::inventory::submit!{
-            $crate::invoker_ent!($func)
+            $crate::invoker_ent!($(@$tag)* $func)
         }
     )* }};
 }
