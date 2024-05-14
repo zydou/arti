@@ -454,6 +454,9 @@
 #    * "lite", to enable lite vanguards
 #    * "disabled", to disable vanguards
 #
+# If the `vanguards` feature is not enabled, "auto" has the same effect as
+# "disabled".
+#
 # Setting this option to anything other than "auto" or "disabled" when
 # the `vanguards` feature is disabled is a configuration error.
 #mode = "auto"
