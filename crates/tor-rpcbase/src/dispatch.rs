@@ -102,6 +102,18 @@ pub trait Invocable: Send + Sync + 'static {
     fn method_type(&self) -> any::TypeId;
     /// Describe the types for this Invocable.  Used for debugging.
     fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+
+    /// XXXX Document
+    fn invoke_special(
+        &self,
+        obj: Arc<dyn Object>,
+        method: Box<dyn DynMethod>,
+        ctx: Box<dyn Context>,
+    ) -> Result<SpecialResultFuture, InvokeError>;
+}
+
+/// XXXX
+pub trait RpcInvocable: Invocable {
     /// Invoke a method on an object.
     ///
     /// Requires that `obj` has the type `self.object_type()`,
@@ -113,14 +125,6 @@ pub trait Invocable: Send + Sync + 'static {
         ctx: Box<dyn Context>,
         sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError>;
-
-    /// XXXX Document
-    fn invoke_special(
-        &self,
-        obj: Arc<dyn Object>,
-        method: Box<dyn DynMethod>,
-        ctx: Box<dyn Context>,
-    ) -> Result<SpecialResultFuture, InvokeError>;
 }
 
 /// Helper: Declare a blanket implementation for Invocable.
@@ -139,17 +143,17 @@ macro_rules! declare_invocable_impl {
       )?
     } => {
         impl<M, OBJ, Fut, S, E, $($update_gen)?> Invocable
-            for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
+             for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
-            M: crate::Method,
-            S: 'static,
-            E: 'static,
-            OBJ: Object,
-            Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
-            M::Output: From<S>,
-            RpcError: From<E>,
-            $( M::Update: From<$update_gen>, )?
-            $( $($update_arg_where)+ )?
+             M: crate::Method,
+             S: 'static,
+             E: 'static,
+             OBJ: Object,
+             Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
+             M::Output: From<S>,
+             RpcError: From<E>,
+             $( M::Update: From<$update_gen>, )?
+             $( $($update_arg_where)+ )?
         {
             fn object_type(&self) -> any::TypeId {
                 any::TypeId::of::<OBJ>()
@@ -167,6 +171,49 @@ macro_rules! declare_invocable_impl {
                     any::type_name::<M>(),
                 )
             }
+
+            fn invoke_special(
+                &self,
+                obj: Arc<dyn Object>,
+                method: Box<dyn DynMethod>,
+                ctx: Box<dyn Context>,
+            ) -> Result<SpecialResultFuture, $crate::InvokeError> {
+                use futures::FutureExt;
+                #[allow(unused)]
+                use {tor_async_utils::SinkExt as _, futures::SinkExt as _};
+
+                let Ok(obj) = obj.downcast_arc::<OBJ>() else {
+                    return Err(InvokeError::Bug($crate::internal!("Wrong object type")));
+                 };
+                 let Ok(method) = method.downcast::<M>() else {
+                     return Err(InvokeError::Bug($crate::internal!("Wrong method type")));
+                 };
+
+                 $(
+                    let $sink = Box::pin(futures::sink::drain().sink_err_into());
+                 )?
+
+                 Ok(
+                    (self)(obj, method, ctx $(, $sink )? )
+                        .map(|r| Box::new(r) as Box<dyn any::Any>)
+                        .boxed()
+                 )
+            }
+        }
+
+        impl<M, OBJ, Fut, S, E, $($update_gen)?> RpcInvocable
+            for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
+        where
+            M: crate::Method,
+            S: 'static,
+            E: 'static,
+            OBJ: Object,
+            Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
+            M::Output: From<S>,
+            RpcError: From<E>,
+            $( M::Update: From<$update_gen>, )?
+            $( $($update_arg_where)+ )?
+        {
 
             fn invoke(
                 &self,
@@ -204,34 +251,6 @@ macro_rules! declare_invocable_impl {
                         .boxed()
                 )
             }
-
-            fn invoke_special(
-                &self,
-                obj: Arc<dyn Object>,
-                method: Box<dyn DynMethod>,
-                ctx: Box<dyn Context>,
-            ) -> Result<SpecialResultFuture, $crate::InvokeError> {
-                use futures::FutureExt;
-                #[allow(unused)]
-                use {tor_async_utils::SinkExt as _, futures::SinkExt as _};
-
-                let Ok(obj) = obj.downcast_arc::<OBJ>() else {
-                    return Err(InvokeError::Bug($crate::internal!("Wrong object type")));
-                 };
-                 let Ok(method) = method.downcast::<M>() else {
-                     return Err(InvokeError::Bug($crate::internal!("Wrong method type")));
-                 };
-
-                 $(
-                    let $sink = Box::pin(futures::sink::drain().sink_err_into());
-                 )?
-
-                 Ok(
-                    (self)(obj, method, ctx $(, $sink )? )
-                        .map(|r| Box::new(r) as Box<dyn any::Any>)
-                        .boxed()
-                 )
-            }
         }
     }
 }
@@ -258,6 +277,9 @@ declare_invocable_impl! {
 pub struct InvokerEnt {
     #[doc(hidden)]
     pub invoker: &'static (dyn Invocable),
+
+    #[doc(hidden)]
+    pub rpc_invoker: Option<&'static (dyn RpcInvocable)>,
 
     // These fields are used to make sure that we aren't installing different
     // functions for the same (Object, Method) pair.
@@ -299,7 +321,10 @@ impl InvokerEnt {
 macro_rules! invoker_ent {
     { $func:expr } => {
         $crate::dispatch::InvokerEnt {
-            invoker: $crate::invocable_func_as_dyn_invocable!($func),
+            invoker: $crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::Invocable),
+            rpc_invoker: Some(
+                $crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::RpcInvocable)
+            ),
             file: file!(),
             line: line!(),
             function: stringify!($func)
@@ -437,7 +462,7 @@ macro_rules! static_rpc_invoke_fn {
 /// expands to an expression for it of type `&'static dyn Invocable`.
 #[doc(hidden)]
 #[macro_export]
-macro_rules! invocable_func_as_dyn_invocable { { $f:expr } => { {
+macro_rules! invocable_func_as_dyn_invocable { { $f:expr, $trait:path } => { {
     let f = &($f as _);
     // We want ^ this `as _ ` cast to convert the fn item (as a value
     // of its unique unnameable type) to a value of type `fn(..) -> _`.
@@ -460,7 +485,7 @@ macro_rules! invocable_func_as_dyn_invocable { { $f:expr } => { {
     }
     // So, because of all the above, f is of type `fn(..) -> _`, which implements `Invocable`
     // (assuming the fn item has the right signature).  So we can cast it to dyn.
-    f as &'static dyn $crate::dispatch::Invocable
+    f as &'static dyn $trait
 } } }
 
 /// Helper trait for obtaining (at the type level) `fn` type from an `impl Fn`
@@ -601,7 +626,9 @@ impl DispatchTable {
 
         let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
 
-        func.invoker.invoke(obj, method, ctx, sink)
+        func.rpc_invoker
+            .ok_or(InvokeError::NoImpl)?
+            .invoke(obj, method, ctx, sink)
     }
 
     /// XXXX: Invoke a method without type erasure.
