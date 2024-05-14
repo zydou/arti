@@ -37,7 +37,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // it.
     let listener = UnixListener::bind(path)?;
     let rpc_mgr =
-        RpcMgr::new(move |_auth| RpcSession::new_with_client(Arc::new(client.isolated_client())));
+        RpcMgr::new(move |_auth| RpcSession::new_with_client(Arc::new(client.isolated_client())))?;
     // Register methods. Needed since TorClient is generic.
     //
     // TODO: If we accumulate a large number of generics like this, we should do this elsewhere.

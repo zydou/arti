@@ -3,6 +3,7 @@
 use std::sync::{Arc, Mutex, RwLock, Weak};
 
 use rand::Rng;
+use rpc::InvalidMethodName;
 use tor_rpcbase as rpc;
 use tracing::warn;
 use weak_table::WeakValueHashMap;
@@ -92,25 +93,42 @@ pub(crate) struct Inner {
     connections: WeakValueHashMap<ConnectionId, Weak<Connection>>,
 }
 
+/// An error from creating or using an RpcMgr.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum RpcMgrError {
+    /// At least one method had an invalid name.
+    #[error("Method {1} had an invalid name")]
+    InvalidMethodName(#[source] InvalidMethodName, String),
+}
+
 impl RpcMgr {
     /// Create a new RpcMgr.
-    pub fn new<F>(make_session: F) -> Arc<Self>
+    pub fn new<F>(make_session: F) -> Result<Arc<Self>, RpcMgrError>
     where
         F: Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + Send + Sync + 'static,
     {
         let problems = rpc::check_method_names([]);
-        for (m, err) in problems {
+        // We warn about every problem.
+        for (m, err) in &problems {
             warn!("Internal issue: Invalid RPC method name {m:?}: {err}");
         }
+        let fatal_problem = problems
+            .into_iter()
+            // We don't treat UnrecognizedNamespace as fatal; somebody else might be extending our methods.
+            .find(|(_, err)| !matches!(err, InvalidMethodName::UnrecognizedNamespace));
+        if let Some((name, err)) = fatal_problem {
+            return Err(RpcMgrError::InvalidMethodName(err, name.to_owned()));
+        }
 
-        Arc::new(RpcMgr {
+        Ok(Arc::new(RpcMgr {
             global_id_mac_key: MacKey::new(&mut rand::thread_rng()),
             dispatch_table: Arc::new(RwLock::new(rpc::DispatchTable::from_inventory())),
             session_factory: Box::new(make_session),
             inner: Mutex::new(Inner {
                 connections: WeakValueHashMap::new(),
             }),
-        })
+        }))
     }
 
     /// Extend our method dispatch table with the method entries in `entries`.
