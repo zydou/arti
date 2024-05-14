@@ -46,7 +46,9 @@ use rand::Rng;
 use tor_error::internal;
 use tor_linkspec::OwnedChanTarget;
 use tor_netdir::{NetDir, Relay};
-use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
+use tor_relay_selection::{
+    RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage, SelectionInfo,
+};
 
 use crate::{hspool::HsCircStubKind, Error, Result};
 
@@ -225,6 +227,12 @@ impl VanguardHsPathBuilder {
         let mut hops = vec![l1_guard, l2_guard.clone()];
         let mode = vanguards.mode();
 
+        let extra_hop_err = |info: SelectionInfo| Error::NoRelay {
+            path_kind: self.path_kind(),
+            role: "extra hop",
+            problem: info.to_string(),
+        };
+
         // If needed, select an L3 vanguard too
         if mode == VanguardMode::Full {
             let l3_guard: MaybeOwnedRelay = vanguards
@@ -247,12 +255,7 @@ impl VanguardHsPathBuilder {
                 let selector = RelaySelector::new(usage, l2_l3_exclusion);
 
                 let (extra_hop, info) = selector.select_relay(rng, netdir);
-                let extra_hop = extra_hop.ok_or_else(|| Error::NoRelay {
-                    path_kind: self.path_kind(),
-                    role: "extra hop",
-                    problem: info.to_string(),
-                })?;
-
+                let extra_hop = extra_hop.ok_or_else(|| extra_hop_err(info))?;
                 hops.push(MaybeOwnedRelay::from(extra_hop));
             }
         }
