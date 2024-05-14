@@ -1960,7 +1960,7 @@ impl Reactor {
                     ))
                 })?
                 .recvwindow
-                .put();
+                .put()?;
         }
 
         let (mut msgs, incomplete) = decode_res.into_parts();

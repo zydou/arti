@@ -81,7 +81,6 @@ where
 /// Helper: parametrizes a window to determine its maximum and its increment.
 pub(crate) trait WindowParams {
     /// Largest allowable value for this window.
-    #[allow(dead_code)] // TODO #1383 failure to ever use this is probably a bug
     fn maximum() -> u16;
     /// Increment for this window.
     fn increment() -> u16;
@@ -190,6 +189,12 @@ where
             .window
             .checked_add(P::increment())
             .ok_or_else(|| Error::from(internal!("Overflow on SENDME window")))?;
+
+        if v > P::maximum() {
+            // This should be unreachable, since we would have found a missing tag earlier.
+            return Err(Error::CircProto("SENDME would exceed SENDME window".into()));
+        }
+
         self.window = v;
         Ok(v)
     }
@@ -260,11 +265,17 @@ impl<P: WindowParams> RecvWindow<P> {
     }
 
     /// Called when we've just sent a SENDME.
-    pub(crate) fn put(&mut self) {
+    pub(crate) fn put(&mut self) -> Result<()> {
         self.window = self
             .window
             .checked_add(P::increment())
             .expect("Overflow detected while attempting to increment window");
+
+        if self.window > P::maximum() {
+            Err(internal!("SENDME places window value above its maximum").into())
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -347,7 +358,7 @@ mod test {
         assert!(w.decrement_n(123).is_ok());
         assert_eq!(w.window, 327);
 
-        w.put();
+        w.put().unwrap();
         assert_eq!(w.window, 377);
 
         // failing decrement.
