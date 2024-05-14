@@ -205,7 +205,7 @@ This could be more efficient in space and time.
         ///
         /// Return None if there is no such element.
         ///
-        /// # Safety
+        /// # Correctness hazard!
         ///
         /// This function can put this set into an inconsistent state if the
         /// mutable reference is used to change any of the keys. Doing this does
@@ -215,7 +215,7 @@ This could be more efficient in space and time.
         ///
         /// If you cannot prove to yourself that this won't happen, then you
         /// should use `modify_by_*` instead.
-        $vis unsafe fn [<by_ $key _mut>] <BorrowAsKey_>(
+        $vis fn [<by_ $key _mut_hazardous>] <BorrowAsKey_>(
             &mut self,
             key: &BorrowAsKey_
         ) -> Option<&mut $V>
