@@ -713,6 +713,7 @@ static RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
 //---------- Sleep location tracking and dumping ----------
 
 /// We record "where a future went to sleep" as (just) a backtrace
+#[cfg(not(miri))]
 type SleepLocation = Backtrace;
 
 impl Data {
@@ -949,6 +950,21 @@ impl Debug for Data {
         s.finish()
     }
 }
+
+#[cfg(miri)]
+mod miri_sleep_location {
+    #[derive(Debug, derive_more::Display)]
+    #[display("<SleepLocation>")]
+    pub(super) struct SleepLocation {}
+
+    impl SleepLocation {
+        pub(super) fn force_capture() -> Self {
+            SleepLocation {}
+        }
+    }
+}
+#[cfg(miri)]
+use miri_sleep_location::SleepLocation;
 
 #[cfg(test)]
 mod test {
