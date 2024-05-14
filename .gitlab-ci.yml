@@ -355,7 +355,7 @@ cargo-miri:
   script:
     - rustup component add miri
     # TOOD use miri test more of our crates-containing-unsafe
-    - cargo miri test --all-features -p tor-rtcompat
+    - cargo miri test --all-features -p tor-memquota -p tor-rtcompat
 
 coverage:
   rules:
