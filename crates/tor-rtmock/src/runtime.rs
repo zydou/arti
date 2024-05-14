@@ -1,5 +1,7 @@
 //! Completely mock runtime
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use std::fmt::{Debug, Display};
 use std::ops::ControlFlow;
 
@@ -404,7 +406,7 @@ impl MockRuntimeBuilder {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri)))] // miri cannot do CLOCK_REALTIME
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

@@ -10,6 +10,7 @@
 //! See [`MockSleepProvider`] for more information.
 //! Use [`MockRuntime`](crate::MockRuntime) for new tests.
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
 #![allow(clippy::missing_docs_in_private_items)]
 
 use std::{
@@ -577,7 +578,7 @@ impl Future for Sleeping {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri)))] // miri cannot do CLOCK_REALTIME
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
