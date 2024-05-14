@@ -101,6 +101,7 @@ struct RpcDowngrade {
 impl rpc::Method for RpcRelease {
     type Output = rpc::Nil;
     type Update = rpc::NoUpdates;
+    type Error = rpc::RpcError;
 }
 
 /// Implementation for calling "release" on a Session.
@@ -125,6 +126,7 @@ struct Echo {
 impl rpc::Method for Echo {
     type Output = Echo;
     type Update = rpc::NoUpdates;
+    type Error = rpc::RpcError;
 }
 
 /// Implementation for calling "echo" on a Session.
@@ -147,6 +149,7 @@ struct GetClient {}
 impl rpc::Method for GetClient {
     type Output = rpc::SingletonId;
     type Update = rpc::NoUpdates;
+    type Error = rpc::RpcError;
 }
 
 /// Implement GetClient on an RpcSession.

@@ -50,6 +50,10 @@ pub trait Method: DynMethod {
     /// If this method will never send updates, use the uninhabited
     /// [`NoUpdates`] type.
     type Update: Send + 'static;
+    /// A type returned by this method on failure.
+    //
+    // TODO: I'd like this to default to RpcError, but defaulting isn't implemented.
+    type Error: Send + 'static;
 }
 
 /// An uninhabited type, used to indicate that a given method will never send
@@ -96,6 +100,7 @@ define_derive_deftly! {
 /// impl rpc::Method for Castigate {
 ///     type Output = String;
 ///     type Update = rpc::NoUpdates;
+///     type Error = rpc::RpcError;
 /// }
 /// ```
     pub DynMethod =

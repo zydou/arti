@@ -404,6 +404,7 @@ inventory::collect!(InvokerEnt);
 /// impl rpc::Method for ExampleMethod {
 ///     type Output = ExampleResult;
 ///     type Update = Progress;
+///     type Error = rpc::RpcError;
 /// }
 ///
 /// #[derive(serde::Serialize)]
@@ -732,10 +733,12 @@ mod test {
     impl Method for GetName {
         type Output = Outcome;
         type Update = NoUpdates;
+        type Error = crate::RpcError;
     }
     impl Method for GetKids {
         type Output = Outcome;
         type Update = String;
+        type Error = crate::RpcError;
     }
 
     #[derive(serde::Serialize)]

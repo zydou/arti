@@ -198,6 +198,7 @@ mod test {
     impl rpc::Method for DummyMethod {
         type Output = DummyResponse;
         type Update = rpc::NoUpdates;
+        type Error = rpc::RpcError;
     }
 
     #[derive(Serialize)]
