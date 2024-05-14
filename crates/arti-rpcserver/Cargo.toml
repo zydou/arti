@@ -25,6 +25,7 @@ full = [
 
 [dependencies]
 arti-client = { path = "../arti-client", version = "0.18.0", features = ["rpc"] }
+async-trait = "0.1.54"
 asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
@@ -43,6 +44,7 @@ tor-async-utils = { path = "../tor-async-utils", version = "0.18.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.18.0" }
 tor-error = { path = "../tor-error", version = "0.18.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.18.0" }
+tor-proto = { path = "../tor-proto", version = "0.18.0", features = ["stream-ctrl"] }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.18.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.18.0" }
 tracing = "0.1.36"

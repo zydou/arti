@@ -27,7 +27,7 @@ use std::sync::{Mutex, Weak};
 
 use educe::Educe;
 
-#[cfg(feature = "experimental-api")]
+#[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
 use crate::circuit::ClientCirc;
 
 use crate::circuit::StreamTarget;

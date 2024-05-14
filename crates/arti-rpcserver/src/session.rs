@@ -3,14 +3,16 @@
 //! A "session" is created when a user authenticates on an RPC connection.  It
 //! is the root for all other RPC capabilities.
 
-use arti_client::TorClient;
+use arti_client::{
+    rpc::{ClientConnectionResult, ClientConnectionTarget},
+    TorClient,
+};
+use async_trait::async_trait;
 use derive_deftly::Deftly;
-use rpc::static_rpc_invoke_fn;
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 use tor_rtcompat::Runtime;
 
-use tor_rpcbase as rpc;
-use tor_rpcbase::templates::*;
+use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*, ObjectArcExt as _};
 
 /// An authenticated RPC session: a capability through which most other RPC functionality is available
 ///
@@ -25,7 +27,10 @@ use tor_rpcbase::templates::*;
 ///    But a client may authenticate more than once; each time produces a new `RpcSession`.
 #[derive(Deftly)]
 #[derive_deftly(Object)]
-#[deftly(rpc(expose_outside_of_session))]
+#[deftly(
+    rpc(expose_outside_of_session),
+    rpc(downcastable_to = "ClientConnectionTarget")
+)]
 pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
@@ -56,6 +61,17 @@ impl RpcSession {
     /// Create a new session object containing a single client object.
     pub fn new_with_client<R: Runtime>(client: Arc<arti_client::TorClient<R>>) -> Arc<Self> {
         Arc::new(Self { client })
+    }
+
+    /// Return a view of the client associated with this session, as an `Arc<dyn
+    /// ClientConnectionTarget>.`
+    fn client_as_conn_target(&self) -> Arc<dyn ClientConnectionTarget> {
+        self.client
+            .clone()
+            .upcast_arc()
+            .cast_to_arc_trait()
+            .ok()
+            .expect("Somehow we had a client that was not a ClientConnectionTarget?")
     }
 }
 
@@ -160,4 +176,37 @@ static_rpc_invoke_fn! {
     echo_on_session;
     get_client_on_session;
     isolated_client_on_session;
+}
+
+#[async_trait]
+impl ClientConnectionTarget for RpcSession {
+    async fn connect_with_prefs(
+        &self,
+        target: &arti_client::TorAddr,
+        prefs: &arti_client::StreamPrefs,
+    ) -> ClientConnectionResult<arti_client::DataStream> {
+        self.client_as_conn_target()
+            .connect_with_prefs(target, prefs)
+            .await
+    }
+
+    async fn resolve_with_prefs(
+        &self,
+        hostname: &str,
+        prefs: &arti_client::StreamPrefs,
+    ) -> ClientConnectionResult<Vec<IpAddr>> {
+        self.client_as_conn_target()
+            .resolve_with_prefs(hostname, prefs)
+            .await
+    }
+
+    async fn resolve_ptr_with_prefs(
+        &self,
+        addr: IpAddr,
+        prefs: &arti_client::StreamPrefs,
+    ) -> ClientConnectionResult<Vec<String>> {
+        self.client_as_conn_target()
+            .resolve_ptr_with_prefs(addr, prefs)
+            .await
+    }
 }

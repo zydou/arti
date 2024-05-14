@@ -271,10 +271,12 @@ name = "arti-client"
 version = "0.18.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "cfg-if",
  "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
+ "dyn-clone",
  "educe",
  "fs-mistrust",
  "futures",
@@ -345,6 +347,7 @@ name = "arti-rpcserver"
 version = "0.18.0"
 dependencies = [
  "arti-client",
+ "async-trait",
  "asynchronous-codec",
  "base64ct",
  "bytes",
@@ -365,6 +368,7 @@ dependencies = [
  "tor-bytes",
  "tor-error",
  "tor-llcrypto",
+ "tor-proto",
  "tor-rpcbase",
  "tor-rtcompat",
  "tracing",

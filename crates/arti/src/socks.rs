@@ -9,16 +9,19 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::io::Result as IoResult;
+use std::marker::PhantomData;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[cfg(feature = "rpc")]
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
-use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
+#[allow(unused)]
+use arti_client::HasKind;
+use arti_client::{ErrorKind, IntoTorAddr as _, StreamPrefs, TorClient};
 use tor_config::Listen;
 use tor_error::warn_report;
 #[cfg(feature = "rpc")]
-use tor_rpcbase as rpc;
+use tor_rpcbase::{self as rpc, ObjectArcExt as _};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -77,7 +80,16 @@ fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
 /// the connection, the source IpAddr of the client, and the
 /// authentication string provided by the client).
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SocksIsolationKey(ConnIsolation, SocksAuth);
+struct SocksIsolationKey(ConnIsolation, ProvidedIsolation);
+/// Isolation information provided through the socks connection
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProvidedIsolation {
+    /// The socks isolation itself.
+    Auth(SocksAuth),
+    /// A string provided as isolation with an RPC connection
+    #[cfg(feature = "rpc")]
+    RpcString(Option<String>),
+}
 
 impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
     fn compatible_same_type(&self, other: &Self) -> bool {
@@ -94,23 +106,15 @@ impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
 }
 
 /// The meaning of a SOCKS authentication field, according to our conventions.
-enum AuthInterpretation {
+struct AuthInterpretation {
     /// Assign this stream to a client determined by given RPC session, and
     /// register its existence with that session.
     #[cfg(feature = "rpc")]
-    AssignStreamToRpcSession {
-        /// The RPC session-like object to use in determining our client.
-        session: rpc::ObjectId,
-        /// An identifier to assign to this stream.
-        ///
-        /// TODO RPC: We need to figure out the semantics for this, and
-        /// implement them.
-        stream_id: String,
-    },
+    assign_to_session: Option<rpc::ObjectId>,
 
     /// Isolate this stream from other streams that do not have the same
-    /// SocksAuth value.
-    IsolateStream(SocksAuth),
+    /// value.
+    isolation: ProvidedIsolation,
 }
 
 /// Given the authentication object from a socks connection, determine what it's telling
@@ -133,7 +137,6 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
     /// stream is to be assigned to an Arti RPC session.
     const RPC_SESSION_CONST: &[u8] = b"<arti-rpc-session>";
 
-    use AuthInterpretation::*;
     #[allow(unused_variables)] // TODO RPC remove
     match auth {
         SocksAuth::Username(user, pass) if user == RPC_SESSION_CONST => {
@@ -141,18 +144,24 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
                 if #[cfg(feature="rpc")] {
                     let pass =
                         std::str::from_utf8(pass).context("rpc-session info must be utf-8")?;
-                    let (session, stream_id) =
-                        pass.split_once(':').context("Did not find stream id")?;
-                    Ok(AssignStreamToRpcSession {
-                        session: session.to_owned().into(),
-                        stream_id: stream_id.to_owned(),
+                    let (session, isolation) = match pass.split_once(':') {
+                        Some((s,i)) => (s.to_owned().into(), Some(i.to_owned())),
+                        None => (pass.to_owned().into(), None),
+                    };
+                    Ok(AuthInterpretation {
+                        assign_to_session: Some(session),
+                        isolation: ProvidedIsolation::RpcString(isolation)
                     })
                 } else {
                     Err(anyhow!("Not built with support for RPC"))
                 }
             }
         }
-        other_auth => Ok(IsolateStream(other_auth.clone())),
+        other_auth => Ok(AuthInterpretation {
+            #[cfg(feature = "rpc")]
+            assign_to_session: None,
+            isolation: ProvidedIsolation::Auth(other_auth.clone()),
+        }),
     }
 }
 
@@ -173,55 +182,73 @@ struct SocksConnContext<R: Runtime> {
 /// the address of the client that connected to the Socks port.
 type ConnIsolation = (usize, IpAddr);
 
+cfg_if::cfg_if! {
+    if #[cfg(feature="rpc")] {
+        /// A type returned by get_prefs_and_session,
+        /// and used to launch data streams or resolve attempts.
+        ///
+        /// TODO RPC: This is quite ugly; we should do something better.
+        /// At least, we should never expose this outside the socks module.
+        type ConnTarget<R> = (
+            Arc<dyn arti_client::rpc::ClientConnectionTarget>,
+            // This PhantomData is present so that ConnTarget
+            // can be parameterized.
+            PhantomData<R>
+        );
+    } else {
+        /// A type returned by get_prefs_and_session,
+        /// and used to launch data streams or resolve attempts.
+        ///
+        /// TODO RPC: This is quite ugly; we should do something better.
+        /// At least, we should never expose this outside the socks module.
+        type ConnTarget<R> = (
+            TorClient<R>,
+            // This PhantomData is present so that get_prefs_and_session
+            // can return a 2-tuple unconditionally.
+            PhantomData<R>
+        );
+    }
+}
+
 impl<R: Runtime> SocksConnContext<R> {
     /// Interpret a SOCKS request and our input information to determine which
-    /// TorClient object and StreamPrefs we should use.
+    /// TorClient / ClientConnectionTarget object and StreamPrefs we should use.
     ///
-    /// TODO RPC: This API is horrible and needs revision; once it gets it, we
-    /// should document it much better.
+    /// TODO RPC: The return type here is a bit ugly.
     fn get_prefs_and_session(
         &self,
         request: &SocksRequest,
         target_addr: &str,
         conn_isolation: ConnIsolation,
-    ) -> Result<(StreamPrefs, TorClient<R>)> {
-        use AuthInterpretation as AI;
-
+    ) -> Result<(StreamPrefs, ConnTarget<R>)> {
         // Determine whether we want to ask for IPv4/IPv6 addresses.
         let mut prefs = stream_preference(request, target_addr);
 
-        let tor_client = match interpret_socks_auth(request.auth())? {
-            #[cfg(feature = "rpc")]
-            AI::AssignStreamToRpcSession { session, stream_id } => {
-                if let Some(mgr) = &self.rpc_mgr {
-                    let session = mgr
-                        .lookup_object(&session)
-                        .context("no such session found")?;
-                    // TODO RPC: At this point we need to extract a TorClient
-                    // (or something we can use like one!) from the `Arc<dyn
-                    // Object> we have.  We also need to extract something that
-                    // we can use to register the DataStreamCtrl object once we
-                    // have one.
-                    let _ = session;
-                    let _ = stream_id;
+        // Interpret socks authentication to see whether we want to connect to an RPC connector.
+        let interp = interpret_socks_auth(request.auth())?;
+        prefs.set_isolation(SocksIsolationKey(conn_isolation, interp.isolation));
 
-                    // TODO RPC: This is a placeholder; remove it!
-                    self.tor_client.clone()
-                } else {
-                    return Err(anyhow!("no rpc manager found!?"));
-                }
-            }
-            AI::IsolateStream(auth) => {
-                // Use the source address, SOCKS authentication, and listener ID
-                // to determine the stream's isolation properties.  (Our current
-                // rule is that two streams may only share a circuit if they have
-                // the same values for all of these properties.)
-                prefs.set_isolation(SocksIsolationKey(conn_isolation, auth));
-                self.tor_client.clone()
-            }
-        };
+        #[cfg(feature = "rpc")]
+        if let Some(session) = interp.assign_to_session {
+            if let Some(mgr) = &self.rpc_mgr {
+                let session = mgr
+                    .lookup_object(&session)
+                    .context("no such session found")?;
+                let target: Arc<dyn arti_client::rpc::ClientConnectionTarget> = session
+                    .cast_to_arc_trait()
+                    .map_err(|_| anyhow!("Target did not implement ClientConnectionTarget"))?;
 
-        Ok((prefs, tor_client))
+                return Ok((prefs, (target, PhantomData)));
+            } else {
+                return Err(anyhow!("no rpc manager found!?"));
+            }
+        }
+
+        let client = self.tor_client.clone();
+        #[cfg(feature = "rpc")]
+        let client = Arc::new(client);
+
+        Ok((prefs, (client, PhantomData)))
     }
 }
 
@@ -320,15 +347,15 @@ where
         port
     );
 
-    let (prefs, tor_client) = context.get_prefs_and_session(&request, &addr, isolation_info)?;
+    let (prefs, (tor_client, _)) =
+        context.get_prefs_and_session(&request, &addr, isolation_info)?;
 
     match request.command() {
         SocksCmd::CONNECT => {
             // The SOCKS request wants us to connect to a given address.
             // So, launch a connection over Tor.
-            let tor_stream = tor_client
-                .connect_with_prefs((addr.clone(), port), &prefs)
-                .await;
+            let tor_addr = (addr.clone(), port).into_tor_addr()?;
+            let tor_stream = tor_client.connect_with_prefs(&tor_addr, &prefs).await;
             let tor_stream = match tor_stream {
                 Ok(s) => s,
                 Err(e) => return reply_error(&mut socks_w, &request, e.kind()).await,
