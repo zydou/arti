@@ -91,6 +91,58 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
 }
 
 /// A serializable value, or auto.
+///
+/// Used for implementing configuration options that can be explicitly initialized
+/// with a placeholder for their "default" value using the
+/// [`Auto`](ExplicitOrAuto::Auto) variant.
+///
+/// Unlike `#[serde(default)] field: T` or `#[serde(default)] field: Option<T>`,
+/// fields of this type can be present in the serialized configuration
+/// without being assigned a concrete value.
+///
+/// ## Example
+///
+/// In the following serialized TOML config
+///
+/// ```toml
+///  foo = "auto"
+/// ```
+///
+/// `foo` is set to [`Auto`](ExplicitOrAuto::Auto), which indicates the
+/// implementation should use a default (but not necessarily [`Default::default`])
+/// value for the `foo` option.
+///
+/// For example, f field `foo` defaults to `13` if feature `bar` is enabled,
+/// and `9000` otherise, a configuration with `foo` set to `"auto"` will
+/// behave in the "default" way regardless of which features are enabled.
+///
+/// ```rust,ignore
+/// struct Foo(usize);
+///
+/// impl Default for Foo {
+///     fn default() -> Foo {
+///         if cfg!(feature = "bar") {
+///             Foo(13)
+///         } else {
+///             Foo(9000)
+///         }
+///     }
+/// }
+///
+/// impl Foo {
+///     fn from_explicit_or_auto(foo: ExplicitOrAuto<Foo>) -> Self {
+///         match foo {
+///             // If Auto, choose a sensible default for foo
+///             ExplicitOrAuto::Auto => Default::default(),
+///             ExplicitOrAuto::Foo(foo) => foo,
+///         }
+///     }
+/// }
+///
+/// struct Config {
+///    foo: ExplicitOrAuto<Foo>,
+/// }
+/// ```
 #[derive(Clone, Copy, Hash, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
 #[derive(Serialize, Deserialize)]
