@@ -142,15 +142,18 @@ macro_rules! declare_invocable_impl {
          sink_fn: $sink_fn:expr
       )?
     } => {
-        impl<M, OBJ, Fut, OUTPUT, $($update_gen)?> Invocable
+        impl<M, OBJ, Fut, S, E, $($update_gen)?> Invocable
              for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
-             M: crate::Method,
-             OBJ: Object,
-             OUTPUT: 'static,
-             Fut: futures::Future<Output = OUTPUT> + Send + 'static,
-             $( M::Update: From<$update_gen>, )?
-             $( $($update_arg_where)+ )?
+            M: crate::Method,
+            OBJ: Object,
+            S: 'static,
+            E: 'static,
+            M::Output: From<S>,
+            M::Error: From<E>,
+            Fut: futures::Future<Output = Result<S,E>> + Send + 'static,
+            $( M::Update: From<$update_gen>, )?
+            $( $($update_arg_where)+ )?
         {
             fn object_type(&self) -> any::TypeId {
                 any::TypeId::of::<OBJ>()
@@ -208,7 +211,8 @@ macro_rules! declare_invocable_impl {
             OBJ: Object,
             Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
             M::Output: From<S>,
-            RpcError: From<E>,
+            M::Error: From<E>,
+            RpcError: From<M::Error>,
             $( M::Update: From<$update_gen>, )?
             $( $($update_arg_where)+ )?
         {
@@ -241,7 +245,7 @@ macro_rules! declare_invocable_impl {
                         .map(|r| {
                             let r: RpcResult = match r {
                                 Ok(v) => Ok(Box::new(M::Output::from(v))),
-                                Err(e) => Err(RpcError::from(e)),
+                                Err(e) => Err(RpcError::from(M::Error::from(e))),
                             };
                             r
                         })
@@ -652,8 +656,7 @@ impl DispatchTable {
         obj: Arc<dyn Object>,
         method: M,
         ctx: Box<dyn Context>,
-    ) -> Result<Box<M::Output>, InvokeError> {
-        // XXXXX ^ Actually, the type above is wrong!  I will fix it later in the branch.
+    ) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
         let func_type = FuncType {
             obj_id: obj.type_id(),
             method_id: method.type_id(),
