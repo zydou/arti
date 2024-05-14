@@ -40,14 +40,16 @@ pub trait DeserMethod: DynMethod {
 /// Prefer to implement this trait, rather than `DynMethod` or `DeserMethod`.
 /// (Those traits represent a type-erased method, with statically-unknown `Output` and
 /// `Update` types.)
-pub trait Method: DeserMethod {
+//
+// XXXX document when things should be serialize, and the implications thereof.
+pub trait Method: DynMethod {
     /// A type returned by this method on success.
-    type Output: serde::Serialize + Send + 'static;
+    type Output: Send + 'static;
     /// A type sent by this method on updates.
     ///
     /// If this method will never send updates, use the uninhabited
     /// [`NoUpdates`] type.
-    type Update: serde::Serialize + Send + 'static;
+    type Update: Send + 'static;
 }
 
 /// An uninhabited type, used to indicate that a given method will never send

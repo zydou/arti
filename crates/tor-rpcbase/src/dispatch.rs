@@ -142,16 +142,13 @@ macro_rules! declare_invocable_impl {
          sink_fn: $sink_fn:expr
       )?
     } => {
-        impl<M, OBJ, Fut, S, E, $($update_gen)?> Invocable
+        impl<M, OBJ, Fut, OUTPUT, $($update_gen)?> Invocable
              for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
              M: crate::Method,
-             S: 'static,
-             E: 'static,
              OBJ: Object,
-             Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
-             M::Output: From<S>,
-             RpcError: From<E>,
+             OUTPUT: 'static,
+             Fut: futures::Future<Output = OUTPUT> + Send + 'static,
              $( M::Update: From<$update_gen>, )?
              $( $($update_arg_where)+ )?
         {
@@ -205,6 +202,7 @@ macro_rules! declare_invocable_impl {
             for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
             M: crate::Method,
+            M::Output: serde::Serialize,
             S: 'static,
             E: 'static,
             OBJ: Object,
@@ -214,7 +212,6 @@ macro_rules! declare_invocable_impl {
             $( M::Update: From<$update_gen>, )?
             $( $($update_arg_where)+ )?
         {
-
             fn invoke(
                 &self,
                 obj: Arc<dyn Object>,
@@ -260,7 +257,10 @@ declare_invocable_impl! {}
 declare_invocable_impl! {
     update_gen: U,
     update_arg: { sink: UpdateSink<U> },
-    update_arg_where: { U: 'static + Send },
+    update_arg_where: {
+        U: 'static + Send,
+        M::Update: serde::Serialize
+    },
     sink_fn: |sink:BoxedUpdateSink| Box::pin(
         sink.with_fn(|update: U| RpcSendResult::Ok(
             Box::new(M::Update::from(update))
