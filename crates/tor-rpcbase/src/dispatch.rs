@@ -992,4 +992,46 @@ mod test {
             r#"Hello I am a friendly {"v":"13371337"} and these are my lovely {"v":"2718281828"}."#
         );
     }
+
+    // Doesn't implement Deserialize.
+    #[derive(Debug)]
+    struct MyObject {}
+
+    #[derive(Debug, Deftly)]
+    #[derive_deftly(DynMethod)]
+    #[deftly(rpc(no_method_name))]
+    struct SpecialOnly {}
+    impl Method for SpecialOnly {
+        type Output = MyObject; // Doesn't implement deserialize.
+        type Error = MyObject;
+        type Update = crate::NoUpdates;
+    }
+
+    async fn specialonly_swan(
+        _obj: Arc<Swan>,
+        _method: Box<SpecialOnly>,
+        _ctx: Box<dyn crate::Context>,
+    ) -> Result<MyObject, MyObject> {
+        Ok(MyObject {})
+    }
+    static_rpc_invoke_fn! { @special specialonly_swan; }
+
+    #[async_test]
+    async fn try_invoke_special() {
+        let table = crate::DispatchTable::from_inventory();
+
+        let res: Outcome = table
+            .invoke_special(Arc::new(Swan), GetKids, Box::new(Ctx {}))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(res.v, "cygnets");
+
+        let _an_obj: MyObject = table
+            .invoke_special(Arc::new(Swan), SpecialOnly {}, Box::new(Ctx {}))
+            .await
+            .unwrap()
+            .unwrap();
+    }
 }
