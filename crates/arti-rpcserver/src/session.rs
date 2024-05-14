@@ -116,7 +116,7 @@ async fn rpc_release(
 /// A simple temporary method to echo a reply.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "arti:x-echo"))]
+#[deftly(rpc(method_name = "arti:x_echo"))]
 struct Echo {
     /// A message to echo.
     msg: String,
@@ -141,7 +141,7 @@ async fn echo_on_session(
 /// An RPC method to return the default client for a session.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "arti:get-client"))]
+#[deftly(rpc(method_name = "arti:get_client"))]
 struct GetClient {}
 
 impl rpc::Method for GetClient {
