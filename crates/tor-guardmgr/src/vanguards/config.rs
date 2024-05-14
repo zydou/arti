@@ -27,7 +27,7 @@ const DEFAULT_L3_GUARD_LIFETIME_MAX: Duration = Duration::from_secs(3600 * 48);
 /// A set of parameters, derived from the consensus document,
 /// controlling the behavior of a [`VanguardMgr`](crate::vanguards::VanguardMgr).
 ///
-/// Note: these are not part of [`VanguardConfig`],
+/// Note: these are not part of [`VanguardConfig`](crate::VanguardConfig),
 /// because like all Tor network parameters,
 /// they can be overridden via the `TorClientConfig::override_net_params`.
 //
