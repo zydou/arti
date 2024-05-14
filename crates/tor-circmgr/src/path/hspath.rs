@@ -258,10 +258,19 @@ impl VanguardHsPathBuilder {
                 let extra_hop = extra_hop.ok_or_else(|| extra_hop_err(info))?;
                 hops.push(MaybeOwnedRelay::from(extra_hop));
             }
+        } else {
+            // Extend the circuit to a third, arbitrarily chosen hop, excluding the L1 and L2
+            // guards as before.
+            let usage = RelayUsage::middle_relay(None);
+            let selector = RelaySelector::new(usage, l1_l2_exclusion);
+
+            let (extra_hop, info) = selector.select_relay(rng, netdir);
+            let extra_hop = extra_hop.ok_or_else(|| extra_hop_err(info))?;
+            hops.push(MaybeOwnedRelay::from(extra_hop));
         }
 
         match (mode, self.0) {
-            (VanguardMode::Lite, _) => debug_assert_eq!(hops.len(), 3), // XXX this panics
+            (VanguardMode::Lite, _) => debug_assert_eq!(hops.len(), 3),
             (VanguardMode::Full, HsCircStubKind::Stub) => debug_assert_eq!(hops.len(), 3),
             (VanguardMode::Full, HsCircStubKind::Extended) => debug_assert_eq!(hops.len(), 4),
             (VanguardMode::Disabled, _) => {
