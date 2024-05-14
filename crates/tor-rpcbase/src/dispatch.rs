@@ -85,6 +85,9 @@ pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> +
 // extra boxing in this case ever matters.
 pub type UpdateSink<U> = Pin<Box<dyn Sink<U, Error = SendUpdateError> + Send + 'static>>;
 
+/// XXXX: Document.
+type SpecialResultFuture = BoxFuture<'static, Box<dyn any::Any>>;
+
 /// An installable handler for running a method on an object type.
 ///
 /// Callers should not typically implement this trait directly;
@@ -110,6 +113,14 @@ pub trait Invocable: Send + Sync + 'static {
         ctx: Box<dyn Context>,
         sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError>;
+
+    /// XXXX Document
+    fn invoke_special(
+        &self,
+        obj: Arc<dyn Object>,
+        method: Box<dyn DynMethod>,
+        ctx: Box<dyn Context>,
+    ) -> Result<SpecialResultFuture, InvokeError>;
 }
 
 /// Helper: Declare a blanket implementation for Invocable.
@@ -131,6 +142,8 @@ macro_rules! declare_invocable_impl {
             for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
             M: crate::Method,
+            S: 'static,
+            E: 'static,
             OBJ: Object,
             Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
             M::Output: From<S>,
@@ -191,6 +204,34 @@ macro_rules! declare_invocable_impl {
                         .boxed()
                 )
             }
+
+            fn invoke_special(
+                &self,
+                obj: Arc<dyn Object>,
+                method: Box<dyn DynMethod>,
+                ctx: Box<dyn Context>,
+            ) -> Result<SpecialResultFuture, $crate::InvokeError> {
+                use futures::FutureExt;
+                #[allow(unused)]
+                use {tor_async_utils::SinkExt as _, futures::SinkExt as _};
+
+                let Ok(obj) = obj.downcast_arc::<OBJ>() else {
+                    return Err(InvokeError::Bug($crate::internal!("Wrong object type")));
+                 };
+                 let Ok(method) = method.downcast::<M>() else {
+                     return Err(InvokeError::Bug($crate::internal!("Wrong method type")));
+                 };
+
+                 $(
+                    let $sink = Box::pin(futures::sink::drain().sink_err_into());
+                 )?
+
+                 Ok(
+                    (self)(obj, method, ctx $(, $sink )? )
+                        .map(|r| Box::new(r) as Box<dyn any::Any>)
+                        .boxed()
+                 )
+            }
         }
     }
 }
@@ -200,7 +241,7 @@ declare_invocable_impl! {}
 declare_invocable_impl! {
     update_gen: U,
     update_arg: { sink: UpdateSink<U> },
-    update_arg_where: { U: 'static },
+    update_arg_where: { U: 'static + Send },
     sink_fn: |sink:BoxedUpdateSink| Box::pin(
         sink.with_fn(|update: U| RpcSendResult::Ok(
             Box::new(M::Update::from(update))
@@ -561,6 +602,26 @@ impl DispatchTable {
         let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
 
         func.invoker.invoke(obj, method, ctx, sink)
+    }
+
+    /// XXXX: Invoke a method without type erasure.
+    pub async fn invoke_special<M: crate::Method>(
+        &self,
+        obj: Arc<dyn Object>,
+        method: M,
+        ctx: Box<dyn Context>,
+    ) -> Result<Box<M::Output>, InvokeError> {
+        // XXXXX ^ Actually, the type above is wrong!  I will fix it later in the branch.
+        let func_type = FuncType {
+            obj_id: obj.type_id(),
+            method_id: method.type_id(),
+        };
+        let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
+
+        let fut: SpecialResultFuture = func.invoker.invoke_special(obj, Box::new(method), ctx)?;
+        fut.await
+            .downcast()
+            .map_err(|_| InvokeError::Bug(tor_error::internal!("Downcast to wrong type")))
     }
 }
 
