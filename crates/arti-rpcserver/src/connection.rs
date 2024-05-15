@@ -223,7 +223,7 @@ impl Connection {
     {
         let write = Box::pin(asynchronous_codec::FramedWrite::new(
             output,
-            crate::streams::JsonLinesEncoder::<BoxedResponse>::default(),
+            crate::codecs::JsonLinesEncoder::<BoxedResponse>::default(),
         ));
 
         let read = Box::pin(

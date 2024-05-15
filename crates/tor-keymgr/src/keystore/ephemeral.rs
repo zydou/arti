@@ -5,11 +5,8 @@ pub(crate) mod err;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use ssh_key::private::PrivateKey;
-use ssh_key::{LineEnding, PublicKey};
-use zeroize::Zeroizing;
+use tor_error::internal;
 
-use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;
 use crate::{
@@ -19,19 +16,17 @@ use crate::{
 
 /// The identifier of a key stored in the `ArtiEphemeralKeystore`.
 type KeyIdent = (ArtiPath, KeyType);
-/// The value of a key stored in `ArtiEphemeralKeystore`
-type KeyValue = Zeroizing<String>;
 
 /// The Ephemeral Arti key store
 ///
 /// This is a purely in-memory key store. Keys written to this store
-/// are never written to disk, and are stored in-memory as `Zeroizing<String>`.
+/// are never written to disk, and are stored in-memory as [`SshKeyData`].
 /// Keys saved in this Keystore do not persist between restarts!
 pub struct ArtiEphemeralKeystore {
     /// Identifier hard-coded to 'ephemeral'
     id: KeystoreId,
-    /// Keys stored as openssl-encoded zeroizing strings
-    key_dictionary: Arc<Mutex<HashMap<KeyIdent, KeyValue>>>,
+    /// Keys stored as [`SshKeyData`].
+    key_dictionary: Arc<Mutex<HashMap<KeyIdent, SshKeyData>>>,
 }
 
 impl ArtiEphemeralKeystore {
@@ -68,12 +63,9 @@ impl Keystore for ArtiEphemeralKeystore {
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
         match key_dictionary.get(&(arti_path.clone(), key_type.clone())) {
-            Some(openssh_key) => {
-                let unparsed_openssh_key =
-                    UnparsedOpenSshKey::new(openssh_key.to_string(), Default::default());
-                key_type
-                    .parse_ssh_format_erased(unparsed_openssh_key)
-                    .map(Some)
+            Some(key) => {
+                let key: ErasedKey = key.clone().into_erased()?;
+                Ok(Some(key))
             }
             None => Ok(None),
         }
@@ -88,26 +80,29 @@ impl Keystore for ArtiEphemeralKeystore {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
-        // serialise key to string
-        let ssh_data = key.as_ssh_key_data()?;
-        let comment = "";
-        let openssh_key = match ssh_data {
-            SshKeyData::Public(key_data) => PublicKey::new(key_data, comment)
-                .to_openssh()
-                .map_err(ArtiEphemeralKeystoreError::SshKeySerialize)?,
-            SshKeyData::Private(keypair) => PrivateKey::new(keypair, comment)
-                .map_err(ArtiEphemeralKeystoreError::SshKeySerialize)?
-                .to_openssh(LineEnding::LF)
-                .map_err(ArtiEphemeralKeystoreError::SshKeySerialize)?
-                .to_string(),
-        };
-        // verify our serialised key round-trips before saving it to dictionary
-        let unparsed_openssh_key = UnparsedOpenSshKey::new(openssh_key.clone(), Default::default());
-        let _ = key_type.parse_ssh_format_erased(unparsed_openssh_key)?;
+        let key_data = key.as_ssh_key_data()?;
+
+        // TODO: add key_type validation to Keystore::get and Keystore::remove.
+        // The presence of a key with a mismatched key_type can be either due to keystore
+        // corruption, or API misuse. We will need a new error type and corresponding ErrorKind for
+        // that).
+        //
+        // TODO: add key_type validation to ArtiNativeKeystore
+        if &key_data.key_type()? != key_type {
+            // This can never happen unless:
+            //   * Keystore::insert is called directly with an incorrect KeyType for `key`, or
+            //   * Keystore::insert is called via KeyMgr, but the EncodableKey implementation of
+            //   the key is broken. EncodableKey can't be implemented by external types,
+            //   so a broken implementation means we have an internal bug.
+            return Err(internal!(
+                "the specified KeyType does not match key type of the inserted key?!"
+            )
+            .into());
+        }
 
         // save to dictionary
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
-        let _ = key_dictionary.insert((arti_path, key_type.clone()), openssh_key.into());
+        let _ = key_dictionary.insert((arti_path, key_type.clone()), key_data);
         Ok(())
     }
 
@@ -146,20 +141,19 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_llcrypto::pk::ed25519;
+
     use super::*;
 
-    // imports from arti tests
-
-    use crate::keystore::arti::tests::TestSpecifier;
-    use crate::keystore::arti::tests::OPENSSH_ED25519;
+    use crate::test_utils::TestSpecifier;
 
     // some helper methods
 
     fn key() -> ErasedKey {
-        let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), Default::default());
-        KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
-            .unwrap()
+        let mut rng = testing_rng();
+        let keypair = ed25519::Keypair::generate(&mut rng);
+        Box::new(keypair)
     }
 
     fn key_type() -> &'static KeyType {
@@ -211,10 +205,14 @@ mod tests {
         assert!(key_store
             .insert(key().as_ref(), key_spec().as_ref(), key_type())
             .is_ok());
-        assert!(key_store
+
+        let key = key_store
             .get(key_spec().as_ref(), key_type())
             .unwrap()
-            .is_some());
+            .unwrap();
+
+        // Ensure the returned key is of the right type
+        assert!(key.downcast::<ed25519::Keypair>().is_ok());
     }
 
     #[test]

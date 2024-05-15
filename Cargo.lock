@@ -271,10 +271,12 @@ name = "arti-client"
 version = "0.18.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "cfg-if",
  "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
+ "dyn-clone",
  "educe",
  "fs-mistrust",
  "futures",
@@ -283,6 +285,7 @@ dependencies = [
  "libc",
  "once_cell",
  "postage",
+ "rand",
  "safelog",
  "serde",
  "strum 0.26.2",
@@ -310,6 +313,7 @@ dependencies = [
  "tor-persist",
  "tor-proto",
  "tor-ptmgr",
+ "tor-relay-selection",
  "tor-rpcbase",
  "tor-rtcompat",
  "tracing",
@@ -345,6 +349,7 @@ name = "arti-rpcserver"
 version = "0.18.0"
 dependencies = [
  "arti-client",
+ "async-trait",
  "asynchronous-codec",
  "base64ct",
  "bytes",
@@ -365,6 +370,7 @@ dependencies = [
  "tor-bytes",
  "tor-error",
  "tor-llcrypto",
+ "tor-proto",
  "tor-rpcbase",
  "tor-rtcompat",
  "tracing",
@@ -5834,6 +5840,7 @@ version = "0.18.0"
 dependencies = [
  "assert-impl",
  "derive-deftly",
+ "derive_more",
  "downcast-rs",
  "erased-serde",
  "futures",
@@ -5848,6 +5855,7 @@ dependencies = [
  "tor-async-utils",
  "tor-error",
  "typetag",
+ "void",
 ]
 
 [[package]]

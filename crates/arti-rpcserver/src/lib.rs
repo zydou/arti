@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
-#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
-#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
+#![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
 #![warn(missing_docs)]
 #![warn(noop_method_call)]
 #![warn(unreachable_pub)]
@@ -41,6 +41,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod cancel;
+mod codecs;
 mod connection;
 mod err;
 mod globalid;
@@ -48,8 +49,15 @@ mod mgr;
 mod msgs;
 mod objmap;
 mod session;
-mod streams;
+mod stream;
 
 pub use connection::{auth::RpcAuthentication, Connection, ConnectionError};
 pub use mgr::RpcMgr;
 pub use session::RpcSession;
+
+/// Return a list of RPC methods that will be needed to use `arti-rpcserver` with the given runtime.
+pub fn rpc_methods<R: tor_rtcompat::Runtime>() -> Vec<tor_rpcbase::dispatch::InvokerEnt> {
+    tor_rpcbase::invoker_ent_list![
+        crate::stream::new_stream_handle_on_client::<R>, //
+    ]
+}

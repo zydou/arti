@@ -24,6 +24,10 @@ license = "LGPL-3.0-only"
 default = ["compiler"]
 full = ["compiler", "hashx/full"]
 compiler = ["hashx/compiler"]
+experimental = ["bucket-array"]
+# For fuzzing only: expose the unstable 'bucket-array' API.
+bucket-array = ["__is_experimental"]
+__is_experimental = []
 
 [dependencies]
 arrayvec = "0.7.4"

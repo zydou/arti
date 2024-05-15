@@ -7,6 +7,7 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    sync::Arc,
 };
 
 use once_cell::sync::Lazy;
@@ -20,7 +21,7 @@ use crate::Object;
 /// `derive_deftly(Object)`.
 ///
 /// You shouldn't use this directly; instead use
-/// [`ObjectRefExt`](super::ObjectRefExt).
+/// [`ObjectArcExt`](super::ObjectArcExt).
 ///
 /// Note that the concrete object type `O`
 /// is *not* represented in the type of `CastTable`;
@@ -34,14 +35,27 @@ pub struct CastTable {
     /// Every entry in this table must contain:
     ///
     ///   * A key that is `typeid::of::<&'static dyn Tr>()` for some trait `Tr`.
-    ///   * A function of type `fn(&dyn Object) -> &dyn Tr` for the same trait
-    ///     `Tr`. This function must accept a `&dyn Object` whose concrete type
-    ///     is actually `O`, and it SHOULD panic for other input types.
+    ///   * A [`Caster`] whose functions are suitable for casting objects from this table's
+    ///     type to `dyn Tr`.
+    table: HashMap<TypeId, Caster>,
+}
+
+/// A single entry in a `CastTable`.
+///
+/// Each `Caster` exists for one concrete object type "`O`", and one trait type "`Tr`".
+///
+/// Note that we use `Box` here in order to support generic types: you can't
+/// get a `&'static` reference to a function that takes a generic type in
+/// current rust.
+struct Caster {
+    /// Actual type: `fn(Arc<dyn Object>) -> Arc<dyn Tr>`
     ///
-    /// Note that we use `Box` here in order to support generic types: you can't
-    /// get a `&'static` reference to a function that takes a generic type in
-    /// current rust.
-    table: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    /// Panics if Object does not have the expected type (`O`).
+    cast_to_ref: Box<dyn Any + Send + Sync>,
+    /// Actual type: `fn(Arc<dyn Object>) -> Arc<dyn Tr>`
+    ///
+    /// Panics if Object does not have the expected type (`O`).
+    cast_to_arc: Box<dyn Any + Send + Sync>,
 }
 
 impl CastTable {
@@ -55,8 +69,11 @@ impl CastTable {
     /// `T` must be `dyn Tr` for some trait `Tr`.
     /// (Not checked by the compiler.)
     ///
-    /// `func` is a downcaster from `&dyn Object` to `&dyn Tr`.
-    /// `func` SHOULD
+    /// `cast_to_ref` is a downcaster from `&dyn Object` to `&dyn Tr`.
+    ///
+    /// `cast_to_arc` is a downcaster from `Arc<dyn Object>` to `Arc<dyn Tr>`.
+    ///
+    /// These functions SHOULD
     /// panic if the concrete type of its argument is not the concrete type `O`
     /// associated with this `CastTable`.
     ///
@@ -74,8 +91,17 @@ impl CastTable {
     // We insert and look up by `TypeId::of::<&'static dyn SomeTrait>`,
     // which must mean `&'static (dyn SomeTrait + 'static)`
     // since a 'static reference to anything non-'static is an ill-formed type.
-    pub fn insert<T: 'static + ?Sized>(&mut self, func: fn(&dyn Object) -> &T) {
-        self.insert_erased(TypeId::of::<&'static T>(), Box::new(func) as _);
+    pub fn insert<T: 'static + ?Sized>(
+        &mut self,
+        cast_to_ref: fn(&dyn Object) -> &T,
+        cast_to_arc: fn(Arc<dyn Object>) -> Arc<T>,
+    ) {
+        let type_id = TypeId::of::<&'static T>();
+        let caster = Caster {
+            cast_to_ref: Box::new(cast_to_ref),
+            cast_to_arc: Box::new(cast_to_arc),
+        };
+        self.insert_erased(type_id, caster);
     }
 
     /// Implementation for adding an entry to the `CastTable`
@@ -87,8 +113,8 @@ impl CastTable {
     /// Like `insert`, but less compile-time checking.
     /// `type_id` is the identity of `&'static dyn Tr`,
     /// and `func` has been boxed and type-erased.
-    fn insert_erased(&mut self, type_id: TypeId, func: Box<dyn Any + Send + Sync>) {
-        let old_val = self.table.insert(type_id, func);
+    fn insert_erased(&mut self, type_id: TypeId, caster: Caster) {
+        let old_val = self.table.insert(type_id, caster);
         assert!(
             old_val.is_none(),
             "Tried to insert a duplicate entry in a cast table.",
@@ -102,6 +128,7 @@ impl CastTable {
     /// `T` should be `dyn Tr`.
     /// If `T` is not one of the `dyn Tr` for which `insert` was called,
     /// returns `None`.
+    ///
     /// # Panics
     ///
     /// Panics if the concrete type of `obj` does not match `O`.
@@ -110,11 +137,39 @@ impl CastTable {
     /// violated.
     pub fn cast_object_to<'a, T: 'static + ?Sized>(&self, obj: &'a dyn Object) -> Option<&'a T> {
         let target_type = TypeId::of::<&'static T>();
-        let caster = self.table.get(&target_type)?.as_ref();
+        let caster = self.table.get(&target_type)?;
         let caster: &fn(&dyn Object) -> &T = caster
+            .cast_to_ref
             .downcast_ref()
             .expect("Incorrect cast-function type found in cast table!");
         Some(caster(obj))
+    }
+
+    /// As [`cast_object_to`](CastTable::cast_object_to), but returns an `Arc<dyn Tr>`.
+    ///
+    /// If `T` is not one of the `dyn Tr` types for which `insert_arc` was called,
+    /// return `Err(obj)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the concrete type of `obj` does not match `O`.
+    ///
+    /// May panic if any of the Requirements for [`CastTable::insert`] were
+    /// violated.
+    pub fn cast_object_to_arc<T: 'static + ?Sized>(
+        &self,
+        obj: Arc<dyn Object>,
+    ) -> Result<Arc<T>, Arc<dyn Object>> {
+        let target_type = TypeId::of::<&'static T>();
+        let caster = match self.table.get(&target_type) {
+            Some(c) => c,
+            None => return Err(obj),
+        };
+        let caster: &fn(Arc<dyn Object>) -> Arc<T> = caster
+            .cast_to_arc
+            .downcast_ref()
+            .expect("Incorrect cast-function type found in cast table!");
+        Ok(caster(obj))
     }
 }
 
@@ -140,15 +195,24 @@ macro_rules! cast_table_deftness_helper{
                 #[allow(unused_mut)]
                 let mut table = $crate::CastTable::default();
                 $({
-                    // `f` is the actual function that does the downcasting.
+                    use std::sync::Arc;
+                    // These are the actual functions that does the downcasting.
                     // It works by downcasting with Any to the concrete type, and then
                     // upcasting from the concrete type to &dyn Trait.
-                    let f: fn(&dyn $crate::Object) -> &(dyn $traitname + 'static) = |self_| {
+                    let cast_to_ref: fn(&dyn $crate::Object) -> &(dyn $traitname + 'static) = |self_| {
                         let self_: &Self = self_.downcast_ref().unwrap();
                         let self_: &dyn $traitname = self_ as _;
                         self_
                     };
-                    table.insert::<dyn $traitname>(f);
+                    let cast_to_arc: fn(Arc<dyn $crate::Object>) -> Arc<dyn $traitname> = |self_| {
+                        let self_: Arc<Self> = self_
+                            .downcast_arc()
+                            .ok()
+                            .expect("used with incorrect type");
+                        let self_: Arc<dyn $traitname> = self_ as _;
+                        self_
+                    };
+                    table.insert::<dyn $traitname>(cast_to_ref, cast_to_arc);
                 })*
                 table
     }
@@ -189,6 +253,10 @@ mod test {
         let tab = Simple::make_cast_table();
         let obj: &dyn Object = &concrete;
         let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
+
+        let arc = Arc::new(Simple);
+        let arc_obj: Arc<dyn Object> = arc.clone();
+        let _cast: Arc<dyn Tr1> = tab.cast_object_to_arc(arc_obj).ok().expect("cast failed");
     }
 
     #[derive(Deftly)]
@@ -205,5 +273,9 @@ mod test {
         let tab = Generic::<&'static str>::make_cast_table();
         let obj: &dyn Object = &gen;
         let _cast: &(dyn Tr1 + '_) = tab.cast_object_to(obj).expect("cast failed");
+
+        let arc = Arc::new(Generic("bar"));
+        let arc_obj: Arc<dyn Object> = arc.clone();
+        let _cast: Arc<dyn Tr2> = tab.cast_object_to_arc(arc_obj).ok().expect("cast failed");
     }
 }

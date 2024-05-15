@@ -1,8 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
-#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
-#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
+#![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
 #![warn(missing_docs)]
 #![warn(noop_method_call)]
 #![warn(unreachable_pub)]
@@ -47,8 +47,9 @@ mod err;
 mod solution;
 mod solver;
 
-// Export bucket_array::mem API only to the fuzzer
-#[cfg(fuzzing)]
+// Export bucket_array::mem API only to the fuzzer.
+// (This is not stable; you should not use it except for testing.)
+#[cfg(feature = "bucket-array")]
 pub use bucket_array::mem::{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit};
 
 use hashx::{HashX, HashXBuilder};

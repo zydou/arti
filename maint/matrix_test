@@ -104,8 +104,8 @@ def test_crate(crate):
     # TODO test random combination?
 
 def main():
-    for crate in list_crates.crate_list():
-        test_crate(crate)
+    for crate in list_crates.list_crates():
+        test_crate(crate.name)
 
 if __name__ == '__main__':
     main()

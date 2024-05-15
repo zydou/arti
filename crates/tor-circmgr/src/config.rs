@@ -367,7 +367,7 @@ define_accessor_trait! {
         circuit_timing: CircuitTiming,
         preemptive_circuits: PreemptiveCircuitConfig,
         +
-        // TODO HS-VANGUARDS: ideally this would be defined in the same way as `path_rules`,
+        // Note: ideally this would be defined in the same way as `path_rules`,
         // `circuit_timing`, etc., but define_accessor_trait unconditionally adds
         // AsRef<VanguardsConfig> as a supertrait, which can't be cfg'd behind
         // the vanguards feature.
@@ -390,17 +390,13 @@ pub(crate) mod test_config {
     /// Testing configuration, with public fields
     #[derive(Default, derive_more::AsRef)]
     #[allow(clippy::exhaustive_structs)]
+    #[allow(missing_docs)]
     #[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
     pub struct TestConfig {
-        ///
         pub path_rules: PathConfig,
-        ///
         pub circuit_timing: CircuitTiming,
-        ///
         pub preemptive_circuits: PreemptiveCircuitConfig,
-        ///
         pub guardmgr: tor_guardmgr::TestConfig,
-        ///
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         pub vanguard_config: VanguardConfig,
     }

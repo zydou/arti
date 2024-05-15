@@ -500,7 +500,7 @@ impl<R: Runtime> HsCircPool<R> {
                     })?
                 };
 
-                // If full vanguards are enabled and the circuit we got is STUB,
+                // Since full vanguards are enabled and the circuit we got is STUB,
                 // we need to extend it by another hop to make it STUB+ before returning it
                 let circ = self.extend_circ(circuit, params, target).await?;
 

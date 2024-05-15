@@ -1,8 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
-#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
-#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
+#![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
 #![warn(missing_docs)]
 #![warn(noop_method_call)]
 #![warn(unreachable_pub)]
@@ -62,7 +62,7 @@ pub fn looks_like_diff(s: &str) -> bool {
 ///
 /// This is a slow version, for testing and correctness checking.  It uses
 /// an O(n) operation to apply diffs, and therefore runs in O(n^2) time.
-#[cfg(any(test, fuzzing, feature = "slow-diff-apply"))]
+#[cfg(any(test, feature = "slow-diff-apply"))]
 pub fn apply_diff_trivial<'a>(input: &'a str, diff: &'a str) -> Result<DiffResult<'a>> {
     let mut diff_lines = diff.lines();
     let (_, d2) = parse_diff_header(&mut diff_lines)?;
@@ -214,7 +214,7 @@ impl<'a> DiffCommand<'a> {
     ///
     /// Because DiffResult internally uses a vector of line, this
     /// implementation is potentially O(n) in the size of the input.
-    #[cfg(any(test, fuzzing, feature = "slow-diff-apply"))]
+    #[cfg(any(test, feature = "slow-diff-apply"))]
     fn apply_to(&self, target: &mut DiffResult<'a>) -> Result<()> {
         match self {
             Self::Delete { low, high } => {
@@ -496,7 +496,7 @@ impl<'a> DiffResult<'a> {
     ///
     /// This has to move elements around within the vector, and so it
     /// is potentially O(n) in its length.
-    #[cfg(any(test, fuzzing, feature = "slow-diff-apply"))]
+    #[cfg(any(test, feature = "slow-diff-apply"))]
     fn remove_lines(&mut self, first: usize, last: usize) -> Result<()> {
         if first > self.lines.len() || last > self.lines.len() || first == 0 || last == 0 {
             Err(Error::CantApply("line out of range"))
@@ -515,7 +515,7 @@ impl<'a> DiffResult<'a> {
     ///
     /// This has to move elements around within the vector, and so it
     /// is potentially O(n) in its length.
-    #[cfg(any(test, fuzzing, feature = "slow-diff-apply"))]
+    #[cfg(any(test, feature = "slow-diff-apply"))]
     fn insert_at(&mut self, pos: usize, lines: &[&'a str]) -> Result<()> {
         if pos > self.lines.len() + 1 || pos == 0 {
             Err(Error::CantApply("position out of range"))

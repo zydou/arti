@@ -3,26 +3,23 @@
 //! See the [`ArtiNativeKeystore`] docs for more details.
 
 pub(crate) mod err;
+pub(crate) mod ssh;
 
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use crate::key_type::ssh::UnparsedOpenSshKey;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
+use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
-use ssh_key::private::PrivateKey;
-use ssh_key::{LineEnding, PublicKey};
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
-
-use super::SshKeyData;
 
 /// The Arti key store.
 ///
@@ -137,8 +134,8 @@ impl Keystore for ArtiNativeKeystore {
             })?,
         };
 
-        key_type
-            .parse_ssh_format_erased(UnparsedOpenSshKey::new(inner, path))
+        UnparsedOpenSshKey::new(inner, path)
+            .parse_ssh_format_erased(key_type)
             .map(Some)
     }
 
@@ -167,24 +164,7 @@ impl Keystore for ArtiNativeKeystore {
         // TODO (#1095): decide what information, if any, to put in the comment
         let comment = "";
 
-        let openssh_key = match key {
-            SshKeyData::Public(key_data) => {
-                let openssh_key = PublicKey::new(key_data, comment);
-
-                openssh_key
-                    .to_openssh()
-                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
-            }
-            SshKeyData::Private(keypair) => {
-                let openssh_key = PrivateKey::new(keypair, comment)
-                    .map_err(|_| tor_error::internal!("failed to create SSH private key"))?;
-
-                openssh_key
-                    .to_openssh(LineEnding::LF)
-                    .map_err(|_| tor_error::internal!("failed to encode SSH key"))?
-                    .to_string()
-            }
-        };
+        let openssh_key = key.to_openssh_string(comment)?;
 
         Ok(self
             .keystore_dir
@@ -293,7 +273,7 @@ impl Keystore for ArtiNativeKeystore {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -308,30 +288,12 @@ pub(crate) mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, CTorPath, KeyPath};
+    use crate::test_utils::ssh_keys::*;
+    use crate::test_utils::TestSpecifier;
+    use crate::{ArtiPath, KeyPath};
     use std::fs;
     use tempfile::{tempdir, TempDir};
     use tor_llcrypto::pk::ed25519;
-
-    // TODO HS TEST: this is included twice in the binary (refactor the test utils so that we only
-    // include it once)
-    pub(crate) const OPENSSH_ED25519: &str = include_str!("../../testdata/ed25519_openssh.private");
-
-    pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
-
-    #[derive(Default)]
-    pub(crate) struct TestSpecifier(String);
-
-    impl KeySpecifier for TestSpecifier {
-        fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError> {
-            Ok(ArtiPath::new(format!("{TEST_SPECIFIER_PATH}{}", self.0))
-                .map_err(|e| tor_error::internal!("{e}"))?)
-        }
-
-        fn ctor_path(&self) -> Option<CTorPath> {
-            None
-        }
-    }
 
     fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
         let rel_key_path = key_store
@@ -501,7 +463,7 @@ pub(crate) mod tests {
             true
         );
 
-        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+        assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
     }
 
     #[test]
@@ -520,8 +482,8 @@ pub(crate) mod tests {
 
         // Insert the key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_kp = KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
+        let erased_kp = key
+            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();
 
         let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
@@ -547,7 +509,7 @@ pub(crate) mod tests {
             &KeyType::Ed25519Keypair,
             true
         );
-        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+        assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
     }
 
     #[test]
@@ -591,27 +553,27 @@ pub(crate) mod tests {
     fn list() {
         // Initialize the key store
         let (key_store, _keystore_dir) = init_keystore(true);
-        assert_contains_arti_paths!([TEST_SPECIFIER_PATH,], key_store.list().unwrap());
+        assert_contains_arti_paths!([TestSpecifier::path_prefix(),], key_store.list().unwrap());
 
         // Insert another key
         let key = UnparsedOpenSshKey::new(OPENSSH_ED25519.into(), PathBuf::from("/test/path"));
-        let erased_kp = KeyType::Ed25519Keypair
-            .parse_ssh_format_erased(key)
+        let erased_kp = key
+            .parse_ssh_format_erased(&KeyType::Ed25519Keypair)
             .unwrap();
 
         let Ok(key) = erased_kp.downcast::<ed25519::Keypair>() else {
             panic!("failed to downcast key to ed25519::Keypair")
         };
 
-        let key_spec = TestSpecifier("-i-am-a-suffix".into());
+        let key_spec = TestSpecifier::new("-i-am-a-suffix");
         let ed_key_type = KeyType::Ed25519Keypair;
 
         assert!(key_store.insert(&*key, &key_spec, &ed_key_type).is_ok());
 
         assert_contains_arti_paths!(
             [
-                TEST_SPECIFIER_PATH,
-                format!("{TEST_SPECIFIER_PATH}-i-am-a-suffix"),
+                TestSpecifier::path_prefix(),
+                format!("{}-i-am-a-suffix", TestSpecifier::path_prefix()),
             ],
             key_store.list().unwrap()
         );

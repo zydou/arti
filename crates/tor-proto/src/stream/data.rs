@@ -27,7 +27,7 @@ use std::sync::{Mutex, Weak};
 
 use educe::Educe;
 
-#[cfg(feature = "experimental-api")]
+#[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
 use crate::circuit::ClientCirc;
 
 use crate::circuit::StreamTarget;
@@ -382,7 +382,7 @@ impl DataStream {
     /// is received to indicate an error.
     ///
     /// Does nothing if this stream is already connected.
-    pub(crate) async fn wait_for_connection(&mut self) -> Result<()> {
+    pub async fn wait_for_connection(&mut self) -> Result<()> {
         // We must put state back before returning
         let state = self.r.state.take().expect("Missing state in DataReader");
 

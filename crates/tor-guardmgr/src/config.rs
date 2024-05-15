@@ -53,12 +53,10 @@ pub(crate) mod testing {
     /// A dummy test configuration, with transparent fields for testing
     #[derive(Default, Debug, AsRef)]
     #[allow(clippy::exhaustive_structs)]
+    #[allow(missing_docs)]
     pub struct TestConfig {
-        ///
         #[as_ref]
         pub fallbacks: FallbackList,
-
-        ///
         pub bridges: Vec<BridgeConfig>,
     }
     impl AsRef<[BridgeConfig]> for TestConfig {

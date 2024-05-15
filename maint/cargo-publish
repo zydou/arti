@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+#
+# usage:
+#   maint/cargo-publish [<OPTIONS>] VERSION
+#
+# options:
+#   --dry-run
+#
+# Preconditions:
+#   See doc/Release.md
+#
+# Running a different version to the one in the arti.git being published:
+# You can invoke this as ../PATH/TO/maint/cargo-publish.
+# That maint/ directory must contain compatible versions of the support
+# utilities, but it need not match the one in the CWD.
+# The version that is published is the one from the CWD.
+
+set -e
+
+origin='git@gitlab.torproject.org:tpo/core/arti main'
+maint="$(dirname "$0")"
+: "${CARGO:=cargo}"
+
+# Note for users of nailing-cargo: use this setting:
+#   CARGO='nailing-cargo --preclean=full --no-nail --git -o'
+
+#===== utilities =====
+
+fail () {
+    echo >&2 "$0: error: $*"
+    exit 12
+}
+
+all_ok=true
+
+problem () {
+    echo >&2 "problem: $*"
+    all_ok=false
+}
+
+check_equal () {
+    local a="$1"
+    local b="$2"
+    local a_what="$3"
+    local b_what="$4"
+    if [ "x$a" != "x$b" ]; then
+	problem "mismatch: $a_what ($a) != $b_what ($b)"
+    fi
+}
+
+#===== temporary files =====
+
+tmp=$(mktemp -d)
+exit_rc=8
+trap 'set +e; rm -rf "$tmp"; exit $exit_rc' 0
+
+#===== argument parsing =====
+
+dry_run=false
+
+while [ $# != 0 ]; do
+    case "$1" in
+	--) break;;
+	-*) ;;
+	*) break;;
+    esac
+    arg="$1"; shift
+    case "$arg" in
+	--dry-run) dry_run=true ;;
+	*) fail "unknown option: $1";;
+    esac
+done
+
+case $# in
+    1) version=$1 ;;
+    *) fail "bad usage, needs arti version"
+esac
+
+#===== checks and preparation =====
+
+jq </dev/null . || fail "jq is not installed, try   apt install jq"
+
+#----- check that we are identical to our main repo's `main`
+
+# shellcheck disable=SC2086 # we want to split on spaces in $origin
+git fetch --quiet $origin
+
+origin_head=$(git rev-parse FETCH_HEAD~0)
+our_head=$(git rev-parse HEAD~0)
+
+check_equal "$our_head" "$origin_head" \
+	    "our HEAD commit" "origin commit $origin"
+
+# TODO somehow check that CI failed there!
+
+#----- check that arti version matches
+
+arti=$("$maint"/list_crates -p arti --version)
+arti=${arti##* }
+
+check_equal "$arti" "$version" \
+	    "version of the arti crate, in-tree" \
+	    "specified version to release"
+
+#----- compare already-published versions -----
+
+"$maint"/list_crates --version >"$tmp/all-crates"
+
+exec 3<"$tmp/all-crates"
+
+# shellcheck disable=SC2162 # we don't need -r, it has no backslashes
+while <&3 read p v; do
+    printf "checking status of %-30s %10s ..." "$p" "$v"
+
+    url="https://crates.io/api/v1/crates/$p/$v"
+    curl -L -sS -o "$tmp/$p.json" -w '%{http_code}' >"$tmp/$p.http" "$url"
+    http_code=$(cat "$tmp/$p.http")
+
+    case "$http_code" in
+	200) expect=.version.crate ;;
+	404) expect=.errors ;;
+	*)
+	    cat -vet "$tmp/$p.json" >&2
+	    fail "unexpected HTTP response status code $http_code from $url"
+	    ;;
+    esac
+
+    set +e
+    jq -e "$expect" <"$tmp/$p.json" >/dev/null
+    jq_rc=$?
+    set -e
+    if [ $jq_rc != 0 ]; then
+	cat -vet "$tmp/$p.json" >&2
+	fail "bad JSON data from $url (expected $expect)"
+    fi
+
+    case "$http_code" in
+	200) echo ' already published.';;
+	404)
+	    echo ' needs publishing.'
+	    to_publish+=" $p"
+	    ;;
+    esac
+done
+
+#===== commitment point =====
+
+prefix=xxxx
+
+running () {
+    echo "    $*"
+    "$@"
+}
+
+if $dry_run; then
+    if $all_ok; then
+	echo 'all seems OK, would run the following commands:'
+	prefix='echo'
+    else
+	echo 'PROBLEMS - would not run!'
+	prefix='echo false'
+    fi
+else
+    if $all_ok; then
+	echo 'all OK, running publication!'
+	prefix='running'
+    else
+	fail 'problems (see above), stopping'
+    fi
+fi
+
+for p in $to_publish; do
+    # shellcheck disable=SC2086 # we want to split on spaces in $prefix and $CARGO
+    $prefix $CARGO publish -p "$p"
+done
+
+echo 'all published.'
+
+exit_rc=0

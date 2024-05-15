@@ -1281,7 +1281,7 @@ impl StreamTarget {
     }
 
     /// Return a reference to the circuit that this `StreamTarget` is using.
-    #[cfg(feature = "experimental-api")]
+    #[cfg(any(feature = "experimental-api", feature = "stream-ctrl"))]
     pub(crate) fn circuit(&self) -> &Arc<ClientCirc> {
         &self.circ
     }

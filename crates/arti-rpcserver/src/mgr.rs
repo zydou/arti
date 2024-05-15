@@ -9,13 +9,13 @@ use weak_table::WeakValueHashMap;
 use crate::{
     connection::{Connection, ConnectionId},
     globalid::{GlobalId, MacKey},
-    RpcAuthentication, RpcSession,
+    RpcAuthentication,
 };
 
 /// A function we use to construct Session objects in response to authentication.
 //
 // TODO RPC: Perhaps this should return a Result?
-type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<RpcSession> + Send + Sync>;
+type SessionFactory = Box<dyn Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + Send + Sync>;
 
 /// Shared state, configuration, and data for all RPC sessions.
 ///
@@ -93,10 +93,9 @@ pub(crate) struct Inner {
 
 impl RpcMgr {
     /// Create a new RpcMgr.
-    ///
     pub fn new<F>(make_session: F) -> Arc<Self>
     where
-        F: Fn(&RpcAuthentication) -> Arc<RpcSession> + Send + Sync + 'static,
+        F: Fn(&RpcAuthentication) -> Arc<dyn rpc::Object> + Send + Sync + 'static,
     {
         Arc::new(RpcMgr {
             global_id_mac_key: MacKey::new(&mut rand::thread_rng()),
@@ -106,6 +105,36 @@ impl RpcMgr {
                 connections: WeakValueHashMap::new(),
             }),
         })
+    }
+
+    /// Extend our method dispatch table with the method entries in `entries`.
+    ///
+    /// Ignores any entries that
+    ///
+    /// # Panics
+    ///
+    /// Panics if any entries are conflicting, according to the logic of
+    /// [`DispatchTable::insert`](rpc::DispatchTable::insert)
+    pub fn register_rpc_methods<I>(&self, entries: I)
+    where
+        I: IntoIterator<Item = rpc::dispatch::InvokerEnt>,
+    {
+        // TODO: Conceivably we might want to get a read lock on the RPC dispatch table,
+        // check for the presence of these entries, and only take the write lock
+        // if the entries are absent.  But for now, this function is called during
+        // RpcMgr initialization, so there's no reason to optimize it.
+        self.with_dispatch_table(|table| table.extend(entries));
+    }
+
+    /// Run `func` with a mutable reference to our dispatch table as an argument.
+    ///
+    /// Used to register additional methods.
+    pub fn with_dispatch_table<F, T>(&self, func: F) -> T
+    where
+        F: FnOnce(&mut rpc::DispatchTable) -> T,
+    {
+        let mut table = self.dispatch_table.write().expect("poisoned lock");
+        func(&mut table)
     }
 
     /// Start a new session based on this RpcMgr, with a given TorClient.
@@ -159,7 +188,7 @@ impl RpcMgr {
     }
 
     /// Construct a new object to serve as the `session` for a connection.
-    pub(crate) fn create_session(&self, auth: &RpcAuthentication) -> Arc<RpcSession> {
+    pub(crate) fn create_session(&self, auth: &RpcAuthentication) -> Arc<dyn rpc::Object> {
         (self.session_factory)(auth)
     }
 }

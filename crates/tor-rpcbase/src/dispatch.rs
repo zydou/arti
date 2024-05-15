@@ -55,6 +55,8 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use futures::Sink;
 
+use void::Void;
+
 use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
 
 /// A type-erased serializable value.
@@ -263,6 +265,32 @@ macro_rules! invoker_ent {
         }
     };
 }
+
+/// Crate a `Vec<` of [`InvokerEnt`].
+///
+///
+/// See `invoker_ent` for function syntax.
+///
+/// ## Example:
+///
+/// ```rust,ignore
+/// dispatch_table.extend(invoker_ent_list![
+///    function1,
+///    function2,
+///    function3,
+/// ]);
+/// ```
+#[macro_export]
+macro_rules! invoker_ent_list {
+    { $($func:expr),* $(,)? } => {
+        vec![
+            $(
+                $crate::invoker_ent!($func)
+            ),*
+        ]
+    }
+}
+
 impl std::fmt::Debug for InvokerEnt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.invoker.describe_invocable(f)
@@ -376,8 +404,8 @@ macro_rules! invocable_func_as_dyn_invocable { { $f:expr } => { {
     //
     // So: we cast it to `_`, and then arrange for the type inference to have to unify
     // the `_` with the appropriate fn type, which we obtain through further trickery.
-    if false {
-        // Putting `*f` and the return value from `panic_returning_fn_type_for`
+    if let Some(v) = None {
+        // Putting `*f` and the return value from `obtain_fn_type_for`
         // into the same array means that they must have the same type.
         // Ie type inference can see they must be the same type.
         //
@@ -387,7 +415,7 @@ macro_rules! invocable_func_as_dyn_invocable { { $f:expr } => { {
         //
         // We evade this problem by passing `$f` to a function that expects
         // an impl `FnTypeOfFnTrait` and pretends that it would return the `fn` type.
-        let _: [_; 2] = [*f, $crate::dispatch::panic_returning_fn_type_for($f)];
+        let _: [_; 2] = [*f, $crate::dispatch::obtain_fn_type_for($f, v)];
     }
     // So, because of all the above, f is of type `fn(..) -> _`, which implements `Invocable`
     // (assuming the fn item has the right signature).  So we can cast it to dyn.
@@ -424,14 +452,15 @@ impl_fn_type_of_fn_trait!(A B C D E F);
 /// Given a function implemneting `FnTypeOfFnTrait`, ie, any `Fn` closure,
 /// pretends that it would return a value of the corresponding `fn` type.
 ///
-/// Doesn't actually return a value (since that would be impossible);
-/// if this is actually executed, it panics.  So we don't execute it.
+/// Doesn't actually return a value (since that would be impossible):
+/// can only be called in statically unreachable contexts,
+/// as evidenced by the uninhabited [`Void`] argument.
 ///
 /// Instead we use the type of its mythical return value, in a non-taken branch,
 /// to drive type inference.
 #[doc(hidden)]
-pub const fn panic_returning_fn_type_for<X, F: FnTypeOfFnTrait<X>>(_: F) -> F::FnType {
-    panic!()
+pub const fn obtain_fn_type_for<X, F: FnTypeOfFnTrait<X>>(_: F, v: Void) -> F::FnType {
+    match v {}
 }
 
 /// Actual types to use when looking up a function in our HashMap.
@@ -499,6 +528,18 @@ impl DispatchTable {
             // This is not a perfect check by any means; see `same_decl`.
             assert!(old_ent.same_decl(&ent));
         }
+    }
+
+    /// Add multiple new entries to this DispatchTable.
+    ///
+    /// # Panics
+    ///
+    /// As for `insert`.
+    pub fn extend<I>(&mut self, ents: I)
+    where
+        I: IntoIterator<Item = InvokerEnt>,
+    {
+        ents.into_iter().for_each(|e| self.insert(e));
     }
 
     /// Try to find an appropriate function for calling a given RPC method on a

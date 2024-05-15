@@ -52,6 +52,8 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
+#[cfg(feature = "rpc")]
+use crate::rpc::ClientConnectionTarget;
 use crate::{status, util, TorClientBuilder};
 #[cfg(feature = "geoip")]
 use tor_geoip::CountryCode;
@@ -70,7 +72,13 @@ use tracing::{debug, info};
 // implicit Arcs inside them! maybe it's time to replace much of the insides of
 // this with an Arc<TorClientInner>?
 #[derive(Clone)]
-#[cfg_attr(feature = "rpc", derive(Deftly), derive_deftly(Object))]
+#[cfg_attr(
+    feature = "rpc",
+    derive(Deftly),
+    derive_deftly(Object),
+    deftly(rpc(expose_outside_of_session)),
+    deftly(rpc(downcastable_to = "ClientConnectionTarget"))
+)]
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,
@@ -344,6 +352,13 @@ impl StreamPrefs {
     pub fn optimistic(&mut self) -> &mut Self {
         self.optimistic_stream = true;
         self
+    }
+
+    /// Return true if this stream has been configured as "optimistic".
+    ///
+    /// See [`StreamPrefs::optimistic`] for more info.
+    pub fn is_optimistic(&self) -> bool {
+        self.optimistic_stream
     }
 
     /// Indicate whether connection to a hidden service (`.onion` service) should be allowed

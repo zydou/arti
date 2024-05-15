@@ -13,7 +13,7 @@ define_accessor_trait! {
     // This arrangement is very like that for `CircMgrConfig`.
     pub trait HsCircPoolConfig {
         +
-        // TODO HS-VANGUARDS: ideally this would be defined in the same way as `path_rules`,
+        // Note: ideally this would be defined in the same way as `path_rules`,
         // `circuit_timing`, etc., but define_accessor_trait unconditionally adds
         // AsRef<VanguardsConfig> as a supertrait, which can't be cfg'd behind
         // the vanguards feature.

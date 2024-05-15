@@ -203,8 +203,6 @@ impl VanguardHsPathBuilder {
             }
         };
 
-        // TODO HS-VANGUARDS: this is probably all wrong!
-
         // Select the guard, allowing it to appear as
         // either of the last two hops of the circuit.
         let (l1_guard, mon, usable) =

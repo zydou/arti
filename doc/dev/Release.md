@@ -181,7 +181,7 @@ before you continue!
 
    For unstable (0.x) `tor-*` and `arti-*` crates,
    determine the new minor number.
-   `maint/crate_versions  | grep -P '^tor|^arti'`
+   `maint/list_crates --versions  | grep -P '^tor|^arti'`
    will show you the existing versions,
    which should usually all be the same.
    Pick the next minor version, and, for each such crate:
@@ -197,6 +197,16 @@ before you continue!
       `./maint/bump_nodep crate1 crate2 crate3` ...
 
    In all cases, make sure you commit `Cargo.lock` changes too.
+
+   If `hashx` or `equix` have changed since the last release, you must also update
+   `crates/{hashx,equix}/bench/Cargo.lock`,
+   which aren't in the workspace for
+   [Reasons](https://gitlab.torproject.org/tpo/core/arti/-/issues/1351):
+
+```
+		(cd crates/hashx/bench && cargo update)
+		(cd crates/equix/bench && cargo update)
+```
 
 3. Check for side effects from bumping versions!
 
@@ -231,16 +241,14 @@ before you continue!
 
 ## The actual release itself.
 
-1. From lowest-level to highest-level, we have to run cargo publish.  For
-   a list of crates from lowest- to highest-level, see the top-level
-   Cargo.toml.
+   Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
+   to see what it thinks.
 
-   `; for crate in $(./maint/list_crates_publish); do cargo publish -p "$crate"; done`
+   If all seems well, run it without the `--dry-run` option.
 
-   Ideally you would run this in a `set -e`, so it would fail on
-   errors, but doing that involves filtering the list of crates to
-   only list those that have changed (and therefore have had their
-   versions bumped).
+   If it fails, you may be able to rerun the script
+   after fixing the cause.
+   It is supposed to be idempotent.
 
 2. We tag the repository with `arti-v${THIS_VERSION}`
 
@@ -248,7 +256,7 @@ before you continue!
    `git tag -s "arti-v${THIS_VERSION}`.
 
    In the tag message, be sure to include the output of
-   `./maint/crate_versions`.
+   `./maint/list_crates --version`.
 
    (Note to self: if you find that gpg can't find your yubikey,
    you'll need to run

@@ -13,7 +13,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 derive-deftly = "0.10.3"
-downcast-rs = "1.2.0"
+derive_more = "0.99.3"
+downcast-rs = "1.2.1"
 erased-serde = "0.4.2"
 futures = "0.3.14"
 futures-await-test = "0.3.0"
@@ -26,6 +27,7 @@ thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.18.0" }
 tor-error = { path = "../tor-error/", version = "0.18.0", features = ["rpc"] }
 typetag = "0.2.7"
+void = "1"
 
 [dev-dependencies]
 assert-impl = "0.1.3"

@@ -1,8 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
-#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
-#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
+#![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
 #![warn(missing_docs)]
 #![warn(noop_method_call)]
 #![warn(unreachable_pub)]
@@ -48,6 +48,7 @@ mod arti_path;
 pub mod config;
 mod err;
 mod key_specifier;
+pub(crate) mod ssh;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
@@ -69,6 +70,7 @@ pub use key_specifier::{
     KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
     KeySpecifierPattern,
 };
+pub use ssh::SshKeyAlgorithm;
 
 #[cfg(feature = "keymgr")]
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]

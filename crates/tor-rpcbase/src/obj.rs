@@ -2,6 +2,8 @@
 
 pub(crate) mod cast;
 
+use std::sync::Arc;
+
 use derive_deftly::define_derive_deftly;
 use downcast_rs::DowncastSync;
 use serde::{Deserialize, Serialize};
@@ -75,7 +77,7 @@ where
     }
 }
 
-/// Extension trait for `dyn Object` and similar to support convenient
+/// Extension trait for `Arc<dyn Object>` to support convenient
 /// downcasting to `dyn Trait`.
 ///
 /// You don't need to use this for downcasting to an object's concrete
@@ -84,7 +86,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use tor_rpcbase::{Object, ObjectRefExt, templates::*};
+/// use tor_rpcbase::{Object, ObjectArcExt, templates::*};
 /// use derive_deftly::Deftly;
 /// use std::sync::Arc;
 ///
@@ -111,22 +113,35 @@ where
 ///
 /// assert_eq!(check_feet(Arc::new(Frog{})), 4);
 /// ```
-pub trait ObjectRefExt {
-    /// Try to cast this `Object` to a `T`.  On success, return a reference to
+pub trait ObjectArcExt {
+    /// Try to cast this `Arc<dyn Object>` to a `T`.  On success, return a reference to
     /// T; on failure, return None.
     fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T>;
+
+    /// Try to cast this `Arc<dyn Object>` to an `Arc<T>`.
+    fn cast_to_arc_trait<T: ?Sized + 'static>(self) -> Result<Arc<T>, Arc<dyn Object>>;
 }
 
-impl ObjectRefExt for dyn Object {
-    fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T> {
+impl dyn Object {
+    /// Try to cast this `Object` to a `T`.  On success, return a reference to
+    /// T; on failure, return None.
+    ///
+    /// This method is only for casting to `&dyn Trait`;
+    /// see [`ObjectArcExt`] for limitations.
+    pub fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T> {
         let table = self.get_cast_table();
         table.cast_object_to(self)
     }
 }
 
-impl ObjectRefExt for std::sync::Arc<dyn Object> {
+impl ObjectArcExt for Arc<dyn Object> {
     fn cast_to_trait<T: ?Sized + 'static>(&self) -> Option<&T> {
-        self.as_ref().cast_to_trait()
+        let obj: &dyn Object = self.as_ref();
+        obj.cast_to_trait()
+    }
+    fn cast_to_arc_trait<T: ?Sized + 'static>(self) -> Result<Arc<T>, Arc<dyn Object>> {
+        let table = self.get_cast_table();
+        table.cast_object_to_arc(self.clone())
     }
 }
 
@@ -181,7 +196,7 @@ define_derive_deftly! {
 /// impl Doodad for Frobnitz {}
 ///
 /// use std::sync::Arc;
-/// use rpc::ObjectRefExt; // for the cast_to method.
+/// use rpc::ObjectArcExt; // for the cast_to method.
 /// let frob_obj: Arc<dyn rpc::Object> = Arc::new(Frobnitz {});
 /// let gizmo: &dyn Gizmo = frob_obj.cast_to_trait().unwrap();
 /// let doodad: &dyn Doodad = frob_obj.cast_to_trait().unwrap();
@@ -209,7 +224,7 @@ define_derive_deftly! {
 /// impl<T:Clone,U:PartialEq> ExampleTrait for Generic<T,U> {}
 ///
 /// use std::sync::Arc;
-/// use rpc::ObjectRefExt; // for the cast_to method.
+/// use rpc::ObjectArcExt; // for the cast_to method.
 /// let obj: Arc<dyn rpc::Object> = Arc::new(Generic { t: 42_u8, u: 42_u8 });
 /// let tr: &dyn ExampleTrait = obj.cast_to_trait().unwrap();
 /// ```
@@ -381,5 +396,17 @@ mod test {
         let erased_bikes: &dyn Object = &bikes;
         let has_wheels: &dyn HasWheels = erased_bikes.cast_to_trait().unwrap();
         assert_eq!(has_wheels.num_wheels(), 4);
+
+        let arc_bikes = Arc::new(bikes);
+        let erased_arc_bytes: Arc<dyn Object> = arc_bikes.clone();
+        let arc_has_wheels: Arc<dyn HasWheels> =
+            erased_arc_bytes.clone().cast_to_arc_trait().ok().unwrap();
+        assert_eq!(arc_has_wheels.num_wheels(), 4);
+
+        trait SomethingElse {}
+        let arc_something_else: Result<Arc<dyn SomethingElse>, _> =
+            erased_arc_bytes.clone().cast_to_arc_trait();
+        let err_arc = arc_something_else.err().unwrap();
+        assert!(Arc::ptr_eq(&err_arc, &erased_arc_bytes));
     }
 }

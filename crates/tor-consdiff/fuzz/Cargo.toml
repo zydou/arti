@@ -14,6 +14,7 @@ libfuzzer-sys = "0.4"
 
 [dependencies.tor-consdiff]
 path = ".."
+features = ["slow-diff-apply"]
 
 # Prevent this from interfering with workspaces
 [workspace]

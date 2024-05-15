@@ -1,8 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
-#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
-#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
+#![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
 #![warn(missing_docs)]
 #![warn(noop_method_call)]
 #![warn(unreachable_pub)]
@@ -1870,7 +1870,6 @@ impl VanguardMode {
     /// Used for converting [`vanguards_enabled`](NetParameters::vanguards_enabled)
     /// or [`vanguards_hs_service`](NetParameters::vanguards_hs_service)
     /// to the corresponding `VanguardMode`.
-    #[allow(dead_code)] // TODO HS-VANGUARDS
     pub(crate) fn from_net_parameter(val: BoundedInt32<0, 2>) -> Self {
         match val.get() {
             0 => VanguardMode::Disabled,
