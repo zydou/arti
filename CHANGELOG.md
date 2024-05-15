@@ -3,6 +3,30 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.3 — 15 May 2024
+
+Arti 1.2.3 fixes a high-severity issue affecting onion services and clients
+connecting to onion services with 'lite' vanguards (the default) enabled:
+when building anonymizing circuits to or from an onion service
+the circuit manager code would build the circuits with one hop too few.
+This makes users of this code more vulnerable to some kinds of traffic analysis
+when they run or visit onion services.
+
+In Arti 1.2.1 and earlier, vanguards were still an experimental feature, or
+absent, so those versions are classified as "not affected", even though
+downgrading does not fix the security problem.
+
+### Major bugfixes
+
+- Fix a high-severity issue affecting onion service circuits using 'lite'
+  vanguards. Previously, with 'lite' vanguards enabled, any circuit to or from
+  an onion service was one hop too short, making clients and services vulnerable
+  to certain types of traffic analysis. This is also tracked as
+  [TROVE-2024-003]. ([#1409])
+
+[#1409]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1409
+[TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+
 # Arti 1.2.2 — 30 April 2024
 
 Arti 1.2.2 continues improvements on previous releases,
