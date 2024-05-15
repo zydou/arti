@@ -342,7 +342,7 @@ integration-shadow:
 
     # Run tests
     - pushd tests/shadow
-    - ./run.sh
+    - ./run
   artifacts:
     paths:
       - tests/shadow
