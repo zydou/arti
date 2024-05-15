@@ -6,6 +6,8 @@
 # options:
 #   --dry-run
 #   --force                go ahead even if problems detected
+#   --branch BRANCH        expect to be releasing origin/BRANCH, not HEAD
+#   --origin ORIGIN        replace repo URL to look for BRANCH on
 #
 # Preconditions:
 #   See doc/Release.md
@@ -71,6 +73,10 @@ while [ $# != 0 ]; do
     case "$arg" in
 	--dry-run) dry_run=true ;;
 	--force) force=true ;;
+	--branch|--origin)
+	    eval "${arg#--}=\$1"
+	    shift || fail "$arg takes an argument"
+	;;
 	*) fail "unknown option: $1";;
     esac
 done
