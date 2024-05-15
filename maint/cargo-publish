@@ -5,6 +5,9 @@
 #
 # options:
 #   --dry-run
+#   --force                go ahead even if problems detected
+#   --branch BRANCH        expect to be releasing origin/BRANCH, not HEAD
+#   --origin ORIGIN        replace repo URL to look for BRANCH on
 #
 # Preconditions:
 #   See doc/Release.md
@@ -17,7 +20,8 @@
 
 set -e
 
-origin='git@gitlab.torproject.org:tpo/core/arti main'
+origin='git@gitlab.torproject.org:tpo/core/arti'
+branch='main'
 maint="$(dirname "$0")"
 : "${CARGO:=cargo}"
 
@@ -57,6 +61,7 @@ trap 'set +e; rm -rf "$tmp"; exit $exit_rc' 0
 #===== argument parsing =====
 
 dry_run=false
+force=false
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -67,6 +72,11 @@ while [ $# != 0 ]; do
     arg="$1"; shift
     case "$arg" in
 	--dry-run) dry_run=true ;;
+	--force) force=true ;;
+	--branch|--origin)
+	    eval "${arg#--}=\$1"
+	    shift || fail "$arg takes an argument"
+	;;
 	*) fail "unknown option: $1";;
     esac
 done
@@ -82,8 +92,7 @@ jq </dev/null . || fail "jq is not installed, try   apt install jq"
 
 #----- check that we are identical to our main repo's `main`
 
-# shellcheck disable=SC2086 # we want to split on spaces in $origin
-git fetch --quiet $origin
+git fetch --quiet "$origin" "$branch"
 
 origin_head=$(git rev-parse FETCH_HEAD~0)
 our_head=$(git rev-parse HEAD~0)
@@ -156,6 +165,9 @@ if $dry_run; then
     if $all_ok; then
 	echo 'all seems OK, would run the following commands:'
 	prefix='echo'
+    elif $force; then
+	echo 'PROBLEMS, but --force passed, would run:'
+	prefix='echo'
     else
 	echo 'PROBLEMS - would not run!'
 	prefix='echo false'
@@ -163,6 +175,9 @@ if $dry_run; then
 else
     if $all_ok; then
 	echo 'all OK, running publication!'
+	prefix='running'
+    elif $force; then
+	echo 'PROBLEMS, but --force passed, going ahead!'
 	prefix='running'
     else
 	fail 'problems (see above), stopping'
