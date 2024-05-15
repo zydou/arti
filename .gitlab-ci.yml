@@ -36,6 +36,7 @@ maint-checks:
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/shebang
+    - ./maint/forbid-script-extensions
 
 # non-blocking for now, see
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/581
