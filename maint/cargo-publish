@@ -5,6 +5,7 @@
 #
 # options:
 #   --dry-run
+#   --force                go ahead even if problems detected
 #
 # Preconditions:
 #   See doc/Release.md
@@ -57,6 +58,7 @@ trap 'set +e; rm -rf "$tmp"; exit $exit_rc' 0
 #===== argument parsing =====
 
 dry_run=false
+force=false
 
 while [ $# != 0 ]; do
     case "$1" in
@@ -67,6 +69,7 @@ while [ $# != 0 ]; do
     arg="$1"; shift
     case "$arg" in
 	--dry-run) dry_run=true ;;
+	--force) force=true ;;
 	*) fail "unknown option: $1";;
     esac
 done
@@ -156,6 +159,9 @@ if $dry_run; then
     if $all_ok; then
 	echo 'all seems OK, would run the following commands:'
 	prefix='echo'
+    elif $force; then
+	echo 'PROBLEMS, but --force passed, would run:'
+	prefix='echo'
     else
 	echo 'PROBLEMS - would not run!'
 	prefix='echo false'
@@ -163,6 +169,9 @@ if $dry_run; then
 else
     if $all_ok; then
 	echo 'all OK, running publication!'
+	prefix='running'
+    elif $force; then
+	echo 'PROBLEMS, but --force passed, going ahead!'
 	prefix='running'
     else
 	fail 'problems (see above), stopping'
