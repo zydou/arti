@@ -18,7 +18,8 @@
 
 set -e
 
-origin='git@gitlab.torproject.org:tpo/core/arti main'
+origin='git@gitlab.torproject.org:tpo/core/arti'
+branch='main'
 maint="$(dirname "$0")"
 : "${CARGO:=cargo}"
 
@@ -85,8 +86,7 @@ jq </dev/null . || fail "jq is not installed, try   apt install jq"
 
 #----- check that we are identical to our main repo's `main`
 
-# shellcheck disable=SC2086 # we want to split on spaces in $origin
-git fetch --quiet $origin
+git fetch --quiet "$origin" "$branch"
 
 origin_head=$(git rev-parse FETCH_HEAD~0)
 our_head=$(git rev-parse HEAD~0)
