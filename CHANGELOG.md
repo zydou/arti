@@ -12,6 +12,14 @@ the circuit manager code would build the circuits with one hop too few.
 This makes users of this code more vulnerable to some kinds of traffic analysis
 when they run or visit onion services.
 
+This release also fixes a medium-severity issue affecting 'full' vanguards.
+With 'full' vanguards enabled, client HsDir circuits, client introduction
+circuits and service rendezvous-circuits are extended with an extra hop to
+minimize the linkability of the guard nodes.
+In some circumstances, the circuit manager would build circuits with one
+hop too few, making it easier for an adversary to discover the L2 and L3
+guards of the affected clients and services.
+
 In Arti 1.2.1 and earlier, vanguards were still an experimental feature, or
 absent, so those versions are classified as "not affected", even though
 downgrading does not fix the security problem.
@@ -24,8 +32,16 @@ downgrading does not fix the security problem.
   to certain types of traffic analysis. This is also tracked as
   [TROVE-2024-003]. ([#1409])
 
+- Fix a medium-severity issue affecting onion service circuits using 'full'
+  vanguards. Previously, with 'full' vanguards enabled, *some* circuits to or from
+  an onion service were one hop too short, making linkability attacks more
+  likely to succeed.
+  [TROVE-2024-004]. ([#1400])
+
+[#1400]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1400
 [#1409]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1409
 [TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-004]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 
 # Arti 1.2.2 — 30 April 2024
 
