@@ -15,10 +15,10 @@ use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::debug_report;
 use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{CircTarget, OwnedCircTarget};
+use tor_linkspec::{CircTarget, HasRelayIds as _, OwnedCircTarget, RelayIdSet};
 use tor_netdir::{NetDir, NetDirProvider, Relay};
-use tor_proto::circuit::{self, ClientCirc};
-use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion};
+use tor_proto::circuit::{self, CircParameters, ClientCirc};
+use tor_relay_selection::{LowLevelRelayPredicate, RelayExclusion, RelaySelector, RelayUsage};
 use tor_rtcompat::{
     scheduler::{TaskHandle, TaskSchedule},
     Runtime, SleepProviderExt,
@@ -304,6 +304,20 @@ impl<R: Runtime> HsCircPool<R> {
             .into());
         }
 
+        let params = crate::DirInfo::from(netdir).circ_params();
+        self.extend_circ(circ, params, target).await
+    }
+
+    /// Try to extend a circuit to the specified target hop.
+    async fn extend_circ<T>(
+        &self,
+        circ: HsCircStub,
+        params: CircParameters,
+        target: T,
+    ) -> Result<Arc<ClientCirc>>
+    where
+        T: CircTarget,
+    {
         // Estimate how long it will take to extend it one more hop, and
         // construct a timeout as appropriate.
         let n_hops = circ.n_hops();
@@ -315,7 +329,6 @@ impl<R: Runtime> HsCircPool<R> {
         );
 
         // Make a future to extend the circuit.
-        let params = crate::DirInfo::from(netdir).circ_params();
         let extend_future = circ
             .extend_ntor(&target, &params)
             .map_err(|error| Error::Protocol {
@@ -425,7 +438,7 @@ impl<R: Runtime> HsCircPool<R> {
         };
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
-            return self.maybe_extend_stub_circuit(circuit, kind);
+            return self.maybe_extend_stub_circuit(netdir, circuit, kind).await;
         }
 
         // TODO: There is a possible optimization here. Instead of only waiting
@@ -443,9 +456,10 @@ impl<R: Runtime> HsCircPool<R> {
     }
 
     /// Return a circuit of the specified `kind`, built from `circuit`.
-    fn maybe_extend_stub_circuit(
+    async fn maybe_extend_stub_circuit(
         &self,
-        mut circuit: HsCircStub,
+        netdir: &NetDir,
+        circuit: HsCircStub,
         kind: HsCircStubKind,
     ) -> Result<HsCircStub> {
         if !self.vanguards_enabled() {
@@ -454,16 +468,49 @@ impl<R: Runtime> HsCircPool<R> {
 
         match (circuit.kind, kind) {
             (HsCircStubKind::Stub, HsCircStubKind::Extended) => {
-                // TODO HS-VANGUARDS: if full vanguards are enabled and the circuit we got is STUB,
-                // we need to extend it by another hop to make it STUB+ before returning it
-                circuit.kind = kind;
+                debug!("Wanted STUB+ circuit, but got STUB; extending by 1 hop...");
+                let params = CircParameters::default();
+                let usage = RelayUsage::middle_relay(Some(&RelayUsage::middle_relay(None)));
+                let circ_path = circuit.circ.path_ref();
 
-                Ok(circuit)
+                // A STUB circuit is a 3-hop circuit.
+                debug_assert_eq!(circ_path.hops().len(), 3);
+
+                // Like in VanguardHsPathBuilder::pick_path, we only want to exclude the L2 and L3
+                // guards (so we skip over the guard)
+                let skip_n = 1;
+                let mut exclude_ids = RelayIdSet::new();
+                for hop in circ_path
+                    .iter()
+                    .skip(skip_n)
+                    .flat_map(|hop| hop.as_chan_target())
+                {
+                    exclude_ids.extend(hop.identities().map(|id| id.to_owned()));
+                }
+
+                let exclusion = RelayExclusion::exclude_identities(exclude_ids);
+                let selector = RelaySelector::new(usage, exclusion);
+                let target = {
+                    let mut rng = rand::thread_rng();
+                    let (relay, info) = selector.select_relay(&mut rng, netdir);
+                    relay.ok_or_else(|| Error::NoRelay {
+                        path_kind: "vanguard STUB+",
+                        role: "final hop",
+                        problem: info.to_string(),
+                    })?
+                };
+
+                // If full vanguards are enabled and the circuit we got is STUB,
+                // we need to extend it by another hop to make it STUB+ before returning it
+                let circ = self.extend_circ(circuit, params, target).await?;
+
+                Ok(HsCircStub { circ, kind })
             }
             (HsCircStubKind::Extended, HsCircStubKind::Stub) => {
                 Err(internal!("wanted a STUB circuit, but got STUB+?!").into())
             }
             _ => {
+                trace!("Wanted {kind} circuit, got {}", circuit.kind);
                 // Nothing to do: the circuit stub we got is of the kind we wanted
                 Ok(circuit)
             }
