@@ -5046,7 +5046,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "amplify",
  "async-trait",
