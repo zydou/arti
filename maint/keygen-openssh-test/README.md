@@ -3,7 +3,7 @@
 The `crates/tor-keymgr/tesdata` test OpenSSH keys were generated with:
 
 ```bash
-./maint/keygen-openssh-test/generate.sh
+./maint/keygen-openssh-test/generate
 ```
 
 ## `keygen-open-ssh-test` usage
@@ -12,7 +12,7 @@ The `keygen-open-ssh-test` binary crate is a helper for
 generating expanded-ed25519 and x25519 keys.
 
 You shouldn't need to run `keygen-open-ssh-test` directly.
-Instead, prefer using the provided `generate.sh` script to
+Instead, prefer using the provided `generate` script to
 generate the test keys.
 
 ```
