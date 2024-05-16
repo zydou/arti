@@ -14,6 +14,11 @@ default:
   before_script:
     # gitlab fetch strategy doesn't reset permissions
     - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
+  after_script:
+    # In every case, if we have a working `cargo` we should clean up
+    # our target directory before we exit.  (Leaving big hunks of data
+    # on the builders make our admins sad.)
+    - if command -v cargo && test -d ./target; then cargo clean; fi
 
 check-editorconfig:
   stage: check
@@ -120,8 +125,6 @@ rust-latest:
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
     - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
-  after_script:
-    - cargo clean
   artifacts:
     paths:
       - artifacts
@@ -154,8 +157,6 @@ rust-latest-arti-extra-features:
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
     - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
-  after_script:
-    - cargo clean
   artifacts:
     paths:
       - artifacts
@@ -168,8 +169,6 @@ rust-latest-async-std-rustls:
     - rustup show
     - rustup component add clippy
     - cd crates/arti-client && cargo clippy --no-default-features --features=async-std,rustls
-  after_script:
-    - cargo clean
 
 rust-nightly:
   stage: test
@@ -192,8 +191,6 @@ rust-nightly:
     - ./maint/add_warning --ci-nightly
     - cargo clippy --all-features --tests -- -D clippy::dbg_macro
     - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
-  after_script:
-    - cargo clean
 
 coverage:
   rules:
@@ -206,8 +203,6 @@ coverage:
     - ./maint/via-cargo-install-in-ci grcov
     # Generate report
     - ./maint/with_coverage -f cobertura -o coverage.xml cargo test --verbose --all-features
-  after_script:
-    - cargo clean
   cache:
     paths:
       - cache
@@ -227,8 +222,6 @@ minimal-versions:
     - rustup install nightly
     - ./maint/downgrade_dependencies
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
-  after_script:
-    - cargo clean
 
 build-repro:
   rules:
@@ -241,6 +234,7 @@ build-repro:
     - apk add bash
     - ./maint/reproducible_build linux windows macos
   # no after_script:, we don't build in the project dir
+  # TODO #1410: Maybe there is something we _can_ remove though?
   artifacts:
     paths:
       - arti-linux
@@ -374,8 +368,6 @@ rust-latest-test-all-features:
   script:
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
-  after_script:
-    - cargo clean
 
 every-crate:
   stage: test
@@ -405,7 +397,6 @@ cli-help:
   script:
     - ./maint/check-cli-help
 
-
 coverage-aggregated:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -419,8 +410,6 @@ coverage-aggregated:
     - cp $CARGO_HOME/bin/grcov .
     # Generate report
     - ./maint/coverage unit
-  after_script:
-    - cargo clean
   cache:
     paths:
       - cache
@@ -437,8 +426,6 @@ check-targets:
   image: rust:bookworm
   script:
     - ./maint/cargo_check_target -il
-  after_script:
-    - cargo clean
 
 pages:
   rules:
