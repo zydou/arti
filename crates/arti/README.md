@@ -60,7 +60,7 @@ It is possible to hook up Arti with
 [Tor Browser](https://www.torproject.org/download/).
 
 To do so, we will launch arti independently from Tor Browser. Build arti with
-`cargo build --release`.  After that launch it with some basic
+`cargo build --locked --release`.  After that launch it with some basic
 configuration parameters:
 
 ```text

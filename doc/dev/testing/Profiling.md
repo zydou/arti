@@ -8,7 +8,7 @@ time we need to do a big round of profiling tests.
 
 ## Building for profiling
 
-When you're testing with `cargo build --release`, use
+When you're testing with `cargo build --locked --release`, use
 `CARGO_PROFILE_RELEASE_DEBUG=true` to include extra debugging
 information for better output.
 

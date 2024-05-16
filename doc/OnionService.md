@@ -20,7 +20,7 @@ When you build arti, make sure that you enable the `onion-service-service`
 feature, as in:
 
 ```
-cargo build -p arti --release \
+cargo build -p arti --locked --release \
     --features=onion-service-service
 ```
 

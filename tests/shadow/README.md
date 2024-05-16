@@ -24,7 +24,7 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
   this done in job `rust-latest-arti-extra-features` with the invocation:
 
   ```shell
-  $ cargo build --verbose \
+  $ cargo build --locked --verbose \
       --target x86_64-unknown-linux-gnu \
       -p arti -p tor-circmgr \
       --bin arti \

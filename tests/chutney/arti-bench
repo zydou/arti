@@ -20,6 +20,6 @@ fi
 
 ./tests/chutney/setup
 
-cargo run -p arti-bench --release -- -c "${CHUTNEY_PATH}/net/nodes/arti.toml" "$@"
+cargo run -p arti-bench --locked --release -- -c "${CHUTNEY_PATH}/net/nodes/arti.toml" "$@"
 
 "${CHUTNEY_PATH}"/chutney stop "${CHUTNEY_PATH}/$target"

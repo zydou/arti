@@ -65,11 +65,11 @@ There exist a tool to build this header file for you, see in `Tips and caveats` 
 Once you are satisfied with your code, you can compile it by running these commands. (This is a good time to take a coffee break)
 ```sh
  ## build for 64bit iPhone/iPad (32bit is no longer supported since iOS 11)
-$ cargo build --target aarch64-apple-ios
+$ cargo build --locked --target aarch64-apple-ios
  ## build for M1 based Mac (emulator)
-$ cargo build --target aarch64-apple-ios-sim
+$ cargo build --locked --target aarch64-apple-ios-sim
  ## build for x86 based Mac (emulator)
-$ cargo build --target x86_64-apple-ios
+$ cargo build --locked --target x86_64-apple-ios
 ```
 
 You can add `--release` to each of this commands to build release libs that are smaller and faster, but take longer to compile.
