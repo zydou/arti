@@ -56,6 +56,9 @@ pub trait Method: DynMethod {
     /// A type returned by this method on failure.
     //
     // TODO: I'd like this to default to RpcError, but defaulting isn't implemented.
+    //
+    // TODO RPC: It would be beneficial to remove this type, possibly folding it into Output.
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2152#note_3031297
     type Error: Send + 'static;
 }
 

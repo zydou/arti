@@ -180,6 +180,7 @@ macro_rules! declare_invocable_impl {
                 )
             }
 
+            // TODO RPC Try to reduce duplication between special and serialisable methods, after things have settled down
             fn invoke_special(
                 &self,
                 obj: Arc<dyn Object>,
@@ -344,6 +345,10 @@ macro_rules! invoker_ent {
                 (Some($crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::RpcInvocable))),
         }
     };
+    // TODO RPC: Possibly, replace this with a separate macro?
+    //
+    // (If we do this, we'll likely need a separate versions
+    // of invoker_ent_list and static_rpc_invoke_fn.)
     { @special $func:expr } => {
         $crate::invoker_ent!{ @@impl
             func: ($func),
