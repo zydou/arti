@@ -202,16 +202,25 @@ pub(crate) struct ChannelDetails {
     unique_id: UniqId,
     /// Validated identity and address information for this peer.
     peer_id: OwnedChanTarget,
-    /// If true, this channel is closing.
+    /// If true, this channel is closed.
+    ///
+    /// Set by the reactor when it exits.
+    /// Read from the Channel and from the Reactor to decide if operations may succeed.
     closed: AtomicBool,
     /// A receiver that will get a Cancelled event when the reactor is finally
     /// dropped.
+    ///
+    /// Triggered by the reactor when it is dropped.
+    /// Read by the Channel, to implement `wait_for_close()`.
     #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
     reactor_closed_rx: futures::future::Shared<oneshot::Receiver<void::Void>>,
     /// Since when the channel became unused.
     ///
     /// If calling `time_since_update` returns None,
     /// this channel is still in use by at least one circuit.
+    ///
+    /// Set by reactor when a circuit is added or removed.
+    /// Read from `Channel::duration_unused`.
     unused_since: OptTimestamp,
     /// The declared clock skew on this channel, at the time when this channel was
     /// created.
@@ -222,6 +231,8 @@ pub(crate) struct ChannelDetails {
     ///
     /// The reactor (hot code) ought to avoid acquiring this lock.
     /// (It doesn't currently have a usable reference to it.)
+    ///
+    /// Used by the `Channel` only.
     mutable: Mutex<MutableDetails>,
 }
 
