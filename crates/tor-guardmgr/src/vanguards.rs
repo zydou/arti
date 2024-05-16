@@ -129,7 +129,6 @@ impl<R: Runtime> VanguardMgr<R> {
     where
         S: StateMgr + Send + Sync + 'static,
     {
-        let VanguardConfig { mode } = config;
         // Note: we start out with default vanguard params, but we adjust them
         // as soon as we obtain a NetDir (see Self::run_once()).
         let params = VanguardParams::default();
@@ -156,7 +155,7 @@ impl<R: Runtime> VanguardMgr<R> {
         let (config_tx, _config_rx) = watch::channel();
         let inner = Inner {
             params,
-            mode: mode.into(),
+            mode: config.mode(),
             vanguard_sets,
             has_onion_svc,
             config_tx,
@@ -210,7 +209,7 @@ impl<R: Runtime> VanguardMgr<R> {
         // but not decessarily downgrade to lite if we stop.
         // See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2083#note_3018173>
         let mut inner = self.inner.write().expect("poisoned lock");
-        let new_mode = VanguardMode::from(&config.mode);
+        let new_mode = config.mode();
         if new_mode != inner.mode {
             inner.mode = new_mode;
 

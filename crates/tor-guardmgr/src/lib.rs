@@ -1886,20 +1886,22 @@ impl VanguardMode {
 #[derive(Debug, Default, Clone, Eq, PartialEq, derive_builder::Builder)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
-#[derive(amplify::Getters)]
 pub struct VanguardConfig {
     /// The kind of vanguards to use.
     #[builder_field_attr(serde(default))]
     #[builder(default)]
-    #[getter(as_copy)]
     mode: ExplicitOrAuto<VanguardMode>,
 }
 
-impl From<&ExplicitOrAuto<VanguardMode>> for VanguardMode {
-    fn from(eoa: &ExplicitOrAuto<VanguardMode>) -> Self {
-        match eoa {
-            ExplicitOrAuto::Auto => Self::default(),
-            ExplicitOrAuto::Explicit(mode) => *mode,
+impl VanguardConfig {
+    /// Return the configured [`VanguardMode`].
+    ///
+    /// Returns the [`Default`] `VanguardMode`
+    /// if the mode is [`Auto`](ExplicitOrAuto) or unspecified.
+    pub fn mode(&self) -> VanguardMode {
+        match self.mode {
+            ExplicitOrAuto::Auto => Default::default(),
+            ExplicitOrAuto::Explicit(mode) => mode,
         }
     }
 }
