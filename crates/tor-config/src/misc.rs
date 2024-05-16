@@ -146,12 +146,7 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
 #[derive(Clone, Copy, Hash, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
 #[derive(Serialize, Deserialize)]
-#[serde(bound = "T: Serialize, for<'de2> T: Deserialize<'de2>")]
-pub enum ExplicitOrAuto<T>
-where
-    for<'de2> T: Deserialize<'de2>,
-    T: Debug + Serialize,
-{
+pub enum ExplicitOrAuto<T> {
     /// Automatic
     #[default]
     #[serde(rename = "auto")]
