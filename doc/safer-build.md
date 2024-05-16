@@ -41,7 +41,7 @@ Personally, I get good results from running:
 
 ```
 RUSTFLAGS="--remap-path-prefix $HOME/.cargo=.cargo --remap-path-prefix $(pwd)=." \
-   cargo build --release -p arti
+   cargo build --locked --release -p arti
 ```
 
 After you do this, you can use

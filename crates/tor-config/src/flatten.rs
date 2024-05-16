@@ -661,7 +661,7 @@ mod test {
     ///
     /// To see what the result looks like in a release build:
     ///
-    ///  * `RUSTFLAGS=-g cargo test -p tor-config --all-features --release -- --nocapture flattenable_extract_fields_a_test`
+    ///  * `RUSTFLAGS=-g cargo test -p tor-config --all-features --locked --release -- --nocapture flattenable_extract_fields_a_test`
     ///  * Observe the binary that's run, eg `Running unittests src/lib.rs (target/release/deps/tor_config-d4c4f29c45a0a3f9)`
     ///  * Disassemble it `objdump -d target/release/deps/tor_config-d4c4f29c45a0a3f9`
     ///  * Search for this function: `less +/'28flattenable_extract_fields_a.*:'`

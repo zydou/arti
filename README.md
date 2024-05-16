@@ -80,11 +80,11 @@ and build it yourself.
 To try it out, compile and run the `arti` binary using the below. It will open a
 SOCKS proxy on port 9150.
 
-    $ cargo run -p arti --release -- proxy
+    $ cargo run -p arti --locked --release -- proxy
 
 You can build a binary (but not run it) with:
 
-    $ cargo build -p arti --release
+    $ cargo build -p arti --locked --release
 
 The result can be found as `target/release/arti`.
 
