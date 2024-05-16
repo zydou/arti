@@ -97,7 +97,7 @@ pub(crate) enum ChannelState<C> {
 #[derive(Clone)]
 pub(crate) struct OpenEntry<C> {
     /// The underlying open channel.
-    pub(crate) channel: C,
+    pub(crate) channel: Arc<C>,
     /// The maximum unused duration allowed for this channel.
     pub(crate) max_unused_duration: Duration,
 }
@@ -571,7 +571,7 @@ mod test {
             &self,
             _target: &Self::BuildSpec,
             _reporter: BootstrapReporter,
-        ) -> Result<FakeChannel> {
+        ) -> Result<Arc<FakeChannel>> {
             unimplemented!()
         }
     }
@@ -623,7 +623,7 @@ mod test {
             params_update: Arc::new(Mutex::new(None)),
         };
         ChannelState::Open(OpenEntry {
-            channel,
+            channel: Arc::new(channel),
             max_unused_duration: Duration::from_secs(180),
         })
     }
@@ -639,7 +639,7 @@ mod test {
             params_update: Arc::new(Mutex::new(None)),
         };
         ChannelState::Open(OpenEntry {
-            channel,
+            channel: Arc::new(channel),
             max_unused_duration,
         })
     }
@@ -651,7 +651,7 @@ mod test {
             params_update: Arc::new(Mutex::new(None)),
         };
         ChannelState::Open(OpenEntry {
-            channel,
+            channel: Arc::new(channel),
             max_unused_duration: Duration::from_secs(180),
         })
     }

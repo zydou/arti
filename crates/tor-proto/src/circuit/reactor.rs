@@ -708,7 +708,7 @@ pub struct Reactor {
     ///       not likely to happen (and isn't triggereable from the network, either).
     outbound: VecDeque<AnyChanCell>,
     /// The channel this circuit is attached to.
-    channel: Channel,
+    channel: Arc<Channel>,
     /// Sender object used to actually send cells.
     chan_sender: ChannelSender,
     /// A oneshot sender that is used to alert other tasks when this reactor is
@@ -792,7 +792,7 @@ impl Reactor {
     ///
     /// The internal unique identifier for this circuit will be `unique_id`.
     pub(super) fn new(
-        channel: Channel,
+        channel: Arc<Channel>,
         channel_id: CircId,
         unique_id: UniqId,
         input: mpsc::Receiver<ClientCircChanMsg>,

@@ -122,7 +122,7 @@ fn padding_parameters_calculation() {
 
 #[derive(Clone)]
 struct FakeChannelFactory {
-    channel: Channel,
+    channel: Arc<Channel>,
 }
 
 #[async_trait]
@@ -134,13 +134,13 @@ impl AbstractChannelFactory for FakeChannelFactory {
         &self,
         _target: &Self::BuildSpec,
         _reporter: BootstrapReporter,
-    ) -> Result<Self::Channel> {
+    ) -> Result<Arc<Self::Channel>> {
         Ok(self.channel.clone())
     }
 }
 
 struct CaseContext {
-    channel: Channel,
+    channel: Arc<Channel>,
     recv: mpsc::UnboundedReceiver<CtrlMsg>,
     chanmgr: AbstractChanMgr<FakeChannelFactory>,
     netparams: Arc<dyn AsRef<NetParameters>>,
@@ -167,7 +167,9 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
         .ed_identity(peer_id.clone())
         .build()
         .unwrap();
-    let factory = FakeChannelFactory { channel };
+    let factory = FakeChannelFactory {
+        channel: Arc::new(channel),
+    };
 
     let netparams = Arc::new(NetParameters::default());
 

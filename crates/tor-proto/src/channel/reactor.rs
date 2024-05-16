@@ -483,7 +483,7 @@ pub(crate) mod test {
     pub(crate) fn new_reactor<R: Runtime>(
         runtime: R,
     ) -> (
-        crate::channel::Channel,
+        Arc<crate::channel::Channel>,
         Reactor<R>,
         mpsc::Receiver<AnyChanCell>,
         mpsc::Sender<CodecResult>,

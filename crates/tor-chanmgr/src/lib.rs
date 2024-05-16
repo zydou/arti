@@ -250,7 +250,7 @@ impl<R: Runtime> ChanMgr<R> {
         &self,
         target: &T,
         usage: ChannelUsage,
-    ) -> Result<(Channel, ChanProvenance)> {
+    ) -> Result<(Arc<Channel>, ChanProvenance)> {
         let targetinfo = OwnedChanTarget::from_chan_target(target);
 
         let (chan, provenance) = self.mgr.get_or_launch(targetinfo, usage).await?;
@@ -329,7 +329,7 @@ impl<R: Runtime> ChanMgr<R> {
     pub async fn build_unmanaged_channel(
         &self,
         target: impl tor_linkspec::IntoOwnedChanTarget,
-    ) -> Result<Channel> {
+    ) -> Result<Arc<Channel>> {
         use factory::ChannelFactory as _;
         let target = target.to_owned();
 

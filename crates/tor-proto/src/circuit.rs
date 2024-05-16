@@ -171,7 +171,12 @@ pub struct ClientCirc {
     /// Don't use this field to send or receive any data, or perform any network
     /// operations for this circuit!  All network operations should be done by
     /// the circuit reactor.
-    channel: Channel,
+    ///
+    /// TODO: This limitation strongly suggests that we have made a mistake somewhere, and should
+    /// not be holding this field in this structure.  Or maybe the object that lets us send/receive
+    /// from a channel should be separate from Channel itself, like how StreamTarget is separate
+    /// from Circuit.
+    channel: Arc<Channel>,
     /// A future that resolves to Cancelled once the reactor is shut down,
     /// meaning that the circuit is closed.
     #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
@@ -1010,7 +1015,7 @@ impl PendingClientCirc {
     ///
     pub(crate) fn new(
         id: CircId,
-        channel: Channel,
+        channel: Arc<Channel>,
         createdreceiver: oneshot::Receiver<CreateResponse>,
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
@@ -1386,7 +1391,7 @@ mod test {
     fn working_fake_channel<R: Runtime>(
         rt: &R,
     ) -> (
-        Channel,
+        Arc<Channel>,
         Receiver<AnyChanCell>,
         Sender<std::result::Result<OpenChanCellS2C, CodecError>>,
     ) {
@@ -1581,7 +1586,7 @@ mod test {
     // next inbound message seems to come from hop next_msg_from
     async fn newcirc_ext<R: Runtime>(
         rt: &R,
-        chan: Channel,
+        chan: Arc<Channel>,
         next_msg_from: HopNum,
     ) -> (Arc<ClientCirc>, mpsc::Sender<ClientCircChanMsg>) {
         let circid = CircId::new(128).unwrap();
@@ -1626,7 +1631,7 @@ mod test {
     // next inbound message seems to come from hop next_msg_from
     async fn newcirc<R: Runtime>(
         rt: &R,
-        chan: Channel,
+        chan: Arc<Channel>,
     ) -> (Arc<ClientCirc>, mpsc::Sender<ClientCircChanMsg>) {
         newcirc_ext(rt, chan, 2.into()).await
     }

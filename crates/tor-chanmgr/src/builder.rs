@@ -64,7 +64,7 @@ where
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
-    ) -> crate::Result<tor_proto::channel::Channel> {
+    ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         use tor_rtcompat::SleepProviderExt;
 
         // TODO: make this an option.  And make a better value.
@@ -94,7 +94,7 @@ where
         &self,
         target: &OwnedChanTarget,
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
-    ) -> crate::Result<tor_proto::channel::Channel> {
+    ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         use tor_proto::channel::ChannelBuilder;
         use tor_rtcompat::tls::CertifiedConn;
 
@@ -300,7 +300,7 @@ mod test {
             let transport = crate::transport::DefaultTransport::new(client_rt.clone());
             let builder = ChanBuilder::new(client_rt, transport);
 
-            let (r1, r2): (Result<Channel>, Result<LocalStream>) = futures::join!(
+            let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
                 async {
                     // client-side: build a channel!
                     builder
@@ -325,7 +325,7 @@ mod test {
             // In theory, time could pass here, so we can't just use
             // "assert_eq!(dur_unused, dur_unused2)".
             let dur_unused = Channel::duration_unused(&chan);
-            let dur_unused_2 = AbstractChannel::duration_unused(&chan);
+            let dur_unused_2 = AbstractChannel::duration_unused(chan.as_ref());
             let dur_unused_3 = Channel::duration_unused(&chan);
             assert!(dur_unused.unwrap() <= dur_unused_2.unwrap());
             assert!(dur_unused_2.unwrap() <= dur_unused_3.unwrap());

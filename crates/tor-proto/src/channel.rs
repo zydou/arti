@@ -451,7 +451,7 @@ impl Channel {
         peer_id: OwnedChanTarget,
         clock_skew: ClockSkew,
         sleep_prov: S,
-    ) -> (Self, reactor::Reactor<S>)
+    ) -> (Arc<Self>, reactor::Reactor<S>)
     where
         S: SleepProvider,
     {
@@ -480,11 +480,11 @@ impl Channel {
         };
         let details = Arc::new(details);
 
-        let channel = Channel {
+        let channel = Arc::new(Channel {
             control: control_tx,
             cell_tx,
             details: Arc::clone(&details),
-        };
+        });
 
         // We start disabled; the channel manager will `reconfigure` us soon after creation.
         let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov, None));
@@ -652,7 +652,7 @@ impl Channel {
     /// new task, then use the methods of
     /// [crate::circuit::PendingClientCirc] to build the circuit.
     pub async fn new_circ(
-        &self,
+        self: &Arc<Self>,
     ) -> Result<(circuit::PendingClientCirc, circuit::reactor::Reactor)> {
         if self.is_closing() {
             return Err(ChannelClosed.into());

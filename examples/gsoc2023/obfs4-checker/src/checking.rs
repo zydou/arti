@@ -3,6 +3,7 @@ use arti_client::config::pt::TransportConfigBuilder;
 use arti_client::config::{BridgeConfigBuilder, CfgPath, TorClientConfigBuilder};
 use arti_client::{TorClient, TorClientConfig};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use time::OffsetDateTime;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -34,7 +35,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 async fn is_bridge_online(
     bridge_config: &BridgeConfig,
     tor_client: &TorClient<PreferredRuntime>,
-) -> Result<Channel, tor_chanmgr::Error> {
+) -> Result<Arc<Channel>, tor_chanmgr::Error> {
     let chanmgr = tor_client.chanmgr();
     chanmgr.build_unmanaged_channel(bridge_config).await
 }
@@ -42,7 +43,7 @@ async fn is_bridge_online(
 /// Waits for given channel to expire and sends this info through specified
 /// channel
 async fn is_bridge_still_online(
-    channel: Channel,
+    channel: &Channel,
     bridge_line: String,
     expiry_tx: Sender<String>,
 ) -> anyhow::Result<()> {
@@ -80,7 +81,7 @@ fn build_pt_bridge_config(
 async fn test_bridges(
     bridge_lines: &[String],
     common_tor_client: TorClient<PreferredRuntime>,
-) -> (HashMap<String, BridgeResult>, HashMap<String, Channel>) {
+) -> (HashMap<String, BridgeResult>, HashMap<String, Arc<Channel>>) {
     let mut results = HashMap::new();
     let mut channels = HashMap::new();
     let mut counter = 0;
@@ -152,7 +153,7 @@ async fn test_bridges(
 /// Calculates a list of bridge lines that have no channels
 pub fn get_failed_bridges(
     bridge_lines: &[String],
-    channels: &HashMap<String, Channel>,
+    channels: &HashMap<String, Arc<Channel>>,
 ) -> Vec<String> {
     bridge_lines
         .iter()
@@ -170,7 +171,7 @@ pub fn get_failed_bridges(
 pub async fn check_failed_bridges_task(
     initial_failed_bridges: Vec<String>,
     common_tor_client: TorClient<PreferredRuntime>,
-    now_online_bridges_tx: Sender<HashMap<String, Channel>>,
+    now_online_bridges_tx: Sender<HashMap<String, Arc<Channel>>>,
     mut once_online_bridges_rx: Receiver<Vec<String>>,
     updates_tx: broadcast::Sender<HashMap<String, BridgeResult>>,
     mut new_bridges_rx: broadcast::Receiver<Vec<String>>,
@@ -213,9 +214,9 @@ pub async fn check_failed_bridges_task(
 ///
 /// TODO: use new Arti APIs for detecting bridges going down
 pub async fn detect_bridges_going_down(
-    initial_channels: HashMap<String, Channel>,
+    initial_channels: HashMap<String, Arc<Channel>>,
     once_online_bridges_tx: Sender<Vec<String>>,
-    mut now_online_bridges_rx: Receiver<HashMap<String, Channel>>,
+    mut now_online_bridges_rx: Receiver<HashMap<String, Arc<Channel>>>,
 ) {
     let mut channels = initial_channels;
     let (expiry_tx, mut expiry_rx) = mpsc::channel::<String>(CHANNEL_SIZE);
@@ -226,7 +227,8 @@ pub async fn detect_bridges_going_down(
             let new_expiry_tx = expiry_tx.clone();
             tokio::spawn(async move {
                 if let Err(e) =
-                    is_bridge_still_online(channel.clone(), bridgeline.clone(), new_expiry_tx).await
+                    is_bridge_still_online(channel.as_ref(), bridgeline.clone(), new_expiry_tx)
+                        .await
                 {
                     eprintln!("Error while waiting on close: {:#?}", e);
                 }
@@ -251,7 +253,7 @@ pub async fn detect_bridges_going_down(
 
 /// Function which keeps track of the state of all the bridges given to it
 pub async fn continuous_check(
-    channels: HashMap<String, Channel>,
+    channels: HashMap<String, Arc<Channel>>,
     failed_bridges: Vec<String>,
     common_tor_client: TorClient<PreferredRuntime>,
     updates_tx: broadcast::Sender<HashMap<String, BridgeResult>>,
@@ -293,7 +295,7 @@ pub async fn build_common_tor_client(
 pub async fn main_test(
     bridge_lines: Vec<String>,
     obfs4_path: &str,
-) -> Result<(HashMap<String, BridgeResult>, HashMap<String, Channel>), arti_client::Error> {
+) -> Result<(HashMap<String, BridgeResult>, HashMap<String, Arc<Channel>>), arti_client::Error> {
     let common_tor_client = build_common_tor_client(obfs4_path).await.unwrap();
     Ok(test_bridges(&bridge_lines, common_tor_client).await)
 }
