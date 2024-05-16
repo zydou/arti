@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 
 /// Generate an OpenSSH keypair.
 ///
-/// Outputs the keys to <name>.public and <name>.private.
+/// Outputs the keys to `<name>.public` and `<name>.private`.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub(crate) struct Args {
