@@ -3,6 +3,12 @@
 //! The path builders defined here are used for creating hidden service stub circuits,
 //! which are three- or four-hop circuits that have not yet been extended to a target.
 //!
+//! There are two types of stub circuits:
+//!   * short stub circuits, used for building circuits to a final hop that an adversary
+//!     cannot easily control (for example if the target is randomly chosen by us)
+//!   * extended stub circuits, used for building circuits to a final hop that an adversary
+//!     can easily control (for example if the target was not chosen by us)
+//!
 //! Stub circuits eventually become introduction, rendezvous, and HsDir circuits.
 //! For all circuit types except client rendezvous, the stubs must first be
 //! extended by an extra hop:
