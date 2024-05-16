@@ -109,7 +109,7 @@ impl HsCircStub {
     /// or can be extended to become that kind.
     ///
     /// Returns `true` if this `HsCircStub`'s kind is equal to `other`,
-    /// or if its kind is [`Short`](HsCircShortKind::Short)
+    /// or if its kind is [`Short`](HsCircStubKind::Short)
     /// and `other` is [`Extended`](HsCircStubKind::Extended).
     pub(crate) fn can_become(&self, other: HsCircStubKind) -> bool {
         use HsCircStubKind::*;
