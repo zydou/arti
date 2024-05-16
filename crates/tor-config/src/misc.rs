@@ -610,13 +610,11 @@ mod test {
         listen: Option<Listen>,
 
         #[serde(default)]
-        auto_or_string: ExplicitOrAuto<String>,
+        auto_or_usize: ExplicitOrAuto<usize>,
 
         #[serde(default)]
         auto_or_bool: ExplicitOrAuto<bool>,
     }
-
-    impl_not_auto_value!(String); // XXX as expected, the test generated for String fails
 
     #[test]
     fn bool_or_auto() {
@@ -793,32 +791,30 @@ mod test {
     fn explicit_or_auto() {
         use ExplicitOrAuto as EOA;
 
-        let chk = |eoa: EOA<String>, s| {
+        let chk = |eoa: EOA<usize>, s| {
             let tc: TestConfigFile = toml::from_str(s).expect(s);
             assert_eq!(
                 format!("{:?}", eoa),
-                format!("{:?}", tc.auto_or_string),
+                format!("{:?}", tc.auto_or_usize),
                 "{:?}",
                 s
             );
         };
 
-        chk(EOA::Auto, r#"auto_or_string = "auto""#);
+        chk(EOA::Auto, r#"auto_or_usize = "auto""#);
         chk(
-            EOA::Explicit("not auto".into()),
-            r#"auto_or_string = "not auto""#,
+            EOA::Explicit(20),
+            r#"auto_or_usize = 20"#,
         );
-        // "Auto" is not the same is "auto"
-        chk(EOA::Explicit("Auto".into()), r#"auto_or_string = "Auto""#);
 
         let chk_e = |s| {
             let tc: Result<TestConfigFile, _> = toml::from_str(s);
             let _ = tc.expect_err(s);
         };
 
-        chk_e(r#"auto_or_string = 1"#);
-        chk_e(r#"auto_or_string = []"#);
-        chk_e(r#"auto_or_string = {}"#);
+        chk_e(r#"auto_or_usize = """#);
+        chk_e(r#"auto_or_usize = []"#);
+        chk_e(r#"auto_or_usize = {}"#);
 
         let chk = |eoa: EOA<bool>, s| {
             let tc: TestConfigFile = toml::from_str(s).expect(s);
@@ -842,7 +838,7 @@ mod test {
             toml,
             r#"something_enabled = "auto"
 padding = "normal"
-auto_or_string = "auto"
+auto_or_usize = "auto"
 auto_or_bool = "auto"
 "#
         );
@@ -853,7 +849,7 @@ auto_or_bool = "auto"
             toml,
             r#"something_enabled = "auto"
 padding = "normal"
-auto_or_string = "auto"
+auto_or_usize = "auto"
 auto_or_bool = true
 "#
         );
