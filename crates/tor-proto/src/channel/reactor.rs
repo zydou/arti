@@ -121,6 +121,8 @@ pub struct Reactor<S: SleepProvider> {
     pub(super) special_outgoing: SpecialOutgoing,
     /// A map from circuit ID to Sinks on which we can deliver cells.
     pub(super) circs: CircMap,
+    /// A unique identifier for this channel.
+    pub(super) unique_id: super::UniqId,
     /// Information shared with the frontend
     pub(super) details: Arc<ChannelDetails>,
     /// Context for allocating unique circuit log identifiers.
@@ -159,7 +161,7 @@ impl SpecialOutgoing {
 /// Reactor for some other reason.
 impl<S: SleepProvider> fmt::Display for Reactor<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.details.unique_id, f)
+        fmt::Debug::fmt(&self.unique_id, f)
     }
 }
 
@@ -267,7 +269,7 @@ impl<S: SleepProvider> Reactor<S> {
                 tx,
             } => {
                 let mut rng = rand::thread_rng();
-                let my_unique_id = self.details.unique_id;
+                let my_unique_id = self.unique_id;
                 let circ_unique_id = self.circ_unique_id_ctx.next(my_unique_id);
                 let ret: Result<_> = self
                     .circs

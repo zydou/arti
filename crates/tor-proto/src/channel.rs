@@ -186,6 +186,19 @@ pub struct Channel {
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
     cell_tx: mpsc::Sender<AnyChanCell>,
+
+    /// A unique identifier for this channel.
+    unique_id: UniqId,
+    /// Validated identity and address information for this peer.
+    peer_id: OwnedChanTarget,
+    /// The declared clock skew on this channel, at the time when this channel was
+    /// created.
+    clock_skew: ClockSkew,
+    /// The time when this channel was successfully completed
+    opened_at: coarsetime::Instant,
+    /// Mutable state used by the `Channel.
+    mutable: Mutex<MutableDetails>,
+
     /// Information shared with the reactor
     details: Arc<ChannelDetails>,
 }
@@ -198,12 +211,6 @@ pub struct Channel {
 /// `control` can't be here because we rely on it getting dropped when the last user goes away.
 #[derive(Debug)]
 pub(crate) struct ChannelDetails {
-    /// A unique identifier for this channel.
-    unique_id: UniqId,
-    /// Validated identity and address information for this peer.
-    ///
-    /// TODO: Only used from Channel; does not need to be shared.
-    peer_id: OwnedChanTarget,
     /// If true, this channel is closed.
     ///
     /// Set by the reactor when it exits.
@@ -224,22 +231,6 @@ pub(crate) struct ChannelDetails {
     /// Set by reactor when a circuit is added or removed.
     /// Read from `Channel::duration_unused`.
     unused_since: OptTimestamp,
-    /// The declared clock skew on this channel, at the time when this channel was
-    /// created.
-    ///
-    /// TODO: Only used from Channel; does not need to be shared.
-    clock_skew: ClockSkew,
-    /// The time when this channel was successfully completed
-    ///
-    /// TODO: Only used from Channel. Does not need to be shared.
-    opened_at: coarsetime::Instant,
-    /// Mutable state used by the `Channel` (frontend)
-    ///
-    /// The reactor (hot code) ought to avoid acquiring this lock.
-    /// (It doesn't currently have a usable reference to it.)
-    ///
-    /// Used by the `Channel` only. Does not need to be shared.
-    mutable: Mutex<MutableDetails>,
 }
 
 /// Mutable details (state) used by the `Channel` (frontend)
@@ -305,6 +296,8 @@ use PaddingControlState as PCS;
 pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
     cell_tx: mpsc::Sender<AnyChanCell>,
+    /// Unique ID for this channel. For logging.
+    unique_id: UniqId,
     /// Details shared with reactor and channel.
     details: Arc<ChannelDetails>,
 }
@@ -361,7 +354,7 @@ impl Sink<AnyChanCell> for ChannelSender {
                 Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
                 _ => trace!(
                     "{}: Sending {} for {}",
-                    this.details.unique_id,
+                    this.unique_id,
                     cell.msg().cmd(),
                     CircId::get_or_zero(cell.circid())
                 ),
@@ -469,20 +462,20 @@ impl Channel {
         let reactor_closed_rx = reactor_closed_rx.shared();
 
         let details = ChannelDetails {
-            unique_id,
-            peer_id,
             closed,
             unused_since,
-            clock_skew,
             reactor_closed_rx,
-            opened_at: coarsetime::Instant::now(),
-            mutable: Mutex::new(mutable),
         };
         let details = Arc::new(details);
 
         let channel = Arc::new(Channel {
             control: control_tx,
             cell_tx,
+            unique_id,
+            peer_id,
+            clock_skew,
+            opened_at: coarsetime::Instant::now(),
+            mutable: Mutex::new(mutable),
             details: Arc::clone(&details),
         });
 
@@ -498,6 +491,7 @@ impl Channel {
             circs: circmap,
             circ_unique_id_ctx: CircUniqIdContext::new(),
             link_protocol,
+            unique_id,
             details,
             padding_timer,
             special_outgoing: Default::default(),
@@ -508,24 +502,24 @@ impl Channel {
 
     /// Return a process-unique identifier for this channel.
     pub fn unique_id(&self) -> UniqId {
-        self.details.unique_id
+        self.unique_id
     }
 
     /// Return an OwnedChanTarget representing the actual handshake used to
     /// create this channel.
     pub fn target(&self) -> &OwnedChanTarget {
-        &self.details.peer_id
+        &self.peer_id
     }
 
     /// Return the amount of time that has passed since this channel became open.
     pub fn age(&self) -> Duration {
-        self.details.opened_at.elapsed().into()
+        self.opened_at.elapsed().into()
     }
 
     /// Return a ClockSkew declaring how much clock skew the other side of this channel
     /// claimed that we had when we negotiated the connection.
     pub fn clock_skew(&self) -> ClockSkew {
-        self.details.clock_skew
+        self.clock_skew
     }
 
     /// Send a control message
@@ -538,10 +532,7 @@ impl Channel {
 
     /// Acquire the lock on `mutable` (and handle any poison error)
     fn mutable(&self) -> MutexGuard<MutableDetails> {
-        self.details
-            .mutable
-            .lock()
-            .expect("channel details poisoned")
+        self.mutable.lock().expect("channel details poisoned")
     }
 
     /// Specify that this channel should do activities related to channel padding
@@ -596,7 +587,6 @@ impl Channel {
     /// Returns `Err` if the channel was closed earlier
     pub fn reparameterize(&self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
         let mut mutable = self
-            .details
             .mutable
             .lock()
             .map_err(|_| internal!("channel details poisoned"))?;
@@ -617,7 +607,7 @@ impl Channel {
     /// Return an error if this channel is somehow mismatched with the
     /// given target.
     pub fn check_match<T: HasRelayIds + ?Sized>(&self, target: &T) -> Result<()> {
-        check_id_match_helper(&self.details.peer_id, target)
+        check_id_match_helper(&self.peer_id, target)
     }
 
     /// Return true if this channel is closed and therefore unusable.
@@ -640,6 +630,7 @@ impl Channel {
     pub(crate) fn sender(&self) -> ChannelSender {
         ChannelSender {
             cell_tx: self.cell_tx.clone(),
+            unique_id: self.unique_id,
             details: self.details.clone(),
         }
     }
@@ -726,9 +717,22 @@ impl Channel {
     pub fn new_fake() -> (Channel, mpsc::UnboundedReceiver<CtrlMsg>) {
         let (control, control_recv) = mpsc::unbounded();
         let details = fake_channel_details();
+
+        let unique_id = UniqId::new();
+        let peer_id = OwnedChanTarget::builder()
+            .ed_identity([6_u8; 32].into())
+            .rsa_identity([10_u8; 20].into())
+            .build()
+            .expect("Couldn't construct peer id");
+
         let channel = Channel {
             control,
             cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            unique_id,
+            peer_id,
+            clock_skew: ClockSkew::None,
+            opened_at: coarsetime::Instant::now(),
+            mutable: Default::default(),
             details,
         };
         (channel, control_recv)
@@ -772,31 +776,20 @@ impl HasRelayIds for Channel {
         &self,
         key_type: tor_linkspec::RelayIdType,
     ) -> Option<tor_linkspec::RelayIdRef<'_>> {
-        self.details.peer_id.identity(key_type)
+        self.peer_id.identity(key_type)
     }
 }
 
 /// Make some fake channel details (for testing only!)
 #[cfg(any(test, feature = "testing"))]
 fn fake_channel_details() -> Arc<ChannelDetails> {
-    let unique_id = UniqId::new();
     let unused_since = OptTimestamp::new();
-    let peer_id = OwnedChanTarget::builder()
-        .ed_identity([6_u8; 32].into())
-        .rsa_identity([10_u8; 20].into())
-        .build()
-        .expect("Couldn't construct peer id");
     let (_tx, rx) = oneshot::channel(); // This will make rx trigger immediately.
 
     Arc::new(ChannelDetails {
-        unique_id,
-        peer_id,
         closed: AtomicBool::new(false),
         reactor_closed_rx: rx.shared(),
         unused_since,
-        clock_skew: ClockSkew::None,
-        opened_at: coarsetime::Instant::now(),
-        mutable: Default::default(),
     })
 }
 
@@ -814,9 +807,20 @@ pub(crate) mod test {
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(details: Arc<ChannelDetails>) -> Channel {
+        let unique_id = UniqId::new();
+        let peer_id = OwnedChanTarget::builder()
+            .ed_identity([6_u8; 32].into())
+            .rsa_identity([10_u8; 20].into())
+            .build()
+            .expect("Couldn't construct peer id");
         Channel {
             control: mpsc::unbounded().0,
             cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            unique_id,
+            peer_id,
+            clock_skew: ClockSkew::None,
+            opened_at: coarsetime::Instant::now(),
+            mutable: Default::default(),
             details,
         }
     }
