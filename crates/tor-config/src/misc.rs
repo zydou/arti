@@ -100,6 +100,11 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
 /// fields of this type can be present in the serialized configuration
 /// without being assigned a concrete value.
 ///
+/// **Important**: the underlying type must implement [`NotAutoValue`].
+/// This trait should be implemented using the [`impl_not_auto_value`],
+/// and only for types that do not serialize to the same value as the
+/// [`Auto`](ExplicitOrAuto::Auto) variant.
+///
 /// ## Example
 ///
 /// In the following serialized TOML config
