@@ -271,7 +271,9 @@ impl Pool {
             self.ext_stub_target /= 2;
         }
         self.last_changed_target = Some(now);
-        self.stub_target = self.stub_target.clamp(DEFAULT_SHORT_STUB_TARGET, MAX_SHORT_STUB_TARGET);
+        self.stub_target = self
+            .stub_target
+            .clamp(DEFAULT_SHORT_STUB_TARGET, MAX_SHORT_STUB_TARGET);
         self.ext_stub_target = self
             .ext_stub_target
             .clamp(DEFAULT_EXT_STUB_TARGET, MAX_EXT_STUB_TARGET);
