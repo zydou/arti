@@ -246,7 +246,7 @@ impl<R: Runtime> HsCircPool<R> {
             .await?;
 
         if self.vanguards_enabled() && circ.kind != HsCircStubKind::Short {
-            return Err(internal!("wanted a STUB circuit, but got STUB+?!").into());
+            return Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into());
         }
 
         let path = circ.path_ref();
@@ -474,12 +474,12 @@ impl<R: Runtime> HsCircPool<R> {
 
         match (circuit.kind, kind) {
             (HsCircStubKind::Short, HsCircStubKind::Extended) => {
-                debug!("Wanted STUB+ circuit, but got STUB; extending by 1 hop...");
+                debug!("Wanted EXTENDED circuit, but got SHORT; extending by 1 hop...");
                 let params = CircParameters::default();
                 let usage = RelayUsage::middle_relay(Some(&RelayUsage::middle_relay(None)));
                 let circ_path = circuit.circ.path_ref();
 
-                // A STUB circuit is a 3-hop circuit.
+                // A SHORT circuit is a 3-hop circuit.
                 debug_assert_eq!(circ_path.hops().len(), 3);
 
                 // Like in VanguardHsPathBuilder::pick_path, we only want to exclude the L2 and L3
@@ -500,20 +500,20 @@ impl<R: Runtime> HsCircPool<R> {
                     let mut rng = rand::thread_rng();
                     let (relay, info) = selector.select_relay(&mut rng, netdir);
                     relay.ok_or_else(|| Error::NoRelay {
-                        path_kind: "vanguard STUB+",
+                        path_kind: "vanguard EXTENDED",
                         role: "final hop",
                         problem: info.to_string(),
                     })?
                 };
 
-                // Since full vanguards are enabled and the circuit we got is STUB,
-                // we need to extend it by another hop to make it STUB+ before returning it
+                // Since full vanguards are enabled and the circuit we got is SHORT,
+                // we need to extend it by another hop to make it EXTENDED before returning it
                 let circ = self.extend_circ(circuit, params, target).await?;
 
                 Ok(HsCircStub { circ, kind })
             }
             (HsCircStubKind::Extended, HsCircStubKind::Short) => {
-                Err(internal!("wanted a STUB circuit, but got STUB+?!").into())
+                Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into())
             }
             _ => {
                 trace!("Wanted {kind} circuit, got {}", circuit.kind);
@@ -654,7 +654,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
 
         if n_to_launch > 0 {
             debug!(
-                "launching {} STUB and {} STUB+ circuits",
+                "launching {} SHORT and {} EXTENDED circuits",
                 circs_to_launch.stub(),
                 circs_to_launch.ext_stub()
             );

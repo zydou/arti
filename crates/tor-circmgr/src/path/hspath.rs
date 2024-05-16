@@ -8,16 +8,16 @@
 //! extended by an extra hop:
 //!
 //! ```text
-//!  Client hsdir:  STUB+ -> HsDir
-//!  Client intro:  STUB+ -> Ipt
-//!  Client rend:   STUB
-//!  Service hsdir: STUB  -> HsDir
-//!  Service intro: STUB  -> Ipt
-//!  Service rend:  STUB+ -> Rpt
+//!  Client hsdir:  EXTENDED -> HsDir
+//!  Client intro:  EXTENDED -> Ipt
+//!  Client rend:   SHORT
+//!  Service hsdir: SHORT    -> HsDir
+//!  Service intro: SHORT    -> Ipt
+//!  Service rend:  EXTENDED -> Rpt
 //! ```
 //!
-//! If vanguards are disabled, regular stub circuits (STUB),
-//! and extended stub circuits (STUB+) are the same,
+//! If vanguards are disabled, short stub circuits (SHORT),
+//! and extended stub circuits (EXTENDED) are the same,
 //! and are built using
 //! [`ExitPathBuilder`](crate::path::exitpath::ExitPathBuilder)'s
 //! path selection rules.
@@ -30,17 +30,15 @@
 //!
 //!   * with lite vanguards enabled:
 //!      ```text
-//!         STUB  = G -> L2 -> M
-//!         STUB+ = G -> L2 -> M
+//!         SHORT    = G -> L2 -> M
+//!         EXTENDED = G -> L2 -> M
 //!      ```
 //!
 //!   * with full vanguards enabled:
 //!      ```text
-//!         STUB  = G -> L2 -> L3
-//!         STUB+ = G -> L2 -> L3 -> M
+//!         SHORT    = G -> L2 -> L3
+//!         EXTENDED = G -> L2 -> L3 -> M
 //!      ```
-
-// TODO (#1339): we should be consistent with our terminology.
 
 use rand::Rng;
 use tor_error::internal;
@@ -240,9 +238,9 @@ impl VanguardHsPathBuilder {
                 .into();
             hops.push(l3_guard.clone());
 
-            // If full vanguards are enabled, we need an extra hop for STUB+:
-            //     STUB  = G -> L2 -> L3
-            //     STUB+ = G -> L2 -> L3 -> M
+            // If full vanguards are enabled, we need an extra hop for the EXTENDED stub:
+            //     SHORT    = G -> L2 -> L3
+            //     EXTENDED = G -> L2 -> L3 -> M
             if self.0 == HsCircStubKind::Extended {
                 // TODO: this usage has need_stable = true, but we probably
                 // don't necessarily need a stable relay here.

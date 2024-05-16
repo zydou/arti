@@ -16,10 +16,10 @@ pub(super) struct Pool {
     /// The collection of circuits themselves, in no particular order.
     circuits: Vec<HsCircStub>,
 
-    /// The number of STUB elements that we would like to have in our pool.
+    /// The number of SHORT elements that we would like to have in our pool.
     stub_target: usize,
 
-    /// The number of STUB+ elements that we would like to have in our pool.
+    /// The number of EXTENDED elements that we would like to have in our pool.
     ext_stub_target: usize,
 
     /// True if we have exhausted our pool since the last time we decided
@@ -39,17 +39,17 @@ pub(super) struct Pool {
     mode: VanguardMode,
 }
 
-/// Our default (and minimum) target STUB pool size.
-const DEFAULT_STUB_TARGET: usize = 3;
+/// Our default (and minimum) target SHORT pool size.
+const DEFAULT_SHORT_STUB_TARGET: usize = 3;
 
-/// Our default (and minimum) target STUB+ pool size.
+/// Our default (and minimum) target EXTENDED pool size.
 const DEFAULT_EXT_STUB_TARGET: usize = 1;
 
-/// Our maximum target STUB pool size.  We will never let our STUB target grow above this
+/// Our maximum target SHORT pool size.  We will never let our SHORT target grow above this
 /// value.
-const MAX_STUB_TARGET: usize = 384;
+const MAX_SHORT_STUB_TARGET: usize = 384;
 
-/// Our maximum target STUB+ pool size.  We will never let our STUB+ target grow above this
+/// Our maximum target EXTENDED pool size.  We will never let our EXTENDED target grow above this
 /// value.
 const MAX_EXT_STUB_TARGET: usize = 128;
 
@@ -81,23 +81,23 @@ impl<'a> ForLaunch<'a> {
 
 /// The circuits we need to launch.
 pub(super) struct CircsToLaunch {
-    /// The number of STUB circuits we want to launch.
+    /// The number of SHORT circuits we want to launch.
     stub_target: usize,
-    /// The number of STUB+ circuits we want to launch.
+    /// The number of EXTENDED circuits we want to launch.
     ext_stub_target: usize,
 }
 
 impl CircsToLaunch {
     /// Return a [`ForLaunch`] representing a circuit we would like to launch.
     pub(super) fn for_launch(&mut self) -> ForLaunch {
-        // We start by launching STUB circuits.
+        // We start by launching SHORT circuits.
         if self.stub_target > 0 {
             ForLaunch {
                 kind: HsCircStubKind::Short,
                 count: &mut self.stub_target,
             }
         } else {
-            // If we have enough STUB circuits, we can start launching STUB+ ones too.
+            // If we have enough SHORT circuits, we can start launching EXTENDED ones too.
             ForLaunch {
                 kind: HsCircStubKind::Extended,
                 count: &mut self.ext_stub_target,
@@ -105,12 +105,12 @@ impl CircsToLaunch {
         }
     }
 
-    /// Return the number of STUB circuits we would like to launch.
+    /// Return the number of SHORT circuits we would like to launch.
     pub(super) fn stub(&self) -> usize {
         self.stub_target
     }
 
-    /// Return the number of STUB+ circuits we would like to launch.
+    /// Return the number of EXTENDED circuits we would like to launch.
     pub(super) fn ext_stub(&self) -> usize {
         self.ext_stub_target
     }
@@ -125,7 +125,7 @@ impl Default for Pool {
     fn default() -> Self {
         Self {
             circuits: Vec::new(),
-            stub_target: DEFAULT_STUB_TARGET,
+            stub_target: DEFAULT_SHORT_STUB_TARGET,
             ext_stub_target: DEFAULT_EXT_STUB_TARGET,
             have_been_exhausted: false,
             have_been_under_highwater: false,
@@ -162,7 +162,7 @@ impl Pool {
         }
     }
 
-    /// Return the number of STUB circuits we would currently like to launch.
+    /// Return the number of SHORT circuits we would currently like to launch.
     fn stubs_to_launch(&self) -> usize {
         let circ_count = self
             .circuits
@@ -173,7 +173,7 @@ impl Pool {
         self.stub_target.saturating_sub(circ_count)
     }
 
-    /// Return the number of STUB+ circuits we would currently like to launch.
+    /// Return the number of EXTENDED circuits we would currently like to launch.
     fn ext_stubs_to_launch(&self) -> usize {
         let circ_count = self
             .circuits
@@ -232,7 +232,7 @@ impl Pool {
 
     /// Update the target sizes for our pool.
     ///
-    /// This updates our target numbers of STUB and STUB+ circuits.
+    /// This updates our target numbers of SHORT and EXTENDED circuits.
     pub(super) fn update_target_size(&mut self, now: Instant) {
         /// Minimum amount of time that must elapse between a change and a
         /// decision to grow our pool.  We use this to control the rate of
@@ -249,13 +249,13 @@ impl Pool {
         let time_since_last_change = now.saturating_duration_since(*last_changed);
 
         // TODO: we may want to have separate have_been_exhausted/have_been_under_highwater
-        // flags for STUB and STUB+ circuits.
+        // flags for SHORT and EXTENDED circuits.
         //
         // TODO: stub_target and ext_stub_target currently grow/shrink at the same rate,
         // which is not ideal.
         //
         // Instead, we should switch to an adaptive strategy, where the two targets are updated
-        // based on how many STUB/STUB+ circuit requests we got.
+        // based on how many SHORT/EXTENDED circuit requests we got.
         if self.have_been_exhausted {
             if time_since_last_change < MIN_TIME_TO_GROW {
                 return;
@@ -271,7 +271,7 @@ impl Pool {
             self.ext_stub_target /= 2;
         }
         self.last_changed_target = Some(now);
-        self.stub_target = self.stub_target.clamp(DEFAULT_STUB_TARGET, MAX_STUB_TARGET);
+        self.stub_target = self.stub_target.clamp(DEFAULT_SHORT_STUB_TARGET, MAX_SHORT_STUB_TARGET);
         self.ext_stub_target = self
             .ext_stub_target
             .clamp(DEFAULT_EXT_STUB_TARGET, MAX_EXT_STUB_TARGET);
