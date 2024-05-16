@@ -201,6 +201,8 @@ pub(crate) struct ChannelDetails {
     /// A unique identifier for this channel.
     unique_id: UniqId,
     /// Validated identity and address information for this peer.
+    ///
+    /// TODO: Only used from Channel; does not need to be shared.
     peer_id: OwnedChanTarget,
     /// If true, this channel is closed.
     ///
@@ -224,15 +226,19 @@ pub(crate) struct ChannelDetails {
     unused_since: OptTimestamp,
     /// The declared clock skew on this channel, at the time when this channel was
     /// created.
+    ///
+    /// TODO: Only used from Channel; does not need to be shared.
     clock_skew: ClockSkew,
     /// The time when this channel was successfully completed
+    ///
+    /// TODO: Only used from Channel. Does not need to be shared.
     opened_at: coarsetime::Instant,
     /// Mutable state used by the `Channel` (frontend)
     ///
     /// The reactor (hot code) ought to avoid acquiring this lock.
     /// (It doesn't currently have a usable reference to it.)
     ///
-    /// Used by the `Channel` only.
+    /// Used by the `Channel` only. Does not need to be shared.
     mutable: Mutex<MutableDetails>,
 }
 
