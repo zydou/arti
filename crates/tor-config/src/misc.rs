@@ -156,6 +156,36 @@ pub enum ExplicitOrAuto<T> {
     Explicit(T),
 }
 
+impl<T> ExplicitOrAuto<T> {
+    /// Returns the explicitly set value, or `None`.
+    ///
+    /// ```
+    /// use tor_config::ExplicitOrAuto;
+    ///
+    /// fn calculate_default() -> usize { //...
+    /// # 2 }
+    /// let explicit_or_auto: ExplicitOrAuto<usize> = // ...
+    /// # Default::default();
+    /// let _: usize = explicit_or_auto.into_value().unwrap_or_else(|| calculate_default());
+    /// ```
+    pub fn into_value(self) -> Option<T> {
+        match self {
+            ExplicitOrAuto::Auto => None,
+            ExplicitOrAuto::Explicit(v) => Some(v),
+        }
+    }
+
+    /// Returns a reference to the explicitly set value, or `None`.
+    ///
+    /// Like [`ExplicitOrAuto::into_value`], except it returns a reference to the inner type.
+    pub fn as_value(&self) -> Option<&T> {
+        match self {
+            ExplicitOrAuto::Auto => None,
+            ExplicitOrAuto::Explicit(v) => Some(v),
+        }
+    }
+}
+
 /// Padding enablement - rough amount of padding requested
 ///
 /// Padding is cover traffic, used to help mitigate traffic analysis,
