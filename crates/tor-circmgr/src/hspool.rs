@@ -58,10 +58,10 @@ impl HsCircKind {
     /// Return the [`HsCircStubKind`] needed to build this type of circuit.
     fn stub_kind(&self) -> HsCircStubKind {
         match self {
-            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStubKind::Stub,
+            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStubKind::Short,
             HsCircKind::SvcHsDir => {
-                // TODO HS-VANGUARDS: we might want this to be STUB+
-                HsCircStubKind::Stub
+                // TODO HS-VANGUARDS: we might want this to be EXTENDED
+                HsCircStubKind::Short
             }
             HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
                 HsCircStubKind::Extended
@@ -78,7 +78,7 @@ impl HsCircKind {
 pub(crate) struct HsCircStub {
     /// The circuit.
     pub(crate) circ: Arc<ClientCirc>,
-    /// Whether the circuit is STUB or STUB+.
+    /// Whether the circuit is SHORT or EXTENDED
     pub(crate) kind: HsCircStubKind,
 }
 
@@ -109,14 +109,14 @@ impl HsCircStub {
     /// or can be extended to become that kind.
     ///
     /// Returns `true` if this `HsCircStub`'s kind is equal to `other`,
-    /// or if its kind is [`Stub`](HsCircStubKind::Stub)
+    /// or if its kind is [`Short`](HsCircStubKind::Short)
     /// and `other` is [`Extended`](HsCircStubKind::Extended).
     pub(crate) fn can_become(&self, other: HsCircStubKind) -> bool {
         use HsCircStubKind::*;
 
         match (self.kind, other) {
-            (Stub, Stub) | (Extended, Extended) | (Stub, Extended) => true,
-            (Extended, Stub) => false,
+            (Short, Short) | (Extended, Extended) | (Short, Extended) => true,
+            (Extended, Short) => false,
         }
     }
 }
@@ -129,28 +129,34 @@ impl HsCircStub {
 ///
 ///   * with vanguards disabled:
 ///      ```text
-///         STUB  = G -> M -> M
-///         STUB+ = G -> M -> M
+///         SHORT    = G -> M -> M
+///         EXTENDED = G -> M -> M
 ///      ```
 ///
 ///   * with lite vanguards enabled:
 ///      ```text
-///         STUB  = G -> L2 -> M
-///         STUB+ = G -> L2 -> M
+///         SHORT    = G -> L2 -> M
+///         EXTENDED = G -> L2 -> M
 ///      ```
 ///
 ///   * with full vanguards enabled:
 ///      ```text
-///         STUB  = G -> L2 -> L3
-///         STUB+ = G -> L2 -> L3 -> M
+///         SHORT    = G -> L2 -> L3
+///         EXTENDED = G -> L2 -> L3 -> M
 ///      ```
 #[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
 pub(crate) enum HsCircStubKind {
-    /// A stub circuit (STUB).
-    #[display(fmt = "STUB")]
-    Stub,
-    /// An extended stub circuit (STUB+).
-    #[display(fmt = "STUB+")]
+    /// A short stub circuit.
+    ///
+    /// Used for building circuits to a final hop that an adversary cannot easily control,
+    /// for example if the final hop is is randomly chosen by us.
+    #[display(fmt = "SHORT")]
+    Short,
+    /// An extended stub circuit.
+    ///
+    /// Used for building circuits to a final hop that an adversary can easily control,
+    /// for example if the final hop is not chosen by us.
+    #[display(fmt = "EXTENDED")]
     Extended,
 }
 
@@ -236,11 +242,11 @@ impl<R: Runtime> HsCircPool<R> {
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Stub)
+            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Short)
             .await?;
 
-        if self.vanguards_enabled() && circ.kind != HsCircStubKind::Stub {
-            return Err(internal!("wanted a STUB circuit, but got STUB+?!").into());
+        if self.vanguards_enabled() && circ.kind != HsCircStubKind::Short {
+            return Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into());
         }
 
         let path = circ.path_ref();
@@ -467,13 +473,13 @@ impl<R: Runtime> HsCircPool<R> {
         }
 
         match (circuit.kind, kind) {
-            (HsCircStubKind::Stub, HsCircStubKind::Extended) => {
-                debug!("Wanted STUB+ circuit, but got STUB; extending by 1 hop...");
+            (HsCircStubKind::Short, HsCircStubKind::Extended) => {
+                debug!("Wanted EXTENDED circuit, but got SHORT; extending by 1 hop...");
                 let params = CircParameters::default();
                 let usage = RelayUsage::middle_relay(Some(&RelayUsage::middle_relay(None)));
                 let circ_path = circuit.circ.path_ref();
 
-                // A STUB circuit is a 3-hop circuit.
+                // A SHORT circuit is a 3-hop circuit.
                 debug_assert_eq!(circ_path.hops().len(), 3);
 
                 // Like in VanguardHsPathBuilder::pick_path, we only want to exclude the L2 and L3
@@ -494,20 +500,20 @@ impl<R: Runtime> HsCircPool<R> {
                     let mut rng = rand::thread_rng();
                     let (relay, info) = selector.select_relay(&mut rng, netdir);
                     relay.ok_or_else(|| Error::NoRelay {
-                        path_kind: "vanguard STUB+",
+                        path_kind: "vanguard EXTENDED",
                         role: "final hop",
                         problem: info.to_string(),
                     })?
                 };
 
-                // Since full vanguards are enabled and the circuit we got is STUB,
-                // we need to extend it by another hop to make it STUB+ before returning it
+                // Since full vanguards are enabled and the circuit we got is SHORT,
+                // we need to extend it by another hop to make it EXTENDED before returning it
                 let circ = self.extend_circ(circuit, params, target).await?;
 
                 Ok(HsCircStub { circ, kind })
             }
-            (HsCircStubKind::Extended, HsCircStubKind::Stub) => {
-                Err(internal!("wanted a STUB circuit, but got STUB+?!").into())
+            (HsCircStubKind::Extended, HsCircStubKind::Short) => {
+                Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into())
             }
             _ => {
                 trace!("Wanted {kind} circuit, got {}", circuit.kind);
@@ -648,7 +654,7 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
 
         if n_to_launch > 0 {
             debug!(
-                "launching {} STUB and {} STUB+ circuits",
+                "launching {} SHORT and {} EXTENDED circuits",
                 circs_to_launch.stub(),
                 circs_to_launch.ext_stub()
             );

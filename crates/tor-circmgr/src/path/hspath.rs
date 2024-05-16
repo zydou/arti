@@ -3,21 +3,27 @@
 //! The path builders defined here are used for creating hidden service stub circuits,
 //! which are three- or four-hop circuits that have not yet been extended to a target.
 //!
+//! There are two types of stub circuits:
+//!   * short stub circuits, used for building circuits to a final hop that an adversary
+//!     cannot easily control (for example if the target is randomly chosen by us)
+//!   * extended stub circuits, used for building circuits to a final hop that an adversary
+//!     can easily control (for example if the target was not chosen by us)
+//!
 //! Stub circuits eventually become introduction, rendezvous, and HsDir circuits.
 //! For all circuit types except client rendezvous, the stubs must first be
 //! extended by an extra hop:
 //!
 //! ```text
-//!  Client hsdir:  STUB+ -> HsDir
-//!  Client intro:  STUB+ -> Ipt
-//!  Client rend:   STUB
-//!  Service hsdir: STUB  -> HsDir
-//!  Service intro: STUB  -> Ipt
-//!  Service rend:  STUB+ -> Rpt
+//!  Client hsdir:  EXTENDED -> HsDir
+//!  Client intro:  EXTENDED -> Ipt
+//!  Client rend:   SHORT
+//!  Service hsdir: SHORT    -> HsDir
+//!  Service intro: SHORT    -> Ipt
+//!  Service rend:  EXTENDED -> Rpt
 //! ```
 //!
-//! If vanguards are disabled, regular stub circuits (STUB),
-//! and extended stub circuits (STUB+) are the same,
+//! If vanguards are disabled, short stub circuits (SHORT),
+//! and extended stub circuits (EXTENDED) are the same,
 //! and are built using
 //! [`ExitPathBuilder`](crate::path::exitpath::ExitPathBuilder)'s
 //! path selection rules.
@@ -30,17 +36,15 @@
 //!
 //!   * with lite vanguards enabled:
 //!      ```text
-//!         STUB  = G -> L2 -> M
-//!         STUB+ = G -> L2 -> M
+//!         SHORT    = G -> L2 -> M
+//!         EXTENDED = G -> L2 -> M
 //!      ```
 //!
 //!   * with full vanguards enabled:
 //!      ```text
-//!         STUB  = G -> L2 -> L3
-//!         STUB+ = G -> L2 -> L3 -> M
+//!         SHORT    = G -> L2 -> L3
+//!         EXTENDED = G -> L2 -> L3 -> M
 //!      ```
-
-// TODO (#1339): we should be consistent with our terminology.
 
 use rand::Rng;
 use tor_error::internal;
@@ -240,9 +244,9 @@ impl VanguardHsPathBuilder {
                 .into();
             hops.push(l3_guard.clone());
 
-            // If full vanguards are enabled, we need an extra hop for STUB+:
-            //     STUB  = G -> L2 -> L3
-            //     STUB+ = G -> L2 -> L3 -> M
+            // If full vanguards are enabled, we need an extra hop for the EXTENDED stub:
+            //     SHORT    = G -> L2 -> L3
+            //     EXTENDED = G -> L2 -> L3 -> M
             if self.0 == HsCircStubKind::Extended {
                 // TODO: this usage has need_stable = true, but we probably
                 // don't necessarily need a stable relay here.
@@ -271,7 +275,7 @@ impl VanguardHsPathBuilder {
 
         match (mode, self.0) {
             (VanguardMode::Lite, _) => debug_assert_eq!(hops.len(), 3),
-            (VanguardMode::Full, HsCircStubKind::Stub) => debug_assert_eq!(hops.len(), 3),
+            (VanguardMode::Full, HsCircStubKind::Short) => debug_assert_eq!(hops.len(), 3),
             (VanguardMode::Full, HsCircStubKind::Extended) => debug_assert_eq!(hops.len(), 4),
             (VanguardMode::Disabled, _) => {
                 return Err(internal!(
