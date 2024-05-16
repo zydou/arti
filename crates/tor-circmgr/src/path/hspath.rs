@@ -271,7 +271,7 @@ impl VanguardHsPathBuilder {
 
         match (mode, self.0) {
             (VanguardMode::Lite, _) => debug_assert_eq!(hops.len(), 3),
-            (VanguardMode::Full, HsCircStubKind::Stub) => debug_assert_eq!(hops.len(), 3),
+            (VanguardMode::Full, HsCircStubKind::Short) => debug_assert_eq!(hops.len(), 3),
             (VanguardMode::Full, HsCircStubKind::Extended) => debug_assert_eq!(hops.len(), 4),
             (VanguardMode::Disabled, _) => {
                 return Err(internal!(

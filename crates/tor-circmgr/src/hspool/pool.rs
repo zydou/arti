@@ -93,7 +93,7 @@ impl CircsToLaunch {
         // We start by launching STUB circuits.
         if self.stub_target > 0 {
             ForLaunch {
-                kind: HsCircStubKind::Stub,
+                kind: HsCircStubKind::Short,
                 count: &mut self.stub_target,
             }
         } else {
@@ -167,7 +167,7 @@ impl Pool {
         let circ_count = self
             .circuits
             .iter()
-            .filter(|c| c.kind == HsCircStubKind::Stub)
+            .filter(|c| c.kind == HsCircStubKind::Short)
             .count();
 
         self.stub_target.saturating_sub(circ_count)
