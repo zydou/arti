@@ -12,7 +12,7 @@ pub(crate) struct Args {
     #[arg(long)]
     pub(crate) key_type: KeyType,
 
-    /// The algorithm name.
+    /// The algorithm name. Only used if the key type is expanded-ed25519 or x25519.
     ///
     /// If no algorithm is specified, it defaults to:
     ///   * `ed25519-expanded@torproject.org` for ed25519-expanded keys
@@ -39,6 +39,10 @@ pub(crate) struct Args {
 
 #[derive(Copy, Clone, Debug, PartialEq, ValueEnum)]
 pub(crate) enum KeyType {
+    /// An Ed25519 key.
+    Ed25519,
+    /// A DSA key.
+    Dsa,
     /// An expanded Ed25519 key.
     ExpandedEd25519,
     /// An X25519 key.
