@@ -59,7 +59,7 @@ pub(crate) struct Request {
     /// TODO RPC: Note that our spec says that "params" can be omitted, but I
     /// don't think we support that right now.
     #[serde(flatten)]
-    pub(crate) method: Box<dyn rpc::DynMethod>,
+    pub(crate) method: Box<dyn rpc::DeserMethod>,
 }
 
 /// A request that may or may not be valid.
@@ -198,6 +198,7 @@ mod test {
     impl rpc::Method for DummyMethod {
         type Output = DummyResponse;
         type Update = rpc::NoUpdates;
+        type Error = rpc::RpcError;
     }
 
     #[derive(Serialize)]

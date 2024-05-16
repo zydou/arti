@@ -36,6 +36,7 @@ struct GetClientStatus {}
 impl rpc::Method for GetClientStatus {
     type Output = ClientStatusInfo;
     type Update = rpc::NoUpdates;
+    type Error = rpc::RpcError;
 }
 
 /// RPC method: Run forever, delivering an updated view of the ClientStatusInfo whenever it changes.
@@ -49,6 +50,7 @@ struct WatchClientStatus {}
 impl rpc::Method for WatchClientStatus {
     type Output = rpc::Nil;
     type Update = ClientStatusInfo;
+    type Error = rpc::RpcError;
 }
 
 /// RPC result: The reported status of a TorClient.
@@ -128,6 +130,7 @@ pub struct IsolatedClient {}
 impl rpc::Method for IsolatedClient {
     type Output = rpc::SingletonId;
     type Update = rpc::NoUpdates;
+    type Error = rpc::RpcError;
 }
 
 /// RPC method implementation: return a new isolated client based on a given client.

@@ -211,6 +211,7 @@ pub(crate) struct NewStreamHandle {}
 impl rpc::Method for NewStreamHandle {
     type Output = rpc::SingletonId;
     type Update = rpc::NoUpdates; // TODO actually, updates are quite suitable here.
+    type Error = rpc::RpcError;
 }
 
 /// Helper: construct and register an RpcDataStream.

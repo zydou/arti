@@ -85,6 +85,10 @@ pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> +
 // extra boxing in this case ever matters.
 pub type UpdateSink<U> = Pin<Box<dyn Sink<U, Error = SendUpdateError> + Send + 'static>>;
 
+/// Type returned by DispatchTable::invoke_special, to represent a future containing
+/// a type-erased type.
+type SpecialResultFuture = BoxFuture<'static, Box<dyn any::Any>>;
+
 /// An installable handler for running a method on an object type.
 ///
 /// Callers should not typically implement this trait directly;
@@ -99,6 +103,25 @@ pub trait Invocable: Send + Sync + 'static {
     fn method_type(&self) -> any::TypeId;
     /// Describe the types for this Invocable.  Used for debugging.
     fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+
+    /// Invoke this method on an object.
+    ///
+    /// Requires that `obj` has the type `self.object_type()`,
+    /// and that `method` has the type `self.method_type()`.
+    ///
+    /// Unlike `RpcInvocable::invoke()`, does not convert the resulting types
+    /// into serializable formats, and does not require that they _can be_
+    /// so converted.
+    fn invoke_special(
+        &self,
+        obj: Arc<dyn Object>,
+        method: Box<dyn DynMethod>,
+        ctx: Box<dyn Context>,
+    ) -> Result<SpecialResultFuture, InvokeError>;
+}
+
+/// Subtrait of `Invocable` that requires its outputs to be serializable as RPC replies.
+pub trait RpcInvocable: Invocable {
     /// Invoke a method on an object.
     ///
     /// Requires that `obj` has the type `self.object_type()`,
@@ -128,13 +151,15 @@ macro_rules! declare_invocable_impl {
       )?
     } => {
         impl<M, OBJ, Fut, S, E, $($update_gen)?> Invocable
-            for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
+             for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
             M: crate::Method,
             OBJ: Object,
-            Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
+            S: 'static,
+            E: 'static,
             M::Output: From<S>,
-            RpcError: From<E>,
+            M::Error: From<E>,
+            Fut: futures::Future<Output = Result<S,E>> + Send + 'static,
             $( M::Update: From<$update_gen>, )?
             $( $($update_arg_where)+ )?
         {
@@ -155,6 +180,51 @@ macro_rules! declare_invocable_impl {
                 )
             }
 
+            // TODO RPC Try to reduce duplication between special and serialisable methods, after things have settled down
+            fn invoke_special(
+                &self,
+                obj: Arc<dyn Object>,
+                method: Box<dyn DynMethod>,
+                ctx: Box<dyn Context>,
+            ) -> Result<SpecialResultFuture, $crate::InvokeError> {
+                use futures::FutureExt;
+                #[allow(unused)]
+                use {tor_async_utils::SinkExt as _, futures::SinkExt as _};
+
+                let Ok(obj) = obj.downcast_arc::<OBJ>() else {
+                    return Err(InvokeError::Bug($crate::internal!("Wrong object type")));
+                 };
+                 let Ok(method) = method.downcast::<M>() else {
+                     return Err(InvokeError::Bug($crate::internal!("Wrong method type")));
+                 };
+
+                 $(
+                    let $sink = Box::pin(futures::sink::drain().sink_err_into());
+                 )?
+
+                 Ok(
+                    (self)(obj, method, ctx $(, $sink )? )
+                        .map(|r| Box::new(r) as Box<dyn any::Any>)
+                        .boxed()
+                 )
+            }
+        }
+
+        impl<M, OBJ, Fut, S, E, $($update_gen)?> RpcInvocable
+            for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
+        where
+            M: crate::Method,
+            M::Output: serde::Serialize,
+            S: 'static,
+            E: 'static,
+            OBJ: Object,
+            Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
+            M::Output: From<S>,
+            M::Error: From<E>,
+            RpcError: From<M::Error>,
+            $( M::Update: From<$update_gen>, )?
+            $( $($update_arg_where)+ )?
+        {
             fn invoke(
                 &self,
                 obj: Arc<dyn Object>,
@@ -184,7 +254,7 @@ macro_rules! declare_invocable_impl {
                         .map(|r| {
                             let r: RpcResult = match r {
                                 Ok(v) => Ok(Box::new(M::Output::from(v))),
-                                Err(e) => Err(RpcError::from(e)),
+                                Err(e) => Err(RpcError::from(M::Error::from(e))),
                             };
                             r
                         })
@@ -200,7 +270,10 @@ declare_invocable_impl! {}
 declare_invocable_impl! {
     update_gen: U,
     update_arg: { sink: UpdateSink<U> },
-    update_arg_where: { U: 'static },
+    update_arg_where: {
+        U: 'static + Send,
+        M::Update: serde::Serialize
+    },
     sink_fn: |sink:BoxedUpdateSink| Box::pin(
         sink.with_fn(|update: U| RpcSendResult::Ok(
             Box::new(M::Update::from(update))
@@ -217,6 +290,9 @@ declare_invocable_impl! {
 pub struct InvokerEnt {
     #[doc(hidden)]
     pub invoker: &'static (dyn Invocable),
+
+    #[doc(hidden)]
+    pub rpc_invoker: Option<&'static (dyn RpcInvocable)>,
 
     // These fields are used to make sure that we aren't installing different
     // functions for the same (Object, Method) pair.
@@ -248,17 +324,44 @@ impl InvokerEnt {
 /// Syntax:
 /// ```rust,ignore
 ///   invoker_ent!( function )
+///   invoker_ent!( @special function )
 /// ```
 ///
 /// The function must be a `fn` item
 /// (with all necessary generic parameters specified)
 /// with the correct type for an RPC implementation function;
 /// see the [module documentation](self).
+///
+/// If the function is marked as @special,
+/// it does not have to return a type serializable as an RPC message,
+/// and it will not be exposed as an RPC function.
+/// You will still be able to invoke it with `DispatchTable::invoke_special`.
 #[macro_export]
 macro_rules! invoker_ent {
     { $func:expr } => {
+        $crate::invoker_ent!{ @@impl
+            func: ($func),
+            rpc_invoker:
+                (Some($crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::RpcInvocable))),
+        }
+    };
+    // TODO RPC: Possibly, replace this with a separate macro?
+    //
+    // (If we do this, we'll likely need a separate versions
+    // of invoker_ent_list and static_rpc_invoke_fn.)
+    { @special $func:expr } => {
+        $crate::invoker_ent!{ @@impl
+            func: ($func),
+            rpc_invoker: (None),
+        }
+    };
+    { @@impl
+            func: ($func:expr),
+            rpc_invoker:  ($rpc_invoker:expr),
+    }  => {
         $crate::dispatch::InvokerEnt {
-            invoker: $crate::invocable_func_as_dyn_invocable!($func),
+            invoker: $crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::Invocable),
+            rpc_invoker: $rpc_invoker,
             file: file!(),
             line: line!(),
             function: stringify!($func)
@@ -282,10 +385,10 @@ macro_rules! invoker_ent {
 /// ```
 #[macro_export]
 macro_rules! invoker_ent_list {
-    { $($func:expr),* $(,)? } => {
+    { $($(@$tag:ident)* $func:expr),* $(,)? } => {
         vec![
             $(
-                $crate::invoker_ent!($func)
+                $crate::invoker_ent!($(@$tag)* $func)
             ),*
         ]
     }
@@ -324,6 +427,7 @@ inventory::collect!(InvokerEnt);
 /// impl rpc::Method for ExampleMethod {
 ///     type Output = ExampleResult;
 ///     type Update = Progress;
+///     type Error = rpc::RpcError;
 /// }
 ///
 /// #[derive(serde::Serialize)]
@@ -382,10 +486,10 @@ inventory::collect!(InvokerEnt);
 #[macro_export]
 macro_rules! static_rpc_invoke_fn {
     {
-        $( $func:expr; )*
+        $( $(@$tag:ident)* $func:expr; )*
     } => {$crate::paste::paste!{ $(
         $crate::inventory::submit!{
-            $crate::invoker_ent!($func)
+            $crate::invoker_ent!($(@$tag)* $func)
         }
     )* }};
 }
@@ -396,7 +500,7 @@ macro_rules! static_rpc_invoke_fn {
 /// expands to an expression for it of type `&'static dyn Invocable`.
 #[doc(hidden)]
 #[macro_export]
-macro_rules! invocable_func_as_dyn_invocable { { $f:expr } => { {
+macro_rules! invocable_func_as_dyn_invocable { { $f:expr, $trait:path } => { {
     let f = &($f as _);
     // We want ^ this `as _ ` cast to convert the fn item (as a value
     // of its unique unnameable type) to a value of type `fn(..) -> _`.
@@ -419,7 +523,7 @@ macro_rules! invocable_func_as_dyn_invocable { { $f:expr } => { {
     }
     // So, because of all the above, f is of type `fn(..) -> _`, which implements `Invocable`
     // (assuming the fn item has the right signature).  So we can cast it to dyn.
-    f as &'static dyn $crate::dispatch::Invocable
+    f as &'static dyn $trait
 } } }
 
 /// Helper trait for obtaining (at the type level) `fn` type from an `impl Fn`
@@ -560,7 +664,32 @@ impl DispatchTable {
 
         let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
 
-        func.invoker.invoke(obj, method, ctx, sink)
+        func.rpc_invoker
+            .ok_or(InvokeError::NoImpl)?
+            .invoke(obj, method, ctx, sink)
+    }
+
+    /// Invoke the given method on `obj` within `ctx`, and return its
+    /// actual result type.
+    ///
+    /// Unlike `invoke`, this method does not return a type-erased result,
+    /// and does not require that the result can be serialized as an RPC object.
+    pub async fn invoke_special<M: crate::Method>(
+        &self,
+        obj: Arc<dyn Object>,
+        method: M,
+        ctx: Box<dyn Context>,
+    ) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
+        let func_type = FuncType {
+            obj_id: obj.type_id(),
+            method_id: method.type_id(),
+        };
+        let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
+
+        let fut: SpecialResultFuture = func.invoker.invoke_special(obj, Box::new(method), ctx)?;
+        fut.await
+            .downcast()
+            .map_err(|_| InvokeError::Bug(tor_error::internal!("Downcast to wrong type")))
     }
 }
 
@@ -630,10 +759,12 @@ mod test {
     impl Method for GetName {
         type Output = Outcome;
         type Update = NoUpdates;
+        type Error = crate::RpcError;
     }
     impl Method for GetKids {
         type Output = Outcome;
         type Update = String;
+        type Error = crate::RpcError;
     }
 
     #[derive(serde::Serialize)]
@@ -736,6 +867,10 @@ mod test {
         }
 
         fn release_owned(&self, _object: &crate::ObjectId) -> Result<(), crate::LookupError> {
+            todo!()
+        }
+
+        fn dispatch_table(&self) -> &Arc<std::sync::RwLock<crate::DispatchTable>> {
             todo!()
         }
     }
@@ -883,5 +1018,47 @@ mod test {
             sentence(&table, obj3).await,
             r#"Hello I am a friendly {"v":"13371337"} and these are my lovely {"v":"2718281828"}."#
         );
+    }
+
+    // Doesn't implement Deserialize.
+    #[derive(Debug)]
+    struct MyObject {}
+
+    #[derive(Debug, Deftly)]
+    #[derive_deftly(DynMethod)]
+    #[deftly(rpc(no_method_name))]
+    struct SpecialOnly {}
+    impl Method for SpecialOnly {
+        type Output = MyObject; // Doesn't implement deserialize.
+        type Error = MyObject;
+        type Update = crate::NoUpdates;
+    }
+
+    async fn specialonly_swan(
+        _obj: Arc<Swan>,
+        _method: Box<SpecialOnly>,
+        _ctx: Box<dyn crate::Context>,
+    ) -> Result<MyObject, MyObject> {
+        Ok(MyObject {})
+    }
+    static_rpc_invoke_fn! { @special specialonly_swan; }
+
+    #[async_test]
+    async fn try_invoke_special() {
+        let table = crate::DispatchTable::from_inventory();
+
+        let res: Outcome = table
+            .invoke_special(Arc::new(Swan), GetKids, Box::new(Ctx {}))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(res.v, "cygnets");
+
+        let _an_obj: MyObject = table
+            .invoke_special(Arc::new(Swan), SpecialOnly {}, Box::new(Ctx {}))
+            .await
+            .unwrap()
+            .unwrap();
     }
 }

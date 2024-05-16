@@ -113,6 +113,7 @@ struct SupportedAuth {
 impl rpc::Method for AuthQuery {
     type Output = SupportedAuth;
     type Update = rpc::NoUpdates;
+    type Error = rpc::RpcError;
 }
 /// Implement `auth:AuthQuery` on a connection.
 async fn conn_authquery(
@@ -151,6 +152,7 @@ struct AuthenticateReply {
 impl rpc::Method for Authenticate {
     type Output = AuthenticateReply;
     type Update = rpc::NoUpdates;
+    type Error = rpc::RpcError;
 }
 
 /// An error during authentication.

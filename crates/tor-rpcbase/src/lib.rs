@@ -50,8 +50,8 @@ use std::{convert::Infallible, sync::Arc};
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::RpcError;
 pub use method::{
-    check_method_names, is_method_name, iter_method_names, DynMethod, InvalidMethodName, Method,
-    NoUpdates,
+    check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod,
+    InvalidMethodName, Method, NoUpdates,
 };
 pub use obj::{Object, ObjectArcExt, ObjectId};
 
@@ -119,6 +119,9 @@ pub trait Context: Send {
     ///
     /// TODO RPC should this really return a LookupError?
     fn release_owned(&self, object: &ObjectId) -> Result<(), LookupError>;
+
+    /// Return a dispatch table that can be used to invoke other RPC methods.
+    fn dispatch_table(&self) -> &Arc<std::sync::RwLock<DispatchTable>>;
 }
 
 /// An error caused while trying to send an update to a method.
