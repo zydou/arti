@@ -28,6 +28,13 @@ shellcheck:
     - apk add git bash
     - ./maint/shellcheck_all
 
+python3-mypy:
+  stage: check
+  image: debian:bookworm-slim
+  script:
+    - apt-get update && apt-get install -y mypy
+    - mypy maint/update-md-links
+
 maint-checks:
   stage: check
   image: debian:bookworm-slim
@@ -37,6 +44,14 @@ maint-checks:
     - ./maint/add_warning --check
     - ./maint/shebang
     - ./maint/forbid-script-extensions
+
+maint-check-changelog:
+  stage: test
+  image: debian:bookworm-slim
+  script:
+    - apt-get update && apt-get install -y python3-mistune git
+    - git fetch --unshallow $ORIGIN
+    - ./maint/update-md-links --check CHANGELOG.md
 
 # non-blocking for now, see
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/581

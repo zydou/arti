@@ -11,21 +11,12 @@ Example:
   ./gen_md_links < new_changelog
 """
 
+import json
 import re
 import subprocess
 
-LINK_PATTERN = re.compile(r'''
-  \[([^\]]*)\] # Match [, then some non-] characters, then ]...
-  (?!\()       # But only when not followed by (.
-''', re.X)
-
-
 def links(s):
     """Extract unresolved markdown links from a string.
-
-       This is a naive algorithm, and could eventually be replaced
-       with a real markdown parsing library.  But for our changelogs,
-       it should be fine.
 
        >>> list(links("Hello [world]. This [is a link]"))
        ['world', 'is a link']
@@ -33,9 +24,19 @@ def links(s):
        []
     """
 
-    for m in LINK_PATTERN.finditer(s):
-        yield m.group(1)
+    # It would have been better to import extract-md-links
+    # as a Python module.  But see the comment in its main block.
 
+    p = subprocess.Popen(
+        ['maint/extract-md-links'],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf-8',
+    )
+    output, dummy = p.communicate(s)
+    p.wait()
+    assert(p.returncode == 0)
+
+    output = json.loads(output)
+    return output['used']
 
 def is_commit(s):
     """Return true if `s` looks like a git commit.
@@ -131,10 +132,16 @@ def process(s):
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) == 1 or sys.argv[1] == "-":
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="gen_md_links")
+    parser.add_argument('filename', nargs='?', default="-")
+    args = parser.parse_args()
+
+    if args.filename == '-':
         in_file = sys.stdin
     else:
-        in_file = open(sys.argv[1], 'r')
+        in_file = open(args.filename, 'r')
 
     text = in_file.read()
     print(process(text))
