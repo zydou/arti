@@ -37,7 +37,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // it.
     let listener = UnixListener::bind(path)?;
     let rpc_mgr =
-        RpcMgr::new(move |_auth| RpcSession::new_with_client(Arc::new(client.isolated_client())));
+        RpcMgr::new(move |_auth| RpcSession::new_with_client(Arc::new(client.isolated_client())))?;
     // Register methods. Needed since TorClient is generic.
     //
     // TODO: If we accumulate a large number of generics like this, we should do this elsewhere.
@@ -80,5 +80,34 @@ async fn run_rpc_listener<R: Runtime>(
                 tracing::warn!("RPC session ended with an error: {}", e);
             }
         })?;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    #[test]
+    fn rpc_method_names() {
+        // We run this from a nice high level module, to ensure that as many method names as
+        // possible will be in-scope.
+        let problems = tor_rpcbase::check_method_names([]);
+
+        for (m, err) in &problems {
+            eprintln!("Bad method name {m:?}: {err}");
+        }
+        assert!(problems.is_empty());
     }
 }

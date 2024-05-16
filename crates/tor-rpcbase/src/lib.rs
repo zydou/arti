@@ -49,7 +49,10 @@ use std::{convert::Infallible, sync::Arc};
 
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::RpcError;
-pub use method::{is_method_name, iter_method_names, DynMethod, Method, NoUpdates};
+pub use method::{
+    check_method_names, is_method_name, iter_method_names, DynMethod, InvalidMethodName, Method,
+    NoUpdates,
+};
 pub use obj::{Object, ObjectArcExt, ObjectId};
 
 #[doc(hidden)]

@@ -205,7 +205,7 @@ impl ClientConnectionTarget for RpcDataStream {
 /// Method to create a stream handle.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "arti:new-stream-handle"))]
+#[deftly(rpc(method_name = "arti:new_stream_handle"))]
 pub(crate) struct NewStreamHandle {}
 
 impl rpc::Method for NewStreamHandle {

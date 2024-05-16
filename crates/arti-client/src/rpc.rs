@@ -30,7 +30,7 @@ impl<R: Runtime> TorClient<R> {
 /// RPC method: Return the current ClientStatusInfo.
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
-#[deftly(rpc(method_name = "arti:get-client-status"))]
+#[deftly(rpc(method_name = "arti:get_client_status"))]
 struct GetClientStatus {}
 
 impl rpc::Method for GetClientStatus {
@@ -43,7 +43,7 @@ impl rpc::Method for GetClientStatus {
 /// (This method can return updates that have no visible changes.)
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
-#[deftly(rpc(method_name = "arti:watch-client-status"))]
+#[deftly(rpc(method_name = "arti:watch_client_status"))]
 struct WatchClientStatus {}
 
 impl rpc::Method for WatchClientStatus {
@@ -121,7 +121,7 @@ async fn watch_client_status<R: Runtime>(
 /// RPC method: Return an owned ID for a new isolated client instance.
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
-#[deftly(rpc(method_name = "arti::isolated-client"))]
+#[deftly(rpc(method_name = "arti:isolated_client"))]
 #[non_exhaustive]
 pub struct IsolatedClient {}
 
