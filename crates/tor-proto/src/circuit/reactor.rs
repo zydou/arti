@@ -63,7 +63,7 @@ use tor_error::internal;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
-use crate::channel::Channel;
+use crate::channel::{Channel, ChannelSender};
 use crate::circuit::path;
 #[cfg(test)]
 use crate::circuit::sendme::CircTag;
@@ -707,8 +707,10 @@ pub struct Reactor {
     /// NOTE: Control messages could potentially add unboundedly to this, although that's
     ///       not likely to happen (and isn't triggereable from the network, either).
     outbound: VecDeque<AnyChanCell>,
-    /// The channel this circuit is using to send cells through.
+    /// The channel this circuit is attached to.
     channel: Channel,
+    /// Sender object used to actually send cells.
+    chan_sender: ChannelSender,
     /// A oneshot sender that is used to alert other tasks when this reactor is
     /// finally dropped.
     ///
@@ -808,11 +810,14 @@ impl Reactor {
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
+        let chan_sender = channel.sender();
+
         let reactor = Reactor {
             control: control_rx,
             reactor_closed_tx,
             outbound: Default::default(),
             channel,
+            chan_sender,
             input,
             crypto_in: InboundClientCrypt::new(),
             hops: vec![],
@@ -910,14 +915,14 @@ impl Reactor {
                 loop {
                     // `futures::Sink::start_send` dictates we need to call `poll_ready` before
                     // each `start_send` call.
-                    if !self.channel.poll_ready(cx)? {
+                    if !self.chan_sender.poll_ready(cx)? {
                         break 'outer;
                     }
                     let Some(msg) = self.outbound.pop_front() else {
                         break;
                     };
                     trace!("{}: sending from enqueued: {:?}", self.unique_id, msg);
-                    Pin::new(&mut self.channel).start_send(msg)?;
+                    Pin::new(&mut self.chan_sender).start_send(msg)?;
                 }
 
                 // Let's look at our hops, and streams for each hop.
@@ -926,7 +931,7 @@ impl Reactor {
                     // If we can, drain our queue of things we tried to send earlier, but
                     // couldn't due to congestion control.
                     'hop_outbound: loop {
-                        if !self.channel.poll_ready(cx)? {
+                        if !self.chan_sender.poll_ready(cx)? {
                             break 'outer;
                         }
                         if self.hops[i].sendwindow.window() == 0 {
@@ -1020,7 +1025,7 @@ impl Reactor {
                 did_things = true;
             }
 
-            let _ = Pin::new(&mut self.channel)
+            let _ = Pin::new(&mut self.chan_sender)
                 .poll_flush(cx)
                 .map_err(|_| ChannelClosed)?;
 
@@ -1100,7 +1105,7 @@ impl Reactor {
         let _ = done.send(ret); // don't care if sender goes away
 
         futures::future::poll_fn(|cx| -> Poll<Result<()>> {
-            let _ = Pin::new(&mut self.channel)
+            let _ = Pin::new(&mut self.chan_sender)
                 .poll_flush(cx)
                 .map_err(|_| ChannelClosed)?;
             Poll::Ready(Ok(()))
@@ -1464,8 +1469,8 @@ impl Reactor {
         //            cells to be sent out of order, since it could transition from not ready to
         //            ready during one cycle of the reactor!
         //            (This manifests as a protocol violation.)
-        if self.outbound.is_empty() && self.channel.poll_ready(cx)? {
-            Pin::new(&mut self.channel).start_send(cell)?;
+        if self.outbound.is_empty() && self.chan_sender.poll_ready(cx)? {
+            Pin::new(&mut self.chan_sender).start_send(cell)?;
         } else {
             // This has been observed to happen in code that doesn't have bugs in it, simply due
             // to the way `Channel`'s `poll_ready` implementation works (it can change due to

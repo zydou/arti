@@ -103,7 +103,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 use tor_async_utils::oneshot;
 
 use educe::Educe;
-use futures::{FutureExt as _, Sink, SinkExt as _};
+use futures::{FutureExt as _, Sink};
 use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -155,8 +155,8 @@ type CellFrame<T> =
 ///
 /// A channel is a direct connection to a Tor relay, implemented using TLS.
 ///
-/// This struct is a frontend that can be used to send cells (using the
-/// `Sink<ChanCell>` impl and otherwise control the channel.  The main state is
+/// This struct is a frontend that can be used to send cells
+/// and otherwise control the channel.  The main state is
 /// in the Reactor object. `Channel` is cheap to clone.
 ///
 /// (Users need a mutable reference because of the types in `Sink`, and
@@ -300,7 +300,46 @@ enum PaddingControlState {
 
 use PaddingControlState as PCS;
 
-impl Sink<AnyChanCell> for Channel {
+/// A handle to a [`Channel`]` that can be used, by circuits, to send send channel cells.
+#[derive(Debug)]
+pub(crate) struct ChannelSender {
+    /// MPSC sender to send cells.
+    cell_tx: mpsc::Sender<AnyChanCell>,
+    /// Details shared with reactor and channel.
+    details: Arc<ChannelDetails>,
+}
+
+impl ChannelSender {
+    /// Check whether a cell type is permissible to be _sent_ on an
+    /// open client channel.
+    fn check_cell(&self, cell: &AnyChanCell) -> Result<()> {
+        use msg::AnyChanMsg::*;
+        let msg = cell.msg();
+        match msg {
+            Created(_) | Created2(_) | CreatedFast(_) => Err(Error::from(internal!(
+                "Can't send {} cell on client channel",
+                msg.cmd()
+            ))),
+            Certs(_) | Versions(_) | Authenticate(_) | Authorize(_) | AuthChallenge(_)
+            | Netinfo(_) => Err(Error::from(internal!(
+                "Can't send {} cell after handshake is done",
+                msg.cmd()
+            ))),
+            _ => Ok(()),
+        }
+    }
+
+    /// Like `futures::Sink::poll_ready`.
+    pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Result<bool> {
+        Ok(match Pin::new(&mut self.cell_tx).poll_ready(cx) {
+            Poll::Ready(Ok(_)) => true,
+            Poll::Ready(Err(_)) => return Err(Error::CircuitClosed),
+            Poll::Pending => false,
+        })
+    }
+}
+
+impl Sink<AnyChanCell> for ChannelSender {
     type Error = Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -597,39 +636,12 @@ impl Channel {
             .map(Into::into)
     }
 
-    /// Check whether a cell type is permissible to be _sent_ on an
-    /// open client channel.
-    fn check_cell(&self, cell: &AnyChanCell) -> Result<()> {
-        use msg::AnyChanMsg::*;
-        let msg = cell.msg();
-        match msg {
-            Created(_) | Created2(_) | CreatedFast(_) => Err(Error::from(internal!(
-                "Can't send {} cell on client channel",
-                msg.cmd()
-            ))),
-            Certs(_) | Versions(_) | Authenticate(_) | Authorize(_) | AuthChallenge(_)
-            | Netinfo(_) => Err(Error::from(internal!(
-                "Can't send {} cell after handshake is done",
-                msg.cmd()
-            ))),
-            _ => Ok(()),
+    /// Return a new [`ChannelSender`] to transmit cells on this channel.
+    pub(crate) fn sender(&self) -> ChannelSender {
+        ChannelSender {
+            cell_tx: self.cell_tx.clone(),
+            details: self.details.clone(),
         }
-    }
-
-    /// Like `futures::Sink::poll_ready`.
-    pub fn poll_ready(&mut self, cx: &mut Context<'_>) -> Result<bool> {
-        Ok(match Pin::new(&mut self.cell_tx).poll_ready(cx) {
-            Poll::Ready(Ok(_)) => true,
-            Poll::Ready(Err(_)) => return Err(Error::CircuitClosed),
-            Poll::Pending => false,
-        })
-    }
-
-    /// Transmit a single cell on a channel.
-    pub async fn send_cell(&mut self, cell: AnyChanCell) -> Result<()> {
-        self.send(cell).await?;
-
-        Ok(())
     }
 
     /// Return a newly allocated PendingClientCirc object with
@@ -816,12 +828,12 @@ pub(crate) mod test {
             let chan = fake_channel(fake_channel_details());
 
             let cell = AnyChanCell::new(CircId::new(7), msg::Created2::new(&b"hihi"[..]).into());
-            let e = chan.check_cell(&cell);
+            let e = chan.sender().check_cell(&cell);
             assert!(e.is_err());
             assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CREATED2 cell on client channel"));
             let cell = AnyChanCell::new(None, msg::Certs::new_empty().into());
-            let e = chan.check_cell(&cell);
+            let e = chan.sender().check_cell(&cell);
             assert!(e.is_err());
             assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CERTS cell after handshake is done"));
@@ -830,7 +842,7 @@ pub(crate) mod test {
                 CircId::new(5),
                 msg::Create2::new(HandshakeType::NTOR, &b"abc"[..]).into(),
             );
-            let e = chan.check_cell(&cell);
+            let e = chan.sender().check_cell(&cell);
             assert!(e.is_ok());
             // FIXME(eta): more difficult to test that sending works now that it has to go via reactor
             // let got = output.next().await.unwrap();
