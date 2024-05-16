@@ -121,6 +121,7 @@ def check_returncode(process):
     r = process.returncode
     if r != 0:
         print("subprocess failed with nonzero returncode %s" % r, file=sys.stderr)
+        sys.exit(12)
 
 def is_link_def(l):
     '''
