@@ -43,6 +43,8 @@ downgrading does not fix the security problem.
 [TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2024-004]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 
+
+
 # Arti 1.2.2 — 30 April 2024
 
 Arti 1.2.2 continues improvements on previous releases,
