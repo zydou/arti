@@ -218,7 +218,7 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
         tor_proto::channel::Channel::reparameterize(self, updates)
     }
     fn engage_padding_activities(&self) {
-        self.engage_padding_activities();
+        tor_proto::channel::Channel::engage_padding_activities(self);
     }
 }
 
