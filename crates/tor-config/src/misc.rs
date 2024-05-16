@@ -228,31 +228,33 @@ pub trait NotAutoValue {}
 /// ```
 #[macro_export]
 macro_rules! impl_not_auto_value {
-    ($ty:ty) => { $crate::deps::paste! {
-        impl $crate::NotAutoValue for $ty {}
+    ($ty:ty) => {
+        $crate::deps::paste! {
+            impl $crate::NotAutoValue for $ty {}
 
-        #[cfg(test)]
-        #[allow(non_snake_case)]
-        mod [<test_not_auto_value_ $ty>] {
-            #[allow(unused_imports)]
-            use super::*;
+            #[cfg(test)]
+            #[allow(non_snake_case)]
+            mod [<test_not_auto_value_ $ty>] {
+                #[allow(unused_imports)]
+                use super::*;
 
-            #[test]
-            fn [<auto_is_not_a_valid_value_for_ $ty>]() {
-                let res = $crate::deps::serde_value::Value::String(
-                    "auto".into()
-                ).deserialize_into::<$ty>();
+                #[test]
+                fn [<auto_is_not_a_valid_value_for_ $ty>]() {
+                    let res = $crate::deps::serde_value::Value::String(
+                        "auto".into()
+                    ).deserialize_into::<$ty>();
 
-                assert!(
-                    res.is_err(),
-                    concat!(
-                        stringify!($ty), " is not a valid NotAutoValue type: ",
-                        "NotAutoValue types should not be deserializable from \"auto\""
-                    ),
-                );
+                    assert!(
+                        res.is_err(),
+                        concat!(
+                            stringify!($ty), " is not a valid NotAutoValue type: ",
+                            "NotAutoValue types should not be deserializable from \"auto\""
+                        ),
+                    );
+                }
             }
         }
-    }}
+    };
 }
 
 /// A helper for calling [`impl_not_auto_value`] for a number of types.
@@ -807,10 +809,7 @@ mod test {
         };
 
         chk(EOA::Auto, r#"auto_or_usize = "auto""#);
-        chk(
-            EOA::Explicit(20),
-            r#"auto_or_usize = 20"#,
-        );
+        chk(EOA::Explicit(20), r#"auto_or_usize = 20"#);
 
         let chk_e = |s| {
             let tc: Result<TestConfigFile, _> = toml::from_str(s);
