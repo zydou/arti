@@ -146,7 +146,7 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
 #[derive(Clone, Copy, Hash, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
 #[derive(Serialize, Deserialize)]
-pub enum ExplicitOrAuto<T> {
+pub enum ExplicitOrAuto<T: NotAutoValue> {
     /// Automatic
     #[default]
     #[serde(rename = "auto")]
@@ -156,7 +156,7 @@ pub enum ExplicitOrAuto<T> {
     Explicit(T),
 }
 
-impl<T> ExplicitOrAuto<T> {
+impl<T: NotAutoValue> ExplicitOrAuto<T> {
     /// Returns the explicitly set value, or `None`.
     ///
     /// ```
@@ -185,6 +185,11 @@ impl<T> ExplicitOrAuto<T> {
         }
     }
 }
+
+/// A marker trait for types that do not serialize to the same value as [`ExplicitOrAuto::Auto`].
+///
+/// This trait should be implemented for types that can be stored in [`ExplicitOrAuto`].
+pub trait NotAutoValue {}
 
 /// Padding enablement - rough amount of padding requested
 ///
