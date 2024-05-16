@@ -188,8 +188,85 @@ impl<T: NotAutoValue> ExplicitOrAuto<T> {
 
 /// A marker trait for types that do not serialize to the same value as [`ExplicitOrAuto::Auto`].
 ///
+/// **Important**: you should not implement this trait manually.
+/// Use the [`impl_not_auto_value`] macro instead.
+///
 /// This trait should be implemented for types that can be stored in [`ExplicitOrAuto`].
 pub trait NotAutoValue {}
+
+/// A macro that implements [`NotAutoValue`] for your type.
+///
+/// This macro generates:
+///   * a [`NotAutoValue`] impl for `ty`
+///   * a test module with a test that ensures "auto" cannot be deserialized as `ty`
+///
+/// ## Example
+///
+/// ```rust
+/// # use tor_config::{impl_not_auto_value, ExplicitOrAuto};
+/// # use serde::{Serialize, Deserialize};
+//  #
+/// #[derive(Serialize, Deserialize)]
+/// struct Foo;
+///
+/// impl_not_auto_value!(Foo);
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Bar;
+///
+/// fn main() {
+///    let _foo: ExplicitOrAuto<Foo> = ExplicitOrAuto::Auto;
+///
+///    // Using a type that does not implement NotAutoValue is an error:
+///    // let _bar: ExplicitOrAuto<Bar> = ExplicitOrAuto::Auto;
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_not_auto_value {
+    ($ty:ty) => { $crate::deps::paste! {
+        impl $crate::NotAutoValue for $ty {}
+
+        #[cfg(test)]
+        #[allow(non_snake_case)]
+        mod [<test_not_auto_value_ $ty>] {
+            #[allow(unused_imports)]
+            use super::*;
+
+            #[test]
+            fn [<auto_is_not_a_valid_value_for_ $ty>]() {
+                let res = $crate::deps::serde_value::Value::String(
+                    "auto".into()
+                ).deserialize_into::<$ty>();
+
+                assert!(
+                    res.is_err(),
+                    concat!(
+                        stringify!($ty), " is not a valid NotAutoValue type: ",
+                        "NotAutoValue types should not be deserializable from \"auto\""
+                    ),
+                );
+            }
+        }
+    }}
+}
+
+/// A helper for calling [`impl_not_auto_value`] for a number of types.
+macro_rules! impl_not_auto_value_for_types {
+    ($($ty:ty)*) => {
+        $(impl_not_auto_value!($ty);)*
+    }
+}
+
+// Implement `NotAutoValue` for various primitive types.
+impl_not_auto_value_for_types!(
+    i8 i16 i32 i64 i128 isize
+    u8 u16 u32 u64 u128 usize
+    f32 f64
+    char
+    bool
+);
+
+// TODO implement `NotAutoValue` for other types too
 
 /// Padding enablement - rough amount of padding requested
 ///
@@ -538,6 +615,8 @@ mod test {
         #[serde(default)]
         auto_or_bool: ExplicitOrAuto<bool>,
     }
+
+    impl_not_auto_value!(String); // XXX as expected, the test generated for String fails
 
     #[test]
     fn bool_or_auto() {

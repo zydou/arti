@@ -62,7 +62,7 @@ use tor_proto::ClockSkew;
 use tor_units::BoundedInt32;
 use tracing::{debug, info, trace, warn};
 
-use tor_config::{NotAutoValue, ReconfigureError};
+use tor_config::{impl_not_auto_value, ReconfigureError};
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_config::{impl_standard_builder, ExplicitOrAuto};
 use tor_netdir::{params::NetParameters, NetDir, Relay};
@@ -1882,7 +1882,7 @@ impl VanguardMode {
     }
 }
 
-impl NotAutoValue for VanguardMode {}
+impl_not_auto_value!(VanguardMode);
 
 /// Vanguards configuration.
 #[derive(Debug, Default, Clone, Eq, PartialEq, derive_builder::Builder)]
