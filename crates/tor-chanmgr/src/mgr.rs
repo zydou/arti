@@ -21,7 +21,7 @@ mod state;
 /// Trait to describe as much of a
 /// [`Channel`](tor_proto::channel::Channel) as `AbstractChanMgr`
 /// needs to use.
-pub(crate) trait AbstractChannel: Clone + HasRelayIds {
+pub(crate) trait AbstractChannel: HasRelayIds {
     /// Return true if this channel is usable.
     ///
     /// A channel might be unusable because it is closed, because it has
@@ -133,7 +133,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
     /// Helper: return the objects used to inform pending tasks
     /// about a newly open or failed channel.
-    fn setup_launch<C: Clone>(&self, ids: RelayIds) -> (state::ChannelState<C>, Sending) {
+    fn setup_launch<C>(&self, ids: RelayIds) -> (state::ChannelState<C>, Sending) {
         let (snd, rcv) = oneshot::channel();
         let pending = rcv.shared();
         (

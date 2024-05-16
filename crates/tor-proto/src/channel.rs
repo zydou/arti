@@ -157,7 +157,7 @@ type CellFrame<T> =
 ///
 /// This struct is a frontend that can be used to send cells
 /// and otherwise control the channel.  The main state is
-/// in the Reactor object. `Channel` is cheap to clone.
+/// in the Reactor object.
 ///
 /// (Users need a mutable reference because of the types in `Sink`, and
 /// ultimately because `cell_tx: mpsc::Sender` doesn't work without mut.
@@ -180,7 +180,7 @@ type CellFrame<T> =
 /// Note that in cases 1-3, the [`Channel`] object itself will still exist: it
 /// will just be unusable for most purposes.  Most operations on it will fail
 /// with an error.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Channel {
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
