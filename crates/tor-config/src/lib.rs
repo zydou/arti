@@ -58,6 +58,7 @@ pub mod deps {
     pub use itertools::Itertools;
     pub use paste::paste;
     pub use serde;
+    pub use serde_value;
     pub use tor_basic_utils::macro_first_nonempty;
 }
 
