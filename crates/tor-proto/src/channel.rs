@@ -631,7 +631,7 @@ impl Channel {
         ChannelSender {
             cell_tx: self.cell_tx.clone(),
             unique_id: self.unique_id,
-            details: self.details.clone(),
+            details: Arc::clone(&self.details),
         }
     }
 
