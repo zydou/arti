@@ -1,0 +1,126 @@
+{
+  "l2_vanguards": [
+    {
+      "id_renamed": {
+        "ed25519": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "rsa": "0101010101010101010101010101010101010101"
+      },
+      "when": {
+        "secs_since_epoch": 1716734330,
+        "nanos_since_epoch": 14622075
+      }
+    },
+    {
+      "id": {
+        "ed25519": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk",
+        "rsa": "0909090909090909090909090909090909090909"
+      },
+      "when": {
+        "secs_since_epoch": 1717199233,
+        "nanos_since_epoch": 859660014
+      }
+    },
+    {
+      "id": {
+        "ed25519": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+        "rsa": "0808080808080808080808080808080808080808"
+      },
+      "when": {
+        "secs_since_epoch": 1717135540,
+        "nanos_since_epoch": 189196004
+      }
+    },
+    {
+      "id": {
+        "ed25519": "FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhY",
+        "rsa": "1616161616161616161616161616161616161616"
+      },
+      "when": {
+        "secs_since_epoch": 1717205573,
+        "nanos_since_epoch": 482966137
+      }
+    }
+  ],
+  "l3_vanguards": [
+    {
+      "id": {
+        "ed25519": "JycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJyc",
+        "rsa": "2727272727272727272727272727272727272727"
+      },
+      "when": {
+        "secs_since_epoch": 1716364099,
+        "nanos_since_epoch": 583484812
+      }
+    },
+    {
+      "id": {
+        "ed25519": "Dw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8",
+        "rsa": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+      },
+      "when": {
+        "secs_since_epoch": 1716335241,
+        "nanos_since_epoch": 738216227
+      }
+    },
+    {
+      "id": {
+        "ed25519": "Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8",
+        "rsa": "1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f"
+      },
+      "when": {
+        "secs_since_epoch": 1716318284,
+        "nanos_since_epoch": 414215126
+      }
+    },
+    {
+      "id": {
+        "ed25519": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+        "rsa": "0808080808080808080808080808080808080808"
+      },
+      "when": {
+        "secs_since_epoch": 1716383837,
+        "nanos_since_epoch": 668800291
+      }
+    },
+    {
+      "id": {
+        "ed25519": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+        "rsa": "0707070707070707070707070707070707070707"
+      },
+      "when": {
+        "secs_since_epoch": 1716313967,
+        "nanos_since_epoch": 888046454
+      }
+    },
+    {
+      "id": {
+        "ed25519": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk",
+        "rsa": "0909090909090909090909090909090909090909"
+      },
+      "when": {
+        "secs_since_epoch": 1716349715,
+        "nanos_since_epoch": 371306302
+      }
+    },
+    {
+      "id": {
+        "ed25519": "FRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRU",
+        "rsa": "1515151515151515151515151515151515151515"
+      },
+      "when": {
+        "secs_since_epoch": 1716341464,
+        "nanos_since_epoch": 342549275
+      }
+    },
+    {
+      "id": {
+        "ed25519": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw",
+        "rsa": "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c"
+      },
+      "when": {
+        "secs_since_epoch": 1716363678,
+        "nanos_since_epoch": 430370614
+      }
+    }
+  ]
+}

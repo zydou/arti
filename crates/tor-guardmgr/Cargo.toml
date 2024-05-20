@@ -87,7 +87,9 @@ tracing = "0.1.36"
 
 [dev-dependencies]
 float_eq = "1.0.0"
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.9" }
 serde_json = "1.0.50"
+tempfile = "3"
 toml = "0.8.8"
 tor-netdir = { path = "../tor-netdir", version = "0.18.0", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.18.0" }
