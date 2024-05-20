@@ -40,7 +40,9 @@ HOSTS=(
   articlient-onion
   articlient-onion-auth
   articlient-onion-artiserver
+  articlient-onion-artiserver-full-vanguards
   torclient-onion-artiserver
+  torclient-onion-artiserver-full-vanguards
 )
 
 for HOST in "${HOSTS[@]}"; do
