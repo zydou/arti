@@ -291,7 +291,7 @@ enum PaddingControlState {
 
 use PaddingControlState as PCS;
 
-/// A handle to a [`Channel`]` that can be used, by circuits, to send send channel cells.
+/// A handle to a [`Channel`]` that can be used, by circuits, to send channel cells.
 #[derive(Debug)]
 pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
