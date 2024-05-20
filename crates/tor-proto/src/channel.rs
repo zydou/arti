@@ -205,9 +205,6 @@ pub struct Channel {
 
 /// This is information shared between the reactor and the frontend (`Channel` object).
 ///
-/// This exists to make `Channel` cheap to clone, which is desirable because every circuit wants
-/// an owned mutable `Channel`.
-///
 /// `control` can't be here because we rely on it getting dropped when the last user goes away.
 #[derive(Debug)]
 pub(crate) struct ChannelDetails {
