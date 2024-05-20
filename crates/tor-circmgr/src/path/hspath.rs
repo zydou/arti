@@ -273,10 +273,11 @@ impl VanguardHsPathBuilder {
             hops.push(MaybeOwnedRelay::from(extra_hop));
         }
 
-        match (mode, self.0) {
-            (VanguardMode::Lite, _) => debug_assert_eq!(hops.len(), 3),
-            (VanguardMode::Full, HsCircStubKind::Short) => debug_assert_eq!(hops.len(), 3),
-            (VanguardMode::Full, HsCircStubKind::Extended) => debug_assert_eq!(hops.len(), 4),
+        let actual_len = hops.len();
+        let expected_len = match (mode, self.0) {
+            (VanguardMode::Lite, _) => 3,
+            (VanguardMode::Full, HsCircStubKind::Short) => 3,
+            (VanguardMode::Full, HsCircStubKind::Extended) => 4,
             (VanguardMode::Disabled, _) => {
                 return Err(internal!(
                     "Called VanguardHsPathBuilder::pick_path(), but vanguards are disabled?!"
@@ -286,6 +287,16 @@ impl VanguardHsPathBuilder {
             (_, _) => {
                 return Err(internal!("Unsupported vanguard mode {mode}").into());
             }
+        };
+
+        if actual_len != expected_len {
+            return Err(internal!(
+                "invalid path length for {} {mode}-vanguard circuit (expected {} hops, got {})",
+                self.0,
+                expected_len,
+                actual_len
+            )
+            .into());
         }
 
         Ok((TorPath::new_multihop_from_maybe_owned(hops), mon, usable))
