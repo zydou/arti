@@ -599,17 +599,33 @@ fn circuit_compatible_with_target(
 /// We require that the circuit is open, that it can become the specified
 /// kind of [`HsCircStub`], that every hop in the circuit is listed in `netdir`,
 /// and that the last two hops are different from the specified target.
-///
-// XXX that last part is not true (yet)
 fn vanguards_circuit_compatible_with_target<T>(
     netdir: &NetDir,
     circ: &HsCircStub,
     kind: HsCircStubKind,
-    _avoid_target: Option<&T>,
+    avoid_target: Option<&T>,
 ) -> bool
 where
     T: CircTarget,
 {
+    if let Some(target) = avoid_target {
+        let circ_path = circ.circ.path_ref();
+        // The last 2 hops of the circuit must be different from the circuit target, because:
+        //   * a relay won't let you extend the circuit to itself
+        //   * relays won't let you extend the circuit to their previous hop
+        let take_n = 2;
+        if circ_path
+            .hops()
+            .iter()
+            .rev()
+            .take(take_n)
+            .flat_map(|hop| hop.as_chan_target())
+            .any(|hop| hop.has_all_relay_ids_from(target))
+        {
+            return false;
+        }
+    }
+
     circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
 }
 
