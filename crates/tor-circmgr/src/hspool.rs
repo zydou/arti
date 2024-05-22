@@ -415,7 +415,7 @@ impl<R: Runtime> HsCircPool<R> {
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
                 if vanguards_enabled {
-                    circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
+                    vanguards_circuit_compatible_with_target(netdir, circ, kind, avoid_target)
                 } else {
                     circuit_compatible_with_target(netdir, circ, &target_exclusion)
                 }
@@ -592,6 +592,25 @@ fn circuit_compatible_with_target(
     circuit_still_useable(netdir, circ, |relay| {
         exclude_target.low_level_predicate_permits_relay(relay)
     })
+}
+
+/// Return true if we can extend a pre-built vanguards circuit `circ` to `target`.
+///
+/// We require that the circuit is open, that it can become the specified
+/// kind of [`HsCircStub`], that every hop in the circuit is listed in `netdir`,
+/// and that the last two hops are different from the specified target.
+///
+// XXX that last part is not true (yet)
+fn vanguards_circuit_compatible_with_target<T>(
+    netdir: &NetDir,
+    circ: &HsCircStub,
+    kind: HsCircStubKind,
+    _avoid_target: Option<&T>,
+) -> bool
+where
+    T: CircTarget,
+{
+    circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
 }
 
 /// Return true if we can still use a given pre-build circuit.
