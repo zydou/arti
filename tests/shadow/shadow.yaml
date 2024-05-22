@@ -1,5 +1,5 @@
 general:
-  stop_time: 50 min
+  stop_time: 30 min
 network:
   graph:
     type: gml
@@ -356,5 +356,5 @@ hosts:
       # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
       environment: { OPENBLAS_NUM_THREADS: "1" }
       args: ../../../conf/tgen.artionionclientfullvanguards.graphml.xml
-      start_time: 45m
+      start_time: 25m
 
