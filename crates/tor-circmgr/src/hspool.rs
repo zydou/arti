@@ -392,6 +392,13 @@ impl<R: Runtime> HsCircPool<R> {
         // family info.
         T: CircTarget,
     {
+        let vanguards_enabled = self.vanguards_enabled();
+        trace!(
+            vanguards_enabled=vanguards_enabled,
+            kind=%kind,
+            "selecting HS circuit stub"
+        );
+
         // First, look for a circuit that is already built, if any is suitable.
 
         let target_exclusion = {
@@ -407,7 +414,6 @@ impl<R: Runtime> HsCircPool<R> {
 
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
-            let vanguards_enabled = self.vanguards_enabled();
 
             let restrictions = |circ: &HsCircStub| {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
