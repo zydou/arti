@@ -909,6 +909,14 @@ impl<R: Runtime> TorClient<R> {
             .reconfigure(new_config, how)
             .map_err(wrap_err)?;
 
+        // TODO: I am not sure this is right.
+        //
+        // We now clear the HS circ pool if circmgr tells us to do so,
+        // whereas previously we'd only do it if the VanguardMode changed.
+        //
+        // TODO: should this even be feature-gated? ISTM we should always be
+        // clearing the pool if the config changed in a way that affects the way circuits are
+        // built.
         #[cfg(all(
             feature = "vanguards",
             any(feature = "onion-service-client", feature = "onion-service-service")
