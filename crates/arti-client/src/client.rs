@@ -904,7 +904,8 @@ impl<R: Runtime> TorClient<R> {
             how.cannot_change("storage.state_dir").map_err(wrap_err)?;
         }
 
-        let retire_circuits = self.circmgr
+        let retire_circuits = self
+            .circmgr
             .reconfigure(new_config, how)
             .map_err(wrap_err)?;
 
@@ -913,9 +914,7 @@ impl<R: Runtime> TorClient<R> {
             any(feature = "onion-service-client", feature = "onion-service-service")
         ))]
         if retire_circuits != RetireCircuits::None {
-            self.hs_circ_pool
-                .retire_all_circuits()
-                .map_err(wrap_err)?;
+            self.hs_circ_pool.retire_all_circuits().map_err(wrap_err)?;
         }
 
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
