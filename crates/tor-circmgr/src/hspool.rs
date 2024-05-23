@@ -774,3 +774,89 @@ async fn remove_unusable_circuits<R: Runtime>(
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::cognitive_complexity)]
+
+    use tor_config::ExplicitOrAuto;
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    use tor_guardmgr::VanguardConfigBuilder;
+    use tor_guardmgr::VanguardMode;
+    use tor_rtmock::MockRuntime;
+
+    use super::*;
+    use crate::{CircMgr, TestConfig};
+
+    /// Create a `CircMgr` with an underlying `VanguardMgr` that runs in the specified `mode`.
+    fn circmgr_with_vanguards<R: Runtime>(runtime: R, mode: VanguardMode) -> Arc<CircMgr<R>> {
+        let chanmgr = tor_chanmgr::ChanMgr::new(
+            runtime.clone(),
+            &Default::default(),
+            tor_chanmgr::Dormancy::Dormant,
+            &Default::default(),
+        );
+        let guardmgr = tor_guardmgr::GuardMgr::new(
+            runtime.clone(),
+            tor_persist::TestingStateMgr::new(),
+            &tor_guardmgr::TestConfig::default(),
+        )
+        .unwrap();
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let vanguard_config = VanguardConfigBuilder::default()
+            .mode(ExplicitOrAuto::Explicit(mode))
+            .build()
+            .unwrap();
+
+        let config = TestConfig {
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            vanguard_config,
+            ..Default::default()
+        };
+
+        CircMgr::new(
+            &config,
+            tor_persist::TestingStateMgr::new(),
+            &runtime,
+            Arc::new(chanmgr),
+            guardmgr,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn pool_with_vanguards_disabled() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let circmgr = circmgr_with_vanguards(runtime, VanguardMode::Disabled);
+            let circpool = HsCircPool::new(&circmgr);
+            // This fails.
+            assert!(!circpool.vanguards_enabled());
+        });
+    }
+
+    #[test]
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    fn pool_with_vanguards_enabled() {
+        MockRuntime::test_with_various(|runtime| async move {
+            for mode in [VanguardMode::Lite, VanguardMode::Full] {
+                let circmgr = circmgr_with_vanguards(runtime.clone(), mode);
+                let circpool = HsCircPool::new(&circmgr);
+                assert!(circpool.vanguards_enabled());
+            }
+        });
+    }
+}
