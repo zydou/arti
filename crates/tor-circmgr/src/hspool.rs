@@ -15,6 +15,7 @@ use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::debug_report;
 use tor_error::{bad_api_usage, internal};
+use tor_guardmgr::VanguardMode;
 use tor_linkspec::{CircTarget, HasRelayIds as _, OwnedCircTarget, RelayIdSet};
 use tor_netdir::{NetDir, NetDirProvider, Relay};
 use tor_proto::circuit::{self, CircParameters, ClientCirc};
@@ -408,7 +409,7 @@ impl<R: Runtime> HsCircPool<R> {
 
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
-            let vanguards_enabled = inner.pool.vanguards_enabled();
+            let vanguards_enabled = self.vanguards_enabled();
 
             let restrictions = |circ: &HsCircStub| {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
@@ -542,8 +543,13 @@ impl<R: Runtime> HsCircPool<R> {
     fn vanguards_enabled(&self) -> bool {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
-                let inner = self.inner.lock().expect("lock poisoned");
-                inner.pool.vanguards_enabled()
+                let mode = self
+                    .circmgr
+                    .mgr
+                    .peek_builder()
+                    .vanguardmgr()
+                    .mode();
+                mode != VanguardMode::Disabled
             } else {
                 false
             }
@@ -843,7 +849,6 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let circmgr = circmgr_with_vanguards(runtime, VanguardMode::Disabled);
             let circpool = HsCircPool::new(&circmgr);
-            // This fails.
             assert!(!circpool.vanguards_enabled());
         });
     }

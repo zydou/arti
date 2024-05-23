@@ -303,11 +303,6 @@ impl Pool {
 
         Ok(())
     }
-
-    /// Returns `true` if vanguards are enabled.
-    pub(super) fn vanguards_enabled(&self) -> bool {
-        self.mode != VanguardMode::Disabled
-    }
 }
 
 /// Preferences for what kind of circuit to select from the pool.
