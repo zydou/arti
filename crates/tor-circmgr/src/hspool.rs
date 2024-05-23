@@ -357,20 +357,20 @@ impl<R: Runtime> HsCircPool<R> {
         Ok(circ.circ)
     }
 
-    /// Try to change our configuration to `new_config`.
+    /// Retire the circuits in this pool.
     ///
-    /// Actual behavior will depend on the value of `how`.
-    pub fn reconfigure<CFG: HsCircPoolConfig>(
+    /// This is used for handling vanguard configuration changes:
+    /// if the [`VanguardMode`] changes, we need to empty the pool and rebuild it,
+    /// because the old circuits are no longer suitable for use.
+    pub fn retire_all_circuits(
         &self,
-        new_config: &CFG,
-        _how: tor_config::Reconfigure,
     ) -> StdResult<(), tor_config::ReconfigureError> {
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         self.inner
             .lock()
             .expect("poisoned lock")
             .pool
-            .reconfigure_vanguards(new_config.vanguard_config())?;
+            .retire_all_circuits()?;
 
         Ok(())
     }

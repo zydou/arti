@@ -20,7 +20,7 @@ use tor_config::MutCfg;
 use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{error_report, internal, Bug};
-use tor_guardmgr::GuardMgr;
+use tor_guardmgr::{GuardMgr, RetireCircuits};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 #[cfg(feature = "onion-service-service")]
 use tor_persist::state_dir::StateDirectory;
@@ -904,7 +904,7 @@ impl<R: Runtime> TorClient<R> {
             how.cannot_change("storage.state_dir").map_err(wrap_err)?;
         }
 
-        self.circmgr
+        let retire_circuits = self.circmgr
             .reconfigure(new_config, how)
             .map_err(wrap_err)?;
 
@@ -912,9 +912,11 @@ impl<R: Runtime> TorClient<R> {
             feature = "vanguards",
             any(feature = "onion-service-client", feature = "onion-service-service")
         ))]
-        self.hs_circ_pool
-            .reconfigure(new_config, how)
-            .map_err(wrap_err)?;
+        if retire_circuits != RetireCircuits::None {
+            self.hs_circ_pool
+                .retire_all_circuits()
+                .map_err(wrap_err)?;
+        }
 
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
 

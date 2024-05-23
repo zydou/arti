@@ -6,11 +6,6 @@ use crate::hspool::{HsCircStub, HsCircStubKind};
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
 
-#[cfg(all(feature = "vanguards", feature = "hs-common"))]
-use tor_guardmgr::VanguardConfig;
-
-use tor_guardmgr::VanguardMode;
-
 /// A collection of circuits used to fulfil onion-service-related requests.
 pub(super) struct Pool {
     /// The collection of circuits themselves, in no particular order.
@@ -32,11 +27,6 @@ pub(super) struct Pool {
 
     /// Last time when we changed our target size.
     last_changed_target: Option<Instant>,
-
-    /// The kind of vanguards that are in use.
-    ///
-    /// All the circuits from `circuits` use the type of vanguards specified here.
-    mode: VanguardMode,
 }
 
 /// Our default (and minimum) target SHORT pool size.
@@ -130,7 +120,6 @@ impl Default for Pool {
             have_been_exhausted: false,
             have_been_under_highwater: false,
             last_changed_target: None,
-            mode: VanguardMode::default(),
         }
     }
 }
@@ -281,25 +270,16 @@ impl Pool {
         self.have_been_under_highwater = false;
     }
 
-    /// Handle vanguard configuration changes.
-    ///
-    /// If new config has a different [`VanguardMode`] enabled,
-    /// this empties the circuit pool.
+    /// Purge all the circuits from the pool.
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     #[allow(clippy::unnecessary_wraps)] // for consistency and future-proofing
-    pub(super) fn reconfigure_vanguards(
+    pub(super) fn retire_all_circuits(
         &mut self,
-        config: &VanguardConfig,
     ) -> Result<(), tor_config::ReconfigureError> {
-        let mode = config.mode();
+        self.have_been_exhausted = true;
 
-        if self.mode != mode {
-            self.mode = mode;
-            self.have_been_exhausted = true;
-
-            // Purge all circuits from this pool
-            self.circuits.clear();
-        }
+        // Purge all circuits from this pool
+        self.circuits.clear();
 
         Ok(())
     }
