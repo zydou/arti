@@ -311,6 +311,20 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
     };
     let rs_cfg = config.relay_selection_config();
 
+    let target_exclusion = match builder.compatible_with() {
+        Some(ct) => {
+            // Exclude the target from appearing in other positions in the path.
+            let ids = RelayIdSet::from_iter(ct.identities().map(|id_ref| id_ref.to_owned()));
+            // TODO torspec#265: we do not apply same-family restrictions
+            // (a relay in the same family as the target can occur in the path).
+            //
+            // We need to decide if this is the correct behavior,
+            // and if so, document it in torspec.
+            RelayExclusion::exclude_identities(ids)
+        }
+        None => RelayExclusion::no_relays_excluded(),
+    };
+
     // TODO-SPEC: Because of limitations in guard selection, we have to
     // pick the guard before the exit, which is not what our spec says.
     let (guard, mon, usable) = select_guard(
@@ -335,13 +349,17 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
         ),
     };
 
-    let (exit, middle_usage) = builder.pick_exit(rng, netdir, guard_exclusion.clone(), &rs_cfg)?;
+    let mut exclusion = guard_exclusion.clone();
+    exclusion.extend(&target_exclusion);
+    let (exit, middle_usage) = builder.pick_exit(rng, netdir, exclusion, &rs_cfg)?;
 
     let mut family_exclusion =
         RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![exit.clone()]);
     family_exclusion.extend(&guard_exclusion);
+    let mut exclusion = family_exclusion;
+    exclusion.extend(&target_exclusion);
 
-    let selector = RelaySelector::new(middle_usage, family_exclusion);
+    let selector = RelaySelector::new(middle_usage, exclusion);
     let (middle, info) = selector.select_relay(rng, netdir);
     let middle = middle.ok_or_else(|| Error::NoRelay {
         path_kind: builder.path_kind(),
