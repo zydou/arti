@@ -1361,7 +1361,9 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
     use tor_cell::relaycell::extend::NtorV3Extension;
-    use tor_cell::relaycell::{msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, StreamId};
+    use tor_cell::relaycell::{
+        msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
+    };
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
@@ -2018,6 +2020,77 @@ mod test {
 
             let (_stream, (_rx, _sink)) = futures::join!(begin_and_send_fut, reply_fut);
         });
+    }
+
+    // Test: close a stream, either by dropping it or by calling AsyncWriteExt::close.
+    fn close_stream_helper(by_drop: bool) {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, mut rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut sink) = newcirc(&rt, chan).await;
+
+            let stream_fut = async move {
+                let stream = circ
+                    .begin_stream("www.example.com", 80, None)
+                    .await
+                    .unwrap();
+
+                let (r, mut w) = stream.split();
+                if by_drop {
+                    // Drop the writer and the reader, which should close the stream.
+                    drop(r);
+                    drop(w);
+                    (None, circ) // make sure to keep the circuit alive
+                } else {
+                    // Call close on the writer, while keeping the reader alive.
+                    w.close().await.unwrap();
+                    (Some(r), circ)
+                }
+            };
+            let handler_fut = async {
+                // Read the BEGIN message.
+                let (_, msg) = rx.next().await.unwrap().into_circid_and_msg();
+                let rmsg = match msg {
+                    AnyChanMsg::Relay(r) => {
+                        AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                            .unwrap()
+                    }
+                    _ => panic!(),
+                };
+                let (streamid, rmsg) = rmsg.into_streamid_and_msg();
+                assert_eq!(rmsg.cmd(), RelayCmd::BEGIN);
+
+                // Reply with a CONNECTED.
+                let connected =
+                    relaymsg::Connected::new_with_addr("10.0.0.1".parse().unwrap(), 1234).into();
+                sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+
+                // Expect an END.
+                let (_, msg) = rx.next().await.unwrap().into_circid_and_msg();
+                let rmsg = match msg {
+                    AnyChanMsg::Relay(r) => {
+                        AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
+                            .unwrap()
+                    }
+                    _ => panic!(),
+                };
+                let (_, rmsg) = rmsg.into_streamid_and_msg();
+                assert_eq!(rmsg.cmd(), RelayCmd::END);
+
+                (rx, sink) // keep these alive or the reactor will exit.
+            };
+
+            let ((_opt_reader, _circ), (_rx, _sink)) = futures::join!(stream_fut, handler_fut);
+        });
+    }
+
+    #[test]
+    fn drop_stream() {
+        close_stream_helper(true);
+    }
+
+    #[test]
+    fn close_stream() {
+        close_stream_helper(false);
     }
 
     // Set up a circuit and stream that expects some incoming SENDMEs.
