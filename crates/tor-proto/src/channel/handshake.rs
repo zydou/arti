@@ -573,7 +573,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Verif
     /// The channel is used to send cells, and to create outgoing circuits.
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
-    pub async fn finish(mut self) -> Result<(super::Channel, super::reactor::Reactor<S>)> {
+    pub async fn finish(mut self) -> Result<(Arc<super::Channel>, super::reactor::Reactor<S>)> {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.
         //

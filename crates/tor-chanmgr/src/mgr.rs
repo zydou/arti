@@ -21,7 +21,7 @@ mod state;
 /// Trait to describe as much of a
 /// [`Channel`](tor_proto::channel::Channel) as `AbstractChanMgr`
 /// needs to use.
-pub(crate) trait AbstractChannel: Clone + HasRelayIds {
+pub(crate) trait AbstractChannel: HasRelayIds {
     /// Return true if this channel is usable.
     ///
     /// A channel might be unusable because it is closed, because it has
@@ -71,7 +71,7 @@ pub(crate) trait AbstractChannelFactory {
         &self,
         target: &Self::BuildSpec,
         reporter: BootstrapReporter,
-    ) -> Result<Self::Channel>;
+    ) -> Result<Arc<Self::Channel>>;
 }
 
 /// A type- and network-agnostic implementation for [`ChanMgr`](crate::ChanMgr).
@@ -133,7 +133,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
     /// Helper: return the objects used to inform pending tasks
     /// about a newly open or failed channel.
-    fn setup_launch<C: Clone>(&self, ids: RelayIds) -> (state::ChannelState<C>, Sending) {
+    fn setup_launch<C>(&self, ids: RelayIds) -> (state::ChannelState<C>, Sending) {
         let (snd, rcv) = oneshot::channel();
         let pending = rcv.shared();
         (
@@ -155,7 +155,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         &self,
         target: CF::BuildSpec,
         usage: ChannelUsage,
-    ) -> Result<(CF::Channel, ChanProvenance)> {
+    ) -> Result<(Arc<CF::Channel>, ChanProvenance)> {
         use ChannelUsage as CU;
 
         let chan = self.get_or_launch_internal(target).await?;
@@ -172,7 +172,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     async fn get_or_launch_internal(
         &self,
         target: CF::BuildSpec,
-    ) -> Result<(CF::Channel, ChanProvenance)> {
+    ) -> Result<(Arc<CF::Channel>, ChanProvenance)> {
         /// How many times do we try?
         const N_ATTEMPTS: usize = 2;
         let mut attempts_so_far = 0;
@@ -371,8 +371,8 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     fn handle_build_outcome(
         &self,
         target: &CF::BuildSpec,
-        outcome: Result<CF::Channel>,
-    ) -> Result<Option<CF::Channel>> {
+        outcome: Result<Arc<CF::Channel>>,
+    ) -> Result<Option<Arc<CF::Channel>>> {
         use state::ChannelState::*;
         match outcome {
             Ok(chan) => {
@@ -491,7 +491,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     /// Test only: return the current open usable channel with a given
     /// `ident`, if any.
     #[cfg(test)]
-    pub(crate) fn get_nowait<'a, T>(&self, ident: T) -> Option<CF::Channel>
+    pub(crate) fn get_nowait<'a, T>(&self, ident: T) -> Option<Arc<CF::Channel>>
     where
         T: Into<tor_linkspec::RelayIdRef<'a>>,
     {
@@ -515,7 +515,7 @@ enum Action<C> {
     /// We're going to wait for it to finish.
     Wait(Pending),
     /// We found a usable channel.  We're going to return it.
-    Return(Result<C>),
+    Return(Result<Arc<C>>),
 }
 
 #[cfg(test)]
@@ -649,7 +649,7 @@ mod test {
             &self,
             target: &Self::BuildSpec,
             _reporter: BootstrapReporter,
-        ) -> Result<FakeChannel> {
+        ) -> Result<Arc<FakeChannel>> {
             yield_now().await;
             let FakeBuildSpec(ident, mood, id) = *target;
             let ed_ident = u32_to_ed(ident);
@@ -663,13 +663,13 @@ mod test {
                 }
                 _ => {}
             }
-            Ok(FakeChannel {
+            Ok(Arc::new(FakeChannel {
                 ed_ident,
                 mood,
                 closing: Arc::new(AtomicBool::new(false)),
                 detect_reuse: Default::default(),
                 // last_params: None,
-            })
+            }))
         }
     }
 

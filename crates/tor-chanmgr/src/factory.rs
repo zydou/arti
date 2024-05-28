@@ -56,7 +56,7 @@ pub trait ChannelFactory: Send + Sync {
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
-    ) -> crate::Result<Channel>;
+    ) -> crate::Result<Arc<Channel>>;
 }
 
 #[async_trait]
@@ -65,7 +65,7 @@ impl<'a> ChannelFactory for Arc<(dyn ChannelFactory + Send + Sync + 'a)> {
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
-    ) -> crate::Result<Channel> {
+    ) -> crate::Result<Arc<Channel>> {
         self.as_ref().connect_via_transport(target, reporter).await
     }
 }
@@ -76,7 +76,7 @@ impl<'a> ChannelFactory for Box<(dyn ChannelFactory + Send + Sync + 'a)> {
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
-    ) -> crate::Result<Channel> {
+    ) -> crate::Result<Arc<Channel>> {
         self.as_ref().connect_via_transport(target, reporter).await
     }
 }
@@ -93,7 +93,7 @@ where
         &self,
         target: &Self::BuildSpec,
         reporter: BootstrapReporter,
-    ) -> crate::Result<Self::Channel> {
+    ) -> crate::Result<Arc<Self::Channel>> {
         debug!("Attempting to open a new channel to {target}");
         self.connect_via_transport(target, reporter).await
     }
@@ -151,7 +151,7 @@ impl ChannelFactory for CompoundFactory {
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
-    ) -> crate::Result<Channel> {
+    ) -> crate::Result<Arc<Channel>> {
         use tor_linkspec::ChannelMethod::*;
         let factory = match target.chan_method() {
             Direct(_) => self.default_factory.clone(),
