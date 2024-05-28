@@ -50,6 +50,8 @@ import subprocess
 import sys
 import tempfile
 
+from typing import *
+
 #---------- "constant" definitions ----------
 
 # regexps
@@ -104,7 +106,7 @@ Section = collections.namedtuple('Section', ['start', 'end', 'defs_t2i', 'a_need
 
 troubles = 0
 
-def trouble(m):
+def trouble(m: str) -> None:
     '''
     Record a "trouble" - a nonfatal problem.
 
@@ -114,7 +116,9 @@ def trouble(m):
     print("trouble: "+m, file=sys.stderr)
     troubles += 1
 
-def check_returncode(process):
+CheckableSubprocess = Union[subprocess.CompletedProcess[Any], subprocess.Popen]
+
+def check_returncode(process: CheckableSubprocess) -> None:
     '''
     Check `process.returncode`; if it's not zero, print an error message and exit nonzero.
     '''
@@ -123,7 +127,7 @@ def check_returncode(process):
         print("subprocess failed with nonzero returncode %s" % r, file=sys.stderr)
         sys.exit(12)
 
-def is_link_def(l):
+def is_link_def(l: str) -> Optional[Tuple[str, str]]:
     '''
     Is the line `l` in the syntax of a link definition?
 
@@ -136,7 +140,7 @@ def is_link_def(l):
 
 #---------- search for instructions ----------
 
-def process_instructions():
+def process_instructions() -> None:
     '''
     Looks for instructions and updates the global `instructions`.
     '''
@@ -170,7 +174,7 @@ def split_input() -> list[Section]:
 
     # namedtuple has defaults= but it gives every fresh tuple an aliased copy of the
     # same value!  So we provide this constructor.
-    def new_section(start, end):
+    def new_section(start: int, end: int) -> None:
         sections.append(Section(start, end, {}, {}))
 
     for i, l in enumerate(md):
@@ -194,7 +198,7 @@ def scan_sections(sections: list[Section]) -> Defs:
     '''
     link_defs: Defs = {}
 
-    def record_link_def(a, t, source, md_i):
+    def record_link_def(a: Anchor, t: Target, source: Source, md_i: Optional[int]) -> None:
         '''
         Record that anchor `a` is defined to have target url `t`.
 
@@ -281,7 +285,7 @@ def resolve_definitions(link_defs: Defs) -> Resolved:
 
 #---------- collate outputs ----------
 
-def collate_insert_outputs(sections: list[Section], link_defs: Defs, link_def: Resolved):
+def collate_insert_outputs(sections: list[Section], link_defs: Defs, link_def: Resolved) -> None:
     '''
     Collate link definitions into each section
 
@@ -334,7 +338,7 @@ def collate_insert_outputs(sections: list[Section], link_defs: Defs, link_def: R
 
 #---------- write output ----------
 
-def write_output():
+def write_output() -> None:
     '''
     Writes the output file
 
