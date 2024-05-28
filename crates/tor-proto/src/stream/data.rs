@@ -97,6 +97,19 @@ use super::AnyCmdChecker;
 /// This type is internally composed of a [`DataReader`] and a [`DataWriter`]; the
 /// `DataStream::split` method can be used to split it into those two parts, for more
 /// convenient usage with e.g. stream combinators.
+///
+/// # How long does a stream live?
+///
+/// A `DataStream` will live until all references to it are dropped,
+/// or until it is closed explicitly.
+///
+/// If you split the stream into a `DataReader` and a `DataWriter`, it
+/// will survive until _both_ are dropped, or until it is closed
+/// explicitly.
+///
+/// A stream can also close because of a network error,
+/// or because the other side of the stream decided to close it.
+///
 // # Semver note
 //
 // Note that this type is re-exported as a part of the public API of
@@ -164,6 +177,23 @@ pub struct DataStreamCtrl {
 /// If the `tokio` crate feature is enabled, this type also implements
 /// [`tokio::io::AsyncWrite`](tokio_crate::io::AsyncWrite) for easier integration
 /// with code that expects that trait.
+///
+/// # Drop and close
+///
+/// Note that dropping a `DataWriter` has no special effect on its own:
+/// if the `DataWriter` is dropped, the underlying stream will still remain open
+/// until the `DataReader` is also dropped.
+///
+/// If you want the stream to close earlier, use [`close`](futures::io::AsyncWriteExt::close)
+/// (or [`shutdown`](tokio_crate::io::AsyncWriteExt::shutdown) with `tokio`).
+///
+/// Remember that Tor does not support half-open streams:
+/// If you `close` or `shutdown` a stream,
+/// the other side will not see the stream as half-open,
+/// and so will (probably) not finish sending you any in-progress data.
+/// Do not use `close`/`shutdown` to communicate anything besides
+/// "I am done using this stream."
+///
 // # Semver note
 //
 // Note that this type is re-exported as a part of the public API of

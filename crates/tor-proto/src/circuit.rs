@@ -275,7 +275,16 @@ impl CircParameters {
     }
 }
 
-/// A stream on a particular circuit.
+/// Internal handle, used to implement a stream on a particular circuit.
+///
+/// The reader and the writer for a stream should hold a `StreamTarget` for the stream;
+/// the reader should additionally hold an `mpsc::Receiver` to get
+/// relay messages for the stream.
+///
+/// When all the `StreamTarget`s for a stream are dropped, the Reactor will
+/// close the stream by sending an END message to the other side.
+/// You can close a stream earlier by using [`StreamTarget::close`]
+/// or [`StreamTarget::close_pending`].
 #[derive(Clone, Debug)]
 pub(crate) struct StreamTarget {
     /// Which hop of the circuit this stream is with.
