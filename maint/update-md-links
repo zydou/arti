@@ -136,7 +136,9 @@ def is_link_def(l: str) -> Optional[Tuple[str, str]]:
     '''
     g = link_def_re.fullmatch(l)
     if g is None: return None
-    return g.groups()
+    # mypy can't see that our regexp has precisely these captures
+    r: Tuple[str, str] = g.groups() # type: ignore
+    return r
 
 #---------- search for instructions ----------
 
@@ -153,10 +155,11 @@ def process_instructions() -> None:
 
         g = instruction_val_re.fullmatch(g.group(1))
         if g:
-            k, v = g.groups()
+            kv: Tuple[str, str] = g.groups() # type: ignore
+            k, v = kv
             if k not in instructions:
                 trouble('%s: unknown value instruction %s' % (source, k))
-            instructions[k] = v
+            instructions[k] = int(v)
             continue
 
         trouble('%s: unknown instruction' % source)
