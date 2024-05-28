@@ -1267,6 +1267,20 @@ impl StreamTarget {
         Ok(rx)
     }
 
+    /// Queue a "close" for the stream corresponding to this StreamTarget.
+    ///
+    /// Unlike `close_pending`, this method does not allow the caller to provide an `END` message.
+    ///
+    /// Once this method has been called, no more messages may be sent with [`StreamTarget::send`],
+    /// on this `StreamTarget`` or any clone of it.
+    /// The reactor *will* try to flush any already-send messages before it closes the stream.
+    ///
+    /// You don't need to call this method if the stream is closing because all of its StreamTargets
+    /// have been dropped.
+    pub(crate) fn close(&mut self) {
+        self.tx.close_channel();
+    }
+
     /// Called when a circuit-level protocol error has occurred and the
     /// circuit needs to shut down.
     pub(crate) fn protocol_error(&mut self) {

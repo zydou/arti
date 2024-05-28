@@ -2,6 +2,7 @@
 //! for byte-oriented communication.
 
 use crate::{Error, Result};
+use futures::future::BoxFuture;
 use tor_cell::relaycell::msg::EndReason;
 use tor_cell::relaycell::RelayCmd;
 
@@ -541,16 +542,23 @@ impl DataWriter {
         let state = self.state.take().expect("Missing state in DataWriter");
 
         // TODO: this whole function is a bit copy-pasted.
-
-        let mut future = match state {
+        let mut future: BoxFuture<_> = match state {
             DataWriterState::Ready(imp) => {
                 if imp.n_pending == 0 {
                     // Nothing to flush!
-                    self.state = Some(DataWriterState::Ready(imp));
-                    return Poll::Ready(Ok(()));
+                    if should_close {
+                        // We need to actually continue with this function to do the closing.
+                        // Thus, make a future that does nothing and is ready immediately.
+                        Box::pin(futures::future::ready((imp, Ok(()))))
+                    } else {
+                        // There's nothing more to do; we can return.
+                        self.state = Some(DataWriterState::Ready(imp));
+                        return Poll::Ready(Ok(()));
+                    }
+                } else {
+                    // We need to flush the buffer's contents; Make a future for that.
+                    Box::pin(imp.flush_buf())
                 }
-
-                Box::pin(imp.flush_buf())
             }
             DataWriterState::Flushing(fut) => fut,
             DataWriterState::Closed => {
@@ -564,8 +572,14 @@ impl DataWriter {
                 self.state = Some(DataWriterState::Closed);
                 Poll::Ready(Err(e.into()))
             }
-            Poll::Ready((imp, Ok(()))) => {
+            Poll::Ready((mut imp, Ok(()))) => {
                 if should_close {
+                    // Tell the StreamTarget to close, so that the reactor
+                    // realizes that we are done sending.  (The Reader has its own
+                    // StreamTarget, so just dropping ours would not be sufficient for
+                    // the reactor to notice that the stream is closed.)
+                    imp.s.close();
+
                     #[cfg(feature = "stream-ctrl")]
                     {
                         // TODO RPC:  This is not sufficient to track every case
