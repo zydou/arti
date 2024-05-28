@@ -605,9 +605,10 @@ impl DataWriter {
             Poll::Ready((mut imp, Ok(()))) => {
                 if should_close {
                     // Tell the StreamTarget to close, so that the reactor
-                    // realizes that we are done sending.  (The Reader has its own
-                    // StreamTarget, so just dropping ours would not be sufficient for
-                    // the reactor to notice that the stream is closed.)
+                    // realizes that we are done sending. (Dropping `imp.s` does not
+                    // suffice, since there may be other clones of it.  In particular,
+                    // the StreamReader has one, which it uses to keep the stream
+                    // open, among other things.)
                     imp.s.close();
 
                     #[cfg(feature = "stream-ctrl")]
