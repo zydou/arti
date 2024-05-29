@@ -323,7 +323,7 @@ impl ChannelSender {
     pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Result<bool> {
         Ok(match Sink::poll_ready(Pin::new(self), cx) {
             Poll::Ready(Ok(())) => true,
-            Poll::Ready(Err(_)) => return Err(Error::CircuitClosed),
+            Poll::Ready(Err(e)) => return Err(e),
             Poll::Pending => false,
         })
     }
