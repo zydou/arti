@@ -9,6 +9,7 @@ use futures::Sink;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+/// Extension trait for `Sink`
 pub(crate) trait SinkExt<T>: Sink<T> {
     /// Calls `futures::Sink::poll_ready` but requires `Unpin` and returns `bool`
     ///
