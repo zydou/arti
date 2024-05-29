@@ -50,7 +50,7 @@ import subprocess
 import sys
 import tempfile
 
-from typing import *
+from typing import Any, Optional, Tuple, Union
 
 #---------- "constant" definitions ----------
 
