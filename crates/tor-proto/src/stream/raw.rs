@@ -13,6 +13,12 @@ use futures::stream::StreamExt;
 #[derive(Debug)]
 pub struct StreamReader {
     /// The underlying `StreamTarget` for this stream.
+    ///
+    /// A reader has this target in order to:
+    ///   * Make the reactor send SENDME messages.
+    ///   * Tell the reactor when there is a protocol error.
+    ///   * Keep the stream alive at least until the StreamReader
+    ///     is dropped.
     pub(crate) target: StreamTarget,
     /// Channel to receive stream messages from the reactor.
     pub(crate) receiver: mpsc::Receiver<UnparsedRelayMsg>,

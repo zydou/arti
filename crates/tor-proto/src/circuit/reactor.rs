@@ -990,10 +990,14 @@ impl Reactor {
                                         .push((hop_num, AnyRelayMsgOuter::new(Some(id), m)));
                                 }
                                 Poll::Ready(None) => {
-                                    // Stream receiver was dropped; close the stream.
+                                    // Stream channel was closed, so we'll close the stream.
+                                    //
+                                    // This can happen either when the last StreamTarget for the
+                                    // stream is dropped, or when StreamTarget::close() is called
+                                    // on one of the stream targets.
                                     //
                                     // We know there are no queued messages for the stream
-                                    // since we already flushed above.
+                                    // since we already flushed those above.
                                     //
                                     // We can't close it here due to
                                     // borrowck; that will happen later.
