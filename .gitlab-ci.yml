@@ -38,7 +38,7 @@ python3-mypy:
   image: debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y mypy
-    - mypy maint/update-md-links
+    - mypy --strict maint/update-md-links
 
 maint-checks:
   stage: check
