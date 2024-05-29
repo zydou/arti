@@ -915,7 +915,7 @@ impl Reactor {
                 loop {
                     // `futures::Sink::start_send` dictates we need to call `poll_ready` before
                     // each `start_send` call.
-                    if !self.chan_sender.poll_ready(cx)? {
+                    if !self.chan_sender.poll_ready_unpin_bool(cx)? {
                         break 'outer;
                     }
                     let Some(msg) = self.outbound.pop_front() else {
@@ -931,7 +931,7 @@ impl Reactor {
                     // If we can, drain our queue of things we tried to send earlier, but
                     // couldn't due to congestion control.
                     'hop_outbound: loop {
-                        if !self.chan_sender.poll_ready(cx)? {
+                        if !self.chan_sender.poll_ready_unpin_bool(cx)? {
                             break 'outer;
                         }
                         if self.hops[i].sendwindow.window() == 0 {
@@ -1469,7 +1469,7 @@ impl Reactor {
         //            cells to be sent out of order, since it could transition from not ready to
         //            ready during one cycle of the reactor!
         //            (This manifests as a protocol violation.)
-        if self.outbound.is_empty() && self.chan_sender.poll_ready(cx)? {
+        if self.outbound.is_empty() && self.chan_sender.poll_ready_unpin_bool(cx)? {
             Pin::new(&mut self.chan_sender).start_send(cell)?;
         } else {
             // This has been observed to happen in code that doesn't have bugs in it, simply due

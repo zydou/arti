@@ -319,8 +319,12 @@ impl ChannelSender {
         }
     }
 
-    /// Like `futures::Sink::poll_ready`.
-    pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Result<bool> {
+    /// Calls `futures::Sink::poll_ready` but requires `Unpin` and returns `bool`
+    ///
+    /// Various gnarly places in the circuit reactor find this convenient.
+    ///
+    /// TODO #1397 (circuit reactor) probably remove this when the circuit reactor is rewritten.
+    pub(crate) fn poll_ready_unpin_bool(&mut self, cx: &mut Context<'_>) -> Result<bool> {
         Ok(match Sink::poll_ready(Pin::new(self), cx) {
             Poll::Ready(Ok(())) => true,
             Poll::Ready(Err(e)) => return Err(e),
