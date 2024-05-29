@@ -21,6 +21,7 @@ pub(super) mod syncview;
 use super::handshake::RelayCryptLayerProtocol;
 use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
+use crate::channel::SinkExt as _;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::circuit::unique_id::UniqId;

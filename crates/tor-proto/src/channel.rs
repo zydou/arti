@@ -318,13 +318,18 @@ impl ChannelSender {
             _ => Ok(()),
         }
     }
+}
 
+pub(crate) trait SinkExt<T>: Sink<T> {
     /// Calls `futures::Sink::poll_ready` but requires `Unpin` and returns `bool`
     ///
     /// Various gnarly places in the circuit reactor find this convenient.
     ///
     /// TODO #1397 (circuit reactor) probably remove this when the circuit reactor is rewritten.
-    pub(crate) fn poll_ready_unpin_bool(&mut self, cx: &mut Context<'_>) -> Result<bool> {
+    fn poll_ready_unpin_bool(&mut self, cx: &mut Context<'_>) -> StdResult<bool, Self::Error>
+    where
+        Self: Unpin,
+    {
         Ok(match Sink::poll_ready(Pin::new(self), cx) {
             Poll::Ready(Ok(())) => true,
             Poll::Ready(Err(e)) => return Err(e),
@@ -332,6 +337,7 @@ impl ChannelSender {
         })
     }
 }
+impl<T, S: Sink<T>> SinkExt<T> for S {}
 
 impl Sink<AnyChanCell> for ChannelSender {
     type Error = Error;
