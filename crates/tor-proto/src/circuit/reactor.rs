@@ -37,6 +37,7 @@ use crate::crypto::handshake::fast::CreateFastClient;
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
 use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
+use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{Error, Result};
 use std::borrow::Borrow;
@@ -699,19 +700,13 @@ impl HandshakeAuxDataHandler for CreateFastClient {
 pub struct Reactor {
     /// Receiver for control messages for this reactor, sent by `ClientCirc` objects.
     control: mpsc::UnboundedReceiver<CtrlMsg>,
-    /// Buffer for cells we can't send out the channel yet due to it being full.
-    ///
-    /// We try and dequeue off this first before doing anything else, ensuring that
-    /// it cannot grow unboundedly (and if we start having to enqueue things on here after
-    /// the channel shows backpressure, we stop pulling from receivers that could send here).
-    ///
-    /// NOTE: Control messages could potentially add unboundedly to this, although that's
-    ///       not likely to happen (and isn't triggereable from the network, either).
-    outbound: VecDeque<AnyChanCell>,
     /// The channel this circuit is attached to.
     channel: Arc<Channel>,
     /// Sender object used to actually send cells.
-    chan_sender: ChannelSender,
+    ///
+    /// NOTE: Control messages could potentially add unboundedly to this, although that's
+    ///       not likely to happen (and isn't triggereable from the network, either).
+    chan_sender: SometimesUnboundedSink<AnyChanCell, ChannelSender>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
     /// finally dropped.
     ///
@@ -811,12 +806,11 @@ impl Reactor {
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
-        let chan_sender = channel.sender();
+        let chan_sender = SometimesUnboundedSink::new(channel.sender());
 
         let reactor = Reactor {
             control: control_rx,
             reactor_closed_tx,
-            outbound: Default::default(),
             channel,
             chan_sender,
             input,
@@ -913,17 +907,12 @@ impl Reactor {
             #[allow(clippy::never_loop)]
             'outer: loop {
                 // First, drain our queue of things we tried to send earlier, but couldn't.
-                loop {
-                    // `futures::Sink::start_send` dictates we need to call `poll_ready` before
-                    // each `start_send` call.
-                    if !self.chan_sender.poll_ready_unpin_bool(cx)? {
-                        break 'outer;
-                    }
-                    let Some(msg) = self.outbound.pop_front() else {
-                        break;
-                    };
-                    trace!("{}: sending from enqueued: {:?}", self.unique_id, msg);
-                    Pin::new(&mut self.chan_sender).start_send(msg)?;
+                //
+                // (It's not clear to me that this is needed.  We call this as the first thing
+                // for each hop, below.  So this would only be relevant if there were no hops.
+                // TODO #1387 the manual handling of Pending as `break 'outer` is weird.)
+                if !self.chan_sender.poll_ready_unpin_bool(cx)? {
+                    break 'outer;
                 }
 
                 // Let's look at our hops, and streams for each hop.
@@ -1465,33 +1454,7 @@ impl Reactor {
     /// that would send here while you know you're unable to forward the messages on).
     fn send_msg_direct(&mut self, cx: &mut Context<'_>, msg: AnyChanMsg) -> Result<()> {
         let cell = AnyChanCell::new(Some(self.channel_id), msg);
-        // NOTE(eta): We need to check whether the outbound queue is empty before trying to send:
-        //            if we just checked whether the channel was ready, it'd be possible for
-        //            cells to be sent out of order, since it could transition from not ready to
-        //            ready during one cycle of the reactor!
-        //            (This manifests as a protocol violation.)
-        if self.outbound.is_empty() && self.chan_sender.poll_ready_unpin_bool(cx)? {
-            Pin::new(&mut self.chan_sender).start_send(cell)?;
-        } else {
-            // This has been observed to happen in code that doesn't have bugs in it, simply due
-            // to the way `Channel`'s `poll_ready` implementation works (it can change due to
-            // the actions of another thread in between callers of this function checking it,
-            // and this function checking it).
-            //
-            // However, if it's happening a lot more than it used to, that probably indicates
-            // some caller that's not checking whether the channel is full before calling
-            // this function.
-
-            debug!(
-                "{}: having to enqueue cell due to backpressure: {:?}",
-                self.unique_id, cell
-            );
-            self.outbound.push_back(cell);
-
-            // Ensure we absolutely get scheduled again to clear `self.outbound`.
-            cx.waker().wake_by_ref();
-        }
-        Ok(())
+        Pin::new(&mut self.chan_sender).pollish_send_unbounded(cx, cell)
     }
 
     /// Wrapper around `send_msg_direct` that uses `futures::future::poll_fn` to get a `Context`.
