@@ -322,7 +322,7 @@ impl ChannelSender {
     /// Like `futures::Sink::poll_ready`.
     pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Result<bool> {
         Ok(match Sink::poll_ready(Pin::new(self), cx) {
-            Poll::Ready(Ok(_)) => true,
+            Poll::Ready(Ok(())) => true,
             Poll::Ready(Err(_)) => return Err(Error::CircuitClosed),
             Poll::Pending => false,
         })
