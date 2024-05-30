@@ -34,44 +34,48 @@ that can function on a testing network.
   including what the major pieces are,
   which modules own [which objects](#proto-objects),
   and how it all generally looks.
-  This doesn't need to be final.
+  This doesn't need to be final. ([#1431])
 
 - We need to support the relay variants of
   the channel establishment handshake.
   See <https://spec.torproject.org/tor-spec/negotiating-channels.html>.
+  ([#1433])
 
   - This will require us to extend our `TlsProvider` API
     in `tor-rtcompat`
-    so that it allows key material exporters.
+    so that it allows key material exporters. ([#1432])
 
     - DESIGN: How does the API for this work?
       Do we continue to allow the nativetls crate,
       which does not expose key material exporters?
 
 - Extend ChanMgr to handle relay-style channels.
-  - Ability to launch connections
-  - Ability to manage incoming connections, including those with no
-    identities
-      - (Unauthenticated connections are technically not needed for
+  - Ability to launch channels ([#1440])
+  - Ability to manage incoming channels ([#1439]), including those with no
+    identities ([#1435])
+      - (Unauthenticated channels are technically not needed for
         middle relays, but they will matter a lot for the design of
         the system in the end.)
   - Soon after:
-    - Ability to discard long-unused connections according to relay rules
-    - Ability to de-duplicate connections according to relay rules
-    - Ability to select _best_ connection among several with same ID?
+    - Ability to discard long-unused channels according to relay rule
+      ([#1436])
+    - Limit channels per IP. ([#1437])
+    - Ability to de-duplicate channel according to relay rules ([#1438])
+    - Ability to select _best_ channel among several with same ID? ([#1438])
 
-- Code to listen for incoming OR connections.
+- Code to listen for incoming OR connections. ([#1442])
   - DESIGN: [Where does this live](#high-level)?
 
-- Support for incoming CREATE2 cells on channels.
-  - DESIGN: Is this the same Channel type or a new type?
+- Support for incoming CREATE2 cells on channels. ([#1444])
+  - ~~DESIGN: Is this the same Channel type or a new type?~~
+    We decided: same channel type.
   - DESIGN: We need a way for the code that handles these cells
     to get the latest set ntor keys as needed.  Probably giving it
     a keymgr is overkill; some kind of `Arc<ExtendKeyHandle>` or
     `Arc<dyn ExtendKeyProvider>` or `Arc<RwLock<ExtendKeys>>`
-    may be in order.
+    may be in order. ([#1443])
 
-- A new `RelayCirc` type, crated by CREATE2 cells.
+- A new `RelayCirc` type, crated by CREATE2 cells. ([#1445])
   - DESIGN: [How much code](#proto-objects) can this share internally
     with ClientCirc?
     The reactor logic is very similar,
@@ -81,24 +85,27 @@ that can function on a testing network.
       during the relay time, but we can do so more slowly.
   - Need to handle more types of command cells than currently
     handled.
+  - There may need to be a corresponding manager type. ([#1446])
 
-- Support for EXTEND2/EXTENDED2 cells on RelayCircuits
+- Support for EXTEND2/EXTENDED2 cells on RelayCircuits ([#1447])
   - This will require initial design in the circuit reactor
 
-- Exit logic for circuits.
+- Exit logic for circuits. ([#1448])
   - Including exit policy support.
   - DESIGN: best practices for DNS and DNS caching.
 
-- Support for generating and publishing relay descriptors.
+- Support for generating ([#1450]) and publishing ([#1451]) relay
+  descriptors. ([#1452])
   - DESIGN: Can/should this share any logic
-    with publishing HS descriptors?
+    with publishing HS descriptors? 
   - Protocol changes may be needed to remove TAP keys from descriptors
-    and microdescriptors
+    and microdescriptors ([torspec#264])
      - Possible short-term workaround: Genearate RSA TAP key and then
        throw away the private half
-- Key management for relays.
 
-- Dirmgr support for making requests to authorities via HTTP.
+- Key management for relays. [#1449]
+
+- Dirmgr support for making requests to authorities via HTTP. ([#1451])
 
 
 
@@ -111,13 +118,14 @@ Performance will be poor.
 
 Next will come:
 
-- Directory cache support
+- Directory cache support ([#1453])
   - Handle BEGINDIR requests
   - Cache documents other than the latest versions
   - Generate and cache consensus diffs
   - Respond to HTTP-over-BEGINDIR requests for resources
 
 - Support for [Happy Families](https://spec.torproject.org/proposals/321).
+  (no ticket yet; not in minimal middle support.)
 
 
 ### What can we work on when we're blocked on the above?
@@ -202,4 +210,27 @@ Relay streams can continue to use `DataStream`,
 in the same way that onion service streams do today.
 We'll need an `exitproxy` implementation
 sort of like our current `hsproxy` code.
+
+[#1431]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1431
+[#1432]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1432
+[#1433]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1433
+[#1435]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1435
+[#1436]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1436
+[#1437]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1437
+[#1438]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1438
+[#1439]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1439
+[#1440]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1440
+[#1442]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1442
+[#1443]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1443
+[#1444]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1444
+[#1445]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1445
+[#1446]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1446
+[#1447]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1447
+[#1448]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1448
+[#1449]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1449
+[#1450]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1450
+[#1451]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1451
+[#1452]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1452
+[#1453]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1453
+[torspec#264]: https://gitlab.torproject.org/tpo/core/torspec/-/issues/264
 
