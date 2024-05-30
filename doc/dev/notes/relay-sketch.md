@@ -48,6 +48,8 @@ that can function on a testing network.
     - DESIGN: How does the API for this work?
       Do we continue to allow the nativetls crate,
       which does not expose key material exporters?
+      
+- Relay channels need to maintain circids correctly ([#1454])
 
 - Extend ChanMgr to handle relay-style channels.
   - Ability to launch channels ([#1440])
@@ -232,5 +234,6 @@ sort of like our current `hsproxy` code.
 [#1451]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1451
 [#1452]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1452
 [#1453]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1453
+[#1453]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1454
 [torspec#264]: https://gitlab.torproject.org/tpo/core/torspec/-/issues/264
 
