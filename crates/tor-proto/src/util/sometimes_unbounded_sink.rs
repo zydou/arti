@@ -58,6 +58,26 @@ pub(crate) struct SometimesUnboundedSink<T, S> {
     buf: VecDeque<T>,
 
     /// The actual sink
+    ///
+    /// This also has the relevant `Waker`.
+    ///
+    /// # Waker invariant
+    ///
+    /// Whenever either
+    ///
+    ///  * The last call to any of our public methods returned `Pending`, or
+    ///  * `buf` is nonempty,
+    ///
+    /// the last method call `inner` *also* returned `Pending`.
+    /// (Or, we have reported an error.)
+    ///
+    /// So, in those situations, this task has been recorded for wakeup
+    /// by `inner` (specifically, its other end, if it's a channel)
+    /// when `inner` becomes readable.
+    ///
+    /// Therefore this task will be woken up, and, if the caller actually
+    /// polls us again (as is usual and is required by our docs),
+    /// we'll drain any queued data.
     #[pin]
     inner: S,
 }
@@ -88,9 +108,13 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
         item: T,
     ) -> Result<(), S::Error> {
         match self.as_mut().poll_ready(cx) {
+            // Waker invariant: poll_ready only returns Ready(Ok(())) if `buf` is empty
             Ready(Ok(())) => self.as_mut().start_send(item),
+            // Waker invariant: if we report an error, we're then allowed to expect polling again
             Ready(Err(e)) => Err(e),
             Pending => {
+                // Waker invariant: poll_ready() returned Pending,
+                // so the task has indeed already been recorded.
                 self.as_mut().project().buf.push_back(item);
                 Ok(())
             }
@@ -103,6 +127,7 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
     /// (Its future is always `Ready`.)
     #[allow(dead_code)] // TODO #1387 consider removing this then if it remains unused
     async fn send_unbounded(mut self: Pin<&mut Self>, item: T) -> Result<(), S::Error> {
+        // Waker invariant: this is just a wrapper around `pollish_send_unbounded`
         let mut item = Some(item);
         future::poll_fn(move |cx| {
             let item = item.take().expect("polled after Ready");
@@ -112,20 +137,31 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
     }
 
     /// Flush the buffer.  On a `Ready(())` return, it's empty.
+    ///
+    /// This satisfies the Waker invariant as if it were a public method.
     fn flush_buf(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), S::Error>> {
         let mut self_ = self.as_mut().project();
         while !self_.buf.is_empty() {
+            // Waker invariant:
+            // if inner gave Pending, we give Pending too: ok
+            // if inner gave Err, we're allowed to want polling again
             ready!(self_.inner.as_mut().poll_ready(cx))?;
             let item = self_.buf.pop_front().expect("suddenly empty!");
+            // Waker invariant: returning Err
             self_.inner.as_mut().start_send(item)?;
         }
+        // Waker invariant: buffer is empty, and we're not about to return Pending
         Ready(Ok(()))
     }
 }
 
+// Waker invariant for all these impls:
+// returning Err or Pending from flush_buf: OK, flush_buf ensures the condition holds
+// returning from the inner method: trivially OK
 impl<T, S: Sink<T>> Sink<T> for SometimesUnboundedSink<T, S> {
     type Error = S::Error;
 
+    // Only returns `Ready(Ok(()))` if `buf` is empty
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), S::Error>> {
         ready!(self.as_mut().flush_buf(cx))?;
         self.project().inner.poll_ready(cx)
