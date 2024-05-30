@@ -39,6 +39,10 @@ use pin_project::pin_project;
 ///
 /// However, if the sink reports errors from `poll_ready`
 /// these will surface in a timely fashion.
+///
+/// After an error has been reported, there may still be buffered data,
+/// which will only be delivered if `SometimesUnboundedSink` is polled again
+/// (and the error in the underlying sink was transient).
 #[pin_project]
 pub(crate) struct SometimesUnboundedSink<T, S> {
     /// Things we couldn't send_unbounded right away
