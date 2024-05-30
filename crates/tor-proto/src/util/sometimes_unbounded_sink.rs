@@ -1,7 +1,5 @@
 //! [`SometimesUnboundedSink`]
 
-#![allow(dead_code)] // XXXX
-
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{ready, Context, Poll, Poll::*};
@@ -99,6 +97,7 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
     ///
     /// You must `.await` this, but it will never block.
     /// (Its future is always `Ready`.)
+    #[allow(dead_code)] // TODO #1387 consider removing this then if it remains unused
     async fn send_unbounded(mut self: Pin<&mut Self>, item: T) -> Result<(), S::Error> {
         let mut item = Some(item);
         future::poll_fn(move |cx| {
