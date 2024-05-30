@@ -8,6 +8,10 @@ in order to get arti relay work started.
 Then, I'll try to sketch out some initial answers
 to some of the design issues that arise during the startup plan.
 
+(May 2024)
+
+Updated from notes at Lisbon Tor meeting.
+
 
 ## Planning the work
 
@@ -48,6 +52,9 @@ that can function on a testing network.
   - Ability to launch connections
   - Ability to manage incoming connections, including those with no
     identities
+      - (Unauthenticated connections are technically not needed for
+        middle relays, but they will matter a lot for the design of
+        the system in the end.)
   - Soon after:
     - Ability to discard long-unused connections according to relay rules
     - Ability to de-duplicate connections according to relay rules
@@ -58,6 +65,11 @@ that can function on a testing network.
 
 - Support for incoming CREATE2 cells on channels.
   - DESIGN: Is this the same Channel type or a new type?
+  - DESIGN: We need a way for the code that handles these cells
+    to get the latest set ntor keys as needed.  Probably giving it
+    a keymgr is overkill; some kind of `Arc<ExtendKeyHandle>` or
+    `Arc<dyn ExtendKeyProvider>` or `Arc<RwLock<ExtendKeys>>`
+    may be in order.
 
 - A new `RelayCirc` type, crated by CREATE2 cells.
   - DESIGN: [How much code](#proto-objects) can this share internally
@@ -70,7 +82,8 @@ that can function on a testing network.
   - Need to handle more types of command cells than currently
     handled.
 
-- Support for EXTENDED2 cells on RelayCircuits
+- Support for EXTEND2/EXTENDED2 cells on RelayCircuits
+  - This will require initial design in the circuit reactor
 
 - Exit logic for circuits.
   - Including exit policy support.
@@ -79,14 +92,32 @@ that can function on a testing network.
 - Support for generating and publishing relay descriptors.
   - DESIGN: Can/should this share any logic
     with publishing HS descriptors?
-
+  - Protocol changes may be needed to remove TAP keys from descriptors
+    and microdescriptors
+     - Possible short-term workaround: Genearate RSA TAP key and then
+       throw away the private half
 - Key management for relays.
+
+- Dirmgr support for making requests to authorities via HTTP.
+
+
+
 
 Once all of the above is done,
 we should be able run a mixed test network.
 (We will still need C relays to be the directory caches,
 and C directory authorities.)
 Performance will be poor.
+
+Next will come:
+
+- Directory cache support
+  - Handle BEGINDIR requests
+  - Cache documents other than the latest versions
+  - Generate and cache consensus diffs
+  - Respond to HTTP-over-BEGINDIR requests for resources
+
+- Support for [Happy Families](https://spec.torproject.org/proposals/321).
 
 
 ### What can we work on when we're blocked on the above?
