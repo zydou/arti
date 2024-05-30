@@ -55,11 +55,12 @@ pub(crate) fn default_authorities() -> Vec<AuthorityBuilder> {
         auth
     }
 
-    // (List generated August 2020.)
+    // (Last updated on May 30th, 2024)
     vec![
         auth("bastet", "27102BC123E7AF1D4741AE047E160C91ADC76B21"),
         auth("dannenberg", "0232AF901C31A04EE9848595AF9BB7620D4C5B2E"),
         auth("dizum", "E8A9C45EDE6D711294FADF8E7951F4DE6CA56B58"),
+        auth("faravahar", "70849B868D606BAECFB6128C5E3D782029AA394F"),
         auth("gabelmoo", "ED03BB616EB2F60BEC80151114BB25CEF515B226"),
         auth("longclaw", "23D15D965BC35114467363C165C4F724B64B4F66"),
         auth("maatuska", "49015F787433103580E3B66A1707A00E60F2D15B"),
