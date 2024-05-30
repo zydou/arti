@@ -139,6 +139,6 @@ impl<T, S: Sink<T>> Sink<T> for SometimesUnboundedSink<T, S> {
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), S::Error>> {
         ready!(self.as_mut().flush_buf(cx))?;
-        self.project().inner.poll_flush(cx)
+        self.project().inner.poll_close(cx)
     }
 }
