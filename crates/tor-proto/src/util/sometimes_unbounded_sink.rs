@@ -182,3 +182,71 @@ impl<T, S: Sink<T>> Sink<T> for SometimesUnboundedSink<T, S> {
         self.project().inner.poll_close(cx)
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use futures::channel::mpsc;
+    use futures::{SinkExt as _, StreamExt as _};
+    use std::pin::pin;
+    use tor_rtmock::MockRuntime;
+
+    #[test]
+    fn cases() {
+        // `test_with_various` runs with both LIFO and FIFO scheduling policies,
+        // so should interleave the sending and receiving tasks
+        // in ways that exercise the corner cases we're interested in.
+        MockRuntime::test_with_various(|runtime| async move {
+            let (tx, rx) = mpsc::channel(1);
+            let tx = SometimesUnboundedSink::new(tx);
+
+            runtime.spawn_identified("sender", async move {
+                let mut tx = pin!(tx);
+                let mut n = 0..;
+                let mut n = move || n.next().unwrap();
+
+                // unbounded when we can send right away
+                tx.as_mut().send_unbounded(n()).await.unwrap();
+                tx.as_mut().send(n()).await.unwrap();
+                tx.as_mut().send(n()).await.unwrap();
+                tx.as_mut().send(n()).await.unwrap();
+                // unbounded when we maybe can't and might queue
+                tx.as_mut().send_unbounded(n()).await.unwrap();
+                tx.as_mut().send_unbounded(n()).await.unwrap();
+                tx.as_mut().send_unbounded(n()).await.unwrap();
+                // some interleaving
+                tx.as_mut().send(n()).await.unwrap();
+                tx.as_mut().send_unbounded(n()).await.unwrap();
+                // flush
+                tx.as_mut().flush().await.unwrap();
+                // close
+                tx.as_mut().close().await.unwrap();
+            });
+
+            runtime.spawn_identified("receiver", async move {
+                let mut rx = pin!(rx);
+                let mut exp = 0..;
+
+                while let Some(n) = rx.next().await {
+                    assert_eq!(n, exp.next().unwrap());
+                }
+                assert_eq!(exp.next().unwrap(), 9);
+            });
+
+            runtime.progress_until_stalled().await;
+        });
+    }
+}
