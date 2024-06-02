@@ -5536,6 +5536,7 @@ dependencies = [
  "fs-mistrust",
  "fslock",
  "fslock-guard",
+ "futures",
  "itertools 0.13.0",
  "paste",
  "sanitize-filename",
@@ -5544,10 +5545,12 @@ dependencies = [
  "tempfile",
  "test-temp-dir",
  "thiserror",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-error",
  "tracing",
  "tracing-test",
+ "void",
 ]
 
 [[package]]

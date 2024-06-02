@@ -7,10 +7,12 @@ use crate::load_store;
 use crate::{Error, LockStatus, Result, StateMgr};
 use fs_mistrust::anon_home::PathExt as _;
 use fs_mistrust::CheckedDir;
+use futures::FutureExt;
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
+use tor_async_utils::oneshot;
 use tor_error::warn_report;
 use tracing::info;
 
@@ -53,6 +55,15 @@ struct FsStateMgrInner {
     statepath: CheckedDir,
     /// Lockfile to achieve exclusive access to state files.
     lockfile: Mutex<fslock::LockFile>,
+    /// A oneshot sender that is used to alert other tasks when this lock is
+    /// finally dropped.
+    ///
+    /// It is a sender for Void because we never actually want to send anything here;
+    /// we only want to generate canceled events.
+    #[allow(dead_code)] // the only purpose of this field is to be dropped.
+    lock_dropped_tx: oneshot::Sender<void::Void>,
+    /// Cloneable handle which resolves when this lock is dropped.
+    lock_dropped_rx: futures::future::Shared<oneshot::Receiver<void::Void>>,
 }
 
 impl FsStateMgr {
@@ -99,10 +110,14 @@ impl FsStateMgr {
             )
         })?);
 
+        let (lock_dropped_tx, lock_dropped_rx) = oneshot::channel();
+        let lock_dropped_rx = lock_dropped_rx.shared();
         Ok(FsStateMgr {
             inner: Arc::new(FsStateMgrInner {
                 statepath,
                 lockfile,
+                lock_dropped_tx,
+                lock_dropped_rx,
             }),
         })
     }
@@ -175,6 +190,11 @@ impl FsStateMgr {
             container: self.path().to_path_buf(),
             file: "state.lock".into(),
         }
+    }
+
+    /// Return a handle which resolves when the file is unlocked
+    pub fn wait_for_unlock(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        self.inner.lock_dropped_rx.clone().map(|_| ())
     }
 }
 
