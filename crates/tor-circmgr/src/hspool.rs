@@ -13,8 +13,8 @@ use std::{
 use crate::{timeouts, CircMgr, Error, Result};
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
-use tor_error::debug_report;
 use tor_error::{bad_api_usage, internal};
+use tor_error::{debug_report, Bug};
 use tor_guardmgr::VanguardMode;
 use tor_linkspec::{CircTarget, HasRelayIds as _, OwnedCircTarget, RelayIdSet};
 use tor_netdir::{NetDir, NetDirProvider, Relay};
@@ -448,6 +448,8 @@ impl<R: Runtime> HsCircPool<R> {
         };
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
+            Self::ensure_circuit_compatible_with_target(&circuit, avoid_target)?;
+
             return self.maybe_extend_stub_circuit(netdir, circuit, kind).await;
         }
 
@@ -461,6 +463,8 @@ impl<R: Runtime> HsCircPool<R> {
             .circmgr
             .launch_hs_unmanaged(avoid_target, netdir, kind)
             .await?;
+
+        Self::ensure_circuit_compatible_with_target(&circ, avoid_target)?;
 
         Ok(HsCircStub { circ, kind })
     }
@@ -525,6 +529,40 @@ impl<R: Runtime> HsCircPool<R> {
                 Ok(circuit)
             }
         }
+    }
+
+    /// Ensure `circ` is compatible with `target`.
+    ///
+    /// Returns an error if either of the last 2 hops of the circuit are the same as `target`,
+    /// because:
+    ///   * a relay won't let you extend the circuit to itself
+    ///   * relays won't let you extend the circuit to their previous hop
+    fn ensure_circuit_compatible_with_target<T>(
+        circ: &Arc<ClientCirc>,
+        target: Option<&T>,
+    ) -> StdResult<(), Bug>
+    where
+        T: CircTarget,
+    {
+        if let Some(target) = target {
+            let take_n = 2;
+            if circ
+                .path_ref()
+                .hops()
+                .iter()
+                .rev()
+                .take(take_n)
+                .flat_map(|hop| hop.as_chan_target())
+                .any(|hop| hop.has_all_relay_ids_from(target))
+            {
+                return Err(internal!(
+                    "invalid path: circuit target {} appears as one of the last 2 hops",
+                    target.display_relay_ids()
+                ));
+            }
+        }
+
+        Ok(())
     }
 
     /// Internal: Remove every closed circuit from this pool.
