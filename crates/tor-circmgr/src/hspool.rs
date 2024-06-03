@@ -553,7 +553,7 @@ impl<R: Runtime> HsCircPool<R> {
                 .rev()
                 .take(take_n)
                 .flat_map(|hop| hop.as_chan_target())
-                .any(|hop| hop.has_all_relay_ids_from(target))
+                .any(|hop| hop.has_any_relay_id_from(target))
             {
                 return Err(internal!(
                     "invalid path: circuit target {} appears as one of the last 2 hops",
@@ -667,7 +667,7 @@ where
             .rev()
             .take(take_n)
             .flat_map(|hop| hop.as_chan_target())
-            .any(|hop| hop.has_all_relay_ids_from(target))
+            .any(|hop| hop.has_any_relay_id_from(target))
         {
             return false;
         }
