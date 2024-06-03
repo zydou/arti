@@ -382,14 +382,15 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
 /// Returns an error if the specified hop list contains duplicates.
 fn ensure_unique_hops<'a>(hops: &'a [MaybeOwnedRelay<'a>]) -> StdResult<(), Bug> {
     for (i, hop) in hops.iter().enumerate() {
-        if hops
+        if let Some(hop2) = hops
             .iter()
             .skip(i + 1)
-            .any(|hop2| hop.has_any_relay_id_from(hop2))
+            .find(|hop2| hop.clone().has_any_relay_id_from(*hop2))
         {
             return Err(internal!(
-                "invalid path: hop {} appears twice?!",
-                hop.display_relay_ids()
+                "invalid path: the IDs of hops {} and {} overlap?!",
+                hop.display_relay_ids(),
+                hop2.display_relay_ids()
             ));
         }
     }
