@@ -21,6 +21,7 @@ RECOGNIZED_LICENSES=(
     ISC
     MIT
     Unicode-DFS-2016
+    Unicode-3.0
     Unlicense
     Zlib
     "MIT AND BSD-3-Clause"
@@ -127,10 +128,9 @@ for line in $output; do
 	continue
     fi
 
-    if test "$licenses" = "LGPL-3.0 OR MPL-2.0"; then
+    if test "$licenses" = "LGPL-3.0-or-later OR MPL-2.0"; then
         # priority-queue has some paperwork trouble
         #  - MPL but missing Exhibit A
-        #  - LGPL-3.0-or-later in file headers, declared as LGPL-3.0 which is not valid SPDX
         # We are using this in tor-rtmock, where it's IMO fine to have LGPL.
 	# Upstream conversation here
         #   https://github.com/garro95/priority-queue/pull/48
