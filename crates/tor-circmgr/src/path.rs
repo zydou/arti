@@ -16,11 +16,12 @@ pub(crate) mod exitpath;
 #[cfg(feature = "hs-common")]
 pub(crate) mod hspath;
 
+use std::result::Result as StdResult;
 use std::time::SystemTime;
 
 use rand::Rng;
 
-use tor_error::{bad_api_usage, internal};
+use tor_error::{bad_api_usage, internal, Bug};
 #[cfg(feature = "geoip")]
 use tor_geoip::{CountryCode, HasCountryCode};
 use tor_guardmgr::fallback::FallbackDir;
@@ -367,15 +368,28 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
         problem: info.to_string(),
     })?;
 
-    Ok((
-        TorPath::new_multihop_from_maybe_owned(vec![
-            guard,
-            MaybeOwnedRelay::from(middle),
-            MaybeOwnedRelay::from(exit),
-        ]),
-        mon,
-        usable,
-    ))
+    let hops = vec![
+        guard,
+        MaybeOwnedRelay::from(middle),
+        MaybeOwnedRelay::from(exit),
+    ];
+
+    ensure_unique_hops(&hops)?;
+
+    Ok((TorPath::new_multihop_from_maybe_owned(hops), mon, usable))
+}
+
+/// Returns an error if the specified hop list contains duplicates.
+fn ensure_unique_hops<'a>(hops: &'a [MaybeOwnedRelay<'a>]) -> StdResult<(), Bug> {
+    for (i, hop) in hops.iter().enumerate() {
+        if hops.iter().skip(i + 1).any(|hop2| hop.has_any_relay_id_from(hop2)) {
+            return Err(internal!(
+                "invalid path: hop {} appears twice?!",
+                hop.display_relay_ids()
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Try to select a guard corresponding to the requirements of
