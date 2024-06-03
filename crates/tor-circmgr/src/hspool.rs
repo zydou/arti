@@ -15,6 +15,7 @@ use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::debug_report;
 use tor_error::{bad_api_usage, internal};
+use tor_guardmgr::VanguardMode;
 use tor_linkspec::{CircTarget, HasRelayIds as _, OwnedCircTarget, RelayIdSet};
 use tor_netdir::{NetDir, NetDirProvider, Relay};
 use tor_proto::circuit::{self, CircParameters, ClientCirc};
@@ -356,20 +357,17 @@ impl<R: Runtime> HsCircPool<R> {
         Ok(circ.circ)
     }
 
-    /// Try to change our configuration to `new_config`.
+    /// Retire the circuits in this pool.
     ///
-    /// Actual behavior will depend on the value of `how`.
-    pub fn reconfigure<CFG: HsCircPoolConfig>(
-        &self,
-        new_config: &CFG,
-        _how: tor_config::Reconfigure,
-    ) -> StdResult<(), tor_config::ReconfigureError> {
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    /// This is used for handling vanguard configuration changes:
+    /// if the [`VanguardMode`] changes, we need to empty the pool and rebuild it,
+    /// because the old circuits are no longer suitable for use.
+    pub fn retire_all_circuits(&self) -> StdResult<(), tor_config::ReconfigureError> {
         self.inner
             .lock()
             .expect("poisoned lock")
             .pool
-            .reconfigure_vanguards(new_config.vanguard_config())?;
+            .retire_all_circuits()?;
 
         Ok(())
     }
@@ -393,6 +391,13 @@ impl<R: Runtime> HsCircPool<R> {
         // family info.
         T: CircTarget,
     {
+        let vanguards_enabled = self.vanguards_enabled();
+        trace!(
+            vanguards_enabled=vanguards_enabled,
+            kind=%kind,
+            "selecting HS circuit stub"
+        );
+
         // First, look for a circuit that is already built, if any is suitable.
 
         let target_exclusion = {
@@ -408,7 +413,6 @@ impl<R: Runtime> HsCircPool<R> {
 
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
-            let vanguards_enabled = inner.pool.vanguards_enabled();
 
             let restrictions = |circ: &HsCircStub| {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
@@ -542,8 +546,13 @@ impl<R: Runtime> HsCircPool<R> {
     fn vanguards_enabled(&self) -> bool {
         cfg_if::cfg_if! {
             if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
-                let inner = self.inner.lock().expect("lock poisoned");
-                inner.pool.vanguards_enabled()
+                let mode = self
+                    .circmgr
+                    .mgr
+                    .peek_builder()
+                    .vanguardmgr()
+                    .mode();
+                mode != VanguardMode::Disabled
             } else {
                 false
             }
@@ -772,5 +781,90 @@ async fn remove_unusable_circuits<R: Runtime>(
         if let Ok(netdir) = provider.netdir(tor_netdir::Timeliness::Timely) {
             pool.remove_unlisted(&netdir);
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::cognitive_complexity)]
+
+    use tor_config::ExplicitOrAuto;
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    use tor_guardmgr::VanguardConfigBuilder;
+    use tor_guardmgr::VanguardMode;
+    use tor_rtmock::MockRuntime;
+
+    use super::*;
+    use crate::{CircMgr, TestConfig};
+
+    /// Create a `CircMgr` with an underlying `VanguardMgr` that runs in the specified `mode`.
+    fn circmgr_with_vanguards<R: Runtime>(runtime: R, mode: VanguardMode) -> Arc<CircMgr<R>> {
+        let chanmgr = tor_chanmgr::ChanMgr::new(
+            runtime.clone(),
+            &Default::default(),
+            tor_chanmgr::Dormancy::Dormant,
+            &Default::default(),
+        );
+        let guardmgr = tor_guardmgr::GuardMgr::new(
+            runtime.clone(),
+            tor_persist::TestingStateMgr::new(),
+            &tor_guardmgr::TestConfig::default(),
+        )
+        .unwrap();
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let vanguard_config = VanguardConfigBuilder::default()
+            .mode(ExplicitOrAuto::Explicit(mode))
+            .build()
+            .unwrap();
+
+        let config = TestConfig {
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            vanguard_config,
+            ..Default::default()
+        };
+
+        CircMgr::new(
+            &config,
+            tor_persist::TestingStateMgr::new(),
+            &runtime,
+            Arc::new(chanmgr),
+            guardmgr,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn pool_with_vanguards_disabled() {
+        MockRuntime::test_with_various(|runtime| async move {
+            let circmgr = circmgr_with_vanguards(runtime, VanguardMode::Disabled);
+            let circpool = HsCircPool::new(&circmgr);
+            assert!(!circpool.vanguards_enabled());
+        });
+    }
+
+    #[test]
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    fn pool_with_vanguards_enabled() {
+        MockRuntime::test_with_various(|runtime| async move {
+            for mode in [VanguardMode::Lite, VanguardMode::Full] {
+                let circmgr = circmgr_with_vanguards(runtime.clone(), mode);
+                let circpool = HsCircPool::new(&circmgr);
+                assert!(circpool.vanguards_enabled());
+            }
+        });
     }
 }

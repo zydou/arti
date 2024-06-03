@@ -44,6 +44,7 @@
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
 use tor_error::{error_report, warn_report};
+use tor_guardmgr::RetireCircuits;
 use tor_linkspec::ChanTarget;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
@@ -306,11 +307,13 @@ impl<R: Runtime> CircMgr<R> {
     /// Try to change our configuration settings to `new_config`.
     ///
     /// The actual behavior here will depend on the value of `how`.
+    ///
+    /// Returns whether any of the circuit pools should be cleared.
     pub fn reconfigure<CFG: CircMgrConfig>(
         &self,
         new_config: &CFG,
         how: tor_config::Reconfigure,
-    ) -> std::result::Result<(), tor_config::ReconfigureError> {
+    ) -> std::result::Result<RetireCircuits, tor_config::ReconfigureError> {
         let old_path_rules = self.mgr.peek_builder().path_config();
         let predictor = self.predictor.lock().expect("poisoned lock");
         let preemptive_circuits = predictor.config();
@@ -322,7 +325,7 @@ impl<R: Runtime> CircMgr<R> {
         }
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
-            return Ok(());
+            return Ok(RetireCircuits::None);
         }
 
         let retire_because_of_guardmgr =
@@ -363,8 +366,9 @@ impl<R: Runtime> CircMgr<R> {
             // or do not conform to the new guard configuration.
             info!("Path configuration has become more restrictive: retiring existing circuits.");
             self.retire_all_circuits();
+            return Ok(RetireCircuits::All);
         }
-        Ok(())
+        Ok(RetireCircuits::None)
     }
 
     /// Reload state from the state manager.
