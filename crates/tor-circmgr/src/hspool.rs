@@ -546,18 +546,19 @@ impl<R: Runtime> HsCircPool<R> {
     {
         if let Some(target) = target {
             let take_n = 2;
-            if circ
+            if let Some(hop) = circ
                 .path_ref()
                 .hops()
                 .iter()
                 .rev()
                 .take(take_n)
                 .flat_map(|hop| hop.as_chan_target())
-                .any(|hop| hop.has_any_relay_id_from(target))
+                .find(|hop| hop.has_any_relay_id_from(target))
             {
                 return Err(internal!(
-                    "invalid path: circuit target {} appears as one of the last 2 hops",
-                    target.display_relay_ids()
+                    "invalid path: circuit target {} appears as one of the last 2 hops (matches hop {})",
+                    target.display_relay_ids(),
+                    hop.display_relay_ids()
                 ));
             }
         }
