@@ -3,6 +3,133 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.4 — 3 June 2024
+
+XXXX BLURB
+
+Up-to-date through fa1e9ae9430225b2d3f7a625e09365f4a44d3ba1.
+
+### Network updates
+
+- Restore the `faravahar` directory authority, with new location and keys.
+  ([!2175])
+
+### Major bugfixes
+
+- Ensure that `DataWriter::close()` actually closes its associated stream.
+  Previously, this `close()` method would have no effect until the
+  `DataReader` was also dropped. ([#1368], [!2170])
+
+### Breaking changes in lower-level crates
+
+- The `Channel` type in `tor-proto` has been significantly refactored:
+  it is now always wrapped in an explicit `Arc`, it no longer implements
+  `Sink` on its own, and it can no longer be used to send raw cells
+  from outside the `tor-proto` crate. ([!2163])
+
+### Deprecated functionality
+
+- The `arti-hyper` example crate is now deprecated and unmaintained.
+  ([!2127])
+
+### Onion service development
+
+- Major refactoring to reduce technical debt in key manager code.
+  ([#1362], [#1367], [!2131], [!2141])
+- Address various pending "TODO" items in the vanguard code.
+  ([!2139])
+- Adjust terminology for vanguard stub circuits. ([#1339], [!2161])
+- Add tests for vanguard configuration, and configuration backend logic as
+  needed to simplify some of the vanguard configuration code. ([!2146])
+
+### RPC development
+
+- Expose methods on TorClient to get and observe the status of the client
+  object. ([#1384], [!2110], [!2130])
+- Infrastructure to allow the RPC system to interact with SOCKS streams,
+  provide them with context, and name them as RPC objects.
+  ([!2143])
+- Based on difficulties encountered with earlier RPC development,
+  add an improved facility for RPC methods that can be invoked internally
+  without serializing their inputs and outputs ([#1403], [!2152])
+- Enforce consistent style and formatting on RPC method names. ([#823], [!2149])
+- Other miscellaneous lower-level improvements to the RPC type
+  system. ([!2124], [!2140], [!2142])
+
+
+### Other major features
+
+### Documentation
+
+### Testing
+
+- Improved test layout in `tor-keymgr`. ([#1363], [!2125])
+- Automate enforcement of our convention that scripts not be named with
+  their implementation languages. ([!2153])
+- Include script needed to generate `keymgr` test data. ([!2121])
+
+
+### Documentation
+
+- New example in arti-client for creating a one-hop circuit. ([!2148])
+- Recommend `cargo --locked` in our examples, to encourage people
+  to get audited versions of our dependencies. ([!2157])
+- Clean up old changelogs to have a more uniform style, based on
+  our updated `gen_md_links` script. ([!2126], [!2165])
+
+### Infrastructure
+
+- Disable automated Chutney tests in coverage CI. ([#1299], [!2120])
+- Improve our `add_warning` script so that it can adjust our warnings during
+  CI.  Previously we used a compiler `--cfg` flag for conditional warnings,
+  but unrecognized `cfg` flags now provoke a warning. ([#1395], [!2129])
+- Use `add_warning` to maintain the list of lints in our examples. ([!2132])
+- Improved scripts to list our crates, and publish our crates,
+  to make accidents less likely while
+  we're trying to release.  ([#1390], [!2118], [!2138], [!2158])
+- Improve our `gen_md_links` script to provide more uniform output,
+  and generate its results in a more useful format. ([#1388], [!2126], [!2169])
+- Ensure that our CI scripts delete unnecessary data on completion.
+  (This helps keep us from running our infrastructure out of disk space
+  and making the other gitlab users sad.) ([!2159])
+
+### Cleanups, minor features, and bugfixes
+
+- Resolve several Clippy warnings from the latest version of Rust. ([!2128])
+- Clarify control-flow in our (currently convoluted) circuit reactor code.
+  ([!2122])
+- Refactor to avoid most use of `cfg(fuzzing)`. ([#1395], [!2134])
+- The `DataStream` type now has a method to wait for a connection to
+  complete. ([489aa72d1eee8a56])
+- Clarify or resolve several dead-code warnings. ([#1383], [!2151])
+- Explicitly enforce maxima on SENDME windows.  (Formerly, we did this
+  implicitly.)  ([#1383], [!2150])
+- Avoid the appearance of an infinite loop in
+  `engage_padding_activities`. ([!2164])
+- Refactor the `Channel` type to be more explicitly `Arc`,
+  better documented, and to have less information shared between its
+  front-end and reactor pieces. ([!2163])
+- Refactor the `poll_ready` method on `ChannelSender` to
+  have a more conventional interface. ([!2171])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Gaba, Jim Newsome, juga, and pinkforest!
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+
+
+
+
+
+
+
+
+
+
 # Arti 1.2.3 — 15 May 2024
 
 Arti 1.2.3 fixes a high-severity issue affecting onion services and clients
