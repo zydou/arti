@@ -90,6 +90,64 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
     }
 }
 
+/// A macro that implements [`NotAutoValue`] for your type.
+///
+/// This macro generates:
+///   * a [`NotAutoValue`] impl for `ty`
+///   * a test module with a test that ensures "auto" cannot be deserialized as `ty`
+///
+/// ## Example
+///
+/// ```rust
+/// # use tor_config::{impl_not_auto_value, ExplicitOrAuto};
+/// # use serde::{Serialize, Deserialize};
+//  #
+/// #[derive(Serialize, Deserialize)]
+/// struct Foo;
+///
+/// impl_not_auto_value!(Foo);
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Bar;
+///
+/// fn main() {
+///    let _foo: ExplicitOrAuto<Foo> = ExplicitOrAuto::Auto;
+///
+///    // Using a type that does not implement NotAutoValue is an error:
+///    // let _bar: ExplicitOrAuto<Bar> = ExplicitOrAuto::Auto;
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_not_auto_value {
+    ($ty:ty) => {
+        $crate::deps::paste! {
+            impl $crate::NotAutoValue for $ty {}
+
+            #[cfg(test)]
+            #[allow(non_snake_case)]
+            mod [<test_not_auto_value_ $ty>] {
+                #[allow(unused_imports)]
+                use super::*;
+
+                #[test]
+                fn [<auto_is_not_a_valid_value_for_ $ty>]() {
+                    let res = $crate::deps::serde_value::Value::String(
+                        "auto".into()
+                    ).deserialize_into::<$ty>();
+
+                    assert!(
+                        res.is_err(),
+                        concat!(
+                            stringify!($ty), " is not a valid NotAutoValue type: ",
+                            "NotAutoValue types should not be deserializable from \"auto\""
+                        ),
+                    );
+                }
+            }
+        }
+    };
+}
+
 /// A serializable value, or auto.
 ///
 /// Used for implementing configuration options that can be explicitly initialized
@@ -198,64 +256,6 @@ impl<T: NotAutoValue> ExplicitOrAuto<T> {
 ///
 /// This trait should be implemented for types that can be stored in [`ExplicitOrAuto`].
 pub trait NotAutoValue {}
-
-/// A macro that implements [`NotAutoValue`] for your type.
-///
-/// This macro generates:
-///   * a [`NotAutoValue`] impl for `ty`
-///   * a test module with a test that ensures "auto" cannot be deserialized as `ty`
-///
-/// ## Example
-///
-/// ```rust
-/// # use tor_config::{impl_not_auto_value, ExplicitOrAuto};
-/// # use serde::{Serialize, Deserialize};
-//  #
-/// #[derive(Serialize, Deserialize)]
-/// struct Foo;
-///
-/// impl_not_auto_value!(Foo);
-///
-/// #[derive(Serialize, Deserialize)]
-/// struct Bar;
-///
-/// fn main() {
-///    let _foo: ExplicitOrAuto<Foo> = ExplicitOrAuto::Auto;
-///
-///    // Using a type that does not implement NotAutoValue is an error:
-///    // let _bar: ExplicitOrAuto<Bar> = ExplicitOrAuto::Auto;
-/// }
-/// ```
-#[macro_export]
-macro_rules! impl_not_auto_value {
-    ($ty:ty) => {
-        $crate::deps::paste! {
-            impl $crate::NotAutoValue for $ty {}
-
-            #[cfg(test)]
-            #[allow(non_snake_case)]
-            mod [<test_not_auto_value_ $ty>] {
-                #[allow(unused_imports)]
-                use super::*;
-
-                #[test]
-                fn [<auto_is_not_a_valid_value_for_ $ty>]() {
-                    let res = $crate::deps::serde_value::Value::String(
-                        "auto".into()
-                    ).deserialize_into::<$ty>();
-
-                    assert!(
-                        res.is_err(),
-                        concat!(
-                            stringify!($ty), " is not a valid NotAutoValue type: ",
-                            "NotAutoValue types should not be deserializable from \"auto\""
-                        ),
-                    );
-                }
-            }
-        }
-    };
-}
 
 /// A helper for calling [`impl_not_auto_value`] for a number of types.
 macro_rules! impl_not_auto_value_for_types {
