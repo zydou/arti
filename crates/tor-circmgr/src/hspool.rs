@@ -415,7 +415,7 @@ impl<R: Runtime> HsCircPool<R> {
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
                 if vanguards_enabled {
-                    circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
+                    vanguards_circuit_compatible_with_target(netdir, circ, kind, avoid_target)
                 } else {
                     circuit_compatible_with_target(netdir, circ, &target_exclusion)
                 }
@@ -592,6 +592,41 @@ fn circuit_compatible_with_target(
     circuit_still_useable(netdir, circ, |relay| {
         exclude_target.low_level_predicate_permits_relay(relay)
     })
+}
+
+/// Return true if we can extend a pre-built vanguards circuit `circ` to `target`.
+///
+/// We require that the circuit is open, that it can become the specified
+/// kind of [`HsCircStub`], that every hop in the circuit is listed in `netdir`,
+/// and that the last two hops are different from the specified target.
+fn vanguards_circuit_compatible_with_target<T>(
+    netdir: &NetDir,
+    circ: &HsCircStub,
+    kind: HsCircStubKind,
+    avoid_target: Option<&T>,
+) -> bool
+where
+    T: CircTarget,
+{
+    if let Some(target) = avoid_target {
+        let circ_path = circ.circ.path_ref();
+        // The last 2 hops of the circuit must be different from the circuit target, because:
+        //   * a relay won't let you extend the circuit to itself
+        //   * relays won't let you extend the circuit to their previous hop
+        let take_n = 2;
+        if circ_path
+            .hops()
+            .iter()
+            .rev()
+            .take(take_n)
+            .flat_map(|hop| hop.as_chan_target())
+            .any(|hop| hop.has_all_relay_ids_from(target))
+        {
+            return false;
+        }
+    }
+
+    circ.can_become(kind) && circuit_still_useable(netdir, circ, |_relay| true)
 }
 
 /// Return true if we can still use a given pre-build circuit.

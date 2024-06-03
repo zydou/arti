@@ -67,6 +67,32 @@ hosts:
         HOME: ./home
       start_time: 15m
       expected_final_state: running
+  # Like fileserver-onion-arti, except it has full vanguards enabled
+  fileserver-onion-arti-full-vanguards:
+    network_node_id: 0
+    processes:
+    # tgen server process
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.onionserver.graphml.xml
+      start_time: 1
+      expected_final_state: running
+      # Currently need the arti-extra binary for HS-server functionality
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+      args:
+      - proxy
+      - -c=./arti.d/arti.common.toml
+      - -o=proxy.socks_listen="127.0.0.1:9000"
+      - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
+      - -o=vanguards.mode="full"
+      - --disable-fs-permission-checks
+      - -l=debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 15m
+      expected_final_state: running
   fileserver-onion-auth:
     network_node_id: 0
     processes:
@@ -260,6 +286,28 @@ hosts:
       environment: { OPENBLAS_NUM_THREADS: "1" }
       args: ../../../conf/tgen.artionionclient.graphml.xml
       start_time: 1500
+  # arti client connecting to the arti onion service that uses full vanguards
+  articlient-onion-artiserver-full-vanguards:
+    network_node_id: 0
+    processes:
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+      args:
+      - proxy
+      - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.onion.toml
+      - -o=proxy.socks_listen="127.0.0.1:9000"
+      - --disable-fs-permission-checks
+      - -l debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 15m
+      expected_final_state: running
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.artionionclientfullvanguards.graphml.xml
+      start_time: 1500
   articlient-onion-auth:
     network_node_id: 0
     processes:
@@ -294,5 +342,19 @@ hosts:
       # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
       environment: { OPENBLAS_NUM_THREADS: "1" }
       args: ../../../conf/tgen.artionionclient.graphml.xml
+      start_time: 25m
+  # tor client connecting to the arti onion service that uses full vanguards
+  torclient-onion-artiserver-full-vanguards:
+    network_node_id: 0
+    processes:
+    - path: tor
+      args: --Address tconionas --Nickname tconionas
+            --defaults-torrc torrc-defaults -f torrc
+      start_time: 15m
+      expected_final_state: running
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.artionionclientfullvanguards.graphml.xml
       start_time: 25m
 

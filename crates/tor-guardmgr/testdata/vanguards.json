@@ -1,0 +1,96 @@
+{
+  "l2_vanguards": [
+    {
+      "id": {
+        "ed25519": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+        "rsa": "0101010101010101010101010101010101010101"
+      },
+      "when": {
+        "secs_since_epoch": 1710000000,
+        "nanos_since_epoch": 14622333
+      }
+    },
+    {
+      "id": {
+        "ed25519": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk",
+        "rsa": "0909090909090909090909090909090909090909"
+      },
+      "when": {
+        "secs_since_epoch": 1710000000,
+        "nanos_since_epoch": 859660333
+      }
+    },
+    {
+      "id": {
+        "ed25519": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+        "rsa": "0808080808080808080808080808080808080808"
+      },
+      "when": {
+        "secs_since_epoch": 1710000000,
+        "nanos_since_epoch": 189196333
+      }
+    },
+    {
+      "id": {
+        "ed25519": "FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhY",
+        "rsa": "1616161616161616161616161616161616161616"
+      },
+      "when": {
+        "secs_since_epoch": 0,
+        "nanos_since_epoch": 482966333
+      }
+    }
+  ],
+  "l3_vanguards": [
+    {
+      "id": {
+        "ed25519": "JycnJycnJycnJycnJycnJycnJycnJycnJycnJycnJyc",
+        "rsa": "2727272727272727272727272727272727272727"
+      },
+      "when": {
+        "secs_since_epoch": 1710000000,
+        "nanos_since_epoch": 583484333
+      }
+    },
+    {
+      "id": {
+        "ed25519": "Dw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8",
+        "rsa": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+      },
+      "when": {
+        "secs_since_epoch": 1710000000,
+        "nanos_since_epoch": 738216333
+      }
+    },
+    {
+      "id": {
+        "ed25519": "Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8",
+        "rsa": "1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f"
+      },
+      "when": {
+        "secs_since_epoch": 0,
+        "nanos_since_epoch": 414215126
+      }
+    },
+    {
+      "id": {
+        "ed25519": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+        "rsa": "0808080808080808080808080808080808080808"
+      },
+      "when": {
+        "secs_since_epoch": 0,
+        "nanos_since_epoch": 668800291
+      }
+    },
+    {
+      "id": {
+        "ed25519": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+        "rsa": "0707070707070707070707070707070707070707"
+      },
+      "when": {
+        "secs_since_epoch": 0,
+        "nanos_since_epoch": 888046454
+      }
+    }
+  ]
+}

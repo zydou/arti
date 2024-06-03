@@ -551,7 +551,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::fmt;
+    use std::{fmt, time};
 
     use set::TimeBoundVanguard;
     use tor_config::ExplicitOrAuto;
@@ -564,7 +564,7 @@ mod test {
         testnet::{self, construct_custom_netdir_with_params},
         testprovider::TestNetDirProvider,
     };
-    use tor_persist::TestingStateMgr;
+    use tor_persist::{FsStateMgr, TestingStateMgr};
     use tor_rtmock::MockRuntime;
     use Layer::*;
 
@@ -575,6 +575,27 @@ mod test {
 
     /// Enable full vanguards for hidden services.
     const ENABLE_FULL_VANGUARDS: [(&str, i32); 1] = [("vanguards-hs-service", 2)];
+
+    /// A valid vanguard state file.
+    const VANGUARDS_JSON: &str = include_str!("../testdata/vanguards.json");
+
+    /// A invalid vanguard state file.
+    const INVALID_VANGUARDS_JSON: &str = include_str!("../testdata/vanguards_invalid.json");
+
+    /// Create the `StateMgr`, populating the vanguards.json state file with the specified JSON string.
+    fn state_dir_with_vanguards(vanguards_json: &str) -> (FsStateMgr, tempfile::TempDir) {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("state")).unwrap();
+        std::fs::write(dir.path().join("state/vanguards.json"), vanguards_json).unwrap();
+
+        let statemgr = FsStateMgr::from_path_and_mistrust(
+            dir.path(),
+            &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
+        )
+        .unwrap();
+
+        (statemgr, dir)
+    }
 
     impl fmt::Debug for Vanguard<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1132,6 +1153,87 @@ mod test {
                 &netdir_provider,
             )
             .await;
+        });
+    }
+
+    #[test]
+    fn load_from_state_file() {
+        MockRuntime::test_with_various(|rt| async move {
+            // Set the wallclock to a time when some of the stored vanguards are still valid.
+            let now = time::UNIX_EPOCH + Duration::from_secs(1610000000);
+            rt.jump_wallclock(now);
+
+            let config = VanguardConfig {
+                mode: ExplicitOrAuto::Explicit(VanguardMode::Full),
+            };
+
+            // The state file contains no vanguards
+            let (statemgr, _dir) =
+                state_dir_with_vanguards(r#"{ "l2_vanguards": [], "l3_vanguards": [] }"#);
+            let vanguardmgr = VanguardMgr::new(&config, rt.clone(), statemgr, false).unwrap();
+            {
+                let inner = vanguardmgr.inner.read().unwrap();
+
+                // The vanguard sets should be empty too
+                assert!(inner.vanguard_sets.l2().is_empty());
+                assert!(inner.vanguard_sets.l3().is_empty());
+            }
+
+            let (statemgr, _dir) = state_dir_with_vanguards(VANGUARDS_JSON);
+            let vanguardmgr =
+                Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, false).unwrap());
+            let (initial_l2, initial_l3) = {
+                let inner = vanguardmgr.inner.read().unwrap();
+                let l2_vanguards = inner.vanguard_sets.l2_vanguards().clone();
+                let l3_vanguards = inner.vanguard_sets.l3_vanguards().clone();
+
+                // The sets actually contain 4 and 5 vanguards, respectively,
+                // but the expired ones are discarded.
+                assert_eq!(l2_vanguards.len(), 3);
+                assert_eq!(l3_vanguards.len(), 2);
+                // We don't know how many vanguards we're going to need
+                // until we fetch the consensus.
+                assert_eq!(inner.vanguard_sets.l2_vanguards_target(), 0);
+                assert_eq!(inner.vanguard_sets.l3_vanguards_target(), 0);
+                assert_eq!(inner.vanguard_sets.l2_vanguards_deficit(), 0);
+                assert_eq!(inner.vanguard_sets.l3_vanguards_deficit(), 0);
+
+                (l2_vanguards, l3_vanguards)
+            };
+
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let _netdir_provider =
+                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+            {
+                let inner = vanguardmgr.inner.read().unwrap();
+                let l2_vanguards = inner.vanguard_sets.l2_vanguards();
+                let l3_vanguards = inner.vanguard_sets.l3_vanguards();
+
+                // The sets were replenished with more vanguards
+                assert_eq!(l2_vanguards.len(), 4);
+                assert_eq!(l3_vanguards.len(), 8);
+                // We now know we need 4 L2 vanguards and 8 L3 ones.
+                assert_eq!(inner.vanguard_sets.l2_vanguards_target(), 4);
+                assert_eq!(inner.vanguard_sets.l3_vanguards_target(), 8);
+                assert_eq!(inner.vanguard_sets.l2_vanguards_deficit(), 0);
+                assert_eq!(inner.vanguard_sets.l3_vanguards_deficit(), 0);
+
+                // All of the vanguards read from the state file should still be in the sets.
+                assert!(initial_l2.iter().all(|v| l2_vanguards.contains(v)));
+                assert!(initial_l3.iter().all(|v| l3_vanguards.contains(v)));
+            }
+        });
+    }
+
+    #[test]
+    fn invalid_state_file() {
+        MockRuntime::test_with_various(|rt| async move {
+            let config = VanguardConfig {
+                mode: ExplicitOrAuto::Explicit(VanguardMode::Full),
+            };
+            let (statemgr, _dir) = state_dir_with_vanguards(INVALID_VANGUARDS_JSON);
+            let res = VanguardMgr::new(&config, rt.clone(), statemgr, false);
+            assert!(matches!(res, Err(VanguardMgrError::State(_))));
         });
     }
 }
