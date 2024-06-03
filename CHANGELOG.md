@@ -120,13 +120,61 @@ Alexander Færøy, Gaba, Jim Newsome, juga, and pinkforest!
 Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
 for funding the development of Arti!
 
-
-
-
-
-
-
-
+[!2110]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2110
+[!2118]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2118
+[!2120]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2120
+[!2121]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2121
+[!2122]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2122
+[!2124]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2124
+[!2125]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2125
+[!2126]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2126
+[!2127]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2127
+[!2128]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2128
+[!2129]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2129
+[!2130]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2130
+[!2131]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2131
+[!2132]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2132
+[!2134]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2134
+[!2138]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2138
+[!2139]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2139
+[!2140]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2140
+[!2141]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2141
+[!2142]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2142
+[!2143]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2143
+[!2146]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2146
+[!2148]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2148
+[!2149]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2149
+[!2150]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2150
+[!2151]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2151
+[!2152]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2152
+[!2153]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2153
+[!2157]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2157
+[!2158]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2158
+[!2159]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2159
+[!2161]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2161
+[!2163]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2163
+[!2164]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2164
+[!2165]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2165
+[!2169]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2169
+[!2170]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2170
+[!2171]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2171
+[!2175]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2175
+[#1299]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1299
+[#1339]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1339
+[#1362]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1362
+[#1363]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1363
+[#1367]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1367
+[#1368]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1368
+[#1383]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1383
+[#1384]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1384
+[#1388]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1388
+[#1390]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1390
+[#1395]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1395
+[#1403]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1403
+[#823]: https://gitlab.torproject.org/tpo/core/arti/-/issues/823
+[489aa72d1eee8a56]: https://gitlab.torproject.org/tpo/core/arti/-/commit/489aa72d1eee8a5638493dfb23d06823a201c132
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
