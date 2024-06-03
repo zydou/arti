@@ -62,9 +62,9 @@ use tor_proto::ClockSkew;
 use tor_units::BoundedInt32;
 use tracing::{debug, info, trace, warn};
 
-use tor_config::impl_standard_builder;
-use tor_config::ReconfigureError;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
+use tor_config::{impl_not_auto_value, ReconfigureError};
+use tor_config::{impl_standard_builder, ExplicitOrAuto};
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
@@ -113,6 +113,8 @@ use pending::{PendingRequest, RequestId};
 use sample::{GuardSet, Universe, UniverseRef};
 
 use crate::ids::{FirstHopIdInner, GuardId};
+
+use tor_config::ConfigBuildError;
 
 /// A "guard manager" that selects and remembers a persistent set of
 /// guard nodes.
@@ -1876,6 +1878,32 @@ impl VanguardMode {
             1 => VanguardMode::Lite,
             2 => VanguardMode::Full,
             _ => unreachable!("BoundedInt32 was not bounded?!"),
+        }
+    }
+}
+
+impl_not_auto_value!(VanguardMode);
+
+/// Vanguards configuration.
+#[derive(Debug, Default, Clone, Eq, PartialEq, derive_builder::Builder)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+pub struct VanguardConfig {
+    /// The kind of vanguards to use.
+    #[builder_field_attr(serde(default))]
+    #[builder(default)]
+    mode: ExplicitOrAuto<VanguardMode>,
+}
+
+impl VanguardConfig {
+    /// Return the configured [`VanguardMode`].
+    ///
+    /// Returns the [`Default`] `VanguardMode`
+    /// if the mode is [`Auto`](ExplicitOrAuto) or unspecified.
+    pub fn mode(&self) -> VanguardMode {
+        match self.mode {
+            ExplicitOrAuto::Auto => Default::default(),
+            ExplicitOrAuto::Explicit(mode) => mode,
         }
     }
 }

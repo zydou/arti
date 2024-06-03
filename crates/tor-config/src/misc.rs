@@ -4,7 +4,7 @@
 //! and layers, but which don't depend on specific elements of the Tor system.
 
 use std::borrow::Cow;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::iter;
 use std::net;
 use std::num::NonZeroU16;
@@ -89,6 +89,191 @@ impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
         })
     }
 }
+
+/// A serializable value, or auto.
+///
+/// Used for implementing configuration options that can be explicitly initialized
+/// with a placeholder for their "default" value using the
+/// [`Auto`](ExplicitOrAuto::Auto) variant.
+///
+/// Unlike `#[serde(default)] field: T` or `#[serde(default)] field: Option<T>`,
+/// fields of this type can be present in the serialized configuration
+/// without being assigned a concrete value.
+///
+/// **Important**: the underlying type must implement [`NotAutoValue`].
+/// This trait should be implemented using the [`impl_not_auto_value`],
+/// and only for types that do not serialize to the same value as the
+/// [`Auto`](ExplicitOrAuto::Auto) variant.
+///
+/// ## Example
+///
+/// In the following serialized TOML config
+///
+/// ```toml
+///  foo = "auto"
+/// ```
+///
+/// `foo` is set to [`Auto`](ExplicitOrAuto::Auto), which indicates the
+/// implementation should use a default (but not necessarily [`Default::default`])
+/// value for the `foo` option.
+///
+/// For example, f field `foo` defaults to `13` if feature `bar` is enabled,
+/// and `9000` otherise, a configuration with `foo` set to `"auto"` will
+/// behave in the "default" way regardless of which features are enabled.
+///
+/// ```rust,ignore
+/// struct Foo(usize);
+///
+/// impl Default for Foo {
+///     fn default() -> Foo {
+///         if cfg!(feature = "bar") {
+///             Foo(13)
+///         } else {
+///             Foo(9000)
+///         }
+///     }
+/// }
+///
+/// impl Foo {
+///     fn from_explicit_or_auto(foo: ExplicitOrAuto<Foo>) -> Self {
+///         match foo {
+///             // If Auto, choose a sensible default for foo
+///             ExplicitOrAuto::Auto => Default::default(),
+///             ExplicitOrAuto::Foo(foo) => foo,
+///         }
+///     }
+/// }
+///
+/// struct Config {
+///    foo: ExplicitOrAuto<Foo>,
+/// }
+/// ```
+#[derive(Clone, Copy, Hash, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
+#[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
+#[derive(Serialize, Deserialize)]
+pub enum ExplicitOrAuto<T: NotAutoValue> {
+    /// Automatic
+    #[default]
+    #[serde(rename = "auto")]
+    Auto,
+    /// Explicitly specified
+    #[serde(untagged)]
+    Explicit(T),
+}
+
+impl<T: NotAutoValue> ExplicitOrAuto<T> {
+    /// Returns the explicitly set value, or `None`.
+    ///
+    /// ```
+    /// use tor_config::ExplicitOrAuto;
+    ///
+    /// fn calculate_default() -> usize { //...
+    /// # 2 }
+    /// let explicit_or_auto: ExplicitOrAuto<usize> = // ...
+    /// # Default::default();
+    /// let _: usize = explicit_or_auto.into_value().unwrap_or_else(|| calculate_default());
+    /// ```
+    pub fn into_value(self) -> Option<T> {
+        match self {
+            ExplicitOrAuto::Auto => None,
+            ExplicitOrAuto::Explicit(v) => Some(v),
+        }
+    }
+
+    /// Returns a reference to the explicitly set value, or `None`.
+    ///
+    /// Like [`ExplicitOrAuto::into_value`], except it returns a reference to the inner type.
+    pub fn as_value(&self) -> Option<&T> {
+        match self {
+            ExplicitOrAuto::Auto => None,
+            ExplicitOrAuto::Explicit(v) => Some(v),
+        }
+    }
+}
+
+/// A marker trait for types that do not serialize to the same value as [`ExplicitOrAuto::Auto`].
+///
+/// **Important**: you should not implement this trait manually.
+/// Use the [`impl_not_auto_value`] macro instead.
+///
+/// This trait should be implemented for types that can be stored in [`ExplicitOrAuto`].
+pub trait NotAutoValue {}
+
+/// A macro that implements [`NotAutoValue`] for your type.
+///
+/// This macro generates:
+///   * a [`NotAutoValue`] impl for `ty`
+///   * a test module with a test that ensures "auto" cannot be deserialized as `ty`
+///
+/// ## Example
+///
+/// ```rust
+/// # use tor_config::{impl_not_auto_value, ExplicitOrAuto};
+/// # use serde::{Serialize, Deserialize};
+//  #
+/// #[derive(Serialize, Deserialize)]
+/// struct Foo;
+///
+/// impl_not_auto_value!(Foo);
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Bar;
+///
+/// fn main() {
+///    let _foo: ExplicitOrAuto<Foo> = ExplicitOrAuto::Auto;
+///
+///    // Using a type that does not implement NotAutoValue is an error:
+///    // let _bar: ExplicitOrAuto<Bar> = ExplicitOrAuto::Auto;
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_not_auto_value {
+    ($ty:ty) => {
+        $crate::deps::paste! {
+            impl $crate::NotAutoValue for $ty {}
+
+            #[cfg(test)]
+            #[allow(non_snake_case)]
+            mod [<test_not_auto_value_ $ty>] {
+                #[allow(unused_imports)]
+                use super::*;
+
+                #[test]
+                fn [<auto_is_not_a_valid_value_for_ $ty>]() {
+                    let res = $crate::deps::serde_value::Value::String(
+                        "auto".into()
+                    ).deserialize_into::<$ty>();
+
+                    assert!(
+                        res.is_err(),
+                        concat!(
+                            stringify!($ty), " is not a valid NotAutoValue type: ",
+                            "NotAutoValue types should not be deserializable from \"auto\""
+                        ),
+                    );
+                }
+            }
+        }
+    };
+}
+
+/// A helper for calling [`impl_not_auto_value`] for a number of types.
+macro_rules! impl_not_auto_value_for_types {
+    ($($ty:ty)*) => {
+        $(impl_not_auto_value!($ty);)*
+    }
+}
+
+// Implement `NotAutoValue` for various primitive types.
+impl_not_auto_value_for_types!(
+    i8 i16 i32 i64 i128 isize
+    u8 u16 u32 u64 u128 usize
+    f32 f64
+    char
+    bool
+);
+
+// TODO implement `NotAutoValue` for other types too
 
 /// Padding enablement - rough amount of padding requested
 ///
@@ -420,7 +605,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    #[derive(Debug, Deserialize, Serialize)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     struct TestConfigFile {
         #[serde(default)]
         something_enabled: BoolOrAuto,
@@ -430,6 +615,12 @@ mod test {
 
         #[serde(default)]
         listen: Option<Listen>,
+
+        #[serde(default)]
+        auto_or_usize: ExplicitOrAuto<usize>,
+
+        #[serde(default)]
+        auto_or_bool: ExplicitOrAuto<bool>,
     }
 
     #[test]
@@ -601,5 +792,70 @@ mod test {
             ListenItem::General("1.2.3.4:5678".parse().unwrap()),
         ]);
         assert_eq!(multi_addr.to_string(), "localhost port 1234, 1.2.3.4:5678");
+    }
+
+    #[test]
+    fn explicit_or_auto() {
+        use ExplicitOrAuto as EOA;
+
+        let chk = |eoa: EOA<usize>, s| {
+            let tc: TestConfigFile = toml::from_str(s).expect(s);
+            assert_eq!(
+                format!("{:?}", eoa),
+                format!("{:?}", tc.auto_or_usize),
+                "{:?}",
+                s
+            );
+        };
+
+        chk(EOA::Auto, r#"auto_or_usize = "auto""#);
+        chk(EOA::Explicit(20), r#"auto_or_usize = 20"#);
+
+        let chk_e = |s| {
+            let tc: Result<TestConfigFile, _> = toml::from_str(s);
+            let _ = tc.expect_err(s);
+        };
+
+        chk_e(r#"auto_or_usize = """#);
+        chk_e(r#"auto_or_usize = []"#);
+        chk_e(r#"auto_or_usize = {}"#);
+
+        let chk = |eoa: EOA<bool>, s| {
+            let tc: TestConfigFile = toml::from_str(s).expect(s);
+            assert_eq!(
+                format!("{:?}", eoa),
+                format!("{:?}", tc.auto_or_bool),
+                "{:?}",
+                s
+            );
+        };
+
+        // ExplicitOrAuto<bool> works just like BoolOrAuto
+        chk(EOA::Auto, r#"auto_or_bool = "auto""#);
+        chk(EOA::Explicit(false), r#"auto_or_bool = false"#);
+
+        chk_e(r#"auto_or_bool= "not bool or auto""#);
+
+        let mut config = TestConfigFile::default();
+        let toml = toml::to_string(&config).unwrap();
+        assert_eq!(
+            toml,
+            r#"something_enabled = "auto"
+padding = "normal"
+auto_or_usize = "auto"
+auto_or_bool = "auto"
+"#
+        );
+
+        config.auto_or_bool = ExplicitOrAuto::Explicit(true);
+        let toml = toml::to_string(&config).unwrap();
+        assert_eq!(
+            toml,
+            r#"something_enabled = "auto"
+padding = "normal"
+auto_or_usize = "auto"
+auto_or_bool = true
+"#
+        );
     }
 }

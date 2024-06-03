@@ -2,9 +2,6 @@
 
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-
-use tor_config::ConfigBuildError;
 use tor_netdir::params::NetParameters;
 
 use crate::VanguardMode;
@@ -27,23 +24,10 @@ const DEFAULT_L3_GUARD_LIFETIME_MIN: Duration = Duration::from_secs(3600);
 /// The default maximum lifetime of L3 guards.
 const DEFAULT_L3_GUARD_LIFETIME_MAX: Duration = Duration::from_secs(3600 * 48);
 
-/// Vanguards configuration.
-#[derive(Debug, Default, Clone, Eq, PartialEq, derive_builder::Builder)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[derive(amplify::Getters)]
-pub struct VanguardConfig {
-    /// The kind of vanguards to use.
-    #[builder_field_attr(serde(default))]
-    #[builder(default)]
-    #[getter(as_copy)]
-    pub(super) mode: VanguardMode,
-}
-
 /// A set of parameters, derived from the consensus document,
 /// controlling the behavior of a [`VanguardMgr`](crate::vanguards::VanguardMgr).
 ///
-/// Note: these are not part of [`VanguardConfig`],
+/// Note: these are not part of [`VanguardConfig`](crate::VanguardConfig),
 /// because like all Tor network parameters,
 /// they can be overridden via the `TorClientConfig::override_net_params`.
 //

@@ -60,7 +60,7 @@ impl HsCircKind {
         match self {
             HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStubKind::Short,
             HsCircKind::SvcHsDir => {
-                // TODO HS-VANGUARDS: we might want this to be EXTENDED
+                // TODO: we might want this to be EXTENDED
                 HsCircStubKind::Short
             }
             HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {

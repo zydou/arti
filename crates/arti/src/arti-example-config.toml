@@ -444,3 +444,19 @@
 # How many streams will we allow at a time for each circuit?
 #
 #    max_concurrent_streams_per_circuit = 65535
+
+[vanguards]
+# The kind of vanguard to use when building onion service circuits.
+#
+# If the `vanguards` feature is enabled and this option can be set to
+#    * "auto", to use the default setting (lite vanguards)
+#    * "full", to enable full vanguards
+#    * "lite", to enable lite vanguards
+#    * "disabled", to disable vanguards
+#
+# If the `vanguards` feature is not enabled, "auto" has the same effect as
+# "disabled".
+#
+# Setting this option to anything other than "auto" or "disabled" when
+# the `vanguards` feature is disabled is a configuration error.
+#mode = "auto"

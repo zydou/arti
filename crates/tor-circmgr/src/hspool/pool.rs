@@ -7,7 +7,7 @@ use rand::Rng;
 use tor_basic_utils::RngExt as _;
 
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-use tor_guardmgr::vanguards::VanguardConfig;
+use tor_guardmgr::VanguardConfig;
 
 use tor_guardmgr::VanguardMode;
 
