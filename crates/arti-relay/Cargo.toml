@@ -1,0 +1,24 @@
+[package]
+name = "arti-relay"
+version = "0.18.0"
+authors = ["The Tor Project, Inc."]
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Library for running a relay of the Tor network"
+keywords = ["tor", "arti", "privacy", "anonymity", "networking"]
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = []
+full = []
+
+[dependencies]
+
+[dev-dependencies]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

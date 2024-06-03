@@ -9,7 +9,8 @@ set -euo pipefail
 help_arg () {
     case "$subcommand" in
 	'proxy' | \
-	'hss onion-name' )
+	'hss onion-name' | \
+	'relay' )
 	    help_arg='--help' ;;
     esac
 }
