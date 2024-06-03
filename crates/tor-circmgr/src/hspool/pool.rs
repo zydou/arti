@@ -271,7 +271,6 @@ impl Pool {
     }
 
     /// Purge all the circuits from the pool.
-    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     #[allow(clippy::unnecessary_wraps)] // for consistency and future-proofing
     pub(super) fn retire_all_circuits(&mut self) -> Result<(), tor_config::ReconfigureError> {
         self.have_been_exhausted = true;

@@ -363,7 +363,6 @@ impl<R: Runtime> HsCircPool<R> {
     /// if the [`VanguardMode`] changes, we need to empty the pool and rebuild it,
     /// because the old circuits are no longer suitable for use.
     pub fn retire_all_circuits(&self) -> StdResult<(), tor_config::ReconfigureError> {
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         self.inner
             .lock()
             .expect("poisoned lock")
