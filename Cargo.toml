@@ -62,6 +62,7 @@ members = [
     "crates/arti-testing",
 
     "maint/fixup-features",
+    "maint/keygen-openssh-test",
 
     "examples/gsoc2023/connection-checker",
     "examples/gsoc2023/dns-resolver",

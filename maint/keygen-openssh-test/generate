@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+# The script that was used to generate the OpenSSH keys from this directory.
+
+set -eou pipefail
+
+DIR=$(dirname "$0")
+GENERATE_PATH=$(realpath "$DIR")
+PACKAGE="keygen-openssh-test"
+BIN_PATH="$GENERATE_PATH/../../target/debug/${PACKAGE}"
+EXPANDED_ED25519="ed25519_expanded_openssh"
+X25519="x25519_openssh"
+# Make keygen deterministic
+export ARTI_TEST_PRNG=${ARTI_TEST_PRNG:-deterministic}
+
+if ! test -d "./crates/tor-keymgr"; then
+    echo "Did not find './crates/tor-keymgr' directory in $(pwd). Cannot proceed." 1>&2
+    echo "Hint: run this script from the workspace root" 1>&2
+    exit 1
+fi
+
+cd crates/tor-keymgr
+mkdir -p testdata
+cd testdata
+
+mangle_ed25519_private() (
+    sed -i '2ahello' "$1"
+)
+
+mangle_ed25519_public() (
+    sed -i 's/ssh-ed25519 /\0garbage/' "$1"
+)
+
+cargo build -p $PACKAGE
+
+"$BIN_PATH" --key-type dsa \
+   --private \
+   --name dsa_openssh \
+   --comment foo@example.com
+
+# Generate an ed25519 key
+"$BIN_PATH" --key-type ed25519 \
+   --private \
+   --public \
+   --name ed25519_openssh \
+   --comment armadillo@example.com
+
+# Generate an invalid ed25519 key
+"$BIN_PATH" --key-type ed25519 \
+   --private \
+   --public \
+   --name ed25519_openssh_bad \
+   --comment armadillo@example.com
+
+mangle_ed25519_private ed25519_openssh_bad.private
+mangle_ed25519_public ed25519_openssh_bad.public
+
+"$BIN_PATH" --key-type expanded-ed25519 \
+   --private \
+   --name "${EXPANDED_ED25519}"
+
+"$BIN_PATH" --key-type ed25519 \
+   --public \
+   --name "${EXPANDED_ED25519}"  \
+   --comment armadillo@example.com
+
+# Pretend the key type is expanded-ed
+sed -i 's/ssh-ed25519/ed25519-expanded@spec.torproject.org/' "${EXPANDED_ED25519}.public"
+
+"$BIN_PATH" --key-type expanded-ed25519 \
+   --private \
+   --name "${EXPANDED_ED25519}_bad"
+
+mangle_ed25519_private "${EXPANDED_ED25519}_bad.private"
+
+"$BIN_PATH" --key-type x25519 \
+   --private \
+   --public \
+   --name "$X25519"
+
+"$BIN_PATH" --key-type x25519 \
+   --private \
+   --algorithm pangolin@torproject.org \
+   --name "${X25519}_unknown_algorithm"
+
+"$BIN_PATH" --key-type x25519 \
+   --public \
+   --algorithm armadillo@torproject.org \
+   --name "${X25519}_unknown_algorithm"
