@@ -246,7 +246,8 @@ impl<R: Runtime> HsCircPool<R> {
             .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Short)
             .await?;
 
-        if self.vanguards_enabled() && circ.kind != HsCircStubKind::Short {
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        if matches!(self.vanguard_mode(), VanguardMode::Full | VanguardMode::Lite) && circ.kind != HsCircStubKind::Short {
             return Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into());
         }
 
@@ -303,7 +304,8 @@ impl<R: Runtime> HsCircPool<R> {
             .take_or_launch_stub_circuit(netdir, Some(&target), wanted_kind)
             .await?;
 
-        if self.vanguards_enabled() && circ.kind != wanted_kind {
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        if matches!(self.vanguard_mode(), VanguardMode::Full | VanguardMode::Lite) && circ.kind != wanted_kind {
             return Err(internal!(
                 "take_or_launch_stub_circuit() returned {:?}, but we need {wanted_kind:?}",
                 circ.kind
@@ -391,9 +393,9 @@ impl<R: Runtime> HsCircPool<R> {
         // family info.
         T: CircTarget,
     {
-        let vanguards_enabled = self.vanguards_enabled();
+        let vanguard_mode = self.vanguard_mode();
         trace!(
-            vanguards_enabled=vanguards_enabled,
+            vanguards=%vanguard_mode,
             kind=%kind,
             "selecting HS circuit stub"
         );
@@ -418,16 +420,25 @@ impl<R: Runtime> HsCircPool<R> {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
-                if vanguards_enabled {
-                    vanguards_circuit_compatible_with_target(netdir, circ, kind, avoid_target)
-                } else {
-                    circuit_compatible_with_target(netdir, circ, &target_exclusion)
+                match vanguard_mode {
+                    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                    VanguardMode::Lite | VanguardMode::Full => {
+                        vanguards_circuit_compatible_with_target(netdir, circ, kind, avoid_target)
+                    }
+                    VanguardMode::Disabled => {
+                        circuit_compatible_with_target(netdir, circ, &target_exclusion)
+                    }
+                    _ => {
+                        warn!("unknown vanguard mode {vanguard_mode}");
+                        false
+                    }
                 }
             };
 
             let mut prefs = HsCircPrefs::default();
 
-            if vanguards_enabled {
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            if matches!(vanguard_mode, VanguardMode::Full | VanguardMode::Lite) {
                 prefs.preferred_stub_kind(kind);
             }
 
@@ -476,8 +487,17 @@ impl<R: Runtime> HsCircPool<R> {
         circuit: HsCircStub,
         kind: HsCircStubKind,
     ) -> Result<HsCircStub> {
-        if !self.vanguards_enabled() {
-            return Ok(circuit);
+        match self.vanguard_mode() {
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            VanguardMode::Full => {
+                // SHORT circuit stubs need to be extended by one hop to become EXTENDED stubs
+                // if we're using full vanguards.
+            }
+            _ => {
+                let HsCircStub { circ, kind: _ } = circuit;
+
+                return Ok(HsCircStub { circ, kind });
+            }
         }
 
         match (circuit.kind, kind) {
@@ -629,17 +649,6 @@ impl<R: Runtime> HsCircPool<R> {
         inner
             .pool
             .retain(|circ| circuit_still_useable(netdir, circ, |_relay| true));
-    }
-
-    /// Returns `true` if vanguards are enabled.
-    fn vanguards_enabled(&self) -> bool {
-        cfg_if::cfg_if! {
-            if #[cfg(all(feature = "vanguards", feature = "hs-common"))] {
-                self.vanguard_mode() != VanguardMode::Disabled
-            } else {
-                false
-            }
-        }
     }
 
     /// Returns the current [`VanguardMode`].
@@ -951,7 +960,7 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let circmgr = circmgr_with_vanguards(runtime, VanguardMode::Disabled);
             let circpool = HsCircPool::new(&circmgr);
-            assert!(!circpool.vanguards_enabled());
+            assert!(circpool.vanguard_mode() == VanguardMode::Disabled);
         });
     }
 
@@ -962,7 +971,7 @@ mod test {
             for mode in [VanguardMode::Lite, VanguardMode::Full] {
                 let circmgr = circmgr_with_vanguards(runtime.clone(), mode);
                 let circpool = HsCircPool::new(&circmgr);
-                assert!(circpool.vanguards_enabled());
+                assert!(circpool.vanguard_mode() == mode);
             }
         });
     }
