@@ -1,7 +1,8 @@
 //! Objects that can become or wrap a [`arti_client::DataStream`].
 
-use arti_client::rpc::{ClientConnectionResult, ClientConnectionTarget};
-use async_trait::async_trait;
+use arti_client::rpc::{
+    ClientConnectionResult, ConnectWithPrefs, ResolvePtrWithPrefs, ResolveWithPrefs,
+};
 use derive_deftly::Deftly;
 use std::{
     net::IpAddr,
@@ -39,7 +40,7 @@ enum Inner {
     /// This is the initial state for every RpcDataStream.
     ///
     /// It may become `Launching` or `UsedToResolve`.
-    Unused(Arc<dyn ClientConnectionTarget>),
+    Unused(Arc<dyn rpc::Object>),
 
     /// The actual connection is being made, ie we are within `connect_with_prefs`
     ///
@@ -88,9 +89,12 @@ impl tor_error::HasKind for DataStreamError {
 }
 
 impl RpcDataStream {
-    /// Construct a new unused DataStream that will make its connection
+    /// Construct a new unused RpcDataStream that will make its connection
     /// with `connector`.
-    pub(crate) fn new(connector: Arc<dyn ClientConnectionTarget>) -> Self {
+    ///
+    /// The `connector` object should implement at least one of ConnectWithPrefs, ResolveWithPrefs,
+    /// or ResolvePtrWithPrefs, or else it won't actually be useful for anything.
+    pub(crate) fn new(connector: Arc<dyn rpc::Object>) -> Self {
         Self {
             inner: Mutex::new(Inner::Unused(connector)),
         }
@@ -99,10 +103,7 @@ impl RpcDataStream {
     /// If this DataStream is in state Unused, replace its state with `new_state`
     /// and return the ClientConnectionTarget.  Otherwise, leave its state unchanged
     /// and return an error.
-    fn take_connector(
-        &self,
-        new_state: Inner,
-    ) -> Result<Arc<dyn ClientConnectionTarget>, DataStreamError> {
+    fn take_connector(&self, new_state: Inner) -> Result<Arc<dyn rpc::Object>, DataStreamError> {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let val = std::mem::replace(&mut *inner, new_state);
         if let Inner::Unused(conn) = val {
@@ -125,33 +126,38 @@ impl RpcDataStream {
     }
 }
 
-#[async_trait]
-impl ClientConnectionTarget for RpcDataStream {
-    async fn connect_with_prefs(
-        &self,
-        target: &arti_client::TorAddr,
-        prefs: &arti_client::StreamPrefs,
-    ) -> ClientConnectionResult<arti_client::DataStream> {
+/// Invoke ConnectWithPrefs on an RpcDataStream.
+///
+/// Unlike the other methods on RpcDataStream, this one is somewhat complex, since it must
+/// re-register the resulting datastream once it has one.
+async fn rpcdatastream_connect_with_prefs(
+    rpc_data_stream: Arc<RpcDataStream>,
+    mut method: Box<ConnectWithPrefs>,
+    ctx: Arc<dyn rpc::Context>,
+) -> ClientConnectionResult<arti_client::DataStream> {
+    {
+        // XXXX remove indentation.
         // Extract the connector.
         //
         // As we do this, we put this RpcDataStream into a Launching state.
         //
         // (`Launching`` wouldn't need to exist if we `connect_with_prefs` were synchronous,
         // but it isn't synchronous, so `Launching` is an observable state.)
-        let connector = self
+        let connector = rpc_data_stream
             .take_connector(Inner::Launching)
             .map_err(|e| Box::new(e) as _)?;
 
-        let mut prefs = prefs.clone();
-        let was_optimistic = prefs.is_optimistic();
+        let was_optimistic = method.prefs.is_optimistic();
         // We want this to be treated internally as an "optimistic" connection,
         // so that inner connect_with_prefs() will return ASAP.
-        prefs.optimistic();
+        method.prefs.optimistic();
 
         // Now, launch the connection.  Since we marked it as optimistic,
         // this call should return almost immediately.
         let stream: Result<arti_client::DataStream, _> =
-            connector.connect_with_prefs(target, &prefs).await;
+            *rpc::invoke_special_method(ctx, connector, method)
+                .await
+                .map_err(|e| Box::new(e) as _)?;
 
         // Pick the new state for this object, and install it.
         let new_obj = match &stream {
@@ -159,7 +165,7 @@ impl ClientConnectionTarget for RpcDataStream {
             Err(_) => Inner::StreamFailed, // TODO RPC: Remember some error information here.
         };
         {
-            let mut inner = self.inner.lock().expect("poisoned lock");
+            let mut inner = rpc_data_stream.inner.lock().expect("poisoned lock");
             *inner = new_obj;
         }
         // Return early on failure.
@@ -176,30 +182,40 @@ impl ClientConnectionTarget for RpcDataStream {
         // Return the stream; the SOCKS layer will take it from here.
         Ok(stream)
     }
+}
 
-    async fn resolve_with_prefs(
-        &self,
-        hostname: &str,
-        prefs: &arti_client::StreamPrefs,
-    ) -> ClientConnectionResult<Vec<IpAddr>> {
-        let connector = self
-            .take_connector(Inner::UsedToResolve)
-            .map_err(|e| Box::new(e) as _)?;
+/// Invoke ResolveWithPrefs on an RpcDataStream
+async fn rpcdatastream_resolve_with_prefs(
+    rpc_data_stream: Arc<RpcDataStream>,
+    method: Box<ResolveWithPrefs>,
+    ctx: Arc<dyn rpc::Context>,
+) -> ClientConnectionResult<Vec<IpAddr>> {
+    let connector = rpc_data_stream
+        .take_connector(Inner::UsedToResolve)
+        .map_err(|e| Box::new(e) as _)?;
 
-        connector.resolve_with_prefs(hostname, prefs).await
-    }
+    let result = rpc::invoke_special_method(ctx, connector, method)
+        .await
+        .map_err(|e| Box::new(e) as _)?;
 
-    async fn resolve_ptr_with_prefs(
-        &self,
-        addr: IpAddr,
-        prefs: &arti_client::StreamPrefs,
-    ) -> ClientConnectionResult<Vec<String>> {
-        let connector = self
-            .take_connector(Inner::UsedToResolve)
-            .map_err(|e| Box::new(e) as _)?;
+    *result
+}
 
-        connector.resolve_ptr_with_prefs(addr, prefs).await
-    }
+/// Invoke ResolvePtrWithPrefs on an RpcDataStream
+async fn rpcdatastream_resolve_ptr_with_prefs(
+    rpc_data_stream: Arc<RpcDataStream>,
+    method: Box<ResolvePtrWithPrefs>,
+    ctx: Arc<dyn rpc::Context>,
+) -> ClientConnectionResult<Vec<String>> {
+    let connector = rpc_data_stream
+        .take_connector(Inner::UsedToResolve)
+        .map_err(|e| Box::new(e) as _)?;
+
+    let result = rpc::invoke_special_method(ctx, connector, method)
+        .await
+        .map_err(|e| Box::new(e) as _)?;
+
+    *result
 }
 
 /// Method to create a stream handle.
@@ -216,7 +232,7 @@ impl rpc::Method for NewStreamHandle {
 
 /// Helper: construct and register an RpcDataStream.
 fn new_stream_handle_impl(
-    connector: Arc<dyn ClientConnectionTarget>,
+    connector: Arc<dyn rpc::Object>,
     ctx: &dyn rpc::Context,
 ) -> rpc::ObjectId {
     let rpc_stream = Arc::new(RpcDataStream::new(connector));
@@ -240,4 +256,9 @@ async fn new_stream_handle_on_session(
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
     Ok(new_stream_handle_impl(session, ctx.as_ref()).into())
 }
-rpc::static_rpc_invoke_fn! { new_stream_handle_on_session; }
+rpc::static_rpc_invoke_fn! {
+    new_stream_handle_on_session;
+    @special rpcdatastream_connect_with_prefs;
+    @special rpcdatastream_resolve_with_prefs;
+    @special rpcdatastream_resolve_ptr_with_prefs;
+}

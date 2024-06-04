@@ -4,15 +4,14 @@
 //! is the root for all other RPC capabilities.
 
 use arti_client::{
-    rpc::{ClientConnectionResult, ClientConnectionTarget},
+    rpc::{ClientConnectionResult, ConnectWithPrefs, ResolvePtrWithPrefs, ResolveWithPrefs},
     TorClient,
 };
-use async_trait::async_trait;
 use derive_deftly::Deftly;
 use std::{net::IpAddr, sync::Arc};
 use tor_rtcompat::Runtime;
 
-use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*, ObjectArcExt as _};
+use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*};
 
 /// An authenticated RPC session: a capability through which most other RPC functionality is available
 ///
@@ -27,10 +26,7 @@ use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*, ObjectArcExt 
 ///    But a client may authenticate more than once; each time produces a new `RpcSession`.
 #[derive(Deftly)]
 #[derive_deftly(Object)]
-#[deftly(
-    rpc(expose_outside_of_session),
-    rpc(downcastable_to = "ClientConnectionTarget")
-)]
+#[deftly(rpc(expose_outside_of_session))]
 pub struct RpcSession {
     /// An inner TorClient object that we use to implement remaining
     /// functionality.
@@ -65,13 +61,8 @@ impl RpcSession {
 
     /// Return a view of the client associated with this session, as an `Arc<dyn
     /// ClientConnectionTarget>.`
-    fn client_as_conn_target(&self) -> Arc<dyn ClientConnectionTarget> {
-        self.client
-            .clone()
-            .upcast_arc()
-            .cast_to_arc_trait()
-            .ok()
-            .expect("Somehow we had a client that was not a ClientConnectionTarget?")
+    fn client_as_object(&self) -> Arc<dyn rpc::Object> {
+        self.client.clone().upcast_arc()
     }
 }
 
@@ -174,42 +165,52 @@ async fn isolated_client_on_session(
     Ok(rpc::SingletonId::from(ctx.register_owned(new_client)))
 }
 
+/// Implement ConnectWithPrefs on an RpcSession
+///
+/// (Delegates to TorClient.)
+async fn session_connect_with_prefs(
+    session: Arc<RpcSession>,
+    method: Box<ConnectWithPrefs>,
+    ctx: Arc<dyn rpc::Context>,
+) -> ClientConnectionResult<arti_client::DataStream> {
+    *rpc::invoke_special_method(ctx, session.client_as_object(), method)
+        .await
+        .map_err(|e| Box::new(e) as _)?
+}
+
+/// Implement ResolveWithPrefs on an RpcSession
+///
+/// (Delegates to TorClient.)
+
+async fn session_resolve_with_prefs(
+    session: Arc<RpcSession>,
+    method: Box<ResolveWithPrefs>,
+    ctx: Arc<dyn rpc::Context>,
+) -> ClientConnectionResult<Vec<IpAddr>> {
+    *rpc::invoke_special_method(ctx, session.client_as_object(), method)
+        .await
+        .map_err(|e| Box::new(e) as _)?
+}
+
+/// Implement ResolvePtrWithPrefs on an RpcSession
+///
+/// (Delegates to TorClient.)
+async fn session_resolve_ptr_with_prefs(
+    session: Arc<RpcSession>,
+    method: Box<ResolvePtrWithPrefs>,
+    ctx: Arc<dyn rpc::Context>,
+) -> ClientConnectionResult<Vec<String>> {
+    *rpc::invoke_special_method(ctx, session.client_as_object(), method)
+        .await
+        .map_err(|e| Box::new(e) as _)?
+}
+
 static_rpc_invoke_fn! {
     rpc_release;
     echo_on_session;
     get_client_on_session;
     isolated_client_on_session;
-}
-
-#[async_trait]
-impl ClientConnectionTarget for RpcSession {
-    async fn connect_with_prefs(
-        &self,
-        target: &arti_client::TorAddr,
-        prefs: &arti_client::StreamPrefs,
-    ) -> ClientConnectionResult<arti_client::DataStream> {
-        self.client_as_conn_target()
-            .connect_with_prefs(target, prefs)
-            .await
-    }
-
-    async fn resolve_with_prefs(
-        &self,
-        hostname: &str,
-        prefs: &arti_client::StreamPrefs,
-    ) -> ClientConnectionResult<Vec<IpAddr>> {
-        self.client_as_conn_target()
-            .resolve_with_prefs(hostname, prefs)
-            .await
-    }
-
-    async fn resolve_ptr_with_prefs(
-        &self,
-        addr: IpAddr,
-        prefs: &arti_client::StreamPrefs,
-    ) -> ClientConnectionResult<Vec<String>> {
-        self.client_as_conn_target()
-            .resolve_ptr_with_prefs(addr, prefs)
-            .await
-    }
+    @special session_connect_with_prefs;
+    @special session_resolve_with_prefs;
+    @special session_resolve_ptr_with_prefs;
 }

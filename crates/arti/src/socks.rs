@@ -9,7 +9,6 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::io::Result as IoResult;
-use std::marker::PhantomData;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[cfg(feature = "rpc")]
 use std::sync::Arc;
@@ -21,7 +20,7 @@ use arti_client::{ErrorKind, IntoTorAddr as _, StreamPrefs, TorClient};
 use tor_config::Listen;
 use tor_error::warn_report;
 #[cfg(feature = "rpc")]
-use tor_rpcbase::{self as rpc, ObjectArcExt as _};
+use tor_rpcbase::{self as rpc};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -184,29 +183,14 @@ type ConnIsolation = (usize, IpAddr);
 
 cfg_if::cfg_if! {
     if #[cfg(feature="rpc")] {
-        /// A type returned by get_prefs_and_session,
-        /// and used to launch data streams or resolve attempts.
-        ///
-        /// TODO RPC: This is quite ugly; we should do something better.
-        /// At least, we should never expose this outside the socks module.
-        type ConnTarget<R> = (
-            Arc<dyn arti_client::rpc::ClientConnectionTarget>,
-            // This PhantomData is present so that ConnTarget
-            // can be parameterized.
-            PhantomData<R>
-        );
+        use crate::rpc::conntarget::ConnTarget;
     } else {
         /// A type returned by get_prefs_and_session,
         /// and used to launch data streams or resolve attempts.
         ///
         /// TODO RPC: This is quite ugly; we should do something better.
         /// At least, we should never expose this outside the socks module.
-        type ConnTarget<R> = (
-            TorClient<R>,
-            // This PhantomData is present so that get_prefs_and_session
-            // can return a 2-tuple unconditionally.
-            PhantomData<R>
-        );
+        type ConnTarget<R> = TorClient<R>;
     }
 }
 
@@ -231,15 +215,11 @@ impl<R: Runtime> SocksConnContext<R> {
         #[cfg(feature = "rpc")]
         if let Some(session) = interp.assign_to_session {
             if let Some(mgr) = &self.rpc_mgr {
-                let session = mgr
+                let (context, object) = mgr
                     .lookup_object(&session)
                     .context("no such session found")?;
-                let target: Arc<dyn arti_client::rpc::ClientConnectionTarget> = session
-                    .1
-                    .cast_to_arc_trait()
-                    .map_err(|_| anyhow!("Target did not implement ClientConnectionTarget"))?;
-
-                return Ok((prefs, (target, PhantomData)));
+                let target = ConnTarget::Rpc { context, object };
+                return Ok((prefs, target));
             } else {
                 return Err(anyhow!("no rpc manager found!?"));
             }
@@ -247,9 +227,9 @@ impl<R: Runtime> SocksConnContext<R> {
 
         let client = self.tor_client.clone();
         #[cfg(feature = "rpc")]
-        let client = Arc::new(client);
+        let client = ConnTarget::Client(client);
 
-        Ok((prefs, (client, PhantomData)))
+        Ok((prefs, client))
     }
 }
 
@@ -348,8 +328,7 @@ where
         port
     );
 
-    let (prefs, (tor_client, _)) =
-        context.get_prefs_and_session(&request, &addr, isolation_info)?;
+    let (prefs, tor_client) = context.get_prefs_and_session(&request, &addr, isolation_info)?;
 
     match request.command() {
         SocksCmd::CONNECT => {
