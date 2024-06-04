@@ -3,11 +3,30 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.2.4 — 3 June 2024
+# Arti 1.2.4 — 5 June 2024
 
-XXXX BLURB
+Arti 1.2.4 continues development on onion services,
+and on the RPC subsystem.
 
-Up-to-date through fa1e9ae9430225b2d3f7a625e09365f4a44d3ba1.
+This release restores the `faravahar` directory authority, which has a new
+location and keys.
+
+We have also fixed two-medium security issues, tracked as [TROVE-2024-005]
+and [TROVE-2024-006], respectively, and a number of other, smaller bugs.
+
+[TROVE-2024-005] affects hidden service circuits using non-default vanguard
+configurations (where the vanguard mode is set to 'disabled' or 'full'),
+causing hidden service circuits to be built from circuit stubs that are
+incomaptbile with the circuit target, and to have an incorrect length.
+
+[TROVE-2024-006] affects hidden services and clients using non-default
+vanguard configurations, where the vanguard mode is set to 'disabled', or that
+have the `vanguards` feature compiled out. In some circumstances, this bug can
+lead to building hidden service circuits that contain the same relay in
+multiple positions.
+
+Both issues make users of this code more vulnerable to traffic analysis when
+running or accessing onion services.
 
 ### Network updates
 
@@ -19,6 +38,18 @@ Up-to-date through fa1e9ae9430225b2d3f7a625e09365f4a44d3ba1.
 - Ensure that `DataWriter::close()` actually closes its associated stream.
   Previously, this `close()` method would have no effect until the
   `DataReader` was also dropped. ([#1368], [!2170])
+- Fix a bug where the vanguard circuit stub selection code would fail to ensure
+  that the last two hops of the selected circuit stub are different from the
+  circuit target. ([#1417], [!2167], [!2181])
+- Fix a medium-severity issue causing the hidden service circuit pool code to
+  ignore the configured vanguard mode.
+  This is also tracked as [TROVE-2024-005]. ([#1424], [!2168])
+- Use `HasRelayIds::has_any_relay_id_from` to check for relay equality
+  when checking if a circuit contains duplicate relays. ([!2181])
+- Fix a medium-severity issue, which would, in some circumstances, cause
+  hidden service circuits to be built without applying the necessary same-hop
+  restrictions.
+  This is also tracked as [TROVE-2024-006]. ([#1425], [!2179])
 
 ### Breaking changes in lower-level crates
 
@@ -56,10 +87,11 @@ Up-to-date through fa1e9ae9430225b2d3f7a625e09365f4a44d3ba1.
 - Other miscellaneous lower-level improvements to the RPC type
   system. ([!2124], [!2140], [!2142])
 
-
 ### Other major features
 
-### Documentation
+- If the circuit manager has retired all of its circuits,
+  unconditionally retire all the circuits from the hidden service circuit pool.
+  ([!2168])
 
 ### Testing
 
@@ -67,7 +99,11 @@ Up-to-date through fa1e9ae9430225b2d3f7a625e09365f4a44d3ba1.
 - Automate enforcement of our convention that scripts not be named with
   their implementation languages. ([!2153])
 - Include script needed to generate `keymgr` test data. ([!2121])
-
+- Add tests for vanguard state file serialization. ([!2167])
+- Add a [Shadow] CI test involving an onion service that uses full vanguards.
+  ([!2167])
+- Add a test that ensures the hidden service circuit pool reads the vanguard mode
+  from the configuration. ([!2168])
 
 ### Documentation
 
@@ -92,6 +128,9 @@ Up-to-date through fa1e9ae9430225b2d3f7a625e09365f4a44d3ba1.
 - Ensure that our CI scripts delete unnecessary data on completion.
   (This helps keep us from running our infrastructure out of disk space
   and making the other gitlab users sad.) ([!2159])
+- Adjust our license-checking code to accommodate
+  license clarifications in `priority-queue` and `tinystr`.
+  ([!2177])
 
 ### Cleanups, minor features, and bugfixes
 
@@ -111,6 +150,17 @@ Up-to-date through fa1e9ae9430225b2d3f7a625e09365f4a44d3ba1.
   front-end and reactor pieces. ([!2163])
 - Refactor the `poll_ready` method on `ChannelSender` to
   have a more conventional interface. ([!2171])
+- Replace debug assertions with internal errors
+  in the post-build checks for vanguard circuits,
+  to prevent issues such as [TROVE-2024-003] and [TROVE-2024-004].
+  ([!2167], [!2186])
+- Upgrade to the latest versions of [priority-queue]. ([!2177])
+- Validate the properties of the circuits retrieved
+  from the hidden service circuit pool. ([97868349ed695ec8])
+- Fix hidden service circuit stubs sometimes being unnecessarily extended
+  when lite vanguards are in use. ([#1458], [!2183])
+- Refactor vanguards configuration handling to be less error-prone.
+  ([#1456], [!2183])
 
 ### Acknowledgments
 
@@ -155,10 +205,17 @@ for funding the development of Arti!
 [!2163]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2163
 [!2164]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2164
 [!2165]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2165
+[!2167]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2167
+[!2168]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2168
 [!2169]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2169
 [!2170]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2170
 [!2171]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2171
 [!2175]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2175
+[!2177]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2177
+[!2179]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2179
+[!2181]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2181
+[!2183]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2183
+[!2186]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2186
 [#1299]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1299
 [#1339]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1339
 [#1362]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1362
@@ -172,7 +229,17 @@ for funding the development of Arti!
 [#1395]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1395
 [#1403]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1403
 [#823]: https://gitlab.torproject.org/tpo/core/arti/-/issues/823
+[#1417]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1417
+[#1424]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1424
+[#1425]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1425
+[#1456]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1456
+[#1458]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1458
 [489aa72d1eee8a56]: https://gitlab.torproject.org/tpo/core/arti/-/commit/489aa72d1eee8a5638493dfb23d06823a201c132
+[97868349ed695ec8]: https://gitlab.torproject.org/tpo/core/arti/-/commit/97868349ed695ec87f1a7bee8fd74598156fd60d
+[Shadow]: https://shadow.github.io
+[TROVE-2024-005]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-006]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[priority-queue]: https://crates.io/crates/priority-queue
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [other sponsors]: https://www.torproject.org/about/sponsors/
 
