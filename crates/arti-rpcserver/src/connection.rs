@@ -416,12 +416,7 @@ impl Connection {
         let context: Arc<dyn rpc::Context> = Arc::new(RequestContext {
             conn: Arc::clone(self),
         });
-        let invoke_future = self.dispatch_table.read().expect("lock poisoned").invoke(
-            obj,
-            method.upcast_box(),
-            context,
-            tx_updates,
-        )?;
+        let invoke_future = rpc::invoke_rpc_method(context, obj, method.upcast_box(), tx_updates)?;
 
         // Note that we drop the read lock before we await this future!
         invoke_future.await
