@@ -192,6 +192,11 @@ where
     fn tls_connector(&self) -> Self::Connector {
         self.inner.tls.tls_connector()
     }
+
+    #[inline]
+    fn supports_keying_material_export(&self) -> bool {
+        self.inner.tls.supports_keying_material_export()
+    }
 }
 
 impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> std::fmt::Debug

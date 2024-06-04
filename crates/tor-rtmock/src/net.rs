@@ -470,6 +470,10 @@ impl TlsProvider<LocalStream> for MockNetProvider {
     fn tls_connector(&self) -> MockTlsConnector {
         MockTlsConnector {}
     }
+
+    fn supports_keying_material_export(&self) -> bool {
+        false
+    }
 }
 
 /// Mock TLS connector for use with MockNetProvider.
@@ -520,6 +524,14 @@ impl TlsConnector<LocalStream> for MockTlsConnector {
 impl CertifiedConn for MockTlsStream {
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
         Ok(self.peer_cert.clone())
+    }
+    fn export_keying_material(
+        &self,
+        _len: usize,
+        _label: &[u8],
+        _context: Option<&[u8]>,
+    ) -> IoResult<Vec<u8>> {
+        Ok(Vec::new())
     }
 }
 

@@ -39,6 +39,18 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
             .peer_certificates()
             .and_then(|certs| certs.first().map(|c| Vec::from(c.as_ref()))))
     }
+
+    fn export_keying_material(
+        &self,
+        len: usize,
+        label: &[u8],
+        context: Option<&[u8]>,
+    ) -> IoResult<Vec<u8>> {
+        let (_, session) = self.get_ref();
+        session
+            .export_keying_material(Vec::with_capacity(len), label, context)
+            .map_err(|e| IoError::new(io::ErrorKind::InvalidData, e))
+    }
 }
 
 /// An implementation of [`TlsConnector`] built with `rustls`.
@@ -78,6 +90,10 @@ where
             connector,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    fn supports_keying_material_export(&self) -> bool {
+        true
     }
 }
 

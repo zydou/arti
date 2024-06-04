@@ -60,6 +60,9 @@ define_derive_deftly! {
         fn tls_connector(&self) -> Self::Connector {
             self.$fname.tls_connector()
         }
+        fn supports_keying_material_export(&self) -> bool {
+            self.$fname.supports_keying_material_export()
+        }
     }
 
     #[async_trait]

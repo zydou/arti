@@ -230,6 +230,13 @@ pub trait UdpSocket {
 
 /// An object with a peer certificate: typically a TLS connection.
 pub trait CertifiedConn {
+    /// Return the keying material (RFC 5705) given a label and an optional context.
+    fn export_keying_material(
+        &self,
+        len: usize,
+        label: &[u8],
+        context: Option<&[u8]>,
+    ) -> IoResult<Vec<u8>>;
     /// Try to return the (DER-encoded) peer certificate for this
     /// connection, if any.
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>>;
@@ -295,4 +302,7 @@ pub trait TlsProvider<S>: Clone + Send + Sync + 'static {
 
     /// Return a TLS connector for use with this runtime.
     fn tls_connector(&self) -> Self::Connector;
+
+    /// Return true iff the keying material exporters (RFC 5705) is supported.
+    fn supports_keying_material_export(&self) -> bool;
 }
