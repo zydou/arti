@@ -16,11 +16,12 @@ pub(crate) mod exitpath;
 #[cfg(feature = "hs-common")]
 pub(crate) mod hspath;
 
+use std::result::Result as StdResult;
 use std::time::SystemTime;
 
 use rand::Rng;
 
-use tor_error::{bad_api_usage, internal};
+use tor_error::{bad_api_usage, internal, Bug};
 #[cfg(feature = "geoip")]
 use tor_geoip::{CountryCode, HasCountryCode};
 use tor_guardmgr::fallback::FallbackDir;
@@ -311,6 +312,20 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
     };
     let rs_cfg = config.relay_selection_config();
 
+    let target_exclusion = match builder.compatible_with() {
+        Some(ct) => {
+            // Exclude the target from appearing in other positions in the path.
+            let ids = RelayIdSet::from_iter(ct.identities().map(|id_ref| id_ref.to_owned()));
+            // TODO torspec#265: we do not apply same-family restrictions
+            // (a relay in the same family as the target can occur in the path).
+            //
+            // We need to decide if this is the correct behavior,
+            // and if so, document it in torspec.
+            RelayExclusion::exclude_identities(ids)
+        }
+        None => RelayExclusion::no_relays_excluded(),
+    };
+
     // TODO-SPEC: Because of limitations in guard selection, we have to
     // pick the guard before the exit, which is not what our spec says.
     let (guard, mon, usable) = select_guard(
@@ -335,13 +350,17 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
         ),
     };
 
-    let (exit, middle_usage) = builder.pick_exit(rng, netdir, guard_exclusion.clone(), &rs_cfg)?;
+    let mut exclusion = guard_exclusion.clone();
+    exclusion.extend(&target_exclusion);
+    let (exit, middle_usage) = builder.pick_exit(rng, netdir, exclusion, &rs_cfg)?;
 
     let mut family_exclusion =
         RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![exit.clone()]);
     family_exclusion.extend(&guard_exclusion);
+    let mut exclusion = family_exclusion;
+    exclusion.extend(&target_exclusion);
 
-    let selector = RelaySelector::new(middle_usage, family_exclusion);
+    let selector = RelaySelector::new(middle_usage, exclusion);
     let (middle, info) = selector.select_relay(rng, netdir);
     let middle = middle.ok_or_else(|| Error::NoRelay {
         path_kind: builder.path_kind(),
@@ -349,15 +368,33 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
         problem: info.to_string(),
     })?;
 
-    Ok((
-        TorPath::new_multihop_from_maybe_owned(vec![
-            guard,
-            MaybeOwnedRelay::from(middle),
-            MaybeOwnedRelay::from(exit),
-        ]),
-        mon,
-        usable,
-    ))
+    let hops = vec![
+        guard,
+        MaybeOwnedRelay::from(middle),
+        MaybeOwnedRelay::from(exit),
+    ];
+
+    ensure_unique_hops(&hops)?;
+
+    Ok((TorPath::new_multihop_from_maybe_owned(hops), mon, usable))
+}
+
+/// Returns an error if the specified hop list contains duplicates.
+fn ensure_unique_hops<'a>(hops: &'a [MaybeOwnedRelay<'a>]) -> StdResult<(), Bug> {
+    for (i, hop) in hops.iter().enumerate() {
+        if let Some(hop2) = hops
+            .iter()
+            .skip(i + 1)
+            .find(|hop2| hop.clone().has_any_relay_id_from(*hop2))
+        {
+            return Err(internal!(
+                "invalid path: the IDs of hops {} and {} overlap?!",
+                hop.display_relay_ids(),
+                hop2.display_relay_ids()
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Try to select a guard corresponding to the requirements of
