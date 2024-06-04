@@ -72,7 +72,7 @@ pub type RpcResult = Result<RpcValue, RpcError>;
 pub type RpcSendResult = Result<RpcValue, SendUpdateError>;
 
 /// A boxed future holding the result of an RPC method.
-type RpcResultFuture = BoxFuture<'static, RpcResult>;
+pub type RpcResultFuture = BoxFuture<'static, RpcResult>;
 
 /// A boxed sink on which updates can be sent.
 pub type BoxedUpdateSink = Pin<Box<dyn Sink<RpcValue, Error = SendUpdateError> + Send>>;
@@ -682,6 +682,8 @@ impl DispatchTable {
     /// given RPC-visible object.
     ///
     /// On success, return a Future.
+    //
+    // TODO RPC: Possibly deprecate this in favor of crate::invoke_rpc_method
     pub fn invoke(
         &self,
         obj: Arc<dyn Object>,
@@ -699,6 +701,8 @@ impl DispatchTable {
     ///
     /// Unlike `invoke`, this method does not return a type-erased result,
     /// and does not require that the result can be serialized as an RPC object.
+    //
+    // TODO RPC: Possibly deprecate this in favor of crate::invoke_special_method.
     pub async fn invoke_special<M: crate::Method>(
         &self,
         obj: Arc<dyn Object>,
