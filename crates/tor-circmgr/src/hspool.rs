@@ -584,6 +584,8 @@ impl<R: Runtime> HsCircPool<R> {
         let circ_path_len = circ.path_ref().n_hops();
         let mode = self.vanguard_mode();
 
+        // TODO: the expected circuit lengths are hard-coded and duplicated in hspath.rs
+        // TODO(#1457): somehow unify the path length checks
         let expected_len = match (mode, kind) {
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             (VanguardMode::Lite, _) => 3,
