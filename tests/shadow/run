@@ -47,6 +47,7 @@ HOSTS=(
 
 for HOST in "${HOSTS[@]}"; do
   successes="$(grep -c stream-success shadow.data/hosts/"$HOST"/tgen.*.stdout || true)"
+
   # NOTE: For the HS client tests we only require half of the streams to succeed
   # to work around the issue described in https://github.com/shadow/shadow/issues/2544
   # and arti!1399.
@@ -57,6 +58,29 @@ for HOST in "${HOSTS[@]}"; do
     echo "Simulation successful"
   else
     echo "Failed. Only got $successes successful streams."
+    exit 1
+  fi
+done
+
+HOSTS=(
+  articlient-onion
+  articlient-onion-auth
+  articlient-onion-artiserver
+  articlient-onion-artiserver-full-vanguards
+  fileserver-onion-arti
+  fileserver-onion-arti-full-vanguards
+)
+
+for HOST in "${HOSTS[@]}"; do
+  # TODO: this is a temporary measure until we implement other ways of testing
+  # that the circuits we've built have the desired properties.
+  bugs="$(grep -c Bug shadow.data/hosts/"$HOST"/arti*.stdout || true)"
+
+  if [ "$bugs" -eq 0 ]
+  then
+    echo "Simulation successful"
+  else
+    echo "Failed. Found $bugs internal errors."
     exit 1
   fi
 done
