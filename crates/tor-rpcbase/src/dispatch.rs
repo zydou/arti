@@ -646,6 +646,38 @@ impl DispatchTable {
         ents.into_iter().for_each(|e| self.insert(e));
     }
 
+    /// Helper: Return the invoker for a given RPC object and a given method type,
+    /// if there is one.
+    pub(crate) fn rpc_invoker(
+        &self,
+        obj: &dyn Object,
+        method: &dyn DynMethod,
+    ) -> Result<&'static dyn RpcInvocable, InvokeError> {
+        let func_type = FuncType {
+            obj_id: obj.type_id(),
+            method_id: method.type_id(),
+        };
+        self.map
+            .get(&func_type)
+            .ok_or(InvokeError::NoImpl)?
+            .rpc_invoker
+            .ok_or(InvokeError::NoImpl)
+    }
+
+    /// Helper: Return the special invoker for a given object and a given method type,
+    /// if there is one.
+    pub(crate) fn special_invoker<M: crate::Method>(
+        &self,
+        obj: &dyn Object,
+    ) -> Result<&'static dyn Invocable, InvokeError> {
+        let func_type = FuncType {
+            obj_id: obj.type_id(),
+            method_id: std::any::TypeId::of::<M>(),
+        };
+        let ent = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
+        Ok(ent.invoker)
+    }
+
     /// Try to find an appropriate function for calling a given RPC method on a
     /// given RPC-visible object.
     ///
@@ -657,16 +689,9 @@ impl DispatchTable {
         ctx: Box<dyn Context>,
         sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError> {
-        let func_type = FuncType {
-            obj_id: obj.type_id(),
-            method_id: method.type_id(),
-        };
+        let rpc_invoker = self.rpc_invoker(obj.as_ref(), method.as_ref())?;
 
-        let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
-
-        func.rpc_invoker
-            .ok_or(InvokeError::NoImpl)?
-            .invoke(obj, method, ctx, sink)
+        rpc_invoker.invoke(obj, method, ctx, sink)
     }
 
     /// Invoke the given method on `obj` within `ctx`, and return its
@@ -680,13 +705,9 @@ impl DispatchTable {
         method: M,
         ctx: Box<dyn Context>,
     ) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
-        let func_type = FuncType {
-            obj_id: obj.type_id(),
-            method_id: method.type_id(),
-        };
-        let func = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
+        let invoker = self.special_invoker::<M>(obj.as_ref())?;
 
-        let fut: SpecialResultFuture = func.invoker.invoke_special(obj, Box::new(method), ctx)?;
+        let fut = invoker.invoke_special(obj, Box::new(method), ctx)?;
         fut.await
             .downcast()
             .map_err(|_| InvokeError::Bug(tor_error::internal!("Downcast to wrong type")))
