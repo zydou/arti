@@ -247,7 +247,11 @@ impl<R: Runtime> HsCircPool<R> {
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        if matches!(self.vanguard_mode(), VanguardMode::Full | VanguardMode::Lite) && circ.kind != HsCircStubKind::Short {
+        if matches!(
+            self.vanguard_mode(),
+            VanguardMode::Full | VanguardMode::Lite
+        ) && circ.kind != HsCircStubKind::Short
+        {
             return Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into());
         }
 
@@ -305,7 +309,11 @@ impl<R: Runtime> HsCircPool<R> {
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        if matches!(self.vanguard_mode(), VanguardMode::Full | VanguardMode::Lite) && circ.kind != wanted_kind {
+        if matches!(
+            self.vanguard_mode(),
+            VanguardMode::Full | VanguardMode::Lite
+        ) && circ.kind != wanted_kind
+        {
             return Err(internal!(
                 "take_or_launch_stub_circuit() returned {:?}, but we need {wanted_kind:?}",
                 circ.kind
