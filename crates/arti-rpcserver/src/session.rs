@@ -108,7 +108,7 @@ impl rpc::Method for RpcRelease {
 async fn rpc_release(
     _obj: Arc<RpcSession>,
     method: Box<RpcRelease>,
-    ctx: Box<dyn rpc::Context>,
+    ctx: Arc<dyn rpc::Context>,
 ) -> Result<rpc::Nil, rpc::RpcError> {
     ctx.release_owned(&method.obj)?;
     Ok(rpc::Nil::default())
@@ -135,7 +135,7 @@ impl rpc::Method for Echo {
 async fn echo_on_session(
     _obj: Arc<RpcSession>,
     method: Box<Echo>,
-    _ctx: Box<dyn rpc::Context>,
+    _ctx: Arc<dyn rpc::Context>,
 ) -> Result<Echo, rpc::RpcError> {
     Ok(*method)
 }
@@ -156,7 +156,7 @@ impl rpc::Method for GetClient {
 async fn get_client_on_session(
     session: Arc<RpcSession>,
     _method: Box<GetClient>,
-    ctx: Box<dyn rpc::Context>,
+    ctx: Arc<dyn rpc::Context>,
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
     Ok(rpc::SingletonId::from(
         // TODO RPC: This relies (somewhat) on deduplication properties for register_owned.
@@ -168,7 +168,7 @@ async fn get_client_on_session(
 async fn isolated_client_on_session(
     session: Arc<RpcSession>,
     _method: Box<arti_client::rpc::IsolatedClient>,
-    ctx: Box<dyn rpc::Context>,
+    ctx: Arc<dyn rpc::Context>,
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
     let new_client = session.client.isolated_client();
     Ok(rpc::SingletonId::from(ctx.register_owned(new_client)))

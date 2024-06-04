@@ -12,7 +12,7 @@
 //! async fn my_rpc_func(
 //!     target: Arc<OBJTYPE>,
 //!     method: Box<METHODTYPE>,
-//!     ctx: Box<dyn rpc::Context>,
+//!     ctx: Arc<dyn rpc::Context>,
 //!     [ updates: rpc::UpdateSink<METHODTYPE::Update ] // this argument is optional!
 //! ) -> Result<METHODTYPE::Output, impl Into<rpc::RpcError>>
 //! { ... }
@@ -116,7 +116,7 @@ pub trait Invocable: Send + Sync + 'static {
         &self,
         obj: Arc<dyn Object>,
         method: Box<dyn DynMethod>,
-        ctx: Box<dyn Context>,
+        ctx: Arc<dyn Context>,
     ) -> Result<SpecialResultFuture, InvokeError>;
 }
 
@@ -130,7 +130,7 @@ pub trait RpcInvocable: Invocable {
         &self,
         obj: Arc<dyn Object>,
         method: Box<dyn DynMethod>,
-        ctx: Box<dyn Context>,
+        ctx: Arc<dyn Context>,
         sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError>;
 }
@@ -151,7 +151,7 @@ macro_rules! declare_invocable_impl {
       )?
     } => {
         impl<M, OBJ, Fut, S, E, $($update_gen)?> Invocable
-             for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
+             for fn(Arc<OBJ>, Box<M>, Arc<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
             M: crate::Method,
             OBJ: Object,
@@ -185,7 +185,7 @@ macro_rules! declare_invocable_impl {
                 &self,
                 obj: Arc<dyn Object>,
                 method: Box<dyn DynMethod>,
-                ctx: Box<dyn Context>,
+                ctx: Arc<dyn Context>,
             ) -> Result<SpecialResultFuture, $crate::InvokeError> {
                 use futures::FutureExt;
                 #[allow(unused)]
@@ -211,7 +211,7 @@ macro_rules! declare_invocable_impl {
         }
 
         impl<M, OBJ, Fut, S, E, $($update_gen)?> RpcInvocable
-            for fn(Arc<OBJ>, Box<M>, Box<dyn Context + 'static> $(, $update_arg )? ) -> Fut
+            for fn(Arc<OBJ>, Box<M>, Arc<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
             M: crate::Method,
             M::Output: serde::Serialize,
@@ -229,7 +229,7 @@ macro_rules! declare_invocable_impl {
                 &self,
                 obj: Arc<dyn Object>,
                 method: Box<dyn DynMethod>,
-                ctx: Box<dyn Context>,
+                ctx: Arc<dyn Context>,
                 #[allow(unused)]
                 sink: BoxedUpdateSink,
             ) -> Result<RpcResultFuture, $crate::InvokeError> {
@@ -441,14 +441,14 @@ inventory::collect!(InvokerEnt);
 /// // Note that the types of this function are very constrained:
 /// //  - `obj` must be an Arc<O> for some `Object` type.
 /// //  - `mth` must be Box<M> for some `Method` type.
-/// //  - `ctx` must be Box<dyn rpc::Context>.
+/// //  - `ctx` must be Arc<dyn rpc::Context>.
 /// //  - The function must be async.
 /// //  - The return type must be a Result.
 /// //  - The OK variant of the result must M::Output.
 /// //  - The Err variant of the result must implement Into<rpc::RpcError>.
 /// async fn example(obj: Arc<ExampleObject>,
 ///                  method: Box<ExampleMethod>,
-///                  ctx: Box<dyn rpc::Context>,
+///                  ctx: Arc<dyn rpc::Context>,
 /// ) -> Result<ExampleResult, rpc::RpcError> {
 ///     println!("Running example method!");
 ///     Ok(ExampleResult { text: "here is your result".into() })
@@ -460,7 +460,7 @@ inventory::collect!(InvokerEnt);
 /// // - The fourth argument must be `UpdateSink<M::Update>`.
 /// async fn example2(obj: Arc<ExampleObject2>,
 ///                   method: Box<ExampleMethod>,
-///                   ctx: Box<dyn rpc::Context>,
+///                   ctx: Arc<dyn rpc::Context>,
 ///                   mut updates: rpc::UpdateSink<Progress>
 /// ) -> Result<ExampleResult, rpc::RpcError> {
 ///     updates.send(Progress(0.90)).await?;
@@ -686,7 +686,7 @@ impl DispatchTable {
         &self,
         obj: Arc<dyn Object>,
         method: Box<dyn DynMethod>,
-        ctx: Box<dyn Context>,
+        ctx: Arc<dyn Context>,
         sink: BoxedUpdateSink,
     ) -> Result<RpcResultFuture, InvokeError> {
         let rpc_invoker = self.rpc_invoker(obj.as_ref(), method.as_ref())?;
@@ -703,7 +703,7 @@ impl DispatchTable {
         &self,
         obj: Arc<dyn Object>,
         method: M,
-        ctx: Box<dyn Context>,
+        ctx: Arc<dyn Context>,
     ) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
         let invoker = self.special_invoker::<M>(obj.as_ref())?;
 
@@ -806,7 +806,7 @@ mod test {
     async fn getname_swan(
         _obj: Arc<Swan>,
         _method: Box<GetName>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError> {
         Ok(Outcome {
             v: "swan".to_string(),
@@ -815,7 +815,7 @@ mod test {
     async fn getname_sheep(
         _obj: Arc<Sheep>,
         _method: Box<GetName>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError> {
         Ok(Outcome {
             v: "sheep".to_string(),
@@ -824,7 +824,7 @@ mod test {
     async fn getname_wombat(
         _obj: Arc<Wombat>,
         _method: Box<GetName>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError> {
         Ok(Outcome {
             v: "wombat".to_string(),
@@ -833,7 +833,7 @@ mod test {
     async fn getname_brick(
         _obj: Arc<Brick>,
         _method: Box<GetName>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError> {
         Ok(Outcome {
             v: "brick".to_string(),
@@ -842,7 +842,7 @@ mod test {
     async fn getkids_swan(
         _obj: Arc<Swan>,
         _method: Box<GetKids>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError> {
         Ok(Outcome {
             v: "cygnets".to_string(),
@@ -851,7 +851,7 @@ mod test {
     async fn getkids_sheep(
         _obj: Arc<Sheep>,
         _method: Box<GetKids>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError> {
         Ok(Outcome {
             v: "lambs".to_string(),
@@ -860,7 +860,7 @@ mod test {
     async fn getkids_wombat(
         _obj: Arc<Wombat>,
         _method: Box<GetKids>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
         mut sink: UpdateSink<String>,
     ) -> Result<Outcome, crate::RpcError> {
         let _ignore = sink.send("brb, burrowing".to_string()).await;
@@ -920,7 +920,7 @@ mod test {
     async fn getname_generic<T, U>(
         obj: Arc<GenericObj<T, U>>,
         _method: Box<GetName>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError>
     where
         T: Send + Sync + 'static + Clone + ToString,
@@ -933,7 +933,7 @@ mod test {
     async fn getkids_generic<T, U>(
         obj: Arc<GenericObj<T, U>>,
         _method: Box<GetKids>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<Outcome, crate::RpcError>
     where
         T: Send + Sync + 'static + Clone + ToString,
@@ -974,7 +974,7 @@ mod test {
         ) -> Result<RpcResultFuture, InvokeError> {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
             let request: Box<dyn DynMethod> = Box::new(method);
-            let ctx = Box::new(Ctx {});
+            let ctx = Arc::new(Ctx {});
             let discard = Box::pin(futures::sink::drain().sink_err_into());
             table.invoke(animal, request, ctx, discard)
         }
@@ -1068,7 +1068,7 @@ mod test {
     async fn specialonly_swan(
         _obj: Arc<Swan>,
         _method: Box<SpecialOnly>,
-        _ctx: Box<dyn crate::Context>,
+        _ctx: Arc<dyn crate::Context>,
     ) -> Result<MyObject, MyObject> {
         Ok(MyObject {})
     }
@@ -1079,7 +1079,7 @@ mod test {
         let table = crate::DispatchTable::from_inventory();
 
         let res: Outcome = table
-            .invoke_special(Arc::new(Swan), GetKids, Box::new(Ctx {}))
+            .invoke_special(Arc::new(Swan), GetKids, Arc::new(Ctx {}))
             .await
             .unwrap()
             .unwrap();
@@ -1087,7 +1087,7 @@ mod test {
         assert_eq!(res.v, "cygnets");
 
         let _an_obj: MyObject = table
-            .invoke_special(Arc::new(Swan), SpecialOnly {}, Box::new(Ctx {}))
+            .invoke_special(Arc::new(Swan), SpecialOnly {}, Arc::new(Ctx {}))
             .await
             .unwrap()
             .unwrap();

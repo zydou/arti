@@ -411,7 +411,9 @@ impl Connection {
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
         let obj = self.lookup_object(&obj)?;
 
-        let context: Box<dyn rpc::Context> = Box::new(RequestContext {
+        // TODO RPC: Perhaps RequestContext is no longer necessary and instead we should implement
+        // Context on Connection?  We should tread carefully though.
+        let context: Arc<dyn rpc::Context> = Arc::new(RequestContext {
             conn: Arc::clone(self),
         });
         let invoke_future = self.dispatch_table.read().expect("lock poisoned").invoke(

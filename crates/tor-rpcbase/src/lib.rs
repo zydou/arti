@@ -88,7 +88,7 @@ pub enum LookupError {
 }
 
 /// A trait describing the context in which an RPC method is executed.
-pub trait Context: Send {
+pub trait Context: Send + Sync {
     /// Look up an object by identity within this context.
     fn lookup_object(&self, id: &ObjectId) -> Result<Arc<dyn Object>, LookupError>;
 
