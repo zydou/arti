@@ -424,7 +424,7 @@ impl ChannelBuilder {
     /// authentication info from the relay: call `check()` on the result
     /// to check that.  Finally, to finish the handshake, call `finish()`
     /// on the result of _that_.
-    pub fn launch<T, S>(
+    pub fn launch_client<T, S>(
         self,
         tls: T,
         sleep_prov: S,
@@ -947,7 +947,7 @@ pub(crate) mod test {
             "127.0.0.1:9001".parse().unwrap(),
         ]));
         let tls = MsgBuf::new(&b""[..]);
-        let _outbound = builder.launch(tls, rt, fake_mq());
+        let _outbound = builder.launch_client(tls, rt, fake_mq());
     }
 
     #[test]

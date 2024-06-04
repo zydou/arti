@@ -197,7 +197,7 @@ where
         let mut builder = ChannelBuilder::new();
         builder.set_declared_method(using_method);
         let chan = builder
-            .launch(
+            .launch_client(
                 tls,
                 self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
                 memquota,
