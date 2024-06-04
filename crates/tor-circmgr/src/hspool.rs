@@ -467,7 +467,9 @@ impl<R: Runtime> HsCircPool<R> {
         };
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
-            let circuit = self.maybe_extend_stub_circuit(netdir, circuit, kind).await?;
+            let circuit = self
+                .maybe_extend_stub_circuit(netdir, circuit, kind)
+                .await?;
             self.ensure_suitable_circuit(&circuit, avoid_target, kind)?;
             return Ok(circuit);
         }
