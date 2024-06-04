@@ -694,7 +694,7 @@ impl DispatchTable {
 }
 
 /// An error that occurred while trying to invoke a method on an object.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum InvokeError {
     /// There is no implementation for the given combination of object
@@ -705,6 +705,16 @@ pub enum InvokeError {
     /// An internal problem occurred while invoking a method.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+impl tor_error::HasKind for InvokeError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        match self {
+            InvokeError::NoImpl => EK::RpcMethodNotFound,
+            InvokeError::Bug(e) => e.kind(),
+        }
+    }
 }
 
 #[cfg(test)]
