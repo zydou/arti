@@ -237,20 +237,22 @@ for funding the development of Arti!
 [#1390]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1390
 [#1395]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1395
 [#1403]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1403
-[#823]: https://gitlab.torproject.org/tpo/core/arti/-/issues/823
 [#1417]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1417
 [#1424]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1424
 [#1425]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1425
 [#1456]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1456
 [#1458]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1458
+[#823]: https://gitlab.torproject.org/tpo/core/arti/-/issues/823
 [489aa72d1eee8a56]: https://gitlab.torproject.org/tpo/core/arti/-/commit/489aa72d1eee8a5638493dfb23d06823a201c132
 [97868349ed695ec8]: https://gitlab.torproject.org/tpo/core/arti/-/commit/97868349ed695ec87f1a7bee8fd74598156fd60d
 [Shadow]: https://shadow.github.io
+[TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-004]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2024-005]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2024-006]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
-[priority-queue]: https://crates.io/crates/priority-queue
 [Zcash Community Grants]: https://zcashcommunitygrants.org/
 [other sponsors]: https://www.torproject.org/about/sponsors/
+[priority-queue]: https://crates.io/crates/priority-queue
 
 
 
