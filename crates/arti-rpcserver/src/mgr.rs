@@ -102,6 +102,11 @@ pub enum RpcMgrError {
     InvalidMethodName(#[source] InvalidMethodName, String),
 }
 
+/// An [`rpc::Object`], along with its associated [`rpc::Context`].
+///
+/// The context can be used to invoke any special methods on the object.
+type ObjectWithContext = (Arc<dyn rpc::Context>, Arc<dyn rpc::Object>);
+
 impl RpcMgr {
     /// Create a new RpcMgr.
     pub fn new<F>(make_session: F) -> Result<Arc<Self>, RpcMgrError>
@@ -189,17 +194,17 @@ impl RpcMgr {
     /// can be used outside of a single RPC session.  This function looks up an
     /// object by such an identifier string.  It returns an error if the
     /// identifier is invalid or the object does not exist.
-    pub fn lookup_object(
-        &self,
-        id: &rpc::ObjectId,
-    ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
+    ///
+    /// Along with the object, this additionally returns the [`rpc::Context`] associated with the
+    /// object.  That context can be used to invoke any special methods on the object.
+    pub fn lookup_object(&self, id: &rpc::ObjectId) -> Result<ObjectWithContext, rpc::LookupError> {
         let global_id = GlobalId::try_decode(&self.global_id_mac_key, id)?;
         self.lookup_by_global_id(&global_id)
             .ok_or_else(|| rpc::LookupError::NoObject(id.clone()))
     }
 
     /// As `lookup_object`, but takes a parsed and validated [`GlobalId`].
-    pub(crate) fn lookup_by_global_id(&self, id: &GlobalId) -> Option<Arc<dyn rpc::Object>> {
+    pub(crate) fn lookup_by_global_id(&self, id: &GlobalId) -> Option<ObjectWithContext> {
         let connection = {
             let inner = self.inner.lock().expect("lock poisoned");
             let connection = inner.connections.get(&id.connection)?;
@@ -208,7 +213,8 @@ impl RpcMgr {
             drop(inner);
             connection
         };
-        connection.lookup_by_idx(id.local_id)
+        let obj = connection.lookup_by_idx(id.local_id)?;
+        Some((connection, obj))
     }
 
     /// Construct a new object to serve as the `session` for a connection.
