@@ -135,53 +135,50 @@ async fn rpcdatastream_connect_with_prefs(
     mut method: Box<ConnectWithPrefs>,
     ctx: Arc<dyn rpc::Context>,
 ) -> ClientConnectionResult<arti_client::DataStream> {
-    {
-        // XXXX remove indentation.
-        // Extract the connector.
-        //
-        // As we do this, we put this RpcDataStream into a Launching state.
-        //
-        // (`Launching`` wouldn't need to exist if we `connect_with_prefs` were synchronous,
-        // but it isn't synchronous, so `Launching` is an observable state.)
-        let connector = rpc_data_stream
-            .take_connector(Inner::Launching)
+    // Extract the connector.
+    //
+    // As we do this, we put this RpcDataStream into a Launching state.
+    //
+    // (`Launching`` wouldn't need to exist if we `connect_with_prefs` were synchronous,
+    // but it isn't synchronous, so `Launching` is an observable state.)
+    let connector = rpc_data_stream
+        .take_connector(Inner::Launching)
+        .map_err(|e| Box::new(e) as _)?;
+
+    let was_optimistic = method.prefs.is_optimistic();
+    // We want this to be treated internally as an "optimistic" connection,
+    // so that inner connect_with_prefs() will return ASAP.
+    method.prefs.optimistic();
+
+    // Now, launch the connection.  Since we marked it as optimistic,
+    // this call should return almost immediately.
+    let stream: Result<arti_client::DataStream, _> =
+        *rpc::invoke_special_method(ctx, connector, method)
+            .await
             .map_err(|e| Box::new(e) as _)?;
 
-        let was_optimistic = method.prefs.is_optimistic();
-        // We want this to be treated internally as an "optimistic" connection,
-        // so that inner connect_with_prefs() will return ASAP.
-        method.prefs.optimistic();
-
-        // Now, launch the connection.  Since we marked it as optimistic,
-        // this call should return almost immediately.
-        let stream: Result<arti_client::DataStream, _> =
-            *rpc::invoke_special_method(ctx, connector, method)
-                .await
-                .map_err(|e| Box::new(e) as _)?;
-
-        // Pick the new state for this object, and install it.
-        let new_obj = match &stream {
-            Ok(s) => Inner::Stream(s.ctrl().clone()),
-            Err(_) => Inner::StreamFailed, // TODO RPC: Remember some error information here.
-        };
-        {
-            let mut inner = rpc_data_stream.inner.lock().expect("poisoned lock");
-            *inner = new_obj;
-        }
-        // Return early on failure.
-        let mut stream = stream?;
-
-        if !was_optimistic {
-            // Implement non-optimistic behavior, if that is what was originally configured.
-            stream
-                .wait_for_connection()
-                .await
-                .map_err(|e| Box::new(e) as _)?;
-        }
-
-        // Return the stream; the SOCKS layer will take it from here.
-        Ok(stream)
+    // Pick the new state for this object, and install it.
+    let new_obj = match &stream {
+        Ok(s) => Inner::Stream(s.ctrl().clone()),
+        Err(_) => Inner::StreamFailed, // TODO RPC: Remember some error information here.
+    };
+    {
+        let mut inner = rpc_data_stream.inner.lock().expect("poisoned lock");
+        *inner = new_obj;
     }
+    // Return early on failure.
+    let mut stream = stream?;
+
+    if !was_optimistic {
+        // Implement non-optimistic behavior, if that is what was originally configured.
+        stream
+            .wait_for_connection()
+            .await
+            .map_err(|e| Box::new(e) as _)?;
+    }
+
+    // Return the stream; the SOCKS layer will take it from here.
+    Ok(stream)
 }
 
 /// Invoke ResolveWithPrefs on an RpcDataStream
