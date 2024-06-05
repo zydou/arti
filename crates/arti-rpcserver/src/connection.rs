@@ -126,8 +126,8 @@ impl Connection {
         dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
         global_id_mac_key: MacKey,
         mgr: Weak<RpcMgr>,
-    ) -> Self {
-        Self {
+    ) -> Arc<Self> {
+        Arc::new(Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
                 objects: ObjMap::new(),
@@ -136,7 +136,7 @@ impl Connection {
             connection_id,
             global_id_mac_key,
             mgr,
-        }
+        })
     }
 
     /// If possible, convert an `ObjectId` into a `GenIdx` that can be used in
