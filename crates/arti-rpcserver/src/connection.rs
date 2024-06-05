@@ -66,6 +66,13 @@ pub struct Connection {
 
     /// A reference to the manager associated with this session.
     mgr: Weak<RpcMgr>,
+
+    /// A reference to this connection itself.
+    ///
+    /// Used when we're looking up the connection within the RPC system as an object.
+    ///
+    /// TODO RPC: Maybe there is an easier way to do this while keeping `context` object-save?
+    this_connection: Weak<Connection>,
 }
 
 /// The inner, lock-protected part of an RPC connection.
@@ -127,7 +134,7 @@ impl Connection {
         global_id_mac_key: MacKey,
         mgr: Weak<RpcMgr>,
     ) -> Arc<Self> {
-        Arc::new(Self {
+        Arc::new_cyclic(|this_connection| Self {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
                 objects: ObjMap::new(),
@@ -136,6 +143,7 @@ impl Connection {
             connection_id,
             global_id_mac_key,
             mgr,
+            this_connection: Weak::clone(this_connection),
         })
     }
 
@@ -176,11 +184,15 @@ impl Connection {
 
     /// Look up a given object by its object ID relative to this connection.
     pub(crate) fn lookup_object(
-        self: &Arc<Self>,
+        &self,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
         if id.as_ref() == "connection" {
-            Ok(self.clone())
+            let this = self
+                .this_connection
+                .upgrade()
+                .ok_or(rpc::LookupError::NoObject(id.clone()))?;
+            Ok(this as Arc<_>)
         } else {
             let local_id = self.id_into_local_idx(id)?;
 
@@ -190,10 +202,7 @@ impl Connection {
     }
 
     /// As `lookup_object`, but expect a `GenIdx`.
-    pub(crate) fn lookup_by_idx(
-        self: &Arc<Self>,
-        idx: crate::objmap::GenIdx,
-    ) -> Option<Arc<dyn rpc::Object>> {
+    pub(crate) fn lookup_by_idx(&self, idx: crate::objmap::GenIdx) -> Option<Arc<dyn rpc::Object>> {
         let inner = self.inner.lock().expect("lock poisoned");
         inner.objects.lookup(idx)
     }
