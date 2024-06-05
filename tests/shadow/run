@@ -72,10 +72,10 @@ HOSTS=(
 )
 
 for HOST in "${HOSTS[@]}"; do
-  file=shadow.data/hosts/"$HOST"/arti*.stdout
+  file="shadow.data/hosts/$HOST/arti*.stdout"
   # TODO: this is a temporary measure until we implement other ways of testing
   # that the circuits we've built have the desired properties.
-  bugs="$(grep -c Bug $file || true)"
+  bugs="$(grep -c Bug "$file" || true)"
 
   if [ "$bugs" -eq 0 ]
   then
