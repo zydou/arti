@@ -15,7 +15,6 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Sink, SinkExt as _, StreamExt,
 };
-use pin_project::pin_project;
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
 use tor_async_utils::SinkExt as _;
@@ -420,11 +419,7 @@ impl Connection {
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
         let obj = self.lookup_object(&obj)?;
 
-        // TODO RPC: Perhaps RequestContext is no longer necessary and instead we should implement
-        // Context on Connection?  We should tread carefully though.
-        let context: Arc<dyn rpc::Context> = Arc::new(RequestContext {
-            conn: Arc::clone(self),
-        });
+        let context: Arc<dyn rpc::Context> = self.clone() as Arc<_>;
         let invoke_future = rpc::invoke_rpc_method(context, obj, method.upcast_box(), tx_updates)?;
 
         // Note that we drop the read lock before we await this future!
@@ -465,25 +460,14 @@ impl tor_error::HasKind for MgrDisappearedError {
     }
 }
 
-/// A Context object that we pass to each method invocation.
-///
-/// It provides the `rpc::Context` interface, which is used to send incremental
-/// updates and lookup objects by their ID.
-#[pin_project]
-struct RequestContext {
-    /// The underlying RPC connection.
-    conn: Arc<Connection>,
-}
-
-impl rpc::Context for RequestContext {
+impl rpc::Context for Connection {
     fn lookup_object(&self, id: &rpc::ObjectId) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        self.conn.lookup_object(id)
+        Connection::lookup_object(self, id)
     }
 
     fn register_owned(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
         let use_global_id = object.expose_outside_of_session();
         let local_id = self
-            .conn
             .inner
             .lock()
             .expect("Lock poisoned")
@@ -495,7 +479,7 @@ impl rpc::Context for RequestContext {
         // alternatives would be to use GlobalId conditionally, or to have a
         // separate Method to create a new GlobalId given an existing LocalId.
         if use_global_id {
-            GlobalId::new(self.conn.connection_id, local_id).encode(&self.conn.global_id_mac_key)
+            GlobalId::new(self.connection_id, local_id).encode(&self.global_id_mac_key)
         } else {
             local_id.encode()
         }
@@ -504,28 +488,26 @@ impl rpc::Context for RequestContext {
     fn register_weak(&self, object: Arc<dyn rpc::Object>) -> rpc::ObjectId {
         let use_global_id = object.expose_outside_of_session();
         let local_id = self
-            .conn
             .inner
             .lock()
             .expect("Lock poisoned")
             .objects
             .insert_weak(object);
         if use_global_id {
-            GlobalId::new(self.conn.connection_id, local_id).encode(&self.conn.global_id_mac_key)
+            GlobalId::new(self.connection_id, local_id).encode(&self.global_id_mac_key)
         } else {
             local_id.encode()
         }
     }
 
     fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
-        let idx = self.conn.id_into_local_idx(id)?;
+        let idx = self.id_into_local_idx(id)?;
 
         if !idx.is_strong() {
             return Err(rpc::LookupError::WrongType(id.clone()));
         }
 
         let removed = self
-            .conn
             .inner
             .lock()
             .expect("Lock poisoned")
@@ -540,7 +522,7 @@ impl rpc::Context for RequestContext {
     }
 
     fn dispatch_table(&self) -> &Arc<std::sync::RwLock<rpc::DispatchTable>> {
-        &self.conn.dispatch_table
+        &self.dispatch_table
     }
 }
 
