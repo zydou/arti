@@ -17,7 +17,7 @@ and [TROVE-2024-006], respectively, and a number of other, smaller bugs.
 [TROVE-2024-005] affects hidden service circuits using non-default vanguard
 configurations (where the vanguard mode is set to 'disabled' or 'full'),
 causing hidden service circuits to be built from circuit stubs that are
-incomaptbile with the circuit target, and to have an incorrect length.
+incompatible with the circuit target, and to have an incorrect length.
 
 [TROVE-2024-006] affects hidden services and clients using non-default
 vanguard configurations, where the vanguard mode is set to 'disabled', or that
