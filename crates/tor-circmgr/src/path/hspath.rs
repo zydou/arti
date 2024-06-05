@@ -200,7 +200,7 @@ impl VanguardHsPathBuilder {
     /// Try to create and return a path for a hidden service circuit stub.
     //
     //
-    // TODO: refactor the way we apply restrictions in this function to be more readable.
+    // TODO(#1459): refactor the way we apply restrictions in this function to be more readable.
     fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
