@@ -5640,7 +5640,7 @@ dependencies = [
 
 [[package]]
 name = "tor-memquota"
-version = "0.19.0"
+version = "0.18.0"
 dependencies = [
  "derive-deftly",
  "derive_builder_fork_arti",
