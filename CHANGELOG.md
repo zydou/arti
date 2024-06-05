@@ -104,6 +104,8 @@ running or accessing onion services.
   ([!2167])
 - Add a test that ensures the hidden service circuit pool reads the vanguard mode
   from the configuration. ([!2168])
+- Make the Shadow CI tests fail if any internal errors are reported in the logs.
+  ([!2186])
 
 ### Documentation
 
@@ -153,7 +155,9 @@ running or accessing onion services.
 - Replace debug assertions with internal errors
   in the post-build checks for vanguard circuits,
   to prevent issues such as [TROVE-2024-003] and [TROVE-2024-004].
-  ([!2167], [!2186])
+  ([!2167])
+- When building vanguard circuits, ensure the target relay does not occur
+  as one of the last two hops. ([!2186]]
 - Upgrade to the latest versions of [priority-queue]. ([!2177])
 - Validate the properties of the circuits retrieved
   from the hidden service circuit pool. ([97868349ed695ec8])
