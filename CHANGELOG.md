@@ -57,6 +57,11 @@ running or accessing onion services.
   it is now always wrapped in an explicit `Arc`, it no longer implements
   `Sink` on its own, and it can no longer be used to send raw cells
   from outside the `tor-proto` crate. ([!2163])
+- `HsCircPool::reconfigure` has been removed
+- `VanguardConfig` and `VanguardConfigBuilder` are now reexported from
+  the root of the `tor-guardmgr` crate. ([!2146])
+- `SshKeyData` is now an opaque type
+- `SshKeyData::into_public` and `SshKeyData::into_private` have been removed
 
 ### Deprecated functionality
 
