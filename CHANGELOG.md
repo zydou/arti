@@ -3,6 +3,259 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.4 — 5 June 2024
+
+Arti 1.2.4 continues development on onion services,
+and on the RPC subsystem.
+
+This release restores the `faravahar` directory authority, which has a new
+location and keys.
+
+We have also fixed two-medium security issues, tracked as [TROVE-2024-005]
+and [TROVE-2024-006], respectively, and a number of other, smaller bugs.
+
+[TROVE-2024-005] affects hidden service circuits using non-default vanguard
+configurations (where the vanguard mode is set to 'disabled' or 'full'),
+causing hidden service circuits to be built from circuit stubs that are
+incompatible with the circuit target, and to have an incorrect length.
+
+[TROVE-2024-006] affects hidden services and clients using non-default
+vanguard configurations, where the vanguard mode is set to 'disabled', or that
+have the `vanguards` feature compiled out. In some circumstances, this bug can
+lead to building hidden service circuits that contain the same relay in
+multiple positions.
+
+Both issues make users of this code more vulnerable to traffic analysis when
+running or accessing onion services.
+
+### Network updates
+
+- Restore the `faravahar` directory authority, with new location and keys.
+  ([!2175])
+
+### Major bugfixes
+
+- Ensure that `DataWriter::close()` actually closes its associated stream.
+  Previously, this `close()` method would have no effect until the
+  `DataReader` was also dropped. ([#1368], [!2170])
+- Fix a bug where the vanguard circuit stub selection code would fail to ensure
+  that the last two hops of the selected circuit stub are different from the
+  circuit target. ([#1417], [!2167], [!2181])
+- Fix a medium-severity issue causing the hidden service circuit pool code to
+  ignore the configured vanguard mode.
+  This is also tracked as [TROVE-2024-005]. ([#1424], [!2168])
+- Use `HasRelayIds::has_any_relay_id_from` to check for relay equality
+  when checking if a circuit contains duplicate relays. ([!2181])
+- Fix a medium-severity issue, which would, in some circumstances, cause
+  hidden service circuits to be built without applying the necessary same-hop
+  restrictions.
+  This is also tracked as [TROVE-2024-006]. ([#1425], [!2179])
+
+### Breaking changes in lower-level crates
+
+- The `Channel` type in `tor-proto` has been significantly refactored:
+  it is now always wrapped in an explicit `Arc`, it no longer implements
+  `Sink` on its own, and it can no longer be used to send raw cells
+  from outside the `tor-proto` crate. ([!2163])
+- `HsCircPool::reconfigure` has been removed
+- `VanguardConfig` and `VanguardConfigBuilder` are now reexported from
+  the root of the `tor-guardmgr` crate. ([!2146])
+- `SshKeyData` is now an opaque type
+- `SshKeyData::into_public` and `SshKeyData::into_private` have been removed
+
+### Deprecated functionality
+
+- The `arti-hyper` example crate is now deprecated and unmaintained.
+  ([!2127])
+
+### Onion service development
+
+- Major refactoring to reduce technical debt in key manager code.
+  ([#1362], [#1367], [!2131], [!2141])
+- Address various pending "TODO" items in the vanguard code.
+  ([!2139])
+- Adjust terminology for vanguard stub circuits. ([#1339], [!2161])
+- Add tests for vanguard configuration, and configuration backend logic as
+  needed to simplify some of the vanguard configuration code. ([!2146])
+
+### RPC development
+
+- Expose methods on TorClient to get and observe the status of the client
+  object. ([#1384], [!2110], [!2130])
+- Infrastructure to allow the RPC system to interact with SOCKS streams,
+  provide them with context, and name them as RPC objects.
+  ([!2143])
+- Based on difficulties encountered with earlier RPC development,
+  add an improved facility for RPC methods that can be invoked internally
+  without serializing their inputs and outputs ([#1403], [!2152])
+- Enforce consistent style and formatting on RPC method names. ([#823], [!2149])
+- Other miscellaneous lower-level improvements to the RPC type
+  system. ([!2124], [!2140], [!2142])
+
+### Other major features
+
+- If the circuit manager has retired all of its circuits,
+  unconditionally retire all the circuits from the hidden service circuit pool.
+  ([!2168])
+
+### Testing
+
+- Improved test layout in `tor-keymgr`. ([#1363], [!2125])
+- Automate enforcement of our convention that scripts not be named with
+  their implementation languages. ([!2153])
+- Include script needed to generate `keymgr` test data. ([!2121])
+- Add tests for vanguard state file serialization. ([!2167])
+- Add a [Shadow] CI test involving an onion service that uses full vanguards.
+  ([!2167])
+- Add a test that ensures the hidden service circuit pool reads the vanguard mode
+  from the configuration. ([!2168])
+- Make the Shadow CI tests fail if any internal errors are reported in the logs.
+  ([!2186])
+
+### Documentation
+
+- New example in arti-client for creating a one-hop circuit. ([!2148])
+- Recommend `cargo --locked` in our examples, to encourage people
+  to get audited versions of our dependencies. ([!2157])
+- Clean up old changelogs to have a more uniform style, based on
+  our updated `gen_md_links` script. ([!2126], [!2165])
+
+### Infrastructure
+
+- Disable automated Chutney tests in coverage CI. ([#1299], [!2120])
+- Improve our `add_warning` script so that it can adjust our warnings during
+  CI.  Previously we used a compiler `--cfg` flag for conditional warnings,
+  but unrecognized `cfg` flags now provoke a warning. ([#1395], [!2129])
+- Use `add_warning` to maintain the list of lints in our examples. ([!2132])
+- Improved scripts to list our crates, and publish our crates,
+  to make accidents less likely while
+  we're trying to release.  ([#1390], [!2118], [!2138], [!2158])
+- Improve our `gen_md_links` script to provide more uniform output,
+  and generate its results in a more useful format. ([#1388], [!2126], [!2169])
+- Ensure that our CI scripts delete unnecessary data on completion.
+  (This helps keep us from running our infrastructure out of disk space
+  and making the other gitlab users sad.) ([!2159])
+- Adjust our license-checking code to accommodate
+  license clarifications in `priority-queue` and `tinystr`.
+  ([!2177])
+
+### Cleanups, minor features, and bugfixes
+
+- Resolve several Clippy warnings from the latest version of Rust. ([!2128])
+- Clarify control-flow in our (currently convoluted) circuit reactor code.
+  ([!2122])
+- Refactor to avoid most use of `cfg(fuzzing)`. ([#1395], [!2134])
+- The `DataStream` type now has a method to wait for a connection to
+  complete. ([489aa72d1eee8a56])
+- Clarify or resolve several dead-code warnings. ([#1383], [!2151])
+- Explicitly enforce maxima on SENDME windows.  (Formerly, we did this
+  implicitly.)  ([#1383], [!2150])
+- Avoid the appearance of an infinite loop in
+  `engage_padding_activities`. ([!2164])
+- Refactor the `Channel` type to be more explicitly `Arc`,
+  better documented, and to have less information shared between its
+  front-end and reactor pieces. ([!2163])
+- Refactor the `poll_ready` method on `ChannelSender` to
+  have a more conventional interface. ([!2171])
+- Replace debug assertions with internal errors
+  in the post-build checks for vanguard circuits,
+  to prevent issues such as [TROVE-2024-003] and [TROVE-2024-004].
+  ([!2167])
+- When building vanguard circuits, ensure the target relay does not occur
+  as one of the last two hops. ([!2186]]
+- Upgrade to the latest versions of [priority-queue]. ([!2177])
+- Validate the properties of the circuits retrieved
+  from the hidden service circuit pool. ([97868349ed695ec8])
+- Fix hidden service circuit stubs sometimes being unnecessarily extended
+  when lite vanguards are in use. ([#1458], [!2183])
+- Refactor vanguards configuration handling to be less error-prone.
+  ([#1456], [!2183])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Gaba, Jim Newsome, juga, and pinkforest!
+
+Also, our deep thanks to [Zcash Community Grants] and our [other sponsors]
+for funding the development of Arti!
+
+[!2110]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2110
+[!2118]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2118
+[!2120]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2120
+[!2121]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2121
+[!2122]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2122
+[!2124]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2124
+[!2125]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2125
+[!2126]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2126
+[!2127]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2127
+[!2128]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2128
+[!2129]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2129
+[!2130]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2130
+[!2131]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2131
+[!2132]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2132
+[!2134]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2134
+[!2138]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2138
+[!2139]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2139
+[!2140]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2140
+[!2141]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2141
+[!2142]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2142
+[!2143]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2143
+[!2146]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2146
+[!2148]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2148
+[!2149]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2149
+[!2150]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2150
+[!2151]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2151
+[!2152]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2152
+[!2153]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2153
+[!2157]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2157
+[!2158]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2158
+[!2159]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2159
+[!2161]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2161
+[!2163]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2163
+[!2164]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2164
+[!2165]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2165
+[!2167]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2167
+[!2168]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2168
+[!2169]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2169
+[!2170]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2170
+[!2171]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2171
+[!2175]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2175
+[!2177]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2177
+[!2179]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2179
+[!2181]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2181
+[!2183]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2183
+[!2186]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2186
+[#1299]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1299
+[#1339]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1339
+[#1362]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1362
+[#1363]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1363
+[#1367]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1367
+[#1368]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1368
+[#1383]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1383
+[#1384]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1384
+[#1388]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1388
+[#1390]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1390
+[#1395]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1395
+[#1403]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1403
+[#1417]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1417
+[#1424]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1424
+[#1425]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1425
+[#1456]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1456
+[#1458]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1458
+[#823]: https://gitlab.torproject.org/tpo/core/arti/-/issues/823
+[489aa72d1eee8a56]: https://gitlab.torproject.org/tpo/core/arti/-/commit/489aa72d1eee8a5638493dfb23d06823a201c132
+[97868349ed695ec8]: https://gitlab.torproject.org/tpo/core/arti/-/commit/97868349ed695ec87f1a7bee8fd74598156fd60d
+[Shadow]: https://shadow.github.io
+[TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-004]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-005]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-006]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[priority-queue]: https://crates.io/crates/priority-queue
+
+
+
 # Arti 1.2.3 — 15 May 2024
 
 Arti 1.2.3 fixes a high-severity issue affecting onion services and clients
