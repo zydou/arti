@@ -468,7 +468,7 @@ impl<R: Runtime> HsCircPool<R> {
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
             let circuit = self
-                .maybe_extend_stub_circuit(netdir, circuit, kind)
+                .maybe_extend_stub_circuit(netdir, circuit, avoid_target, kind)
                 .await?;
             self.ensure_suitable_circuit(&circuit, avoid_target, kind)?;
             return Ok(circuit);
@@ -491,12 +491,16 @@ impl<R: Runtime> HsCircPool<R> {
     }
 
     /// Return a circuit of the specified `kind`, built from `circuit`.
-    async fn maybe_extend_stub_circuit(
+    async fn maybe_extend_stub_circuit<T>(
         &self,
         netdir: &NetDir,
         circuit: HsCircStub,
+        avoid_target: Option<&T>,
         kind: HsCircStubKind,
-    ) -> Result<HsCircStub> {
+    ) -> Result<HsCircStub>
+    where
+        T: CircTarget,
+    {
         match self.vanguard_mode() {
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             VanguardMode::Full => {
@@ -532,7 +536,17 @@ impl<R: Runtime> HsCircPool<R> {
                     exclude_ids.extend(hop.identities().map(|id| id.to_owned()));
                 }
 
-                let exclusion = RelayExclusion::exclude_identities(exclude_ids);
+                // We also must exclude the target
+                let target_exclusion = if let Some(target) = &avoid_target {
+                    RelayExclusion::exclude_identities(
+                        target.identities().map(|id| id.to_owned()).collect(),
+                    )
+                } else {
+                    RelayExclusion::no_relays_excluded()
+                };
+
+                let mut exclusion = RelayExclusion::exclude_identities(exclude_ids);
+                exclusion.extend(&target_exclusion);
                 let selector = RelaySelector::new(usage, exclusion);
                 let target = {
                     let mut rng = rand::thread_rng();
