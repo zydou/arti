@@ -258,9 +258,18 @@ impl VanguardHsPathBuilder {
             VanguardMode::Full if self.kind == HsCircStubKind::Short => {
                 exclude_guard_and_target.extend(&target_exclusion);
             }
-            _ => {
+            VanguardMode::Full => {
                 // The target can be the same as the L2 hop if we're building
                 // an EXTENDED stub with vanguards enabled
+            }
+            VanguardMode::Disabled => {
+                return Err(internal!(
+                    "VanguardHsPathBuilder::pick_path called, but vanguards are disabled?!"
+                )
+                .into());
+            }
+            _ => {
+                return Err(internal!("unrecognized vanguard mode {mode}").into());
             }
         }
 
