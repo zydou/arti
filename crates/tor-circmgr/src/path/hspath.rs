@@ -233,6 +233,9 @@ impl VanguardHsPathBuilder {
         // (a relay won't let you extend the circuit to itself).
         //
         // TODO #504: Unaccompanied RelayExclusions
+        //
+        // NOTE: if the we are using full vanguards and building an EXTENDED circuit stub,
+        // this will *not* exclude the target (only the the L1 guard).
         let mut exclude_guard_and_target = exclude_identities(&[&l1_guard]);
 
         // We need to exclude the target from being selected as
