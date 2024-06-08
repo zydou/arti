@@ -273,7 +273,7 @@ integration-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    JOB_SHADOW_COMMIT: "v3.1.0"
+    JOB_SHADOW_COMMIT: "v3.2.0"
 
     JOB_TGEN_REPO: "https://github.com/shadow/tgen.git"
     JOB_TGEN_BRANCH: "main"
