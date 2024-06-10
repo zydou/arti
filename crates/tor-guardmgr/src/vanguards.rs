@@ -522,6 +522,60 @@ impl Inner {
     }
 }
 
+#[cfg(any(test, feature = "testing"))]
+use {
+    tor_config::ExplicitOrAuto, tor_netdir::testprovider::TestNetDirProvider,
+    tor_persist::TestingStateMgr, tor_rtmock::MockRuntime,
+};
+
+/// Helpers for tests involving vanguards
+#[cfg(any(test, feature = "testing"))]
+impl VanguardMgr<MockRuntime> {
+    /// Create a new VanguardMgr for testing.
+    pub fn new_testing(
+        rt: &MockRuntime,
+        mode: VanguardMode,
+    ) -> Result<Arc<VanguardMgr<MockRuntime>>, VanguardMgrError> {
+        let config = VanguardConfig {
+            mode: ExplicitOrAuto::Explicit(mode),
+        };
+        let statemgr = TestingStateMgr::new();
+        let lock = statemgr.try_lock()?;
+        assert!(lock.held());
+        // TODO(#1382): has_onion_svc doesn't matter right now
+        let has_onion_svc = false;
+        Ok(Arc::new(VanguardMgr::new(
+            &config,
+            rt.clone(),
+            statemgr,
+            has_onion_svc,
+        )?))
+    }
+
+    /// Wait until the vanguardmgr has populated its vanguard sets.
+    ///
+    /// Returns a [`TestNetDirProvider`] that can be used to notify
+    /// the `VanguardMgr` of netdir changes.
+    pub async fn init_vanguard_sets(
+        self: &Arc<VanguardMgr<MockRuntime>>,
+        netdir: &NetDir,
+    ) -> Result<Arc<TestNetDirProvider>, VanguardMgrError> {
+        let netdir_provider = Arc::new(TestNetDirProvider::new());
+        self.launch_background_tasks(&(netdir_provider.clone() as Arc<dyn NetDirProvider>))?;
+        self.runtime.progress_until_stalled().await;
+
+        // Call set_netdir_and_notify to trigger an event
+        netdir_provider
+            .set_netdir_and_notify(Arc::new(netdir.clone()))
+            .await;
+
+        // Wait until the vanguard mgr has finished handling the netdir event.
+        self.runtime.progress_until_stalled().await;
+
+        Ok(netdir_provider)
+    }
+}
+
 /// The vanguard layer.
 #[derive(Debug, Clone, Copy, PartialEq)] //
 #[derive(derive_more::Display)] //
@@ -564,7 +618,7 @@ mod test {
         testnet::{self, construct_custom_netdir_with_params},
         testprovider::TestNetDirProvider,
     };
-    use tor_persist::{FsStateMgr, TestingStateMgr};
+    use tor_persist::FsStateMgr;
     use tor_rtmock::MockRuntime;
     use Layer::*;
 
@@ -613,19 +667,6 @@ mod test {
         pub(super) fn l3_vanguards(&self) -> &Vec<TimeBoundVanguard> {
             self.vanguard_sets.l3_vanguards()
         }
-    }
-
-    /// Create a new VanguardMgr for testing.
-    fn new_vanguard_mgr<R: Runtime>(rt: &R, mode: VanguardMode) -> Arc<VanguardMgr<R>> {
-        let config = VanguardConfig {
-            mode: ExplicitOrAuto::Explicit(mode),
-        };
-        let statemgr = TestingStateMgr::new();
-        let lock = statemgr.try_lock().unwrap();
-        assert!(lock.held());
-        // TODO(#1382): has_onion_svc doesn't matter right now
-        let has_onion_svc = false;
-        Arc::new(VanguardMgr::new(&config, rt.clone(), statemgr, has_onion_svc).unwrap())
     }
 
     /// Look up the vanguard in the specified VanguardSet.
@@ -734,40 +775,17 @@ mod test {
         }
     }
 
-    /// Wait until the vanguardmgr has populated its vanguard sets.
-    async fn init_vanguard_sets(
-        runtime: MockRuntime,
-        netdir: NetDir,
-        vanguardmgr: Arc<VanguardMgr<MockRuntime>>,
-    ) -> Arc<TestNetDirProvider> {
-        let netdir_provider = Arc::new(TestNetDirProvider::new());
-        vanguardmgr
-            .launch_background_tasks(&(netdir_provider.clone() as Arc<dyn NetDirProvider>))
-            .unwrap();
-        runtime.progress_until_stalled().await;
-
-        // Call set_netdir_and_notify to trigger an event
-        netdir_provider
-            .set_netdir_and_notify(Arc::new(netdir.clone()))
-            .await;
-
-        // Wait until the vanguard mgr has finished handling the netdir event.
-        runtime.progress_until_stalled().await;
-
-        netdir_provider
-    }
-
     #[test]
     fn full_vanguards_disabled() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
+            let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
             // Wait until the vanguard manager has bootstrapped
             // (otherwise we'll get a BootstrapRequired error)
             let _netdir_provider =
-                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             // Cannot select an L3 vanguard when running in "Lite" mode.
             let err = vanguardmgr
@@ -789,7 +807,7 @@ mod test {
     #[test]
     fn background_task_not_spawned() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
+            let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let exclusion = RelayExclusion::no_relays_excluded();
@@ -818,7 +836,7 @@ mod test {
     #[test]
     fn select_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Full);
+            let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Full).unwrap();
 
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
@@ -829,8 +847,7 @@ mod test {
             assert_sets_empty(&vanguardmgr);
 
             // Wait until the vanguard manager has bootstrapped
-            let _netdir_provider =
-                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+            let _netdir_provider = vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             assert_sets_filled(&vanguardmgr, &params);
 
@@ -949,11 +966,11 @@ mod test {
     #[test]
     fn override_vanguard_set_size() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
+            let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             // Wait until the vanguard manager has bootstrapped
             let netdir_provider =
-                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let old_size = params.l2_pool_size();
@@ -992,14 +1009,14 @@ mod test {
     #[test]
     fn expire_vanguards() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
+            let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let initial_l2_number = params.l2_pool_size();
 
             // Wait until the vanguard manager has bootstrapped
             let netdir_provider =
-                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
             assert_eq!(vanguard_count(&vanguardmgr), params.l2_pool_size());
 
             // Find the RelayIds of the vanguard that is due to expire next
@@ -1082,7 +1099,7 @@ mod test {
     #[test]
     fn full_vanguards_persistence() {
         MockRuntime::test_with_various(|rt| async move {
-            let vanguardmgr = new_vanguard_mgr(&rt, VanguardMode::Lite);
+            let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
 
             let netdir =
                 construct_custom_netdir_with_params(|_, _| {}, ENABLE_LITE_VANGUARDS, None)
@@ -1090,7 +1107,7 @@ mod test {
                     .unwrap_if_sufficient()
                     .unwrap();
             let netdir_provider =
-                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             // Full vanguards are not enabled, so we don't expect anything to be written
             // to persistent storage.
@@ -1203,7 +1220,7 @@ mod test {
 
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let _netdir_provider =
-                init_vanguard_sets(rt.clone(), netdir.clone(), Arc::clone(&vanguardmgr)).await;
+                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
             {
                 let inner = vanguardmgr.inner.read().unwrap();
                 let l2_vanguards = inner.vanguard_sets.l2_vanguards();
