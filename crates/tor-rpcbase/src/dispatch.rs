@@ -288,9 +288,17 @@ declare_invocable_impl! {
 #[derive(Clone, Copy)]
 #[must_use]
 pub struct InvokerEnt {
+    /// The function that implements this method on a given type.
+    ///
+    /// Always present.
     #[doc(hidden)]
     pub invoker: &'static (dyn Invocable),
 
+    /// The same function as `invoker`, but only if that function implements
+    /// `RpcInvocable`
+    ///
+    /// This will be `None` if this is a "special" method--that is, one whose inputs and outputs are not serializable,
+    /// and which is therefore not invocable directly from an RPC connection.
     #[doc(hidden)]
     pub rpc_invoker: Option<&'static (dyn RpcInvocable)>,
 
