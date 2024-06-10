@@ -88,7 +88,7 @@ pub enum LookupError {
 }
 
 /// A trait describing the context in which an RPC method is executed.
-pub trait Context: Send {
+pub trait Context: Send + Sync {
     /// Look up an object by identity within this context.
     fn lookup_object(&self, id: &ObjectId) -> Result<Arc<dyn Object>, LookupError>;
 
@@ -167,7 +167,60 @@ pub trait ContextExt: Context {
             .map_err(|_| LookupError::WrongType(id.clone()))
     }
 }
+
 impl<T: Context> ContextExt for T {}
+
+/// Try to find an appropriate function for calling a given RPC method on a
+/// given RPC-visible object.
+///
+/// On success, return a Future.
+///
+/// Differs from using `DispatchTable::invoke()` in that it drops its lock
+/// on the dispatch table before invoking the method.
+pub fn invoke_rpc_method(
+    ctx: Arc<dyn Context>,
+    obj: Arc<dyn Object>,
+    method: Box<dyn DynMethod>,
+    sink: dispatch::BoxedUpdateSink,
+) -> Result<dispatch::RpcResultFuture, InvokeError> {
+    // TODO RPC: Possibly, we should make this and `invoke_special_method` into
+    // methods on an extension trait of Arc<dyn Context>.  We can't put them
+    // onto ContextExt, since they would impose a `Sized` requirement there.
+    // We also can't add inherent impls to Arc<dyn Context>.
+    let invocable = ctx
+        .dispatch_table()
+        .read()
+        .expect("poisoned lock")
+        .rpc_invoker(obj.as_ref(), method.as_ref())?;
+
+    invocable.invoke(obj, method, ctx, sink)
+}
+
+/// Invoke the given `method` on `obj` within `ctx`, and return its
+/// actual result type.
+///
+/// Unlike `invoke_rpc_method`, this method does not return a type-erased result,
+/// and does not require that the result can be serialized as an RPC object.
+///
+/// Differs from using `DispatchTable::invoke_special()` in that it drops its lock
+/// on the dispatch table before invoking the method.
+pub async fn invoke_special_method<M: Method>(
+    ctx: Arc<dyn Context>,
+    obj: Arc<dyn Object>,
+    method: Box<M>,
+) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
+    let invocable = ctx
+        .dispatch_table()
+        .read()
+        .expect("poisoned lock")
+        .special_invoker::<M>(obj.as_ref())?;
+
+    invocable
+        .invoke_special(obj, method, ctx)?
+        .await
+        .downcast()
+        .map_err(|_| InvokeError::Bug(tor_error::internal!("Downcast to wrong type")))
+}
 
 /// A serializable empty object.
 ///

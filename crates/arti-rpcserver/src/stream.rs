@@ -227,7 +227,7 @@ fn new_stream_handle_impl(
 pub(crate) async fn new_stream_handle_on_client<R: tor_rtcompat::Runtime>(
     client: Arc<arti_client::TorClient<R>>,
     _method: Box<NewStreamHandle>,
-    ctx: Box<dyn rpc::Context>,
+    ctx: Arc<dyn rpc::Context>,
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
     Ok(new_stream_handle_impl(client, ctx.as_ref()).into())
 }
@@ -236,7 +236,7 @@ pub(crate) async fn new_stream_handle_on_client<R: tor_rtcompat::Runtime>(
 async fn new_stream_handle_on_session(
     session: Arc<RpcSession>,
     _method: Box<NewStreamHandle>,
-    ctx: Box<dyn rpc::Context>,
+    ctx: Arc<dyn rpc::Context>,
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
     Ok(new_stream_handle_impl(session, ctx.as_ref()).into())
 }

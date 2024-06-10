@@ -235,6 +235,7 @@ impl<R: Runtime> SocksConnContext<R> {
                     .lookup_object(&session)
                     .context("no such session found")?;
                 let target: Arc<dyn arti_client::rpc::ClientConnectionTarget> = session
+                    .1
                     .cast_to_arc_trait()
                     .map_err(|_| anyhow!("Target did not implement ClientConnectionTarget"))?;
 

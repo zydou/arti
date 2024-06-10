@@ -119,7 +119,7 @@ impl rpc::Method for AuthQuery {
 async fn conn_authquery(
     _conn: Arc<Connection>,
     _query: Box<AuthQuery>,
-    _ctx: Box<dyn rpc::Context>,
+    _ctx: Arc<dyn rpc::Context>,
 ) -> Result<SupportedAuth, rpc::RpcError> {
     // Right now, every connection supports the same scheme.
     Ok(SupportedAuth {
@@ -174,7 +174,7 @@ impl tor_error::HasKind for AuthenticationFailure {
 async fn authenticate_connection(
     unauth: Arc<Connection>,
     method: Box<Authenticate>,
-    ctx: Box<dyn rpc::Context>,
+    ctx: Arc<dyn rpc::Context>,
 ) -> Result<AuthenticateReply, rpc::RpcError> {
     match method.scheme {
         // For now, we only support AF_UNIX connections, and we assume that if

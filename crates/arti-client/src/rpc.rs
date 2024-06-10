@@ -93,7 +93,7 @@ impl From<crate::status::BootstrapStatus> for ClientStatusInfo {
 async fn get_client_status<R: Runtime>(
     client: Arc<TorClient<R>>,
     _method: Box<GetClientStatus>,
-    _ctx: Box<dyn rpc::Context>,
+    _ctx: Arc<dyn rpc::Context>,
 ) -> Result<ClientStatusInfo, rpc::RpcError> {
     Ok(client.bootstrap_status().into())
 }
@@ -102,7 +102,7 @@ async fn get_client_status<R: Runtime>(
 async fn watch_client_status<R: Runtime>(
     client: Arc<TorClient<R>>,
     _method: Box<WatchClientStatus>,
-    _ctx: Box<dyn rpc::Context>,
+    _ctx: Arc<dyn rpc::Context>,
     mut updates: rpc::UpdateSink<ClientStatusInfo>,
 ) -> Result<rpc::Nil, rpc::RpcError> {
     let mut events = client.bootstrap_events();
@@ -137,7 +137,7 @@ impl rpc::Method for IsolatedClient {
 async fn isolated_client<R: Runtime>(
     client: Arc<TorClient<R>>,
     _method: Box<IsolatedClient>,
-    ctx: Box<dyn rpc::Context>,
+    ctx: Arc<dyn rpc::Context>,
 ) -> Result<rpc::SingletonId, rpc::RpcError> {
     let new_client = Arc::new(client.isolated_client());
     let client_id = ctx.register_owned(new_client);
