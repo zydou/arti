@@ -274,6 +274,10 @@ before you continue!
 3. One the blog post is published,
    update the origin/pages branch to refer to the new version.
 
+4. Did you create any new crates?
+   If so, you need to make sure that they are owned (on crates.io)
+   by the right set of developers.
+   If you aren't sure, use `maint/check-crate-owners`.
 
 <!-- ================================================== -->
 
