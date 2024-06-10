@@ -1,0 +1,35 @@
+#!/bin/bash
+#
+# check-crate-owners
+#
+# Verify that every crate is published on crates.io with the correct
+# list of owners.
+
+SCRIPTDIR=$(dirname "$0")
+: "${CARGO:=cargo}"
+
+# Edit this list to match the intended set of crate owners.
+#
+# Keep this list sorted.
+read -r -d '' EXPECT_OWNERS <<'EOF'
+dgoulet-tor (David Goulet)
+gabi-250 (Gabi Moldovan)
+ijackson (Ian Jackson)
+nmathewson (Nick Mathewson)
+EOF
+
+exitcode=0
+
+for cr in $("$SCRIPTDIR"/list_crates); do
+    OWNERS=$($CARGO owner --list "$cr" |sort)
+
+    if test "$OWNERS" = "$EXPECT_OWNERS"; then
+	echo "Owners correct on $cr"
+    else
+	echo "Wrong owners on $cr:"
+	echo "$OWNERS"
+	exitcode=1
+    fi
+done
+
+exit $exitcode
