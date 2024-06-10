@@ -55,6 +55,7 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use futures::Sink;
 
+use tor_error::internal;
 use void::Void;
 
 use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
@@ -669,7 +670,11 @@ impl DispatchTable {
             .get(&func_type)
             .ok_or(InvokeError::NoImpl)?
             .rpc_invoker
-            .ok_or(InvokeError::NoImpl)
+            .ok_or_else(|| {
+                InvokeError::Bug(internal!(
+                    "Somehow tried to call a special method as an RPC method."
+                ))
+            })
     }
 
     /// Helper: Return the special invoker for a given object and a given method type,
