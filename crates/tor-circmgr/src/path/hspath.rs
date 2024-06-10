@@ -344,20 +344,7 @@ impl VanguardHsPathBuilder {
         }
 
         let actual_len = hops.len();
-        let expected_len = match (mode, self.kind) {
-            (VanguardMode::Lite, _) => 3,
-            (VanguardMode::Full, HsCircStubKind::Short) => 3,
-            (VanguardMode::Full, HsCircStubKind::Extended) => 4,
-            (VanguardMode::Disabled, _) => {
-                return Err(internal!(
-                    "Called VanguardHsPathBuilder::pick_path(), but vanguards are disabled?!"
-                )
-                .into());
-            }
-            (_, _) => {
-                return Err(internal!("Unsupported vanguard mode {mode}").into());
-            }
-        };
+        let expected_len = self.kind.len(mode)?;
 
         if actual_len != expected_len {
             return Err(internal!(
