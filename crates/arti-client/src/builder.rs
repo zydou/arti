@@ -137,16 +137,16 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// This option is useful if you wish to have control over the bootstrap
     /// process (for example, you might wish to avoid initiating network
     /// connections until explicit user confirmation is given).
-    pub fn create_unbootstrapped(self) -> Result<TorClient<R>> {
+    pub fn create_unbootstrapped(&self) -> Result<TorClient<R>> {
         #[allow(unused_mut)]
         let mut dirmgr_extensions = tor_dirmgr::config::DirMgrExtensions::default();
         #[cfg(feature = "dirfilter")]
         {
-            dirmgr_extensions.filter = self.dirfilter;
+            dirmgr_extensions.filter.clone_from(&self.dirfilter);
         }
 
         TorClient::create_inner(
-            self.runtime,
+            self.runtime.clone(),
             &self.config,
             self.bootstrap_behavior,
             self.dirmgr_builder.as_ref(),
@@ -156,7 +156,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     }
 
     /// Create a TorClient from this builder, and try to bootstrap it.
-    pub async fn create_bootstrapped(self) -> Result<TorClient<R>> {
+    pub async fn create_bootstrapped(&self) -> Result<TorClient<R>> {
         let r = self.create_unbootstrapped()?;
         r.bootstrap().await?;
         Ok(r)
