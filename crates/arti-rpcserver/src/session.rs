@@ -60,7 +60,7 @@ impl RpcSession {
     }
 
     /// Return a view of the client associated with this session, as an `Arc<dyn
-    /// ClientConnectionTarget>.`
+    /// rpc::Object>.`
     fn client_as_object(&self) -> Arc<dyn rpc::Object> {
         self.client.clone().upcast_arc()
     }
@@ -181,7 +181,6 @@ async fn session_connect_with_prefs(
 /// Implement ResolveWithPrefs on an RpcSession
 ///
 /// (Delegates to TorClient.)
-
 async fn session_resolve_with_prefs(
     session: Arc<RpcSession>,
     method: Box<ResolveWithPrefs>,

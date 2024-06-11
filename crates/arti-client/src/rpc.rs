@@ -187,7 +187,7 @@ pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
 /// directly.  Instead, it is invoked in response to a SOCKS request.
 ///
 /// (It can't be invoked in response to an RPC session's method call, because
-/// it needs to return a DataSTream, which can't be serialized.)
+/// it needs to return a DataStream, which can't be serialized.)
 #[derive(Deftly, Debug)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(no_method_name))]
@@ -266,7 +266,7 @@ async fn client_connect_with_prefs<R: Runtime>(
         .map_err(|e| Box::new(e) as _)
 }
 
-/// RPC method implementation: start a connection on a `TorClient`.
+/// RPC method implementation: perform a remote DNS lookup using a `TorClient`.
 async fn client_resolve_with_prefs<R: Runtime>(
     client: Arc<TorClient<R>>,
     method: Box<ResolveWithPrefs>,
@@ -277,7 +277,7 @@ async fn client_resolve_with_prefs<R: Runtime>(
         .map_err(|e| Box::new(e) as _)
 }
 
-/// RPC method implementation: start a connection on a `TorClient`.
+/// RPC method implementation: perform a remote DNS reverse lookup using a `TorClient`.
 async fn client_resolve_ptr_with_prefs<R: Runtime>(
     client: Arc<TorClient<R>>,
     method: Box<ResolvePtrWithPrefs>,
