@@ -197,16 +197,19 @@ pub struct StorageConfig {
     // (This consistency rule is not current always followed by every component.)
     #[builder(setter(into), default = "default_cache_dir()")]
     cache_dir: CfgPath,
+
     /// Location on disk for less-sensitive persistent state information.
     // Usage note: see the note for `cache_dir`, above.
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
+
     /// Location on disk for the Arti keystore.
     #[cfg(feature = "keymgr")]
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     keystore: ArtiNativeKeystoreConfig,
-    /// Filesystem state to
+
+    /// Configuration about which permissions we want to enforce on our files.
     #[builder(sub_builder(fn_name = "build_for_arti"))]
     #[builder_field_attr(serde(default))]
     permissions: Mistrust,
