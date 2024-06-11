@@ -1,6 +1,5 @@
 //! Declare RPC functionality on for the `arti-client` crate.
 
-use async_trait::async_trait;
 use derive_deftly::Deftly;
 use dyn_clone::DynClone;
 use futures::{SinkExt as _, StreamExt as _};
@@ -23,6 +22,9 @@ impl<R: Runtime> TorClient<R> {
             get_client_status::<R>,
             watch_client_status::<R>,
             isolated_client::<R>,
+            @special client_connect_with_prefs::<R>,
+            @special client_resolve_with_prefs::<R>,
+            @special client_resolve_ptr_with_prefs::<R>,
         ]
     }
 }
@@ -162,6 +164,11 @@ impl std::error::Error for Box<dyn ClientConnectionError> {
         self.as_ref().source()
     }
 }
+impl tor_error::HasKind for Box<dyn ClientConnectionError> {
+    fn kind(&self) -> tor_error::ErrorKind {
+        self.as_ref().kind()
+    }
+}
 dyn_clone::clone_trait_object!(ClientConnectionError);
 
 /// module to seal the ClientConnectionError trait.
@@ -174,76 +181,109 @@ mod seal {
 /// Type alias for a Result return by ClientConnectionTarget
 pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
 
-/// An RPC-visible object that can be used as the target of SOCKS operations,
-/// or other application-level connection attempts.
+/// RPC special method: make a connection to a chosen address and preferences.
 ///
-/// Only the RPC subsystem should use this type.
+/// This method has no method name, and is not invoked by an RPC session
+/// directly.  Instead, it is invoked in response to a SOCKS request.
 ///
-/// Semantically, you can consider this trait as a collection of three Methods
-/// that certain RPC objects implement.  We aren't implementing this directly
-/// as rpc::Methods because they cannot (currently) return non-Serialize types.
-//
-// TODO RPC: Conceivably, we would like to apply this trait to types in lower-level crates: for
-// example, we could put it onto ClientCirc, and let the application launch streams on a circuit
-// directly.  But if we did that, we wouldn't be able to downcast an ClientCirc from Arc<dyn Object>
-// to this trait. Perhaps we need a clever solution.
-//
-// TODO RPC: This trait, along with ClientConnection{Error,Result},  have names that are just too
-// long.
-//
-// TODO RPC: We might like to replace this with a special kind of RPC method;
-// see #1403.
-#[async_trait]
-pub trait ClientConnectionTarget: Send + Sync {
-    /// As [`TorClient::connect_with_prefs`].
-    async fn connect_with_prefs(
-        &self,
-        target: &TorAddr,
-        prefs: &StreamPrefs,
-    ) -> ClientConnectionResult<DataStream>;
-
-    /// As [`TorClient::resolve_with_prefs`].
-    async fn resolve_with_prefs(
-        &self,
-        hostname: &str,
-        prefs: &StreamPrefs,
-    ) -> ClientConnectionResult<Vec<IpAddr>>;
-
-    /// As [`TorClient::resolve_ptr_with_prefs`].
-    async fn resolve_ptr_with_prefs(
-        &self,
-        addr: IpAddr,
-        prefs: &StreamPrefs,
-    ) -> ClientConnectionResult<Vec<String>>;
+/// (It can't be invoked in response to an RPC session's method call, because
+/// it needs to return a DataStream, which can't be serialized.)
+#[derive(Deftly, Debug)]
+#[derive_deftly(rpc::DynMethod)]
+#[deftly(rpc(no_method_name))]
+#[allow(clippy::exhaustive_structs)]
+pub struct ConnectWithPrefs {
+    /// The target address
+    pub target: TorAddr,
+    /// The stream preferences implied by the SOCKS connect request.
+    pub prefs: StreamPrefs,
+}
+impl rpc::Method for ConnectWithPrefs {
+    type Output = DataStream;
+    // TODO RPC: I am not sure that this is the error type we truly want.
+    type Error = Box<dyn ClientConnectionError>;
+    type Update = rpc::NoUpdates;
 }
 
-#[async_trait]
-impl<R: Runtime> ClientConnectionTarget for TorClient<R> {
-    async fn connect_with_prefs(
-        &self,
-        target: &TorAddr,
-        prefs: &StreamPrefs,
-    ) -> ClientConnectionResult<DataStream> {
-        TorClient::connect_with_prefs(self, target, prefs)
-            .await
-            .map_err(|e| Box::new(e) as _)
-    }
-    async fn resolve_with_prefs(
-        &self,
-        hostname: &str,
-        prefs: &StreamPrefs,
-    ) -> ClientConnectionResult<Vec<IpAddr>> {
-        TorClient::resolve_with_prefs(self, hostname, prefs)
-            .await
-            .map_err(|e| Box::new(e) as _)
-    }
-    async fn resolve_ptr_with_prefs(
-        &self,
-        addr: IpAddr,
-        prefs: &StreamPrefs,
-    ) -> ClientConnectionResult<Vec<String>> {
-        TorClient::resolve_ptr_with_prefs(self, addr, prefs)
-            .await
-            .map_err(|e| Box::new(e) as _)
-    }
+/// RPC special method: lookup an address with a chosen address and preferences.
+///
+/// This method has no method name, and is not invoked by an RPC connection
+/// directly.  Instead, it is invoked in response to a SOCKS request.
+//
+// TODO RPC: We _could_ give this a method name so that it can be invoked as an RPC method, and
+// maybe we should.  First, however, we would need to make `StreamPrefs` an RPC-visible serializable
+// type, or replace it with an equivalent.
+#[derive(Deftly, Debug)]
+#[derive_deftly(rpc::DynMethod)]
+#[deftly(rpc(no_method_name))]
+#[allow(clippy::exhaustive_structs)]
+pub struct ResolveWithPrefs {
+    /// The hostname to resolve.
+    pub hostname: String,
+    /// The stream preferences implied by the SOCKS resolve request.
+    pub prefs: StreamPrefs,
+}
+impl rpc::Method for ResolveWithPrefs {
+    type Output = Vec<IpAddr>;
+    // TODO RPC: I am not sure that this is the error type we truly want.
+    type Error = Box<dyn ClientConnectionError>;
+    type Update = rpc::NoUpdates;
+}
+
+/// RPC special method: reverse-lookup an address with a chosen address and preferences.
+///
+/// This method has no method name, and is not invoked by an RPC connection
+/// directly.  Instead, it is invoked in response to a SOCKS request.
+//
+// TODO RPC: We _could_ give this a method name so that it can be invoked as an RPC method, and
+// maybe we should.  First, however, we would need to make `StreamPrefs` an RPC-visible serializable
+// type, or replace it with an equivalent.
+#[derive(Deftly, Debug)]
+#[derive_deftly(rpc::DynMethod)]
+#[deftly(rpc(no_method_name))]
+#[allow(clippy::exhaustive_structs)]
+pub struct ResolvePtrWithPrefs {
+    /// The address to resolve.
+    pub addr: IpAddr,
+    /// The stream preferences implied by the SOCKS resolve request.
+    pub prefs: StreamPrefs,
+}
+impl rpc::Method for ResolvePtrWithPrefs {
+    type Output = Vec<String>;
+    // TODO RPC: I am not sure that this is the error type we truly want.
+    type Error = Box<dyn ClientConnectionError>;
+    type Update = rpc::NoUpdates;
+}
+
+/// RPC method implementation: start a connection on a `TorClient`.
+async fn client_connect_with_prefs<R: Runtime>(
+    client: Arc<TorClient<R>>,
+    method: Box<ConnectWithPrefs>,
+    _ctx: Arc<dyn rpc::Context>,
+) -> Result<DataStream, Box<dyn ClientConnectionError>> {
+    TorClient::connect_with_prefs(client.as_ref(), &method.target, &method.prefs)
+        .await
+        .map_err(|e| Box::new(e) as _)
+}
+
+/// RPC method implementation: perform a remote DNS lookup using a `TorClient`.
+async fn client_resolve_with_prefs<R: Runtime>(
+    client: Arc<TorClient<R>>,
+    method: Box<ResolveWithPrefs>,
+    _ctx: Arc<dyn rpc::Context>,
+) -> Result<Vec<IpAddr>, Box<dyn ClientConnectionError>> {
+    TorClient::resolve_with_prefs(client.as_ref(), &method.hostname, &method.prefs)
+        .await
+        .map_err(|e| Box::new(e) as _)
+}
+
+/// RPC method implementation: perform a remote DNS reverse lookup using a `TorClient`.
+async fn client_resolve_ptr_with_prefs<R: Runtime>(
+    client: Arc<TorClient<R>>,
+    method: Box<ResolvePtrWithPrefs>,
+    _ctx: Arc<dyn rpc::Context>,
+) -> Result<Vec<String>, Box<dyn ClientConnectionError>> {
+    TorClient::resolve_ptr_with_prefs(client.as_ref(), method.addr, &method.prefs)
+        .await
+        .map_err(|e| Box::new(e) as _)
 }

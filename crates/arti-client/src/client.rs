@@ -52,8 +52,6 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
-#[cfg(feature = "rpc")]
-use crate::rpc::ClientConnectionTarget;
 use crate::{status, util, TorClientBuilder};
 #[cfg(feature = "geoip")]
 use tor_geoip::CountryCode;
@@ -76,8 +74,7 @@ use tracing::{debug, info};
     feature = "rpc",
     derive(Deftly),
     derive_deftly(Object),
-    deftly(rpc(expose_outside_of_session)),
-    deftly(rpc(downcastable_to = "ClientConnectionTarget"))
+    deftly(rpc(expose_outside_of_session))
 )]
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.

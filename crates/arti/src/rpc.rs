@@ -8,6 +8,8 @@ use std::{path::Path, sync::Arc};
 use arti_client::TorClient;
 use tor_rtcompat::Runtime;
 
+pub(crate) mod conntarget;
+
 cfg_if::cfg_if! {
     if #[cfg(all(feature="tokio", not(target_os="windows")))] {
         use tokio_crate::net::UnixListener ;
