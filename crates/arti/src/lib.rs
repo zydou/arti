@@ -209,7 +209,7 @@ async fn run<R: Runtime>(
     let client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)
         .bootstrap_behavior(OnDemand);
-    let client = client_builder.create_unbootstrapped()?;
+    let client = client_builder.create_unbootstrapped_async().await?;
 
     #[allow(unused_mut)]
     let mut reconfigurable_modules: Vec<Arc<dyn reload_cfg::ReconfigurableModule>> = vec![
