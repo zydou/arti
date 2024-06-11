@@ -472,6 +472,11 @@ fn select_guard<'a, R: Rng, RT: Runtime>(
             Ok((guard, Some(mon), Some(usable)))
         }
         None => {
+            // TODO: compatible_with is not used if the guardmgr is `None`.
+            // This means we allow the first hop to be the same as the circuit target,
+            // which seems like a bug.
+            // (OTOH, we have decided to remove support for disabling guards,
+            // see #1465).
             let rs_cfg = config.relay_selection_config();
             let exclusion = match chosen_exit {
                 Some(r) => RelayExclusion::exclude_relays_in_same_family(&rs_cfg, vec![r.clone()]),
