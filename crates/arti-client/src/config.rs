@@ -209,7 +209,7 @@ pub struct StorageConfig {
     #[builder_field_attr(serde(default))]
     keystore: ArtiNativeKeystoreConfig,
 
-    /// Filesystem state to
+    /// Configuration about which permissions we want to enforce on our files.
     #[builder(sub_builder(fn_name = "build_for_arti"))]
     #[builder_field_attr(serde(default))]
     permissions: Mistrust,
