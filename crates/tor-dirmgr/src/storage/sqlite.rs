@@ -1001,12 +1001,13 @@ pub(crate) mod test {
         let tmp_dir = tempdir().unwrap();
         let sql_path = tmp_dir.path().join("db.sql");
         let conn = rusqlite::Connection::open(sql_path)?;
+        let blob_path = tmp_dir.path().join("blobs");
         let blob_dir = fs_mistrust::Mistrust::builder()
             .dangerously_trust_everyone()
             .build()
             .unwrap()
             .verifier()
-            .secure_dir(&tmp_dir)
+            .make_secure_dir(blob_path)
             .unwrap();
         let store = SqliteStore::from_conn(conn, blob_dir)?;
 
@@ -1068,7 +1069,7 @@ pub(crate) mod test {
 
     #[test]
     fn blobs() -> Result<()> {
-        let (tmp_dir, mut store) = new_empty()?;
+        let (_tmp_dir, mut store) = new_empty()?;
 
         let now = OffsetDateTime::now_utc();
         let one_week = 1.weeks();
@@ -1093,7 +1094,6 @@ pub(crate) mod test {
             fname1,
             "greeting_sha1-7b502c3a1f48c8609ae212cdfb639dee39673f5e"
         );
-        assert_eq!(store.blob_dir.join(&fname1)?, tmp_dir.path().join(&fname1));
         assert_eq!(
             &std::fs::read(store.blob_dir.join(&fname1)?).unwrap()[..],
             b"Hello world"
