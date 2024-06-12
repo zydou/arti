@@ -13,8 +13,12 @@ tmp_trap_exit_setup () {
     trap 'set +e; rm -rf "$tmp"; exit $exit_rc' 0
 }
 
+tmp_trap_exit_finish_status () {
+    exit_rc=$1
+}
+
 tmp_trap_exit_finish_ok () {
-    exit_rc=0
+    tmp_trap_exit_finish_status 0
 }
 
 # Queries
