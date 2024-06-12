@@ -5098,6 +5098,7 @@ dependencies = [
  "educe",
  "futures",
  "futures-await-test",
+ "hex",
  "humantime-serde",
  "itertools 0.12.1",
  "once_cell",
