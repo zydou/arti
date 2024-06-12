@@ -117,6 +117,10 @@ impl SqliteStore {
     ///
     /// Used for testing with a memory-backed database.
     pub(crate) fn from_conn(conn: rusqlite::Connection, blob_dir: CheckedDir) -> Result<Self> {
+        // sqlite (as of Jun 2024) does not enforce foreign keys automatically unless you set this
+        // pragma on the connection.
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+
         let mut result = SqliteStore {
             conn,
             blob_dir,
