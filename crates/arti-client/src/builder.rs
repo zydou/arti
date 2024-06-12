@@ -113,7 +113,9 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// and we do not wait at all if invoked with
     /// [`create_unbootstrapped`](Self::create_unbootstrapped).
     ///
-    /// (This difference in default behavior is meant to avoid uninitentional )
+    /// (This difference in default behavior is meant to avoid unintentional blocking.
+    /// If you call this method, subsequent calls to `crate_bootstrapped` may block
+    /// the current thread.)
     pub fn fslock_timeout(mut self, timeout: Duration) -> Self {
         self.fslock_timeout = Some(timeout);
         self
@@ -162,7 +164,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// connections until explicit user confirmation is given).
     ///
     /// If a [fslock_timeout](Self::fslock_timeout) has been set, this function may
-    /// block the current thread.  
+    /// block the current thread.
     /// Use [`create_unbootstrapped_async`](Self::create_unbootstrapped_async)
     /// if that is not what you want.
     pub fn create_unbootstrapped(&self) -> Result<TorClient<R>> {
