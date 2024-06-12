@@ -211,7 +211,6 @@ impl VanguardHsPathBuilder {
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         use tor_linkspec::HasRelayIds;
 
-        // TODO: this is copied from pick_path
         let netdir = match netdir {
             DirInfo::Directory(d) => d,
             _ => {
