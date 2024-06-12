@@ -784,8 +784,7 @@ mod test {
             let exclusion = RelayExclusion::no_relays_excluded();
             // Wait until the vanguard manager has bootstrapped
             // (otherwise we'll get a BootstrapRequired error)
-            let _netdir_provider =
-                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
+            let _netdir_provider = vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             // Cannot select an L3 vanguard when running in "Lite" mode.
             let err = vanguardmgr
@@ -969,8 +968,7 @@ mod test {
             let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             // Wait until the vanguard manager has bootstrapped
-            let netdir_provider =
-                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
+            let netdir_provider = vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             let params = VanguardParams::try_from(netdir.params()).unwrap();
             let old_size = params.l2_pool_size();
@@ -1015,8 +1013,7 @@ mod test {
             let initial_l2_number = params.l2_pool_size();
 
             // Wait until the vanguard manager has bootstrapped
-            let netdir_provider =
-                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
+            let netdir_provider = vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
             assert_eq!(vanguard_count(&vanguardmgr), params.l2_pool_size());
 
             // Find the RelayIds of the vanguard that is due to expire next
@@ -1106,8 +1103,7 @@ mod test {
                     .unwrap()
                     .unwrap_if_sufficient()
                     .unwrap();
-            let netdir_provider =
-                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
+            let netdir_provider = vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
 
             // Full vanguards are not enabled, so we don't expect anything to be written
             // to persistent storage.
@@ -1219,8 +1215,7 @@ mod test {
             };
 
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
-            let _netdir_provider =
-                vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
+            let _netdir_provider = vanguardmgr.init_vanguard_sets(&netdir).await.unwrap();
             {
                 let inner = vanguardmgr.inner.read().unwrap();
                 let l2_vanguards = inner.vanguard_sets.l2_vanguards();
