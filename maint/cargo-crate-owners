@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# usage:
+#   maint/cargo-crate-owners
+#
+# Lists the ownerships of all published crates to stderr,
+# and checks that they're all the same.
+#
+# Exit status is
+#   0      all crates have the same owners
+#   2      some crates have varying own ers
+#   other  trouble
+#
+# crates which are mentioned in the workspace, but which have never been published,
+# are ignored.
+
+set -e
+set -o pipefail
+
+maint=maint
+# shellcheck source=maint/crates-io-utils.sh
+source "$maint"/crates-io-utils.sh
+crates=$("$maint"/list_crates)
+
+if [ $# != 0 ]; then fail 'bad usage: no arguments allowed'; fi
+
+tmp_trap_exit_setup
+
+for p in $crates; do
+    printf "checking owners of %-40s " "$p"
+    crates_io_api_call "v1/crates/$p/owners" .users "$tmp/p,$p.json"
+
+    case "$http_code" in
+	404)
+	    echo "unpublished"
+	    continue
+	    ;;
+	200)
+	    ;;
+	*)
+	    fail 'internal error'
+	    ;;
+    esac
+
+    jq -S '.users[].login' <"$tmp/p,$p.json" >"$tmp/owners,$p.json"
+    hash=$(sha256sum <"$tmp/owners,$p.json")
+    hash=${hash%% *}
+    cp "$tmp/owners,$p.json" "$tmp/byhash.$hash.owners"
+    printf '%s\n' "$p" >>"$tmp/byhash.$hash.packages"
+
+    n_owners=$(jq <"$tmp/owners,$p.json" 1 | wc -l)
+    n_packages=$(wc -l <"$tmp/byhash.$hash.packages")
+    printf '%d owners (group size: %d)\n' "$n_owners" "$n_packages"
+done
+
+wc -l "$tmp"/byhash.*.packages | grep -v ' total$' | sort -rn >"$tmp/list"
+
+n_groups=$(wc -l <"$tmp/list")
+
+if [ "$n_groups" = 1 ]; then
+    echo
+    echo 'all ownerships are identical:'
+    echo
+    status=0
+else
+    cat <<END
+
+ownerships of published crates vary!
+$n_groups different sets of owners
+
+END
+    status=2
+fi
+
+# in case we want to redirect the report at some future point
+exec 4>&2
+
+exec 3<"$tmp/list"
+# shellcheck disable=SC2162 # we don't need -r, it has no backslashes
+while read <&3 n_packages packages_file; do
+    owners_file="${packages_file%.packages}.owners"
+    n_packages=$(wc -l <"$packages_file")
+    echo "$n_packages package(s) have the following owner(s):" >&4
+    sed 's/^/\t/' "$owners_file" | cat -v >&4
+    echo "  those are owner(s) of the following package(s):" >&4
+    sed 's/^/\t/' "$packages_file" >&4
+    echo >&4
+done
+
+tmp_trap_exit_finish_status $status
