@@ -28,12 +28,10 @@ maint="$(dirname "$0")"
 # Note for users of nailing-cargo: use this setting:
 #   CARGO='nailing-cargo --preclean=full --no-nail --git -o'
 
-#===== utilities =====
+# shellcheck source=maint/crates-io-utils.sh
+source "$maint/crates-io-utils.sh"
 
-fail () {
-    echo >&2 "$0: error: $*"
-    exit 12
-}
+#===== utilities =====
 
 all_ok=true
 
@@ -54,9 +52,7 @@ check_equal () {
 
 #===== temporary files =====
 
-tmp=$(mktemp -d)
-exit_rc=8
-trap 'set +e; rm -rf "$tmp"; exit $exit_rc' 0
+tmp_trap_exit_setup
 
 #===== argument parsing =====
 
@@ -121,27 +117,7 @@ exec 3<"$tmp/all-crates"
 while <&3 read p v; do
     printf "checking status of %-30s %10s ..." "$p" "$v"
 
-    url="https://crates.io/api/v1/crates/$p/$v"
-    curl -L -sS -o "$tmp/$p.json" -w '%{http_code}' >"$tmp/$p.http" "$url"
-    http_code=$(cat "$tmp/$p.http")
-
-    case "$http_code" in
-	200) expect=.version.crate ;;
-	404) expect=.errors ;;
-	*)
-	    cat -vet "$tmp/$p.json" >&2
-	    fail "unexpected HTTP response status code $http_code from $url"
-	    ;;
-    esac
-
-    set +e
-    jq -e "$expect" <"$tmp/$p.json" >/dev/null
-    jq_rc=$?
-    set -e
-    if [ $jq_rc != 0 ]; then
-	cat -vet "$tmp/$p.json" >&2
-	fail "bad JSON data from $url (expected $expect)"
-    fi
+    crates_io_api_call "v1/crates/$p/$v" .version.crate "$tmp/$p.json"
 
     case "$http_code" in
 	200) echo ' already published.';;
@@ -191,4 +167,5 @@ done
 
 echo 'all published.'
 
-exit_rc=0
+tmp_trap_exit_finish_ok
+
