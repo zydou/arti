@@ -157,19 +157,27 @@ fn note_cache_success<R: Runtime>(circmgr: &CircMgr<R>, source: &tor_dirclient::
     circmgr.note_external_success(source.cache_id(), ExternalActivity::DirCache);
 }
 
-/// XXXX
+/// Load every document in `missing` and try to apply it to `state`.
 fn load_and_apply_documents<R: Runtime>(
     missing: &[DocId],
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
     changed: &mut bool,
 ) -> Result<()> {
-    let documents = {
-        let store = dirmgr.store.lock().expect("store lock poisoned");
-        load_documents_from_store(missing, &**store)?
-    };
+    /// How many documents will we try to load at once?  We try to keep this from being too large,
+    /// to avoid excessive RAM usage.
+    ///
+    /// TODO: we may well want to tune this.
+    const CHUNK_SIZE: usize = 256;
+    for chunk in missing.chunks(CHUNK_SIZE) {
+        let documents = {
+            let store = dirmgr.store.lock().expect("store lock poisoned");
+            load_documents_from_store(chunk, &**store)?
+        };
 
-    state.add_from_cache(documents, changed)?;
+        state.add_from_cache(documents, changed)?;
+    }
+
     Ok(())
 }
 
