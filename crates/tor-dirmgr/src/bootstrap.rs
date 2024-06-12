@@ -157,6 +157,22 @@ fn note_cache_success<R: Runtime>(circmgr: &CircMgr<R>, source: &tor_dirclient::
     circmgr.note_external_success(source.cache_id(), ExternalActivity::DirCache);
 }
 
+/// XXXX
+fn load_and_apply_documents<R: Runtime>(
+    missing: &[DocId],
+    dirmgr: &Arc<DirMgr<R>>,
+    state: &mut Box<dyn DirState>,
+    changed: &mut bool,
+) -> Result<()> {
+    let documents = {
+        let store = dirmgr.store.lock().expect("store lock poisoned");
+        load_documents_from_store(missing, &**store)?
+    };
+
+    state.add_from_cache(documents, changed)?;
+    Ok(())
+}
+
 /// Load a set of documents from a `Store`, returning all documents found in the store.
 /// Note that this may be less than the number of documents in `missing`.
 fn load_documents_from_store(
@@ -357,12 +373,7 @@ async fn load_once<R: Runtime>(
             missing.len()
         );
 
-        let documents = {
-            let store = dirmgr.store.lock().expect("store lock poisoned");
-            load_documents_from_store(&missing, &**store)?
-        };
-
-        state.add_from_cache(documents, &mut changed)
+        load_and_apply_documents(&missing, dirmgr, state, &mut changed)
     };
 
     // We have to update the status here regardless of the outcome, if we got
