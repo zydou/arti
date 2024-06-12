@@ -26,7 +26,7 @@ use std::time::SystemTime;
 
 use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
 use time::OffsetDateTime;
-use tracing::trace;
+use tracing::{trace, warn};
 
 /// Local directory cache using a Sqlite3 connection.
 pub(crate) struct SqliteStore {
@@ -185,19 +185,31 @@ impl SqliteStore {
     }
 
     /// Read a blob from disk, mapping it if possible.
-    fn read_blob<P>(&self, path: P) -> Result<InputString>
-    where
-        P: AsRef<Path>,
-    {
-        let path = path.as_ref();
+    ///
+    /// Return `Ok(None)` if the file for the blob was not found on disk;
+    /// returns an error in other cases.
+    fn read_blob(&self, path: &str) -> Result<Option<InputString>> {
+        let file = match self.blob_dir.open(path, OpenOptions::new().read(true)) {
+            Ok(file) => file,
+            Err(fs_mistrust::Error::NotFound(_)) => {
+                warn!(
+                    "{:?} was listed in the database, but its corresponding file had been deleted",
+                    path
+                );
+                self.conn
+                    .execute(DELETE_EXTDOC_BY_FILENAME, params![path])?;
+                return Ok(None);
+            }
+            Err(e) => return Err(e.into()),
+        };
 
-        let file = self.blob_dir.open(path, OpenOptions::new().read(true))?;
-
-        InputString::load(file).map_err(|err| Error::CacheFile {
-            action: "loading",
-            fname: path.to_path_buf(),
-            error: Arc::new(err),
-        })
+        InputString::load(file)
+            .map_err(|err| Error::CacheFile {
+                action: "loading",
+                fname: PathBuf::from(path),
+                error: Arc::new(err),
+            })
+            .map(Some)
     }
 
     /// Write a file to disk as a blob, and record it in the ExtDocs table.
@@ -367,7 +379,9 @@ impl Store for SqliteStore {
         };
 
         if let Some((_va, _vu, filename)) = rv {
-            self.read_blob(filename).map(Option::Some)
+            // TODO: If the cache is corrupt (because this blob is missing), and the cache has not yet
+            // been cleaned, this may fail to find the latest consensus that we actually have.
+            self.read_blob(&filename)
         } else {
             Ok(None)
         }
@@ -405,11 +419,11 @@ impl Store for SqliteStore {
         if let Some(row) = rows.next()? {
             let meta = cmeta_from_row(row)?;
             let fname: String = row.get(5)?;
-            let text = self.read_blob(fname)?;
-            Ok(Some((text, meta)))
-        } else {
-            Ok(None)
+            if let Some(text) = self.read_blob(&fname)? {
+                return Ok(Some((text, meta)));
+            }
         }
+        Ok(None)
     }
     fn store_consensus(
         &mut self,
@@ -951,6 +965,9 @@ const DELETE_BRIDGEDESC: &str = "DELETE FROM BridgeDescs WHERE bridge_line = ?;"
 /// External documents aren't exposed through [`Store`].
 const DROP_OLD_EXTDOCS: &str = "DELETE FROM ExtDocs WHERE expires < datetime('now');";
 
+/// Query: Discard an extdoc with a given path.
+const DELETE_EXTDOC_BY_FILENAME: &str = "DELETE FROM ExtDocs WHERE filename = ?;";
+
 /// Query: Discard every router descriptor that hasn't been listed for 3
 /// months.
 // TODO: Choose a more realistic time.
@@ -1087,7 +1104,7 @@ pub(crate) mod test {
             .query_row("SELECT COUNT(filename) FROM ExtDocs", [], |row| row.get(0))?;
         assert_eq!(n, 2);
 
-        let blob = store.read_blob(&fname2)?;
+        let blob = store.read_blob(&fname2)?.unwrap();
         assert_eq!(blob.as_str().unwrap(), "Goodbye, dear friends");
 
         // Now expire: the second file should go away.
