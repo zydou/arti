@@ -993,6 +993,7 @@ mod test {
         .unwrap()
     }
 
+    // Prevents TROVE-2024-005 (arti#1424)
     #[test]
     fn pool_with_vanguards_disabled() {
         MockRuntime::test_with_various(|runtime| async move {
