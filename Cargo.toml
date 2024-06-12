@@ -54,6 +54,7 @@ members = [
     "crates/tor-hsservice",
     "crates/tor-hsrproxy",
     "crates/arti-client",
+    "crates/arti-relay",
     "crates/arti-rpcserver",
     "crates/arti-config",
     "crates/arti-hyper",

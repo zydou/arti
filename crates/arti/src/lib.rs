@@ -321,6 +321,7 @@ async fn run<R: Runtime>(
 ///
 /// Currently, might panic if wrong arguments are specified.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[allow(clippy::cognitive_complexity)]
 fn main_main<I, T>(cli_args: I) -> Result<()>
 where
     I: IntoIterator<Item = T>,
@@ -455,6 +456,16 @@ where
         }
     }
 
+    // Relay subcommand
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "relay")] {
+            let clap_app = clap_app.subcommand(
+                Command::new("relay")
+                    .about("Run Arti in relay mode acting as a relay of the Tor network")
+            );
+        }
+    }
+
     // Tracing doesn't log anything when there is no subscriber set.  But we want to see
     // logging messages from config parsing etc.  We can't set the global default subscriber
     // because we can only set it once.  The other ways involve a closure.  So we have a
@@ -540,6 +551,7 @@ where
         }
     }
 
+    // Match the non optional subcommands that is the one that are always built in.
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         // Override configured SOCKS and DNS listen addresses from the command line.
         // This implies listening on localhost ports.
@@ -570,54 +582,66 @@ where
             config,
             client_config,
         ))?;
-        Ok(())
-    } else {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "onion-service-service")] {
+        return Ok(());
+    };
+
+    // Check for the optional "hss" subcommand.
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-service")] {
+            if let Some(hss_matches) = matches.subcommand_matches("hss") {
                 // TODO: this will soon grow more complex, so all of the code for handling the
                 // hss subcommand should probably be extracted in a separate module
-                if let Some(hss_matches) = matches.subcommand_matches("hss") {
-                    let nickname = hss_matches
-                        .get_one::<String>("nickname")
-                        .expect("non-optional nickname flag not specified?!");
+                let nickname = hss_matches
+                    .get_one::<String>("nickname")
+                    .expect("non-optional nickname flag not specified?!");
 
-                    if let Some(_onion_name_matches) = hss_matches.subcommand_matches("onion-name") {
-                        let nickname = tor_hsservice::HsNickname::try_from(nickname.clone())?;
-                        let Some(svc_config) = config.onion_services
-                            .into_iter()
-                            .find(|(n, _)| *n == nickname)
-                            .map(|(_, cfg)| cfg.svc_cfg) else {
-                            println!("Service {nickname} is not configured");
-                            return Ok(());
-                        };
-
-                        // TODO: PreferredRuntime was arbitrarily chosen and is entirely unused
-                        // (we have to specify a concrete type for the runtime when calling
-                        // TorClient::create_onion_service).
-                        //
-                        // Maybe this suggests TorClient is not the right place for
-                        // create_onion_service()
-                        let onion_svc = TorClient::<tor_rtcompat::PreferredRuntime>::create_onion_service(
-                            &client_config,
-                            svc_config
-                        )?;
-
-                        // TODO: instead of the printlns here, we should have a formatter type that
-                        // decides how to display the output
-                        if let Some(onion) = onion_svc.onion_name() {
-                            println!("{onion}");
-                        } else {
-                            println!("Service {nickname} does not exist, or does not have an K_hsid yet");
-                        }
-
+                if let Some(_onion_name_matches) = hss_matches.subcommand_matches("onion-name") {
+                    let nickname = tor_hsservice::HsNickname::try_from(nickname.clone())?;
+                    let Some(svc_config) = config
+                        .onion_services
+                        .into_iter()
+                        .find(|(n, _)| *n == nickname)
+                        .map(|(_, cfg)| cfg.svc_cfg) else {
+                        println!("Service {nickname} is not configured");
                         return Ok(());
+                    };
+
+                    // TODO: PreferredRuntime was arbitrarily chosen and is entirely unused
+                    // (we have to specify a concrete type for the runtime when calling
+                    // TorClient::create_onion_service).
+                    //
+                    // Maybe this suggests TorClient is not the right place for
+                    // create_onion_service()
+                    let onion_svc = TorClient::<tor_rtcompat::PreferredRuntime>::create_onion_service(
+                        &client_config,
+                        svc_config,
+                    )?;
+
+                    // TODO: instead of the printlns here, we should have a formatter type that
+                    // decides how to display the output
+                    if let Some(onion) = onion_svc.onion_name() {
+                        println!("{onion}");
+                    } else {
+                        println!("Service {nickname} does not exist, or does not have an K_hsid yet");
                     }
+
+                    return Ok(())
                 }
             }
         }
-
-        panic!("Subcommand added to clap subcommand list, but not yet implemented")
     }
+
+    // Check for the optional "relay" subcommand.
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "relay")] {
+            if let Some(_relay_matches) = matches.subcommand_matches("relay") {
+                // TODO: Actually implement the launch of a relay.
+                todo!()
+            }
+        }
+    }
+
+    panic!("Subcommand added to clap subcommand list, but not yet implemented");
 }
 
 /// Main program, callable directly from a binary crate's `main`

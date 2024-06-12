@@ -194,6 +194,7 @@ version = "1.2.4"
 dependencies = [
  "anyhow",
  "arti-client",
+ "arti-relay",
  "arti-rpcserver",
  "async-ctrlc",
  "backtrace",
@@ -338,6 +339,10 @@ dependencies = [
  "tor-rtcompat",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "arti-relay"
+version = "0.18.0"
 
 [[package]]
 name = "arti-rpcserver"
