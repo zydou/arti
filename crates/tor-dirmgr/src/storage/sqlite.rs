@@ -9,6 +9,8 @@ use crate::storage::{InputString, Store};
 use crate::{Error, Result};
 
 use fs_mistrust::CheckedDir;
+use tor_basic_utils::PathExt as _;
+use tor_error::warn_report;
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
@@ -116,6 +118,9 @@ impl SqliteStore {
     /// for blob files.
     ///
     /// Used for testing with a memory-backed database.
+    ///
+    /// Note: `blob_dir` must not be used for anything other than storing the blobs associated with
+    /// this database, since we will freely remove unreferenced files from this directory.
     pub(crate) fn from_conn(conn: rusqlite::Connection, blob_dir: CheckedDir) -> Result<Self> {
         // sqlite (as of Jun 2024) does not enforce foreign keys automatically unless you set this
         // pragma on the connection.
@@ -287,6 +292,67 @@ impl SqliteStore {
             .latest_consensus_meta(flavor)?
             .map(|m| m.lifetime().valid_after().into()))
     }
+
+    /// Remove the blob with name `fname`, but do not give an error on failure.
+    fn remove_blob_or_warn<P: AsRef<Path>>(&self, fname: P) {
+        let fname = fname.as_ref();
+        if let Err(e) = self.blob_dir.remove_file(fname) {
+            warn_report!(e, "Unable to remove {}", fname.display_lossy());
+        }
+    }
+
+    /// Delete any blob files that are old enough, and not mentioned in the ExtDocs table.
+    ///
+    /// There shouldn't actually be any, but we don't want to let our cache grow infinitely
+    /// if we have a bug.
+    fn remove_unreferenced_blobs(
+        &self,
+        now: OffsetDateTime,
+        expiration: &ExpirationConfig,
+    ) -> Result<()> {
+        // Now, look for any unreferenced blobs that are a bit old.
+        for ent in self.blob_dir.read_directory(".")?.flatten() {
+            let md_error = |io_error| Error::CacheFile {
+                action: "getting metadata",
+                fname: ent.file_name().into(),
+                error: Arc::new(io_error),
+            };
+            if ent
+                .metadata()
+                .map_err(md_error)?
+                .modified()
+                .map_err(md_error)?
+                + expiration.consensuses
+                >= now
+            {
+                // this file is sufficiently recent that we should not remove it, just to be cautious.
+                continue;
+            }
+            let filename = match ent.file_name().into_string() {
+                Ok(s) => s,
+                Err(os_str) => {
+                    // This filename wasn't utf-8.  We will never create one of these.
+                    warn!(
+                        "Removing bizarre file '{}' from blob store.",
+                        os_str.to_string_lossy()
+                    );
+                    self.remove_blob_or_warn(ent.file_name());
+                    continue;
+                }
+            };
+            let found: (u32,) =
+                self.conn
+                    .query_row(COUNT_EXTDOC_BY_PATH, params![&filename], |row| {
+                        row.try_into()
+                    })?;
+            if found == (0,) {
+                warn!("Removing unreferenced file '{}' from blob store", &filename);
+                self.remove_blob_or_warn(ent.file_name());
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Store for SqliteStore {
@@ -358,6 +424,9 @@ impl Store for SqliteStore {
                 let _ignore = std::fs::remove_file(fname);
             }
         }
+
+        self.remove_unreferenced_blobs(now, expiration)?;
+
         Ok(())
     }
 
@@ -910,6 +979,11 @@ const FIND_EXPIRED_EXTDOCS: &str = "
   SELECT filename FROM Extdocs where expires < datetime('now');
 ";
 
+/// Query: find whether an ExtDoc is listed.
+const COUNT_EXTDOC_BY_PATH: &str = "
+  SELECT COUNT(*) FROM Extdocs WHERE filename = ?;
+";
+
 /// Query: Add a new entry to ExtDocs.
 const INSERT_EXTDOC: &str = "
   INSERT OR REPLACE INTO ExtDocs ( digest, created, expires, type, filename )
@@ -1357,6 +1431,49 @@ pub(crate) mod test {
             assert!(store2.upgrade_to_readwrite()?); // no-op.
             assert!(!store2.is_readonly());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn orphaned_blobs() -> Result<()> {
+        let (_tmp_dir, mut store) = new_empty()?;
+        /*
+        for ent in store.blob_dir.read_directory(".")?.flatten() {
+            println!("{:?}", ent);
+        }
+        */
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 0);
+
+        let now = OffsetDateTime::now_utc();
+        let one_week = 1.weeks();
+        let _fname_good = store.save_blob(
+            b"Goodbye, dear friends",
+            "greeting",
+            "sha1",
+            &hex!("2149c2a7dbf5be2bb36fb3c5080d0fb14cb3355c"),
+            now + one_week,
+        )?;
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 1);
+
+        // Now, create a two orphaned blobs: one with a recent timestamp, and one with an older
+        // timestamp.
+        store
+            .blob_dir
+            .write_and_replace("fairly_new", b"new contents will stay")?;
+        store
+            .blob_dir
+            .write_and_replace("fairly_old", b"old contents will be removed")?;
+        filetime::set_file_mtime(
+            store.blob_dir.join("fairly_old")?,
+            SystemTime::from(now - one_week).into(),
+        )
+        .expect("Can't adjust mtime");
+
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 3);
+
+        store.remove_unreferenced_blobs(now, &EXPIRATION_DEFAULTS)?;
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 2);
+
         Ok(())
     }
 }

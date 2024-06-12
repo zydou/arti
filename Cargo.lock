@@ -5231,6 +5231,7 @@ dependencies = [
  "digest",
  "educe",
  "event-listener 5.3.1",
+ "filetime",
  "float_eq",
  "fs-mistrust",
  "fslock",
