@@ -66,7 +66,7 @@ pub struct TorClientBuilder<R: Runtime> {
     dirmgr_builder: Arc<dyn DirProviderBuilder<R>>,
     /// If present, an amount of time to wait when trying to acquire the filesystem locks for our
     /// storage.
-    fslock_timeout: Option<Duration>,
+    local_resource_timeout: Option<Duration>,
     /// Optional directory filter to install for testing purposes.
     ///
     /// Only available when `arti-client` is built with the `dirfilter` and `experimental-api` features.
@@ -82,7 +82,7 @@ impl<R: Runtime> TorClientBuilder<R> {
             config: TorClientConfig::default(),
             bootstrap_behavior: BootstrapBehavior::default(),
             dirmgr_builder: Arc::new(DirMgrBuilder {}),
-            fslock_timeout: None,
+            local_resource_timeout: None,
             #[cfg(feature = "dirfilter")]
             dirfilter: None,
         }
@@ -105,7 +105,8 @@ impl<R: Runtime> TorClientBuilder<R> {
         self
     }
 
-    /// Set a timeout that we should allow when trying to acquire our lock files.
+    /// Set a timeout that we should allow when trying to acquire our local resources
+    /// (including lock files.)
     ///
     /// If no timeout is set, we wait for a short while (currently 500 msec) when invoked with
     /// [`create_bootstrapped`](Self::create_bootstrapped) or
@@ -116,8 +117,8 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// (This difference in default behavior is meant to avoid unintentional blocking.
     /// If you call this method, subsequent calls to `crate_bootstrapped` may block
     /// the current thread.)
-    pub fn fslock_timeout(mut self, timeout: Duration) -> Self {
-        self.fslock_timeout = Some(timeout);
+    pub fn local_resource_timeout(mut self, timeout: Duration) -> Self {
+        self.local_resource_timeout = Some(timeout);
         self
     }
 
@@ -163,12 +164,14 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// process (for example, you might wish to avoid initiating network
     /// connections until explicit user confirmation is given).
     ///
-    /// If a [fslock_timeout](Self::fslock_timeout) has been set, this function may
+    /// If a [local_resource_timeout](Self::local_resource_timeout) has been set, this function may
     /// block the current thread.
     /// Use [`create_unbootstrapped_async`](Self::create_unbootstrapped_async)
     /// if that is not what you want.
     pub fn create_unbootstrapped(&self) -> Result<TorClient<R>> {
-        let timeout = self.fslock_timeout.unwrap_or(Duration::from_millis(0));
+        let timeout = self
+            .local_resource_timeout
+            .unwrap_or(Duration::from_millis(0));
         let give_up_at = Instant::now() + timeout;
         let mut first_attempt = true;
 
@@ -185,15 +188,17 @@ impl<R: Runtime> TorClientBuilder<R> {
 
     /// Like create_unbootstrapped, but does not block the thread while trying to acquire the lock.
     ///
-    /// If no [`fslock_timeout`](Self::fslock_timeout) has been set, this function may
-    /// delay a short while (currently 500 msec) for the lockfiles to be available.
-    /// Set `fslock_timeout` to 0 if you do not want this behavior.
+    /// If no [`local_resource_timeout`](Self::local_resource_timeout) has been set, this function may
+    /// delay a short while (currently 500 msec) for local resources (such as lock files) to be available.
+    /// Set `local_resource_timeout` to 0 if you do not want this behavior.
     pub async fn create_unbootstrapped_async(&self) -> Result<TorClient<R>> {
         // TODO: This code is largely duplicated from create_unbootstrapped above.  It might be good
         // to have a single shared implementation to handle both the sync and async cases, but I am
         // concerned that doing so would just add a lot of complexity.
 
-        let timeout = self.fslock_timeout.unwrap_or(Duration::from_millis(500));
+        let timeout = self
+            .local_resource_timeout
+            .unwrap_or(Duration::from_millis(500));
         let give_up_at = self.runtime.now() + timeout;
         let mut first_attempt = true;
 
