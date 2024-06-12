@@ -8,9 +8,15 @@ fail () {
 }
 
 tmp_trap_exit_setup () {
-    tmp=$(mktemp -d)
+    if [ "x$MAINT_DDLETE_CREATE_TMP" != x ]; then
+	rm -rf -- "$MAINT_DDLETE_CREATE_TMP"
+	mkdir -- "$MAINT_DDLETE_CREATE_TMP"
+	tmp="$MAINT_DDLETE_CREATE_TMP"
+    else
+	tmp=$(mktemp -d)
+	trap 'set +e; rm -rf "$tmp"; exit $exit_rc' 0
+    fi
     exit_rc=8
-    trap 'set +e; rm -rf "$tmp"; exit $exit_rc' 0
 }
 
 tmp_trap_exit_finish_status () {
