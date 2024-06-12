@@ -259,7 +259,7 @@ impl<R: Runtime> TorClientBuilder<R> {
                     }
                     // We'll retry at least once.
                     // TODO: Maybe use a smarter backoff strategy here?
-                    Err(Duration::from_millis(10).min(remaining))
+                    Err(Duration::from_millis(50).min(remaining))
                 }
             }
             // We either succeeded, or failed for a reason other than LocalResourceAlreadyInUse
