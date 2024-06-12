@@ -1,5 +1,11 @@
 # Utilities for querying crates.io
 
+# Shellcheck is confused.
+# It thinks it ought to be checking this as a standalone script, and prints
+#   -- SC2148 (error): Tips depend on target shell and yours is unknown.
+#             Add a shebang or a 'shell' directive.
+# shellcheck shell=bash
+
 CRATES_IO_URL_BASE=https://crates.io/api
 
 fail () {
