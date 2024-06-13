@@ -80,6 +80,10 @@ where
             .danger_accept_invalid_certs(true)
             .danger_accept_invalid_hostnames(true);
 
+        // We don't participate in the web PKI, so there is no reason for us to load the standard
+        // list of CAs and CRLs. This can save us an megabyte or two.
+        builder.disable_built_in_roots(true);
+
         let connector = builder.into();
 
         NativeTlsConnector {
