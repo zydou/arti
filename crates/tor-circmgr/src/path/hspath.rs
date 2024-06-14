@@ -53,9 +53,7 @@ use rand::Rng;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay};
-use tor_relay_selection::{
-    RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage,
-};
+use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 
 use crate::{hspool::HsCircStubKind, Error, Result};
 
@@ -354,8 +352,7 @@ mod test {
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use {
         crate::path::OwnedPath, tor_basic_utils::test_rng::testing_rng,
-        tor_guardmgr::VanguardMgrError,
-        tor_netdir::testnet::construct_custom_netdir,
+        tor_guardmgr::VanguardMgrError, tor_netdir::testnet::construct_custom_netdir,
     };
 
     /// The maximum number of relays in a test network.
