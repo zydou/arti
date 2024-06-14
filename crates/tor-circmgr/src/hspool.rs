@@ -530,6 +530,8 @@ impl<R: Runtime> HsCircPool<R> {
             VanguardMode::Full => {
                 // SHORT circuit stubs need to be extended by one hop to become EXTENDED stubs
                 // if we're using full vanguards.
+                self.extend_full_vanguards_circuit(netdir, circuit, avoid_target, kind)
+                    .await
             }
             _ => {
                 let HsCircStub { circ, kind: _ } = circuit;
@@ -537,7 +539,20 @@ impl<R: Runtime> HsCircPool<R> {
                 return Ok(HsCircStub { circ, kind });
             }
         }
+    }
 
+    /// Extend the specified full vanguard circuit if necessary.
+    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+    async fn extend_full_vanguards_circuit<T>(
+        &self,
+        netdir: &NetDir,
+        circuit: HsCircStub,
+        avoid_target: Option<&T>,
+        kind: HsCircStubKind,
+    ) -> Result<HsCircStub>
+    where
+        T: CircTarget,
+    {
         match (circuit.kind, kind) {
             (HsCircStubKind::Short, HsCircStubKind::Extended) => {
                 debug!("Wanted EXTENDED circuit, but got SHORT; extending by 1 hop...");
