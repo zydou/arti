@@ -536,7 +536,7 @@ impl<R: Runtime> HsCircPool<R> {
             _ => {
                 let HsCircStub { circ, kind: _ } = circuit;
 
-                return Ok(HsCircStub { circ, kind });
+                Ok(HsCircStub { circ, kind })
             }
         }
     }
