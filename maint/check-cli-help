@@ -8,7 +8,7 @@ set -euo pipefail
 # this causes us to run, eg `arti proxy --help` rather than just `arti proxy`.
 help_arg () {
     case "$subcommand" in
-        'proxy' | 'hss onion-name' | 'relay' )
+        'proxy' | 'hss onion-name' | 'relay' | 'hsc prepare-service-discovery-key' )
 	        help_arg='--help' ;;
         *) ;;
     esac

@@ -98,7 +98,7 @@ arti-relay = { package = "arti-relay", path = "../arti-relay", version = "0.20.0
 async-ctrlc = { version = "1.2.0", optional = true }
 backtrace = "0.3.68"
 cfg-if = "1.0.0"
-clap = { version = "4.3.24", features = ["string", "wrap_help"] }
+clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9" }
 futures = "0.3.14"
