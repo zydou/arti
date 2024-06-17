@@ -166,6 +166,8 @@ fn list_enabled_features() -> &'static [&'static str] {
 /// # Panics
 ///
 /// Currently, might panic if things go badly enough wrong
+///
+// TODO: move this to a new subcommands::proxy module.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 async fn run<R: Runtime>(
