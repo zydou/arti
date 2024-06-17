@@ -14,6 +14,26 @@ default:
   before_script:
     # gitlab fetch strategy doesn't reset permissions
     - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
+    # verify that we're running in a container built for amd64.
+    # See https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621
+    - |
+      (
+      if type dpkg; then
+        arch="$(dpkg --print-architecture)"
+        expected=amd64
+      elif type apk; then
+        arch="$(apk --print-arch)"
+        expected=x86_64
+      else
+        echo "Couldn't determine userspace build arch"
+        exit 1
+      fi
+      echo "Detected userspace build arch: $arch"
+      if [ "$arch" != "$expected" ]; then
+        echo "ERROR: Expected userspace build arch $expected; found $arch";
+        exit 1;
+      fi
+      )
   after_script:
     # In every case, if we have a working `cargo` we should clean up
     # our target directory before we exit.  (Leaving big hunks of data
