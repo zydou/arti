@@ -1322,7 +1322,8 @@ mod test {
                 Which:
                 iproduct!(
                     $(
-                        ${if fmeta(test) { [ ${fmeta(test)} ] } else { [false, true] }},
+                        ${if fmeta(test) { [ ${fmeta(test) as token_stream} ] }
+                          else { [false, true] }},
                     )
                     // iproduct hates a trailing comma, so add a dummy element
                     // https://github.com/rust-itertools/itertools/issues/868

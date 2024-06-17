@@ -494,7 +494,7 @@ define_derive_deftly! {
                 // appropriate C tor directory, based on the HsSvcKeyRole.
                 //
                 // Ie, provide the #[deftly(ctor_path)] attribute
-                Some( ${tmeta(ctor_path) as tokens} (self) )
+                Some( ${tmeta(ctor_path) as token_stream} (self) )
             } else {
                 None
             }}

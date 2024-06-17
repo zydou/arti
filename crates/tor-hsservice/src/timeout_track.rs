@@ -168,7 +168,7 @@ define_derive_deftly! {
     ) }
 
     // type that we track, ie the inner contents of the `Cell<Option<...>>`
-    ${define TRACK ${tmeta(track)}}
+    ${define TRACK ${tmeta(track) as ty}}
 
     // TODO maybe some of this should be a trait?  But that would probably include
     // wait_for_earliest, which would be an async trait method and quite annoying.
@@ -183,7 +183,7 @@ define_derive_deftly! {
 
         /// Creates a new timeout tracker from the current time as seen by a runtime
         pub fn now(r: &impl SleepProvider) -> Self {
-            let now = r.${tmeta(from_runtime)}();
+            let now = r.${tmeta(from_runtime) as ident}();
             Self::new(now)
         }
 
@@ -227,7 +227,7 @@ define_derive_deftly! {
     /// Defines just the methods which want to abstract over fields
     CombinedTimeoutTracker for struct, expect items =
 
-    ${define NOW ${fmeta(now)}}
+    ${define NOW ${fmeta(now) as ty}}
 
     impl $ttype {
         /// Creates a new combined timeout tracker, given values for the current time
@@ -288,7 +288,7 @@ define_derive_deftly! {
                 // tracker for a single kind of time
                 match self.earliest.into_inner() {
                     None => future::pending().await,
-                    Some(earliest) => runtime.${tmeta(runtime_sleep)}(earliest).await,
+                    Some(earliest) => runtime.${tmeta(runtime_sleep) as ident}(earliest).await,
                 }
             } else {
                 // combined tracker, wait for earliest of any kind of timeout

@@ -15,7 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 backtrace = { version = "0.3.68" }
-derive-deftly = "0.10.3"
+derive-deftly = "0.12.1"
 derive_more = "0.99.17"
 educe = "0.4.6"
 futures = "0.3.14"

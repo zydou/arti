@@ -30,7 +30,7 @@ async-trait = "0.1.54"
 asynchronous-codec = { version = "0.7.0", features = ["json"] }
 base64ct = "1.5.1"
 bytes = "1"
-derive-deftly = "0.10.3"
+derive-deftly = "0.12.1"
 derive_more = "0.99.3"
 erased-serde = "0.4.2"
 futures = "0.3.14"
