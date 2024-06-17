@@ -79,7 +79,7 @@ pub use derive_deftly;
 #[doc(hidden)]
 pub use flatten::flattenable_extract_fields;
 
-derive_deftly::pub_template_semver_check! { "0.12.1" }
+derive_deftly::template_export_semver_check! { "0.12.1" }
 
 /// A set of configuration fields, represented as a set of nested K=V
 /// mappings.

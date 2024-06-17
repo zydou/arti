@@ -86,7 +86,7 @@ pub use {
 #[doc(hidden)]
 pub use key_specifier::derive as key_specifier_derive;
 
-derive_deftly::pub_template_semver_check! { "0.12.1" }
+derive_deftly::template_export_semver_check! { "0.12.1" }
 
 #[cfg(not(feature = "keymgr"))]
 #[cfg_attr(docsrs, doc(cfg(not(feature = "keymgr"))))]

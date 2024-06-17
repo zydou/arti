@@ -193,7 +193,7 @@ pub use crate::Error;
 use crate::slug;
 
 define_derive_deftly! {
-    ContainsInstanceStateGuard =
+    ContainsInstanceStateGuard:
 
     impl<$tgens> ContainsInstanceStateGuard for $ttype where $twheres {
         fn raw_lock_guard(&self) -> Arc<LockFileGuard> {

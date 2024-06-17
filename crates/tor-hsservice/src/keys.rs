@@ -26,7 +26,7 @@ trait HsTimePeriodKeySpecifier: Debug {
 
 define_derive_deftly! {
     /// Implement `HsTimePeriodKeySpecifier` for a struct with `nickname` and `period`
-    HsTimePeriodKeySpecifier =
+    HsTimePeriodKeySpecifier:
 
     impl HsTimePeriodKeySpecifier for $ttype {
       $(

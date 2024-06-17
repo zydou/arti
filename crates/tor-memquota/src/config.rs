@@ -17,7 +17,7 @@ define_derive_deftly! {
     ///
     /// The field type must be spelled precisely that way:
     /// we use `approx_equal(...)`.
-    QtySetters =
+    QtySetters:
 
     impl $< $ttype Builder > {
       $(

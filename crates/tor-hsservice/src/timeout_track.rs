@@ -159,7 +159,7 @@ use tor_rtcompat::{SleepProvider, SleepProviderExt as _};
 
 define_derive_deftly! {
     /// Defines methods and types which are common to trackers for `Instant` and `SystemTime`
-    SingleTimeoutTracker for struct, expect items =
+    SingleTimeoutTracker for struct, expect items:
 
     // type of the `now` field, ie the absolute time type
     ${define NOW $(
@@ -225,7 +225,7 @@ define_derive_deftly! {
     /// Impls for `TrackingNow`, the combined tracker
     ///
     /// Defines just the methods which want to abstract over fields
-    CombinedTimeoutTracker for struct, expect items =
+    CombinedTimeoutTracker for struct, expect items:
 
     ${define NOW ${fmeta(now) as ty}}
 
@@ -274,7 +274,7 @@ define_derive_deftly! {
     /// Defines `wait_for_earliest`
     ///
     /// Combined into this macro mostly so we only have to write the docs once
-    WaitForEarliest for struct, expect items =
+    WaitForEarliest for struct, expect items:
 
     impl $ttype {
         /// Wait for the earliest timeout implied by any of the comparisons

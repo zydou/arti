@@ -245,7 +245,7 @@ define_derive_deftly! {
 /// #[deftly(rpc(expose_outside_of_session))]
 /// struct Visible {}
 /// ```
-    pub Object expect items =
+    export Object expect items:
 
     impl<$tgens> $ttype where
         // We need this restriction in case there are generics
