@@ -14,6 +14,26 @@ default:
   before_script:
     # gitlab fetch strategy doesn't reset permissions
     - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
+    # verify that we're running in a container built for amd64.
+    # See https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621
+    - |
+      (
+      if type dpkg; then
+        arch="$(dpkg --print-architecture)"
+        expected=amd64
+      elif type apk; then
+        arch="$(apk --print-arch)"
+        expected=x86_64
+      else
+        echo "Couldn't determine userspace build arch"
+        exit 1
+      fi
+      echo "Detected userspace build arch: $arch"
+      if [ "$arch" != "$expected" ]; then
+        echo "ERROR: Expected userspace build arch $expected; found $arch";
+        exit 1;
+      fi
+      )
   after_script:
     # In every case, if we have a working `cargo` we should clean up
     # our target directory before we exit.  (Leaving big hunks of data
@@ -35,14 +55,16 @@ shellcheck:
 
 python3-mypy:
   stage: check
-  image: debian:bookworm-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y mypy
     - mypy --strict maint/update-md-links
 
 maint-checks:
   stage: check
-  image: debian:bookworm-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_toposort
@@ -52,7 +74,8 @@ maint-checks:
 
 maint-check-changelog:
   stage: test
-  image: debian:bookworm-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y python3-mistune git
     - git fetch --unshallow $ORIGIN
@@ -63,7 +86,8 @@ maint-check-changelog:
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
 doc-features:
   stage: check
-  image: debian:bookworm-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   allow_failure: true
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
@@ -74,7 +98,8 @@ doc-features:
 blocking-todos:
   stage: test
   needs: []
-  image: debian:bookworm-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   script:
     - apt update && apt install -y git
     - ./maint/check_todos
@@ -82,7 +107,8 @@ blocking-todos:
 rust-checks:
   # This is too slow (and the cacheing of the "cargo build" too flaky) to be a "check"
   stage: build
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - rustup show
     - rustup component add rustfmt
@@ -102,7 +128,8 @@ cargo-audit:
   # Run it last, separately, so if we think we may want to merge anyway,
   # all the other tests will have been run.
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - rustup show
     - ./maint/via-cargo-install-in-ci cargo-audit
@@ -113,7 +140,8 @@ cargo-audit:
 
 rust-latest:
   stage: build
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - rustup show
     - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
@@ -132,7 +160,8 @@ rust-latest:
 
 rust-latest-arti-extra-features:
   stage: build
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - rustup show
     # Build the arti binary for use in chutney and shadow integration tests.
@@ -164,7 +193,8 @@ rust-latest-arti-extra-features:
 
 rust-latest-async-std-rustls:
   stage: build
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - rustup show
     - rustup component add clippy
@@ -196,7 +226,8 @@ coverage:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - apt-get update && apt-get install -y python3-pip python3-setuptools python3-bs4 python3-lxml
     - rustup component add llvm-tools
@@ -216,7 +247,8 @@ coverage:
 
 minimal-versions:
   stage: test
-  image: rust:1.70
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:1.70
   needs: ["rust-checks"]
   script:
     - rustup install nightly
@@ -228,8 +260,9 @@ build-repro:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG != null
   stage: build
-  # If you upgrade this image, also change the one in docker_reproducible_build
-  image: rust:1.76.0-alpine3.18
+  # If you upgrade this image, also change the one in docker_reproducible_build.
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:1.76.0-alpine3.18
   script:
     - apk add bash
     - ./maint/reproducible_build linux windows macos
@@ -253,7 +286,8 @@ integration-chutney:
   rules:
    # Job never runs.  See arti#810.
    - when: never
-  image: debian:12-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:12-slim
   script:
     - ./maint/preserve -u
     - apt update
@@ -286,7 +320,8 @@ integration-shadow:
     - key: $CI_JOB_NAME-tgen-$JOB_TGEN_COMMIT
       paths:
       - opt/tgen
-  image: debian:12-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:12-slim
   script:
     - ./maint/preserve -u
     - ./maint/ci_log_span start "shadow_install_deps[collapsed=true]" "Installing shadow and tgen"
@@ -364,14 +399,16 @@ integration-shadow:
 
 rust-latest-test-all-features:
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
 
 every-crate:
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   needs: ["rust-checks", "rust-latest-async-std-rustls"]
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
@@ -379,7 +416,8 @@ every-crate:
 
 matrix-test:
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   needs: ["rust-checks", "rust-latest-async-std-rustls"]
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
@@ -387,13 +425,15 @@ matrix-test:
 
 matrix-test-cfg:
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - ./maint/matrix_test_cfg
 
 cli-help:
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - ./maint/check-cli-help
 
@@ -401,7 +441,8 @@ coverage-aggregated:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   needs: []
   script:
     - apt update && apt install -y tor python3 python3-pip python3-setuptools curl python3-bs4 python3-lxml
@@ -423,7 +464,8 @@ check-targets:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
-  image: rust:bookworm
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
   script:
     - ./maint/cargo_check_target -il
 
@@ -431,7 +473,8 @@ pages:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
   stage: deploy
-  image: debian:bookworm-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   script:
     - apt update && apt install -y git
     # Export report as website, while keeping the existing public page
