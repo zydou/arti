@@ -976,12 +976,12 @@ const FIND_RD: &str = "
 
 /// Query: find every ExtDocs member that has expired.
 const FIND_EXPIRED_EXTDOCS: &str = "
-  SELECT filename FROM Extdocs where expires < datetime('now');
+  SELECT filename FROM ExtDocs where expires < datetime('now');
 ";
 
 /// Query: find whether an ExtDoc is listed.
 const COUNT_EXTDOC_BY_PATH: &str = "
-  SELECT COUNT(*) FROM Extdocs WHERE filename = ?;
+  SELECT COUNT(*) FROM ExtDocs WHERE filename = ?;
 ";
 
 /// Query: Add a new entry to ExtDocs.
