@@ -37,9 +37,12 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use {
     tor_config::BoolOrAuto,
     tor_hsclient::{HsClientConnector, HsClientDescEncKeypairSpecifier, HsClientSecretKeysBuilder},
-    tor_hscrypto::pk::HsClientDescEncKeypair,
+    tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncKeypair},
     tor_netdir::DirEvent,
 };
+
+#[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
+use {tor_hscrypto::pk::HsId, tor_keymgr::KeystoreSelector};
 
 use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 
@@ -1391,6 +1394,81 @@ impl<R: Runtime> TorClient<R> {
             .map_err(ErrorDetail::LaunchOnionService)?;
 
         Ok((service, stream))
+    }
+
+    /// Generate a service discovery keypair for connecting to a hidden service running in
+    /// "restricted discovery" mode.
+    ///
+    /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
+    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// have configured this `TorClient` with a non-default keystore and wish to generate the
+    /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
+    /// specifying the keystore ID of your keystore.
+    ///
+    // Note: the selector argument exists for future-proofing reasons. We don't currently support
+    // configuring custom or non-default keystores (see #1106).
+    ///
+    /// Returns an error if the key already exists in the specified key store.
+    ///
+    /// Important: the public part of the generated keypair must be shared with the service, and
+    /// the service needs to be configured to allow the owner of its private counterpart to
+    /// discover its introduction points. The caller is responsible for sharing the public part of
+    /// the key with the hidden service.
+    ///
+    /// This function does not require the `TorClient` to be running or bootstrapped.
+    //
+    // TODO: decide whether this should use get_or_generate before making it
+    // non-experimental
+    #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(feature = "onion-service-client", feature = "experimental-api")))
+    )]
+    pub fn generate_service_discovery_key(
+        &self,
+        selector: KeystoreSelector,
+        hsid: HsId,
+    ) -> crate::Result<HsClientDescEncKey> {
+        let mut rng = rand::thread_rng();
+        let spec = HsClientDescEncKeypairSpecifier::new(hsid);
+        let key = self
+            .keymgr
+            .as_ref()
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "generate client service discovery key",
+            })?
+            .generate::<HsClientDescEncKeypair>(
+                &spec, selector, &mut rng, false, /* overwrite */
+            )?;
+
+        Ok(key.public().clone())
+    }
+
+    /// Return the service discovery public key for the service with the specified `hsid`.
+    ///
+    /// Returns `Ok(None)` if no such key exists.
+    ///
+    /// This function does not require the `TorClient` to be running or bootstrapped.
+    #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(feature = "onion-service-client", feature = "experimental-api")))
+    )]
+    pub fn get_service_discovery_key(
+        &self,
+        hsid: HsId,
+    ) -> crate::Result<Option<HsClientDescEncKey>> {
+        let spec = HsClientDescEncKeypairSpecifier::new(hsid);
+        let key = self
+            .keymgr
+            .as_ref()
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "get client service discovery key",
+            })?
+            .get::<HsClientDescEncKeypair>(&spec)?
+            .map(|key| key.public().clone());
+
+        Ok(key)
     }
 
     /// Create (but do not launch) a new

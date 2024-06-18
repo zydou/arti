@@ -73,6 +73,16 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[cfg(feature = "experimental-api")]
 pub use builder::DirProviderBuilder;
 
+#[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "onion-service-client", feature = "experimental-api")))
+)]
+pub use {
+    tor_hscrypto::pk::{HsClientDescEncKey, HsId},
+    tor_keymgr::KeystoreSelector,
+};
+
 #[cfg(feature = "geoip")]
 #[cfg_attr(docsrs, doc(cfg(feature = "geoip")))]
 pub use tor_geoip::CountryCode;
