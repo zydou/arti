@@ -74,6 +74,17 @@ pub struct TorClientBuilder<R: Runtime> {
     dirfilter: tor_dirmgr::filter::FilterConfig,
 }
 
+/// Longest allowable duration to wait for local resources to be available
+/// when creating a TorClient.
+///
+/// This value may change in future versions of Arti.
+/// It is an error to configure
+/// a [`local_resource_timeout`](TorClientBuilder)
+/// with a larger value than this.
+///
+/// (Reducing this value would count as a breaking change.)
+pub const MAX_LOCAL_RESOURCE_TIMEOUT: Duration = Duration::new(5, 0);
+
 impl<R: Runtime> TorClientBuilder<R> {
     /// Construct a new TorClientBuilder with the given runtime.
     pub(crate) fn new(runtime: R) -> Self {
@@ -117,6 +128,8 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// (This difference in default behavior is meant to avoid unintentional blocking.
     /// If you call this method, subsequent calls to `crate_bootstrapped` may block
     /// the current thread.)
+    ///
+    /// The provided timeout value may not be larger than [`MAX_LOCAL_RESOURCE_TIMEOUT`].
     pub fn local_resource_timeout(mut self, timeout: Duration) -> Self {
         self.local_resource_timeout = Some(timeout);
         self
@@ -169,9 +182,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// Use [`create_unbootstrapped_async`](Self::create_unbootstrapped_async)
     /// if that is not what you want.
     pub fn create_unbootstrapped(&self) -> Result<TorClient<R>> {
-        let timeout = self
-            .local_resource_timeout
-            .unwrap_or(Duration::from_millis(0));
+        let timeout = self.local_resource_timeout_or(Duration::from_millis(0))?;
         let give_up_at = Instant::now() + timeout;
         let mut first_attempt = true;
 
@@ -195,10 +206,7 @@ impl<R: Runtime> TorClientBuilder<R> {
         // TODO: This code is largely duplicated from create_unbootstrapped above.  It might be good
         // to have a single shared implementation to handle both the sync and async cases, but I am
         // concerned that doing so would just add a lot of complexity.
-
-        let timeout = self
-            .local_resource_timeout
-            .unwrap_or(Duration::from_millis(500));
+        let timeout = self.local_resource_timeout_or(Duration::from_millis(500))?;
         let give_up_at = self.runtime.now() + timeout;
         let mut first_attempt = true;
 
@@ -272,6 +280,23 @@ impl<R: Runtime> TorClientBuilder<R> {
         let r = self.create_unbootstrapped_async().await?;
         r.bootstrap().await?;
         Ok(r)
+    }
+
+    /// Return the local_resource_timeout, or `dflt` if none is defined.
+    ///
+    /// Give an error if the value is above MAX_LOCAL_RESOURCE_TIMEOUT
+    fn local_resource_timeout_or(&self, dflt: Duration) -> Result<Duration> {
+        let timeout = self.local_resource_timeout.unwrap_or(dflt);
+        if timeout > MAX_LOCAL_RESOURCE_TIMEOUT {
+            return Err(
+                ErrorDetail::Configuration(tor_config::ConfigBuildError::Invalid {
+                    field: "local_resource_timeout".into(),
+                    problem: "local resource timeout too large".into(),
+                })
+                .into(),
+            );
+        }
+        Ok(timeout)
     }
 }
 
