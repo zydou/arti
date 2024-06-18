@@ -245,7 +245,7 @@ define_derive_deftly! {
 /// #[deftly(rpc(expose_outside_of_session))]
 /// struct Visible {}
 /// ```
-    pub Object expect items =
+    export Object expect items:
 
     impl<$tgens> $ttype where
         // We need this restriction in case there are generics
@@ -262,7 +262,11 @@ define_derive_deftly! {
         #[doc(hidden)]
         fn make_cast_table() -> $crate::CastTable {
             ${if tmeta(rpc(downcastable_to)) {
-                $crate::cast_table_deftness_helper!{ ${tmeta(rpc(downcastable_to)) } }
+                $crate::cast_table_deftness_helper!{
+                    // TODO ideally we would support multiple downcastable_to rather
+                    // than a single list, and use `as ty`
+                    ${tmeta(rpc(downcastable_to)) as token_stream}
+                }
             } else {
                 $crate::CastTable::default()
             }}

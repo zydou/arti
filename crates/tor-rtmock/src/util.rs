@@ -16,7 +16,7 @@ define_derive_deftly! {
 ///     and `CoarseTimeProvider`.
 // This could perhaps be further reduced:
 // ambassador might be able to remove most of the body (although does it do async well?)
-    SomeMockRuntime for struct, expect items =
+    SomeMockRuntime for struct, expect items:
 
  $(
   ${when fmeta(mock(task))}

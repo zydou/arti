@@ -11,7 +11,7 @@ define_derive_deftly! {
     /// Like `amplify::Getters` but `pub(crate)`.
     ///
     /// TODO add this feature to `amplify`.
-    CrateGetters =
+    CrateGetters:
     ${define REF ${if not(fmeta(getter_copy)) { & }}}
     $(
         impl $ttype {

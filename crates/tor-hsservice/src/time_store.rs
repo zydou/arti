@@ -98,7 +98,7 @@ define_derive_deftly! {
     // We provide these for the types which are serde, since we are already exposing
     // and documenting their innards (and we don't want to force people to use serde
     // trickery if they want to do something unusual).
-    RawConversions expect items =
+    RawConversions expect items:
 
     impl $ttype {
       ${for fields { // we have only one field; but d-a wants a context for "a specific field"
@@ -126,7 +126,7 @@ define_derive_deftly! {
     // This has to be a macro rather than simply a helper newtype
     // to implement the "transparent" binary version,
     // since that involves looking into the struct's field.
-    SerdeStringOrTransparent for struct, expect items =
+    SerdeStringOrTransparent for struct, expect items:
 
     impl Serialize for $ttype {
         fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {

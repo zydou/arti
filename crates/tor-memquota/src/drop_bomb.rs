@@ -46,7 +46,7 @@ define_derive_deftly! {
     ///  * Provides `fn new_armed`
     ///  * Provides `fn new_simulated`
     ///  * Implements `Drop`, using `TestableDrop::drop_impl`
-    BombImpls =
+    BombImpls:
 
     impl $ttype {
         /// Create a new drop bomb, which must be properly disposed of

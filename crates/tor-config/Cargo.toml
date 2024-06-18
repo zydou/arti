@@ -27,7 +27,7 @@ expand-paths = ["shellexpand", "directories"]
 __is_experimental = []
 
 [dependencies]
-derive-deftly = "0.10.3"
+derive-deftly = "0.12.1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 directories = { version = "5", optional = true }
 educe = "0.4.6"

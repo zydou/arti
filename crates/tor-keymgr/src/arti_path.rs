@@ -15,7 +15,7 @@ define_derive_deftly! {
     /// Implement `new()`, `TryFrom<String>` in terms of `validate_str`, and `as_ref<str>`
     //
     // TODO maybe this is generally useful?  Or maybe we should find a crate?
-    ValidatedString for struct, expect items =
+    ValidatedString for struct, expect items:
 
     impl $ttype {
         #[doc = concat!("Create a new [`", stringify!($tname), "`].")]

@@ -109,7 +109,7 @@ define_derive_deftly! {
 ///     type Error = rpc::RpcError;
 /// }
 /// ```
-    pub DynMethod =
+    export DynMethod:
     const _: () = {
         impl $crate::DynMethod for $ttype {}
 

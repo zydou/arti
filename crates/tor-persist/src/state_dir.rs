@@ -193,7 +193,7 @@ pub use crate::Error;
 use crate::slug;
 
 define_derive_deftly! {
-    ContainsInstanceStateGuard =
+    ContainsInstanceStateGuard:
 
     impl<$tgens> ContainsInstanceStateGuard for $ttype where $twheres {
         fn raw_lock_guard(&self) -> Arc<LockFileGuard> {
@@ -1322,7 +1322,8 @@ mod test {
                 Which:
                 iproduct!(
                     $(
-                        ${if fmeta(test) { [ ${fmeta(test)} ] } else { [false, true] }},
+                        ${if fmeta(test) { [ ${fmeta(test) as token_stream} ] }
+                          else { [false, true] }},
                     )
                     // iproduct hates a trailing comma, so add a dummy element
                     // https://github.com/rust-itertools/itertools/issues/868

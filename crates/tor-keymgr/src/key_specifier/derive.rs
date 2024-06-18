@@ -386,7 +386,7 @@ define_derive_deftly! {
     ///    (Can be even used before a denotator component,
     ///    to add a final fixed path component.)
     ///
-    pub KeySpecifier for struct =
+    export KeySpecifier for struct:
 
     // A condition that evaluates to `true` for path fields.
     ${defcond F_IS_PATH not(any(fmeta(denotator), fmeta(role)))}
@@ -494,7 +494,7 @@ define_derive_deftly! {
                 // appropriate C tor directory, based on the HsSvcKeyRole.
                 //
                 // Ie, provide the #[deftly(ctor_path)] attribute
-                Some( ${tmeta(ctor_path) as tokens} (self) )
+                Some( ${tmeta(ctor_path) as token_stream} (self) )
             } else {
                 None
             }}

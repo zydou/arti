@@ -159,7 +159,7 @@ use tor_rtcompat::{SleepProvider, SleepProviderExt as _};
 
 define_derive_deftly! {
     /// Defines methods and types which are common to trackers for `Instant` and `SystemTime`
-    SingleTimeoutTracker for struct, expect items =
+    SingleTimeoutTracker for struct, expect items:
 
     // type of the `now` field, ie the absolute time type
     ${define NOW $(
@@ -168,7 +168,7 @@ define_derive_deftly! {
     ) }
 
     // type that we track, ie the inner contents of the `Cell<Option<...>>`
-    ${define TRACK ${tmeta(track)}}
+    ${define TRACK ${tmeta(track) as ty}}
 
     // TODO maybe some of this should be a trait?  But that would probably include
     // wait_for_earliest, which would be an async trait method and quite annoying.
@@ -183,7 +183,7 @@ define_derive_deftly! {
 
         /// Creates a new timeout tracker from the current time as seen by a runtime
         pub fn now(r: &impl SleepProvider) -> Self {
-            let now = r.${tmeta(from_runtime)}();
+            let now = r.${tmeta(from_runtime) as ident}();
             Self::new(now)
         }
 
@@ -225,9 +225,9 @@ define_derive_deftly! {
     /// Impls for `TrackingNow`, the combined tracker
     ///
     /// Defines just the methods which want to abstract over fields
-    CombinedTimeoutTracker for struct, expect items =
+    CombinedTimeoutTracker for struct, expect items:
 
-    ${define NOW ${fmeta(now)}}
+    ${define NOW ${fmeta(now) as ty}}
 
     impl $ttype {
         /// Creates a new combined timeout tracker, given values for the current time
@@ -274,7 +274,7 @@ define_derive_deftly! {
     /// Defines `wait_for_earliest`
     ///
     /// Combined into this macro mostly so we only have to write the docs once
-    WaitForEarliest for struct, expect items =
+    WaitForEarliest for struct, expect items:
 
     impl $ttype {
         /// Wait for the earliest timeout implied by any of the comparisons
@@ -288,7 +288,7 @@ define_derive_deftly! {
                 // tracker for a single kind of time
                 match self.earliest.into_inner() {
                     None => future::pending().await,
-                    Some(earliest) => runtime.${tmeta(runtime_sleep)}(earliest).await,
+                    Some(earliest) => runtime.${tmeta(runtime_sleep) as ident}(earliest).await,
                 }
             } else {
                 // combined tracker, wait for earliest of any kind of timeout

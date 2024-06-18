@@ -20,7 +20,7 @@ define_derive_deftly! {
     /// By default, dropping when nonzero is forbidden,
     /// and you must have a field `bomb: `[`DropBombCondition`].
     /// `#[deftly(allow_nonzero_drop)]` suppresses this.
-    BookkeptQty =
+    BookkeptQty:
 
     ${defcond BOMB not(tmeta(allow_nonzero_drop))}
 
