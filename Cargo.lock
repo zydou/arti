@@ -5922,6 +5922,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tor-error",
  "tracing",
  "x509-signature",
 ]

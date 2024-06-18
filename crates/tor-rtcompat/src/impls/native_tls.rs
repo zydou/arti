@@ -35,6 +35,18 @@ where
             Err(e) => Err(IoError::new(std::io::ErrorKind::Other, e)),
         }
     }
+
+    fn export_keying_material(
+        &self,
+        _len: usize,
+        _label: &[u8],
+        _context: Option<&[u8]>,
+    ) -> IoResult<Vec<u8>> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            tor_error::bad_api_usage!("native-tls does not support exporting keying material"),
+        ))
+    }
 }
 
 /// An implementation of [`TlsConnector`] built with `native_tls`.
@@ -90,5 +102,9 @@ where
             connector,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    fn supports_keying_material_export(&self) -> bool {
+        false
     }
 }

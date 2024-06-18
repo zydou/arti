@@ -62,6 +62,10 @@ macro_rules! implement_opaque_runtime {
         fn tls_connector(&self) -> Self::Connector {
             self.$member.tls_connector()
         }
+        #[inline]
+        fn supports_keying_material_export(&self) -> bool {
+            <$mty as $crate::traits::TlsProvider<S>>::supports_keying_material_export(&self.$member)
+        }
     }
 
     #[async_trait::async_trait]
