@@ -17,6 +17,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.17"
 educe = "0.4.6"
 futures = "0.3.14"
+pin-project = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 slotmap = "1.0.6"
 static_assertions = "1"

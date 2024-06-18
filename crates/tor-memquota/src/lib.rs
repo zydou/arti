@@ -200,6 +200,7 @@ mod config;
 mod error;
 pub mod memory_cost;
 pub mod mtracker;
+mod stream_peek;
 
 //---------- re-exports at the crate root ----------
 
