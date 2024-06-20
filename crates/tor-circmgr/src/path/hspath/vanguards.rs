@@ -105,6 +105,9 @@ impl<'n, 'a, RT: Runtime, R: Rng> PathBuilder<'n, 'a, RT, R> {
 
     /// Try to append `hop` to the end of the path.
     ///
+    /// This also causes the `PathBuilder` to transition to the state represented by `hop_kind`,
+    /// if the transition is valid.
+    ///
     /// Returns an error if the `hop_kind` is incompatible with the `HopKind` of the last hop.
     fn add_hop(&mut self, hop: MaybeOwnedRelay<'n>, hop_kind: HopKind) -> StdResult<(), Bug> {
         self.update_last_hop_kind(hop_kind)?;
@@ -112,9 +115,14 @@ impl<'n, 'a, RT: Runtime, R: Rng> PathBuilder<'n, 'a, RT, R> {
         Ok(())
     }
 
-    /// Transition to the next state.
+    /// Transition to the state specified by `kind`.
     ///
-    /// The permissible state transitions are:
+    /// The state of the `PathBuilder` is represented by the [`HopKind`] of its last hop.
+    /// This function should be called whenever a new hop is added
+    /// (e.g. in [`add_hop`](PathBuilder::add_hop)), to set the current state to the
+    /// [`HopKind`] of the new hop.
+    ///
+    /// Not all transitions are valid. The permissible state transitions are:
     ///   * `G  -> L2`
     ///   * `L2 -> L3`
     ///   * `L2 -> M`
