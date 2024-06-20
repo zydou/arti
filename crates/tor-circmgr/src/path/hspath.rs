@@ -46,13 +46,14 @@
 //!         EXTENDED = G -> L2 -> L3 -> M
 //!      ```
 
+#[cfg(feature = "vanguards")]
+mod vanguards;
+
 use rand::Rng;
 use tor_error::internal;
-use tor_linkspec::OwnedChanTarget;
+use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay};
-use tor_relay_selection::{
-    RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage, SelectionInfo,
-};
+use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 
 use crate::{hspool::HsCircStubKind, Error, Result};
 
@@ -74,6 +75,9 @@ use {
     tor_guardmgr::vanguards::VanguardMgr,
     tor_guardmgr::VanguardMode,
 };
+
+#[cfg(feature = "vanguards")]
+pub(crate) use vanguards::select_middle_for_vanguard_circ;
 
 /// A path builder for hidden service circuits.
 ///
@@ -198,9 +202,6 @@ struct VanguardHsPathBuilder {
 #[cfg(feature = "vanguards")]
 impl VanguardHsPathBuilder {
     /// Try to create and return a path for a hidden service circuit stub.
-    //
-    //
-    // TODO(#1459): refactor the way we apply restrictions in this function to be more readable.
     fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -209,9 +210,6 @@ impl VanguardHsPathBuilder {
         vanguards: &VanguardMgr<RT>,
         config: &PathConfig,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
-        use tor_linkspec::HasRelayIds;
-
-        // TODO: this is copied from pick_path
         let netdir = match netdir {
             DirInfo::Directory(d) => d,
             _ => {
@@ -227,22 +225,7 @@ impl VanguardHsPathBuilder {
         let (l1_guard, mon, usable) =
             select_guard(rng, netdir, guards, config, None, None, self.path_kind())?;
 
-        // Select the vanguards
-
-        // We must exclude the guard, because it cannot be selected again as an L2 vanguard
-        // (a relay won't let you extend the circuit to itself).
-        //
-        // TODO #504: Unaccompanied RelayExclusions
-        //
-        // NOTE: if the we are using full vanguards and building an EXTENDED circuit stub,
-        // this will *not* exclude the target (only the the L1 guard).
-        let mut exclude_guard_and_target = exclude_identities(&[&l1_guard]);
-
-        // We need to exclude the target from being selected as
-        //   * the L2 or middle hop, if using lite-vanguards
-        //   * the L2 or L3 hop, if building a SHORT circuit stub with full-vanguards
-        //   * the L3 or "middle" (4th) hop, if building a EXTENDED circuit stub with full-vanguards
-        let target_exclusion = if let Some(target) = &self.compatible_with {
+        let target_exclusion = if let Some(target) = self.compatible_with.as_ref() {
             RelayExclusion::exclude_identities(
                 target.identities().map(|id| id.to_owned()).collect(),
             )
@@ -251,16 +234,12 @@ impl VanguardHsPathBuilder {
         };
 
         let mode = vanguards.mode();
-        match mode {
+        let path = match mode {
             VanguardMode::Lite => {
-                exclude_guard_and_target.extend(&target_exclusion);
-            }
-            VanguardMode::Full if self.kind == HsCircStubKind::Short => {
-                exclude_guard_and_target.extend(&target_exclusion);
+                self.pick_lite_vanguard_path(rng, netdir, vanguards, l1_guard, &target_exclusion)?
             }
             VanguardMode::Full => {
-                // The target can be the same as the L2 hop if we're building
-                // an EXTENDED stub with vanguards enabled
+                self.pick_full_vanguard_path(rng, netdir, vanguards, l1_guard, &target_exclusion)?
             }
             VanguardMode::Disabled => {
                 return Err(internal!(
@@ -271,81 +250,10 @@ impl VanguardHsPathBuilder {
             _ => {
                 return Err(internal!("unrecognized vanguard mode {mode}").into());
             }
-        }
-
-        let l2_guard: MaybeOwnedRelay = vanguards
-            .select_vanguard(rng, netdir, Layer::Layer2, &exclude_guard_and_target)?
-            .into();
-
-        // We exclude
-        //   * the L2 vanguard, because it cannot be selected again as an L3 vanguard
-        //     (a relay won't let you extend the circuit to itself).
-        //   * the guard, because relays won't let you extend the circuit to their previous hop
-        let l1_l2_exclusion = exclude_identities(&[&l2_guard, &l1_guard]);
-
-        // For circuits of the form
-        //
-        //    G - L2 - L3 - T
-        //  and
-        //    G - L2 - M - T
-        //  and
-        //    G - L2 - L3 - M - T
-        //
-        //  we must exclude G, L2, T from occurring as the third hop
-        let mut l1_l2_target_exclusion = l1_l2_exclusion;
-        l1_l2_target_exclusion.extend(&target_exclusion);
-
-        let mut hops = vec![l1_guard, l2_guard.clone()];
-
-        let extra_hop_err = |info: SelectionInfo| Error::NoRelay {
-            path_kind: self.path_kind(),
-            role: "extra hop",
-            problem: info.to_string(),
         };
 
-        // If needed, select an L3 vanguard too
-        if mode == VanguardMode::Full {
-            let l3_guard: MaybeOwnedRelay = vanguards
-                .select_vanguard(rng, netdir, Layer::Layer3, &l1_l2_target_exclusion)?
-                .into();
-            hops.push(l3_guard.clone());
-
-            // If full vanguards are enabled, we need an extra hop for the EXTENDED stub:
-            //     SHORT    = G -> L2 -> L3
-            //     EXTENDED = G -> L2 -> L3 -> M
-            if self.kind == HsCircStubKind::Extended {
-                // TODO: this usage has need_stable = true, but we probably
-                // don't necessarily need a stable relay here.
-                let usage = RelayUsage::middle_relay(None);
-                let mut l2_l3_target_exclusion = exclude_identities(&[&l2_guard, &l3_guard]);
-                l2_l3_target_exclusion.extend(&target_exclusion);
-                // We exclude
-                //   * the L3 vanguard, because it cannot be selected again as the following
-                //     extra hop (a relay won't let you extend the circuit to itself).
-                //   * the L2 vanguard, because relays won't let you extend the circuit to their previous hop
-                //   * the target, because otherwise, M won't be able to extend to it
-                let selector = RelaySelector::new(usage, l2_l3_target_exclusion);
-
-                let (extra_hop, info) = selector.select_relay(rng, netdir);
-                let extra_hop = extra_hop.ok_or_else(|| extra_hop_err(info))?;
-                hops.push(MaybeOwnedRelay::from(extra_hop));
-            }
-        } else {
-            // Lite vanguards
-
-            // Extend the circuit to a third, arbitrarily chosen hop, excluding the L1 and L2
-            // guards as before, as well as the circuit target.
-            let usage = RelayUsage::middle_relay(None);
-            let selector = RelaySelector::new(usage, l1_l2_target_exclusion);
-
-            let (extra_hop, info) = selector.select_relay(rng, netdir);
-            let extra_hop = extra_hop.ok_or_else(|| extra_hop_err(info))?;
-            hops.push(MaybeOwnedRelay::from(extra_hop));
-        }
-
-        let actual_len = hops.len();
+        let actual_len = path.len();
         let expected_len = self.kind.num_hops(mode)?;
-
         if actual_len != expected_len {
             return Err(internal!(
                 "invalid path length for {} {mode}-vanguard circuit (expected {} hops, got {})",
@@ -356,7 +264,56 @@ impl VanguardHsPathBuilder {
             .into());
         }
 
-        Ok((TorPath::new_multihop_from_maybe_owned(hops), mon, usable))
+        Ok((path, mon, usable))
+    }
+
+    /// Create a path for a hidden service circuit stub using full vanguards.
+    fn pick_full_vanguard_path<'n, R: Rng, RT: Runtime>(
+        &self,
+        rng: &mut R,
+        netdir: &'n NetDir,
+        vanguards: &VanguardMgr<RT>,
+        l1_guard: MaybeOwnedRelay<'n>,
+        target_exclusion: &RelayExclusion<'n>,
+    ) -> Result<TorPath<'n>> {
+        // NOTE: if the we are using full vanguards and building an EXTENDED circuit stub,
+        // we do *not* exclude the target from occurring as the second hop
+        // (circuits of the form G - L2 - L3 - M - L2 are valid)
+        let l2_target_exclusion = match self.kind {
+            HsCircStubKind::Extended => RelayExclusion::no_relays_excluded(),
+            HsCircStubKind::Short => target_exclusion.clone(),
+        };
+
+        let path = vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard);
+
+        let path = path
+            .add_vanguard(&l2_target_exclusion, Layer::Layer2)?
+            .add_vanguard(target_exclusion, Layer::Layer3)?;
+
+        match self.kind {
+            HsCircStubKind::Extended => {
+                // If full vanguards are enabled, we need an extra hop for the EXTENDED stub:
+                //     SHORT    = G -> L2 -> L3
+                //     EXTENDED = G -> L2 -> L3 -> M
+                path.add_middle(target_exclusion)?.build()
+            }
+            HsCircStubKind::Short => path.build(),
+        }
+    }
+
+    /// Create a path for a hidden service circuit stub using lite vanguards.
+    fn pick_lite_vanguard_path<'n, R: Rng, RT: Runtime>(
+        &self,
+        rng: &mut R,
+        netdir: &'n NetDir,
+        vanguards: &VanguardMgr<RT>,
+        l1_guard: MaybeOwnedRelay<'n>,
+        target_exclusion: &RelayExclusion<'n>,
+    ) -> Result<TorPath<'n>> {
+        vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard)
+            .add_vanguard(target_exclusion, Layer::Layer2)?
+            .add_middle(target_exclusion)?
+            .build()
     }
 
     /// Return a short description of the path we're trying to build,
@@ -364,20 +321,6 @@ impl VanguardHsPathBuilder {
     fn path_kind(&self) -> &'static str {
         "onion-service vanguard circuit"
     }
-}
-
-/// Build a [`RelayExclusion`] that excludes the specified relays.
-#[cfg(feature = "vanguards")]
-fn exclude_identities<'a>(exclude_ids: &[&MaybeOwnedRelay<'a>]) -> RelayExclusion<'a> {
-    use tor_linkspec::HasRelayIds;
-
-    RelayExclusion::exclude_identities(
-        exclude_ids
-            .iter()
-            .flat_map(|relay| relay.identities())
-            .map(|id| id.to_owned())
-            .collect(),
-    )
 }
 
 #[cfg(test)]
@@ -408,8 +351,7 @@ mod test {
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use {
         crate::path::OwnedPath, tor_basic_utils::test_rng::testing_rng,
-        tor_guardmgr::VanguardMgrError, tor_linkspec::HasRelayIds as _,
-        tor_netdir::testnet::construct_custom_netdir,
+        tor_guardmgr::VanguardMgrError, tor_netdir::testnet::construct_custom_netdir,
     };
 
     /// The maximum number of relays in a test network.
