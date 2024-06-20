@@ -162,9 +162,9 @@ pub(crate) enum HsCircStubKind {
 }
 
 impl HsCircStubKind {
-    /// Return the length this `HsCircKind` ought to have when using the specified
+    /// Return the number of hops this `HsCircKind` ought to have when using the specified
     /// [`VanguardMode`].
-    pub(crate) fn len(&self, mode: VanguardMode) -> StdResult<usize, Bug> {
+    pub(crate) fn num_hops(&self, mode: VanguardMode) -> StdResult<usize, Bug> {
         use HsCircStubKind::*;
         use VanguardMode::*;
 
@@ -625,7 +625,7 @@ impl<R: Runtime> HsCircPool<R> {
         let mode = self.vanguard_mode();
 
         // TODO(#1457): somehow unify the path length checks
-        let expected_len = kind.len(mode)?;
+        let expected_len = kind.num_hops(mode)?;
 
         if circ_path_len != expected_len {
             return Err(internal!(

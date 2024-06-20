@@ -344,7 +344,7 @@ impl VanguardHsPathBuilder {
         }
 
         let actual_len = hops.len();
-        let expected_len = self.kind.len(mode)?;
+        let expected_len = self.kind.num_hops(mode)?;
 
         if actual_len != expected_len {
             return Err(internal!(
@@ -503,7 +503,7 @@ mod test {
 
         assert_eq!(
             path.len(),
-            stub_kind.len(mode).unwrap(),
+            stub_kind.num_hops(mode).unwrap(),
             "invalid path length for {stub_kind} {mode}-vanguards circuit"
         );
 
