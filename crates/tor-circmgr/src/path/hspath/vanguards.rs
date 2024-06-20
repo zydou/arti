@@ -1,4 +1,4 @@
-//! This module provides the [`VanguardPath`] helper for building vanguard [`TorPath`]s.
+//! This module provides the [`PathBuilder`] helper for building vanguard [`TorPath`]s.
 
 use std::result::Result as StdResult;
 
@@ -16,13 +16,13 @@ use crate::{Error, Result};
 
 /// A vanguard path builder.
 ///
-/// A `VanguardPath` is a state machine whose current state is the [`HopKind`] of its last hop.
+/// A `PathBuilder` is a state machine whose current state is the [`HopKind`] of its last hop.
 /// Not all state transitions are valid. For the permissible state transitions, see
-/// [update_last_hop_kind](VanguardPath::update_last_hop_kind).
+/// [update_last_hop_kind](PathBuilder::update_last_hop_kind).
 ///
 /// This type is an implementation detail that should remain private.
 /// Used by [`VanguardHsPathBuilder`](super::VanguardHsPathBuilder).
-pub(super) struct VanguardPath<'n, 'a, RT: Runtime, R: Rng> {
+pub(super) struct PathBuilder<'n, 'a, RT: Runtime, R: Rng> {
     /// The relays in the path.
     hops: Vec<MaybeOwnedRelay<'n>>,
     /// The network directory.
@@ -35,7 +35,7 @@ pub(super) struct VanguardPath<'n, 'a, RT: Runtime, R: Rng> {
     last_hop_kind: HopKind,
 }
 
-/// The type of a `VanguardPath` hop.
+/// The type of a `PathBuilder` hop.
 #[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
 enum HopKind {
     /// The L1 guard.
@@ -46,8 +46,8 @@ enum HopKind {
     Middle,
 }
 
-impl<'n, 'a, RT: Runtime, R: Rng> VanguardPath<'n, 'a, RT, R> {
-    /// Create a new `VanguardPath`.
+impl<'n, 'a, RT: Runtime, R: Rng> PathBuilder<'n, 'a, RT, R> {
+    /// Create a new `PathBuilder`.
     pub(super) fn new(
         rng: &'a mut R,
         netdir: &'n NetDir,
@@ -88,7 +88,7 @@ impl<'n, 'a, RT: Runtime, R: Rng> VanguardPath<'n, 'a, RT, R> {
         Ok(self)
     }
 
-    /// Return a [`TorPath`] built using the hops from this `VanguardPath`.
+    /// Return a [`TorPath`] built using the hops from this `PathBuilder`.
     pub(super) fn build(self) -> Result<TorPath<'n>> {
         use HopKind::*;
         use Layer::*;
@@ -96,7 +96,7 @@ impl<'n, 'a, RT: Runtime, R: Rng> VanguardPath<'n, 'a, RT, R> {
         match self.last_hop_kind {
             Vanguard(Layer3) | Middle => Ok(TorPath::new_multihop_from_maybe_owned(self.hops)),
             _ => Err(internal!(
-                "tried to build TorPath from incomplete VanguardPath (last_hop_kind={})",
+                "tried to build TorPath from incomplete PathBuilder (last_hop_kind={})",
                 self.last_hop_kind
             )
             .into()),
@@ -164,7 +164,7 @@ fn exclude_neighbors<'n, T: HasRelayIds + 'n>(hops: &[T]) -> RelayExclusion<'n> 
 
 /// Select a middle relay that can be appended to a vanguard circuit.
 ///
-/// Used by [`VanguardPath`] to build [`TorPath`]s of the form
+/// Used by [`PathBuilder`] to build [`TorPath`]s of the form
 ///
 ///   G - L2 - M
 ///   G - L2 - L3 - M

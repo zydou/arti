@@ -74,7 +74,6 @@ use {
     tor_guardmgr::vanguards::Layer,
     tor_guardmgr::vanguards::VanguardMgr,
     tor_guardmgr::VanguardMode,
-    vanguards::VanguardPath,
 };
 
 #[cfg(feature = "vanguards")]
@@ -285,7 +284,7 @@ impl VanguardHsPathBuilder {
             HsCircStubKind::Short => target_exclusion.clone(),
         };
 
-        let path = VanguardPath::new(rng, netdir, vanguards, l1_guard);
+        let path = vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard);
 
         let path = path
             .add_vanguard(&l2_target_exclusion, Layer::Layer2)?
@@ -311,7 +310,7 @@ impl VanguardHsPathBuilder {
         l1_guard: MaybeOwnedRelay<'n>,
         target_exclusion: &RelayExclusion<'n>,
     ) -> Result<TorPath<'n>> {
-        VanguardPath::new(rng, netdir, vanguards, l1_guard)
+        vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard)
             .add_vanguard(target_exclusion, Layer::Layer2)?
             .add_middle(target_exclusion)?
             .build()
