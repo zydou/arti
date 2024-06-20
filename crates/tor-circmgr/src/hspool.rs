@@ -161,6 +161,30 @@ pub(crate) enum HsCircStubKind {
     Extended,
 }
 
+impl HsCircStubKind {
+    /// Return the number of hops this `HsCircKind` ought to have when using the specified
+    /// [`VanguardMode`].
+    pub(crate) fn num_hops(&self, mode: VanguardMode) -> StdResult<usize, Bug> {
+        use HsCircStubKind::*;
+        use VanguardMode::*;
+
+        let len = match (mode, self) {
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            (Lite, _) => 3,
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            (Full, Short) => 3,
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            (Full, Extended) => 4,
+            (Disabled, _) => 3,
+            (_, _) => {
+                return Err(internal!("Unsupported vanguard mode {mode}"));
+            }
+        };
+
+        Ok(len)
+    }
+}
+
 /// An object to provide circuits for implementing onion services.
 pub struct HsCircPool<R: Runtime> {
     /// An underlying circuit manager, used for constructing circuits.
@@ -600,20 +624,8 @@ impl<R: Runtime> HsCircPool<R> {
         let circ_path_len = circ.path_ref().n_hops();
         let mode = self.vanguard_mode();
 
-        // TODO: the expected circuit lengths are hard-coded and duplicated in hspath.rs
         // TODO(#1457): somehow unify the path length checks
-        let expected_len = match (mode, kind) {
-            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-            (VanguardMode::Lite, _) => 3,
-            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-            (VanguardMode::Full, HsCircStubKind::Short) => 3,
-            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-            (VanguardMode::Full, HsCircStubKind::Extended) => 4,
-            (VanguardMode::Disabled, _) => 3,
-            (_, _) => {
-                return Err(internal!("Unsupported vanguard mode {mode}"));
-            }
-        };
+        let expected_len = kind.num_hops(mode)?;
 
         if circ_path_len != expected_len {
             return Err(internal!(
@@ -981,6 +993,7 @@ mod test {
         .unwrap()
     }
 
+    // Prevents TROVE-2024-005 (arti#1424)
     #[test]
     fn pool_with_vanguards_disabled() {
         MockRuntime::test_with_various(|runtime| async move {

@@ -99,6 +99,7 @@ weak-table = "0.3.0"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
+hex = "0.4"
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.19.0", features = ["testing", "vanguards"] }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.19.0" }
 tor-netdir = { path = "../tor-netdir", version = "0.19.0", features = ["testing"] }
