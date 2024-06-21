@@ -58,22 +58,37 @@ pub type RdDigest = [u8; 20];
 
 /// A router descriptor, with possible annotations.
 #[allow(dead_code)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 pub struct AnnotatedRouterDesc {
     /// Annotation for this router descriptor; possibly empty.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     ann: RouterAnnotation,
     /// Underlying router descriptor; signatures not checked yet.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     router: UncheckedRouterDesc,
 }
 
 /// Annotations about a router descriptor, as stored on disc.
 #[allow(dead_code)] // don't warn about fields not getting read.
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 #[derive(Default)]
 pub struct RouterAnnotation {
     /// Description of where we got this router descriptor
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     source: Option<String>,
     /// When this descriptor was first downloaded.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     downloaded: Option<time::SystemTime>,
     /// Description of what we're willing to use this descriptor for.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     purpose: Option<String>,
 }
 
