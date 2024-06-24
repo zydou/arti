@@ -171,8 +171,8 @@ impl<R: Runtime> TorClientBuilder<R> {
     ///
     /// If you have replaced the default behavior with [`BootstrapBehavior::Manual`],
     /// any attempts to use the client will fail with an error of kind
-    /// [`ErrorKind::BootstrapRequired`](crate::ErrorKind::BootstrapRequired),
-    /// until you have called [`TorClient::bootstrap`] yourself.  
+    /// [`ErrorKind::BootstrapRequired`],
+    /// until you have called [`TorClient::bootstrap`] yourself.
     /// This option is useful if you wish to have control over the bootstrap
     /// process (for example, you might wish to avoid initiating network
     /// connections until explicit user confirmation is given).
