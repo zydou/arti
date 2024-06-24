@@ -81,6 +81,19 @@ maint-check-changelog:
     - git fetch --unshallow $ORIGIN
     - ./maint/update-md-links --check CHANGELOG.md
 
+maint-check-ownership:
+  stage: test
+  image: debian:bookworm-slim
+  script:
+    - apt-get update && apt-get install -y python3-toml curl jq
+    - ./maint/cargo-crate-owners
+  rules:
+    # Don't impede MR work when this goes wrong.
+    # Also, avoid running it for tags, because that would make the release tag
+    # (run right after tagging) CI fail, before the release technician has had
+    # a chance to run `cargo add`.
+    - if: $CI_COMMIT_BRANCH == "main"
+
 # non-blocking for now, see
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/581
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
