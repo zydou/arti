@@ -327,6 +327,17 @@ name = "arti-relay"
 version = "0.20.0"
 
 [[package]]
+name = "arti-rpc-client-core"
+version = "0.19.0"
+dependencies = [
+ "caret",
+ "derive_more",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "arti-rpcserver"
 version = "0.20.0"
 dependencies = [

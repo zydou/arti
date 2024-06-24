@@ -1,0 +1,30 @@
+[package]
+name = "arti-rpc-client-core"
+version = "0.19.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Client library for Arti RPC"
+keywords = ["tor", "arti"]
+# We must put *something* here and this will do
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+
+caret = { path = "../caret", version = "0.4.5" }
+derive_more = "0.99.3"
+serde = { version = "1.0.103", features = ["derive"] }
+serde_json = "1.0.104"
+thiserror = "1"
+
+[dev-dependencies]
+
+[features]
+full = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
