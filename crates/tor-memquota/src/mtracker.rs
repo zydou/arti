@@ -66,7 +66,7 @@ mod reclaim;
 mod total_qty_notifier;
 
 #[cfg(test)]
-mod test;
+pub(crate) mod test;
 
 use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};
 use total_qty_notifier::TotalQtyNotifier;

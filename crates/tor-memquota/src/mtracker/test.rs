@@ -32,23 +32,26 @@ use tor_rtmock::MockRuntime;
 
 //---------- useful utilities ----------
 
+pub(crate) const TEST_DEFAULT_LIMIT: usize = mby(20);
+pub(crate) const TEST_DEFAULT_LOWWATER: usize = mby(15);
+
 fn secs(s: u64) -> CoarseDuration {
     Duration::from_secs(s).into()
 }
 
-fn mby(mib: usize) -> usize {
+pub(crate) const fn mby(mib: usize) -> usize {
     mib * 1024 * 1024
 }
 
 fn mk_config() -> Config {
     Config::builder()
-        .max(mby(20))
-        .low_water(mby(15))
+        .max(TEST_DEFAULT_LIMIT)
+        .low_water(TEST_DEFAULT_LOWWATER)
         .build()
         .unwrap()
 }
 
-fn mk_tracker(rt: &impl Runtime) -> Arc<MemoryQuotaTracker> {
+pub(crate) fn mk_tracker(rt: &impl Runtime) -> Arc<MemoryQuotaTracker> {
     MemoryQuotaTracker::new(&rt, mk_config()).unwrap()
 }
 
