@@ -121,6 +121,7 @@ educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde"] }
 futures = "0.3.14"
 hostname-validator = "1.1.1"
+humantime = "2"
 humantime-serde = "1.1.1"
 libc = "0.2"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
