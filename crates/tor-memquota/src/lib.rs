@@ -198,12 +198,14 @@ mod utils;
 // Modules with public items
 mod config;
 mod error;
+pub mod memory_cost;
 pub mod mtracker;
 
 //---------- re-exports at the crate root ----------
 
 pub use config::{Config, ConfigBuilder};
 pub use error::{Error, MemoryReclaimedError, StartupError};
+pub use memory_cost::HasMemoryCost;
 pub use mtracker::MemoryQuotaTracker;
 
 /// `Result` whose `Err` is [`tor_memtrack::Error`](Error)

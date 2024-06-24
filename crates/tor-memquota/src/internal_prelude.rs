@@ -58,6 +58,7 @@ pub(crate) use crate::{
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
+    mtracker::Participation,
     refcount,
     utils::{DefaultExtTake, Qty},
 };
