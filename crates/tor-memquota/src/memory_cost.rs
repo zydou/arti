@@ -118,6 +118,44 @@ impl<T> TypedParticipation<T> {
         self.raw.release(t.typed_memory_cost().raw);
     }
 
+    /// Claiming wrapper for a closure
+    ///
+    /// Claims the memory, iff `call` succeeds.
+    ///
+    /// Specifically:
+    /// Claims memory for `item`.   If that fails, returns the error.
+    /// If the claim succeeded, calls `call`.
+    /// If it fails or panics, the memory is released, undoing the claim,
+    /// and the error is returned (or the panic propagated).
+    ///
+    /// In these error cases, `item` will typically be dropped by `call`,
+    /// it is not convenient for `call` to do otherwise.
+    pub fn try_claim<C, F, E, R>(&mut self, item: C, call: F) -> Result<Result<R, E>, Error>
+    where
+        C: HasTypedMemoryCost<T>,
+        F: FnOnce(C) -> Result<R, E>,
+    {
+        let cost = item.typed_memory_cost();
+        self.claim(&cost)?;
+        // Unwind safety:
+        //  - "`F` may not be safely transferred across an unwind boundary"
+        //    but we don't; it is moved into the closure and
+        //   it can't obwerve its own panic
+        //  - "`C` may not be safely transferred across an unwind boundary"
+        //   Once again, item is moved into call, and never seen again.
+        match catch_unwind(AssertUnwindSafe(move || call(item))) {
+            Err(panic_payload) => {
+                self.release(&cost);
+                std::panic::resume_unwind(panic_payload)
+            }
+            Ok(Err(caller_error)) => {
+                self.release(&cost);
+                Ok(Err(caller_error))
+            }
+            Ok(Ok(y)) => Ok(Ok(y)),
+        }
+    }
+
     /// Mutably access the inner `Participation`
     ///
     /// This bypasses the type check.
