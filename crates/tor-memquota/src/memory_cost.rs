@@ -153,3 +153,72 @@ impl<T> TypedMemoryCost<T> {
         self.raw
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use crate::mtracker::test::*;
+    use crate::mtracker::*;
+    use tor_rtmock::MockRuntime;
+
+    // We don't really need to test the correctness, since this is just type wrappers.
+    // But we should at least demonstrate that the API is usable.
+
+    #[derive(Debug)]
+    struct DummyParticipant;
+    impl IsParticipant for DummyParticipant {
+        fn get_oldest(&self) -> Option<CoarseInstant> {
+            None
+        }
+        fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+            panic!()
+        }
+    }
+
+    struct Costed;
+    impl HasMemoryCost for Costed {
+        fn memory_cost(&self) -> usize {
+            // We nearly exceed the limit with one allocation.
+            //
+            // This proves that claim does claim, or we'd underflow on release,
+            // and that release does release, not claim, or we'd reclaim and crash.
+            TEST_DEFAULT_LIMIT - mby(1)
+        }
+    }
+
+    #[test]
+    fn api() {
+        MockRuntime::test_with_various(|rt| async move {
+            let trk = mk_tracker(&rt);
+            let acct = trk.new_account(None).unwrap();
+            let particip = Arc::new(DummyParticipant);
+            let partn = acct
+                .register_participant(Arc::downgrade(&particip) as _)
+                .unwrap();
+            let mut partn: TypedParticipation<Costed> = partn.into();
+
+            partn.claim(&Costed).unwrap();
+            partn.release(&Costed);
+
+            let cost = Costed.typed_memory_cost();
+            partn.claim(&cost).unwrap();
+            partn.release(&cost);
+
+            rt.advance_until_stalled().await;
+        });
+    }
+}
