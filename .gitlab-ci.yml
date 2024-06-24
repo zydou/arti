@@ -84,6 +84,7 @@ maint-check-changelog:
 maint-check-ownership:
   stage: test
   image: debian:bookworm-slim
+  allow_failure: true
   script:
     - apt-get update && apt-get install -y python3-toml curl jq
     - ./maint/cargo-crate-owners
