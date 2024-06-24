@@ -61,8 +61,7 @@ check_recurse () {
     done
     commands=$(perl -ne '
 	next unless m{^Commands:}...m{^\S};
-	next if m{^\S};
-	next unless m{\S};
+	next unless m{^  \S};
 	s{^  ([a-z][0-9a-z-]*) .*}{$1} or die "$_ ?";
 	print;
     ' "$help_file")
