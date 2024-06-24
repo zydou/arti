@@ -195,7 +195,7 @@ static MICRODESC_RULES: Lazy<SectionRules<MicrodescKwd>> = Lazy::new(|| {
     use MicrodescKwd::*;
 
     let mut rules = SectionRules::builder();
-    rules.add(ONION_KEY.rule().required().no_args().obj_required());
+    rules.add(ONION_KEY.rule().required().no_args().obj_optional());
     rules.add(NTOR_ONION_KEY.rule().required().args(1..));
     rules.add(FAMILY.rule().args(1..));
     rules.add(P.rule().args(2..));
@@ -278,12 +278,19 @@ impl Microdesc {
 
         // Legacy (tap) onion key.  We parse this to make sure it's well-formed,
         // but then we discard it immediately, since we never want to use it.
-        let _: rsa::PublicKey = body
-            .required(ONION_KEY)?
-            .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
-            .check_len_eq(1024)?
-            .check_exponent(65537)?
-            .into();
+        //
+        // In microdescriptors, the ONION_KEY field is mandatory, but its
+        // associated object is optional.
+        {
+            let tok = body.required(ONION_KEY)?;
+            if tok.has_obj() {
+                let _: rsa::PublicKey = tok
+                    .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
+                    .check_len_eq(1024)?
+                    .check_exponent(65537)?
+                    .into();
+            }
+        }
 
         // Ntor onion key
         let ntor_onion_key = body
@@ -474,6 +481,7 @@ mod test {
     use hex_literal::hex;
     const TESTDATA: &str = include_str!("../../testdata/microdesc1.txt");
     const TESTDATA2: &str = include_str!("../../testdata/microdesc2.txt");
+    const TESTDATA3: &str = include_str!("../../testdata/microdesc3.txt");
 
     fn read_bad(fname: &str) -> String {
         use std::fs;
@@ -489,6 +497,12 @@ mod test {
     #[test]
     fn parse_single() -> Result<()> {
         let _md = Microdesc::parse(TESTDATA)?;
+        Ok(())
+    }
+
+    #[test]
+    fn parse_no_tap_key() -> Result<()> {
+        let _md = Microdesc::parse(TESTDATA3)?;
         Ok(())
     }
 
