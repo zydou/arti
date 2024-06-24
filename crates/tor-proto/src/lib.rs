@@ -65,7 +65,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Timestamp object that we update whenever we get incoming traffic.
 ///
 /// Used to implement [`time_since_last_incoming_traffic`]
-static LAST_INCOMING_TRAFFIC: util::ts::OptTimestamp = util::ts::OptTimestamp::new();
+static LAST_INCOMING_TRAFFIC: util::ts::AtomicOptTimestamp = util::ts::AtomicOptTimestamp::new();
 
 /// Called whenever we receive incoming traffic.
 ///

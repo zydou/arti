@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Internally, it uses the `coarsetime` crate to represent times in a way
 /// that lets us do atomic updates.
 #[derive(Default, Debug)]
-pub(crate) struct OptTimestamp {
+pub(crate) struct AtomicOptTimestamp {
     /// A timestamp (from `coarsetime`) describing when this timestamp
     /// was last updated.
     ///
@@ -20,10 +20,10 @@ pub(crate) struct OptTimestamp {
     /// an atomic form.
     latest: AtomicU64,
 }
-impl OptTimestamp {
+impl AtomicOptTimestamp {
     /// Construct a new timestamp that has never been updated.
     pub(crate) const fn new() -> Self {
-        OptTimestamp {
+        AtomicOptTimestamp {
             latest: AtomicU64::new(0),
         }
     }
@@ -106,7 +106,7 @@ mod test {
     fn opt_timestamp() {
         use coarsetime::{Duration, Instant};
 
-        let ts = OptTimestamp::new();
+        let ts = AtomicOptTimestamp::new();
         assert!(ts.time_since_update().is_none());
 
         let zero = Duration::from_secs(0);
@@ -141,10 +141,10 @@ mod test {
 
     #[test]
     fn update_if_none() {
-        let ts = OptTimestamp::new();
+        let ts = AtomicOptTimestamp::new();
         assert!(ts.time_since_update().is_none());
 
-        // Calling "update_if_none" on a None OptTimestamp should set it.
+        // Calling "update_if_none" on a None AtomicOptTimestamp should set it.
         let time1 = coarsetime::Instant::now();
         ts.update_if_none();
         let d = ts.time_since_update();
@@ -153,7 +153,7 @@ mod test {
         assert!(d.unwrap() <= time2 - time1);
 
         std::thread::sleep(std::time::Duration::from_millis(100));
-        // Calling "update_if_none" on a Some OptTimestamp doesn't change it.
+        // Calling "update_if_none" on a Some AtomicOptTimestamp doesn't change it.
         let time3 = coarsetime::Instant::now();
         // If coarsetime doesn't register this, then the rest of our test won't work.
         assert!(time3 > time2);
