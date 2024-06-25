@@ -23,13 +23,33 @@ pub(crate) enum HscSubcommand {
     /// Prepare a service discovery key for connecting
     /// to a service running in restricted discovery mode.
     #[command(arg_required_else_help = true)]
-    PrepareServiceDiscoveryKey(PrepareServiceDiscoveryKeyArgs),
+    GetKey(GetKeyArgs),
 }
 
-/// The arguments of the [`PrepareServiceDiscoveryKey`](HscSubcommand::PrepareServiceDiscoveryKey)
+/// A type of key
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
+enum KeyType {
+    /// A service discovery key for connecting to a service
+    /// running in restricted discovery mode.
+    #[default]
+    ServiceDiscovery,
+}
+
+/// The arguments of the [`GetKey`](HscSubcommand::GetKey)
 /// subcommand.
 #[derive(Debug, Clone, Args)]
-pub(crate) struct PrepareServiceDiscoveryKeyArgs {
+pub(crate) struct GetKeyArgs {
+    /// The type of key to retrieve.
+    #[arg(
+        long,
+        default_value_t = KeyType::ServiceDiscovery,
+        value_enum
+    )]
+    key_type: KeyType,
+
+    // TODO: these arguments won't all apply to every KeyType.
+    // We should find a way to define argument groups for each KeyType.
+
     /// The .onion address of the hidden service
     #[arg(long)]
     onion_name: HsId,
@@ -45,16 +65,16 @@ pub(crate) struct PrepareServiceDiscoveryKeyArgs {
     /// Whether to generate the key if it is missing
     #[arg(
         long,
-        default_value_t = PrepareServiceDiscoveryKey::IfNeeded,
+        default_value_t = GenerateKey::IfNeeded,
         value_enum
     )]
-    generate: PrepareServiceDiscoveryKey,
+    generate: GenerateKey,
     // TODO: add an option for selecting the keystore to generate the keypair in
 }
 
 /// Whether to generate the key if missing.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
-enum PrepareServiceDiscoveryKey {
+enum GenerateKey {
     /// Do not generate the key.
     No,
     /// Generate the key if it's missing.
@@ -72,7 +92,7 @@ pub(crate) fn run<R: Runtime>(
         HscSubcommand::from_arg_matches(hsc_matches).expect("Could not parse hsc subcommand");
 
     match subcommand {
-        HscSubcommand::PrepareServiceDiscoveryKey(args) => {
+        HscSubcommand::GetKey(args) => {
             prepare_service_discovery_key(runtime, &args, config)
         }
     }
@@ -81,14 +101,14 @@ pub(crate) fn run<R: Runtime>(
 /// Run the `hsc prepare-stealth-mode-key` subcommand.
 fn prepare_service_discovery_key<R: Runtime>(
     runtime: R,
-    args: &PrepareServiceDiscoveryKeyArgs,
+    args: &GetKeyArgs,
     config: &TorClientConfig,
 ) -> Result<()> {
     let client = TorClient::with_runtime(runtime)
         .config(config.clone())
         .create_unbootstrapped()?;
     let key = match args.generate {
-        PrepareServiceDiscoveryKey::IfNeeded => {
+        GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
             client
                 .get_service_discovery_key(args.onion_name)?
@@ -98,7 +118,7 @@ fn prepare_service_discovery_key<R: Runtime>(
                         .generate_service_discovery_key(KeystoreSelector::Default, args.onion_name)
                 })?
         }
-        PrepareServiceDiscoveryKey::No => {
+        GenerateKey::No => {
             match client.get_service_discovery_key(args.onion_name)? {
                 Some(key) => key,
                 None => {
