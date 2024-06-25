@@ -47,7 +47,8 @@ full = [
     "tor-socksproto/full",
     "tor-rpcbase?/full",
     "tor-hsrproxy?/full",
-    "tor-hsservice?/full", "arti-relay?/full",
+    "tor-hsservice?/full",
+    "arti-relay?/full",
 ]
 
 async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "signal-hook", "signal-hook-async-std"]
