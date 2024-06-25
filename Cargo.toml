@@ -67,7 +67,6 @@ members = [
 
     "examples/gsoc2023/connection-checker",
     "examples/gsoc2023/dns-resolver",
-    "examples/gsoc2023/download-manager",
     "examples/gsoc2023/obfs4-checker",
     "examples/gsoc2023/pt-proxy",
     "examples/hyper/hyper-http-client-example",

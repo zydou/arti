@@ -1472,25 +1472,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
-name = "download-manager"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arti-client",
- "arti-hyper",
- "futures",
- "hyper 0.14.29",
- "sha2",
- "thiserror",
- "tls-api",
- "tls-api-native-tls",
- "tokio",
- "tor-rtcompat",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "dsa"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
