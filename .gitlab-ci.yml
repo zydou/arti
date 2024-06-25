@@ -278,14 +278,13 @@ build-repro:
   image: amd64/rust:1.76.0-alpine3.18
   script:
     - apk add bash
-    - ./maint/reproducible_build linux windows macos
+    - ./maint/reproducible_build linux windows
   # no after_script:, we don't build in the project dir
   # TODO #1410: Maybe there is something we _can_ remove though?
   artifacts:
     paths:
       - arti-linux
       - arti-windows.exe
-      - arti-macos
     expire_in: 1 day
   cache:
     paths:
