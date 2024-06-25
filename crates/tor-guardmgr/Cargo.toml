@@ -60,7 +60,7 @@ educe = "0.4.6"
 futures = "0.3.14"
 humantime = "2"
 humantime-serde = "1.1.1"
-itertools = "0.12.0"
+itertools = "0.13.0"
 num_enum = "0.7"
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
