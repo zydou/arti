@@ -41,7 +41,7 @@ full = [
 [dependencies]
 async-trait = "0.1.54"
 base64ct = "1.5.1"
-derive-deftly = "0.12.1"
+derive-deftly = "0.13.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.17"
 digest = "0.10.0"
@@ -51,7 +51,7 @@ futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
 hex = "0.4"
 humantime = "2"
-itertools = "0.12.0"
+itertools = "0.13.0"
 k12 = "0.3.0"
 once_cell = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
@@ -61,7 +61,7 @@ retry-error = { version = "0.5.2", path = "../retry-error" }
 safelog = { path = "../safelog", version = "0.3.6" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
-strum = { version = "0.26", features = ["derive"] }
+strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.19.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.19.0" }

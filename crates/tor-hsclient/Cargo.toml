@@ -36,18 +36,18 @@ experimental = ["keymgr"]
 
 [dependencies]
 async-trait = "0.1.54"
-derive-deftly = "0.12.1"
+derive-deftly = "0.13.0"
 derive_more = "0.99.3"
 educe = "0.4.6"
 either = "1"
 futures = "0.3.14"
-itertools = "0.12.0"
+itertools = "0.13.0"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.5.2" }
 safelog = { path = "../safelog", version = "0.3.6" }
 slotmap = "1.0.6"
-strum = { version = "0.26", features = ["derive"] }
+strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.19.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.19.0" }

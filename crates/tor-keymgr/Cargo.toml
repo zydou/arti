@@ -36,7 +36,7 @@ __is_experimental = []
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
 arrayvec = "0.7.3"
-derive-deftly = "0.12.1"
+derive-deftly = "0.13.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 downcast-rs = "1.2.0"
@@ -45,7 +45,7 @@ fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde",
 glob-match = "0.2.1"
 humantime = "2"
 inventory = "0.3.13"
-itertools = "0.12.0"
+itertools = "0.13.0"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 ssh-key = { version = "0.6.1", features = ["std"] }

@@ -10,7 +10,7 @@ homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Tool used by arti to generate OpenSSH keys for testing"
 
 [dependencies]
-base32 = "0.4"
+base32 = "0.5"
 clap = { version = "4.3.24", features = ["derive"] }
 rand = "0.8"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
