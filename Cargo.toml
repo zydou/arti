@@ -57,7 +57,6 @@ members = [
     "crates/arti-relay",
     "crates/arti-rpcserver",
     "crates/arti-config",
-    "crates/arti-hyper",
     "crates/arti",
     "crates/arti-bench",
     "crates/arti-testing",
@@ -67,7 +66,6 @@ members = [
 
     "examples/gsoc2023/connection-checker",
     "examples/gsoc2023/dns-resolver",
-    "examples/gsoc2023/download-manager",
     "examples/gsoc2023/obfs4-checker",
     "examples/gsoc2023/pt-proxy",
     "examples/hyper/hyper-http-client-example",

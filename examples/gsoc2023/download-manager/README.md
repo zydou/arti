@@ -1,5 +1,8 @@
 # Arti Experiments
 
+**WARNING This example is not maintained.**
+It uses the obsolete and unmaintained `arti-hyper` crate.
+
 This is a small repo to learn more about [Arti](https://gitlab.torproject.org/tpo/core/arti), the experimental implementation of the Tor protocol written in Rust.
 
 Arti provides an API to integrate Tor network connectivity into other programs. Being written in Rust, Arti has the unique advantage of providing both a secure (memory-safe, type-safe etc) and anonymous interface to the clearnet and Deep Web for a variety of applications
