@@ -3,6 +3,131 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# UNRELEASED - CHANGES UP TO bc0eea720af3a92e5a253c49d135924706948ed7
+
+### Breaking
+
+- For this release, we were not able to test builds on MacOS,
+  contrary to our support statement.
+  We hope that this will be fixed soon.
+  #1394
+  !2226
+- `TorClientBuilder::create_*` now take `&self`.
+  !2198
+- Stop publishing the obsolete `arti-hyper` crate.
+  !2225
+  #1204
+
+### Security fixes
+
+- Update curve25519-dalek to avoid a low-severity timing vulnerability
+  TROVE-2024-007
+  #1468
+  !2211
+
+### RPC development
+
+- New overview document, at the crate root for `tor-rpcbase`.
+  !2210
+- Much improvement to method invocation arrangmeents
+  !2190
+- Change approach to method invocation on data-stream-like objects
+  !2192
+
+### Relay development
+
+- Add skeleton, including (experimental): arti-relay crate,
+  `relay` cargo feature in `arti-client`,
+  `relay` command line argument to `arti`.
+  !2182
+- Add a key material export facility for some of our TLS implementations.
+  IETF RFC 5705
+  #1432
+  !2185
+
+### Bugfixes
+
+- Tolerate removal of files from Arti's cache directory.
+  Fixes 
+  "Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found".
+  #1466
+  !2200
+- Ensure that obsolete files are remopved from Arti's cache directory.
+  !2200
+
+### New features and other improvements
+
+- Add `TorClientBuilder::local_resource_timeout` feature,
+  asking Arti to wait (a short while) for a previous instance to exit.
+  #1464
+  !2198
+- Improve memory usage by disabling built-in X.509 root certificates
+  when building `tor-rtcompat` with openssl
+  !2203
+  #1027
+- Improve memory usage by limiting the batch size
+  when reading directory information from the on-disk cache
+  !2202
+  #1027
+
+### Documentation
+
+- Documentation tweaks in `tor_persist::StorageConfig`
+  !2197
+
+### Testing
+
+- Use a new version of [Shadow].
+  !2195
+- Improvements to the tests to prevent a recurrence of
+  TROVE-2024-003
+  TROVE-2024-004
+  !2199
+- Stop build-testing the `gsoc2023/download-manager ` example
+  (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
+  !2225
+  #1471
+
+### Internal cleanup and refactoring
+
+- Improve the path construction logic to try to help avoid future bugs like
+  TROVE-2024-003
+  TROVE-2024-004
+  #1459
+  !2199
+  !2205
+- Refactoring in the circuit reactor, including new `SometimesUnboundedSink`.
+  !2172
+- Refactoring in the arti command line utility,
+  pursuant to client support for hidden services with restricted discovery
+  (previously misleadingly known as "client authorisation")
+  !2206
+- Rename the internal type `OptTimestamp` to `AtomicOptTimestamp` in `tor-proto`.
+  !2218
+  #1412
+- Fix a rustdoc warning.
+  !2215
+- Update to new syntax for [`derive-deftly`] 0.12.1.
+  !2209
+
+### Infrastructure and support
+
+- Portability improvement to the script for maintaining links in this changelog.
+  !2194
+  #1460
+- New script for checking crate ownership on crates.io.
+  !2196
+  !2201
+  !2220
+  #1462
+- Try to work around bugs where container systems
+  use images of the wrong architecture.
+  !2207
+  [docker](https://github.com/docker/cli/issues/2590),
+  [podman](https://github.com/containers/podman/issues/22998)
+
+
+
 # Arti 1.2.4 — 5 June 2024
 
 Arti 1.2.4 continues development on onion services,
