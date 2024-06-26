@@ -49,7 +49,6 @@ pub(crate) struct GetKeyArgs {
 
     // TODO: these arguments won't all apply to every KeyType.
     // We should find a way to define argument groups for each KeyType.
-
     /// The .onion address of the hidden service
     #[arg(long)]
     onion_name: HsId,
@@ -92,9 +91,7 @@ pub(crate) fn run<R: Runtime>(
         HscSubcommand::from_arg_matches(hsc_matches).expect("Could not parse hsc subcommand");
 
     match subcommand {
-        HscSubcommand::GetKey(args) => {
-            prepare_service_discovery_key(runtime, &args, config)
-        }
+        HscSubcommand::GetKey(args) => prepare_service_discovery_key(runtime, &args, config),
     }
 }
 
@@ -118,16 +115,14 @@ fn prepare_service_discovery_key<R: Runtime>(
                         .generate_service_discovery_key(KeystoreSelector::Default, args.onion_name)
                 })?
         }
-        GenerateKey::No => {
-            match client.get_service_discovery_key(args.onion_name)? {
-                Some(key) => key,
-                None => {
-                    return Err(anyhow!(
+        GenerateKey::No => match client.get_service_discovery_key(args.onion_name)? {
+            Some(key) => key,
+            None => {
+                return Err(anyhow!(
                         "Service discovery key not found. Rerun with --generate=if-needed to generate a new service discovery keypair"
                     ));
-                }
             }
-        }
+        },
     };
 
     // Output the public key to the specified file, or to stdout.
