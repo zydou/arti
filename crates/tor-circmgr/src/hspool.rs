@@ -272,16 +272,16 @@ impl<R: Runtime> HsCircPool<R> {
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Short)
+            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Extended)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         if matches!(
             self.vanguard_mode(),
             VanguardMode::Full | VanguardMode::Lite
-        ) && circ.kind != HsCircStubKind::Short
+        ) && circ.kind != HsCircStubKind::Extended
         {
-            return Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into());
+            return Err(internal!("wanted a EXTENDED circuit, but got SHORT?!").into());
         }
 
         let path = circ.path_ref();
