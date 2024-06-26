@@ -126,6 +126,9 @@ is more mature, we may switch to using a separate changelog for each crate.
   [docker](https://github.com/docker/cli/issues/2590),
   [podman](https://github.com/containers/podman/issues/22998)
 
+[Shadow]: https://shadow.github.io
+[`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
+
 
 
 # Arti 1.2.4 — 5 June 2024
