@@ -1272,7 +1272,7 @@ checksum = "c21b673a9b8c78c34908e6fcb42b922e11c4df2de5237f1c3f58d3285904a84b"
 dependencies = [
  "heck 0.4.1",
  "itertools 0.11.0",
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "sha3",
@@ -1283,28 +1283,28 @@ dependencies = [
 
 [[package]]
 name = "derive-deftly"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "093987f0bf89ee59dcc919b26ec78ff1185fb91261472277f46333c541c7767d"
+checksum = "063829d0f555b9fc22c8ddd206f1602372c4186e7b51046c43716f295182561d"
 dependencies = [
  "derive-deftly-macros",
- "heck 0.5.0",
+ "heck 0.4.1",
 ]
 
 [[package]]
 name = "derive-deftly-macros"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d40dc29e95e62cab0ec694ec82234144d7fda7b9aaaebe88d29b19cd99a66a2"
+checksum = "68a27f0a2651f507903d67f8fb0688291e3e69f70381cdb5ee9729366f795f80"
 dependencies = [
- "heck 0.5.0",
- "indexmap 2.2.6",
- "itertools 0.13.0",
- "proc-macro-crate 3.1.0",
+ "heck 0.4.1",
+ "indexmap 1.9.3",
+ "itertools 0.11.0",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "sha3",
- "strum 0.26.3",
+ "strum 0.25.0",
  "syn 2.0.68",
  "void",
 ]
@@ -3011,7 +3011,7 @@ version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "681030a937600a36906c185595136d26abfebb4aa9c65701cefcaf8578bb982b"
 dependencies = [
- "proc-macro-crate 3.1.0",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 2.0.68",
@@ -3425,15 +3425,6 @@ checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
 dependencies = [
  "once_cell",
  "toml_edit 0.19.15",
-]
-
-[[package]]
-name = "proc-macro-crate"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d37c51ca738a55da99dc0c4a34860fd675453b8b36209178c2249bb13651284"
-dependencies = [
- "toml_edit 0.21.1",
 ]
 
 [[package]]
@@ -4722,17 +4713,6 @@ name = "toml_edit"
 version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
-dependencies = [
- "indexmap 2.2.6",
- "toml_datetime",
- "winnow 0.5.40",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
 dependencies = [
  "indexmap 2.2.6",
  "toml_datetime",
