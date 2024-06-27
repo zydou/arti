@@ -120,7 +120,7 @@ Alexander Færøy, Gaba, Jim Newsome, juga, pinkforest, and trinity-1686a!
 
 Also, our deep thanks to
 [Zcash Community Grants],
-DRL,
+the [Bureau of Democracy, Human Rights and Labor],
 and our [other sponsors]
 for funding the development of Arti!
 
