@@ -3,7 +3,8 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED - CHANGES UP TO 606b1b80c27e485baafe166140ea8938aa78797f + !2236
+
+# Arti 1.2.5 — 27 June 2024
 
 ### Breaking
 
