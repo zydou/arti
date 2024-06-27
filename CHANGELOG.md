@@ -116,7 +116,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-Alexander Færøy, Gaba, Jim Newsome, juga, and pinkforest!
+Alexander Færøy, Gaba, Jim Newsome, juga, pinkforest, and trinity-1686a!
 
 Also, our deep thanks to
 [Zcash Community Grants],
