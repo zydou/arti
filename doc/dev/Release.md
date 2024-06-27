@@ -254,10 +254,8 @@ before you continue!
 2. We tag the repository with `arti-v${THIS_VERSION}`
 
    To do this, run
-   `git tag -s "arti-v${THIS_VERSION}`.
-
-   In the tag message, be sure to include the output of
-   `./maint/list_crates --version`.
+   `maint/tag-arti-release ${THIS_VERSION}`
+   (which will include the output of `maint/list_crates --version`).
 
    (Note to self: if you find that gpg can't find your yubikey,
    you'll need to run

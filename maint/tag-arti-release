@@ -1,0 +1,36 @@
+#! /usr/bin/env bash
+#
+# usage:
+#   maint/tag-arti-release [--dry-run] VERSION [<git tag options ...>]
+set -e
+
+simulate=''
+
+badusage () { echo >&2 "bad usage"; exit 12; }
+
+while [ $# != 0 ]; do
+    case "$1" in
+	--dry-run) simulate=:; shift ;;
+	--) shift; break ;;
+	-*) badusage ;;
+	*) break ;;
+    esac
+done
+
+version="$1"; shift || badusage
+
+diff -u <(echo "$version") <(perl <CHANGELOG.md -wne '
+	next unless m{^\# };
+	die "$_ ?" unless s{^\# Arti\s+}{};
+	die "$_ ?" unless s{\s+.*}{};
+	print;
+	exit;
+')
+
+message="Arti v$version
+
+$(maint/list_crates --version)
+"
+
+set -x
+$simulate git tag "$@" -s "arti-v$version" -m "$message"
