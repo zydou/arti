@@ -1,6 +1,6 @@
 [package]
 name = "tor-consdiff"
-version = "0.19.0"
+version = "0.20.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -23,7 +23,7 @@ __is_experimental = []
 digest = "0.10.0"
 hex = "0.4"
 thiserror = "1"
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.19.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.20.0" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
