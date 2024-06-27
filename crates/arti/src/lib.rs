@@ -113,6 +113,9 @@ use clap::{value_parser, Arg, ArgAction, Command};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
+#[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
+use clap::Subcommand as _;
+
 /// Shorthand for a boxed and pinned Future.
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
 
@@ -460,6 +463,12 @@ where
         }
     }
 
+    cfg_if::cfg_if! {
+        if #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))] {
+            let clap_app = subcommands::hsc::HscSubcommands::augment_subcommands(clap_app);
+        }
+    }
+
     // Relay subcommand
     cfg_if::cfg_if! {
         if #[cfg(feature = "relay")] {
@@ -594,6 +603,15 @@ where
         if #[cfg(feature = "onion-service-service")] {
             if let Some(hss_matches) = matches.subcommand_matches("hss") {
                 return subcommands::hss::run(hss_matches, &config, &client_config);
+            }
+        }
+    }
+
+    // Check for the optional "hsc" subcommand.
+    cfg_if::cfg_if! {
+        if #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))] {
+            if let Some(hsc_matches) = matches.subcommand_matches("hsc") {
+                return subcommands::hsc::run(runtime, hsc_matches, &client_config);
             }
         }
     }
