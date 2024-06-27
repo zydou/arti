@@ -29,7 +29,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 - New overview document, at the crate root for `tor-rpcbase`.
   !2210
-- Much improvement to method invocation arrangmeents
+- Much improvement to method invocation arrangements
   !2190
 - Change approach to method invocation on data-stream-like objects
   !2192
@@ -52,7 +52,7 @@ is more mature, we may switch to using a separate changelog for each crate.
   "Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found".
   #1466
   !2200
-- Ensure that obsolete files are remopved from Arti's cache directory.
+- Ensure that obsolete files are removed from Arti's cache directory.
   !2200
 
 ### New features and other improvements
@@ -81,9 +81,9 @@ is more mature, we may switch to using a separate changelog for each crate.
   !2195
 - Improvements to the tests to prevent a recurrence of
   TROVE-2024-003
-  TROVE-2024-004
+  TROVE-2024-006
   !2199
-- Stop build-testing the `gsoc2023/download-manager ` example
+- Stop build-testing the `gsoc2023/download-manager` example
   (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
   !2225
   #1471
