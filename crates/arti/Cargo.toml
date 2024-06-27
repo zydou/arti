@@ -1,6 +1,6 @@
 [package]
 name = "arti"
-version = "1.2.4"
+version = "1.2.5"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
