@@ -113,6 +113,17 @@ is more mature, we may switch to using a separate changelog for each crate.
   [docker](https://github.com/docker/cli/issues/2590),
   [podman](https://github.com/containers/podman/issues/22998))
 
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Gaba, Jim Newsome, juga, and pinkforest!
+
+Also, our deep thanks to
+[Zcash Community Grants],
+DRL,
+and our [other sponsors]
+for funding the development of Arti!
+
 [!2172]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2172
 [!2182]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2182
 [!2185]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2185
