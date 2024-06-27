@@ -169,7 +169,7 @@ for funding the development of Arti!
 [#1472]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1472
 [#1474]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1474
 [#1480]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1480
-[Bureau of Democracy, Human Rights and Labor]: XXXX
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
 [IETF RFC 5705]: https://datatracker.ietf.org/doc/html/rfc5705
 [Shadow]: https://shadow.github.io
 [TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
