@@ -169,6 +169,7 @@ for funding the development of Arti!
 [#1472]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1472
 [#1474]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1474
 [#1480]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1480
+[Bureau of Democracy, Human Rights and Labor]: XXXX
 [IETF RFC 5705]: https://datatracker.ietf.org/doc/html/rfc5705
 [Shadow]: https://shadow.github.io
 [TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
@@ -176,7 +177,9 @@ for funding the development of Arti!
 [TROVE-2024-006]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2024-007]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2024-008]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
