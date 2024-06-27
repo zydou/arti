@@ -78,7 +78,7 @@ is more mature, we may switch to using a separate changelog for each crate.
   ([!2225], [#1471])
 - Fixes to test builds on MacOS,
   ([#1394], [!2226], [#1472], [!2234])
-- Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid API)
+- Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid ABI)
   ([#1480], [!2235], [!2236],
   [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311))
 
