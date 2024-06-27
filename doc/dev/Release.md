@@ -95,18 +95,19 @@ release?" above.
    `UP TO DATE WITH 726f666c2d2d6d61646520796f75206c6f6f6b21`
    to remind me where I need to start again.
 
+   The script `maint/changelog-syntax-fiddle`
+   can be helpful to write the cross-refernces more easily.
+
 4. Finish the changelog.
 
-   When the changelog is done, pipe it into
-   `maint/gen_md_links` to auto-generate markdown links
+   When the changelog is done, run
+   `maint/update-md-links CHANGELOG.md`
+   to auto-generate markdown links
    to our gitlab repositories.
-   (Note you need to feed `maint/gen_md_links` only the
-   *new* part of the changelog, since it doesn't
-   remove from its output links that are already defined;
-   and then of course it will report some missing links
-   that are indeed defined elsewhere.)
-   Then, fill in the URLs for any links that the script
-   couldn't find.
+   (This script may need a Python venv, as it depends on
+   a specific version of the `mistune` library.)
+   Then, fill in the URLs for any links that the script couldn't find -
+   they'll be marked with X X X todo markers.
 
    Run `maint/thanks arti-v${LAST_VERSION}`
    to generate our list of acknowledgments;
@@ -253,10 +254,8 @@ before you continue!
 2. We tag the repository with `arti-v${THIS_VERSION}`
 
    To do this, run
-   `git tag -s "arti-v${THIS_VERSION}`.
-
-   In the tag message, be sure to include the output of
-   `./maint/list_crates --version`.
+   `maint/tag-arti-release ${THIS_VERSION}`
+   (which will include the output of `maint/list_crates --version`).
 
    (Note to self: if you find that gpg can't find your yubikey,
    you'll need to run
