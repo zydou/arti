@@ -95,6 +95,9 @@ release?" above.
    `UP TO DATE WITH 726f666c2d2d6d61646520796f75206c6f6f6b21`
    to remind me where I need to start again.
 
+   The script `maint/changelog-syntax-fiddle`
+   can be helpful to write the cross-refernces more easily.
+
 4. Finish the changelog.
 
    When the changelog is done, pipe it into
