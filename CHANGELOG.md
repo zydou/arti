@@ -158,13 +158,13 @@ is more mature, we may switch to using a separate changelog for each crate.
 [#1472]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1472
 [#1474]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1474
 [#1480]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1480
-[IETF RFC 5705]: XXXX
+[IETF RFC 5705]: https://datatracker.ietf.org/doc/html/rfc5705
 [Shadow]: https://shadow.github.io
 [TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2024-004]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [TROVE-2024-006]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
-[TROVE-2024-007]: XXXX
-[TROVE-2024-008]: XXXX
+[TROVE-2024-007]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-008]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
 
 
