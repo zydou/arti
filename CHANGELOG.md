@@ -113,7 +113,58 @@ is more mature, we may switch to using a separate changelog for each crate.
   [docker](https://github.com/docker/cli/issues/2590),
   [podman](https://github.com/containers/podman/issues/22998))
 
+[!2172]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2172
+[!2182]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2182
+[!2185]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2185
+[!2190]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2190
+[!2192]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2192
+[!2194]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2194
+[!2195]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2195
+[!2196]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2196
+[!2197]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2197
+[!2198]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2198
+[!2199]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2199
+[!2200]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2200
+[!2201]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2201
+[!2202]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2202
+[!2203]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2203
+[!2205]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2205
+[!2206]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2206
+[!2207]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2207
+[!2209]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2209
+[!2210]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2210
+[!2211]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2211
+[!2215]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2215
+[!2218]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2218
+[!2220]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2220
+[!2225]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2225
+[!2226]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2226
+[!2230]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2230
+[!2234]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2234
+[!2235]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2235
+[!2236]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2236
+[#1027]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1027
+[#1204]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1204
+[#1394]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1394
+[#1412]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1412
+[#1432]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1432
+[#1459]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1459
+[#1460]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1460
+[#1462]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1462
+[#1464]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1464
+[#1466]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1466
+[#1468]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1468
+[#1471]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1471
+[#1472]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1472
+[#1474]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1474
+[#1480]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1480
+[IETF RFC 5705]: XXXX
 [Shadow]: https://shadow.github.io
+[TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-004]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-006]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-007]: XXXX
+[TROVE-2024-008]: XXXX
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
 
 
