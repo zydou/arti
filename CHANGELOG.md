@@ -36,8 +36,7 @@ is more mature, we may switch to using a separate changelog for each crate.
   `relay` command line argument to `arti`.
   ([!2182])
 - Add a key material export facility for some of our TLS implementations.
-  [IETF RFC 5705]
-  ([#1432], [!2185])
+  ([IETF RFC 5705], [#1432], [!2185])
 
 ### Bugfixes
 
@@ -79,8 +78,8 @@ is more mature, we may switch to using a separate changelog for each crate.
 - Fixes to test builds on MacOS,
   ([#1394], [!2226], [#1472], [!2234])
 - Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid API)
-  ([#1480], [!2235], [!2236])
-  [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311)
+  ([#1480], [!2235], [!2236],
+  [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311))
 
 ### Internal cleanup and refactoring
 
@@ -109,9 +108,9 @@ is more mature, we may switch to using a separate changelog for each crate.
   ([!2196], [!2201], [!2220], [#1462])
 - Try to work around bugs where container systems
   use images of the wrong architecture.
-  ([!2207])
+  ([!2207],
   [docker](https://github.com/docker/cli/issues/2590),
-  [podman](https://github.com/containers/podman/issues/22998)
+  [podman](https://github.com/containers/podman/issues/22998))
 
 [Shadow]: https://shadow.github.io
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
