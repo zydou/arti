@@ -42,6 +42,7 @@ MAINTAINED_PLATFORMS=(
 	"x86_64-pc-windows-gnu"
 	"x86_64-pc-windows-msvc"
 	"x86_64-unknown-linux-gnu"
+	# Disabled for now, see #1480 and https://github.com/rust-num/num-bigint/issues/311
 	#"x86_64-unknown-linux-gnux32"
 	"x86_64-unknown-linux-musl"
 )
