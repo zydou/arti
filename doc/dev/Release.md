@@ -100,16 +100,14 @@ release?" above.
 
 4. Finish the changelog.
 
-   When the changelog is done, pipe it into
-   `maint/gen_md_links` to auto-generate markdown links
+   When the changelog is done, run
+   `maint/update-md-links CHANGELOG.md`
+   to auto-generate markdown links
    to our gitlab repositories.
-   (Note you need to feed `maint/gen_md_links` only the
-   *new* part of the changelog, since it doesn't
-   remove from its output links that are already defined;
-   and then of course it will report some missing links
-   that are indeed defined elsewhere.)
-   Then, fill in the URLs for any links that the script
-   couldn't find.
+   (This script may need a Python venv, as it depends on
+   a specific version of the `mistune` library.)
+   Then, fill in the URLs for any links that the script couldn't find -
+   they'll be marked with X X X todo markers.
 
    Run `maint/thanks arti-v${LAST_VERSION}`
    to generate our list of acknowledgments;
