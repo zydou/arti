@@ -3,15 +3,10 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED - CHANGES UP TO bc0eea720af3a92e5a253c49d135924706948ed7
+# UNRELEASED - CHANGES UP TO 606b1b80c27e485baafe166140ea8938aa78797f + !2236
 
 ### Breaking
 
-- For this release, we were not able to test builds on MacOS,
-  contrary to our support statement.
-  We hope that this will be fixed soon.
-  #1394
-  !2226
 - `TorClientBuilder::create_*` now take `&self`.
   !2198
 - Stop publishing the obsolete `arti-hyper` crate.
@@ -24,6 +19,11 @@ is more mature, we may switch to using a separate changelog for each crate.
   TROVE-2024-007
   #1468
   !2211
+- With full vanguards, client rendezvous circuits
+  do not reuse the final vanguard as the rendezvous point.
+  TROVE-2024-008
+  #1474
+  !2230
 
 ### RPC development
 
@@ -87,6 +87,16 @@ is more mature, we may switch to using a separate changelog for each crate.
   (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
   !2225
   #1471
+- Fixes to test builds on MacOS,
+  #1394
+  !2226
+  #1472
+  !2234
+- Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid API)
+  #1480
+  [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311)
+  !2235
+  !2236
 
 ### Internal cleanup and refactoring
 
