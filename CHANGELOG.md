@@ -15,7 +15,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 ### Security fixes
 
-- Update curve25519-dalek to avoid a low-severity timing vulnerability
+- Update curve25519-dalek to avoid a low-severity timing vulnerability.
   TROVE-2024-007
   #1468
   !2211
@@ -29,9 +29,9 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 - New overview document, at the crate root for `tor-rpcbase`.
   !2210
-- Much improvement to method invocation arrangements
+- Much improvement to method invocation arrangements.
   !2190
-- Change approach to method invocation on data-stream-like objects
+- Change approach to method invocation on data-stream-like objects.
   !2192
 
 ### Relay development
@@ -41,14 +41,14 @@ is more mature, we may switch to using a separate changelog for each crate.
   `relay` command line argument to `arti`.
   !2182
 - Add a key material export facility for some of our TLS implementations.
-  IETF RFC 5705
+  [IETF RFC 5705]
   #1432
   !2185
 
 ### Bugfixes
 
 - Tolerate removal of files from Arti's cache directory.
-  Fixes 
+  Fixes
   "Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found".
   #1466
   !2200
@@ -62,17 +62,17 @@ is more mature, we may switch to using a separate changelog for each crate.
   #1464
   !2198
 - Improve memory usage by disabling built-in X.509 root certificates
-  when building `tor-rtcompat` with openssl
+  when building `tor-rtcompat` with openssl.
   !2203
   #1027
 - Improve memory usage by limiting the batch size
-  when reading directory information from the on-disk cache
+  when reading directory information from the on-disk cache.
   !2202
   #1027
 
 ### Documentation
 
-- Documentation tweaks in `tor_persist::StorageConfig`
+- Documentation tweaks in `tor_persist::StorageConfig`.
   !2197
 
 ### Testing
@@ -80,8 +80,8 @@ is more mature, we may switch to using a separate changelog for each crate.
 - Use a new version of [Shadow].
   !2195
 - Improvements to the tests to prevent a recurrence of
-  TROVE-2024-003
-  TROVE-2024-006
+  [TROVE-2024-003] /
+  [TROVE-2024-006].
   !2199
 - Stop build-testing the `gsoc2023/download-manager` example
   (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
@@ -94,15 +94,15 @@ is more mature, we may switch to using a separate changelog for each crate.
   !2234
 - Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid API)
   #1480
-  [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311)
   !2235
   !2236
+  [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311)
 
 ### Internal cleanup and refactoring
 
 - Improve the path construction logic to try to help avoid future bugs like
-  TROVE-2024-003
-  TROVE-2024-004
+  [TROVE-2024-003] and
+  [TROVE-2024-004].
   #1459
   !2199
   !2205
@@ -110,7 +110,7 @@ is more mature, we may switch to using a separate changelog for each crate.
   !2172
 - Refactoring in the arti command line utility,
   pursuant to client support for hidden services with restricted discovery
-  (previously misleadingly known as "client authorisation")
+  (previously misleadingly known as "client authorisation").
   !2206
 - Rename the internal type `OptTimestamp` to `AtomicOptTimestamp` in `tor-proto`.
   !2218
