@@ -3,131 +3,183 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED - CHANGES UP TO bc0eea720af3a92e5a253c49d135924706948ed7
+
+# Arti 1.2.5 — 27 June 2024
 
 ### Breaking
 
-- For this release, we were not able to test builds on MacOS,
-  contrary to our support statement.
-  We hope that this will be fixed soon.
-  #1394
-  !2226
 - `TorClientBuilder::create_*` now take `&self`.
-  !2198
+  ([!2198])
 - Stop publishing the obsolete `arti-hyper` crate.
-  !2225
-  #1204
+  ([!2225], [#1204])
 
 ### Security fixes
 
-- Update curve25519-dalek to avoid a low-severity timing vulnerability
-  TROVE-2024-007
-  #1468
-  !2211
+- Update curve25519-dalek to avoid a low-severity timing vulnerability.
+  ([TROVE-2024-007], [#1468], [!2211])
+- With full vanguards, client rendezvous circuits
+  do not reuse the final vanguard as the rendezvous point.
+  ([TROVE-2024-008], [#1474], [!2230])
 
 ### RPC development
 
 - New overview document, at the crate root for `tor-rpcbase`.
-  !2210
-- Much improvement to method invocation arrangements
-  !2190
-- Change approach to method invocation on data-stream-like objects
-  !2192
+  ([!2210])
+- Much improvement to method invocation arrangements.
+  ([!2190])
+- Change approach to method invocation on data-stream-like objects.
+  ([!2192])
 
 ### Relay development
 
 - Add skeleton, including (experimental): arti-relay crate,
   `relay` cargo feature in `arti-client`,
   `relay` command line argument to `arti`.
-  !2182
+  ([!2182])
 - Add a key material export facility for some of our TLS implementations.
-  IETF RFC 5705
-  #1432
-  !2185
+  ([IETF RFC 5705], [#1432], [!2185])
 
 ### Bugfixes
 
 - Tolerate removal of files from Arti's cache directory.
-  Fixes 
-  "Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found".
-  #1466
-  !2200
+  Fixes
+  `Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found`.
+  ([#1466], [!2200])
 - Ensure that obsolete files are removed from Arti's cache directory.
-  !2200
+  ([!2200])
 
 ### New features and other improvements
 
 - Add `TorClientBuilder::local_resource_timeout` feature,
   asking Arti to wait (a short while) for a previous instance to exit.
-  #1464
-  !2198
+  ([#1464], [!2198])
 - Improve memory usage by disabling built-in X.509 root certificates
-  when building `tor-rtcompat` with openssl
-  !2203
-  #1027
+  when building `tor-rtcompat` with openssl.
+  ([!2203], [#1027])
 - Improve memory usage by limiting the batch size
-  when reading directory information from the on-disk cache
-  !2202
-  #1027
+  when reading directory information from the on-disk cache.
+  ([!2202], [#1027])
 
 ### Documentation
 
-- Documentation tweaks in `tor_persist::StorageConfig`
-  !2197
+- Documentation tweaks in `tor_persist::StorageConfig`.
+  ([!2197])
 
 ### Testing
 
 - Use a new version of [Shadow].
-  !2195
+  ([!2195])
 - Improvements to the tests to prevent a recurrence of
-  TROVE-2024-003
-  TROVE-2024-006
-  !2199
+  [TROVE-2024-003] /
+  [TROVE-2024-006].
+  ([!2199])
 - Stop build-testing the `gsoc2023/download-manager` example
   (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
-  !2225
-  #1471
+  ([!2225], [#1471])
+- Fixes to test builds on MacOS,
+  ([#1394], [!2226], [#1472], [!2234])
+- Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid ABI)
+  ([#1480], [!2235], [!2236],
+  [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311))
 
 ### Internal cleanup and refactoring
 
 - Improve the path construction logic to try to help avoid future bugs like
-  TROVE-2024-003
-  TROVE-2024-004
-  #1459
-  !2199
-  !2205
+  [TROVE-2024-003] and
+  [TROVE-2024-004].
+  ([#1459], [!2199], [!2205])
 - Refactoring in the circuit reactor, including new `SometimesUnboundedSink`.
-  !2172
+  ([!2172])
 - Refactoring in the arti command line utility,
   pursuant to client support for hidden services with restricted discovery
-  (previously misleadingly known as "client authorisation")
-  !2206
+  (previously misleadingly known as "client authorisation").
+  ([!2206])
 - Rename the internal type `OptTimestamp` to `AtomicOptTimestamp` in `tor-proto`.
-  !2218
-  #1412
+  ([!2218], [#1412])
 - Fix a rustdoc warning.
-  !2215
+  ([!2215])
 - Update to new syntax for [`derive-deftly`] 0.12.1.
-  !2209
+  ([!2209])
 
 ### Infrastructure and support
 
 - Portability improvement to the script for maintaining links in this changelog.
-  !2194
-  #1460
+  ([!2194], [#1460])
 - New script for checking crate ownership on crates.io.
-  !2196
-  !2201
-  !2220
-  #1462
+  ([!2196], [!2201], [!2220], [#1462])
 - Try to work around bugs where container systems
   use images of the wrong architecture.
-  !2207
+  ([!2207],
   [docker](https://github.com/docker/cli/issues/2590),
-  [podman](https://github.com/containers/podman/issues/22998)
+  [podman](https://github.com/containers/podman/issues/22998))
 
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Alexander Færøy, Gaba, Jim Newsome, juga, pinkforest, and trinity-1686a!
+
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!2172]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2172
+[!2182]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2182
+[!2185]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2185
+[!2190]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2190
+[!2192]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2192
+[!2194]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2194
+[!2195]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2195
+[!2196]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2196
+[!2197]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2197
+[!2198]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2198
+[!2199]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2199
+[!2200]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2200
+[!2201]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2201
+[!2202]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2202
+[!2203]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2203
+[!2205]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2205
+[!2206]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2206
+[!2207]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2207
+[!2209]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2209
+[!2210]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2210
+[!2211]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2211
+[!2215]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2215
+[!2218]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2218
+[!2220]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2220
+[!2225]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2225
+[!2226]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2226
+[!2230]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2230
+[!2234]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2234
+[!2235]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2235
+[!2236]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2236
+[#1027]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1027
+[#1204]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1204
+[#1394]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1394
+[#1412]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1412
+[#1432]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1432
+[#1459]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1459
+[#1460]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1460
+[#1462]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1462
+[#1464]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1464
+[#1466]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1466
+[#1468]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1468
+[#1471]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1471
+[#1472]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1472
+[#1474]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1474
+[#1480]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1480
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[IETF RFC 5705]: https://datatracker.ietf.org/doc/html/rfc5705
 [Shadow]: https://shadow.github.io
+[TROVE-2024-003]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-004]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-006]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-007]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[TROVE-2024-008]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/TROVE
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [`derive-deftly`]: https://docs.rs/derive-deftly/latest/derive_deftly/
+[other sponsors]: https://www.torproject.org/about/sponsors/
 
 
 
