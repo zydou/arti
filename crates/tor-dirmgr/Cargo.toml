@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirmgr"
-version = "0.19.0"
+version = "0.20.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -84,22 +84,22 @@ signature = "2"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
 time = { version = "0.3.20", features = ["formatting", "parsing"] }
-tor-async-utils = { version = "0.19.0", path = "../tor-async-utils" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.19.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.19.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.19.0" }
-tor-config = { path = "../tor-config", version = "0.19.0" }
-tor-consdiff = { path = "../tor-consdiff", version = "0.19.0" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.19.0", default-features = false }
-tor-error = { path = "../tor-error", version = "0.19.0", features = ["tracing"] }
-tor-geoip = { path = "../tor-geoip", version = "0.19.0", optional = true }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.19.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.19.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.19.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.19.0" }
-tor-persist = { path = "../tor-persist", version = "0.19.0" }
-tor-proto = { path = "../tor-proto", version = "0.19.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.19.0" }
+tor-async-utils = { version = "0.20.0", path = "../tor-async-utils" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.20.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.20.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.20.0" }
+tor-config = { path = "../tor-config", version = "0.20.0" }
+tor-consdiff = { path = "../tor-consdiff", version = "0.20.0" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.20.0", default-features = false }
+tor-error = { path = "../tor-error", version = "0.20.0", features = ["tracing"] }
+tor-geoip = { path = "../tor-geoip", version = "0.20.0", optional = true }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.20.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.20.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.20.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.20.0" }
+tor-persist = { path = "../tor-persist", version = "0.20.0" }
+tor-proto = { path = "../tor-proto", version = "0.20.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.20.0" }
 tracing = "0.1.36"
 
 [dev-dependencies]
@@ -108,9 +108,9 @@ filetime = "0.2"
 float_eq = "1.0.0"
 hex-literal = "0.4"
 tempfile = "3"
-tor-linkspec = { path = "../tor-linkspec", version = "0.19.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.19.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.19.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.20.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.20.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.20.0" }
 tracing-test = "0.2.4"
 [package.metadata.docs.rs]
 all-features = true

@@ -16,9 +16,9 @@ publish = false
 
 [dependencies]
 thiserror = "1"
-tor-error = { path = "../tor-error", version = "0.19.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.19.0" }
-tor-units = { path = "../tor-units", version = "0.19.0" }
+tor-error = { path = "../tor-error", version = "0.20.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.20.0" }
+tor-units = { path = "../tor-units", version = "0.20.0" }
 
 [features]
 full = ["tor-error/full", "tor-netdir/full", "tor-units/full"]
