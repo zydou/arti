@@ -43,7 +43,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 - Tolerate removal of files from Arti's cache directory.
   Fixes
-  "Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found".
+  `Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found`.
   ([#1466], [!2200])
 - Ensure that obsolete files are removed from Arti's cache directory.
   ([!2200])
