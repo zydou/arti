@@ -8,94 +8,78 @@ is more mature, we may switch to using a separate changelog for each crate.
 ### Breaking
 
 - `TorClientBuilder::create_*` now take `&self`.
-  !2198
+  ([!2198])
 - Stop publishing the obsolete `arti-hyper` crate.
-  !2225
-  #1204
+  ([!2225], [#1204])
 
 ### Security fixes
 
 - Update curve25519-dalek to avoid a low-severity timing vulnerability.
-  TROVE-2024-007
-  #1468
-  !2211
+  ([TROVE-2024-007], [#1468], [!2211])
 - With full vanguards, client rendezvous circuits
   do not reuse the final vanguard as the rendezvous point.
-  TROVE-2024-008
-  #1474
-  !2230
+  ([TROVE-2024-008], [#1474], [!2230])
 
 ### RPC development
 
 - New overview document, at the crate root for `tor-rpcbase`.
-  !2210
+  ([!2210])
 - Much improvement to method invocation arrangements.
-  !2190
+  ([!2190])
 - Change approach to method invocation on data-stream-like objects.
-  !2192
+  ([!2192])
 
 ### Relay development
 
 - Add skeleton, including (experimental): arti-relay crate,
   `relay` cargo feature in `arti-client`,
   `relay` command line argument to `arti`.
-  !2182
+  ([!2182])
 - Add a key material export facility for some of our TLS implementations.
   [IETF RFC 5705]
-  #1432
-  !2185
+  ([#1432], [!2185])
 
 ### Bugfixes
 
 - Tolerate removal of files from Arti's cache directory.
   Fixes
   "Bad permissions in cache directory: File or directory ${HOME}/.cache/arti/dir_blobs/... not found".
-  #1466
-  !2200
+  ([#1466], [!2200])
 - Ensure that obsolete files are removed from Arti's cache directory.
-  !2200
+  ([!2200])
 
 ### New features and other improvements
 
 - Add `TorClientBuilder::local_resource_timeout` feature,
   asking Arti to wait (a short while) for a previous instance to exit.
-  #1464
-  !2198
+  ([#1464], [!2198])
 - Improve memory usage by disabling built-in X.509 root certificates
   when building `tor-rtcompat` with openssl.
-  !2203
-  #1027
+  ([!2203], [#1027])
 - Improve memory usage by limiting the batch size
   when reading directory information from the on-disk cache.
-  !2202
-  #1027
+  ([!2202], [#1027])
 
 ### Documentation
 
 - Documentation tweaks in `tor_persist::StorageConfig`.
-  !2197
+  ([!2197])
 
 ### Testing
 
 - Use a new version of [Shadow].
-  !2195
+  ([!2195])
 - Improvements to the tests to prevent a recurrence of
   [TROVE-2024-003] /
   [TROVE-2024-006].
-  !2199
+  ([!2199])
 - Stop build-testing the `gsoc2023/download-manager` example
   (it uses an obsolete version of `hyper` and the obsolete `arti-hyper` crate).
-  !2225
-  #1471
+  ([!2225], [#1471])
 - Fixes to test builds on MacOS,
-  #1394
-  !2226
-  #1472
-  !2234
+  ([#1394], [!2226], [#1472], [!2234])
 - Disable test builds on x32 (the not-widely-used Linux x86_64 32-bit hybrid API)
-  #1480
-  !2235
-  !2236
+  ([#1480], [!2235], [!2236])
   [num-bigint#311](https://github.com/rust-num/num-bigint/issues/311)
 
 ### Internal cleanup and refactoring
@@ -103,36 +87,29 @@ is more mature, we may switch to using a separate changelog for each crate.
 - Improve the path construction logic to try to help avoid future bugs like
   [TROVE-2024-003] and
   [TROVE-2024-004].
-  #1459
-  !2199
-  !2205
+  ([#1459], [!2199], [!2205])
 - Refactoring in the circuit reactor, including new `SometimesUnboundedSink`.
-  !2172
+  ([!2172])
 - Refactoring in the arti command line utility,
   pursuant to client support for hidden services with restricted discovery
   (previously misleadingly known as "client authorisation").
-  !2206
+  ([!2206])
 - Rename the internal type `OptTimestamp` to `AtomicOptTimestamp` in `tor-proto`.
-  !2218
-  #1412
+  ([!2218], [#1412])
 - Fix a rustdoc warning.
-  !2215
+  ([!2215])
 - Update to new syntax for [`derive-deftly`] 0.12.1.
-  !2209
+  ([!2209])
 
 ### Infrastructure and support
 
 - Portability improvement to the script for maintaining links in this changelog.
-  !2194
-  #1460
+  ([!2194], [#1460])
 - New script for checking crate ownership on crates.io.
-  !2196
-  !2201
-  !2220
-  #1462
+  ([!2196], [!2201], [!2220], [#1462])
 - Try to work around bugs where container systems
   use images of the wrong architecture.
-  !2207
+  ([!2207])
   [docker](https://github.com/docker/cli/issues/2590),
   [podman](https://github.com/containers/podman/issues/22998)
 
