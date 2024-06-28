@@ -25,7 +25,7 @@ __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"], optional = true }
-derive-deftly = "0.13.0"
+derive-deftly = "0.14"
 derive_more = "0.99.3"
 filetime = { version = "0.2", default-features = false }
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["walkdir"] }
@@ -45,7 +45,7 @@ fslock = { version = "0.2.0" }
 
 [dev-dependencies]
 anyhow = { version = "1.0.23" }
-derive-deftly = "0.13.0"
+derive-deftly = "0.14"
 itertools = "0.13.0"
 tempfile = "3"
 test-temp-dir = { version = "0.2.1", path = "../test-temp-dir" }
