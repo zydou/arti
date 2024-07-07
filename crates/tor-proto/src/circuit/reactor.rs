@@ -910,7 +910,7 @@ impl Reactor {
                 //
                 // (It's not clear to me that this is needed.  We call this as the first thing
                 // for each hop, below.  So this would only be relevant if there were no hops.
-                // TODO #1387 the manual handling of Pending as `break 'outer` is weird.)
+                // TODO #1397 the manual handling of Pending as `break 'outer` is weird.)
                 if !self.chan_sender.poll_ready_unpin_bool(cx)? {
                     break 'outer;
                 }
