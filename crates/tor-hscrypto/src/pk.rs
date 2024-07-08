@@ -541,6 +541,8 @@ impl PartialEq for HsClientDescEncKey {
     }
 }
 
+impl Eq for HsClientDescEncKey {}
+
 impl Display for HsClientDescEncKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let x25519_pk = data_encoding::BASE32_NOPAD.encode(&self.0.to_bytes());
