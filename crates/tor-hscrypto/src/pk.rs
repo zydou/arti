@@ -552,13 +552,10 @@ impl FromStr for HsClientDescEncKey {
     type Err = HsClientDescEncKeyParseError;
 
     fn from_str(key: &str) -> Result<Self, HsClientDescEncKeyParseError> {
-        let parts: [&str; 3] = key
+        let (auth_type, key_type, encoded_key) = key
             .split(':')
-            .collect::<Vec<_>>()
-            .try_into()
-            .map_err(|_| HsClientDescEncKeyParseError::InvalidFormat)?;
-
-        let [auth_type, key_type, encoded_key] = parts;
+            .collect_tuple()
+            .ok_or(HsClientDescEncKeyParseError::InvalidFormat)?;
 
         if auth_type != "descriptor" {
             return Err(HsClientDescEncKeyParseError::InvalidAuthType(
