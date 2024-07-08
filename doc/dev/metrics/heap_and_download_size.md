@@ -119,6 +119,13 @@ Bootstrapping: 29.1 MiB
 Cached: 23.3 MiB
 ```
 
+The results for 30 June 2024 were (Arti: dba7b7206eb71):
+
+```
+Bootstrapping: 27.4 MiB
+Cached: 21.5 MiB
+```
+
 To simulate (almost) the same process with C Tor, run Tor under `massif`
 with a new data directory, then kill it with ctrl-C:
 
@@ -190,6 +197,13 @@ The results for 30 April 2024 were (Tor: 51ef4ce09438):
 ```
 Bootstrapping: 23.2 MiB
 Cached: 22.8 MiB
+```
+
+The results for 30 June 2024 were (Tor: 8bb8ac2d9aba72):
+
+```
+Bootstrapping: 22.1 MiB
+Cached: 21.7 MiB
 ```
 
 (This does not yet take into account making a request, but again, the
@@ -322,6 +336,12 @@ Results as of 30 April 2024 (Arti: b30ca794cbfe)
    "arti.gz": 4049193 bytes
 ```
 
+Results as of 30 June 2024 (Arti: dba7b7206eb71)
+
+```
+   "arti.gz": 4173380 bytes
+```
+
 ### Process with C Tor
 
 
@@ -397,6 +417,12 @@ The results for 30 April 2024 were (Tor: 51ef4ce09438):
 
 ```
 4001484 bytes
+```
+
+The results for 30 June 2024 were (Tor: 8bb8ac2d9aba72):
+
+```
+4001228 bytes
 ```
 
 [^LTO]: Link-time optimization: a technique where the compiler optimizes
