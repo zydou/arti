@@ -20,9 +20,6 @@ pub(crate) trait Shape<K: Key> {
     /// The number of buckets in this array
     const NUM_BUCKETS: usize;
 
-    /// The item capacity of each bucket
-    const BUCKET_CAPACITY: usize;
-
     /// Get the range of items within a single bucket.
     fn item_range(&self, bucket: usize) -> Range<usize>;
 
@@ -161,8 +158,6 @@ impl<'k, 'v, const N: usize, const CAP: usize, C: Count, K: Key, KS: KeyStorage<
 {
     /// Number of buckets in the array
     const NUM_BUCKETS: usize = N;
-    /// Capacity of each bucket in the array
-    const BUCKET_CAPACITY: usize = CAP;
 
     #[inline(always)]
     fn item_range(&self, bucket: usize) -> Range<usize> {
@@ -175,8 +170,6 @@ impl<'v, const N: usize, const CAP: usize, C: Count, K: Key, V: Copy> Shape<K>
 {
     /// Number of buckets in the array
     const NUM_BUCKETS: usize = N;
-    /// Capacity of each bucket in the array
-    const BUCKET_CAPACITY: usize = CAP;
 
     #[inline(always)]
     fn item_range(&self, bucket: usize) -> Range<usize> {
