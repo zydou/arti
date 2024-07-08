@@ -30,7 +30,7 @@ pub struct OnionServiceConfig {
     /// A rate-limit on the acceptable rate of introduction requests.
     ///
     /// We send this to the send to the introduction point to configure how many
-    /// introduction requests it sends us.  
+    /// introduction requests it sends us.
     /// If this is not set, the introduction point chooses a default based on
     /// the current consensus.
     ///
@@ -287,7 +287,7 @@ fn dos_params_from_token_bucket_config(
 pub struct DescEncryptionConfig {
     /// A list of our authorized clients.
     ///
-    /// Note that if this list is empty, no clients can connect.  
+    /// Note that if this list is empty, no clients can connect.
     //
     // TODO (#1206): It might be good to replace this with a trait or something, so that
     // we can let callers give us a ClientKeyProvider or some plug-in that reads
