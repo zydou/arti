@@ -506,6 +506,10 @@ define_pk_keypair! {
 ///
 /// Any client who knows the secret key corresponding to this key can decrypt
 /// the inner layer of the onion service descriptor.
+///
+/// The [`Display`] implementation of this type will display the underlying x25519 public key
+/// in the `descriptor:x25519:<base32-encoded-x25519-public-key>` format.
+/// See `CLIENT AUTHORIZATION` in `tor(1)` for more details.
 pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
 curve25519_pair as HsClientDescEncKeypair;
 }
@@ -516,23 +520,7 @@ impl PartialEq for HsClientDescEncKey {
     }
 }
 
-impl HsClientDescEncKey {
-    /// Return a wrapper type for displaying this public key in the format
-    /// C Tor and Arti hidden services use for representing authorized clients.
-    ///
-    /// This will display the key as `<auth-type>:25519:<base32-encoded-public-key>`.
-    ///
-    /// See `CLIENT AUTHORIZATION` in `tor(1)` for more details.
-    pub fn display_authorized_client(&self) -> impl Display + '_ {
-        DisplayAuthorizedHsClientDescEncKey(self)
-    }
-}
-
-/// A helper for displaying an [`HsClientDescEncKey`] in the service-side format for
-/// client authorization keys.
-struct DisplayAuthorizedHsClientDescEncKey<'a>(&'a HsClientDescEncKey);
-
-impl<'a> Display for DisplayAuthorizedHsClientDescEncKey<'a> {
+impl Display for HsClientDescEncKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let x25519_pk = data_encoding::BASE32_NOPAD.encode(&self.0.to_bytes());
         write!(f, "descriptor:x25519:{}", x25519_pk)
