@@ -38,6 +38,17 @@ full = [
     "tor-log-ratelim/full", "tor-relay-selection/full",
 ]
 
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental = ["experimental-api", "restricted-discovery"]
+experimental-api = ["restricted-discovery", "__is_experimental"]
+
+restricted-discovery = ["__is_experimental"]
+
+__is_experimental = []
+
 [dependencies]
 async-trait = "0.1.54"
 base64ct = "1.5.1"
