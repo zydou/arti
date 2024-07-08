@@ -25,7 +25,7 @@ full = [
 ]
 
 [dependencies]
-derive-deftly = "0.13.0"
+derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 # postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 futures = "0.3.14"
