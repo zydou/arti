@@ -284,7 +284,7 @@ pub(crate) trait Store: Send + 'static {
     /// Remove the consensus generated from `cmeta`.
     //
     // Nothing uses this yet; removal is handled from `expire_all`.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // see also allow on REMOVE_CONSENSUS
     fn delete_consensus(&mut self, cmeta: &ConsensusMeta) -> Result<()>;
 
     /// Read all of the specified authority certs from the cache.
@@ -333,7 +333,7 @@ pub(crate) trait Store: Send + 'static {
     /// It's not an error if it's not present.
     #[cfg(feature = "bridge-client")]
     // Nothing uses this yet; removal is handled from `expire_all`.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // see also allow on DELETE_BRIDGEDESC
     fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()>;
 }
 

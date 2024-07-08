@@ -30,9 +30,9 @@
 //!     other, and the final status (`Recovering`/`Running`) would be the status of the last upload
 //!     task, rather than the real status of the publisher
 //!   * making the upload task set the status to `Recovering` on upload failure, and letting
-//!    `upload_publish_status` reset it back to `Running also would not work:
-//!    `upload_publish_status` sets the status back to `Running` when the publisher enters its
-//!    `Idle` state, regardless of the status of its upload tasks
+//!     `upload_publish_status` reset it back to `Running also would not work:
+//!     `upload_publish_status` sets the status back to `Running` when the publisher enters its
+//!     `Idle` state, regardless of the status of its upload tasks
 //!
 //! TODO: Indeed, setting the status to `Recovering` _anywhere_ would not work, because
 //! `upload_publish_status` will just overwrite it. We would need to introduce some new
@@ -43,7 +43,7 @@
 //!   * how do we define "failure"? Is it the failure to upload to a single HsDir, or the failure
 //!     to upload to **any** HsDirs?
 //!   * what should make the publisher transition out of the `Broken`/`Recovering` states? While
-//!    `handle_upload_results` can see the upload results for a batch of HsDirs (corresponding to
+//!     `handle_upload_results` can see the upload results for a batch of HsDirs (corresponding to
 //!     a time period), the publisher doesn't do any sort of bookkeeping to know if a previously
 //!     failed HsDir upload succeeded in a later upload "batch"
 //!

@@ -614,7 +614,7 @@ mod test {
         /// Provided with `EitherOrBoth` of:
         ///   - the config key that the config parser reported it found, but didn't recognise
         ///   - the declared exception entry
-        /// (for the same config key)
+        ///     (for the same config key)
         ///
         /// Decides whether this is something that should fail the test.
         /// If so it returns `Err((key, error_message))`, otherwise `Ok`.

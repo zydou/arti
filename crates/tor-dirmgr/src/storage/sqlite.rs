@@ -949,6 +949,7 @@ const MARK_CONSENSUS_NON_PENDING: &str = "
 ";
 
 /// Query: Remove the consensus with a given digest field.
+#[allow(dead_code)]
 const REMOVE_CONSENSUS: &str = "
   DELETE FROM Consensuses
   WHERE digest = ?;
@@ -1036,6 +1037,7 @@ const INSERT_BRIDGEDESC: &str = "
 ";
 /// Query: Remove a cached bridge descriptor
 #[cfg(feature = "bridge-client")]
+#[allow(dead_code)]
 const DELETE_BRIDGEDESC: &str = "DELETE FROM BridgeDescs WHERE bridge_line = ?;";
 
 /// Query: Discard every expired extdoc.

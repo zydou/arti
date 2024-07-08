@@ -331,12 +331,12 @@ impl RelayCellDecoderResult {
     ///
     /// Note that:
     /// * This does not describe a fragment that includes the end of the relay
-    /// message, since the message is then complete.
+    ///   message, since the message is then complete.
     /// * This *does* include a fragment that continues, but does not complete,
-    /// a message started in an earlier relay cell.
+    ///   a message started in an earlier relay cell.
     /// * There is at most one such incomplete relay message, since no current
-    /// relay cell format supports starting a new message before completing the
-    /// previous one.
+    ///   relay cell format supports starting a new message before completing the
+    ///   previous one.
     pub fn incomplete_info(&self) -> Option<IncompleteRelayMsgInfo> {
         self.incomplete.clone()
     }

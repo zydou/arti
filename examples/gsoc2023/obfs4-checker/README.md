@@ -82,15 +82,17 @@ section indicates. Here are some alternative design patterns/thoughts for this p
 that can be explored in the future:
 
 - Create one endpoint to create a list/override existing list of bridges with a new list,
-and then /bridge-state can be called to get the initial impression of all the bridges.
+  and then /bridge-state can be called to get the initial impression of all the bridges.
 
-Once this is done maybe there is a way to make all future invocations of /bridge-state just be what /updates currently does.
+  Once this is done maybe there is a way to make all future invocations of /bridge-state
+  just be what /updates currently does.
 
 - Alternatively, we can at least prevent /updates from being called before /bridge-state or /bridge-state be called more than once
 
 - Decouple /updates from /bridge-state (can we make /updates do the initial set up,
-instead of expecting it to be manually initiated via /bridge-state?), and
-make it possible to get updates for multiple sets of bridges (not just the initial set requested via /bridge-state)
+  instead of expecting it to be manually initiated via /bridge-state?), and
+  make it possible to get updates for multiple sets of bridges
+  (not just the initial set requested via /bridge-state)
 
 For example, it should be possible to POST to /bridge-state more than once
 (maybe we want to monitor multiple sets of bridges).
@@ -98,5 +100,5 @@ Maybe we can make the /bridge-state endpoint return a UUID that users can then
 pass to the /updates endpoint to get updates for a particular bridge set
 
 - Why do we need to deliver deltas? Wouldn't it be easier to have the client
-check the status of the bridges they're interested in (using /bridge-state),
-and let them compute the deltas themselves (or using a separate post-processing tool)?
+  check the status of the bridges they're interested in (using /bridge-state),
+  and let them compute the deltas themselves (or using a separate post-processing tool)?
