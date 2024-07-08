@@ -166,6 +166,7 @@ rust-latest:
     - cargo clippy --all-features --all-targets -- -D warnings
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
     - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
+    - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
   artifacts:
     paths:
