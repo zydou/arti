@@ -53,7 +53,7 @@ pub(crate) struct GetKeyArgs {
     #[arg(long)]
     onion_name: HsId,
 
-    /// Write the public key to <FILE>. Use - to write to stdout
+    /// Write the public key to FILE. Use - to write to stdout
     #[arg(long, name = "FILE")]
     output: String,
 
