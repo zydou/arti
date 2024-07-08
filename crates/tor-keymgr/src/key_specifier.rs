@@ -1024,6 +1024,7 @@ KeyPathInfo {
         assert_eq!(period, TimePeriod::from_slug(&encoded_period).unwrap());
 
         assert!(TimePeriod::from_slug(&Slug::new("invalid_tp".to_string()).unwrap()).is_err());
+        assert!(TimePeriod::from_slug(&Slug::new("2_1_3_4".to_string()).unwrap()).is_err());
     }
 
     #[test]
