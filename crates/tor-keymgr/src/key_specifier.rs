@@ -6,7 +6,6 @@ use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use arrayvec::ArrayVec;
 use derive_more::{Deref, DerefMut, Display, From, Into};
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
@@ -416,13 +415,15 @@ impl KeySpecifierComponent for TimePeriod {
     where
         Self: Sized,
     {
+        use itertools::Itertools;
+
         let s = s.to_string();
         #[allow(clippy::redundant_closure)] // the closure makes things slightly more readable
         let err_ctx = |e: &str| InvalidKeyPathComponentValue::Slug(e.to_string());
-        let parts = s.split('_').collect::<ArrayVec<&str, 3>>();
-        let [interval, len, offset]: [&str; 3] = parts
-            .into_inner()
-            .map_err(|_| err_ctx("invalid number of subcomponents"))?;
+        let (interval, len, offset) = s
+            .split('_')
+            .collect_tuple()
+            .ok_or_else(|| err_ctx("invalid number of subcomponents"))?;
 
         let length = len.parse().map_err(|_| err_ctx("invalid length"))?;
         let interval_num = interval
@@ -1024,6 +1025,7 @@ KeyPathInfo {
         assert_eq!(period, TimePeriod::from_slug(&encoded_period).unwrap());
 
         assert!(TimePeriod::from_slug(&Slug::new("invalid_tp".to_string()).unwrap()).is_err());
+        assert!(TimePeriod::from_slug(&Slug::new("2_1_3_4".to_string()).unwrap()).is_err());
     }
 
     #[test]
