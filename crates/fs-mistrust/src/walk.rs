@@ -65,7 +65,7 @@ impl<'a> From<std::path::Component<'a>> for Component {
 /// A `ResolvePath` looks up a filename by visiting all intermediate steps in
 /// turn, starting from the root directory, and following symlinks.  It
 /// suppresses duplicates.  Every path that it yields will _either_ be:
-///   * A directory in canonical[^1][^2] form.
+///   * A directory in canonical[^1] [^2] form.
 ///   * `dir/link` where dir is a directory in canonical form, and `link` is a
 ///     symlink in that directory.
 ///   * `dir/file` where dir is a directory in canonical form, and `file` is a
