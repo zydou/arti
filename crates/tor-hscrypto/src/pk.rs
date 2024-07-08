@@ -612,18 +612,6 @@ pub enum HsClientDescEncKeyParseError {
     InvalidBase32(#[from] data_encoding::DecodeError),
 }
 
-impl tor_error::HasKind for HsClientDescEncKeyParseError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
-        use HsClientDescEncKeyParseError::*;
-
-        match self {
-            InvalidAuthType(_) | InvalidKeyType(_) | InvalidFormat | InvalidKeyMaterial
-            | InvalidBase32(_) => EK::BadApiUsage,
-        }
-    }
-}
-
 define_pk_keypair! {
 /// Server key, used for diffie hellman during onion descriptor decryption.
 /// (`KP_hss_desc_enc`)
