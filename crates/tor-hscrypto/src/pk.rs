@@ -506,6 +506,31 @@ define_pk_keypair! {
 ///
 /// Any client who knows the secret key corresponding to this key can decrypt
 /// the inner layer of the onion service descriptor.
+///
+/// The [`Display`] and [`FromStr`] representation of keys of this type is
+/// `descriptor:x25519:<base32-encoded-x25519-public-key>`.
+/// Note: the base32 encoding of the key is unpadded and case-insensitive,
+/// for compatibility with the format accepted by C Tor.
+/// See also `CLIENT AUTHORIZATION` in `tor(1)`.
+///
+/// # Example
+///
+/// ```rust
+/// # use tor_hscrypto::pk::HsClientDescEncKey;
+/// # use std::str::FromStr;
+/// // A client service discovery key for connecting
+/// // to a service running in restricted discovery mode,
+/// // with an uppercase base32 encoding for the key material.
+/// const CLIENT_KEY1: &str = "descriptor:x25519:ZPRRMIV6DV6SJFL7SFBSVLJ5VUNPGCDFEVZ7M23LTLVTCCXJQBKA";
+/// // An identical key using lowercase base32 encoding for the key material.
+/// const CLIENT_KEY2: &str = "descriptor:x25519:zprrmiv6dv6sjfl7sfbsvlj5vunpgcdfevz7m23ltlvtccxjqbka";
+///
+/// // Both key encodings parse successfully
+/// let key1 = HsClientDescEncKey::from_str(CLIENT_KEY1).unwrap();
+/// let key2 = HsClientDescEncKey::from_str(CLIENT_KEY2).unwrap();
+/// // The keys are identical
+/// assert_eq!(key1, key2);
+/// ```
 pub struct HsClientDescEncKey(curve25519::PublicKey) / HsClientDescEncSecretKey(curve25519::StaticSecret);
 curve25519_pair as HsClientDescEncKeypair;
 }
@@ -516,27 +541,72 @@ impl PartialEq for HsClientDescEncKey {
     }
 }
 
-impl HsClientDescEncKey {
-    /// Return a wrapper type for displaying this public key in the format
-    /// C Tor and Arti hidden services use for representing authorized clients.
-    ///
-    /// This will display the key as `<auth-type>:25519:<base32-encoded-public-key>`.
-    ///
-    /// See `CLIENT AUTHORIZATION` in `tor(1)` for more details.
-    pub fn display_authorized_client(&self) -> impl Display + '_ {
-        DisplayAuthorizedHsClientDescEncKey(self)
-    }
-}
-
-/// A helper for displaying an [`HsClientDescEncKey`] in the service-side format for
-/// client authorization keys.
-struct DisplayAuthorizedHsClientDescEncKey<'a>(&'a HsClientDescEncKey);
-
-impl<'a> Display for DisplayAuthorizedHsClientDescEncKey<'a> {
+impl Display for HsClientDescEncKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let x25519_pk = data_encoding::BASE32_NOPAD.encode(&self.0.to_bytes());
         write!(f, "descriptor:x25519:{}", x25519_pk)
     }
+}
+
+impl FromStr for HsClientDescEncKey {
+    type Err = HsClientDescEncKeyParseError;
+
+    fn from_str(key: &str) -> Result<Self, HsClientDescEncKeyParseError> {
+        let (auth_type, key_type, encoded_key) = key
+            .split(':')
+            .collect_tuple()
+            .ok_or(HsClientDescEncKeyParseError::InvalidFormat)?;
+
+        if auth_type != "descriptor" {
+            return Err(HsClientDescEncKeyParseError::InvalidAuthType(
+                auth_type.into(),
+            ));
+        }
+
+        if key_type != "x25519" {
+            return Err(HsClientDescEncKeyParseError::InvalidKeyType(
+                key_type.into(),
+            ));
+        }
+
+        // Note: Tor's base32 decoder is case-insensitive, so we can't assume the input
+        // is all uppercase.
+        //
+        // TODO: consider using `data_encoding_macro::new_encoding` to create a new Encoding
+        // with an alphabet that includes lowercase letters instead of to_uppercase()ing the string.
+        let encoded_key = encoded_key.to_uppercase();
+        let x25519_pk = data_encoding::BASE32_NOPAD.decode(encoded_key.as_bytes())?;
+        let x25519_pk: [u8; 32] = x25519_pk
+            .try_into()
+            .map_err(|_| HsClientDescEncKeyParseError::InvalidKeyMaterial)?;
+
+        Ok(Self(curve25519::PublicKey::from(x25519_pk)))
+    }
+}
+
+/// Error that can occur parsing an `HsClientDescEncKey` from C Tor format.
+#[derive(Error, Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum HsClientDescEncKeyParseError {
+    /// The auth type is not "descriptor".
+    #[error("Invalid auth type {0}")]
+    InvalidAuthType(String),
+
+    /// The key type is not "x25519".
+    #[error("Invalid key type {0}")]
+    InvalidKeyType(String),
+
+    /// The key is not in the `<auth-type>:x25519:<base32-encoded-public-key>` format.
+    #[error("Invalid key format")]
+    InvalidFormat,
+
+    /// The encoded key material is invalid.
+    #[error("Invalid key material")]
+    InvalidKeyMaterial,
+
+    /// Base32 decoding failed.
+    #[error("Invalid base32 in client key")]
+    InvalidBase32(#[from] data_encoding::DecodeError),
 }
 
 define_pk_keypair! {
@@ -712,6 +782,55 @@ mod test {
                 "A958DC83AC885F6814C67035DE817A2C604D5D2F715282079448F789B656350B
                  4540FE1F80AA3F7E91306B7BF7A8E367293352B14A29FDCC8C19F3558075524B"
             )
+        );
+    }
+
+    #[test]
+    fn parse_client_desc_enc_key() {
+        use HsClientDescEncKeyParseError::*;
+
+        /// Valid base32-encoded x25519 public key.
+        const VALID_KEY_BASE32: &str = "dz4q5xqlb4ldnbs72iarrml4ephk3du4i7o2cgiva5lwr6wkquja";
+
+        // Some keys that are in the wrong format
+        const WRONG_FORMAT: &[&str] = &["a:b:c:d:e", "descriptor:", "descriptor:x25519", ""];
+
+        for key in WRONG_FORMAT {
+            let err = HsClientDescEncKey::from_str(key).unwrap_err();
+
+            assert_eq!(err, InvalidFormat);
+        }
+
+        let err =
+            HsClientDescEncKey::from_str(&format!("foo:descriptor:x25519:{VALID_KEY_BASE32}"))
+                .unwrap_err();
+
+        assert_eq!(err, InvalidFormat);
+
+        // A key with an invalid auth type
+        let err = HsClientDescEncKey::from_str("bar:x25519:aa==").unwrap_err();
+        assert_eq!(err, InvalidAuthType("bar".into()));
+
+        // A key with an invalid key type
+        let err = HsClientDescEncKey::from_str("descriptor:not-x25519:aa==").unwrap_err();
+        assert_eq!(err, InvalidKeyType("not-x25519".into()));
+
+        // A key with an invalid base32 part
+        let err = HsClientDescEncKey::from_str("descriptor:x25519:aa==").unwrap_err();
+        assert!(matches!(err, InvalidBase32(_)));
+
+        // A valid client desc enc key
+        let _key =
+            HsClientDescEncKey::from_str(&format!("descriptor:x25519:{VALID_KEY_BASE32}")).unwrap();
+
+        // Roundtrip
+        let desc_enc_key = HsClientDescEncKey::from(curve25519::PublicKey::from(
+            &curve25519::StaticSecret::random_from_rng(testing_rng()),
+        ));
+
+        assert_eq!(
+            desc_enc_key,
+            HsClientDescEncKey::from_str(&desc_enc_key.to_string()).unwrap()
         );
     }
 }

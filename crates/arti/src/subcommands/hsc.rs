@@ -157,6 +157,6 @@ fn prepare_service_discovery_key<R: Runtime>(
 
 /// Write the public part of `key` to `f`.
 fn write_public_key(mut f: impl io::Write, key: &HsClientDescEncKey) -> io::Result<()> {
-    write!(f, "{}", key.display_authorized_client())?;
+    write!(f, "{}", key)?;
     Ok(())
 }
