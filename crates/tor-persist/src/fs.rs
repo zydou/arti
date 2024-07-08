@@ -27,16 +27,16 @@ use tracing::info;
 ///
 /// # Limitations
 ///
-/// 1) This manager only accepts objects that can be serialized as
-/// JSON documents.  Some types (like maps with non-string keys) can't
-/// be serialized as JSON.
+/// 1. This manager only accepts objects that can be serialized as
+///    JSON documents.  Some types (like maps with non-string keys) can't
+///    be serialized as JSON.
 ///
-/// 2) This manager normalizes keys to an fs-safe format before saving
-/// data with them.  This keeps you from accidentally creating or
-/// reading files elsewhere in the filesystem, but it doesn't prevent
-/// collisions when two keys collapse to the same fs-safe filename.
-/// Therefore, you should probably only use ascii keys that are
-/// fs-safe on all systems.
+/// 2. This manager normalizes keys to an fs-safe format before saving
+///    data with them.  This keeps you from accidentally creating or
+///    reading files elsewhere in the filesystem, but it doesn't prevent
+///    collisions when two keys collapse to the same fs-safe filename.
+///    Therefore, you should probably only use ascii keys that are
+///    fs-safe on all systems.
 ///
 /// NEVER use user-controlled or remote-controlled data for your keys.
 #[cfg_attr(docsrs, doc(cfg(not(target_arch = "wasm32"))))]

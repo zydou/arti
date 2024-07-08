@@ -133,7 +133,7 @@ pub(crate) struct IncomingCmdChecker {
     ///   * all relay circuits accept `BEGIN_DIR`
     ///   * exit relays additionally accept `BEGIN` or `RESOLVE` on relay circuits
     ///   * once CONNECT_UDP is implemented, relays and later onion services may accept CONNECT_UDP
-    ///   as well
+    ///     as well
     allow_commands: RelayCmdSet,
 }
 

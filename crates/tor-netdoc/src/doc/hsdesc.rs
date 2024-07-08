@@ -251,10 +251,11 @@ impl HsDesc {
     ///
     /// This function:
     ///   * parses the outermost document of the descriptor in `input`, and validates that its
-    ///   identity is consistent with `blinded_onion_id`.
+    ///     identity is consistent with `blinded_onion_id`.
     ///   * decrypts both layers of encryption in the onion service descriptor. If `hsc_desc_enc`
-    ///   is provided, we use it to decrypt the inner encryption layer; otherwise, we require that
-    ///   the inner document is encrypted using the "no client authorization" method.
+    ///     is provided, we use it to decrypt the inner encryption layer;
+    ///     otherwise, we require that
+    ///     the inner document is encrypted using the "no client authorization" method.
     ///   * checks if both layers are valid at the `valid_at` timestamp
     ///   * validates the signatures on both layers
     ///

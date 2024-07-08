@@ -14,8 +14,8 @@
 //!
 //! To launch a channel:
 //!
-//!  * Create a TLS connection as an object that implements AsyncRead
-//!    + AsyncWrite, and pass it to a [ChannelBuilder].  This will
+//!  * Create a TLS connection as an object that implements AsyncRead +
+//!    AsyncWrite, and pass it to a [ChannelBuilder].  This will
 //!    yield an [handshake::OutboundClientHandshake] that represents
 //!    the state of the handshake.
 //!  * Call [handshake::OutboundClientHandshake::connect] on the result
