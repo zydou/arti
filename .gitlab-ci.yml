@@ -83,7 +83,8 @@ maint-check-changelog:
 
 maint-check-ownership:
   stage: test
-  image: debian:bookworm-slim
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   allow_failure: true
   script:
     - apt-get update && apt-get install -y python3-toml curl jq
