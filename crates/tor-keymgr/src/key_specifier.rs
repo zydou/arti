@@ -420,7 +420,8 @@ impl KeySpecifierComponent for TimePeriod {
         let s = s.to_string();
         #[allow(clippy::redundant_closure)] // the closure makes things slightly more readable
         let err_ctx = |e: &str| InvalidKeyPathComponentValue::Slug(e.to_string());
-        let (interval, len, offset)  = s.split('_')
+        let (interval, len, offset) = s
+            .split('_')
             .collect_tuple()
             .ok_or_else(|| err_ctx("invalid number of subcomponents"))?;
 
