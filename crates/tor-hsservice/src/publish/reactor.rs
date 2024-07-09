@@ -907,8 +907,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
     /// uploading.
     fn note_ipt_change(&self) -> PublishStatus {
-        let inner = self.inner.lock().expect("poisoned lock");
-
         let mut ipts = self.ipt_watcher.borrow_for_publish();
         match ipts.ipts.as_mut() {
             Some(ipts) => PublishStatus::UploadScheduled,
