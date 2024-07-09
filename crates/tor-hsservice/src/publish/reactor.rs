@@ -735,7 +735,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 .iter_mut()
                 .find(|(relay_ids, _status)| relay_ids == &upload_res.relay_ids);
 
-            let Some((relay, status)) = relay else {
+            let Some((_relay, status)) = relay else {
                 // This HSDir went away, so the result doesn't matter.
                 // Continue processing the rest of the results
                 continue;
@@ -894,7 +894,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     fn note_ipt_change(&self) -> PublishStatus {
         let mut ipts = self.ipt_watcher.borrow_for_publish();
         match ipts.ipts.as_mut() {
-            Some(ipts) => PublishStatus::UploadScheduled,
+            Some(_ipts) => PublishStatus::UploadScheduled,
             None => PublishStatus::AwaitingIpts,
         }
     }
@@ -1363,7 +1363,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             succeeded.len(), hsdir_count
         );
 
-        if let Err(e) = upload_task_complete_tx
+        if let Err(_e) = upload_task_complete_tx
             .send(TimePeriodUploadResult {
                 time_period,
                 hsdir_result: upload_results,
