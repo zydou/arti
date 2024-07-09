@@ -83,7 +83,6 @@ The current crates are:
 * [`arti-bench`](../../crates/arti-bench/README.md) -- A simple benchmarking utility for Arti.
 * [`arti-client`](../../crates/arti-client/README.md) -- High-level functionality for accessing the Tor network as a client.
 * [`arti-config`](../../crates/arti-config/README.md) -- Removed crate.  (Tools for configuration management in Arti)
-* [`arti-hyper`](../../crates/arti-hyper/README.md) -- High-level layer for making http(s) requests the Tor network as a client.
 * [`arti`](../../crates/arti/README.md) -- A minimal command line program for connecting to the Tor network
 * [`arti-testing`](../../crates/arti-testing/README.md) -- Tool for running an Arti client with unusual behavior or limitations.
 * [`caret`](../../crates/caret/README.md) -- Integers with some named values.
