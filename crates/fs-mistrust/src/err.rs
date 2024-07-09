@@ -23,6 +23,13 @@ impl PathExt for Path {
 }
 
 /// An error returned while checking a path for privacy.
+///
+/// Note that this often means a necessary file *doesn't exist at all*.
+///
+/// When printing a `fs_mistrust::Error`, do not describe it as a "permissions error".
+/// Describe it with less specific wording, perhaps "Problem accessing Thing".
+///
+/// The `Display` impl will give the details.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
