@@ -37,8 +37,9 @@ pub enum Error {
     /// The first integer contains the current permission bits, and the second
     /// contains the permission bits which were incorrectly set.
     #[error("Incorrect permissions: {} is {}; must be {}",
-    _0.anonymize_home(),
-            format_access_bits(* .1, '='), format_access_bits(* .2, '-'))]
+            _0.anonymize_home(),
+            format_access_bits(* .1, '='),
+            format_access_bits(* .2, '-'))]
     BadPermission(PathBuf, u32, u32),
 
     /// A target  (or one of its ancestors) had an untrusted owner.
