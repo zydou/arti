@@ -1374,12 +1374,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             succeeded.len(), hsdir_count
         );
 
-        if let Err(_e) = upload_task_complete_tx
+        if upload_task_complete_tx
             .send(TimePeriodUploadResult {
                 time_period,
                 hsdir_result: upload_results,
             })
             .await
+            .is_err()
         {
             return Err(internal!(
                 "failed to notify reactor of upload completion (reactor shut down)"
