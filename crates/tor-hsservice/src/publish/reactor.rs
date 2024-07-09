@@ -1025,11 +1025,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Use the new keys.
-    async fn handle_new_keys(&self) -> Result<(), FatalError> {
-        todo!()
-    }
-
     /// Update the descriptors based on the config change.
     async fn handle_svc_config_change(
         &mut self,
