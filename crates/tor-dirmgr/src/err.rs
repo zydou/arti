@@ -113,10 +113,15 @@ pub enum Error {
     #[error("Tried to bootstrap a DirMgr that was configured as offline-only")]
     OfflineMode,
     /// A problem accessing our cache directory (for example, no such directory)
+    #[error("Problem accessing cache directory")]
+    CacheAccess(#[from] fs_mistrust::Error),
+    /// A problem accessing our cache directory (for example, no such directory)
     ///
     /// This variant name is misleading - see the docs for [`fs_mistrust::Error`].
+    /// Please use [`Error::CacheAccess`] instead.
     #[error("Problem accessing cache directory")]
-    CachePermissions(#[from] fs_mistrust::Error),
+    #[deprecated = "use Error::CacheAccess instead"]
+    CachePermissions(#[source] fs_mistrust::Error),
     /// Unable to spawn task
     #[error("Unable to spawn {spawning}")]
     Spawn {
@@ -210,6 +215,7 @@ impl Error {
     /// Return true if this error is serious enough that we should mark this
     /// cache as having failed.
     pub(crate) fn indicates_cache_failure(&self) -> bool {
+        #[allow(deprecated)]
         match self {
             // These indicate a problem from the cache.
             Error::Unwanted(_)
@@ -224,6 +230,7 @@ impl Error {
             Error::NoDownloadSupport
             | Error::CacheCorruption(_)
             | Error::CachePermissions(_)
+            | Error::CacheAccess(_)
             | Error::SqliteError(_)
             | Error::UnrecognizedSchema { .. }
             | Error::DirectoryNotPresent
@@ -277,6 +284,7 @@ impl Error {
     /// bootstrapping process.
     #[allow(dead_code)]
     pub(crate) fn bootstrap_action(&self) -> BootstrapAction {
+        #[allow(deprecated)]
         match self {
             Error::Unwanted(_)
             | Error::NetDirOlder
@@ -301,6 +309,7 @@ impl Error {
             | Error::BadUtf8InCache(_)
             | Error::BadHexInCache(_)
             | Error::CachePermissions(_)
+            | Error::CacheAccess(_)
             | Error::Spawn { .. }
             | Error::ExternalDirProvider { .. } => BootstrapAction::Fatal,
 
@@ -328,11 +337,13 @@ impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
         use Error as E;
         use ErrorKind as EK;
+        #[allow(deprecated)]
         match self {
             E::Unwanted(_) => EK::TorProtocolViolation,
             E::NoDownloadSupport => EK::NotImplemented,
             E::CacheCorruption(_) => EK::CacheCorrupted,
             E::CachePermissions(e) => e.cache_error_kind(),
+            E::CacheAccess(e) => e.cache_error_kind(),
             E::SqliteError(e) => sqlite_error_kind(e),
             E::UnrecognizedSchema { .. } => EK::CacheCorrupted,
             E::DirectoryNotPresent => EK::DirectoryExpired,
