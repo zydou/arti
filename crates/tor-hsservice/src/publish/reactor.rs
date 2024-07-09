@@ -360,8 +360,6 @@ struct Inner {
 struct TimePeriodContext {
     /// The HsDir params.
     params: HsDirParams,
-    /// The blinded HsId.
-    blind_id: HsBlindId,
     /// The HsDirs to use in this time period.
     ///
     // We keep a list of `RelayIds` because we can't store a `Relay<'_>` inside the reactor
@@ -387,7 +385,6 @@ impl TimePeriodContext {
         let period = params.time_period();
         Ok(Self {
             params,
-            blind_id,
             hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?,
             last_successful: None,
         })
