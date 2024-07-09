@@ -11,6 +11,8 @@ variables:
   FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
 
 default:
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/debian:bookworm-slim
   before_script:
     # gitlab fetch strategy doesn't reset permissions
     - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
@@ -55,16 +57,12 @@ shellcheck:
 
 python3-mypy:
   stage: check
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y mypy
     - mypy --strict maint/update-md-links
 
 maint-checks:
   stage: check
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_toposort
@@ -74,8 +72,6 @@ maint-checks:
 
 maint-check-changelog:
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:bookworm-slim
   script:
     - apt-get update && apt-get install -y python3-mistune git
     - git fetch --unshallow $ORIGIN
@@ -83,7 +79,6 @@ maint-check-changelog:
 
 maint-check-ownership:
   stage: test
-  image: debian:bookworm-slim
   allow_failure: true
   script:
     - apt-get update && apt-get install -y python3-toml curl jq
@@ -100,8 +95,6 @@ maint-check-ownership:
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
 doc-features:
   stage: check
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:bookworm-slim
   allow_failure: true
   script:
     - apt-get update && apt-get install -y python3-toml python-is-python3
@@ -112,8 +105,6 @@ doc-features:
 blocking-todos:
   stage: test
   needs: []
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:bookworm-slim
   script:
     - apt update && apt install -y git
     - ./maint/check_todos
@@ -298,8 +289,6 @@ integration-chutney:
   rules:
    # Job never runs.  See arti#810.
    - when: never
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:12-slim
   script:
     - ./maint/preserve -u
     - apt update
@@ -332,8 +321,6 @@ integration-shadow:
     - key: $CI_JOB_NAME-tgen-$JOB_TGEN_COMMIT
       paths:
       - opt/tgen
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:12-slim
   script:
     - ./maint/preserve -u
     - ./maint/ci_log_span start "shadow_install_deps[collapsed=true]" "Installing shadow and tgen"
@@ -485,8 +472,6 @@ pages:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
   stage: deploy
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:bookworm-slim
   script:
     - apt update && apt install -y git
     # Export report as website, while keeping the existing public page
