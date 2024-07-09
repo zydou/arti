@@ -24,8 +24,8 @@ pub(crate) enum ArtiNativeKeystoreError {
         err: Arc<io::Error>,
     },
 
-    /// Encountered an invalid path or invalid permissions.
-    #[error("Invalid path or permissions on {path} while attempting to {action}")]
+    /// Encountered an inaccessible path or invalid permissions.
+    #[error("Inaccessible path or bad permissions on {path} while attempting to {action}")]
     FsMistrust {
         /// The action we were trying to perform.
         action: FilesystemAction,
