@@ -1,5 +1,4 @@
 //! Publish and maintain onion service descriptors
-#![allow(dead_code, unused_variables)] // TODO (#1232)
 mod backoff;
 mod descriptor;
 mod reactor;
