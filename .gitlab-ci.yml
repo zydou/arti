@@ -261,28 +261,51 @@ minimal-versions:
     - ./maint/downgrade_dependencies
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
 
-build-repro:
+.build-repro-template:
   stage: test
+  variables:
+    # To be overridden in template instantiations
+    TARGET: UNDEFINED--BUG-IN-CI-YAML
   # If you upgrade this image, also change the one in docker_reproducible_build.
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:1.76.0-alpine3.18
   script:
     - apk add bash
-    - ./maint/reproducible_build linux windows macos
+    - ./maint/reproducible_build $TARGET
   # no after_script:, we don't build in the project dir
   # TODO #1410: Maybe there is something we _can_ remove though?
   artifacts:
-    paths:
-      - arti-linux
-      - arti-windows.exe
-      - arti-macos
     expire_in: 1 day
-  cache:
-    paths:
-      - osxcross/target
   tags:
     - tpa
     - amd64
+
+build-repro-linux:
+  extends: .build-repro-template
+  variables:
+    TARGET: linux
+  artifacts:
+    paths:
+      - arti-linux
+
+build-repro-windows:
+  extends: .build-repro-template
+  variables:
+    TARGET: windows
+  artifacts:
+    paths:
+      - arti-windows.exe
+
+build-repro-macos:
+  extends: .build-repro-template
+  variables:
+    TARGET: macos
+  artifacts:
+    paths:
+      - arti-macos
+  cache:
+    paths:
+      - osxcross/target
 
 integration-chutney:
   stage: test
