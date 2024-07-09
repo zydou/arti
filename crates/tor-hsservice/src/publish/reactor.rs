@@ -746,7 +746,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 .iter_mut()
                 .find(|(relay_ids, _status)| relay_ids == &upload_res.relay_ids);
 
-            let Some((_relay, status)) = relay else {
+            let Some((_relay, status)): Option<&mut (RelayIds, _)> = relay else {
                 // This HSDir went away, so the result doesn't matter.
                 // Continue processing the rest of the results
                 continue;
@@ -1422,7 +1422,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .await
             .map_err(UploadError::Stream)?;
 
-        let _response_string = send_request(&imm.runtime, &request, &mut stream, None)
+        let _response: String = send_request(&imm.runtime, &request, &mut stream, None)
             .await
             .map_err(|dir_error| -> UploadError {
                 match dir_error {
