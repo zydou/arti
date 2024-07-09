@@ -89,8 +89,10 @@ pub enum ErrorSource {
     #[error("IO error")]
     IoError(#[source] Arc<std::io::Error>),
 
-    /// Permissions on a file or path were incorrect
-    #[error("Invalid permissions")]
+    /// Inaccessible path, or permissions were incorrect
+    ///
+    /// This variant name is misleading - see the docs for [`fs_mistrust::Error`].
+    #[error("Problem accessing persistent state")]
     Permissions(#[source] fs_mistrust::Error),
 
     /// Tried to save without holding an exclusive lock.
