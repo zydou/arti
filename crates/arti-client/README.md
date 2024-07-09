@@ -17,8 +17,6 @@ crates in Arti.
 
 The API here is great if you are building an application in async Rust
 and want your Tor connections as async streams (`AsyncRead`/`AsyncWrite`).
-If you are wanting to make HTTP requests,
-look at [arti_hyper](https://tpo.pages.torproject.net/core/doc/rust/arti_hyper/index.html)).
 
 If you are trying to glue Arti to some other programming language,
 right now your best bet is probably to spawn the
