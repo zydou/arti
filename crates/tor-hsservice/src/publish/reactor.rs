@@ -1411,7 +1411,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .await
             .map_err(UploadError::Stream)?;
 
-        let response = send_request(&imm.runtime, &request, &mut stream, None)
+        let _response_string = send_request(&imm.runtime, &request, &mut stream, None)
             .await
             .map_err(|dir_error| -> UploadError {
                 match dir_error {
