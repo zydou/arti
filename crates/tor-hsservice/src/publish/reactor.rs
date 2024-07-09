@@ -50,6 +50,8 @@
 //! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
 //! status for reporting fatal errors (crashes).
 
+use tor_netdir::DirEvent;
+
 use super::*;
 
 /// The upload rate-limiting threshold.
@@ -625,7 +627,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // UploadScheduled.
                 return Ok(ShutdownStatus::Continue);
             },
-            netidr_event = netdir_events.next().fuse() => {
+            netdir_event = netdir_events.next().fuse() => {
+                let Some(netdir_event) = netdir_event else {
+                    debug!("netdir event stream ended");
+                    return Ok(ShutdownStatus::Terminate);
+                };
+
+                if !matches!(netdir_event, DirEvent::NewConsensus) {
+                    return Ok(ShutdownStatus::Continue);
+                };
+
                 // The consensus changed. Grab a new NetDir.
                 let netdir = match self.dir_provider.netdir(Timeliness::Timely) {
                     Ok(y) => y,
