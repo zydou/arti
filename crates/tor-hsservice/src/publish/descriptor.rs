@@ -48,8 +48,6 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
         .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
     let hsid = HsIdKey::from(&hsid_kp);
 
-    let blind_id_key_spec = BlindIdKeypairSpecifier::new(nickname.clone(), period);
-
     // TODO: make the keystore selector configurable
     let keystore_selector = Default::default();
     let blind_id_kp = read_blind_id_keypair(keymgr, nickname, period)?

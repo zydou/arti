@@ -539,10 +539,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             inner.time_periods = time_periods;
         }
 
-        let nickname = self.imm.nickname.clone();
-        let rt = self.imm.runtime.clone();
-        let status_tx = self.imm.status_tx.clone();
-
         loop {
             match self.run_once().await {
                 Ok(ShutdownStatus::Continue) => continue,
@@ -819,14 +815,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .map(|params| {
                 let period = params.time_period();
-                let svc_key_spec = HsIdKeypairSpecifier::new(self.imm.nickname.clone());
-                let hsid_kp = self
-                    .imm
-                    .keymgr
-                    .get::<HsIdKeypair>(&svc_key_spec)?
-                    .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
-                let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), period);
-
                 let blind_id_kp =
                     read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)?
                         // Note: for now, read_blind_id_keypair cannot return Ok(None).
