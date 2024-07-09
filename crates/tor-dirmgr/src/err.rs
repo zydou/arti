@@ -112,8 +112,10 @@ pub enum Error {
     /// An attempt was made to bootstrap a `DirMgr` created in offline mode.
     #[error("Tried to bootstrap a DirMgr that was configured as offline-only")]
     OfflineMode,
-    /// A problem with file permissions on our cache directory.
-    #[error("Bad permissions in cache directory")]
+    /// A problem accessing our cache directory (for example, no such directory)
+    ///
+    /// This variant name is misleading - see the docs for [`fs_mistrust::Error`].
+    #[error("Problem accessing cache directory")]
     CachePermissions(#[from] fs_mistrust::Error),
     /// Unable to spawn task
     #[error("Unable to spawn {spawning}")]
