@@ -50,6 +50,8 @@
 //! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
 //! status for reporting fatal errors (crashes).
 
+use tor_netdir::DirEvent;
+
 use super::*;
 
 /// The upload rate-limiting threshold.
@@ -360,8 +362,6 @@ struct Inner {
 struct TimePeriodContext {
     /// The HsDir params.
     params: HsDirParams,
-    /// The blinded HsId.
-    blind_id: HsBlindId,
     /// The HsDirs to use in this time period.
     ///
     // We keep a list of `RelayIds` because we can't store a `Relay<'_>` inside the reactor
@@ -387,7 +387,6 @@ impl TimePeriodContext {
         let period = params.time_period();
         Ok(Self {
             params,
-            blind_id,
             hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?,
             last_successful: None,
         })
@@ -433,39 +432,6 @@ impl TimePeriodContext {
             .iter_mut()
             .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
     }
-}
-
-/// Authorized client configuration error.
-#[derive(Debug, Clone, thiserror::Error)]
-#[non_exhaustive]
-pub(crate) enum AuthorizedClientConfigError {
-    /// A key is malformed if it doesn't start with the "curve25519" prefix,
-    /// or if its decoded content is not exactly 32 bytes long.
-    #[error("Malformed authorized client key")]
-    MalformedKey,
-
-    /// Error while decoding an authorized client's key.
-    #[error("Failed base64-decode an authorized client's key")]
-    Base64Decode(#[from] base64ct::Error),
-
-    /// Error while accessing the authorized_client key dir.
-    #[error("Failed to {action} file {path}")]
-    KeyDir {
-        /// What we were doing when we encountered the error.
-        action: &'static str,
-        /// The file that we were trying to access.
-        path: std::path::PathBuf,
-        /// The underlying I/O error.
-        #[source]
-        error: Arc<std::io::Error>,
-    },
-
-    /// Error while accessing the authorized_client key dir.
-    #[error("expected regular file, found directory: {path}")]
-    MalformedFile {
-        /// The file that we were trying to access.
-        path: std::path::PathBuf,
-    },
 }
 
 /// An error that occurs while trying to upload a descriptor.
@@ -572,10 +538,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             inner.time_periods = time_periods;
         }
 
-        let nickname = self.imm.nickname.clone();
-        let rt = self.imm.runtime.clone();
-        let status_tx = self.imm.status_tx.clone();
-
         loop {
             match self.run_once().await {
                 Ok(ShutdownStatus::Continue) => continue,
@@ -665,7 +627,16 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 // UploadScheduled.
                 return Ok(ShutdownStatus::Continue);
             },
-            netidr_event = netdir_events.next().fuse() => {
+            netdir_event = netdir_events.next().fuse() => {
+                let Some(netdir_event) = netdir_event else {
+                    debug!("netdir event stream ended");
+                    return Ok(ShutdownStatus::Terminate);
+                };
+
+                if !matches!(netdir_event, DirEvent::NewConsensus) {
+                    return Ok(ShutdownStatus::Continue);
+                };
+
                 // The consensus changed. Grab a new NetDir.
                 let netdir = match self.dir_provider.netdir(Timeliness::Timely) {
                     Ok(y) => y,
@@ -775,7 +746,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 .iter_mut()
                 .find(|(relay_ids, _status)| relay_ids == &upload_res.relay_ids);
 
-            let Some((relay, status)) = relay else {
+            let Some((_relay, status)): Option<&mut (RelayIds, _)> = relay else {
                 // This HSDir went away, so the result doesn't matter.
                 // Continue processing the rest of the results
                 continue;
@@ -852,14 +823,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .iter()
             .map(|params| {
                 let period = params.time_period();
-                let svc_key_spec = HsIdKeypairSpecifier::new(self.imm.nickname.clone());
-                let hsid_kp = self
-                    .imm
-                    .keymgr
-                    .get::<HsIdKeypair>(&svc_key_spec)?
-                    .ok_or_else(|| FatalError::MissingHsIdKeypair(self.imm.nickname.clone()))?;
-                let svc_key_spec = BlindIdKeypairSpecifier::new(self.imm.nickname.clone(), period);
-
                 let blind_id_kp =
                     read_blind_id_keypair(&self.imm.keymgr, &self.imm.nickname, period)?
                         // Note: for now, read_blind_id_keypair cannot return Ok(None).
@@ -940,11 +903,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
     /// uploading.
     fn note_ipt_change(&self) -> PublishStatus {
-        let inner = self.inner.lock().expect("poisoned lock");
-
         let mut ipts = self.ipt_watcher.borrow_for_publish();
         match ipts.ipts.as_mut() {
-            Some(ipts) => PublishStatus::UploadScheduled,
+            Some(_ipts) => PublishStatus::UploadScheduled,
             None => PublishStatus::AwaitingIpts,
         }
     }
@@ -1023,11 +984,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         )?;
 
         Ok(())
-    }
-
-    /// Use the new keys.
-    async fn handle_new_keys(&self) -> Result<(), FatalError> {
-        todo!()
     }
 
     /// Update the descriptors based on the config change.
@@ -1418,12 +1374,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             succeeded.len(), hsdir_count
         );
 
-        if let Err(e) = upload_task_complete_tx
+        if upload_task_complete_tx
             .send(TimePeriodUploadResult {
                 time_period,
                 hsdir_result: upload_results,
             })
             .await
+            .is_err()
         {
             return Err(internal!(
                 "failed to notify reactor of upload completion (reactor shut down)"
@@ -1466,7 +1423,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             .await
             .map_err(UploadError::Stream)?;
 
-        let response = send_request(&imm.runtime, &request, &mut stream, None)
+        let _response: String = send_request(&imm.runtime, &request, &mut stream, None)
             .await
             .map_err(|dir_error| -> UploadError {
                 match dir_error {

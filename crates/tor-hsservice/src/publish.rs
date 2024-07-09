@@ -1,5 +1,4 @@
 //! Publish and maintain onion service descriptors
-#![allow(dead_code, unused_variables)] // TODO (#1232)
 mod backoff;
 mod descriptor;
 mod reactor;
@@ -9,8 +8,8 @@ use crate::internal_prelude::*;
 
 use backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
+use reactor::read_blind_id_keypair;
 use reactor::Reactor;
-use reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
 use reupload_timer::ReuploadTimer;
 
 pub use reactor::UploadError;
@@ -117,14 +116,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             })?;
 
         Ok(())
-    }
-
-    /// Inform this publisher that its set of keys has changed.
-    ///
-    /// TODO (#1217): Either this needs to take new keys as an argument, or there
-    /// needs to be a source of keys (including public keys) in Publisher.
-    pub(crate) fn new_hs_keys(&self, keys: ()) {
-        todo!()
     }
 }
 
@@ -255,7 +246,7 @@ mod test {
 
         async fn get_or_launch_specific<T>(
             &self,
-            netdir: &tor_netdir::NetDir,
+            _netdir: &tor_netdir::NetDir,
             kind: HsCircKind,
             target: T,
         ) -> Result<Arc<Self::ClientCirc>, tor_circmgr::Error>
@@ -321,7 +312,7 @@ mod test {
     impl<I: PollReadIter> AsyncRead for MockDataStream<I> {
         fn poll_read(
             mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
+            _cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<io::Result<usize>> {
             match self.as_mut().poll_read_responses.next() {
@@ -347,7 +338,7 @@ mod test {
     impl<I: PollReadIter> AsyncWrite for MockDataStream<I> {
         fn poll_write(
             self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
+            _cx: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             let request = std::str::from_utf8(buf).unwrap();
@@ -358,11 +349,11 @@ mod test {
             Poll::Ready(Ok(request.len()))
         }
 
-        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             Poll::Ready(Ok(()))
         }
 
-        fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             Poll::Ready(Ok(()))
         }
     }
@@ -451,7 +442,6 @@ mod test {
     #[allow(clippy::too_many_arguments)]
     fn run_test<I: PollReadIter>(
         runtime: MockRuntime,
-        hsid: HsId,
         nickname: HsNickname,
         keymgr: Arc<KeyMgr>,
         pv: IptsPublisherView,
@@ -503,8 +493,6 @@ mod test {
             assert_eq!(initial_publish_count, expected_upload_count);
 
             if republish_count > 0 {
-                /// The earliest time the descriptor can be republished.
-                const MIN_TIMEOUT: Duration = Duration::from_secs(60 * 60);
                 /// The latest time the descriptor can be republished.
                 const MAX_TIMEOUT: Duration = Duration::from_secs(60 * 120);
 
@@ -546,7 +534,7 @@ mod test {
         let runtime = MockRuntime::new();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
         let config = build_test_config(nickname.clone());
-        let (config_tx, config_rx) = watch::channel_with(Arc::new(config));
+        let (_config_tx, config_rx) = watch::channel_with(Arc::new(config));
 
         let (mut mv, pv) = ipts_channel(&runtime, create_storage_handles(temp_dir).1).unwrap();
         let update_ipts = || {
@@ -570,7 +558,7 @@ mod test {
         let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         let keystore_dir = tempdir().unwrap();
 
-        let (hsid, blind_id, keymgr) = init_keymgr(&keystore_dir, &nickname, &netdir);
+        let (_hsid, blind_id, keymgr) = init_keymgr(&keystore_dir, &nickname, &netdir);
 
         let hsdir_count = netdir
             .hs_dirs_upload(blind_id, netdir.hs_time_period())
@@ -587,7 +575,6 @@ mod test {
 
         run_test(
             runtime.clone(),
-            hsid,
             nickname,
             keymgr,
             pv,

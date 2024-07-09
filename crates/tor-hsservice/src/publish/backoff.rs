@@ -75,7 +75,7 @@ impl<B: BackoffSchedule, R: Runtime> Runner<B, R> {
             trace!(attempt = (retry_count + 1), "{}", self.doing);
 
             select_biased! {
-                res = overall_timeout => {
+                () = overall_timeout => {
                     // The timeout has elapsed, so stop retrying and return the errors
                     // accumulated so far.
                     return Err(BackoffError::Timeout(errors))
