@@ -117,7 +117,6 @@ pub(crate) use {
 //---------- names from this crate ----------
 
 pub(crate) use {
-    crate::config::DescEncryptionConfig,
     crate::err::IptStoreError,
     crate::err::StateExpiryError,
     crate::ipt_lid::{InvalidIptLocalId, IptLocalId},

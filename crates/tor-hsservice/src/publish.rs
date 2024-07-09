@@ -9,7 +9,7 @@ use crate::internal_prelude::*;
 use backoff::{BackoffError, BackoffSchedule, RetriableError, Runner};
 use descriptor::{build_sign, DescriptorStatus, VersionedDescriptor};
 use reactor::Reactor;
-use reactor::{read_blind_id_keypair, AuthorizedClientConfigError};
+use reactor::read_blind_id_keypair;
 use reupload_timer::ReuploadTimer;
 
 pub use reactor::UploadError;

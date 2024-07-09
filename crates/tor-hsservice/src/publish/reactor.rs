@@ -435,39 +435,6 @@ impl TimePeriodContext {
     }
 }
 
-/// Authorized client configuration error.
-#[derive(Debug, Clone, thiserror::Error)]
-#[non_exhaustive]
-pub(crate) enum AuthorizedClientConfigError {
-    /// A key is malformed if it doesn't start with the "curve25519" prefix,
-    /// or if its decoded content is not exactly 32 bytes long.
-    #[error("Malformed authorized client key")]
-    MalformedKey,
-
-    /// Error while decoding an authorized client's key.
-    #[error("Failed base64-decode an authorized client's key")]
-    Base64Decode(#[from] base64ct::Error),
-
-    /// Error while accessing the authorized_client key dir.
-    #[error("Failed to {action} file {path}")]
-    KeyDir {
-        /// What we were doing when we encountered the error.
-        action: &'static str,
-        /// The file that we were trying to access.
-        path: std::path::PathBuf,
-        /// The underlying I/O error.
-        #[source]
-        error: Arc<std::io::Error>,
-    },
-
-    /// Error while accessing the authorized_client key dir.
-    #[error("expected regular file, found directory: {path}")]
-    MalformedFile {
-        /// The file that we were trying to access.
-        path: std::path::PathBuf,
-    },
-}
-
 /// An error that occurs while trying to upload a descriptor.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
