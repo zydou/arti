@@ -135,8 +135,10 @@ impl HasKind for ReconfigureError {
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigError {
-    /// We encoundered a problem with file permissions.
-    #[error("Bad permissions on configuration file")]
+    /// We encoundered a problem checking file permissions (for example, no such file)
+    ///
+    /// This variant name is misleading - see the docs for [`fs_mistrust::Error`].
+    #[error("Problem accessing configuration file(s)")]
     Permissions(#[source] fs_mistrust::Error),
     /// Our underlying configuration library gave an error while loading our
     /// configuration.
