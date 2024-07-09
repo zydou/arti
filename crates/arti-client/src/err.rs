@@ -260,7 +260,7 @@ enum ErrorDetail {
     PluggableTransport(#[from] tor_ptmgr::err::PtError),
 
     /// We encountered a problem while inspecting or creating a directory.
-    #[error("Filesystem permissions problem")]
+    #[error("Problem accessing filesystem")]
     FsMistrust(#[from] fs_mistrust::Error),
 
     /// Unable to spawn task
