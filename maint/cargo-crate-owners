@@ -45,7 +45,7 @@
 # while remooving the actual data.)
 #
 # `v1` is a fixed string, to allow future evolution of this protocol.
-# Lines starting with # are comments and are ignored.
+# Everything on a line after a # is a comment and is ignored.
 #
 # YYYY-MM-DD is an expiry date for this data.
 # After this date, this script will start to unconditionally fail!
@@ -73,9 +73,11 @@ read_owners_override () {
     : >"$tmp"/override.json
 
     if [ "$MAINT_CARGO_CRATE_OWNERS_UNTIL" = '' ]; then return; fi
-    # `read` gives status 1 on missing final newline;
-    # and, do comment filtering.
-    sed -n '/^[^#]/p' <"$MAINT_CARGO_CRATE_OWNERS_UNTIL" >"$tmp"/override-filtered
+    # `read` gives status 1 on missing final newline, which would result in
+    # us perhaps ignoring the last line if we just read it directly!
+    # But, perl will happily read such a file, and we can then use it fix it up.
+    # Also, we use perl to do comment filtering.
+    perl -pe 's{\#.*}{}; s/\n*$/\n/' <"$MAINT_CARGO_CRATE_OWNERS_UNTIL" >"$tmp"/override-filtered
     exec 3<"$tmp"/override-filtered
     if ! read -r <&3 version override_expiry; then return; fi
     case "$version" in
