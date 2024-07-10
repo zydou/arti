@@ -66,6 +66,9 @@ crates=$("$maint"/list_crates)
 
 if [ $# != 0 ]; then fail 'bad usage: no arguments allowed'; fi
 
+# Reads the file named by MAINT_CARGO_CRATE_OWNERS_UNTIL (see spec above),
+# and digests it into "$tmp"//override.json, which is a sequence of strings
+# being the usernames to pretend every crate has as owner.
 read_owners_override () {
     : >"$tmp"/override.json
 
