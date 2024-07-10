@@ -60,6 +60,7 @@ python3-mypy:
   script:
     - apt-get update && apt-get install -y mypy
     - mypy --strict maint/update-md-links
+    - mypy --strict maint/list_crates
 
 maint-checks:
   stage: check
