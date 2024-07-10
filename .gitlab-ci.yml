@@ -57,10 +57,13 @@ shellcheck:
 
 python3-mypy:
   stage: check
+  variables:
+    MYPYPATH: maint
   script:
     - apt-get update && apt-get install -y mypy
     - mypy --strict maint/update-md-links
     - mypy --strict maint/list_crates
+    - mypy --strict maint/cargo-check-publishable
 
 maint-checks:
   stage: check

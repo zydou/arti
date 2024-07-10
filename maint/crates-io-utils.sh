@@ -41,6 +41,8 @@ tmp_trap_exit_finish_ok () {
 # The fetched document is stored in "$output"
 # The HTTP code is left in the global variable `http_code`
 # (and also written to "$output.http")
+#
+# There is a Python reimplementation `cargo-check-publishable`
 crates_io_api_call () {
     local endpoint="$1"
     local expect_key="$2"
