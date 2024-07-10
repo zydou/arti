@@ -13,6 +13,48 @@
 #
 # crates which are mentioned in the workspace, but which have never been published,
 # are ignored.
+#
+#
+# Override facility
+#
+# Sometimes a crate ownership invitation can remain unaccepted for reasons
+# relating to the personal circumstances of the prospective owner.
+# We have a facility for avoiding CI failure in this situation, without
+# exposing Personally Identifying Information more widely than needed.
+#
+# To use this facility, in gitlab CI, create a "CI/CD variable"
+# with the following properties:
+#    - Type: File
+#    - Environments: all (default)
+#    - Visibility: Visible (default)
+#    - Flags: [ ] Protect (default)
+#             [ ] Expand variable reference (changed)
+#    - Key `MAINT_CARGO_CRATE_OWNERS_UNTIL`
+#    - Value, a multi-line string as described below
+# This causes gitlab to set an environment variable MAINT_CARGO_CRATE_OWNERS_UNTIL
+# to the name of a file, containing the multi-line string.
+#
+# The file contents is in this form:
+#     v1 YYYY-MM-DD
+#     crates.io-username
+#     crates.io-username
+#     ...
+#
+# The file (the value) may also be empty, in which case it will be ignored.
+# (This is to allow you to preserve the variable properties,
+# while remooving the actual data.)
+#
+# `v1` is a fixed string, to allow future evolution of this protocol.
+# Lines starting with # are comments and are ignored.
+#
+# YYYY-MM-DD is an expiry date for this data.
+# After this date, this script will start to unconditionally fail!
+# You should set it to the time when you expect to be able to remove the exception,
+# and then this script will help enforce that the exception is removed.
+#
+# Every following line should be a username.
+# That user will be treated as if they are an owner of every crate,
+# regardless of whether they really are.
 
 set -e
 set -o pipefail
