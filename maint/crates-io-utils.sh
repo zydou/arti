@@ -48,7 +48,9 @@ crates_io_api_call () {
 
     local url="${CRATES_IO_URL_BASE}/$endpoint"
 
-    curl -L -sS -o "$output" -w '%{http_code}' >"$output.http" "$url"
+    sleep 1
+    curl -A 'maint/ scripts for Tor Project CI (shell script)' \
+	 -L -sS -o "$output" -w '%{http_code}' >"$output.http" "$url"
     http_code=$(cat "$output.http")
 
     case "$http_code" in
