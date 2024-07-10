@@ -56,6 +56,7 @@ bridge-client = ["arti-client/bridge-client"]
 dns-proxy = ["hickory-proto"]
 experimental-api = ["arti-client/experimental-api", "visibility", "__is_experimental"]
 harden = ["secmem-proc"]
+keymgr = ["arti-client/keymgr"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio", "tokio-util"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
@@ -84,7 +85,7 @@ compression = ["arti-client/compression"]
 
 # This feature flag enables experimental features that are not supported. Turning it on may
 # void your API.
-experimental = ["arti-client/experimental", "experimental-api", "rpc", "relay"]
+experimental = ["arti-client/experimental", "experimental-api", "rpc", "relay", "keymgr"]
 rpc = ["arti-rpcserver", "tor-rpcbase", "__is_experimental"]
 __is_experimental = []
 
