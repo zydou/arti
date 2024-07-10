@@ -113,7 +113,11 @@ use clap::{value_parser, Arg, ArgAction, Command};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
-#[cfg(all(feature = "onion-service-client", feature = "experimental-api", feature = "keymgr"))]
+#[cfg(all(
+    feature = "onion-service-client",
+    feature = "experimental-api",
+    feature = "keymgr"
+))]
 use clap::Subcommand as _;
 
 /// Shorthand for a boxed and pinned Future.
