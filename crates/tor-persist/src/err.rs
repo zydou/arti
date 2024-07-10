@@ -89,8 +89,16 @@ pub enum ErrorSource {
     #[error("IO error")]
     IoError(#[source] Arc<std::io::Error>),
 
-    /// Permissions on a file or path were incorrect
-    #[error("Invalid permissions")]
+    /// Inaccessible path, or permissions were incorrect
+    #[error("Problem accessing persistent state")]
+    Inaccessible(#[source] fs_mistrust::Error),
+
+    /// Inaccessible path, or permissions were incorrect
+    ///
+    /// This variant name is misleading - see the docs for [`fs_mistrust::Error`].
+    /// Please use [`ErrorSource::Inaccessible`] instead.
+    #[deprecated = "use ErrorSource::Inaccessible instead"]
+    #[error("Problem accessing persistent state")]
     Permissions(#[source] fs_mistrust::Error),
 
     /// Tried to save without holding an exclusive lock.
@@ -170,9 +178,11 @@ impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
         use ErrorSource as E;
         use tor_error::ErrorKind as K;
+        #[allow(deprecated)]
         match &self.source {
             E::IoError(..)     => K::PersistentStateAccessFailed,
             E::Permissions(e)  => e.state_error_kind(),
+            E::Inaccessible(e) => e.state_error_kind(),
             E::NoLock          => K::BadApiUsage,
             E::AlreadyLocked   => K::LocalResourceAlreadyInUse,
             E::Bug(e)          => e.kind(),
@@ -198,7 +208,7 @@ impl From<fs_mistrust::Error> for ErrorSource {
     fn from(e: fs_mistrust::Error) -> ErrorSource {
         match e {
             fs_mistrust::Error::Io { err, .. } => ErrorSource::IoError(err),
-            other => ErrorSource::Permissions(other),
+            other => ErrorSource::Inaccessible(other),
         }
     }
 }

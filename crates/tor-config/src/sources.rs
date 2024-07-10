@@ -380,7 +380,7 @@ impl FoundConfigFiles<'_> {
                 Err(fs_mistrust::Error::NotFound(_)) if !required => {
                     continue;
                 }
-                Err(e) => return Err(ConfigError::Permissions(e)),
+                Err(e) => return Err(ConfigError::FileAccess(e)),
             }
 
             // We use file_exact here so that figment won't look in parent

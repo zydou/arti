@@ -370,7 +370,7 @@ mod tests {
         assert_eq!(
             err.to_string(),
             format!(
-                "Invalid path or permissions on {} while attempting to Init",
+                "Inaccessible path or bad permissions on {} while attempting to Init",
                 keystore_dir.path().display_lossy()
             ),
             "expected keystore init failure (perms = {:o})",
@@ -429,7 +429,7 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             format!(
-                "Invalid path or permissions on {} while attempting to Remove",
+                "Inaccessible path or bad permissions on {} while attempting to Remove",
                 key_store
                     .key_path(&key_spec, ed_key_type)
                     .unwrap()
