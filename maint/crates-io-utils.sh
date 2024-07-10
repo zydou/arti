@@ -37,7 +37,7 @@ tmp_trap_exit_finish_ok () {
 #   https://crates.io/api/$endpoint
 # Expects to receive either
 #   HTTP 200 and a json document which `jq "$expect_key"` accepts
-#   HTTP 404 and a json document containing a `.error` key
+#   HTTP 404 and a json document containing a `.errors` key
 # The fetched document is stored in "$output"
 # The HTTP code is left in the global variable `http_code`
 # (and also written to "$output.http")
