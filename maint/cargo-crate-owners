@@ -79,7 +79,10 @@ read_owners_override () {
     # Also, we use perl to do comment filtering.
     perl -pe 's{\#.*}{}; s/\n*$/\n/' <"$MAINT_CARGO_CRATE_OWNERS_UNTIL" >"$tmp"/override-filtered
     exec 3<"$tmp"/override-filtered
-    if ! read -r <&3 version override_expiry; then return; fi
+    if ! read -r <&3 version override_expiry; then
+	# We couldn't read even one line.  The file is empty: ignore it.
+	return
+    fi
     case "$version" in
 	v1) ;;
 	*) fail "MAINT_CARGO_CRATE_OWNERS_UNTIL: expected version v1, got $version" ;;
