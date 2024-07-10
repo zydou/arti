@@ -66,7 +66,39 @@ crates=$("$maint"/list_crates)
 
 if [ $# != 0 ]; then fail 'bad usage: no arguments allowed'; fi
 
+read_owners_override () {
+    : >"$tmp"/override.json
+
+    if [ "$MAINT_CARGO_CRATE_OWNERS_UNTIL" = '' ]; then return; fi
+    # `read` gives status 1 on missing final newline;
+    # and, do comment filtering.
+    sed -n '/^[^#]/p' <"$MAINT_CARGO_CRATE_OWNERS_UNTIL" >"$tmp"/override-filtered
+    exec 3<"$tmp"/override-filtered
+    if ! read -r <&3 version override_expiry; then return; fi
+    case "$version" in
+	v1) ;;
+	*) fail "MAINT_CARGO_CRATE_OWNERS_UNTIL: expected version v1, got $version" ;;
+    esac
+    case "$override_expiry" in
+	[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+	*) fail "MAINT_CARGO_CRATE_OWNERS_UNTIL: bad expiry" ;;
+    esac
+    expiry_tt=$(date -d "$override_expiry" +%s)
+    current_tt=$(date -u +%s)
+    if [ "$current_tt" -gt "$expiry_tt" ]; then
+	fail "MAINT_CARGO_CRATE_OWNERS_UNTIL: override data expired! (expiry date $override_expiry)"
+    fi
+    while read -r <&3 user; do
+	if [ "$user" = '' ]; then continue; fi
+	printf "%s" "$user" | jq --slurp -R . >>"$tmp"//override.json
+    done
+}
+
 tmp_trap_exit_setup
+
+read_owners_override
+
+override_changed=0
 
 for p in $crates; do
     printf "checking owners of %-40s " "$p"
@@ -84,7 +116,20 @@ for p in $crates; do
 	    ;;
     esac
 
-    jq -S '.users[].login' <"$tmp/p,$p.json" >"$tmp/owners,$p.json"
+    jq -S '.users[].login' <"$tmp/p,$p.json" >"$tmp/owners-1,$p.json"
+    cat "$tmp"/override.json >>"$tmp/owners-1,$p.json"
+    jq -s 'unique | .[]' <"$tmp/owners-1,$p.json" >>"$tmp/owners,$p.json"
+
+    set +e
+    cmp -s "$tmp"/owners{-1,},"$p.json"
+    rc=$?
+    set -e
+    case "$rc" in
+	0) ;;
+	1) override_changed=$(( override_changed + 1 )) ;;
+	*) fail "cmp failed" ;;
+    esac
+
     hash=$(sha256sum <"$tmp/owners,$p.json")
     hash=${hash%% *}
     cp "$tmp/owners,$p.json" "$tmp/byhash.$hash.owners"
@@ -128,5 +173,12 @@ while read <&3 n_packages packages_file; do
     sed 's/^/\t/' "$packages_file" >&4
     echo >&4
 done
+
+if [ "x$override_expiry" != x ]; then
+    cat <<END
+NB, used MAINT_CARGO_CRATE_OWNERS_UNTIL, expiry $override_expiry:
+Pretended owners added to $override_changed crates.
+END
+fi
 
 tmp_trap_exit_finish_status $status
