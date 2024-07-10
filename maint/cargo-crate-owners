@@ -13,6 +13,48 @@
 #
 # crates which are mentioned in the workspace, but which have never been published,
 # are ignored.
+#
+#
+# Override facility
+#
+# Sometimes a crate ownership invitation can remain unaccepted for reasons
+# relating to the personal circumstances of the prospective owner.
+# We have a facility for avoiding CI failure in this situation, without
+# exposing Personally Identifying Information more widely than needed.
+#
+# To use this facility, in gitlab CI, create a "CI/CD variable"
+# with the following properties:
+#    - Type: File
+#    - Environments: all (default)
+#    - Visibility: Visible (default)
+#    - Flags: [ ] Protect (default)
+#             [ ] Expand variable reference (changed)
+#    - Key `MAINT_CARGO_CRATE_OWNERS_UNTIL`
+#    - Value, a multi-line string as described below
+# This causes gitlab to set an environment variable MAINT_CARGO_CRATE_OWNERS_UNTIL
+# to the name of a file, containing the multi-line string.
+#
+# The file contents is in this form:
+#     v1 YYYY-MM-DD
+#     crates.io-username
+#     crates.io-username
+#     ...
+#
+# The file (the value) may also be empty, in which case it will be ignored.
+# (This is to allow you to preserve the variable properties,
+# while remooving the actual data.)
+#
+# `v1` is a fixed string, to allow future evolution of this protocol.
+# Everything on a line after a # is a comment and is ignored.
+#
+# YYYY-MM-DD is an expiry date for this data.
+# After this date, this script will start to unconditionally fail!
+# You should set it to the time when you expect to be able to remove the exception,
+# and then this script will help enforce that the exception is removed.
+#
+# Every following line should be a username.
+# That user will be treated as if they are an owner of every crate,
+# regardless of whether they really are.
 
 set -e
 set -o pipefail
@@ -24,7 +66,47 @@ crates=$("$maint"/list_crates)
 
 if [ $# != 0 ]; then fail 'bad usage: no arguments allowed'; fi
 
+# Reads the file named by MAINT_CARGO_CRATE_OWNERS_UNTIL (see spec above),
+# and digests it into "$tmp"//override.json, which is a sequence of strings
+# being the usernames to pretend every crate has as owner.
+read_owners_override () {
+    : >"$tmp"/override.json
+
+    if [ "$MAINT_CARGO_CRATE_OWNERS_UNTIL" = '' ]; then return; fi
+    # `read` gives status 1 on missing final newline, which would result in
+    # us perhaps ignoring the last line if we just read it directly!
+    # But, perl will happily read such a file, and we can then use it fix it up.
+    # Also, we use perl to do comment filtering.
+    perl -pe 's{\#.*}{}; s/\n*$/\n/' <"$MAINT_CARGO_CRATE_OWNERS_UNTIL" >"$tmp"/override-filtered
+    exec 3<"$tmp"/override-filtered
+    if ! read -r <&3 version override_expiry; then
+	# We couldn't read even one line.  The file is empty: ignore it.
+	return
+    fi
+    case "$version" in
+	v1) ;;
+	*) fail "MAINT_CARGO_CRATE_OWNERS_UNTIL: expected version v1, got $version" ;;
+    esac
+    case "$override_expiry" in
+	[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+	*) fail "MAINT_CARGO_CRATE_OWNERS_UNTIL: bad expiry" ;;
+    esac
+    expiry_tt=$(date -d "$override_expiry" +%s)
+    current_tt=$(date -u +%s)
+    if [ "$current_tt" -gt "$expiry_tt" ]; then
+	fail "MAINT_CARGO_CRATE_OWNERS_UNTIL: override data expired! (expiry date $override_expiry)"
+    fi
+    while read -r <&3 user; do
+	if [ "$user" = '' ]; then continue; fi
+	printf "%s" "$user" | jq --slurp -R . >>"$tmp"//override.json
+    done
+}
+
 tmp_trap_exit_setup
+
+read_owners_override
+
+override_changed=0
 
 for p in $crates; do
     printf "checking owners of %-40s " "$p"
@@ -42,7 +124,20 @@ for p in $crates; do
 	    ;;
     esac
 
-    jq -S '.users[].login' <"$tmp/p,$p.json" >"$tmp/owners,$p.json"
+    jq -S '.users[].login' <"$tmp/p,$p.json" >"$tmp/owners-1,$p.json"
+    cat "$tmp"/override.json >>"$tmp/owners-1,$p.json"
+    jq -s 'unique | .[]' <"$tmp/owners-1,$p.json" >>"$tmp/owners,$p.json"
+
+    set +e
+    cmp -s "$tmp"/owners{-1,},"$p.json"
+    rc=$?
+    set -e
+    case "$rc" in
+	0) ;;
+	1) override_changed=$(( override_changed + 1 )) ;;
+	*) fail "cmp failed" ;;
+    esac
+
     hash=$(sha256sum <"$tmp/owners,$p.json")
     hash=${hash%% *}
     cp "$tmp/owners,$p.json" "$tmp/byhash.$hash.owners"
@@ -86,5 +181,12 @@ while read <&3 n_packages packages_file; do
     sed 's/^/\t/' "$packages_file" >&4
     echo >&4
 done
+
+if [ "x$override_expiry" != x ]; then
+    cat <<END
+NB, used MAINT_CARGO_CRATE_OWNERS_UNTIL, expiry $override_expiry:
+Pretended owners added to $override_changed crates.
+END
+fi
 
 tmp_trap_exit_finish_status $status
