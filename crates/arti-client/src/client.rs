@@ -1419,10 +1419,18 @@ impl<R: Runtime> TorClient<R> {
     //
     // TODO: decide whether this should use get_or_generate before making it
     // non-experimental
-    #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
+    #[cfg(all(
+        feature = "onion-service-client",
+        feature = "experimental-api",
+        feature = "keymgr"
+    ))]
     #[cfg_attr(
         docsrs,
-        doc(cfg(all(feature = "onion-service-client", feature = "experimental-api")))
+        doc(cfg(all(
+            feature = "onion-service-client",
+            feature = "experimental-api",
+            feature = "keymgr"
+        )))
     )]
     pub fn generate_service_discovery_key(
         &self,
