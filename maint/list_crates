@@ -34,7 +34,7 @@ def list_crates() -> Iterator[Crate]:
             publish = True
         yield Crate(package, publish, version)
 
-def print_crates(args: argparse.Namespace):
+def print_crates(args: argparse.Namespace) -> None:
     shown_any = False
     for c in list_crates():
         show = (args.package == c.name if args.package is not None
