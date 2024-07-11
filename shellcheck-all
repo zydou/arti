@@ -16,7 +16,7 @@
 #   image: koalaman/shellcheck-alpine
 #   script:
 #     - apk add git bash
-#     - ./maint/shellcheck_all
+#     - ./maint/shellcheck-all
 # ```
 
 set -euo pipefail
