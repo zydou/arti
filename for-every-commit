@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Usage:
-#   -common/for-every-commit COMMAND ARGS...
+#   -common/for-every-commit [--] COMMAND ARGS...
 #
 # Runs COMMAND ARGS... for every commit since the baseline
 # (oldest first).  Fails as soon as any such command fails.
@@ -21,6 +21,9 @@ set -e
 set -o pipefail
 
 BASE_BRANCHES='main'
+
+. maint/common/bash-utils.sh
+reject_options
 
 repo=$(
     perl -MTOML -we '

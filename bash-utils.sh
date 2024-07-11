@@ -22,6 +22,14 @@ alias reject_all_arguments='
     fi
 '
 
+# shellcheck disable=SC2142
+alias reject_options='
+case "$1" in
+    --) shift ;;
+    -*) echo >&2 "$0: No options allowed"; exit 12 ;;
+esac
+'
+
 # Prints a list of the files in git, with a #! that looks like (ba)sh
 git_grep_for_shell_script_shebangs () {
     git grep -P --line-number '^#! ?(/usr/bin/env |/bin/)(:?ba)?sh\b' \
