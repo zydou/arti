@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Usage:
 #   maint/via-cargo-install-in-ci PACKAGE [CARGO ARGS..]
