@@ -1,4 +1,8 @@
-/// Middle-level API for RPC connections
+//! Middle-level API for RPC connections
+//!
+//! This module focuses around the `RpcConn` type, which supports sending RPC requests
+//! and matching them with their responses.
+
 use std::{
     io::{self, BufReader},
     path::PathBuf,
@@ -19,8 +23,16 @@ mod connimpl;
 
 pub use connimpl::RpcConn;
 
+/// A handle to an open request.
+///
+/// These handles are crated with [`RpcConn::execute_with_handle`].
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct RequestHandle {
+    /// The underlying `Receiver` that we'll use to get updates for this request
+    #[educe(Debug(ignore))]
     conn: Arc<connimpl::Receiver>,
+    /// The ID of this request.
     id: AnyRequestId,
 }
 
@@ -35,14 +47,26 @@ pub struct RequestHandle {
 //
 // DODGY TYPES BEGIN: TODO RPC
 
+/// A full response indicating that a request was successful.
+///
+/// (This is the complete `result` message, including "id".)
+//
 // Invariant: Does not contain a NUL. (Safe to convert to CString.)
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct SuccessResponse(String);
 
+/// A full response indicating that a request was successful.
+///
+/// (This is the complete `result` message, including "id".)
+//
 // Invariant: Does not contain a NUL. (Will convert to CString.)
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct UpdateResponse(String);
+
 /// A response to request from Arti, indicating that an error occurred.
+///
+/// (This is the complete `result` message.  It includes an `id` if it
+/// is in response to a request; but not if it is a fatal protocol error.)
 //
 // Invariant: Does not contain a NUL. (Safe to convert to CString.)
 //
@@ -76,15 +100,22 @@ type FinalResponse = Result<SuccessResponse, ErrorResponse>;
 #[derive(Clone, Debug)]
 #[allow(clippy::exhaustive_structs)]
 pub enum AnyResponse {
+    /// The request has succeeded; no more response will be given.
     Success(SuccessResponse),
+    /// The request has failed; no more response will be given.
     Error(ErrorResponse),
+    /// An incremental update; more messages may arrive.
     Update(UpdateResponse),
 }
 // TODO RPC: DODGY TYPES END.
 
+/// Information about how to construct a connection to an Arti instance.
 pub struct RpcConnBuilder {
-    // todo RPC: include selector for how to connect.
+    /// A path to a unix domain socket at which Arti is listening.
+    // TODO RPC: Right now this is the only kind of supported way to connect.
     unix_socket: PathBuf,
+    // todo RPC: include selector for how to connect.
+    //
     // TODO RPC: Possibly kill off the builder entirely.
 }
 
@@ -93,6 +124,14 @@ pub struct RpcConnBuilder {
 // and some optional secret stuff?
 impl RpcConnBuilder {
     /// Create a Builder from a connect string.
+    ///
+    /// (Right now the only supported string type is "unix:" followed by a path.)
+    //
+    // TODO RPC: Should this take an OsString?
+    //
+    // TODO RPC: Specify the actual metaformat that we want to use here.
+    // Possibly turn this into a K=V sequence ... or possibly, just
+    // turn it into a JSON object.
     pub fn from_connect_string(s: &str) -> Result<Self, BuilderError> {
         let (kind, location) = s
             .split_once(':')
@@ -104,12 +143,18 @@ impl RpcConnBuilder {
         }
     }
 
+    /// Create a Builder to connect to a unix socket at a given path.
+    ///
+    /// Note that this function may succeed even in environments where
+    /// unix sockets are not supported.  On these environments,
+    /// the `connect` attempt will later fail with `SchemeNotSupported`.
     pub fn new_unix_socket(addr: impl Into<PathBuf>) -> Self {
         Self {
             unix_socket: addr.into(),
         }
     }
 
+    /// Try to connect to an Arti process as specified by this Builder.
     pub fn connect(&self) -> Result<RpcConn, ConnectError> {
         #[cfg(not(unix))]
         {
@@ -136,6 +181,7 @@ impl RpcConnBuilder {
 }
 
 impl AnyResponse {
+    /// Convert `v` into `AnyResponse`.
     fn from_validated(v: ValidatedResponse) -> Self {
         // TODO RPC, Perhaps unify AnyResponse with ValidatedResponse, once we are sure what
         // AnyResponse should look like.
@@ -180,7 +226,7 @@ impl RpcConn {
     pub fn execute_with_handle(&self, cmd: &str) -> Result<RequestHandle, ProtoError> {
         self.send_request(cmd)
     }
-    // As execute(), but ensure that update_cb is run for every update we receive.
+    /// As execute(), but run update_cb for every update we receive.
     pub fn execute_with_updates<F>(
         &self,
         cmd: &str,
@@ -260,6 +306,9 @@ pub enum ShutdownError {
     /// Arti has told us that we violated the protocol somehow.
     #[error("Arti reported a fatal error: {0:?}")]
     ProtocolViolationReport(ErrorResponse),
+    /// The underlying connection closed.
+    ///
+    /// This probably means that Arti has shut down.
     #[error("Connection closed")]
     ConnectionClosed,
 }
@@ -312,29 +361,35 @@ pub enum ProtoError {
     CouldNotEncode(Arc<serde_json::Error>),
 }
 
+/// An error while trying to connect to the Arti process.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ConnectError {
+    /// We specified a prefix to our connect string, but we don't
+    /// have run-time support for it.
     #[error("Selected connection scheme was not supported in this build")]
     SchemeNotSupported,
-    #[error("Protocol version {0:?} is not supported")]
-    ProtoNotSupported(String),
+    /// IO error while connecting to Arti.
     #[error("Unable to make a connection: {0}")]
     CannotConnect(Arc<std::io::Error>),
-    //#[error(" (launch fnot implemented) ")]
-    // CantLaunchArti,
+    /// One of our protocol negotiation messages was rejected.
     #[error("Arti rejected our negotiation attempts: {0:?}")]
     NegotiationRejected(ErrorResponse),
+    /// One of our authentication messages was rejected.
     #[error("Arti rejected our authentication: {0:?}")]
     AuthenticationRejected(ErrorResponse),
+    /// We couldn't decode one of the responses we got.
     #[error("Message not in expected format: {0:?}")]
     BadMessage(Arc<serde_json::Error>),
+    /// A protocol error occurred during negotiations.
     #[error("Error while negotiating with Arti: {0}")]
     ProtoError(#[from] ProtoError),
 }
 define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
 
+/// An error occurred while trying to construct or manipulate a
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum BuilderError {
+    /// We couldn't decode a provided connect string.
     #[error("Invalid connect string.")]
     InvalidConnectString,
 }

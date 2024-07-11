@@ -136,10 +136,14 @@ pub(super) struct Receiver {
     state: Mutex<ReceiverState>,
 }
 
+/// An open RPC connection to Arti.
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct RpcConn {
     /// The receiver object for this conn.
     ///
     /// It's in an `Arc<>` so that we can share it with the RequestHandles.
+    #[educe(Debug(ignore))]
     receiver: Arc<Receiver>,
 
     /// A writer that we use to send requests to Arti.
@@ -151,6 +155,7 @@ pub struct RpcConn {
     /// both at the same time.
     ///
     /// (For now, this lock is _ONLY_ held in the send_request method.)
+    #[educe(Debug(ignore))]
     writer: Mutex<llconn::Writer>,
 
     /// If set, we are authenticated and we have negotiated a session that has

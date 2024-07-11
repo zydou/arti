@@ -1,7 +1,10 @@
+//! Support for encoding and decoding RPC Requests.
+
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+/// Alias for a Map as used by the serde_json.
 pub(crate) type JsonMap = serde_json::Map<String, serde_json::Value>;
 
 use crate::conn::ProtoError;
@@ -17,17 +20,27 @@ use super::{AnyRequestId, ObjectId};
 #[derive(Deserialize, Serialize, Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub(crate) struct Request<T> {
+    /// The identifier for this request.
+    ///
+    /// Used to match a request with its responses.
     pub(crate) id: AnyRequestId,
+    /// The ID for the object to which this request is addressed.
+    ///
+    /// (Every request goes to a single object.)
     pub(crate) obj: ObjectId,
+    /// Additional information for Arti about how to handle the request.
     #[serde(default)]
     pub(crate) meta: RequestMeta,
+    /// The name of the method to invoke.
     pub(crate) method: String,
+    /// Parameters to pass to the method.
     pub(crate) params: T,
     // TODO: This loses any extra fields that the application may have set.
     //  I am presuming that's okay, but we may want to revisit that.
 }
 
 impl<T: Serialize> Request<T> {
+    /// Try to encode this request as a String.
     pub(crate) fn encode(&self) -> Result<String, ProtoError> {
         serde_json::to_string(self).map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))
     }
@@ -41,8 +54,10 @@ pub(crate) type ParsedRequest = Request<JsonMap>;
 /// A known-valid request, encoded as a string (in a single line, with a terminating newline).
 #[derive(derive_more::AsRef, Debug, Clone)]
 pub(crate) struct ValidatedRequest {
+    /// The message itself, as encoded.
     #[as_ref]
     msg: String,
+    /// The ID for this request.
     id: AnyRequestId,
 }
 
@@ -68,6 +83,10 @@ impl ValidatedRequest {
 #[derive(Deserialize, Serialize, Debug, Default)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub(crate) struct RequestMeta {
+    /// If true, the application wants to receive incremental updates
+    /// about the request that it sent.
+    ///
+    /// (Default: false)
     updates: bool,
 }
 
@@ -75,6 +94,7 @@ pub(crate) struct RequestMeta {
 ///
 /// We can convert this into a ParsedRequest after fixing up any missing or invalid fields.
 #[derive(Deserialize, Debug)]
+#[allow(clippy::missing_docs_in_private_items)] // Fields are as for Request.
 pub(crate) struct LooseParsedRequest {
     id: Option<AnyRequestId>,
     obj: ObjectId,
@@ -87,6 +107,8 @@ pub(crate) struct LooseParsedRequest {
 }
 
 impl LooseParsedRequest {
+    /// Convert this `LooseParsedRequest` into a valid `ParsedRequest`,
+    /// by filling in any missing fields.
     pub(crate) fn into_request<F>(self, id_generator: F) -> ParsedRequest
     where
         F: FnOnce() -> AnyRequestId,
@@ -101,16 +123,23 @@ impl LooseParsedRequest {
     }
 }
 
+/// A helper to return unique Request identifiers.
+///
+/// All identifiers are prefixed with `"!aut o!--"`:
+/// if you don't use that string in your own IDs,
+/// you won't have any collisions.
 #[derive(Debug, Default)]
 pub(crate) struct IdGenerator {
+    /// The number
     next_id: u64,
 }
 
 impl IdGenerator {
+    /// Return a previously unyielded identifier.
     pub(crate) fn next_id(&mut self) -> AnyRequestId {
         let id = self.next_id;
         self.next_id += 1;
-        format!("!auto!---{id}").into()
+        format!("!auto!--{id}").into()
     }
 }
 

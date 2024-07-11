@@ -1,3 +1,8 @@
+//! Support for decoding and encoding RPC messages.
+//!
+//! Every message is either a Request (sent to Arti)
+//! or a Response (received from Arti).
+
 pub(crate) mod request;
 pub(crate) mod response;
 
@@ -14,7 +19,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq, derive_more::From)]
 #[serde(untagged)]
 pub enum AnyRequestId {
+    /// A numeric request ID.
+    ///
+    /// Note that values above `2^53-1` may not work with all
+    /// JSON implementations.
     Number(u64),
+    /// A string request ID.
     String(String),
 }
 

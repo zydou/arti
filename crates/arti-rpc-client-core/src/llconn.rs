@@ -16,6 +16,7 @@ use std::{io, sync::Arc};
 /// (Currently it performs no additional validation; instead it assumes
 /// that Arti is obeying its specification.)
 pub struct Reader {
+    /// The underlying reader.
     backend: Box<dyn io::BufRead + Send>,
 }
 
@@ -23,6 +24,7 @@ pub struct Reader {
 ///
 /// It enforces the property that outbound requests are syntactically well-formed.
 pub struct Writer {
+    /// The underlying writer.
     backend: Box<dyn io::Write + Send>,
 }
 
@@ -89,6 +91,7 @@ impl Writer {
         self.backend.write_all(request.as_ref().as_bytes())
     }
 
+    /// Flush any queued data in this writer.
     pub fn flush(&mut self) -> io::Result<()> {
         self.backend.flush()
     }
@@ -98,8 +101,10 @@ impl Writer {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SendRequestError {
+    /// An IO error occurred while sending a request.
     #[error("Unable to send request: {0}")]
     Io(Arc<io::Error>),
+    /// We found a problem in the JSON while sending a request.
     #[error("Invalid Json request: {0}")]
     InvalidRequest(Arc<serde_json::Error>),
 }

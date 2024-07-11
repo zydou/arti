@@ -16,6 +16,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 caret = { path = "../caret", version = "0.4.5" }
 derive_more = "0.99.3"
+educe = "0.4.6"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.104"
 thiserror = "1"

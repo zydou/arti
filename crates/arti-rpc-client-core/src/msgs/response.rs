@@ -1,3 +1,5 @@
+//! Support for decoding RPC Responses.
+
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -11,10 +13,12 @@ use crate::{conn::ErrorResponse, util::define_from_for_arc};
 /// (It will have no internal newlines, and a single NL at the end.)
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct UnparsedResponse {
+    /// The body of this response.
     msg: String,
 }
 
 impl UnparsedResponse {
+    /// Construct a new UnparsedResponse.
     pub(crate) fn new(msg: String) -> Self {
         Self { msg }
     }
@@ -39,7 +43,7 @@ pub(crate) enum DecodeResponseError {
     #[error("Arti sent a message that didn't conform to the RPC protocol: {0}")]
     JsonProtocolViolation(Arc<serde_json::Error>),
 
-    // There was something (other than json encoding) wrong with a response.
+    /// There was something (other than json encoding) wrong with a response.
     #[error("Arti sent a message that didn't conform to the RPC protocol: {0}")]
     ProtocolViolation(&'static str),
 
@@ -51,6 +55,8 @@ pub(crate) enum DecodeResponseError {
 define_from_for_arc!( serde_json::Error => DecodeResponseError [JsonProtocolViolation] );
 
 impl UnparsedResponse {
+    /// If this response is well-formed, and it corresponds to a single request,
+    /// return it as a ValidatedResponse.
     pub(crate) fn try_validate(self) -> Result<ValidatedResponse, DecodeResponseError> {
         let meta = response_meta(self.as_ref())?;
         Ok(ValidatedResponse {
@@ -69,6 +75,8 @@ impl ValidatedResponse {
             K::Update => false,
         }
     }
+
+    /// Return the request ID associated with this response.
     pub(crate) fn id(&self) -> &AnyRequestId {
         &self.meta.id
     }
@@ -80,17 +88,26 @@ impl From<ValidatedResponse> for String {
     }
 }
 
+/// Metadata extracted from a response while decoding it.
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub(crate) struct ResponseMeta {
+    /// The request ID for this response.
     pub(crate) id: AnyRequestId,
+    /// The kind of response that was received.
     pub(crate) kind: ResponseKind,
 }
 
+/// A kind of response received from Arti.
+//
+// TODO: Possibly unify or derive from ResponseMetaBodyDe?
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ResponseKind {
+    /// Arti reports that an error has occurred.
     Error,
+    /// Arti reports that the request completed successfully.
     Success,
+    /// Arti reports an incremental update for the request.
     Update,
 }
 
@@ -98,17 +115,26 @@ pub(crate) enum ResponseKind {
 /// and route it to the application.
 #[derive(Deserialize, Debug)]
 struct ResponseMetaDe {
+    /// The request ID for this response.
+    ///
+    /// This field is mandatory for any non-Error response.
     id: Option<AnyRequestId>,
+    /// The body as decoded for this response.
     #[serde(flatten)]
     body: ResponseMetaBodyDe,
 }
 /// Inner type to implement ResponseMetaDe
 #[derive(Deserialize, Debug)]
 enum ResponseMetaBodyDe {
+    /// Arti reports that an error has occurred.
+    ///
+    /// In this case, we decode the error to make sure it's well-formed.
     #[serde(rename = "error")]
     Error(RpcError),
+    /// Arti reports that the request completed successfully.
     #[serde(rename = "result")]
     Success(JsonAnyObj),
+    /// Arti reports an incremental update for the request.
     #[serde(rename = "update")]
     Update(JsonAnyObj),
 }
@@ -126,6 +152,7 @@ impl<'a> From<&'a ResponseMetaBodyDe> for ResponseKind {
     }
 }
 
+/// Try to extract metadata for a request in `s`, and make sure it is well-formed.
 pub(crate) fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError> {
     use DecodeResponseError as E;
     use ResponseMetaBodyDe as Body;
@@ -142,6 +169,7 @@ pub(crate) fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError
     }
 }
 
+/// Try to decode `s` as an error response, and return its error.
 pub(crate) fn response_err(s: &str) -> Result<Option<RpcError>, DecodeResponseError> {
     let ResponseMetaDe { body, .. } = serde_json::from_str(s)?;
     match body {
@@ -154,28 +182,40 @@ pub(crate) fn response_err(s: &str) -> Result<Option<RpcError>, DecodeResponseEr
 #[derive(serde::Deserialize, Debug)]
 struct JsonAnyObj {}
 
-/// An error from the Arti rpc layer.
+/// An error sent by Arti, decoded into its parts.
 #[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct RpcError {
+    /// A human-readable message from Arti.
     message: String,
+    /// An error code representing the underlying problem.
     code: RpcErrorCode,
+    /// One or more `ErrorKind`s, encoded as strings.
     kinds: Vec<String>,
+    /// Associated data.
+    //
+    // TODO RPC: Enforce that this is a Map or a String.
     data: Option<JsonValue>,
 }
 
 impl RpcError {
+    /// Return the human-readable message that Arti sent as part of this error.
     pub fn message(&self) -> &str {
         self.message.as_str()
     }
+    /// Return the numeric error code from this error.
     pub fn code(&self) -> RpcErrorCode {
         self.code
     }
+    /// Return an iterator over the ErrorKinds for this error.
+    //
     // Note: This is not a great API for FFI purposes.
     // But FFI code should get errors as a String, so that's probably fine.
     pub fn kinds_iter(&self) -> impl Iterator<Item = &'_ str> {
         self.kinds.iter().map(|s| s.as_ref())
     }
+    /// Return the data field from this error.
+    //
     // Note: This is not a great API for FFI purposes.
     // But FFI code should get errors as a String, so that's probably fine.
     pub fn data(&self) -> Option<&JsonValue> {
