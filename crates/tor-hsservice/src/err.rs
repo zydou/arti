@@ -245,6 +245,11 @@ pub enum FatalError {
     #[error("{0}")]
     NetdirProviderShutdown(#[from] NetdirProviderShutdown),
 
+    /// A field was missing when we tried to construct a
+    /// [`OnionService`](crate::OnionService).
+    #[error("Missing field when constructing OnionService")]
+    MissingField(#[from] derive_builder::UninitializedFieldError),
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
@@ -274,6 +279,7 @@ impl HasKind for FatalError {
             FE::KeystoreRace { .. } => EK::KeystoreAccessFailed,
             FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::NetdirProviderShutdown(e) => e.kind(),
+            FE::MissingField(_) => EK::BadApiUsage,
             FE::Bug(e) => e.kind(),
         }
     }

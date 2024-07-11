@@ -212,6 +212,8 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 // TODO (#1228): Write more.
 // TODO (#1247): Choose a better name for this struct
 //
+#[derive(Builder)]
+#[builder(build_fn(private, name = "build_unvalidated", error = "FatalError"))]
 pub struct OnionService {
     /// The current configuration.
     config: OnionServiceConfig,
@@ -237,6 +239,7 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
+    #[deprecated(since = "1.2.6", note = "Use OnionServiceBuilder instead.")]
     pub fn new(
         config: OnionServiceConfig,
         keymgr: Arc<KeyMgr>,
@@ -254,6 +257,11 @@ impl OnionService {
             keymgr,
             state_dir: state_dir.clone(),
         })
+    }
+
+    /// Create an [`OnionServiceBuilder`].
+    pub fn builder() -> OnionServiceBuilder {
+        OnionServiceBuilder::default()
     }
 
     /// Tell this onion service to begin running, and return a
@@ -358,6 +366,22 @@ impl OnionService {
     /// keystores.
     pub fn onion_name(&self) -> Option<HsId> {
         onion_name(&self.keymgr, &self.config.nickname)
+    }
+}
+
+impl OnionServiceBuilder {
+    /// Build the [`OnionService`]
+    pub fn build(&self) -> Result<OnionService, StartupError> {
+        let svc = self.build_unvalidated()?;
+
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
+        // offline
+        //let offline_hsid = config.offline_hsid;
+        let offline_hsid = false;
+
+        maybe_generate_hsid(&svc.keymgr, &svc.config.nickname, offline_hsid)?;
+
+        Ok(svc)
     }
 }
 
@@ -755,7 +779,12 @@ pub(crate) mod test {
         )
         .unwrap();
 
-        let service = OnionService::new(config, Arc::clone(&*keymgr), &state_dir).unwrap();
+        let service = OnionService::builder()
+            .config(config)
+            .keymgr(Arc::clone(&*keymgr))
+            .state_dir(state_dir)
+            .build()
+            .unwrap();
 
         let hsid = HsId::from(hsid_public);
         assert_eq!(service.onion_name().unwrap(), hsid);
