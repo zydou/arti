@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   maint/apt-install [--] PACKAGE...
+#
+# Runs `apt-get update` and `apt-get -y install PACKAGE...`.
+
+set -euo pipefail
+
+. maint/common/bash-utils.sh
+reject_options
+
+x apt-get update
+x apt install -y -- "$@"

@@ -16,6 +16,11 @@ fail () {
     exit 12
 }
 
+x () {
+    echo >&2 "x $*"
+    "$@"
+}
+
 alias reject_all_arguments='
     if [ $# != 0 ]; then
 	fail "bad usage: no arguments allowed"
