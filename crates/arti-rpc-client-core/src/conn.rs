@@ -142,17 +142,17 @@ impl RpcConn {
     ///
     /// Note that the command does not need to include an `id` field.  If you omit it,
     /// one will be generated.
-    pub fn execute(&self, cmd: &str) -> Result<FinalResponse, CmdError> {
+    pub fn execute(&self, cmd: &str) -> Result<FinalResponse, ProtoError> {
         let hnd = self.execute_with_handle(cmd)?;
         hnd.wait()
     }
     /// Cancel a request by ID.
-    pub fn cancel(&self, id: &AnyRequestId) -> Result<(), CmdError> {
+    pub fn cancel(&self, id: &AnyRequestId) -> Result<(), ProtoError> {
         todo!()
     }
     /// Like `execute`, but don't wait.  This lets the caller see the
     /// request ID and  maybe cancel it.
-    pub fn execute_with_handle(&self, cmd: &str) -> Result<RequestHandle, CmdError> {
+    pub fn execute_with_handle(&self, cmd: &str) -> Result<RequestHandle, ProtoError> {
         self.send_request(cmd)
     }
     // As execute(), but ensure that update_cb is run for every update we receive.
@@ -160,7 +160,7 @@ impl RpcConn {
         &self,
         cmd: &str,
         mut update_cb: F,
-    ) -> Result<FinalResponse, CmdError>
+    ) -> Result<FinalResponse, ProtoError>
     where
         F: FnMut(UpdateResponse) + Send + Sync + 'static,
     {
@@ -189,7 +189,7 @@ impl RequestHandle {
     /// Note that this function will return `Err(.)` only if sending the command or getting a
     /// response failed.  If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(Err(.))`.
-    pub fn wait(mut self) -> Result<FinalResponse, CmdError> {
+    pub fn wait(mut self) -> Result<FinalResponse, ProtoError> {
         loop {
             match self.wait_with_updates()? {
                 AnyResponse::Success(s) => return Ok(Ok(s)),
@@ -207,7 +207,7 @@ impl RequestHandle {
     /// If this function returns Success or Error, then you shouldn't call it again.
     /// All future calls to this function will fail with `CmdError::RequestCancelled`.
     /// (TODO RPC: Maybe rename that error.)
-    pub fn wait_with_updates(&mut self) -> Result<AnyResponse, CmdError> {
+    pub fn wait_with_updates(&mut self) -> Result<AnyResponse, ProtoError> {
         let validated = self.conn.wait_on_message_for(&self.id)?;
 
         Ok(AnyResponse::from_validated(validated))
@@ -254,7 +254,7 @@ impl From<crate::msgs::response::DecodeResponseError> for ShutdownError {
 /// An error that has occurred while launching an RPC command.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum CmdError {
+pub enum ProtoError {
     /// The RPC connection failed, or was closed by the other side.
     #[error("RPC connection is shut down: {0}")]
     Shutdown(#[from] ShutdownError),
@@ -304,7 +304,7 @@ pub enum ConnectError {
     #[error("Message not in expected format: {0:?}")]
     BadMessage(Arc<serde_json::Error>),
     #[error("Error while negotiating with Arti: {0}")]
-    ProtocolError(#[from] CmdError),
+    ProtoError(#[from] ProtoError),
 }
 define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
 

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) type JsonMap = serde_json::Map<String, serde_json::Value>;
 
-use crate::{conn::CmdError, util::define_from_for_arc};
+use crate::{conn::ProtoError, util::define_from_for_arc};
 
 use super::{AnyRequestId, ObjectId};
 
@@ -28,8 +28,8 @@ pub(crate) struct Request<T> {
 }
 
 impl<T: Serialize> Request<T> {
-    pub(crate) fn encode(&self) -> Result<String, CmdError> {
-        serde_json::to_string(self).map_err(|e| CmdError::CouldNotEncode(Arc::new(e)))
+    pub(crate) fn encode(&self) -> Result<String, ProtoError> {
+        serde_json::to_string(self).map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))
     }
 }
 

@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-use super::{CmdError, ShutdownError};
+use super::{ProtoError, ShutdownError};
 
 /// State held by the [`RpcConn`] for a single request ID.
 #[derive(Default)]
@@ -206,11 +206,11 @@ impl RpcConn {
     ///
     /// Limitation: We don't preserved unrecognized fields in the framing and meta
     /// parts of `msg`.  See notes in `request.rs`.
-    pub(super) fn send_request(&self, msg: &str) -> Result<super::RequestHandle, CmdError> {
+    pub(super) fn send_request(&self, msg: &str) -> Result<super::RequestHandle, ProtoError> {
         use std::collections::hash_map::Entry::*;
 
         let loose: LooseParsedRequest =
-            serde_json::from_str(msg).map_err(|e| CmdError::InvalidRequest(Arc::new(e)))?;
+            serde_json::from_str(msg).map_err(|e| ProtoError::InvalidRequest(Arc::new(e)))?;
         let mut state = self.receiver.state.lock().expect("poisoned");
         if let Some(f) = &state.fatal {
             // If there's been a fatal error we don't even try to send the request.
@@ -221,13 +221,13 @@ impl RpcConn {
         let valid: ValidatedRequest = loose
             .into_request(|| state.id_gen.next_id())
             .format()
-            .map_err(|e| CmdError::CouldNotEncode(Arc::new(e)))?;
+            .map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))?;
 
         // Do the necessary housekeeping before we send the request, so that
         // we'll be able to understand the replies.
         let id = valid.id().clone();
         match state.pending.entry(id.clone()) {
-            Occupied(_) => return Err(CmdError::RequestIdInUse),
+            Occupied(_) => return Err(ProtoError::RequestIdInUse),
             Vacant(v) => {
                 v.insert(RequestState::default());
             }
@@ -265,7 +265,7 @@ impl Receiver {
     pub(super) fn wait_on_message_for(
         &self,
         id: &AnyRequestId,
-    ) -> Result<ValidatedResponse, CmdError> {
+    ) -> Result<ValidatedResponse, ProtoError> {
         // Here in wait_on_message_for_impl, we do the the actual work
         // of waiting for the message.
         let state = self.state.lock().expect("posioned");
@@ -328,7 +328,7 @@ impl Receiver {
         mut state_lock: MutexGuard<'a, ReceiverState>,
         id: &AnyRequestId,
     ) -> (
-        Result<ValidatedResponse, CmdError>,
+        Result<ValidatedResponse, ProtoError>,
         MutexGuard<'a, ReceiverState>,
         AlertWhom,
     ) {
@@ -341,7 +341,7 @@ impl Receiver {
 
         // Initialize `this_ent` to our own entry in the pending table.
         let Some(mut this_ent) = state.pending.get_mut(id) else {
-            return (Err(CmdError::RequestCancelled), state_lock, should_alert);
+            return (Err(ProtoError::RequestCancelled), state_lock, should_alert);
         };
 
         let mut reader = loop {
@@ -352,12 +352,12 @@ impl Receiver {
             // Entry only if one is present.
             if this_ent.waiter.is_some() {
                 // This is an internal error; nobody should be able to cause this.
-                return (Err(CmdError::DuplicateWait), state_lock, should_alert);
+                return (Err(ProtoError::DuplicateWait), state_lock, should_alert);
             }
 
             if let Some(ready) = this_ent.pop_next_msg(&state.fatal) {
                 // There is a reply for us, or a fatal error.
-                return (ready.map_err(CmdError::from), state_lock, should_alert);
+                return (ready.map_err(ProtoError::from), state_lock, should_alert);
             }
 
             // If we reach this point, we are about to either take the reader or
@@ -378,7 +378,7 @@ impl Receiver {
             state = &mut state_lock;
             // Restore `this_ent`...
             let Some(e) = state.pending.get_mut(id) else {
-                return (Err(CmdError::RequestCancelled), state_lock, should_alert);
+                return (Err(ProtoError::RequestCancelled), state_lock, should_alert);
             };
             this_ent = e;
             // ... And un-register our condvar.
@@ -394,7 +394,7 @@ impl Receiver {
         // Put the reader back.
         state_lock.reader = Some(reader);
 
-        (result.map_err(CmdError::from), state_lock, should_alert)
+        (result.map_err(ProtoError::from), state_lock, should_alert)
     }
 
     /// Read messages, delivering them as appropriate, until we find one for `id`,
