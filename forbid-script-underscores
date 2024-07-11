@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#
+# Forbid scripts containing a un underscore in their filename,
+# (except where this is required, for for example Python modules).
+#
+# This is a just a matter of style and taste; there are no correctness
+# implications.
+
+set -euo pipefail
+
+. maint/common/bash-utils.sh
+reject_all_arguments
+
+shopt -s nullglob
+
+wrong=()
+
+for f in maint/*_*; do
+    case "$f" in
+	*.py) ;;
+	*) wrong+=("$f") ;;
+    esac
+done
+
+if [ "${wrong[*]}" != '' ]; then
+    fail "We would like script names to have hyphens, not underscores
+
+Please rename these files:
+  ${wrong[*]}
+"
+fi
