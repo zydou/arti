@@ -14,6 +14,9 @@
 #
 # When run outside CI, will try to restore your branch to where you were.
 #
+# Requires TOML.pm, so you may need:
+#     - maint/apt-install libtoml-perl
+#
 # *WARNING* this script can be dangerous.  It may `git clean`
 # and `git reset` in order to try to check out differing versions.
 
