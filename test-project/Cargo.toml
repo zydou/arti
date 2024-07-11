@@ -2,5 +2,6 @@
 name = "test-project"
 version = "0.1.0"
 edition = "2021"
+repository = "https://gitlab.torproject.org/tpo/core//rust-maint-common"
 
 [dependencies]
