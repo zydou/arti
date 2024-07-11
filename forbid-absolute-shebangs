@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-. maint/bash-utils.sh
+. maint/common/bash-utils.sh
 reject_all_arguments
 
 if git grep -rnI '^#\!/' :/ | grep -v '#\!/usr/bin/env'
