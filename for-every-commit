@@ -1,8 +1,21 @@
 #!/bin/bash
 #
-# We fail CI if the word "F I X M E" is detedcted, as a whole word,
-# in any case.  The word is not matched if there are word-characters
-# abutted to it.
+# Usage:
+#   -common/for-every-commit COMMAND ARGS...
+#
+# Runs COMMAND ARGS... for every commit since the baseline
+# (oldest first).  Fails as soon as any such command fails.
+#
+# Makes some assumptions:
+#   - Your main branch is called `main`
+#   - Your baseline repository is mentioned in your `Cargo.toml`
+#   - When running under CI, CI_PROJECT_URL is set (as by gitlab)
+#   - When not running under CI, your `origin` remote is sensible
+#
+# When run outside CI, will try to restore your branch to where you were.
+#
+# *WARNING* this script can be dangerous.  It may `git clean`
+# and `git reset` in order to try to check out differing versions.
 
 set -e
 set -o pipefail
