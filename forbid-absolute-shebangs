@@ -11,7 +11,7 @@ set -euo pipefail
 . maint/bash-utils.sh
 reject_all_arguments
 
-if git grep -rnI "^#\!/" :/ | grep -v "#\!/usr/bin/env"
+if git grep -rnI '^#\!/' :/ | grep -v '#\!/usr/bin/env'
 then
 	echo "Absolute shebangs found, replace them with \"#!/usr/bin/env\""
 	exit 1
