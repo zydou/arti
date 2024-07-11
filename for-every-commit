@@ -135,8 +135,8 @@ fi
 for tbranch in $BASE_BRANCHES; do
     trevlist="$(tlref)..HEAD"
     tcount=$(git rev-list --count "$trevlist")
-    printf "HEAD is %3d commits ahead of %s\n" "$tcount" "$tbranch"
-    if [ "$count" ] && [ $count -le $tcount ]; then continue; fi
+    printf 'HEAD is %3d commits ahead of %s\n' "$tcount" "$tbranch"
+    if [ "$count" ] && [ "$count" -le "$tcount" ]; then continue; fi
     count=$tcount
     branch=$tbranch
     revlist=$trevlist
@@ -149,7 +149,7 @@ commits=$(git rev-list --reverse "$revlist")
 i=0
 for commit in $commits; do
     banner='##############################'
-    printf "|\n%s %d/%d %s\n|\n" "$banner" "$i" "$count" "$banner"
+    printf '|\n%s %d/%d %s\n|\n' "$banner" "$i" "$count" "$banner"
     git log -n1 "$commit" | sed 's/^/| /'
     echo '|'
 
@@ -157,16 +157,15 @@ for commit in $commits; do
 
     if x "$@"; then :; else
 	rc="$?"
-	printf "
+	echo "
 |
 ========================= Failed after $i/$count =========================
 |
-Earliest broken commit is
-  "
+Earliest broken commit is  "
 	git --no-pager log -n1 --pretty=oneline "$commit"
 	exit "$rc"
     fi
-    i=$(( $i + 1 ))
+    i=$(( i + 1 ))
 done
 
 echo "|
