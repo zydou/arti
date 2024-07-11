@@ -1,8 +1,22 @@
 
 stages:
+  - check
   - test
 
 image: "rust:1.79.0-bookworm"
+
+checks:
+  stage: check
+  script:
+    - maint/forbid-script-extensions
+    - maint/forbid-absolute-shebangs
+
+shellcheck:
+  stage: check
+  image: koalaman/shellcheck-alpine
+  script:
+    - apk add git bash
+    - ./maint/shellcheck-all
 
 via-cargo-install-in-ci:
   stage: test

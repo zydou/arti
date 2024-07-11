@@ -45,7 +45,7 @@ case "${1-}" in
 esac
 
 if [ -e "$id_file" ]; then
-    read <"$id_file" extra_id
+    read -r <"$id_file" extra_id
     cache+="  id=$extra_id"
 fi
 

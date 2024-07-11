@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   maint/shellcheck-all
+#
+# Runs "shellcheck" on every shell script
+# A shell script is a file which is in git and
+#   - starts with a `#!` which runs /bin/sh or bash (maybe via env), or
+#   - ends in .sh
+#
+# Example yml:
+#
+# ```
+# shell check:
+#   stage: check
+#   image: koalaman/shellcheck-alpine
+#   script:
+#     - apk add git bash
+#     - ./maint/shellcheck-all
+# ```
+# (except remove the space in `shell check`, which is there
+# because shellcheck otherwise thinks it might be a directive!)
+
+set -euo pipefail
+
+. maint/bash-utils.sh
+reject_all_arguments
+
+(
+  git grep -P --line-number '^#! ?(/usr/bin/env |/bin/)(:?ba)?sh\b' \
+      | sed -n 's/:1:[^:]*$//p'
+  git ls-files | grep '\.sh$'
+) | xargs shellcheck
