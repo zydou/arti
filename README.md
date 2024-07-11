@@ -61,3 +61,13 @@ you should use `git subtree split` or `git subtree push`
 to split off the changes you have made,
 into a branch of (a fork of) this repo.
 Then you can make a Merge Request for your changes.
+
+## Copyright and licence
+
+Copyright The Tor Project, Inc, and contributors.
+
+This whole repository is Free Software.
+You may share and modify under the terms of the MIT License
+or the Apache License version 2.0.
+
+SPDX-License-Identifier: MIT OR Apache-2.0
