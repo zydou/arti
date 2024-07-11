@@ -34,11 +34,17 @@ pub struct RequestHandle {
 // TODO RPC: Possibly, convert these to hold CString internally.
 //
 // DODGY TYPES BEGIN: TODO RPC
+
+// Invariant: Does not contain a NUL. (Safe to convert to CString.)
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct SuccessResponse(String);
+
+// Invariant: Does not contain a NUL. (Will convert to CString.)
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct UpdateResponse(String);
 /// A response to request from Arti, indicating that an error occurred.
+//
+// Invariant: Does not contain a NUL. (Safe to convert to CString.)
 //
 // Invariant: This field MUST encode a response whose body is an RPC error.
 //

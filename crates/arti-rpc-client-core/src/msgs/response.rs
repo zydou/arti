@@ -309,4 +309,18 @@ mod test {
             E::JsonProtocolViolation(_)
         );
     }
+
+    #[test]
+    fn bad_json() {
+        // we rely on the json parser rejecting some things.
+        for s in [
+            "{ ",         // not complete
+            "",           // Empty.
+            "{ \0 }",     // contains nul byte.
+            "{ \"\0\" }", // string contains nul byte.
+        ] {
+            let r: Result<JsonAnyObj, _> = serde_json::from_str(s);
+            assert!(dbg!(r.err()).is_some());
+        }
+    }
 }
