@@ -1,4 +1,23 @@
 #!/bin/bash
+#
+# Usage:
+#   maint/via-cargo-install-in-ci PACKAGE [CARGO ARGS..]
+#
+# Installs PACKAGE with `cargo install --locked`.
+#
+# You should consider whether to specify `--version`:
+# without that, you're no longer hermetic;
+# instead, you'll pic up upstream updates to that cargo package.
+#
+# Reuses a previously-built binary if it's found in the cache.
+# The directory `cache/` should be cached by .gitlab-ci.yml:
+#
+#  some-job:
+#    script:
+#      - maint/via-cargo-install-in-ci cargo-audit
+#    cache:
+#      paths:
+#        - cache
 
 set -euo pipefail
 
