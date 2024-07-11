@@ -14,6 +14,7 @@
 set -euo pipefail
 
 . maint/bash-utils.sh
+reject_all_arguments
 
 wrong=$(
     # shellcheck disable=SC2086
