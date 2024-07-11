@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -euo pipefail
+
+badusage () { echo >&2 "$0: bad usage: $1"; exit 8; }
+
+case "$1" in
+    -*) badusage 'first argument must be command (package)' ;;
+esac
+
+cache="$*"
+cmd="$1"; shift
+
+case "${1-}" in
+    [^-]*) badusage 'subsequent arguments must be options to cargo install' ;;
+esac
+
+cache="${cache// /,}"
+cache="cache/$cache"
+
+if cp -v "$cache" "$CARGO_HOME"/bin/"$cmd"; then exit 0; fi
+
+mkdir -p cache
+cargo install --locked "$@" "$cmd"
+cp -v "$CARGO_HOME/bin/$cmd" "$cache"
