@@ -6,6 +6,8 @@
 # Requires that scripts all start with `#! /usr/bin/env`,
 # not a path to a specific interpreter.
 
+set -euo pipefail
+
 if git grep -rnI "^#\!/" :/ | grep -v "#\!/usr/bin/env"
 then
 	echo "Absolute shebangs found, replace them with \"#!/usr/bin/env\""
