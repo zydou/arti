@@ -1,11 +1,20 @@
 /// Middle-level API for RPC connections
-use std::{io, path::PathBuf, sync::Arc};
-
-use crate::msgs::{
-    response::{ResponseKind, RpcError, ValidatedResponse},
-    AnyRequestId,
+use std::{
+    io::{self, BufReader},
+    path::PathBuf,
+    sync::Arc,
 };
 
+use crate::{
+    llconn,
+    msgs::{
+        response::{ResponseKind, RpcError, ValidatedResponse},
+        AnyRequestId, ObjectId,
+    },
+    util::define_from_for_arc,
+};
+
+mod auth;
 mod connimpl;
 
 pub use connimpl::RpcConn;
@@ -49,8 +58,8 @@ pub enum AnyResponse {
 // TODO RPC: DODGY TYPES END.
 
 pub struct RpcConnBuilder {
-    // todo: include selector for how to connect.
-
+    // todo RPC: include selector for how to connect.
+    unix_socket: PathBuf,
     // TODO RPC: Possibly kill off the builder entirely.
 }
 
@@ -58,17 +67,46 @@ pub struct RpcConnBuilder {
 // tries to do this all at once, possibly decoding a "connect string"
 // and some optional secret stuff?
 impl RpcConnBuilder {
-    pub fn new_unix_socket(addr: impl Into<PathBuf>) -> Self {
-        // TODO RPC: We'll need to use TcpSocket::clone to share the socket as a Reader and a Writer with
-        // two different threads, since std::net::TcpSocket doesn't have a split().  That means that
-        // we'll be calling dup() on the socket.  Do we care?
+    /// Create a Builder from a connect string.
+    pub fn from_connect_string(s: &str) -> Result<Self, BuilderError> {
+        let (kind, location) = s
+            .split_once(':')
+            .ok_or(BuilderError::InvalidConnectString)?;
+        if kind == "unix" {
+            Ok(Self::new_unix_socket(location))
+        } else {
+            Err(BuilderError::InvalidConnectString)
+        }
+    }
 
-        todo!()
+    pub fn new_unix_socket(addr: impl Into<PathBuf>) -> Self {
+        Self {
+            unix_socket: addr.into(),
+        }
     }
 
     pub fn connect(&self) -> Result<RpcConn, ConnectError> {
-        // also launches a reactor thread
-        todo!()
+        #[cfg(not(unix))]
+        {
+            return Err(ConnectError::SchemeNotSupported);
+        }
+        #[cfg(unix)]
+        {
+            let sock = std::os::unix::net::UnixStream::connect(&self.unix_socket)
+                .map_err(|e| ConnectError::CannotConnect(Arc::new(e)))?;
+            let sock_dup = sock
+                .try_clone()
+                .map_err(|e| ConnectError::CannotConnect(Arc::new(e)))?;
+            let mut conn = RpcConn::new(
+                llconn::Reader::new(Box::new(BufReader::new(sock))),
+                llconn::Writer::new(Box::new(sock_dup)),
+            );
+
+            let session_id = conn.negotiate_inherent("inherent:unix_path")?;
+            conn.session = Some(session_id);
+
+            Ok(conn)
+        }
     }
 }
 
@@ -85,6 +123,17 @@ impl AnyResponse {
 }
 
 impl RpcConn {
+    /// Return the ObjectId for the negotiated Session.
+    ///
+    /// Nearly all RPC methods require a Session, or some other object
+    /// accessed via the session.
+    ///
+    /// (This function will only return None if no authentication has been performed.
+    /// TODO RPC: It is not currently possible to make an unauthenticated connection.)
+    pub fn session(&self) -> Option<&ObjectId> {
+        self.session.as_ref()
+    }
+
     /// Run a command, and wait for success or failure.
     ///
     /// Note that this function will return `Err(.)` only if sending the command or getting a
@@ -238,9 +287,29 @@ pub enum CmdError {
     CouldNotEncode(Arc<serde_json::Error>),
 }
 
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum ConnectError {
-    NobodyListening,
-    CantLaunchArti,
-    AuthenticationRejected,
-    ProtocolError(CmdError),
+    #[error("Selected connection scheme was not supported in this build")]
+    SchemeNotSupported,
+    #[error("Protocol version {0:?} is not supported")]
+    ProtoNotSupported(String),
+    #[error("Unable to make a connection: {0}")]
+    CannotConnect(Arc<std::io::Error>),
+    //#[error(" (launch fnot implemented) ")]
+    // CantLaunchArti,
+    #[error("Arti rejected our negotiation attempts: {0:?}")]
+    NegotiationRejected(ErrorResponse),
+    #[error("Arti rejected our authentication: {0:?}")]
+    AuthenticationRejected(ErrorResponse),
+    #[error("Message not in expected format: {0:?}")]
+    BadMessage(Arc<serde_json::Error>),
+    #[error("Error while negotiating with Arti: {0}")]
+    ProtocolError(#[from] CmdError),
+}
+define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
+
+#[derive(Clone, Debug, thiserror::Error)]
+pub enum BuilderError {
+    #[error("Invalid connect string.")]
+    InvalidConnectString,
 }

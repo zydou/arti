@@ -17,7 +17,7 @@ use crate::{
     msgs::{
         request::{IdGenerator, LooseParsedRequest, ValidatedRequest},
         response::ValidatedResponse,
-        AnyRequestId,
+        AnyRequestId, ObjectId,
     },
 };
 
@@ -152,6 +152,10 @@ pub struct RpcConn {
     ///
     /// (For now, this lock is _ONLY_ held in the send_request method.)
     writer: Mutex<llconn::Writer>,
+
+    /// If set, we are authenticated and we have negotiated a session that has
+    /// this ObjectID.
+    pub(super) session: Option<ObjectId>,
 }
 
 /// Instruction to alert some additional condvar(s) before releasing our lock and returning
@@ -189,6 +193,7 @@ impl RpcConn {
                 }),
             }),
             writer: Mutex::new(writer),
+            session: None,
         }
     }
 

@@ -4,25 +4,39 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) type JsonMap = serde_json::Map<String, serde_json::Value>;
 
-use crate::util::define_from_for_arc;
+use crate::{conn::CmdError, util::define_from_for_arc};
 
 use super::{AnyRequestId, ObjectId};
+
+/// A request in its decoded (or unencoded) format.
+///
+/// We use this type to validate outbound requests from the application,
+/// and to generate our own requests.
+//
+// TODO RPC: Conceivably this should not be the same type as ParsedRequest.
+#[derive(Deserialize, Serialize, Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub(crate) struct Request<T> {
+    pub(crate) id: AnyRequestId,
+    pub(crate) obj: ObjectId,
+    #[serde(default)]
+    pub(crate) meta: RequestMeta,
+    pub(crate) method: String,
+    pub(crate) params: T,
+    // TODO: This loses any extra fields that the application may have set.
+    //  I am presuming that's okay, but we may want to revisit that.
+}
+
+impl<T: Serialize> Request<T> {
+    pub(crate) fn encode(&self) -> Result<String, CmdError> {
+        serde_json::to_string(self).map_err(|e| CmdError::CouldNotEncode(Arc::new(e)))
+    }
+}
 
 /// Crate-internal: An outbound request.
 ///
 /// We use this type to make sure that a request is syntactically valid before sending it out.
-#[derive(Deserialize, Serialize, Debug)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
-pub(crate) struct ParsedRequest {
-    id: AnyRequestId,
-    obj: ObjectId,
-    #[serde(default)]
-    meta: RequestMeta,
-    method: String,
-    params: JsonMap,
-    // TODO: This loses any extra fields that the application may have set.
-    //  I am presuming that's okay, but we may want to revisit that.
-}
+pub(crate) type ParsedRequest = Request<JsonMap>;
 
 /// A known-valid request, encoded as a string (in a single line, with a terminating newline).
 #[derive(derive_more::AsRef, Debug, Clone)]

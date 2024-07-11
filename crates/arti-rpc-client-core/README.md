@@ -22,10 +22,10 @@ Notes so far:
  Coming next:
  * [x] clean out the X X X Xs
  * [x] diziet's revisions on connimpl.
- * [ ] actual implementations for making connections.
+ * [x] actual implementations for making connections.
  * [ ] More tests.
  * [ ] update this readme.
- * [ ] interface for connecting to arti
+ * [x] interface for connecting to arti
  * [ ] C FFI wrappers for everything reasonable
  * [ ] enable the usual warnings.
  * [ ] Finish this readme.
