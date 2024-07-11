@@ -331,7 +331,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
     /// 'peer' is the peer that we want to make sure we're connecting to.
     ///
     /// 'peer_cert' is the x.509 certificate that the peer presented during
-    /// its handshake.
+    /// its TLS handshake (ServerHello).
     ///
     /// 'now' is the time at which to check that certificates are
     /// valid.  `None` means to use the current time. It can be used
