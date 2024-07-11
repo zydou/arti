@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// for outbound requests as needed.
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq, derive_more::From)]
 #[serde(untagged)]
-pub(crate) enum AnyRequestId {
+pub enum AnyRequestId {
     Number(u64),
     String(String),
 }
@@ -36,4 +36,4 @@ pub(crate) enum AnyRequestId {
     derive_more::Into,
 )]
 #[serde(transparent)]
-pub(crate) struct ObjectId(pub String);
+pub struct ObjectId(pub String);
