@@ -25,6 +25,7 @@ set -euo pipefail
 reject_all_arguments
 
 (
-  git grep -P --line-number '^#! ?/usr/bin/env (:?ba)?sh\b' | sed -n 's/:1:[^:]*$//p'
+  git grep -P --line-number '^#! ?/usr/bin/env (:?ba)?sh\b' \
+      | sed -n 's/:1:[^:]*$//p'
   git ls-files | grep '\.sh$'
 ) | xargs shellcheck
