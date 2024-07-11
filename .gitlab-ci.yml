@@ -1,0 +1,14 @@
+
+stages:
+  - test
+
+image: "rust:1.79.0-bookworm"
+
+via-cargo-install-in-ci:
+  stage: test
+  script:
+    # tiny-timer is an almost-arbitrarily-chosen small binary crate
+    maint/via-cargo-install-in-ci tiny-timer --version=0.1.1
+  cache:
+    paths:
+      - cache
