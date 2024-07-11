@@ -18,10 +18,20 @@
 #    cache:
 #      paths:
 #        - cache
+#
+# If the file `maint/via-cargo-install-in-ci.cache-id` exists,
+# its contents are used as part of the cache key,
+# so that the cache is invalidated (and all packages rebuilt)
+# when that id changes.
+#
+# (The cache key also includes all of the arguments,
+# including the package name.)
 
 set -euo pipefail
 
 badusage () { echo >&2 "$0: bad usage: $1"; exit 8; }
+
+id_file=maint/via-cargo-install-in-ci.cache-id
 
 case "$1" in
     -*) badusage 'first argument must be command (package)' ;;
@@ -33,6 +43,11 @@ cmd="$1"; shift
 case "${1-}" in
     [^-]*) badusage 'subsequent arguments must be options to cargo install' ;;
 esac
+
+if [ -e "$id_file" ]; then
+    read <"$id_file" extra_id
+    cache+="  id=$extra_id"
+fi
 
 cache="${cache// /,}"
 cache="cache/$cache"
