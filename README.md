@@ -49,6 +49,24 @@ maint/common/check-blocking-todos
 You can update to a new version of `rust-maint-common`
 with `git subtree pull` or `git subtree merge`.
 
+## Invocation
+
+The script are designed to be invoked from your toplevel,
+as `maint/name-of-script` or `maint/common/name-of-script`.
+
+They will assume that `maint/common/` is this tree
+(as recommended above).
+
+## Security considerations
+
+These scripts can be configured by files found
+relative to the current directory,
+and they can execute other scripts from this package,
+hoping to find them via relative paths.
+
+These scripts are not safe to run in an untrusted cwd.
+They must not be put on `PATH`.
+
 ## Making changes
 
 You should try to make only changes which would be
