@@ -335,6 +335,11 @@ impl Receiver {
         // At this point, we have not registered on a condvar, and we have not
         // taken the reader.
         // Therefore, we do not yet need to ensure that anybody else takes the reader.
+        //
+        // TODO: It is possibly too easy to forget to set this,
+        // or to set it to a less "alerty" value.  Refactoring might help;
+        // see discussion at
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2258#note_3047267
         let mut should_alert = AlertWhom::Nobody;
 
         let mut state: &mut ReceiverState = &mut state_lock;
