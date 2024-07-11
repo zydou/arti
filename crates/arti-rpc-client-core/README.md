@@ -2,11 +2,7 @@
 
 Notes so far:
 
- * UnvalidatedReader and UnvalidatedWriter are at the lowest level.
-   They are meant to be overridable, though mostly we provide a way to construct them
-   in authenticated versions.
-
- * On top of them, we build llconn::{Reader,Writer}.  Reader is a tiny wrapper; Writer validates the
+ * On top of io::{BufRead,Write}, we build llconn::{Reader,Writer}.  Reader is a tiny wrapper; Writer validates the
    syntax of outgoing messages.
 
  * On top of them, we build conn::RpcConn.  This is the one I expect most users would want; it
