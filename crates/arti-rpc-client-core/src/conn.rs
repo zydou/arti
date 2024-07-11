@@ -363,6 +363,7 @@ pub enum ProtoError {
 
 /// An error while trying to connect to the Arti process.
 #[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ConnectError {
     /// We specified a prefix to our connect string, but we don't
     /// have run-time support for it.
@@ -388,6 +389,7 @@ define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
 
 /// An error occurred while trying to construct or manipulate a
 #[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum BuilderError {
     /// We couldn't decode a provided connect string.
     #[error("Invalid connect string.")]

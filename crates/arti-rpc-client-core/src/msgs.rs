@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 /// for outbound requests as needed.
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq, derive_more::From)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum AnyRequestId {
     /// A numeric request ID.
     ///
@@ -26,6 +27,7 @@ pub enum AnyRequestId {
     Number(u64),
     /// A string request ID.
     String(String),
+    // TODO RPC: Need to allow negative numbers!
 }
 
 /// An identifier for some object visible to the Arti RPC system.
@@ -46,4 +48,4 @@ pub enum AnyRequestId {
     derive_more::Into,
 )]
 #[serde(transparent)]
-pub struct ObjectId(pub String);
+pub struct ObjectId(String);

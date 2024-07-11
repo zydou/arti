@@ -23,5 +23,5 @@ Notes so far:
  * [ ] update this readme.
  * [x] interface for connecting to arti
  * [ ] C FFI wrappers for everything reasonable
- * [ ] enable the usual warnings.
+ * [x] enable the usual warnings.
  * [ ] Finish this readme.
