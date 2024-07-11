@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 mod conn;
 pub mod llconn;
 mod msgs;
@@ -7,4 +5,4 @@ mod msgs;
 mod util;
 
 pub use conn::{BuilderError, ConnectError, ProtoError, RpcConn, RpcConnBuilder};
-pub use msgs::{AnyRequestId, ObjectId};
+pub use msgs::{response::RpcError, AnyRequestId, ObjectId};

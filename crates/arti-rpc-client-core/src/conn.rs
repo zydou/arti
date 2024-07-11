@@ -39,9 +39,28 @@ pub struct SuccessResponse(String);
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct UpdateResponse(String);
 /// A response to request from Arti, indicating that an error occurred.
+//
+// Invariant: This field MUST encode a response whose body is an RPC error.
+//
+// Otherwise the `decode` method may panic.
 #[derive(Clone, Debug, derive_more::AsRef)]
 // TODO: If we keep this, it should implement Error.
 pub struct ErrorResponse(String);
+impl ErrorResponse {
+    /// Construct an ErrorResponse from the Error reply.
+    ///
+    /// This not a From impl because we want it to be crate-internal.
+    pub(crate) fn from_validated_string(s: String) -> Self {
+        ErrorResponse(s)
+    }
+
+    /// Try to interpret this response as an [`RpcError`].
+    pub fn decode(&self) -> RpcError {
+        crate::msgs::response::response_err(&self.0)
+            .expect("Could not decode response that was already decoded as an error?")
+            .expect("Could not extract error from response that was already decoded as an error?")
+    }
+}
 
 /// A final response -- that is, the last one that we expect to receive for a request.
 ///
@@ -115,7 +134,7 @@ impl AnyResponse {
         // TODO RPC, Perhaps unify AnyResponse with ValidatedResponse, once we are sure what
         // AnyResponse should look like.
         match v.meta.kind {
-            ResponseKind::Error => AnyResponse::Error(ErrorResponse(v.msg)),
+            ResponseKind::Error => AnyResponse::Error(ErrorResponse::from_validated_string(v.msg)),
             ResponseKind::Success => AnyResponse::Success(SuccessResponse(v.msg)),
             ResponseKind::Update => AnyResponse::Update(UpdateResponse(v.msg)),
         }
@@ -234,7 +253,7 @@ pub enum ShutdownError {
     ProtocolViolated(String),
     /// Arti has told us that we violated the protocol somehow.
     #[error("Arti reported a fatal error: {0:?}")]
-    ProtocolViolationReport(RpcError),
+    ProtocolViolationReport(ErrorResponse),
     #[error("Connection closed")]
     ConnectionClosed,
 }

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::Value as JsonValue;
 
 use super::AnyRequestId;
-use crate::util::define_from_for_arc;
+use crate::{conn::ErrorResponse, util::define_from_for_arc};
 
 /// An unparsed and unvalidated response, as received from Arti.
 ///
@@ -45,8 +45,8 @@ pub(crate) enum DecodeResponseError {
 
     /// We decoded the response, but rather than having an `id`,
     /// it had an error message from Arti with no id.  We treat this as fatal.
-    #[error("Arti reported a fatal error.")]
-    Fatal(RpcError), // Should this be a string instead?
+    #[error("Arti reported a fatal error: {0:?}")]
+    Fatal(ErrorResponse),
 }
 define_from_for_arc!( serde_json::Error => DecodeResponseError [JsonProtocolViolation] );
 
@@ -106,7 +106,7 @@ struct ResponseMetaDe {
 #[derive(Deserialize, Debug)]
 enum ResponseMetaBodyDe {
     #[serde(rename = "error")]
-    Error(RpcError), // TODO: DO we actually want to preserve this info?
+    Error(RpcError),
     #[serde(rename = "result")]
     Success(JsonAnyObj),
     #[serde(rename = "update")]
@@ -131,12 +131,22 @@ pub(crate) fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError
     use ResponseMetaBodyDe as Body;
     let ResponseMetaDe { id, body } = serde_json::from_str(s)?;
     match (id, body) {
-        (None, Body::Error(e)) => Err(E::Fatal(e)),
+        (None, Body::Error(_ignore)) => {
+            Err(E::Fatal(ErrorResponse::from_validated_string(s.to_owned())))
+        }
         (None, _) => Err(E::ProtocolViolation("Missing ID field")),
         (Some(id), body) => Ok(ResponseMeta {
             id,
             kind: (&body).into(),
         }),
+    }
+}
+
+pub(crate) fn response_err(s: &str) -> Result<Option<RpcError>, DecodeResponseError> {
+    let ResponseMetaDe { body, .. } = serde_json::from_str(s)?;
+    match body {
+        ResponseMetaBodyDe::Error(e) => Ok(Some(e)),
+        _ => Ok(None),
     }
 }
 
@@ -147,12 +157,30 @@ struct JsonAnyObj {}
 /// An error from the Arti rpc layer.
 #[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[allow(dead_code)] // XXXX These fields aren't usable.  Fix that.
 pub struct RpcError {
     message: String,
     code: RpcErrorCode,
     kinds: Vec<String>,
     data: Option<JsonValue>,
+}
+
+impl RpcError {
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+    pub fn code(&self) -> RpcErrorCode {
+        self.code
+    }
+    // Note: This is not a great API for FFI purposes.
+    // But FFI code should get errors as a String, so that's probably fine.
+    pub fn kinds_iter(&self) -> impl Iterator<Item = &'_ str> {
+        self.kinds.iter().map(|s| s.as_ref())
+    }
+    // Note: This is not a great API for FFI purposes.
+    // But FFI code should get errors as a String, so that's probably fine.
+    pub fn data(&self) -> Option<&JsonValue> {
+        self.data.as_ref()
+    }
 }
 
 caret::caret_int! {
