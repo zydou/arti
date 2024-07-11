@@ -5,6 +5,12 @@ stages:
 
 image: "rust:1.79.0-bookworm"
 
+checks:
+  stage: check
+  script:
+    - maint/forbid-script-extensions
+    - maint/forbid-absolute-shebangs
+
 shellcheck:
   stage: check
   image: koalaman/shellcheck-alpine
