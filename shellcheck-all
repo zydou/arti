@@ -5,7 +5,7 @@
 #
 # Runs "shellcheck" on every shell script
 # A shell script is a file which is in git and
-#   - starts with a `#!` which runs sh or bash via env, or
+#   - starts with a `#!` which runs /bin/sh or bash (maybe via env), or
 #   - ends in .sh
 #
 # Example yml:
@@ -25,7 +25,7 @@ set -euo pipefail
 reject_all_arguments
 
 (
-  git grep -P --line-number '^#! ?/usr/bin/env (:?ba)?sh\b' \
+  git grep -P --line-number '^#! ?(/usr/bin/env |/bin/)(:?ba)?sh\b' \
       | sed -n 's/:1:[^:]*$//p'
   git ls-files | grep '\.sh$'
 ) | xargs shellcheck
