@@ -147,7 +147,7 @@ impl RpcConn {
         hnd.wait()
     }
     /// Cancel a request by ID.
-    pub fn cancel(&self, id: &AnyRequestId) -> Result<(), ProtoError> {
+    pub fn cancel(&self, _id: &AnyRequestId) -> Result<(), ProtoError> {
         todo!()
     }
     /// Like `execute`, but don't wait.  This lets the caller see the

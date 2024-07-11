@@ -281,7 +281,7 @@ impl Receiver {
             // "final" in this case means that we are not expecting any more
             // replies for this request.
             let is_final = match &result {
-                Err(e) => true,
+                Err(_) => true,
                 Ok(r) => r.is_final(),
             };
 
