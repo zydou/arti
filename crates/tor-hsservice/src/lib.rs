@@ -221,29 +221,6 @@ pub struct OnionService {
     state_dir: StateDirectory,
 }
 
-
-    /// Return the onion address of this service.
-    ///
-    /// Clients must know the service's onion address in order to discover or
-    /// connect to it.
-    ///
-    /// Returns `None` if the HsId of the service could not be found in any of the configured
-    /// keystores.
-    //
-    // TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
-    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
-    // ArtiHss.
-    fn onion_name(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
-        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
-
-        // TODO (#1194): This will need to be revisited when we implement offline hsid mode,
-        // (the HsId keypair won't be in the keystore)
-        keymgr
-            .get::<HsIdKeypair>(&hsid_spec)
-            .ok()?
-            .map(|hsid| HsIdKey::from(&hsid).id())
-    }
-
 impl OnionService {
     /// Create (but do not launch) a new onion service.
     ///
@@ -297,7 +274,11 @@ impl OnionService {
     where
         R: Runtime,
     {
-        let OnionService { config, keymgr, state_dir } = self;
+        let OnionService {
+            config,
+            keymgr,
+            state_dir,
+        } = self;
 
         let nickname = config.nickname.clone();
 
@@ -539,6 +520,28 @@ fn maybe_generate_hsid(
     }
 
     Ok(())
+}
+
+/// Return the onion address of this service.
+///
+/// Clients must know the service's onion address in order to discover or
+/// connect to it.
+///
+/// Returns `None` if the HsId of the service could not be found in any of the configured
+/// keystores.
+//
+// TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
+// method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
+// ArtiHss.
+fn onion_name(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
+    let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+
+    // TODO (#1194): This will need to be revisited when we implement offline hsid mode,
+    // (the HsId keypair won't be in the keystore)
+    keymgr
+        .get::<HsIdKeypair>(&hsid_spec)
+        .ok()?
+        .map(|hsid| HsIdKey::from(&hsid).id())
 }
 
 #[cfg(test)]
