@@ -1580,6 +1580,12 @@ impl<R: Runtime> TorClient<R> {
 
         Ok((state_dir, mistrust))
     }
+
+    /// Return a handle which resolves once this TorClient has stopped.
+    #[cfg(feature = "experimental-api")]
+    pub fn wait_for_stop(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        self.statemgr.wait_for_unlock()
+    }
 }
 
 /// Monitor `dormant_mode` and enable/disable periodic tasks as applicable
