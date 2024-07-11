@@ -147,6 +147,7 @@ struct JsonAnyObj {}
 /// An error from the Arti rpc layer.
 #[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
+#[allow(dead_code)] // XXXX These fields aren't usable.  Fix that.
 pub struct RpcError {
     message: String,
     code: RpcErrorCode,
@@ -210,13 +211,6 @@ mod test {
         }
     }
 
-    const RES1: &str = r#"{"id": 7, "update": {}}"#;
-    const RES2: &str = r#"{"id": 7, "result": {}}"#;
-    const RES3: &str = r#"{"id": 7, "error": {}}"#;
-    const RES4: &str =
-        r#"{"error": {"message":"iffy wobbler", "code":999, "kinds": ["BadVibes"]}}"#;
-    const RES5: &str = r#"{"error": {"message":"iffy wobbler", "code":999, "kinds": ["BadVibes"], "data": {"a":"b"}}}"#;
-
     #[test]
     fn response_meta_good() {
         use ResponseKind as RK;
@@ -234,6 +228,13 @@ mod test {
                 RM {
                     id: "hi".to_string().into(),
                     kind: RK::Update,
+                },
+            ),
+            (
+                r#"{"id": 6, "error": {"message":"iffy wobbler", "code":999, "kinds": ["BadVibes"]}}"#,
+                RM {
+                    id: 6.into(),
+                    kind: RK::Error,
                 },
             ),
             (

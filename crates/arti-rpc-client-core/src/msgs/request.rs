@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) type JsonMap = serde_json::Map<String, serde_json::Value>;
 
-use crate::{conn::ProtoError, util::define_from_for_arc};
+use crate::conn::ProtoError;
 
 use super::{AnyRequestId, ObjectId};
 
@@ -54,11 +54,6 @@ impl ParsedRequest {
         debug_assert!(!msg.contains('\n'));
         msg.push('\n');
         Ok(ValidatedRequest { id, msg })
-    }
-
-    /// Return the Id associated with this request.
-    pub(crate) fn id(&self) -> &AnyRequestId {
-        &self.id
     }
 }
 
@@ -118,13 +113,6 @@ impl IdGenerator {
         format!("!auto!---{id}").into()
     }
 }
-
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub enum RequestError {
-    InvalidRequest(Arc<serde_json::Error>),
-}
-define_from_for_arc!( serde_json::Error => RequestError [InvalidRequest] );
 
 #[cfg(test)]
 mod test {
