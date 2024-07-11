@@ -13,14 +13,7 @@
 
 set -euo pipefail
 
-fail () {
-    echo >&2 "error; $*"
-    exit 8
-}
-
-if [ "$#" != 0 ]; then
-    fail "no arguments allowed"
-fi
+. maint/bash-utils.sh
 
 wrong=$(
     # shellcheck disable=SC2086
