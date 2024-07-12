@@ -627,7 +627,7 @@ impl ClientCirc {
         let key = NtorPublicKey {
             id: *target
                 .rsa_identity()
-                .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
+                .ok_or(Error::MissingId(RelayIdType::Rsa))?,
             pk: *target.ntor_onion_key(),
         };
         let mut linkspecs = target
