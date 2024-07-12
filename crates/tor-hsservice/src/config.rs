@@ -4,6 +4,10 @@ use crate::internal_prelude::*;
 
 use tor_cell::relaycell::hs::est_intro;
 
+use crate::config::restricted_discovery::{
+    RestrictedDiscoveryConfig, RestrictedDiscoveryConfigBuilder,
+};
+
 #[cfg(feature = "restricted-discovery")]
 #[cfg_attr(docsrs, doc(cfg(feature = "restricted-discovery")))]
 pub mod restricted_discovery;
@@ -52,6 +56,14 @@ pub struct OnionServiceConfig {
     /// this service?
     #[builder(default = "65535")]
     max_concurrent_streams_per_circuit: u32,
+
+    /// Configure restricted discovery mode.
+    ///
+    /// When this is enabled, we encrypt our list of introduction point and keys
+    /// so that only clients holding one of the listed keys can decrypt it.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
     // // enable_pow: bool,
@@ -67,19 +79,6 @@ pub struct OnionServiceConfig {
     // /// our proof-of-work defense is enabled.
     // pow_queue_rate: TokenBucketConfig,
     // ...
-
-    // /// Configure descriptor-based client authorization.
-    // ///
-    // /// When this is enabled, we encrypt our list of introduction point and keys
-    // /// so that only clients holding one of the listed keys can decrypt it.
-    //
-    // TODO (#1206): we'd like this to be an Option, but that doesn't work well with
-    // sub_builder.  We need to figure out what to do there.
-    //
-    // TODO (#1206): Temporarily disabled while we figure out how we want it to work;
-    // see also #1028
-    //
-    // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
 }
 
 /// Default number of introduction points.
@@ -181,6 +180,24 @@ impl OnionServiceConfig {
 
             // We extract this on every introduction request.
             max_concurrent_streams_per_circuit: simply_update,
+
+            // The IPT manager does not currently handle restricted discovery config changes.
+            //
+            // You must restart the service to change the restricted discovery settings.
+            //
+            // TODO: we should decide if we want to support hot-reloading.
+            //
+            // This will involve adding a watcher for each client key directory,
+            // and generating and publishing a new descriptor on change.
+            // We most likely don't want to republish the descriptor on *every* change though:
+            // consider a hidden service operator copying client keys individually
+            // to the key directory while the service is running.
+            // This would trigger a burst of descriptor uploads
+            // that could've been avoided by more careful client key management.
+            //
+            // We might also want to also rotate the IPTs as part of this process,
+            // to prevent any no-longer-authorized clients from reaching the service.
+            restricted_discovery: unchangeable,
         }
 
         Ok(other)
