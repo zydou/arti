@@ -57,18 +57,23 @@ shellcheck:
 
 python3-mypy:
   stage: check
+  variables:
+    MYPYPATH: maint
   script:
     - apt-get update && apt-get install -y mypy
     - mypy --strict maint/update-md-links
+    - mypy --strict maint/list_crates
+    - mypy --strict maint/cargo-check-publishable
 
 maint-checks:
   stage: check
   script:
-    - apt-get update && apt-get install -y python3-toml python-is-python3
+    - apt-get update && apt-get install -y python3-toml python3-requests python-is-python3
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/shebang
     - ./maint/forbid-script-extensions
+    - ./maint/cargo-check-publishable
 
 maint-check-changelog:
   stage: test

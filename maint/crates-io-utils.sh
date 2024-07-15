@@ -37,10 +37,14 @@ tmp_trap_exit_finish_ok () {
 #   https://crates.io/api/$endpoint
 # Expects to receive either
 #   HTTP 200 and a json document which `jq "$expect_key"` accepts
-#   HTTP 404 and a json document containing a `.error` key
+#   HTTP 404 and a json document containing a `.errors` key
 # The fetched document is stored in "$output"
 # The HTTP code is left in the global variable `http_code`
 # (and also written to "$output.http")
+#
+# There is a Python reimplementation `cargo-check-publishable`
+# TODO: possibly, break that function out into a library and
+#       replace this shell implementation with a veneer over the Python one.
 crates_io_api_call () {
     local endpoint="$1"
     local expect_key="$2"
@@ -48,7 +52,9 @@ crates_io_api_call () {
 
     local url="${CRATES_IO_URL_BASE}/$endpoint"
 
-    curl -L -sS -o "$output" -w '%{http_code}' >"$output.http" "$url"
+    sleep 1
+    curl -A 'maint/ scripts for Tor Project CI (shell script)' \
+	 -L -sS -o "$output" -w '%{http_code}' >"$output.http" "$url"
     http_code=$(cat "$output.http")
 
     case "$http_code" in

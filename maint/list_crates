@@ -7,7 +7,7 @@ import toml.decoder
 import sys
 import os.path
 
-from typing import Iterator
+from typing import Iterator, Any
 from dataclasses import dataclass
 
 TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
@@ -19,6 +19,7 @@ class Crate:
     name: str
     publish: bool
     version: str
+    raw_metadata: Any
 
 def list_crates() -> Iterator[Crate]:
     '''
@@ -30,13 +31,15 @@ def list_crates() -> Iterator[Crate]:
         package = pt["package"]["name"]
         publish = pt["package"].get("publish")
         version = pt["package"]["version"]
-        yield Crate(package, publish, version)
+        if publish is None:
+            publish = True
+        yield Crate(package, publish, version, pt)
 
-def print_crates(args: argparse.Namespace):
+def print_crates(args: argparse.Namespace) -> None:
     shown_any = False
     for c in list_crates():
         show = (args.package == c.name if args.package is not None
-                else args.all or c.publish != False)
+                else args.all or c.publish)
         if not show: continue
         shown_any = True
         if args.version:
