@@ -372,12 +372,21 @@ mod test {
         }
     }
 
+    #[derive(Deftly)]
+    #[derive_deftly(Object)]
+    struct Opossum {}
+
     #[test]
     fn standard_cast() {
         let bike = Bicycle {};
         let erased_bike: &dyn Object = &bike;
         let has_wheels: &dyn HasWheels = erased_bike.cast_to_trait().unwrap();
         assert_eq!(has_wheels.num_wheels(), 2);
+
+        let pogo = Opossum {};
+        let erased_pogo: &dyn Object = &pogo;
+        let has_wheels: Option<&dyn HasWheels> = erased_pogo.cast_to_trait();
+        assert!(has_wheels.is_none());
     }
 
     #[derive(Deftly)]
