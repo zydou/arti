@@ -25,7 +25,12 @@ set -o pipefail
 
 BASE_BRANCHES='main'
 
-. maint/common/bash-utils.sh
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
 reject_options
 
 repo=$(
