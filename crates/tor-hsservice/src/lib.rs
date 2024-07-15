@@ -122,8 +122,10 @@ pub(crate) type NtorPublicKey = curve25519::PublicKey;
 pub struct RunningOnionService {
     /// The mutable implementation details of this onion service.
     inner: Mutex<SvcInner>,
-    /// The current state.
-    state: OnionServiceState,
+    /// The nickname of this service.
+    nickname: HsNickname,
+    /// The key manager, used for accessing the underlying key stores.
+    keymgr: Arc<KeyMgr>,
 }
 
 /// Implementation details for an onion service.
@@ -210,51 +212,15 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 // TODO (#1228): Write more.
 // TODO (#1247): Choose a better name for this struct
 //
+#[derive(Builder)]
+#[builder(build_fn(private, name = "build_unvalidated", error = "FatalError"))]
 pub struct OnionService {
     /// The current configuration.
     config: OnionServiceConfig,
-    /// The current state.
-    state: OnionServiceState,
-}
-
-/// The state of an instance of an onion service.
-///
-/// This type is shared between [`OnionService`] and [`RunningOnionService`],
-/// and is used to
-//
-// TODO (#1228): Write more.
-// TODO (#1247): Choose a better name for this struct
-pub(crate) struct OnionServiceState {
-    /// The nickname of this service.
-    nickname: HsNickname,
     /// The key manager, used for accessing the underlying key stores.
     keymgr: Arc<KeyMgr>,
     /// The location on disk where the persistent data is stored.
     state_dir: StateDirectory,
-}
-
-impl OnionServiceState {
-    /// Return the onion address of this service.
-    ///
-    /// Clients must know the service's onion address in order to discover or
-    /// connect to it.
-    ///
-    /// Returns `None` if the HsId of the service could not be found in any of the configured
-    /// keystores.
-    //
-    // TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
-    // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
-    // ArtiHss.
-    fn onion_name(&self) -> Option<HsId> {
-        let hsid_spec = HsIdKeypairSpecifier::new(self.nickname.clone());
-
-        // TODO (#1194): This will need to be revisited when we implement offline hsid mode,
-        // (the HsId keypair won't be in the keystore)
-        self.keymgr
-            .get::<HsIdKeypair>(&hsid_spec)
-            .ok()?
-            .map(|hsid| HsIdKey::from(&hsid).id())
-    }
 }
 
 impl OnionService {
@@ -273,27 +239,29 @@ impl OnionService {
     // onion services with the same nickname?  They will conflict by trying to
     // use the same state and the same keys.  Do we stop it here, or in
     // arti_client?
+    #[deprecated(since = "1.2.6", note = "Use OnionServiceBuilder instead.")]
     pub fn new(
         config: OnionServiceConfig,
         keymgr: Arc<KeyMgr>,
         state_dir: &StateDirectory,
     ) -> Result<Self, StartupError> {
-        let nickname = config.nickname.clone();
         // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
         // offline
         //let offline_hsid = config.offline_hsid;
         let offline_hsid = false;
 
-        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
+        maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid)?;
 
         Ok(OnionService {
             config,
-            state: OnionServiceState {
-                nickname,
-                keymgr,
-                state_dir: state_dir.clone(),
-            },
+            keymgr,
+            state_dir: state_dir.clone(),
         })
+    }
+
+    /// Create an [`OnionServiceBuilder`].
+    pub fn builder() -> OnionServiceBuilder {
+        OnionServiceBuilder::default()
     }
 
     /// Tell this onion service to begin running, and return a
@@ -314,13 +282,16 @@ impl OnionService {
     where
         R: Runtime,
     {
-        let OnionService { config, state } = self;
+        let OnionService {
+            config,
+            keymgr,
+            state_dir,
+        } = self;
 
-        let nickname = state.nickname.clone();
+        let nickname = config.nickname.clone();
 
-        let state_handle = state
-            .state_dir
-            .acquire_instance(&nickname)
+        let state_handle = state_dir
+            .acquire_instance(&config.nickname)
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
         // We pass the "cooked" handle, with the storage key embedded, to ipt_set,
@@ -349,7 +320,7 @@ impl OnionService {
             crate::ipt_mgr::Real {
                 circ_pool: circ_pool.clone(),
             },
-            state.keymgr.clone(),
+            keymgr.clone(),
             status_tx.clone().into(),
         )?;
 
@@ -361,11 +332,12 @@ impl OnionService {
             publisher_view,
             config_rx,
             status_tx.clone().into(),
-            Arc::clone(&state.keymgr),
+            Arc::clone(&keymgr),
         );
 
         let svc = Arc::new(RunningOnionService {
-            state,
+            nickname,
+            keymgr,
             inner: Mutex::new(SvcInner {
                 config_tx,
                 _shutdown_tx: shutdown_tx,
@@ -393,7 +365,23 @@ impl OnionService {
     /// Returns `None` if the HsId of the service could not be found in any of the configured
     /// keystores.
     pub fn onion_name(&self) -> Option<HsId> {
-        self.state.onion_name()
+        onion_name(&self.keymgr, &self.config.nickname)
+    }
+}
+
+impl OnionServiceBuilder {
+    /// Build the [`OnionService`]
+    pub fn build(&self) -> Result<OnionService, StartupError> {
+        let svc = self.build_unvalidated()?;
+
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
+        // offline
+        //let offline_hsid = config.offline_hsid;
+        let offline_hsid = false;
+
+        maybe_generate_hsid(&svc.keymgr, &svc.config.nickname, offline_hsid)?;
+
+        Ok(svc)
     }
 }
 
@@ -495,7 +483,7 @@ impl RunningOnionService {
     /// Returns `None` if the HsId of the service could not be found in any of the configured
     /// keystores.
     pub fn onion_name(&self) -> Option<HsId> {
-        self.state.onion_name()
+        onion_name(&self.keymgr, &self.nickname)
     }
 }
 
@@ -556,6 +544,28 @@ fn maybe_generate_hsid(
     }
 
     Ok(())
+}
+
+/// Return the onion address of this service.
+///
+/// Clients must know the service's onion address in order to discover or
+/// connect to it.
+///
+/// Returns `None` if the HsId of the service could not be found in any of the configured
+/// keystores.
+//
+// TODO: instead of duplicating RunningOnionService::onion_name, maybe we should make this a
+// method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
+// ArtiHss.
+fn onion_name(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
+    let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+
+    // TODO (#1194): This will need to be revisited when we implement offline hsid mode,
+    // (the HsId keypair won't be in the keystore)
+    keymgr
+        .get::<HsIdKeypair>(&hsid_spec)
+        .ok()?
+        .map(|hsid| HsIdKey::from(&hsid).id())
 }
 
 #[cfg(test)]
@@ -769,7 +779,12 @@ pub(crate) mod test {
         )
         .unwrap();
 
-        let service = OnionService::new(config, Arc::clone(&*keymgr), &state_dir).unwrap();
+        let service = OnionService::builder()
+            .config(config)
+            .keymgr(Arc::clone(&*keymgr))
+            .state_dir(state_dir)
+            .build()
+            .unwrap();
 
         let hsid = HsId::from(hsid_public);
         assert_eq!(service.onion_name().unwrap(), hsid);
