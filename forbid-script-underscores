@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Forbid scripts containing a un underscore in their filename,
-# (except where this is required, for for example Python modules).
+# (except where this is required, for example Python modules).
 #
 # This is a just a matter of style and taste; there are no correctness
 # implications.
