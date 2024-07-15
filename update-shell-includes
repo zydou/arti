@@ -40,6 +40,7 @@ case "$all.$#" in
 	wanted=$(
             git_grep_for_shell_script_shebangs | grep -vF "${0##*/}"
 	)
+        # shellcheck disable=SC2086
 	set -- $wanted
 	;;
     true.*) fail "script filenames not allowed with --all " ;;
