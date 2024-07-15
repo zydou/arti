@@ -16,10 +16,23 @@ fail () {
     exit 12
 }
 
+x () {
+    echo >&2 "x $*"
+    "$@"
+}
+
 alias reject_all_arguments='
     if [ $# != 0 ]; then
 	fail "bad usage: no arguments allowed"
     fi
+'
+
+# shellcheck disable=SC2142
+alias reject_options='
+case "$1" in
+    --) shift ;;
+    -*) echo >&2 "$0: No options allowed"; exit 12 ;;
+esac
 '
 
 # Prints a list of the files in git, with a #! that looks like (ba)sh

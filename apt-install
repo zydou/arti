@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   maint/apt-install [--] PACKAGE...
+#
+# Runs `apt-get update` and `apt-get -y install PACKAGE...`.
+
+set -euo pipefail
+
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
+reject_options
+
+x apt-get update
+x apt install -y -- "$@"

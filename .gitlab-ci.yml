@@ -20,6 +20,12 @@ shellcheck:
     - apk add git bash
     - ./maint/shellcheck-all
 
+for-every-commit:
+  stage: test
+  script:
+    - maint/apt-install libtoml-perl
+    - cd test-project && maint/for-every-commit git --no-pager log -n1
+
 via-cargo-install-in-ci:
   stage: test
   script:
