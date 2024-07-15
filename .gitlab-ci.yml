@@ -10,6 +10,7 @@ checks:
   script:
     - maint/forbid-script-extensions
     - maint/forbid-absolute-shebangs
+    - maint/forbid-script-underscores
 
 shellcheck:
   stage: check
