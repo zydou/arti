@@ -175,9 +175,9 @@ macro_rules! declare_invocable_impl {
             fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(
                     f,
-                    "Invocable({:?}.{:?})",
-                    any::type_name::<OBJ>(),
+                    "Invocable({} for {})",
                     any::type_name::<M>(),
+                    any::type_name::<OBJ>(),
                 )
             }
 
@@ -771,11 +771,12 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::{templates::*, Method, NoUpdates};
+    use crate::{templates::*, DispatchTable, Method, NoUpdates};
     use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;
     use std::sync::Arc;
+    use tor_error::{ErrorKind, HasKind as _};
 
     use super::UpdateSink;
 
@@ -1108,5 +1109,81 @@ mod test {
             .await
             .unwrap()
             .unwrap();
+    }
+
+    #[test]
+    fn invoke_poorly() {
+        // Make sure that our invoker function invocations return plausible bugs warnings on
+        // misuse.
+        let table = DispatchTable::from_inventory();
+        let discard = || Box::pin(futures::sink::drain().sink_err_into());
+
+        let ent = table.rpc_invoker(&Swan, &GetKids).unwrap();
+
+        // Wrong method
+        let bug = ent.invoke(
+            Arc::new(Swan),
+            Box::new(GetName),
+            Arc::new(Ctx {}),
+            discard(),
+        );
+        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+
+        // Wrong object type
+        let bug = ent.invoke(
+            Arc::new(Wombat),
+            Box::new(GetKids),
+            Arc::new(Ctx {}),
+            discard(),
+        );
+        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+
+        // Special: Wrong method.
+        let bug = ent.invoke_special(Arc::new(Swan), Box::new(GetName), Arc::new(Ctx {}));
+        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+        // Special: Wrong object type
+        let bug = ent.invoke_special(Arc::new(Wombat), Box::new(GetKids), Arc::new(Ctx {}));
+        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+    }
+
+    #[test]
+    fn invoker_ents() {
+        let ent1 = invoker_ent!(@special specialonly_swan);
+        let ent1b = invoker_ent!(@special specialonly_swan); // Same as 1, but different declaration.
+        let ent2 = invoker_ent!(getname_generic::<String, String>);
+        let ent2b = invoker_ent!(getname_generic::<String, String>);
+
+        assert_eq!(ent1.same_decl(&ent1), true);
+        assert_eq!(ent1.same_decl(&ent1b), false);
+        assert_eq!(ent1.same_decl(&ent2), false);
+
+        assert_eq!(ent2.same_decl(&ent2), true);
+        assert_eq!(ent2.same_decl(&ent2b), false);
+
+        let re =
+            regex::Regex::new(r#"^Invocable\(.*GetName for .*GenericObj.*String.*String"#).unwrap();
+        let debug_fmt = format!("{:?}", &ent2);
+        dbg!(&debug_fmt);
+        assert!(re.is_match(&debug_fmt));
+    }
+
+    #[test]
+    fn redundant_invoker_ents() {
+        let ent = invoker_ent!(getname_generic::<String, String>);
+        let mut table = DispatchTable::from_inventory();
+
+        assert_eq!(ent.same_decl(&ent.clone()), true);
+        table.insert(ent.clone());
+        table.insert(ent);
+    }
+
+    #[test]
+    #[should_panic]
+    fn conflicting_invoker_ents() {
+        let ent = invoker_ent!(getname_generic::<String, String>);
+        let ent2 = invoker_ent!(getname_generic::<String, String>);
+        let mut table = DispatchTable::from_inventory();
+        table.insert(ent);
+        table.insert(ent2);
     }
 }
