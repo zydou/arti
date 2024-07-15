@@ -151,6 +151,7 @@ pub fn iter_method_names() -> impl Iterator<Item = &'static str> {
 /// Error representing an "invalid" method name.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub enum InvalidMethodName {
     /// The method doesn't have a ':' to demarcate its namespace.
     #[error("Method has no namespace separator")]
@@ -217,4 +218,41 @@ pub fn check_method_names<'a>(
                 .map(|e| (name, e))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn valid_method_names() {
+        let namespaces: HashSet<_> = ["arti", "wombat"].into_iter().collect();
+
+        for name in [
+            "arti:clone",
+            "arti:clone7",
+            "arti:clone_now",
+            "wombat:knish",
+            "x-foo:bar",
+        ] {
+            assert!(is_valid_method_name(&namespaces, name).is_ok());
+        }
+    }
+
+    #[test]
+    fn invalid_method_names() {
+        let namespaces: HashSet<_> = ["arti", "wombat"].into_iter().collect();
+        use InvalidMethodName as E;
+
+        for (name, expect_err) in [
+            ("arti-foo:clone", E::UnrecognizedNamespace),
+            ("fred", E::NoNamespace),
+            ("arti:", E::BadMethodName),
+            ("arti:7clone", E::BadMethodName),
+            ("arti:CLONE", E::BadMethodName),
+            ("arti:clone-now", E::BadMethodName),
+        ] {
+            assert_eq!(is_valid_method_name(&namespaces, name), Err(expect_err));
+        }
+    }
 }
