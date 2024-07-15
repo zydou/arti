@@ -11,6 +11,7 @@ checks:
     - maint/forbid-script-extensions
     - maint/forbid-absolute-shebangs
     - maint/forbid-script-underscores
+    - maint/update-shell-includes --all --check
 
 shellcheck:
   stage: check
