@@ -98,7 +98,7 @@ impl ErrorResponse {
 
     /// Try to interpret this response as an [`RpcError`].
     pub fn decode(&self) -> RpcError {
-        crate::msgs::response::response_err(&self.0)
+        crate::msgs::response::try_decode_response_as_err(&self.0)
             .expect("Could not decode response that was already decoded as an error?")
             .expect("Could not extract error from response that was already decoded as an error?")
     }

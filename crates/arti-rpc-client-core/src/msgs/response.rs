@@ -170,7 +170,12 @@ pub(crate) fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError
 }
 
 /// Try to decode `s` as an error response, and return its error.
-pub(crate) fn response_err(s: &str) -> Result<Option<RpcError>, DecodeResponseError> {
+///
+/// (Gives an error if this is not an error response)
+//
+// TODO RPC: Eventually we should try to refactor this out if we can; it is only called in one
+// place.
+pub(crate) fn try_decode_response_as_err(s: &str) -> Result<Option<RpcError>, DecodeResponseError> {
     let ResponseMetaDe { body, .. } = serde_json::from_str(s)?;
     match body {
         ResponseMetaBodyDe::Error(e) => Ok(Some(e)),
