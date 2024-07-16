@@ -29,8 +29,7 @@ pub(crate) struct Request<T> {
     /// (Every request goes to a single object.)
     pub(crate) obj: ObjectId,
     /// Additional information for Arti about how to handle the request.
-    #[serde(default)]
-    pub(crate) meta: RequestMeta,
+    pub(crate) meta: Option<RequestMeta>,
     /// The name of the method to invoke.
     pub(crate) method: String,
     /// Parameters to pass to the method.
@@ -98,8 +97,7 @@ pub(crate) struct RequestMeta {
 pub(crate) struct LooseParsedRequest {
     id: Option<AnyRequestId>,
     obj: ObjectId,
-    #[serde(default)]
-    meta: RequestMeta,
+    meta: Option<RequestMeta>,
     method: String,
     params: JsonMap,
     // TODO: This loses any extra fields that the application may have set.
@@ -159,6 +157,13 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    impl<T> Request<T> {
+        /// Return true if this request is asking for updates.
+        fn updates_requested(&self) -> bool {
+            self.meta.as_ref().map(|m| m.updates).unwrap_or(false)
+        }
+    }
+
     use super::*;
     const REQ1: &str = r#"{"id":7, "obj": "hi", "meta": {"updates": true}, "method":"twiddle", "params":{"stuff": "nonsense"} }"#;
     const REQ2: &str = r#"{"id":"fred", "obj": "hi", "method":"twiddle", "params":{} }"#;
@@ -170,7 +175,7 @@ mod test {
         let req1: ParsedRequest = serde_json::from_str(REQ1).unwrap();
         assert_eq!(req1.id, 7.into());
         assert_eq!(req1.obj.as_ref(), "hi");
-        assert_eq!(req1.meta.updates, true);
+        assert_eq!(req1.updates_requested(), true);
         assert_eq!(req1.method, "twiddle");
         assert_eq!(
             req1.params.get("stuff").unwrap(),
@@ -180,7 +185,7 @@ mod test {
         let req2: ParsedRequest = serde_json::from_str(REQ2).unwrap();
         assert_eq!(req2.id, "fred".to_string().into());
         assert_eq!(req2.obj.as_ref(), "hi");
-        assert_eq!(req2.meta.updates, false);
+        assert_eq!(req2.updates_requested(), false);
         assert_eq!(req2.method, "twiddle");
         assert!(req2.params.is_empty());
 
