@@ -206,7 +206,7 @@ rust-latest:
       --target x86_64-unknown-linux-gnu
       -p arti -p tor-circmgr
       --bin arti
-      --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service,vanguards
+      --features full,restricted-discovery,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service,vanguards
 
 rust-recent-arti-extra-features:
   stage: build
