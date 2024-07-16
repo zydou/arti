@@ -122,7 +122,8 @@ rust-checks:
   script:
     - rustup show
     - rustup component add rustfmt
-    - ./maint/via-cargo-install-in-ci cargo-sort cargo-license
+    - ./maint/via-cargo-install-in-ci cargo-sort
+    - ./maint/via-cargo-install-in-ci cargo-license
     - cargo fmt -- --check
     - ./maint/check_licenses
     - ./maint/cargo_sort
