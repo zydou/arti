@@ -41,6 +41,7 @@ HOSTS=(
   articlient-onion-auth
   articlient-onion-artiserver
   articlient-onion-artiserver-full-vanguards
+  articlient-onion-artiserver-auth
   torclient-onion-artiserver
   torclient-onion-artiserver-full-vanguards
 )
@@ -67,6 +68,7 @@ HOSTS=(
   articlient-onion-auth
   articlient-onion-artiserver
   articlient-onion-artiserver-full-vanguards
+  articlient-onion-auth
   fileserver-onion-arti
   fileserver-onion-arti-full-vanguards
   fileserver-onion-arti-auth
