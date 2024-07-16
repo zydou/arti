@@ -77,7 +77,7 @@ python3-mypy:
 maint-checks:
   stage: check
   script:
-    - maint/common/apt-install git python3-toml python3-requests python-is-python3
+    - maint/common/apt-install git python3-toml python3-requests
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/common/forbid-absolute-shebangs
@@ -121,7 +121,7 @@ doc-features:
   stage: check
   allow_failure: true
   script:
-    - maint/common/apt-install python3-toml python-is-python3
+    - maint/common/apt-install python3-toml
     - ./maint/check_doc_features
 
 # This should always be in the last testing stage, so that if it fails all the other steps still run
@@ -598,7 +598,7 @@ every-crate:
   image: $RECENT_RUST_IMAGE
   needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
-    - maint/common/apt-install python3-toml python-is-python3
+    - maint/common/apt-install python3-toml
     - ./maint/every-crate
 
 matrix-check:
@@ -606,14 +606,14 @@ matrix-check:
   image: $RECENT_RUST_IMAGE
   needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
-    - maint/common/apt-install python3-toml python-is-python3
+    - maint/common/apt-install python3-toml
     - ./maint/matrix-check
 
 minimal-features-test:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
-    - maint/common/apt-install python3-toml python-is-python3
+    - maint/common/apt-install python3-toml
     - maint/test-all-crates --target x86_64-unknown-linux-gnu --no-default-features
 
 matrix-test-cfg:
