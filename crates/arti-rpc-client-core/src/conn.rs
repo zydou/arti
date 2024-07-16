@@ -47,25 +47,30 @@ pub struct RequestHandle {
 //
 // DODGY TYPES BEGIN: TODO RPC
 
-/// A full response indicating that a request was successful.
+/// A Success Response from Arti, indicating that a request was successful.
 ///
-/// (This is the complete `result` message, including "id".)
+/// This is the complete message, including `id` and `result` fields.
 //
-// Invariant: Does not contain a NUL. (Safe to convert to CString.)
+// Invariant: it is valid JSON and contains no NUL bytes or newlines.
+// TODO RPC: check that the newline invariant is enforced in constructors.
+// TODO RPC consider changing this to CString.
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct SuccessResponse(String);
 
-/// A full response indicating that a request was successful.
+/// An Update Response from Arti, with information about the progress of a request.
 ///
-/// (This is the complete `result` message, including "id".)
+/// This is the complete message, including `id` and `update` fields.
 //
-// Invariant: Does not contain a NUL. (Will convert to CString.)
+// Invariant: it is valid JSON and contains no NUL bytes or newlines.
+// TODO RPC: check that the newline invariant is enforced in constructors.
+// TODO RPC consider changing this to CString.
 #[derive(Clone, Debug, derive_more::AsRef)]
 pub struct UpdateResponse(String);
 
-/// A response to request from Arti, indicating that an error occurred.
+/// A Error Response from Arti, indicating that an error occurred.
 ///
-/// (This is the complete `result` message.  It includes an `id` if it
+/// (This is the complete message, including the `error` field.
+/// It also an `id` if it
 /// is in response to a request; but not if it is a fatal protocol error.)
 //
 // Invariant: Does not contain a NUL. (Safe to convert to CString.)
@@ -73,6 +78,9 @@ pub struct UpdateResponse(String);
 // Invariant: This field MUST encode a response whose body is an RPC error.
 //
 // Otherwise the `decode` method may panic.
+//
+// TODO RPC: check that the newline invariant is enforced in constructors.
+// TODO RPC consider changing this to CString.
 #[derive(Clone, Debug, derive_more::AsRef)]
 // TODO: If we keep this, it should implement Error.
 pub struct ErrorResponse(String);
