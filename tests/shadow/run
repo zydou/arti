@@ -69,6 +69,7 @@ HOSTS=(
   articlient-onion-artiserver-full-vanguards
   fileserver-onion-arti
   fileserver-onion-arti-full-vanguards
+  fileserver-onion-arti-auth
 )
 
 for HOST in "${HOSTS[@]}"; do

@@ -1,0 +1,9 @@
+[onion_services."tgen_hs".restricted_discovery]
+enabled = true
+
+[[onion_services."tgen_hs".restricted_discovery.key_dirs]]
+path = "./authorized_clients"
+
+[onion_services."tgen_hs".restricted_discovery.static_keys]
+alice = "descriptor:x25519:AS3KN247TMRC4DKQYHBQBE65QXUZC7I7H243KIB6FUQHKIXP4ALQ"
+
