@@ -16,11 +16,22 @@ common_dir=$(dirname "$common_dir")
 
 reject_all_arguments
 
-if git grep -rnI '^#\!/' :/ | grep -v '#\!/usr/bin/env'
-then
+set +e
+git grep -rnI '^#\!/' :/ | grep -v '#\!/usr/bin/env'
+st="${PIPESTATUS[*]}"
+set -e
+
+case "$st" in
+    "0 0")
 	echo "Absolute shebangs found, replace them with \"#!/usr/bin/env\""
 	exit 1
-else
+	;;
+    "0 1")
 	echo "Everything seems ok"
 	exit 0
-fi
+	;;
+    *)
+	echo "ERROR - statusus $st"
+	exit 16
+	;;
+esac
