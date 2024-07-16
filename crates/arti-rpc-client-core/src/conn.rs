@@ -21,6 +21,7 @@ use crate::{
 mod auth;
 mod connimpl;
 
+use crate::util::Utf8CStr;
 pub use connimpl::RpcConn;
 
 /// A handle to an open request.
@@ -43,8 +44,6 @@ pub struct RequestHandle {
 //
 // I am not at all pleased with these types; we should revise them.
 //
-// TODO RPC: Possibly, convert these to hold CString internally.
-//
 // TODO RPC: Possibly, all of these should be reconstructed
 // from their serde_json::Values rather than forwarded verbatim.
 // (But why would we our json to be more canonical than arti's? See #1491.)
@@ -57,9 +56,9 @@ pub struct RequestHandle {
 //
 // Invariant: it is valid JSON and contains no NUL bytes or newlines.
 // TODO RPC: check that the newline invariant is enforced in constructors.
-// TODO RPC consider changing this to CString.
 #[derive(Clone, Debug, derive_more::AsRef)]
-pub struct SuccessResponse(String);
+#[as_ref(forward)]
+pub struct SuccessResponse(Utf8CStr);
 
 /// An Update Response from Arti, with information about the progress of a request.
 ///
@@ -69,7 +68,8 @@ pub struct SuccessResponse(String);
 // TODO RPC: check that the newline invariant is enforced in constructors.
 // TODO RPC consider changing this to CString.
 #[derive(Clone, Debug, derive_more::AsRef)]
-pub struct UpdateResponse(String);
+#[as_ref(forward)]
+pub struct UpdateResponse(Utf8CStr);
 
 /// A Error Response from Arti, indicating that an error occurred.
 ///
@@ -84,21 +84,21 @@ pub struct UpdateResponse(String);
 // Otherwise the `decode` method may panic.
 //
 // TODO RPC: check that the newline invariant is enforced in constructors.
-// TODO RPC consider changing this to CString.
 #[derive(Clone, Debug, derive_more::AsRef)]
+#[as_ref(forward)]
 // TODO: If we keep this, it should implement Error.
-pub struct ErrorResponse(String);
+pub struct ErrorResponse(Utf8CStr);
 impl ErrorResponse {
     /// Construct an ErrorResponse from the Error reply.
     ///
     /// This not a From impl because we want it to be crate-internal.
-    pub(crate) fn from_validated_string(s: String) -> Self {
+    pub(crate) fn from_validated_string(s: Utf8CStr) -> Self {
         ErrorResponse(s)
     }
 
     /// Try to interpret this response as an [`RpcError`].
     pub fn decode(&self) -> RpcError {
-        crate::msgs::response::try_decode_response_as_err(&self.0)
+        crate::msgs::response::try_decode_response_as_err(self.0.as_ref())
             .expect("Could not decode response that was already decoded as an error?")
             .expect("Could not extract error from response that was already decoded as an error?")
     }
