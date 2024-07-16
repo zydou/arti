@@ -1,4 +1,4 @@
-#!/usr/bin/perl -wp
+#!/usr/bin/env -S perl -wp
 #
 # This terrible perl script helps convert the easy-to-edit
 #
