@@ -16,4 +16,4 @@ common_dir=$(dirname "$common_dir")
 reject_options
 
 x apt-get update
-x apt install -y -- "$@"
+x apt-get install -y -- "$@"
