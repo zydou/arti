@@ -73,6 +73,7 @@ maint-checks:
     - ./maint/add_warning --check
     - ./maint/common/forbid-absolute-shebangs
     - ./maint/common/forbid-script-extensions
+    - ./maint/common/update-shell-includes --check --all
     - ./maint/cargo-check-publishable
 
 maint-check-changelog:
