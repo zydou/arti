@@ -72,7 +72,7 @@ maint-checks:
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/common/forbid-absolute-shebangs
-    - ./maint/forbid-script-extensions
+    - ./maint/common/forbid-script-extensions
     - ./maint/cargo-check-publishable
 
 maint-check-changelog:
