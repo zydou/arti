@@ -416,6 +416,9 @@ mod test {
             erased_arc_bytes.clone().cast_to_arc_trait().ok().unwrap();
         assert_eq!(arc_has_wheels.num_wheels(), 4);
 
+        let ref_has_wheels: &dyn HasWheels = erased_arc_bytes.cast_to_trait().unwrap();
+        assert_eq!(ref_has_wheels.num_wheels(), 4);
+
         trait SomethingElse {}
         let arc_something_else: Result<Arc<dyn SomethingElse>, _> =
             erased_arc_bytes.clone().cast_to_arc_trait();
