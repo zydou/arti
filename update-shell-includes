@@ -63,7 +63,7 @@ errors=$(perl -we '
     }xm;
 
     my $bad_re = qr{
-        ^ [\ \t]* (?: \. | source ) [ \t] .* (?: maint/ | bash-utils\.sh ) .*
+        ^ [\ \t]* (?: \. | source ) [ \t] [^\$\n] * (?: maint/ | bash-utils\.sh ) .*
     }xm;
 
     undef $/;
