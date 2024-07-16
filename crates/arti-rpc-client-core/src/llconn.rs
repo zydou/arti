@@ -11,7 +11,7 @@ use crate::{
 };
 use std::{io, sync::Arc};
 
-/// A low-level reader type, wrapping an [`UnvalidatedReader`].
+/// A low-level reader type, wrapping a boxed [`Read`](io::Read).
 ///
 /// (Currently it performs no additional validation; instead it assumes
 /// that Arti is obeying its specification.)
@@ -20,7 +20,7 @@ pub struct Reader {
     backend: Box<dyn io::BufRead + Send>,
 }
 
-/// A low-level writer type, wrapping an [`UnvalidatdWriter`].
+/// A low-level writer type, wrapping a boxed [`Write`](io::Write).
 ///
 /// It enforces the property that outbound requests are syntactically well-formed.
 pub struct Writer {
@@ -29,7 +29,7 @@ pub struct Writer {
 }
 
 impl Reader {
-    /// Create a new Reader, wrapping a BufRead.
+    /// Create a new Reader, wrapping an [`io::BufRead`].
     pub fn new<T>(backend: T) -> Self
     where
         T: io::BufRead + Send + 'static,
@@ -61,7 +61,7 @@ impl Reader {
 }
 
 impl Writer {
-    /// Create a new writer, wrapping an [`UnvalidatedWriter`].
+    /// Create a new writer, wrapping an [`io::Write`].
     pub fn new<T>(backend: T) -> Self
     where
         T: io::Write + Send + 'static,

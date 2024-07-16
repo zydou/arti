@@ -6,7 +6,7 @@
 //!
 //! NOTE that many of the types and fields here have documented invariants.
 //! Except if noted otherwise, these invariants only hold when nobody
-//! is holding the lock on [`State`].
+//! is holding the lock on [`RequestState`].
 use std::{
     collections::{HashMap, VecDeque},
     sync::{Arc, Condvar, Mutex, MutexGuard},
