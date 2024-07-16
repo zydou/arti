@@ -134,6 +134,8 @@ grcov "$COVERAGE_BASEDIR/coverage_meta" \
 	--excl-stop '^}' \
 	--ignore="*/tests/*" \
 	--ignore="*/examples/*" \
+	--ignore="examples/*" \
+	--ignore="maint/*" \
 	--ignore="*/fuzz/*" \
 	--ignore="crates/arti-bench/*" \
 	--ignore="crates/arti-testing/*" \
