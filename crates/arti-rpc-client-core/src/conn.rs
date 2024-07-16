@@ -172,7 +172,7 @@ impl RpcConnBuilder {
                 llconn::Writer::new(Box::new(sock_dup)),
             );
 
-            let session_id = conn.negotiate_inherent("inherent:unix_path")?;
+            let session_id = conn.authenticate_inherent("inherent:unix_path")?;
             conn.session = Some(session_id);
 
             Ok(conn)
