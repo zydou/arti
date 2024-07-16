@@ -71,7 +71,7 @@ maint-checks:
     - maint/common/apt-install git python3-toml python3-requests python-is-python3
     - ./maint/check_toposort
     - ./maint/add_warning --check
-    - ./maint/shebang
+    - ./maint/common/forbid-absolute-shebangs
     - ./maint/forbid-script-extensions
     - ./maint/cargo-check-publishable
 
