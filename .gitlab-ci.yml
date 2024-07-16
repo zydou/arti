@@ -122,8 +122,8 @@ rust-checks:
   script:
     - rustup show
     - rustup component add rustfmt
-    - ./maint/via-cargo-install-in-ci cargo-sort
-    - ./maint/via-cargo-install-in-ci cargo-license
+    - ./maint/common/via-cargo-install-in-ci cargo-sort
+    - ./maint/common/via-cargo-install-in-ci cargo-license
     - cargo fmt -- --check
     - ./maint/check_licenses
     - ./maint/cargo_sort
@@ -143,7 +143,7 @@ cargo-audit:
   image: amd64/rust:bookworm
   script:
     - rustup show
-    - ./maint/via-cargo-install-in-ci cargo-audit
+    - ./maint/common/via-cargo-install-in-ci cargo-audit
     - ./maint/cargo_audit
   cache:
     paths:
@@ -243,7 +243,7 @@ coverage:
   script:
     - apt-get update && apt-get install -y python3-pip python3-setuptools python3-bs4 python3-lxml
     - rustup component add llvm-tools
-    - ./maint/via-cargo-install-in-ci grcov
+    - ./maint/common/via-cargo-install-in-ci grcov
     # Generate report
     - ./maint/with_coverage -f cobertura -o coverage.xml cargo test --verbose --all-features
   cache:
