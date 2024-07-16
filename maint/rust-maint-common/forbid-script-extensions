@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# Forbid scripts containing a dot in their filename.
+# The aim is to forbid encoding the implementation language.
+#
+# This is a very common antipattern.  Almost, dominant.  But it's bad.
+# It means call sites (including maybe out-of-tree) and human habits
+# must change if the script is rewritten in a different language.
+#
+# This rule only applies to *executable* files, which can be invoked
+# by their name.  Script modules or fragments which are to be included
+# are fine, since their language is part of their API.
+
+set -euo pipefail
+
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
+reject_all_arguments
+
+wrong=$(
+    # shellcheck disable=SC2086
+    find -H . -xdev \( -name .git -prune \) -o \( \
+	 -type f -name '*.*' \! -name '*~' -perm /111 \
+	 -ls \
+    \)
+)
+
+if [ "$wrong" = "" ]; then exit 0; fi
+
+printf '%s\n' "$wrong"
+
+fail 'dot is forbidden in script filenames
+(scripts should not encode their implementation language in their filename)'

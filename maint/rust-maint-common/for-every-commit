@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   -common/for-every-commit [--] COMMAND ARGS...
+#
+# Runs COMMAND ARGS... for every commit since the baseline
+# (oldest first).  Fails as soon as any such command fails.
+#
+# Makes some assumptions:
+#   - Your main branch is called `main`
+#   - Your baseline repository is mentioned in your `Cargo.toml`
+#   - When running under CI, CI_PROJECT_URL is set (as by gitlab)
+#   - When not running under CI, your `origin` remote is sensible
+#
+# When run outside CI, will try to restore your branch to where you were.
+#
+# Requires TOML.pm, so you may need:
+#     - maint/apt-install libtoml-perl
+#
+# *WARNING* this script can be dangerous.  It may `git clean`
+# and `git reset` in order to try to check out differing versions.
+
+set -e
+set -o pipefail
+
+BASE_BRANCHES='main'
+
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
+reject_options
+
+repo=$(
+    perl -MTOML -we '
+        use strict;
+        undef $/;
+        my $toml = from_toml(<STDIN>);
+        print $toml->{package}{repository} // die;
+    ' <Cargo.toml
+)
+repo_host=$(
+    perl -we '
+        $ARGV[0] =~ m{^https://[-.0-9a-z]+/}
+            or die "bad repository url";
+        print "$&\n";
+    ' "$repo"
+)
+
+echo "Cargo.toml package.repository: $repo"
+echo "Upstream repository instance: $repo_host"
+
+# Ideally we would somehow find which repo and branch this was going
+# to be an MR for.  But, in fact, we can't even find out which
+# repo this repo it was forked from, in a principled way, with env vars.
+# This approach to finding the upstream will have to do for now.
+case "$CI_PROJECT_URL" in
+    "$repo_host"*)
+	# `package.repository` in `Cargo.toml` is
+	# on same instance as this CI job.
+	#
+	# Use $BASE_BRANCHES on `package.repository` as the baseline.
+	git remote rm upstream.tmp >/dev/null 2>&1 ||:
+	git remote rename upstream upstream.tmp >/dev/null 2>&1 ||:
+	git remote add upstream "$repo"
+	ORIGIN=upstream
+	;;
+    '')
+	# Not running in CI, use a guess at the baseline:
+	# $BASE_BRANCHES at whatever `origin` points to.
+	ORIGIN=origin
+	;;
+    *)
+	# We are apparently running in a different instance to upstream.
+	# It's not clear what this testing would mean.
+	# Should it use our repo URL?  That would be quite exciting.
+	echo >&2 "CI_PROJECT_URL $CI_PROJECT_URL not recognised!"
+	exit 4
+	;;
+esac
+
+echo "Baseline repo remote $ORIGIN, at:"
+git remote get-url "$ORIGIN"
+
+tlref () {
+    echo "refs/remotes/$ORIGIN/$tbranch"
+}
+
+x () {
+    echo "+ $*"
+    "$@"
+}
+
+git_checkout_maybe_clean () {
+    x=$1; shift
+    if
+	$x git checkout -q "$1"
+    then :
+    else 
+	echo "Checkout failed, trying with git clean and git reset"
+	x git clean -xdff
+	x git reset --hard
+	x git checkout -q "$1"
+    fi
+}
+
+old_branch=$(git symbolic-ref -q HEAD || test $? = 1)
+
+restore_old_branch () {
+    case "$old_branch" in
+	refs/heads/*)
+	    git_checkout_maybe_clean '' "${old_branch#refs/heads/}" ||
+		echo '*** Failed to return to original branch ***'
+	    ;;
+	*)
+	    echo "*** Was not originally on a branch, HEAD changed! ***"
+	    ;;
+    esac
+}
+
+trap 'restore_old_branch' 0
+
+refspecs=()
+for tbranch in $BASE_BRANCHES; do
+    refspecs+=(+"refs/heads/$tbranch:$(tlref)")
+done
+
+# If you try to unshallow a repo that's already complete, you get
+# an error!  Hence this.  Not all versions of git-rev-parse
+# understand this option; we err on the side of trying the unshallow.
+if [ "x$(git rev-parse --is-shallow-repository)" != xfalse ]; then
+    # TODO really we want something like the converse of
+    #  git fetch --shallow-exclude
+    # but it doesn't seem to exist.
+    git fetch --unshallow "$ORIGIN" "${refspecs[@]}"
+fi
+
+for tbranch in $BASE_BRANCHES; do
+    trevlist="$(tlref)..HEAD"
+    tcount=$(git rev-list --count "$trevlist")
+    printf 'HEAD is %3d commits ahead of %s\n' "$tcount" "$tbranch"
+    if [ "$count" ] && [ "$count" -le "$tcount" ]; then continue; fi
+    count=$tcount
+    branch=$tbranch
+    revlist=$trevlist
+done
+
+echo "Testing every commit not already on $branch"
+
+commits=$(git rev-list --reverse "$revlist")
+
+i=0
+for commit in $commits; do
+    banner='##############################'
+    printf '|\n%s %d/%d %s\n|\n' "$banner" "$i" "$count" "$banner"
+    git log -n1 "$commit" | sed 's/^/| /'
+    echo '|'
+
+    git_checkout_maybe_clean x "$commit"
+
+    if x "$@"; then :; else
+	rc="$?"
+	echo "
+|
+========================= Failed after $i/$count =========================
+|
+Earliest broken commit is  "
+	git --no-pager log -n1 --pretty=oneline "$commit"
+	exit "$rc"
+    fi
+    i=$(( i + 1 ))
+done
+
+echo "|
+$banner ok $banner
+|"
+
+rc=0
