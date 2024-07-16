@@ -45,6 +45,10 @@ pub struct RequestHandle {
 //
 // TODO RPC: Possibly, convert these to hold CString internally.
 //
+// TODO RPC: Possibly, all of these should be reconstructed
+// from their serde_json::Values rather than forwarded verbatim.
+// (But why would we our json to be more canonical than arti's? See #1491.)
+//
 // DODGY TYPES BEGIN: TODO RPC
 
 /// A Success Response from Arti, indicating that a request was successful.
