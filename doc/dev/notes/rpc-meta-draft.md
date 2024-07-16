@@ -112,6 +112,10 @@ specifically, the are within the subset defined in RFC7493 (I-JSON).
 In the current concrete protocol they are *represented as* JSON;
 we may define other encodings/framings in the future.
 
+> The message stream may not contain NUL (zero-valued) bytes.
+> This is not an additional requirement;
+> it is a consequence of the JSON data format.
+
 ## Requests, Objects, and Visibility
 
 Every request is directed to some Object.

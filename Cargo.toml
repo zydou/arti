@@ -61,6 +61,8 @@ members = [
     "crates/arti-bench",
     "crates/arti-testing",
 
+    "crates/arti-rpc-client-core",
+
     "maint/fixup-features",
     "maint/keygen-openssh-test",
 
