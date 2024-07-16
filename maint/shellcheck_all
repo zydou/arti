@@ -1,8 +1,1 @@
-#!/usr/bin/env bash
-
-set -euo pipefail
-
-(
-  git grep -P --line-number '^#! ?/usr/bin/env (:?ba)?sh\b' | sed -n 's/:1:[^:]*$//p'
-  git ls-files | grep '\.sh$'
-) | xargs shellcheck
+common/shellcheck-all

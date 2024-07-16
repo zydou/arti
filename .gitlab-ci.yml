@@ -53,7 +53,7 @@ shellcheck:
   image: koalaman/shellcheck-alpine
   script:
     - apk add git bash
-    - ./maint/shellcheck_all
+    - ./maint/common/shellcheck-all
 
 python3-mypy:
   stage: check

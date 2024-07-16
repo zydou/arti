@@ -41,7 +41,7 @@ the SQLite 3 development files and shellcheck to successfully run git hooks.
 - SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
   
 - For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing)
-  (used in [`maint/shellcheck_all`](./maint/shellcheck_all))
+  (used in [`maint/shellcheck_all`](./maint/common/shellcheck-all))
 
 **(Optional) install development dependencies**
 

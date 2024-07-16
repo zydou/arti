@@ -11,5 +11,5 @@ cargo clippy --all-features --all-targets -- -D warnings
 echo '+cargo test --all'
 cargo test --all
 
-echo '+./maint/shellcheck_all'
-./maint/shellcheck_all
+echo '+./maint/common/shellcheck-all'
+./maint/common/shellcheck-all
