@@ -60,7 +60,7 @@ python3-mypy:
   variables:
     MYPYPATH: maint
   script:
-    - apt-get update && apt-get install -y mypy
+    - maint/common/apt-install mypy
     - mypy --strict maint/update-md-links
     - mypy --strict maint/list_crates
     - mypy --strict maint/cargo-check-publishable
@@ -68,7 +68,7 @@ python3-mypy:
 maint-checks:
   stage: check
   script:
-    - apt-get update && apt-get install -y python3-toml python3-requests python-is-python3
+    - maint/common/apt-install python3-toml python3-requests python-is-python3
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/shebang
@@ -78,7 +78,7 @@ maint-checks:
 maint-check-changelog:
   stage: test
   script:
-    - apt-get update && apt-get install -y python3-mistune git
+    - maint/common/apt-install python3-mistune git
     - git fetch --unshallow $ORIGIN
     - ./maint/update-md-links --check CHANGELOG.md
 
@@ -86,7 +86,7 @@ maint-check-ownership:
   stage: test
   allow_failure: true
   script:
-    - apt-get update && apt-get install -y python3-toml curl jq
+    - maint/common/apt-install python3-toml curl jq
     - ./maint/cargo-crate-owners
   rules:
     # Don't impede MR work when this goes wrong.
@@ -102,7 +102,7 @@ doc-features:
   stage: check
   allow_failure: true
   script:
-    - apt-get update && apt-get install -y python3-toml python-is-python3
+    - maint/common/apt-install python3-toml python-is-python3
     - ./maint/check_doc_features
 
 # This should always be in the last testing stage, so that if it fails all the other steps still run
@@ -241,7 +241,7 @@ coverage:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
   script:
-    - apt-get update && apt-get install -y python3-pip python3-setuptools python3-bs4 python3-lxml
+    - maint/common/apt-install python3-pip python3-setuptools python3-bs4 python3-lxml
     - rustup component add llvm-tools
     - ./maint/common/via-cargo-install-in-ci grcov
     # Generate report
@@ -439,7 +439,7 @@ every-crate:
   image: amd64/rust:bookworm
   needs: ["rust-checks", "rust-latest-async-std-rustls"]
   script:
-    - apt-get update && apt-get install -y python3-toml python-is-python3
+    - maint/common/apt-install python3-toml python-is-python3
     - ./maint/every-crate
 
 matrix-test:
@@ -448,7 +448,7 @@ matrix-test:
   image: amd64/rust:bookworm
   needs: ["rust-checks", "rust-latest-async-std-rustls"]
   script:
-    - apt-get update && apt-get install -y python3-toml python-is-python3
+    - maint/common/apt-install python3-toml python-is-python3
     - ./maint/matrix_test
 
 matrix-test-cfg:
