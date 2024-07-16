@@ -241,3 +241,43 @@ pub struct SingletonId {
     /// The ID of the object that we're returning.
     id: ObjectId,
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use futures::SinkExt as _;
+    use futures_await_test::async_test;
+
+    use super::*;
+    use crate::dispatch::test::{Ctx, GetKids, Swan};
+
+    #[async_test]
+    async fn invoke() {
+        let ctx = Arc::new(Ctx::default());
+        let discard = || Box::pin(futures::sink::drain().sink_err_into());
+        let r = invoke_rpc_method(ctx.clone(), Arc::new(Swan), Box::new(GetKids), discard())
+            .unwrap()
+            .await
+            .unwrap();
+        assert_eq!(serde_json::to_string(&r).unwrap(), r#"{"v":"cygnets"}"#);
+
+        let r = invoke_special_method(ctx, Arc::new(Swan), Box::new(GetKids))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(r.v, "cygnets");
+    }
+}

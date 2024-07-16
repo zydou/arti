@@ -5667,6 +5667,7 @@ dependencies = [
  "inventory",
  "once_cell",
  "paste",
+ "regex",
  "serde",
  "serde_json",
  "serde_repr",
