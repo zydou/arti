@@ -320,10 +320,9 @@ integration-chutney:
    - when: never
   script:
     - ./maint/preserve -u
-    - apt update
-    - apt install -y tor git python3 curl dnsutils
+    - maint/common/apt-install tor git python3 curl dnsutils
     # arti runtime dependencies
-    - apt install -y libsqlite3-0 libssl3
+    - maint/common/apt-install libsqlite3-0 libssl3
     - ./tests/chutney/setup proxy
     - ./tests/chutney/test
     - ./tests/chutney/stop-arti
@@ -357,13 +356,12 @@ integration-shadow:
     # We're going to install binaries to $HOME/.local/bin
     - 'export PATH=$HOME/.local/bin:$PATH'
 
-    - apt-get update
-    - apt-get install -y git tor stow
+    - maint/common/apt-install git tor stow
     - mkdir -p ~/src
     - mkdir -p ~/.local
 
     # arti runtime dependencies
-    - apt install -y libsqlite3-0 libssl3
+    - maint/common/apt-install libsqlite3-0 libssl3
 
     # Build shadow
     - |
@@ -383,7 +381,7 @@ integration-shadow:
         ./setup install
         popd
       fi
-    - apt-get install -y libglib2.0-0
+    - maint/common/apt-install libglib2.0-0
     - stow -d opt -t $HOME/.local shadow
 
     # Build tgen
@@ -396,7 +394,7 @@ integration-shadow:
         git clone --shallow-since=2022-01-01 -b $JOB_TGEN_BRANCH $JOB_TGEN_REPO ~/src/tgen
         pushd ~/src/tgen
         git checkout $JOB_TGEN_COMMIT
-        apt-get install -y cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev make
+        maint/common/apt-install cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev make
         mkdir build
         cd build
         cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/tgen
@@ -404,13 +402,13 @@ integration-shadow:
         make install
         popd
       fi
-    - apt-get install -y libigraph3 libglib2.0-0
+    - maint/common/apt-install libigraph3 libglib2.0-0
     - stow -d opt -t $HOME/.local tgen
 
     # Ensure newly installed executables can be found
     - hash -r
 
-    - DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
+    - DEBIAN_FRONTEND=noninteractive maint/common/apt-install tshark
     - ./maint/ci_log_span end "shadow_install_deps"
 
     # Run tests
