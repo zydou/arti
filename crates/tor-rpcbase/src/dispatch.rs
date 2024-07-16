@@ -756,7 +756,7 @@ impl tor_error::HasKind for InvokeError {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
     #![allow(clippy::clone_on_copy)]
@@ -775,7 +775,7 @@ mod test {
     use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;
-    use std::sync::Arc;
+    use std::sync::{Arc, RwLock};
     use tor_error::{ErrorKind, HasKind as _};
 
     use super::UpdateSink;
@@ -783,27 +783,27 @@ mod test {
     // Define 3 animals and one brick.
     #[derive(Clone, Deftly)]
     #[derive_deftly(Object)]
-    struct Swan;
+    pub(crate) struct Swan;
     #[derive(Clone, Deftly)]
     #[derive_deftly(Object)]
-    struct Wombat;
+    pub(crate) struct Wombat;
     #[derive(Clone, Deftly)]
     #[derive_deftly(Object)]
-    struct Sheep;
+    pub(crate) struct Sheep;
     #[derive(Clone, Deftly)]
     #[derive_deftly(Object)]
-    struct Brick;
+    pub(crate) struct Brick;
 
     // Define 2 methods.
     #[derive(Debug, serde::Deserialize, Deftly)]
     #[derive_deftly(DynMethod)]
     #[deftly(rpc(method_name = "x-test:getname"))]
-    struct GetName;
+    pub(crate) struct GetName;
 
     #[derive(Debug, serde::Deserialize, Deftly)]
     #[derive_deftly(DynMethod)]
     #[deftly(rpc(method_name = "x-test:getkids"))]
-    struct GetKids;
+    pub(crate) struct GetKids;
 
     impl Method for GetName {
         type Output = Outcome;
@@ -817,8 +817,8 @@ mod test {
     }
 
     #[derive(serde::Serialize)]
-    struct Outcome {
-        v: String,
+    pub(crate) struct Outcome {
+        pub(crate) v: String,
     }
 
     async fn getname_swan(
@@ -898,7 +898,16 @@ mod test {
         getkids_wombat;
     }
 
-    struct Ctx {}
+    pub(crate) struct Ctx {
+        table: Arc<RwLock<DispatchTable>>,
+    }
+    impl Default for Ctx {
+        fn default() -> Self {
+            Ctx {
+                table: Arc::new(RwLock::new(DispatchTable::from_inventory())),
+            }
+        }
+    }
 
     impl crate::Context for Ctx {
         fn lookup_object(
@@ -919,8 +928,8 @@ mod test {
             todo!()
         }
 
-        fn dispatch_table(&self) -> &Arc<std::sync::RwLock<crate::DispatchTable>> {
-            todo!()
+        fn dispatch_table(&self) -> &Arc<RwLock<crate::DispatchTable>> {
+            &self.table
         }
     }
 
@@ -992,7 +1001,7 @@ mod test {
         ) -> Result<RpcResultFuture, InvokeError> {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
             let request: Box<dyn DynMethod> = Box::new(method);
-            let ctx = Arc::new(Ctx {});
+            let ctx = Arc::new(Ctx::default());
             let discard = Box::pin(futures::sink::drain().sink_err_into());
             table.invoke(animal, request, ctx, discard)
         }
@@ -1097,7 +1106,7 @@ mod test {
         let table = crate::DispatchTable::from_inventory();
 
         let res: Outcome = table
-            .invoke_special(Arc::new(Swan), GetKids, Arc::new(Ctx {}))
+            .invoke_special(Arc::new(Swan), GetKids, Arc::new(Ctx::default()))
             .await
             .unwrap()
             .unwrap();
@@ -1105,7 +1114,7 @@ mod test {
         assert_eq!(res.v, "cygnets");
 
         let _an_obj: MyObject = table
-            .invoke_special(Arc::new(Swan), SpecialOnly {}, Arc::new(Ctx {}))
+            .invoke_special(Arc::new(Swan), SpecialOnly {}, Arc::new(Ctx::default()))
             .await
             .unwrap()
             .unwrap();
@@ -1124,7 +1133,7 @@ mod test {
         let bug = ent.invoke(
             Arc::new(Swan),
             Box::new(GetName),
-            Arc::new(Ctx {}),
+            Arc::new(Ctx::default()),
             discard(),
         );
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
@@ -1133,16 +1142,20 @@ mod test {
         let bug = ent.invoke(
             Arc::new(Wombat),
             Box::new(GetKids),
-            Arc::new(Ctx {}),
+            Arc::new(Ctx::default()),
             discard(),
         );
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
 
         // Special: Wrong method.
-        let bug = ent.invoke_special(Arc::new(Swan), Box::new(GetName), Arc::new(Ctx {}));
+        let bug = ent.invoke_special(Arc::new(Swan), Box::new(GetName), Arc::new(Ctx::default()));
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
         // Special: Wrong object type
-        let bug = ent.invoke_special(Arc::new(Wombat), Box::new(GetKids), Arc::new(Ctx {}));
+        let bug = ent.invoke_special(
+            Arc::new(Wombat),
+            Box::new(GetKids),
+            Arc::new(Ctx::default()),
+        );
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
     }
 
