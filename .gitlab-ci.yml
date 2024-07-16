@@ -111,7 +111,7 @@ blocking-todos:
   stage: test
   needs: []
   script:
-    - apt update && apt install -y git
+    - maint/common/apt-install git
     - ./maint/check_todos
 
 rust-checks:
@@ -473,7 +473,7 @@ coverage-aggregated:
   image: amd64/rust:bookworm
   needs: []
   script:
-    - apt update && apt install -y tor python3 python3-pip python3-setuptools curl python3-bs4 python3-lxml
+    - maint/common/apt-install tor python3 python3-pip python3-setuptools curl python3-bs4 python3-lxml
     - rustup component add llvm-tools
     - cp grcov $CARGO_HOME/bin/ || cargo install grcov
     - cp $CARGO_HOME/bin/grcov .
@@ -502,7 +502,7 @@ pages:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
   stage: deploy
   script:
-    - apt update && apt install -y git
+    - maint/common/apt-install git
     # Export report as website, while keeping the existing public page
     - git fetch
     - git checkout origin/pages -- public/
