@@ -46,12 +46,12 @@
 //! let queue: Arc<TrackingQueue> = account.register_participant_with(
 //!     runtime.now_coarse(),
 //!     |partn| {
-//!         Ok::<_, Void>(Arc::new(TrackingQueue(Mutex::new(Ok(Inner {
+//!         Ok::<_, Void>((Arc::new(TrackingQueue(Mutex::new(Ok(Inner {
 //!             partn,
 //!             data: VecDeque::new(),
-//!         })))))
+//!         })))), ()))
 //!     },
-//! ).unwrap().void_unwrap();
+//! ).unwrap().void_unwrap().0;
 //!
 //! queue.push(runtime.now_coarse(), Box::new([0; 24])).unwrap();
 //! ```
@@ -690,11 +690,11 @@ impl Account {
     /// in which case `register_participant_with` returns `Ok(Err(E))`.
     ///
     /// On successful setup of the Participant, returns `Ok(Ok(Arc<P>))`.
-    pub fn register_participant_with<P: IsParticipant, E>(
+    pub fn register_participant_with<P: IsParticipant, X, E>(
         &self,
         now: CoarseInstant,
-        constructor: impl FnOnce(Participation) -> Result<Arc<P>, E>,
-    ) -> Result<Result<Arc<P>, E>, Error> {
+        constructor: impl FnOnce(Participation) -> Result<(Arc<P>, X), E>,
+    ) -> Result<Result<(Arc<P>, X), E>, Error> {
         use std::sync::atomic::{AtomicBool, Ordering};
 
         /// Temporary participant, which stands in during constructon
@@ -730,7 +730,7 @@ impl Account {
         // (And, also, we don't want the constructor panicking to poison the whole tracker.)
         // But it means there can be quite a lot of concurrent excitement,
         // including, theoretically, a possible reclaim.
-        let particip = match constructor(partn) {
+        let (particip, xdata) = match constructor(partn) {
             Ok(y) => y,
             Err(e) => return Ok(Err(e)),
         };
@@ -756,7 +756,7 @@ impl Account {
 
         let particip = particip.promise_dropping_is_ok();
         r?;
-        Ok(Ok(particip))
+        Ok(Ok((particip, xdata)))
     }
 
     /// Obtains a handle for the `MemoryQuotaTracker`

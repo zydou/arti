@@ -274,7 +274,7 @@ impl UnifiedP {
         let now = rt.now_coarse();
 
         acct.register_participant_with(now, |partn| {
-            Ok::<_, Void>(Arc::new(UnifiedP {
+            Ok::<_, Void>((Arc::new(UnifiedP {
                 acct: acct.clone(),
                 state: PartnState {
                     partn,
@@ -284,10 +284,11 @@ impl UnifiedP {
                     reclaimed: Ok(()),
                 }
                 .into(),
-            }))
+            }),()))
         })
         .unwrap()
         .void_unwrap()
+        .0
     }
 
     async fn settle_check_consistency<'i>(
@@ -492,19 +493,21 @@ impl ComplexAH {
     }
 
     fn add_p(&mut self, now: CoarseInstant, age: CoarseDuration, show: impl Display) -> usize {
-        let cp = self
+        let (cp, x) = self
             .acct
             .register_participant_with(now, |partn| {
-                Ok::<_, Void>(Arc::new(TestPartn::from(PartnState {
+                Ok::<_, Void>((Arc::new(TestPartn::from(PartnState {
                     partn,
                     age: Some(now - age),
                     show: show.to_string(),
                     used: 0,
                     reclaimed: Ok(()),
-                })))
+                })), 42))
             })
             .unwrap()
             .void_unwrap();
+
+        assert_eq!(x, 42);
 
         let i = self.ps.len();
         self.ps.push(cp);
