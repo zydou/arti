@@ -68,7 +68,7 @@ python3-mypy:
 maint-checks:
   stage: check
   script:
-    - maint/common/apt-install python3-toml python3-requests python-is-python3
+    - maint/common/apt-install git python3-toml python3-requests python-is-python3
     - ./maint/check_toposort
     - ./maint/add_warning --check
     - ./maint/shebang
