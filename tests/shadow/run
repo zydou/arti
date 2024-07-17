@@ -43,6 +43,7 @@ HOSTS=(
   articlient-onion-artiserver
   articlient-onion-artiserver-full-vanguards
   articlient-onion-artiserver-auth
+  articlient-onion-artiserver-auth-2
   torclient-onion-artiserver
   torclient-onion-artiserver-full-vanguards
 )
