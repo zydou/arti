@@ -54,3 +54,28 @@ impl TryFrom<String> for Utf8CStr {
         })
     }
 }
+
+/// Ffi-related functionality for Utf8CStr
+#[cfg(feature = "ffi")]
+pub(crate) mod ffi {
+    use std::ffi::c_char;
+
+    impl super::Utf8CStr {
+        /// Expose this Utf8CStr as a C string.
+        pub(crate) fn as_ptr(&self) -> *const c_char {
+            self.string.as_ptr()
+        }
+
+        /// Consume this Utf8CStr and return its value as an owned C string,
+        /// so that we can return it to the application.
+        ///
+        /// The resulting string may only be freed with [`arti_free_str`][crate::ffi::arti_free_str].
+        //
+        // Note: The requirement about how the string may be freed is potentially onerous, but our
+        // only other design options are not great here. TODO RPC: We should think about whether
+        // we can do better.
+        pub(crate) fn into_owned_ptr(self) -> *mut c_char {
+            self.string.into_c_string().into_raw()
+        }
+    }
+}

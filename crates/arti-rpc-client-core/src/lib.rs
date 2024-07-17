@@ -39,8 +39,13 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
-//!
+
+// TODO RPC: Possibly add this to our big list of lints.
+#![deny(unsafe_op_in_unsafe_fn)]
+
 mod conn;
+#[cfg(feature = "ffi")]
+pub mod ffi;
 pub mod llconn;
 mod msgs;
 #[macro_use]

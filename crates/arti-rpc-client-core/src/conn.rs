@@ -56,7 +56,7 @@ pub struct RequestHandle {
 //
 // Invariant: it is valid JSON and contains no NUL bytes or newlines.
 // TODO RPC: check that the newline invariant is enforced in constructors.
-#[derive(Clone, Debug, derive_more::AsRef)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::Into)]
 #[as_ref(forward)]
 pub struct SuccessResponse(Utf8CStr);
 
@@ -101,6 +101,13 @@ impl ErrorResponse {
         crate::msgs::response::try_decode_response_as_err(self.0.as_ref())
             .expect("Could not decode response that was already decoded as an error?")
             .expect("Could not extract error from response that was already decoded as an error?")
+    }
+}
+
+impl std::fmt::Display for ErrorResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let e = self.decode();
+        write!(f, "Peer said {:?}", e.message())
     }
 }
 
@@ -384,9 +391,6 @@ pub enum ConnectError {
     /// IO error while connecting to Arti.
     #[error("Unable to make a connection: {0}")]
     CannotConnect(Arc<std::io::Error>),
-    /// One of our protocol negotiation messages was rejected.
-    #[error("Arti rejected our negotiation attempts: {0:?}")]
-    NegotiationRejected(ErrorResponse),
     /// One of our authentication messages was rejected.
     #[error("Arti rejected our authentication: {0:?}")]
     AuthenticationRejected(ErrorResponse),
