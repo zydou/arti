@@ -12,6 +12,7 @@ export RUST_BACKTRACE=1
 # update-index --chmod`, but it refuses to set permissions on a directory.
 chmod 700 shadow.data.template/hosts/fileserver-onion/hs
 chmod 700 shadow.data.template/hosts/fileserver-onion-auth/hs
+chmod 700 shadow.data.template/hosts/fileserver-onion-arti-auth/authorized_clients
 
 # Run the simulation
 shadow \
