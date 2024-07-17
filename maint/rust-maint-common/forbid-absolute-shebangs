@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   maint/forbid-absolute-shebangs
+#
+# Requires that scripts all start with `#! /usr/bin/env`,
+# not a path to a specific interpreter.
+
+set -euo pipefail
+
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
+reject_all_arguments
+
+set +e
+git grep -rnI '^#\!/' :/ | grep -v '#\!/usr/bin/env'
+st="${PIPESTATUS[*]}"
+set -e
+
+case "$st" in
+    "0 0")
+	echo "Absolute shebangs found, replace them with \"#!/usr/bin/env\""
+	exit 1
+	;;
+    "0 1")
+	echo "Everything seems ok"
+	exit 0
+	;;
+    *)
+	echo "ERROR - status $st"
+	exit 16
+	;;
+esac

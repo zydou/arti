@@ -13,14 +13,13 @@
 
 set -euo pipefail
 
-fail () {
-    echo >&2 "error; $*"
-    exit 8
-}
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
 
-if [ "$#" != 0 ]; then
-    fail "no arguments allowed"
-fi
+reject_all_arguments
 
 wrong=$(
     # shellcheck disable=SC2086

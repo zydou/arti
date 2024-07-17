@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   maint/via-cargo-install-in-ci PACKAGE [CARGO ARGS..]
+#
+# Installs PACKAGE with `cargo install --locked`.
+#
+# You should consider whether to specify `--version`:
+# without that, you're no longer hermetic;
+# instead, you'll pic up upstream updates to that cargo package.
+#
+# Reuses a previously-built binary if it's found in the cache.
+# The directory `cache/` should be cached by .gitlab-ci.yml:
+#
+#  some-job:
+#    script:
+#      - maint/via-cargo-install-in-ci cargo-audit
+#    cache:
+#      paths:
+#        - cache
+#
+# If the file `maint/via-cargo-install-in-ci.cache-id` exists,
+# its contents are used as part of the cache key,
+# so that the cache is invalidated (and all packages rebuilt)
+# when that id changes.
+#
+# (The cache key also includes all of the arguments,
+# including the package name.)
+
+set -euo pipefail
+
+badusage () { echo >&2 "$0: bad usage: $1"; exit 8; }
+
+id_file=maint/via-cargo-install-in-ci.cache-id
+
+case "$1" in
+    -*) badusage 'first argument must be command (package)' ;;
+esac
+
+cache="$*"
+cmd="$1"; shift
+
+case "${1-}" in
+    [^-]*) badusage 'subsequent arguments must be options to cargo install' ;;
+esac
+
+if [ -e "$id_file" ]; then
+    read -r <"$id_file" extra_id
+    cache+="  id=$extra_id"
+fi
+
+cache="${cache// /,}"
+cache="cache/$cache"
+
+if cp -v "$cache" "$CARGO_HOME"/bin/"$cmd"; then exit 0; fi
+
+mkdir -p cache
+cargo install --locked "$@" "$cmd"
+cp -v "$CARGO_HOME/bin/$cmd" "$cache"

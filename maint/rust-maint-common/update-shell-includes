@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+#
+# Arrrange for all shell scripts to obtain the common libraries
+# not via the current working directory, but rather realpath $0, by:
+#
+#  1. Checking that no shell scripts have ad hoc `.` or `source`'s
+#  2. Updating/checking the standard bash-utils.sh include stanza.
+#   
+# Usage;
+#   update-shell-includes [--check] --all | [--] FILE...
+#
+# To edit the standard shell script stanza, edit it here in this script!
+
+set -euo pipefail
+
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
+install=true
+all=false
+
+while [ $# != 0 ]; do
+    case "$1" in
+	--) shift; break ;;
+	--check) install=false ;;
+	--all) all=true ;;
+	-*) fail "unknown option $1";;
+	*) break ;;
+    esac
+    shift
+done
+
+case "$all.$#" in
+    false.0) fail "need --all or one or more script filenames" ;;
+    false.*) ;;
+    true.0)
+	wanted=$(
+            git_grep_for_shell_script_shebangs | grep -vF "${0##*/}"
+	)
+        # shellcheck disable=SC2086
+	set -- $wanted
+	;;
+    true.*) fail "script filenames not allowed with --all " ;;
+esac
+
+# create the .new files here, with cp, to preserve the permissions
+for f in "$@"; do
+    cp -- "$f" "$f.new"
+done
+
+errors=$(perl -we '
+    use strict;
+    use POSIX;
+
+    my $msg_re = qr{this include stanza is automatically maintained};
+    my $stanza_re = qr{
+      ^ \s* \n                     # blank line
+        \# \s* $msg_re .* \n
+        (?: .* \S .* \n )+         # some non-blank lines
+    }xm;
+
+    my $bad_re = qr{
+        ^ [\ \t]* (?: \. | source ) [ \t] [^\$\n] * (?: maint/ | bash-utils\.sh ) .*
+    }xm;
+
+    undef $/;
+    sub slurp ($) {
+        open F, "<", "$_[0]" or die "$_[0]: $!";
+        $_ = <F>;
+        F->error and die $!;
+    }
+
+    slurp(shift @ARGV);
+    m{$stanza_re} or die "missing stanza in self!";
+
+    my $stanza = $&;
+
+    foreach my $f (@ARGV) {
+        slurp($f);
+        if (s{$stanza_re}{$stanza}) {
+        } elsif (m{$bad_re}) {
+            print "$f: bad include line, \`$&`\n";
+        }
+        open O, ">", "$f.new" or die "$f.new: $!";
+        print O or die $!;
+        close O or die $!;
+    }
+' "$0" "$@")
+
+ok=true
+
+if [ "$errors" != "" ]; then
+    cat <<END >&2
+errors searching/checking scripts for include stanzas:
+$errors
+END
+    ok=false
+fi
+
+for f in "$@"; do
+    if $ok && $install; then
+	mv -f -- "$f.new" "$f"
+    else
+	set +e
+	diff -u -- "$f" "$f.new"
+	rc=$?
+	set -e
+	case "$rc" in
+	    0) rm -- "$f.new" ;;
+	    1) ok=false;;
+	    *) fail 'diff failed';;
+	esac
+    fi
+done
+
+if ! $ok; then
+    fail "$0 check/update failed"
+fi

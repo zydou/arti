@@ -1,0 +1,36 @@
+
+stages:
+  - check
+  - test
+
+image: "rust:1.79.0-bookworm"
+
+checks:
+  stage: check
+  script:
+    - maint/forbid-script-extensions
+    - maint/forbid-absolute-shebangs
+    - maint/forbid-script-underscores
+    - maint/update-shell-includes --all --check
+
+shellcheck:
+  stage: check
+  image: koalaman/shellcheck-alpine
+  script:
+    - apk add git bash
+    - ./maint/shellcheck-all
+
+for-every-commit:
+  stage: test
+  script:
+    - maint/apt-install libtoml-perl
+    - cd test-project && maint/for-every-commit git --no-pager log -n1
+
+via-cargo-install-in-ci:
+  stage: test
+  script:
+    # tiny-timer is an almost-arbitrarily-chosen small binary crate
+    maint/via-cargo-install-in-ci tiny-timer --version=0.1.1
+  cache:
+    paths:
+      - cache

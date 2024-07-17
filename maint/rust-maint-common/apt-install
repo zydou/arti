@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   maint/apt-install [--] PACKAGE...
+#
+# Runs `apt-get update` and `apt-get -y install PACKAGE...`.
+#
+# (Doesn't run `apt-get update` more than once in the same CI run:
+# by looking for a `.maint-apt-install-apt-update-done` stamp file.)
+
+set -euo pipefail
+
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
+reject_options
+
+stamp=.maint-apt-install-apt-update-done
+
+if ! test -e "$stamp"; then
+    x apt-get update
+    touch "$stamp"
+fi
+x apt-get install -y -- "$@"
