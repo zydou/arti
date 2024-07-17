@@ -31,7 +31,7 @@ case "$st" in
 	exit 0
 	;;
     *)
-	echo "ERROR - statusus $st"
+	echo "ERROR - status $st"
 	exit 16
 	;;
 esac
