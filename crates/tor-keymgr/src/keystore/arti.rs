@@ -116,8 +116,16 @@ impl Keystore for ArtiNativeKeystore {
 
     fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
         let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(false));
+        let abs_path =
+            self.keystore_dir
+                .join(&path)
+                .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
+                    action: FilesystemAction::Read,
+                    path: path.clone(),
+                    err: err.into(),
+                })?;
 
-        Ok(path.exists())
+        Ok(abs_path.exists())
     }
 
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
