@@ -92,7 +92,8 @@ impl ArtiNativeKeystore {
     }
 }
 
-/// Extract the key path (relative to the keystore root) from the specified result `res`, or return an error.
+/// Extract the key path (relative to the keystore root) from the specified result `res`,
+/// or return an error.
 ///
 /// If the underlying error is `ArtiPathUnavailable` (i.e. the `KeySpecifier` cannot provide
 /// an `ArtiPath`), return `ret`.
