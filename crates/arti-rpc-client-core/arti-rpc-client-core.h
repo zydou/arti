@@ -202,6 +202,8 @@ ArtiStatus arti_connect(const char *connection_string,
  *
  * Otherwise returns some other status code, and set `*response_out` to NULL.
  *
+ * (If response_out is set to NULL, then any successful response will be ignored.)
+ *
  * # Safety
  *
  * The caller must not modify the length of `*response_out`.

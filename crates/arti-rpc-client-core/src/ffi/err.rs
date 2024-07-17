@@ -171,16 +171,6 @@ impl<T: IntoFfiError> From<T> for FfiError {
     }
 }
 
-/// Return a null pointer error if this pointer is null.
-macro_rules! check_null {
-    { $e:expr } => {
-        if $e.is_null() {
-            return Err(crate::ffi::err::NullPointer.into());
-        }
-    }
-}
-pub(super) use check_null;
-
 /// Tried to call a ffi function with a not-permitted null pointer argument.
 #[derive(Clone, Debug, thiserror::Error)]
 #[error("One of the arguments was NULL")]

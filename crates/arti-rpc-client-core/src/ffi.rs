@@ -8,10 +8,11 @@
 pub mod err;
 mod util;
 
-use err::{catch_panic, check_null, handle_errors, FfiStatus};
+use err::{catch_panic, handle_errors, FfiStatus};
 use std::ffi::{c_char, CString};
+use util::{ptr_as_ref, OutPtr};
 
-use crate::{util::Utf8CStr, RpcConn, RpcConnBuilder};
+use crate::{util::Utf8CStr, RpcConnBuilder};
 
 /// A status code returned by an Arti RPC function.
 ///
@@ -44,19 +45,16 @@ pub unsafe extern "C" fn arti_connect(
     rpc_conn_out: *mut *mut ArtiRpcConn,
 ) -> ArtiStatus {
     handle_errors(|| {
-        check_null!(rpc_conn_out);
-
         // Safety: We globally require that `rpc_conn_out` is a valid pointer.
-        unsafe { *rpc_conn_out = std::ptr::null_mut() }
+        let rpc_conn_out = unsafe { OutPtr::from_ptr_nonnull(rpc_conn_out) }?;
 
         // Safety: We globally require that all strings are valid according to CStr::from_ptr.
-        let s = unsafe { util::ptr_to_str(connection_string)? };
+        let s = unsafe { util::ptr_to_str(connection_string) }?;
         let builder = RpcConnBuilder::from_connect_string(s)?;
 
         let conn = builder.connect()?;
 
-        // Safety: We globally require that `rpc_conn_out` is a valid pointer.
-        unsafe { *rpc_conn_out = Box::into_raw(Box::new(conn)) }
+        rpc_conn_out.write_value(conn);
 
         Ok(())
     })
@@ -72,6 +70,8 @@ pub unsafe extern "C" fn arti_connect(
 ///
 /// Otherwise returns some other status code, and set `*response_out` to NULL.
 ///
+/// (If response_out is set to NULL, then any successful response will be ignored.)
+///
 /// # Safety
 ///
 /// The caller must not modify the length of `*response_out`.
@@ -84,22 +84,17 @@ pub unsafe extern "C" fn arti_rpc_execute(
     response_out: *mut *mut c_char,
 ) -> ArtiStatus {
     handle_errors(|| {
-        check_null!(rpc_conn);
-        check_null!(response_out);
+        // Safety: we require that rpc_conn is a valid pointer.
+        let rpc_conn = unsafe { ptr_as_ref(rpc_conn) }?;
+        // Safety: we require that response_out is a valid pointer.
+        let response_out = unsafe { OutPtr::from_ptr(response_out) };
+
         // Safety: We globally require that the constraints of CStr::from_ptr apply.
         let msg = unsafe { util::ptr_to_str(msg) }?;
 
-        // Safety: We require that response_out is a valid pointer.
-        unsafe { *response_out = std::ptr::null_mut() }
+        let success = rpc_conn.execute(msg)??;
 
-        // Safety: we require that rpc_conn is a valid pointer.
-        let conn: &RpcConn = unsafe { &*rpc_conn };
-        let success = conn.execute(msg)??;
-
-        // Safety: We require that response_out is a valid pointer.
-        //
-        // Note: into_owned_pointer returns a pointer from CString::into_raw.
-        unsafe { *response_out = Utf8CStr::from(success).into_owned_ptr() }
+        response_out.write_str(Utf8CStr::from(success));
 
         Ok(())
     })
