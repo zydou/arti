@@ -79,7 +79,7 @@ impl ArtiNativeKeystore {
 
     /// The path on disk of the key with the specified identity and type, relative to
     /// `keystore_dir`.
-    fn key_path(
+    fn rel_path(
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
@@ -92,11 +92,11 @@ impl ArtiNativeKeystore {
     }
 }
 
-/// Extract the key path from the specified result `res`, or return an error.
+/// Extract the key path (relative to the keystore root) from the specified result `res`, or return an error.
 ///
 /// If the underlying error is `ArtiPathUnavailable` (i.e. the `KeySpecifier` cannot provide
 /// an `ArtiPath`), return `ret`.
-macro_rules! key_path_if_supported {
+macro_rules! rel_path_if_supported {
     ($res:expr, $ret:expr) => {{
         use ArtiPathUnavailableError::*;
 
@@ -114,13 +114,13 @@ impl Keystore for ArtiNativeKeystore {
     }
 
     fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
-        let path = key_path_if_supported!(self.key_path(key_spec, key_type), Ok(false));
+        let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(false));
 
         Ok(path.exists())
     }
 
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
-        let path = key_path_if_supported!(self.key_path(key_spec, key_type), Ok(None));
+        let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(None));
 
         let inner = match self.keystore_dir.read_to_string(&path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
@@ -146,7 +146,7 @@ impl Keystore for ArtiNativeKeystore {
         key_type: &KeyType,
     ) -> Result<()> {
         let path = self
-            .key_path(key_spec, key_type)
+            .rel_path(key_spec, key_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
 
         // Create the parent directories as needed
@@ -177,16 +177,16 @@ impl Keystore for ArtiNativeKeystore {
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>> {
-        let key_path = self
-            .key_path(key_spec, key_type)
+        let rel_path = self
+            .rel_path(key_spec, key_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
 
-        match self.keystore_dir.remove_file(&key_path) {
+        match self.keystore_dir.remove_file(&rel_path) {
             Ok(()) => Ok(Some(())),
             Err(fs_mistrust::Error::NotFound(_)) => Ok(None),
             Err(e) => Err(ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Remove,
-                path: key_path,
+                path: rel_path,
                 err: e.into(),
             }
             .into()),
@@ -297,7 +297,7 @@ mod tests {
 
     fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
         let rel_key_path = key_store
-            .key_path(&TestSpecifier::default(), key_type)
+            .rel_path(&TestSpecifier::default(), key_type)
             .unwrap();
 
         key_store.keystore_dir.as_path().join(rel_key_path)
@@ -386,14 +386,14 @@ mod tests {
 
         assert_eq!(
             key_store
-                .key_path(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+                .rel_path(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
                 .unwrap(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private")
         );
 
         assert_eq!(
             key_store
-                .key_path(&TestSpecifier::default(), &KeyType::X25519StaticKeypair)
+                .rel_path(&TestSpecifier::default(), &KeyType::X25519StaticKeypair)
                 .unwrap(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private")
         );
@@ -433,7 +433,7 @@ mod tests {
             format!(
                 "Inaccessible path or bad permissions on {} while attempting to Remove",
                 key_store
-                    .key_path(&key_spec, ed_key_type)
+                    .rel_path(&key_spec, ed_key_type)
                     .unwrap()
                     .display_lossy()
             ),
@@ -496,7 +496,7 @@ mod tests {
         let ed_key_type = &KeyType::Ed25519Keypair;
         let path = keystore_dir
             .as_ref()
-            .join(key_store.key_path(&key_spec, ed_key_type).unwrap());
+            .join(key_store.rel_path(&key_spec, ed_key_type).unwrap());
 
         // The key and its parent directories don't exist yet.
         assert!(!path.parent().unwrap().exists());
