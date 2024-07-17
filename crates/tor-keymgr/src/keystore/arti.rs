@@ -334,6 +334,8 @@ mod tests {
             let res = $key_store.get($key_spec, $key_type).unwrap();
             if $found {
                 assert!(res.is_some());
+                // Ensure contains() agrees with get()
+                assert!($key_store.contains($key_spec, $key_type).unwrap());
             } else {
                 assert!(res.is_none());
             }
