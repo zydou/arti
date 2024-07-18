@@ -472,11 +472,22 @@ matrix-test-cfg:
   script:
     - ./maint/matrix_test_cfg
 
+# TODO: consider removing this in favor of cli-test
 cli-help:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
     - ./maint/check-cli-help
+
+cli-test:
+  stage: test
+  image: $RECENT_RUST_IMAGE
+  script:
+    # The rust-latest job runs the CLI tests with all features enabled.
+    # This job runs the CLI tests with various feature combinations that aren't
+    # covered by the other tests
+    - cargo test --verbose --target x86_64-unknown-linux-gnu -p arti cli_tests
+    - cargo test --verbose --target x86_64-unknown-linux-gnu -p arti --features experimental cli_tests
 
 coverage-aggregated:
   rules:
