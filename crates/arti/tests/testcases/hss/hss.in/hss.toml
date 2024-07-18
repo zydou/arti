@@ -1,0 +1,17 @@
+[application]
+allow_running_as_root = true
+
+[storage]
+state_dir = "./local"
+
+[storage.permissions]
+dangerously_trust_everyone = true
+
+[logging]
+console = "warn"
+
+[onion_services."acutus-cepa"]
+proxy_ports = [
+    # Forward port 80 on the service to localhost:10080.
+    ["80", "127.0.0.1:10080"],
+]
