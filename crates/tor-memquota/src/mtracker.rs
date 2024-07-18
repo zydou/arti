@@ -934,6 +934,34 @@ impl Participation {
             tracker: self.tracker.clone(),
         }
     }
+
+    /// Destroy this participant
+    ///
+    /// Treat as freed all the memory allocated via this `Participation` and its clones.
+    /// After this, other clones of this `Participation` are no longer useable,
+    /// (although they can still be used to get at the `Account`, if it still exists).
+    ///
+    /// The actual memory should be freed promptly.
+    ///
+    /// (It is not necessary to call this function in order to get the memory tracker
+    /// to free its handle onto the `IsParticipant`,
+    /// because the memory quota system holds only a [`Weak`] reference.)
+    pub fn destroy_participant(mut self) {
+        (|| {
+            find_in_tracker! {
+                self.tracker => + tracker, state;
+                self.aid => arecord;
+                ?None
+            };
+            if let Some(mut removed) =
+                refcount::slotmap_remove_early(&mut arecord.ps, self.pid.take())
+            {
+                removed.auto_release(&mut state.global);
+            }
+            Some(())
+        })();
+        // self will be dropped now, but we have already cleared it out.
+    }
 }
 
 impl Clone for Participation {

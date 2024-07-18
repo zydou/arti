@@ -237,6 +237,19 @@ pub(crate) fn slotmap_try_insert<K: slotmap::Key, V, E, RD>(
     Ok((ref_, data))
 }
 
+/// Unconditionally remove en entry from the slotmap, given a strong ref
+///
+/// Other references to this entry will become dangling.
+pub(crate) fn slotmap_remove_early<K: slotmap::Key, V>(
+    slotmap: &mut SlotMap<K, V>,
+    key: Ref<K>,
+) -> Option<V> {
+    let r = slotmap.remove(*key);
+    // Correctness: this becomes a reference to a missing entry
+    key.dispose_container_destroyed();
+    r
+}
+
 #[cfg(test)]
 impl<K: slotmap::Key> Drop for Ref<K> {
     fn drop(&mut self) {
