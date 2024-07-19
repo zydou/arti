@@ -138,18 +138,18 @@ if [ "x$(git rev-parse --is-shallow-repository)" != xfalse ]; then
 fi
 
 for tbranch in $BASE_BRANCHES; do
-    trevlist="$(tlref)..HEAD"
-    tcount=$(git rev-list --count "$trevlist")
+    trevlist=("$(tlref)..HEAD")
+    tcount=$(git rev-list --count "${trevlist[@]}")
     printf 'HEAD is %3d commits ahead of %s\n' "$tcount" "$tbranch"
     if [ "$count" ] && [ "$count" -le "$tcount" ]; then continue; fi
     count=$tcount
     branch=$tbranch
-    revlist=$trevlist
+    revlist=("${trevlist[@]}")
 done
 
 echo "Testing every commit not already on $branch"
 
-commits=$(git rev-list --reverse "$revlist")
+commits=$(git rev-list --reverse "${revlist[@]}")
 
 i=0
 for commit in $commits; do
