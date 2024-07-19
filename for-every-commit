@@ -137,8 +137,16 @@ if [ "x$(git rev-parse --is-shallow-repository)" != xfalse ]; then
     git fetch --unshallow "$ORIGIN" "${refspecs[@]}"
 fi
 
+subtrees=$(
+    git log -P  --grep '^git-subtree-split:' |
+    sed -n 's/^    git-subtree-split: //p' |
+    sed 's/$/../'
+)
+echo "Excluding subtree inputs: $subtrees"
+
 for tbranch in $BASE_BRANCHES; do
-    trevlist=("$(tlref)..HEAD")
+    # shellcheck disable=SC2206
+    trevlist=($subtrees "$(tlref)..HEAD")
     tcount=$(git rev-list --count "${trevlist[@]}")
     printf 'HEAD is %3d commits ahead of %s\n' "$tcount" "$tbranch"
     if [ "$count" ] && [ "$count" -le "$tcount" ]; then continue; fi
