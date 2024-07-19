@@ -16,7 +16,7 @@
 #   image: koalaman/shellcheck-alpine
 #   script:
 #     - apk add git bash
-#     - ./maint/shellcheck-all
+#     - maint/shellcheck-all
 # ```
 # (except remove the space in `shell check`, which is there
 # because shellcheck otherwise thinks it might be a directive!)
