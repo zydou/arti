@@ -274,17 +274,20 @@ impl UnifiedP {
         let now = rt.now_coarse();
 
         acct.register_participant_with(now, |partn| {
-            Ok::<_, Void>((Arc::new(UnifiedP {
-                acct: acct.clone(),
-                state: PartnState {
-                    partn,
-                    age: Some(now - age),
-                    show: show.to_string(),
-                    used: 0,
-                    reclaimed: Ok(()),
-                }
-                .into(),
-            }),()))
+            Ok::<_, Void>((
+                Arc::new(UnifiedP {
+                    acct: acct.clone(),
+                    state: PartnState {
+                        partn,
+                        age: Some(now - age),
+                        show: show.to_string(),
+                        used: 0,
+                        reclaimed: Ok(()),
+                    }
+                    .into(),
+                }),
+                (),
+            ))
         })
         .unwrap()
         .void_unwrap()
@@ -496,13 +499,16 @@ impl ComplexAH {
         let (cp, x) = self
             .acct
             .register_participant_with(now, |partn| {
-                Ok::<_, Void>((Arc::new(TestPartn::from(PartnState {
-                    partn,
-                    age: Some(now - age),
-                    show: show.to_string(),
-                    used: 0,
-                    reclaimed: Ok(()),
-                })), 42))
+                Ok::<_, Void>((
+                    Arc::new(TestPartn::from(PartnState {
+                        partn,
+                        age: Some(now - age),
+                        show: show.to_string(),
+                        used: 0,
+                        reclaimed: Ok(()),
+                    })),
+                    42,
+                ))
             })
             .unwrap()
             .void_unwrap();
