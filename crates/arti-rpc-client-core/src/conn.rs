@@ -426,7 +426,7 @@ mod test {
 
     use std::{sync::atomic::AtomicUsize, thread, time::Duration};
 
-    use io::BufRead as _;
+    use io::{BufRead as _, Write as _};
     use rand::{seq::SliceRandom as _, Rng as _, SeedableRng as _};
     use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
 
@@ -638,5 +638,105 @@ mod test {
         worker_thread.join().unwrap();
 
         assert_eq!(n_completed.load(SeqCst), n_commands_total);
+    }
+
+    #[test]
+    fn arti_socket_closed() {
+        // Here we send a bunch of requests and then close the socket without answering them.
+        //
+        // Every request should get a ProtoError::Shutdown.
+        let n_threads = 16;
+
+        let (conn, sock) = dummy_connected();
+        let conn = Arc::new(conn);
+        let mut user_threads = Vec::new();
+        for _ in 0..n_threads {
+            let conn = Arc::clone(&conn);
+            let th = thread::spawn(move || {
+                // We are spawning a bunch of worker threads, each of which will run a number of
+                // We will double-check that each request gets the response it asked for.
+                let req = serde_json::json!({
+                    "obj":"fred",
+                    "method":"arti:x-echo",
+                    "params":{}
+                });
+                let req = serde_json::to_string(&req).unwrap();
+                let outcome = conn.execute(&req);
+                assert!(matches!(
+                    outcome,
+                    Err(ProtoError::Shutdown(ShutdownError::Write(_)))
+                        | Err(ProtoError::Shutdown(ShutdownError::Read(_)))
+                ));
+            });
+            user_threads.push(th);
+        }
+
+        drop(sock);
+
+        for t in user_threads {
+            t.join().unwrap();
+        }
+    }
+
+    /// Send a bunch of requests and then send back a single reply.
+    ///
+    /// That reply should cause every request to get closed.
+    fn proto_err_with_msg<F>(msg: &str, outcome_ok: F)
+    where
+        F: Fn(ProtoError) -> bool,
+    {
+        let n_threads = 16;
+
+        let (conn, mut sock) = dummy_connected();
+        let conn = Arc::new(conn);
+        let mut user_threads = Vec::new();
+        for _ in 0..n_threads {
+            let conn = Arc::clone(&conn);
+            let th = thread::spawn(move || {
+                // We are spawning a bunch of worker threads, each of which will run a number of
+                // We will double-check that each request gets the response it asked for.
+                let req = serde_json::json!({
+                    "obj":"fred",
+                    "method":"arti:x-echo",
+                    "params":{}
+                });
+                let req = serde_json::to_string(&req).unwrap();
+                conn.execute(&req)
+            });
+            user_threads.push(th);
+        }
+
+        sock.write_all(msg.as_bytes()).unwrap();
+
+        for t in user_threads {
+            let outcome = t.join().unwrap();
+            assert!(outcome_ok(outcome.unwrap_err()));
+        }
+    }
+
+    #[test]
+    fn syntax_error() {
+        proto_err_with_msg("this is not json\n", |outcome| {
+            matches!(
+                outcome,
+                ProtoError::Shutdown(ShutdownError::ProtocolViolated(_))
+            )
+        });
+    }
+
+    #[test]
+    fn fatal_error() {
+        let j = serde_json::json!({
+            "error":{ "message": "This test is doomed", "code": 413, "kinds": ["Example"], "data": {} },
+        });
+        let mut s = serde_json::to_string(&j).unwrap();
+        s.push('\n');
+
+        proto_err_with_msg(&s, |outcome| {
+            matches!(
+                outcome,
+                ProtoError::Shutdown(ShutdownError::ProtocolViolationReport(_))
+            )
+        });
     }
 }
