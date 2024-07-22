@@ -49,7 +49,7 @@
 //!    It will then ask *every Participant* in that Account,
 //!    and every Participant in every Child of that Account,
 //!    to reclaim memory.
-//!     A Participant responds by freeing at least some memory,
+//!    A Participant responds by freeing at least some memory,
 //!    according to the reclamation request, and tells the Tracker when it has done so.
 //!
 //!  * **Reclamation strategy**:
