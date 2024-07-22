@@ -245,7 +245,7 @@ impl RpcConn {
         mut update_cb: F,
     ) -> Result<FinalResponse, ProtoError>
     where
-        F: FnMut(UpdateResponse) + Send + Sync + 'static,
+        F: FnMut(UpdateResponse) + Send + Sync,
     {
         let mut hnd = self.execute_with_handle(cmd)?;
         loop {
