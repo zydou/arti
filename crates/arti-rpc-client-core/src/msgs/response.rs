@@ -189,7 +189,7 @@ struct JsonAnyObj {}
 
 /// An error sent by Arti, decoded into its parts.
 #[derive(Clone, Debug, Deserialize)]
-#[cfg_attr(test, derive(PartialEq, Eq))]
+#[cfg_attr(test, derive(PartialEq, Eq, serde::Serialize))]
 pub struct RpcError {
     /// A human-readable message from Arti.
     message: String,
@@ -229,7 +229,7 @@ impl RpcError {
 }
 
 caret::caret_int! {
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, serde::Serialize)]
     pub struct RpcErrorCode(i32) {
         /// "The JSON sent is not a valid Request object."
         //

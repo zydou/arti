@@ -87,7 +87,7 @@ pub(crate) struct RequestMeta {
     /// about the request that it sent.
     ///
     /// (Default: false)
-    updates: bool,
+    pub(crate) updates: bool,
 }
 
 /// Crate-internal: A parsed request from the application which may not (yet) be valid.

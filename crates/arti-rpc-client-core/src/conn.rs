@@ -407,3 +407,236 @@ pub enum BuilderError {
     #[error("Invalid connect string.")]
     InvalidConnectString,
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use std::{sync::atomic::AtomicUsize, thread, time::Duration};
+
+    use io::BufRead as _;
+    use rand::{seq::SliceRandom as _, Rng as _, SeedableRng as _};
+    use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
+
+    use crate::msgs::request::{JsonMap, Request};
+
+    use super::*;
+
+    /// helper: Return a dummy RpcConn, along with a socketpair for it to talk to.
+    fn dummy_connected() -> (RpcConn, socketpair::SocketpairStream) {
+        let (s1, s2) = socketpair::socketpair_stream().unwrap();
+        let s1_w = s1.try_clone().unwrap();
+        let s1_r = io::BufReader::new(s1);
+        let conn = RpcConn::new(llconn::Reader::new(s1_r), llconn::Writer::new(s1_w));
+
+        (conn, s2)
+    }
+
+    fn write_val(w: &mut impl io::Write, v: &serde_json::Value) {
+        let mut enc = serde_json::to_string(v).unwrap();
+        enc.push('\n');
+        w.write_all(enc.as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn simple() {
+        let (conn, sock) = dummy_connected();
+
+        let user_thread = thread::spawn(move || {
+            let response1 = conn
+                .execute(r#"{"obj":"fred","method":"arti:x-frob","params":{}}"#)
+                .unwrap();
+            (response1, conn)
+        });
+
+        let fake_arti_thread = thread::spawn(move || {
+            let mut sock = BufReader::new(sock);
+            let mut s = String::new();
+            let _len = sock.read_line(&mut s).unwrap();
+            let request: Request<JsonMap> = serde_json::from_str(&s).unwrap();
+            let response = serde_json::json!({
+                "id": request.id.clone(),
+                "result": { "xyz" : 3 }
+            });
+            write_val(sock.get_mut(), &response);
+            sock // prevent close
+        });
+
+        let _sock = fake_arti_thread.join().unwrap();
+        let (response, _conn) = user_thread.join().unwrap();
+        let map = response.unwrap().deserialize_as::<JsonMap>().unwrap();
+        assert_eq!(map.get("xyz"), Some(&serde_json::Value::Number(3.into())));
+    }
+
+    #[test]
+    fn complex() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let n_threads = 16;
+        let n_commands_per_thread = 4096;
+        let n_commands_total = n_threads * n_commands_per_thread;
+        let n_completed = Arc::new(AtomicUsize::new(0));
+
+        let (conn, sock) = dummy_connected();
+        let conn = Arc::new(conn);
+        let mut user_threads = Vec::new();
+        let mut rng = testing_rng();
+
+        // -------
+        // User threads: Make a bunch of requests.
+        for th_idx in 0..n_threads {
+            let conn = Arc::clone(&conn);
+            let n_completed = Arc::clone(&n_completed);
+            let mut rng = rand_chacha::ChaCha12Rng::from_seed(rng.gen());
+            let th = thread::spawn(move || {
+                for cmd_idx in 0..n_commands_per_thread {
+                    // We are spawning a bunch of worker threads, each of which will run a number of
+                    // commands in sequence.  Each command will be a request that gets optional
+                    // updates, and an error or a success.
+                    // We will double-check that each request gets the response it asked for.
+                    let s = format!("{}:{}", th_idx, cmd_idx);
+                    let want_updates: bool = rng.gen();
+                    let want_failure: bool = rng.gen();
+                    let req = serde_json::json!({
+                        "obj":"fred",
+                        "method":"arti:x-echo",
+                        "meta": {
+                            "updates": want_updates,
+                        },
+                        "params": {
+                            "val": &s,
+                            "fail": want_failure,
+                        },
+                    });
+                    let req = serde_json::to_string(&req).unwrap();
+
+                    // Wait for a final response, processing updates if we asked for them.
+                    let mut n_updates = 0;
+                    let outcome = conn
+                        .execute_with_updates(&req, |_update| {
+                            n_updates += 1;
+                        })
+                        .unwrap();
+                    assert_eq!(n_updates > 0, want_updates);
+
+                    // See if we liked the final response.
+                    if want_failure {
+                        let e = outcome.unwrap_err().decode();
+                        assert_eq!(e.message(), "You asked me to fail");
+                        assert_eq!(i32::from(e.code()), 33);
+                        assert_eq!(
+                            e.kinds_iter().collect::<Vec<_>>(),
+                            vec!["Example".to_string()]
+                        );
+                        assert_eq!(e.data().unwrap().as_str().unwrap(), &s);
+                    } else {
+                        let success = outcome.unwrap();
+                        let map = success.deserialize_as::<JsonMap>().unwrap();
+                        assert_eq!(map.get("echo"), Some(&serde_json::Value::String(s)));
+                    }
+                    n_completed.fetch_add(1, SeqCst);
+                    if rng.gen::<f32>() < 0.02 {
+                        thread::sleep(Duration::from_millis(3));
+                    }
+                }
+            });
+            user_threads.push(th);
+        }
+
+        #[derive(serde::Deserialize, Debug)]
+        struct Echo {
+            val: String,
+            fail: bool,
+        }
+
+        // -----
+        // Worker thread: handles user requests.
+        let worker_rng = rand_chacha::ChaCha12Rng::from_seed(rng.gen());
+        let worker_thread = thread::spawn(move || {
+            let mut rng = worker_rng;
+            let mut sock = BufReader::new(sock);
+            let mut pending: Vec<Request<Echo>> = Vec::new();
+            let mut n_received = 0;
+
+            // How many requests do we buffer before we shuffle them and answer them out-of-order?
+            let scramble_factor = 7;
+            // After receiving how many requests do we stop shuffling requests?
+            //
+            // (Our shuffling algorithm can deadlock us otherwise.)
+            let scramble_threshold =
+                n_commands_total - (n_commands_per_thread + 1) * scramble_factor;
+
+            'outer: loop {
+                let flush_pending_at = if n_received >= scramble_threshold {
+                    1
+                } else {
+                    scramble_factor
+                };
+
+                // Queue a handful of requests in "pending"
+                while pending.len() < flush_pending_at {
+                    let mut buf = String::new();
+                    if sock.read_line(&mut buf).unwrap() == 0 {
+                        break 'outer;
+                    }
+                    n_received += 1;
+                    let req: Request<Echo> = serde_json::from_str(&buf).unwrap();
+                    pending.push(req);
+                }
+
+                // Handle the requests in "pending" in random order.
+                let mut handling = std::mem::take(&mut pending);
+                handling.shuffle(&mut rng);
+
+                for req in handling {
+                    if req.meta.unwrap_or_default().updates {
+                        let n_updates = rng.gen_range_checked(1..4).unwrap();
+                        for _ in 0..n_updates {
+                            let up = serde_json::json!({
+                                "id": req.id.clone(),
+                                "update": {
+                                    "hello": req.params.val.clone(),
+                                }
+                            });
+                            write_val(sock.get_mut(), &up);
+                        }
+                    }
+
+                    let response = if req.params.fail {
+                        serde_json::json!({
+                            "id": req.id.clone(),
+                            "error": { "message": "You asked me to fail", "code": 33, "kinds": ["Example"], "data": req.params.val },
+                        })
+                    } else {
+                        serde_json::json!({
+                            "id": req.id.clone(),
+                            "result": {
+                                "echo": req.params.val
+                            }
+                        })
+                    };
+                    write_val(sock.get_mut(), &response);
+                }
+            }
+        });
+        drop(conn);
+        for t in user_threads {
+            t.join().unwrap();
+        }
+
+        worker_thread.join().unwrap();
+
+        assert_eq!(n_completed.load(SeqCst), n_commands_total);
+    }
+}

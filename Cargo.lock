@@ -333,10 +333,13 @@ dependencies = [
  "caret",
  "derive_more",
  "educe",
+ "rand",
+ "rand_chacha",
  "serde",
  "serde_json",
  "socketpair",
  "thiserror",
+ "tor-basic-utils",
 ]
 
 [[package]]
