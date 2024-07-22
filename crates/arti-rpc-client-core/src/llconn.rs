@@ -75,11 +75,12 @@ impl Writer {
     ///
     /// Return an error if an IO problems occurred, or if the request was not well-formed.
     pub fn send_request(&mut self, request: &str) -> Result<(), SendRequestError> {
-        let _req: ParsedRequest = serde_json::from_str(request)?;
-        // TODO: Maybe ensure it is all one line, if some "strict mode" flag is set?
-        // (The spec only requires that arti send its responses in jsonlines;
-        // clients are allowed to send an arbitrary stream of json.)
-        self.backend.write_all(request.as_bytes())?;
+        let req: ParsedRequest = serde_json::from_str(request)?;
+        // TODO: Perhaps someday we'd like a way to send without re-encoding.
+        let validated = req
+            .format()
+            .map_err(|e| SendRequestError::ReEncode(Arc::new(e)))?;
+        self.send_valid(&validated)?;
         Ok(())
     }
 
