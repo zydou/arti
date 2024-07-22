@@ -256,6 +256,37 @@ mod test {
             partn.claim(&cost).unwrap();
             partn.release(&cost);
 
+            // claim, then release due to error
+            partn
+                .try_claim(Costed, |_: Costed| Err::<Void, _>(()))
+                .unwrap()
+                .unwrap_err();
+
+            // claim, then release due to panic
+            catch_unwind(AssertUnwindSafe(|| {
+                let didnt_panic =
+                    partn.try_claim(Costed, |_: Costed| -> Result<Void, Void> { panic!() });
+                panic!("{:?}", didnt_panic);
+            }))
+            .unwrap_err();
+
+            // claim OK, then explicitly release later
+            let did_claim = partn
+                .try_claim(Costed, |c: Costed| Ok::<Costed, Void>(c))
+                .unwrap()
+                .void_unwrap();
+            // Check that we did claim at least something!
+            assert!(trk.used_current_approx().unwrap() > 0);
+
+            partn.release(&did_claim);
+
+            drop(acct);
+            drop(particip);
+            drop(trk);
+            partn
+                .try_claim(Costed, |_| -> Result<Void, Void> { panic!() })
+                .unwrap_err();
+
             rt.advance_until_stalled().await;
         });
     }
