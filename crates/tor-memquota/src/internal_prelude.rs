@@ -61,6 +61,7 @@ pub(crate) use crate::{
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
     mtracker::Participation,
+    private::Sealed,
     refcount,
     utils::{DefaultExtTake, NoopWaker, Qty},
 };

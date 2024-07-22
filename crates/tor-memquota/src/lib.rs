@@ -202,6 +202,12 @@ pub mod memory_cost;
 pub mod mtracker;
 mod stream_peek;
 
+/// For trait sealing
+mod private {
+    /// Inaccessible trait
+    pub trait Sealed {}
+}
+
 //---------- re-exports at the crate root ----------
 
 pub use config::{Config, ConfigBuilder};
