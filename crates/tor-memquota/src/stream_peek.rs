@@ -373,7 +373,6 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use futures::SinkExt as _;
     use std::pin::pin;
     use std::time::Duration;
     use tor_rtcompat::SleepProvider as _;

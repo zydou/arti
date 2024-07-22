@@ -27,7 +27,7 @@ use slotmap::Key as _;
 use tracing_test::traced_test;
 
 use tor_basic_utils::RngExt as _;
-use tor_rtcompat::{CoarseDuration, CoarseTimeProvider as _, Runtime};
+use tor_rtcompat::{CoarseDuration, Runtime};
 use tor_rtmock::MockRuntime;
 
 //---------- useful utilities ----------
