@@ -508,6 +508,16 @@ impl MemoryQuotaTracker {
         Ok(tracker)
     }
 
+    /// Returns an estimate of the total memory use
+    ///
+    /// The returned value is:
+    ///
+    ///  * [Approximate.](../index.html#is-approximate)
+    ///  * A snapshot as of the current moment (and there is no way to await changes)
+    pub fn used_current_approx(&self) -> Result<usize, TrackerCorrupted> {
+        Ok(*self.lock()?.total_used.as_raw())
+    }
+
     /// Make a new `Account`
     ///
     /// To actually record memory usage, a Participant must be added.

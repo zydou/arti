@@ -61,7 +61,9 @@
 // !    a queue which responds to a reclamation request
 // !    by completely destroying itself and freeing all its data.
 //!
-//!  * **Approximate** (both in time and space):
+//!  * <div id="is-approximate">
+//!
+//!    **Approximate** (both in time and space):
 //!    The memory quota system is not completely precise.
 //!    Participants need not report their use precisely,
 //!    but the errors should be reasonably small, and bounded.
@@ -72,6 +74,8 @@
 //!    Reclamation is not immediate, and is dependent on task scheduling;
 //!    during memory pressure the quota may be exceeded;
 //!    new allocations are not prevented while attempts at reclamation are ongoing.
+//!
+//!    </div>
 //!
 // TODO we haven't implemented the queue wrapper yet
 // !  * **Queues**:
