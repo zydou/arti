@@ -23,7 +23,7 @@ pub enum Error {
     ParticipantShutdown,
 
     /// Previous bug, memory quota tracker is corrupted
-    #[error("memory tracker is corrupted due to previous bug")]
+    #[error("{self}")]
     TrackerCorrupted,
 
     /// Bug
@@ -74,10 +74,13 @@ impl From<SpawnError> for StartupError {
 
 /// Tracker corrupted
 ///
-/// Separate type so we don't expose `PoisonError -> crate::Error` conversion
+/// The memory tracker state has been corrupted.
+/// All is lost, at least as far as memory quotas are concerned.
+//
+// Separate type so we don't expose `PoisonError -> crate::Error` conversion
 #[derive(Debug, Clone, Error)]
-#[error("poisoned (corrupted)")]
-pub(crate) struct TrackerCorrupted;
+#[error("memory tracker is corrupted due to previous bug")]
+pub struct TrackerCorrupted;
 
 impl<T> From<PoisonError<T>> for TrackerCorrupted {
     fn from(_: PoisonError<T>) -> TrackerCorrupted {
@@ -139,6 +142,15 @@ impl HasKind for Error {
             E::ParticipantShutdown => EK::LocalResourceExhausted,
             E::TrackerCorrupted => EK::Internal,
             E::Bug(e) => e.kind(),
+        }
+    }
+}
+
+impl HasKind for TrackerCorrupted {
+    fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
+        match self {
+            TrackerCorrupted => EK::Internal,
         }
     }
 }
