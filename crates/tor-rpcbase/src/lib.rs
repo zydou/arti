@@ -225,9 +225,6 @@ pub async fn invoke_special_method<M: Method>(
 /// A serializable empty object.
 ///
 /// Used when we need to declare that a method returns nothing.
-///
-/// TODO RPC: Perhaps we can get () to serialize as {} and make this an alias
-/// for ().
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Default)]
 #[non_exhaustive]
 pub struct Nil {}
