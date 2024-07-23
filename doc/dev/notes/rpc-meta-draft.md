@@ -408,11 +408,12 @@ code
 ```
 code 	message 	meaning
 -32600 	Invalid Request 	The JSON sent is not a valid Request object.
--32601 	Method not found 	The method does not exist / is not available on this object.
+-32601 	Method not found 	The method does not exist.
 -32602 	Invalid params 		Invalid method parameter(s).
 -32603 	Internal error		The server suffered some kind of internal problem
 1	Object error		Some requested object was not valid
 2	Request error		Some other error occurred.
+3   No method impl      This method isn't available on this object.
 ```
 
 We do not anticipate regularly extending this list of values.

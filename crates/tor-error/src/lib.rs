@@ -714,6 +714,12 @@ pub enum ErrorKind {
     #[cfg(feature = "rpc")]
     RpcMethodNotFound,
 
+    /// An RPC operation failed because a method type was not implemented
+    /// on the given object.
+    #[display(fmt = "RPC method not implemented on this object")]
+    #[cfg(feature = "rpc")]
+    RpcNoMethodImpl,
+
     /// An RPC operation failed because the method type's parameters were not
     /// correct for it.
     #[display(fmt = "RPC invalid parameters")]

@@ -43,10 +43,11 @@ where
 
 impl From<crate::dispatch::InvokeError> for crate::RpcError {
     fn from(_value: crate::dispatch::InvokeError) -> Self {
+        // XXXX handle bug differently.
         crate::RpcError {
             message: "Tried to invoke unsupported method on object".to_string(),
-            code: RpcCode::MethodNotFound,
-            kinds: tor_error::ErrorKind::RpcMethodNotFound,
+            code: RpcCode::NoMethodImpl,
+            kinds: tor_error::ErrorKind::RpcNoMethodImpl,
             data: None,
         }
     }
@@ -79,12 +80,8 @@ fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S
 #[repr(i32)]
 enum RpcCode {
     /// "The JSON sent is not a valid Request object."
-    //
-    // TODO RPC: Our current serde code does not distinguish between "I know of
-    // no method called X", "I know of a method called X but the parameters were
-    // wrong", and "I couldn't even parse that thing as a Request!
     InvalidRequest = -32600,
-    /// "The method does not exist / is not available on this object."
+    /// "The method does not exist."
     MethodNotFound = -32601,
     /// "Invalid method parameter(s)."
     InvalidParams = -32602,
@@ -94,6 +91,8 @@ enum RpcCode {
     ObjectError = 1,
     /// "Some other error occurred"
     RequestError = 2,
+    /// This method exists, but wasn't implemented on this object.
+    NoMethodImpl = 3,
 }
 
 /// Helper: Return an error code (for backward compat with json-rpc) for an
@@ -105,6 +104,7 @@ fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
     match kind {
         EK::RpcInvalidRequest => RpcCode::InvalidRequest,
         EK::RpcMethodNotFound => RpcCode::MethodNotFound,
+        EK::RpcNoMethodImpl => RpcCode::NoMethodImpl,
         EK::RpcInvalidMethodParameters => RpcCode::InvalidParams,
         EK::Internal | EK::BadApiUsage => RpcCode::InternalError,
         EK::RpcObjectNotFound => RpcCode::ObjectError,

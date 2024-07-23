@@ -232,10 +232,6 @@ caret::caret_int! {
     #[derive(serde::Deserialize, serde::Serialize)]
     pub struct RpcErrorCode(i32) {
         /// "The JSON sent is not a valid Request object."
-        //
-        // TODO RPC: Our current serde code does not distinguish between "I know of
-        // no method called X", "I know of a method called X but the parameters were
-        // wrong", and "I couldn't even parse that thing as a Request!
         INVALID_REQUEST = -32600,
         /// "The method does not exist / is not available on this object."
         METHOD_NOT_FOUND = -32601,
@@ -247,6 +243,8 @@ caret::caret_int! {
         OBJECT_ERROR = 1,
         /// "Some other error occurred"
         REQUEST_ERROR = 2,
+        /// This method exists, but wasn't implemented on this object.
+        NO_METHOD_IMPL = 3,
     }
 }
 
