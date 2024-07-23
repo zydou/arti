@@ -40,7 +40,7 @@ pub trait DeserMethod: DynMethod {
 /// A typed method, used to ensure that all implementations of a method have the
 /// same success and updates types.
 ///
-/// Prefer to implement this trait, rather than `DynMethod` or `DeserMethod`.
+/// Prefer to implement this trait or [`RpcMethod`], rather than `DynMethod` or `DeserMethod`.
 /// (Those traits represent a type-erased method, with statically-unknown `Output` and
 /// `Update` types.)
 ///
@@ -49,20 +49,35 @@ pub trait DeserMethod: DynMethod {
 /// must additionally implement `Serialize`, and its `Error` type must implement
 /// `Into<RpcError>`
 pub trait Method: DynMethod {
-    /// A type returned by this method on success.
+    /// A type returned by this method.
     type Output: Send + 'static;
     /// A type sent by this method on updates.
     ///
     /// If this method will never send updates, use the uninhabited
     /// [`NoUpdates`] type.
     type Update: Send + 'static;
-    /// A type returned by this method on failure.
-    //
-    // TODO: I'd like this to default to RpcError, but defaulting isn't implemented.
-    //
-    // TODO RPC: It would be beneficial to remove this type, possibly folding it into Output.
-    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2152#note_3031297
-    type Error: Send + 'static;
+}
+
+/// A method that can be invoked from the RPC system.
+///
+/// Every RpcMethod automatically implements `Method`.
+pub trait RpcMethod: DeserMethod {
+    /// A type returned by this method _on success_.
+    ///
+    /// (The actual result type from the function implementing this method is `Result<Output,E>`,
+    /// where E implements `RpcError`.)
+    type Output: Send + serde::Serialize + 'static;
+
+    /// A type sent by this method on updates.
+    ///
+    /// If this method will never send updates, use the uninhabited
+    /// [`NoUpdates`] type.
+    type Update: Send + serde::Serialize + 'static;
+}
+
+impl<T: RpcMethod> Method for T {
+    type Output = Result<<T as RpcMethod>::Output, crate::RpcError>;
+    type Update = <T as RpcMethod>::Update;
 }
 
 /// An uninhabited type, used to indicate that a given method will never send
@@ -106,10 +121,9 @@ define_derive_deftly! {
 ///    accomplice: Option<rpc::ObjectId>,
 /// }
 ///
-/// impl rpc::Method for Castigate {
+/// impl rpc::RpcMethod for Castigate {
 ///     type Output = String;
 ///     type Update = rpc::NoUpdates;
-///     type Error = rpc::RpcError;
 /// }
 /// ```
     export DynMethod:

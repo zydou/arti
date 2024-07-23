@@ -35,10 +35,9 @@ impl<R: Runtime> TorClient<R> {
 #[deftly(rpc(method_name = "arti:get_client_status"))]
 struct GetClientStatus {}
 
-impl rpc::Method for GetClientStatus {
+impl rpc::RpcMethod for GetClientStatus {
     type Output = ClientStatusInfo;
     type Update = rpc::NoUpdates;
-    type Error = rpc::RpcError;
 }
 
 /// RPC method: Run forever, delivering an updated view of the ClientStatusInfo whenever it changes.
@@ -49,10 +48,9 @@ impl rpc::Method for GetClientStatus {
 #[deftly(rpc(method_name = "arti:watch_client_status"))]
 struct WatchClientStatus {}
 
-impl rpc::Method for WatchClientStatus {
+impl rpc::RpcMethod for WatchClientStatus {
     type Output = rpc::Nil;
     type Update = ClientStatusInfo;
-    type Error = rpc::RpcError;
 }
 
 /// RPC result: The reported status of a TorClient.
@@ -129,10 +127,9 @@ async fn watch_client_status<R: Runtime>(
 #[non_exhaustive]
 pub struct IsolatedClient {}
 
-impl rpc::Method for IsolatedClient {
+impl rpc::RpcMethod for IsolatedClient {
     type Output = rpc::SingletonId;
     type Update = rpc::NoUpdates;
-    type Error = rpc::RpcError;
 }
 
 /// RPC method implementation: return a new isolated client based on a given client.
@@ -199,9 +196,8 @@ pub struct ConnectWithPrefs {
     pub prefs: StreamPrefs,
 }
 impl rpc::Method for ConnectWithPrefs {
-    type Output = DataStream;
     // TODO RPC: I am not sure that this is the error type we truly want.
-    type Error = Box<dyn ClientConnectionError>;
+    type Output = Result<DataStream, Box<dyn ClientConnectionError>>;
     type Update = rpc::NoUpdates;
 }
 
@@ -224,9 +220,8 @@ pub struct ResolveWithPrefs {
     pub prefs: StreamPrefs,
 }
 impl rpc::Method for ResolveWithPrefs {
-    type Output = Vec<IpAddr>;
     // TODO RPC: I am not sure that this is the error type we truly want.
-    type Error = Box<dyn ClientConnectionError>;
+    type Output = Result<Vec<IpAddr>, Box<dyn ClientConnectionError>>;
     type Update = rpc::NoUpdates;
 }
 
@@ -249,9 +244,8 @@ pub struct ResolvePtrWithPrefs {
     pub prefs: StreamPrefs,
 }
 impl rpc::Method for ResolvePtrWithPrefs {
-    type Output = Vec<String>;
     // TODO RPC: I am not sure that this is the error type we truly want.
-    type Error = Box<dyn ClientConnectionError>;
+    type Output = Result<Vec<String>, Box<dyn ClientConnectionError>>;
     type Update = rpc::NoUpdates;
 }
 

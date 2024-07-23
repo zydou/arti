@@ -51,7 +51,7 @@ pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::RpcError;
 pub use method::{
     check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod,
-    InvalidMethodName, Method, NoUpdates,
+    InvalidMethodName, Method, NoUpdates, RpcMethod,
 };
 pub use obj::{Object, ObjectArcExt, ObjectId};
 
@@ -204,7 +204,7 @@ pub async fn invoke_special_method<M: Method>(
     ctx: Arc<dyn Context>,
     obj: Arc<dyn Object>,
     method: Box<M>,
-) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
+) -> Result<Box<M::Output>, InvokeError> {
     let invocable = ctx
         .dispatch_table()
         .read()

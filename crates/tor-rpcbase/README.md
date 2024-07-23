@@ -101,10 +101,9 @@ pub struct SpeechReply {
 
 // We declare that "Speak" will always have a given set of
 // possible output, update, and error types.
-impl rpc::Method for Speak {
+impl rpc::RpcMethod for Speak {
     type Output = SpeechReply;
     type Update = rpc::NoUpdates;
-    type Error = rpc::RpcError;
 }
 
 // We write a function with this signature to implement `Speak` for `Cat`.

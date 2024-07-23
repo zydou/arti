@@ -89,10 +89,9 @@ struct RpcDowngrade {
     obj: rpc::ObjectId,
 }
 
-impl rpc::Method for RpcRelease {
+impl rpc::RpcMethod for RpcRelease {
     type Output = rpc::Nil;
     type Update = rpc::NoUpdates;
-    type Error = rpc::RpcError;
 }
 
 /// Implementation for calling "release" on a Session.
@@ -114,10 +113,9 @@ struct Echo {
     msg: String,
 }
 
-impl rpc::Method for Echo {
+impl rpc::RpcMethod for Echo {
     type Output = Echo;
     type Update = rpc::NoUpdates;
-    type Error = rpc::RpcError;
 }
 
 /// Implementation for calling "echo" on a Session.
@@ -137,10 +135,9 @@ async fn echo_on_session(
 #[deftly(rpc(method_name = "arti:get_client"))]
 struct GetClient {}
 
-impl rpc::Method for GetClient {
+impl rpc::RpcMethod for GetClient {
     type Output = rpc::SingletonId;
     type Update = rpc::NoUpdates;
-    type Error = rpc::RpcError;
 }
 
 /// Implement GetClient on an RpcSession.

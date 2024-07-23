@@ -158,8 +158,6 @@ macro_rules! declare_invocable_impl {
             OBJ: Object,
             S: 'static,
             E: 'static,
-            M::Output: From<S>,
-            M::Error: From<E>,
             Fut: futures::Future<Output = Result<S,E>> + Send + 'static,
             $( M::Update: From<$update_gen>, )?
             $( $($update_arg_where)+ )?
@@ -213,15 +211,14 @@ macro_rules! declare_invocable_impl {
         impl<M, OBJ, Fut, S, E, $($update_gen)?> RpcInvocable
             for fn(Arc<OBJ>, Box<M>, Arc<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
-            M: crate::Method,
+            M: crate::RpcMethod,
             M::Output: serde::Serialize,
             S: 'static,
             E: 'static,
             OBJ: Object,
             Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
             M::Output: From<S>,
-            M::Error: From<E>,
-            RpcError: From<M::Error>,
+            RpcError: From<E>,
             $( M::Update: From<$update_gen>, )?
             $( $($update_arg_where)+ )?
         {
@@ -254,7 +251,7 @@ macro_rules! declare_invocable_impl {
                         .map(|r| {
                             let r: RpcResult = match r {
                                 Ok(v) => Ok(Box::new(M::Output::from(v))),
-                                Err(e) => Err(RpcError::from(M::Error::from(e))),
+                                Err(e) => Err(RpcError::from(e)),
                             };
                             r
                         })
@@ -428,10 +425,9 @@ inventory::collect!(InvokerEnt);
 /// #[derive_deftly(DynMethod)]
 /// #[deftly(rpc(method_name = "arti:x-example"))]
 /// struct ExampleMethod {}
-/// impl rpc::Method for ExampleMethod {
+/// impl rpc::RpcMethod for ExampleMethod {
 ///     type Output = ExampleResult;
 ///     type Update = Progress;
-///     type Error = rpc::RpcError;
 /// }
 ///
 /// #[derive(serde::Serialize)]
@@ -727,7 +723,7 @@ pub(crate) mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::{templates::*, DispatchTable, Method, NoUpdates};
+    use crate::{method::RpcMethod, templates::*, DispatchTable, Method, NoUpdates};
     use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;
@@ -761,15 +757,13 @@ pub(crate) mod test {
     #[deftly(rpc(method_name = "x-test:getkids"))]
     pub(crate) struct GetKids;
 
-    impl Method for GetName {
+    impl RpcMethod for GetName {
         type Output = Outcome;
         type Update = NoUpdates;
-        type Error = crate::RpcError;
     }
-    impl Method for GetKids {
+    impl RpcMethod for GetKids {
         type Output = Outcome;
         type Update = String;
-        type Error = crate::RpcError;
     }
 
     #[derive(serde::Serialize)]
@@ -1044,8 +1038,7 @@ pub(crate) mod test {
     #[deftly(rpc(no_method_name))]
     struct SpecialOnly {}
     impl Method for SpecialOnly {
-        type Output = MyObject; // Doesn't implement deserialize.
-        type Error = MyObject;
+        type Output = Result<MyObject, MyObject>; // Doesn't implement deserialize.
         type Update = crate::NoUpdates;
     }
 
