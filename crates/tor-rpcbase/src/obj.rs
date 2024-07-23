@@ -29,10 +29,6 @@ pub trait Object: DowncastSync + Send + Sync + 'static {
     /// stream, it needs to declare what RPC context (like a `TorClient`) it's
     /// using, which requires that some identifier for that context exist
     /// outside of the RPC session that owns it.
-    //
-    // TODO RPC: It would be neat if this were automatically set to true if and
-    // only if there were any "out-of-session psuedomethods" defined on the
-    // object.
     fn expose_outside_of_session(&self) -> bool {
         false
     }
