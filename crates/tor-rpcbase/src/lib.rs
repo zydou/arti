@@ -259,7 +259,7 @@ mod test {
 
     #[async_test]
     async fn invoke() {
-        let ctx = Arc::new(Ctx::default());
+        let ctx = Arc::new(Ctx::from(DispatchTable::from_inventory()));
         let discard = || Box::pin(futures::sink::drain().sink_err_into());
         let r = invoke_rpc_method(ctx.clone(), Arc::new(Swan), Box::new(GetKids), discard())
             .unwrap()
