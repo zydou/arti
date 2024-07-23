@@ -179,3 +179,75 @@ impl HasKind for ReclaimCrashed {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    #[test]
+    fn error_display() {
+        fn check_value(e: impl Debug + Display + HasKind) {
+            println!("{e:?} / {e} / {:?}", e.kind());
+        }
+
+        let bug = internal!("error made for testingr");
+
+        macro_rules! check_enum { {
+            $ty:ident: // should be $ty:ty but macro_rules is too broken
+            $( $variant:ident $fields:tt; )*
+        } => {
+            for e in [ $(
+                $ty::$variant $fields,
+            )* ] {
+                check_value(e);
+            }
+            match None::<$ty> {
+                None => {}
+                $( Some($ty::$variant { .. }) => {}, )*
+            }
+        } }
+
+        check_enum! {
+            Error:
+            TrackerShutdown {};
+            AccountClosed {};
+            ParticipantShutdown {};
+            TrackerCorrupted {};
+            Bug(bug.clone());
+        }
+
+        check_enum! {
+            ReclaimedErrorInner:
+            Collapsed {};
+            TrackerError(Error::TrackerShutdown);
+        }
+
+        check_value(MemoryReclaimedError(ReclaimedErrorInner::Collapsed));
+
+        check_enum! {
+            StartupError:
+            Spawn(SpawnError::shutdown().into());
+        }
+
+        check_value(TrackerCorrupted);
+
+        check_enum! {
+            ReclaimCrashed:
+            TrackerCorrupted(TrackerCorrupted);
+            Bug(bug.clone());
+        }
+    }
+}
