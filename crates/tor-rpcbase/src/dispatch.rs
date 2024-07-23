@@ -354,10 +354,6 @@ macro_rules! invoker_ent {
                 (Some($crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::RpcInvocable))),
         }
     };
-    // TODO RPC: Possibly, replace this with a separate macro?
-    //
-    // (If we do this, we'll likely need a separate versions
-    // of invoker_ent_list and static_rpc_invoke_fn.)
     { @special $func:expr } => {
         $crate::invoker_ent!{ @@impl
             func: ($func),
