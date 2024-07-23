@@ -11,14 +11,17 @@ use once_cell::sync::Lazy;
 /// Use [`derive_deftly(DynMethod)`](derive_deftly_template_DynMethod)
 /// for a template to declare one of these.
 ///
-/// # Note
+/// To be invoked from RPC, a method must additionally implement [`DeserMethod`].
 ///
-/// In order to comply with our spec, all Methods' data must be represented as a json
-/// object.
-//
-// TODO RPC: Possible issue here is that, if this trait is public, anybody outside
-// of Arti can use this trait to add new methods to the RPC engine. Should we
-// care?
+/// ## Note
+///
+/// As a consequence of this trait being public, any crate can define a method
+/// on an object, even if the method and object are defined in another crate:
+/// This should be okay, since:
+///
+/// * the crate should only have access to the public Rust methods of the object,
+///   which is presumably safe to call.
+/// * if you are linking a crate, you are already trusting that crate.
 pub trait DynMethod: std::fmt::Debug + Send + Downcast {}
 downcast_rs::impl_downcast!(DynMethod);
 

@@ -146,6 +146,41 @@ They are created automatically from appropriate `async fn()`s
 due to blanket implementations of `RpcInvocable`
 for `Fn()`s with appropriate types.
 
+## Caveat: The orphan rule is not enforced on RPC methods
+
+This crate allows any other crate to define an RPC method on an RPC-visible object,
+even if the method type and object type are declared in another crate.
+
+You need to be careful with this capability:
+such externally added methods will cause the RPC subsystem to break
+(and refuse to start up!)
+in the future,
+if Arti later defines the same method on the same object.
+
+When adding new RPC methods outside Arti,
+it is best to either define existing RPC methods on your objects,
+or to define your own RPC methods (outside of the `arti:` namespace)
+on Arti's objects.
+
+## Caveat: Be careful around the capability system
+
+Arti's RPC model assumes that _objects are capabilities_:
+if you have a working [`ObjectId`] for an `Object`,
+you are allowed to invoke all its methods.
+The RPC system keeps its clients isolated from one another
+by not giving them Ids for one another's objects,
+and by not giving them access to global state
+that would allow them to affect one another inappropriately.
+
+This practice is easy to violate when you add new methods:
+Arti's Rust API permits some operations
+that should only be allowed to RPC superusers.
+
+Therefore, when defining methods, make sure that you are
+requiring some object that "belongs" to a given RPC session,
+and that you are not affecting objects that belong to other RPC sessions.
+
+
 ## Related crates
 
 See also:
