@@ -183,10 +183,6 @@ pub fn invoke_rpc_method(
     method: Box<dyn DynMethod>,
     sink: dispatch::BoxedUpdateSink,
 ) -> Result<dispatch::RpcResultFuture, InvokeError> {
-    // TODO RPC: Possibly, we should make this and `invoke_special_method` into
-    // methods on an extension trait of Arc<dyn Context>.  We can't put them
-    // onto ContextExt, since they would impose a `Sized` requirement there.
-    // We also can't add inherent impls to Arc<dyn Context>.
     let invocable = ctx
         .dispatch_table()
         .read()
