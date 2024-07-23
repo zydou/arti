@@ -123,9 +123,15 @@ impl From<Error> for MemoryReclaimedError {
 
 impl HasKind for MemoryReclaimedError {
     fn kind(&self) -> ErrorKind {
+        self.0.kind()
+    }
+}
+
+impl HasKind for ReclaimedErrorInner {
+    fn kind(&self) -> ErrorKind {
         use ErrorKind as EK;
         use ReclaimedErrorInner as REI;
-        match &self.0 {
+        match self {
             REI::Collapsed => EK::LocalResourceExhausted,
             REI::TrackerError(e) => e.kind(),
         }
