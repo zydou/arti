@@ -160,3 +160,22 @@ impl HasKind for TrackerCorrupted {
         }
     }
 }
+
+impl HasKind for StartupError {
+    fn kind(&self) -> ErrorKind {
+        use StartupError as SE;
+        match self {
+            SE::Spawn(e) => e.kind(),
+        }
+    }
+}
+
+impl HasKind for ReclaimCrashed {
+    fn kind(&self) -> ErrorKind {
+        use ReclaimCrashed as RC;
+        match self {
+            RC::TrackerCorrupted(e) => e.kind(),
+            RC::Bug(e) => e.kind(),
+        }
+    }
+}
