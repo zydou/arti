@@ -539,7 +539,6 @@ mod test {
                             e.kinds_iter().collect::<Vec<_>>(),
                             vec!["Example".to_string()]
                         );
-                        assert_eq!(e.data().unwrap().as_str().unwrap(), &s);
                     } else {
                         let success = outcome.unwrap();
                         let map = success.deserialize_as::<JsonMap>().unwrap();

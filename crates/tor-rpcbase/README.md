@@ -179,7 +179,6 @@ Therefore, when defining methods, make sure that you are
 requiring some object that "belongs" to a given RPC session,
 and that you are not affecting objects that belong to other RPC sessions.
 
-
 ## Related crates
 
 See also:

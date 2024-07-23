@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use serde_json::Value as JsonValue;
 
 use super::AnyRequestId;
 use crate::{conn::ErrorResponse, util::define_from_for_arc};
@@ -197,10 +196,6 @@ pub struct RpcError {
     code: RpcErrorCode,
     /// One or more `ErrorKind`s, encoded as strings.
     kinds: Vec<String>,
-    /// Associated data.
-    //
-    // TODO RPC: Enforce that this is a Map or a String.
-    data: Option<JsonValue>,
 }
 
 impl RpcError {
@@ -218,13 +213,6 @@ impl RpcError {
     // But FFI code should get errors as a String, so that's probably fine.
     pub fn kinds_iter(&self) -> impl Iterator<Item = &'_ str> {
         self.kinds.iter().map(|s| s.as_ref())
-    }
-    /// Return the data field from this error.
-    //
-    // Note: This is not a great API for FFI purposes.
-    // But FFI code should get errors as a String, so that's probably fine.
-    pub fn data(&self) -> Option<&JsonValue> {
-        self.data.as_ref()
     }
 }
 

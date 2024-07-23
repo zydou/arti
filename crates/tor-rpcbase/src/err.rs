@@ -10,9 +10,6 @@ pub struct RpcError {
     /// The ErrorKind(s) of this error.
     #[serde(serialize_with = "ser_kind")]
     kinds: tor_error::ErrorKind,
-    /// An underlying serializable object, if any, to be sent along with the
-    /// error.
-    data: Option<Box<dyn erased_serde::Serialize + Send>>,
 }
 
 impl RpcError {
@@ -22,61 +19,19 @@ impl RpcError {
     }
 }
 
-/// Wrap `value` as an RpcError, using `into_data` fo convert it to a serializable object.
-fn wrap_error<T, F>(value: T, into_data: F) -> RpcError
-where
-    T: std::error::Error + tor_error::HasKind + 'static,
-    F: FnOnce(T) -> Option<Box<dyn erased_serde::Serialize + Send>>,
-{
-    let message = value.to_string();
-    let code = kind_to_code(value.kind());
-    let kinds = value.kind();
-    let data = into_data(value);
-    RpcError {
-        message,
-        code,
-        kinds,
-        data,
-    }
-}
-/// Wrap `value` as an RpcError, without any associated data.
-fn wrap_error_nodata<T>(value: T) -> RpcError
-where
-    T: std::error::Error + tor_error::HasKind + 'static,
-{
-    wrap_error(value, |_v| None)
-}
-
 impl<T> From<T> for RpcError
 where
-    T: std::error::Error + tor_error::HasKind + serde::Serialize + Send + 'static,
+    T: std::error::Error + tor_error::HasKind + Send + 'static,
 {
-    fn from(value: T) -> Self {
-        wrap_error(value, |v| Some(Box::new(v)))
-    }
-}
-
-impl From<crate::dispatch::InvokeError> for crate::RpcError {
-    fn from(value: crate::dispatch::InvokeError) -> Self {
-        match value {
-            crate::InvokeError::NoImpl => crate::RpcError {
-                message: "Tried to invoke unsupported method on object".to_string(),
-                code: RpcCode::NoMethodImpl,
-                kinds: tor_error::ErrorKind::RpcNoMethodImpl,
-                data: None,
-            },
-            crate::InvokeError::Bug(b) => wrap_error_nodata(b),
-        }
-    }
-}
-
-impl From<crate::LookupError> for crate::RpcError {
-    fn from(value: crate::LookupError) -> Self {
-        crate::RpcError {
-            message: value.to_string(),
-            code: RpcCode::ObjectError,
-            kinds: tor_error::ErrorKind::RpcObjectNotFound,
-            data: None,
+    fn from(value: T) -> RpcError {
+        use tor_error::ErrorReport as _;
+        let message = value.report().to_string();
+        let code = kind_to_code(value.kind());
+        let kinds = value.kind();
+        RpcError {
+            message,
+            code,
+            kinds,
         }
     }
 }
@@ -135,7 +90,6 @@ impl std::fmt::Debug for RpcError {
             .field("message", &self.message)
             .field("code", &self.code)
             .field("kinds", &self.kinds)
-            .field("data", &self.data.as_ref().map(|_| "..."))
             .finish()
     }
 }
@@ -146,7 +100,6 @@ impl From<crate::SendUpdateError> for RpcError {
             message: value.to_string(),
             code: RpcCode::RequestError,
             kinds: tor_error::ErrorKind::Internal,
-            data: None,
         }
     }
 }
@@ -206,9 +159,8 @@ mod test {
 
     #[test]
     fn serialize_error() {
-        // TODO RPC: I am not sure that the error formats here-- especially for
-        // ProgramUnwilling-- match the one in the spec.  We may need to mess
-        // with our serde, unless we revise the spec to say these are okay.
+        // TODO: Since we do not expose `data`, these error formats are now more or less useless.
+        // We should revisit them if we decide to reintroduce error data.
 
         let err = ExampleError::SomethingExploded {
             what: "previous implementation".into(),
@@ -219,15 +171,9 @@ mod test {
         let serialized = serde_json::to_string(&err).unwrap();
         let expected_json = r#"
           {
-            "message": "The previous implementation exploded because worse things happen at C",
+            "message": "error: The previous implementation exploded because worse things happen at C",
             "code": 2,
-            "kinds": ["arti:Other"],
-            "data": {
-                "SomethingExploded": {
-                    "what": "previous implementation",
-                    "why": "worse things happen at C"
-                }
-            }
+            "kinds": ["arti:Other"]
          }
         "#;
         assert_json_eq!(&serialized, expected_json);
@@ -240,15 +186,9 @@ mod test {
         let serialized = serde_json::to_string(&err).unwrap();
         let expected = r#"
         {
-            "message": "I'm hiding the zircon-encrusted tweezers in my chrome dinette",
+            "message": "error: I'm hiding the zircon-encrusted tweezers in my chrome dinette",
             "code": 1,
-            "kinds": ["arti:RpcObjectNotFound"],
-            "data": {
-                "SomethingWasHidden": [
-                    "zircon-encrusted tweezers",
-                    "chrome dinette"
-                ]
-            }
+            "kinds": ["arti:RpcObjectNotFound"]
          }
         "#;
         assert_json_eq!(&serialized, expected);
@@ -258,12 +198,9 @@ mod test {
         let serialized = serde_json::to_string(&err).unwrap();
         let expected = r#"
         {
-            "message": "The turbo-encabulator was missing",
+            "message": "error: The turbo-encabulator was missing",
             "code": 2,
-            "kinds": ["arti:FeatureDisabled"],
-            "data": {
-                "SomethingWasMissing": "turbo-encabulator"
-            }
+            "kinds": ["arti:FeatureDisabled"]
          }
         "#;
         assert_json_eq!(&serialized, expected);
@@ -273,10 +210,9 @@ mod test {
         let serialized = serde_json::to_string(&err).unwrap();
         let expected = r#"
         {
-            "message": "I don't feel up to it today",
+            "message": "error: I don't feel up to it today",
             "code": -32603,
-            "kinds": ["arti:Internal"],
-            "data": "ProgramUnwilling"
+            "kinds": ["arti:Internal"]
          }
         "#;
         assert_json_eq!(&serialized, expected);

@@ -314,7 +314,7 @@ mod test {
         // NOTE: as above.
         assert_eq!(
             s,
-            r#"{"error":{"message":"Request did not have any `id` field.","code":-32600,"kinds":["arti:RpcInvalidRequest"],"data":"IdMissing"}}"#
+            r#"{"error":{"message":"error: Request did not have any `id` field.","code":-32600,"kinds":["arti:RpcInvalidRequest"]}}"#
         );
     }
 }

@@ -70,9 +70,6 @@ pub mod templates {
 }
 
 /// An error returned from [`ContextExt::lookup`].
-///
-/// TODO RPC: This type should be made to conform with however we represent RPC
-/// errors.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum LookupError {
@@ -85,6 +82,17 @@ pub enum LookupError {
     /// expected type.
     #[error("Unexpected type on object with ID {0:?}")]
     WrongType(ObjectId),
+}
+
+impl tor_error::HasKind for LookupError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use LookupError as E;
+        match self {
+            E::NoObject(_) => EK::RpcObjectNotFound,
+            E::WrongType(_) => EK::RpcInvalidRequest,
+        }
+    }
 }
 
 /// A trait describing the context in which an RPC method is executed.
