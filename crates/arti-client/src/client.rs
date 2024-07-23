@@ -1584,9 +1584,15 @@ impl<R: Runtime> TorClient<R> {
         Ok((state_dir, mistrust))
     }
 
-    /// Return a handle which resolves once this TorClient has stopped.
+    /// Return a [`Future`](futures::Future) which resolves
+    /// once this TorClient has stopped.
     #[cfg(feature = "experimental-api")]
     pub fn wait_for_stop(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
+        // We defer to the "wait for unlock" handle on our statemgr.
+        //
+        // The statemgr won't actually be unlocked until it is finally
+        // dropped, which will happen when this TorClient is
+        // dropped—which is what we want.
         self.statemgr.wait_for_unlock()
     }
 }
