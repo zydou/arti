@@ -23,7 +23,7 @@ pub enum Error {
     ParticipantShutdown,
 
     /// Previous bug, memory quota tracker is corrupted
-    #[error("{self}")]
+    #[error("{TrackerCorrupted}")]
     TrackerCorrupted,
 
     /// Bug
