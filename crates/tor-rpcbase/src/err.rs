@@ -22,33 +22,50 @@ impl RpcError {
     }
 }
 
+/// Wrap `value` as an RpcError, using `into_data` fo convert it to a serializable object.
+fn wrap_error<T, F>(value: T, into_data: F) -> RpcError
+where
+    T: std::error::Error + tor_error::HasKind + 'static,
+    F: FnOnce(T) -> Option<Box<dyn erased_serde::Serialize + Send>>,
+{
+    let message = value.to_string();
+    let code = kind_to_code(value.kind());
+    let kinds = value.kind();
+    let data = into_data(value);
+    RpcError {
+        message,
+        code,
+        kinds,
+        data,
+    }
+}
+/// Wrap `value` as an RpcError, without any associated data.
+fn wrap_error_nodata<T>(value: T) -> RpcError
+where
+    T: std::error::Error + tor_error::HasKind + 'static,
+{
+    wrap_error(value, |_v| None)
+}
+
 impl<T> From<T> for RpcError
 where
     T: std::error::Error + tor_error::HasKind + serde::Serialize + Send + 'static,
 {
     fn from(value: T) -> Self {
-        let message = value.to_string();
-        let code = kind_to_code(value.kind());
-        let kinds = value.kind();
-        let boxed: Box<dyn erased_serde::Serialize + Send> = Box::new(value);
-        let data = Some(boxed);
-        RpcError {
-            message,
-            code,
-            kinds,
-            data,
-        }
+        wrap_error(value, |v| Some(Box::new(v)))
     }
 }
 
 impl From<crate::dispatch::InvokeError> for crate::RpcError {
-    fn from(_value: crate::dispatch::InvokeError) -> Self {
-        // XXXX handle bug differently.
-        crate::RpcError {
-            message: "Tried to invoke unsupported method on object".to_string(),
-            code: RpcCode::NoMethodImpl,
-            kinds: tor_error::ErrorKind::RpcNoMethodImpl,
-            data: None,
+    fn from(value: crate::dispatch::InvokeError) -> Self {
+        match value {
+            crate::InvokeError::NoImpl => crate::RpcError {
+                message: "Tried to invoke unsupported method on object".to_string(),
+                code: RpcCode::NoMethodImpl,
+                kinds: tor_error::ErrorKind::RpcNoMethodImpl,
+                data: None,
+            },
+            crate::InvokeError::Bug(b) => wrap_error_nodata(b),
         }
     }
 }
