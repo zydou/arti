@@ -938,7 +938,8 @@ impl Participation {
     /// Destroy this participant
     ///
     /// Treat as freed all the memory allocated via this `Participation` and its clones.
-    /// After this, other clones of this `Participation` are no longer useable,
+    /// After this, other clones of this `Participation` are no longer useable:
+    /// attempts to do so will give errors.
     /// (although they can still be used to get at the `Account`, if it still exists).
     ///
     /// The actual memory should be freed promptly.
