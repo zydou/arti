@@ -181,7 +181,6 @@ macro_rules! declare_invocable_impl {
                 )
             }
 
-            // TODO RPC Try to reduce duplication between special and serialisable methods, after things have settled down
             fn invoke_special(
                 &self,
                 obj: Arc<dyn Object>,
