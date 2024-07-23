@@ -356,3 +356,166 @@ impl<'s, S: Stream> Future for PeekFuture<'s, S> {
         r
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use futures::SinkExt as _;
+    use std::pin::pin;
+    use std::time::Duration;
+    use tor_rtcompat::SleepProvider as _;
+    use tor_rtmock::MockRuntime;
+
+    fn ms(ms: u64) -> Duration {
+        Duration::from_millis(ms)
+    }
+
+    #[test]
+    fn wakeups() {
+        MockRuntime::test_with_various(|rt| async move {
+            let (mut tx, rx) = mpsc::unbounded();
+            let ended = Arc::new(Mutex::new(false));
+
+            rt.spawn_identified("rxr", {
+                let rt = rt.clone();
+                let ended = ended.clone();
+
+                async move {
+                    let rx = StreamUnobtrusivePeeker::new(rx);
+                    let mut rx = pin!(rx);
+
+                    let mut next = 0;
+                    loop {
+                        rt.sleep(ms(50)).await;
+                        eprintln!("rx peek... ");
+                        let peeked = rx.as_mut().unobtrusive_peek();
+                        eprintln!("rx peeked {peeked:?}");
+
+                        if let Some(peeked) = peeked {
+                            assert_eq!(*peeked, next);
+                        }
+
+                        rt.sleep(ms(50)).await;
+                        eprintln!("rx next... ");
+                        let eaten = rx.next().await;
+                        eprintln!("rx eaten {eaten:?}");
+                        if let Some(eaten) = eaten {
+                            assert_eq!(eaten, next);
+                            next += 1;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    *ended.lock().unwrap() = true;
+                    eprintln!("rx ended");
+                }
+            });
+
+            rt.spawn_identified("tx", {
+                let rt = rt.clone();
+
+                async move {
+                    let mut numbers = 0..;
+                    for wait in [125, 1, 125, 45, 1, 1, 1, 1000, 20, 1, 125, 125, 1000] {
+                        eprintln!("tx sleep {wait}");
+                        rt.sleep(ms(wait)).await;
+                        let num = numbers.next().unwrap();
+                        eprintln!("tx sending {num}");
+                        tx.send(num).await.unwrap();
+                    }
+
+                    // This schedule arranges that, when we send EOF, the rx task
+                    // has *peeked* rather than *polled* most recently,
+                    // demonstrating that we can wake up the subsequent poll on EOF too.
+                    eprintln!("tx final #1");
+                    rt.sleep(ms(75)).await;
+                    eprintln!("tx EOF");
+                    drop(tx);
+                    eprintln!("tx final #2");
+                    rt.sleep(ms(10)).await;
+                    assert!(!*ended.lock().unwrap());
+                    eprintln!("tx final #3");
+                    rt.sleep(ms(50)).await;
+                    eprintln!("tx final #4");
+                    assert!(*ended.lock().unwrap());
+                }
+            });
+
+            rt.advance_until_stalled().await;
+        });
+    }
+
+    #[test]
+    fn poll_peek_paths() {
+        MockRuntime::test_with_various(|rt| async move {
+            let (mut tx, rx) = mpsc::unbounded();
+            let ended = Arc::new(Mutex::new(false));
+
+            rt.spawn_identified("rxr", {
+                let rt = rt.clone();
+                let ended = ended.clone();
+
+                async move {
+                    let rx = StreamUnobtrusivePeeker::new(rx);
+                    let mut rx = pin!(rx);
+
+                    while let Some(peeked) = rx.as_mut().peek().await.copied() {
+                        eprintln!("rx peeked {peeked}");
+                        let eaten = rx.next().await.unwrap();
+                        eprintln!("rx eaten  {eaten}");
+                        assert_eq!(peeked, eaten);
+                        rt.sleep(ms(10)).await;
+                        eprintln!("rx slept, peeking");
+                    }
+                    *ended.lock().unwrap() = true;
+                    eprintln!("rx ended");
+                }
+            });
+
+            rt.spawn_identified("tx", {
+                let rt = rt.clone();
+
+                async move {
+                    let mut numbers = 0..;
+
+                    // macro because we don't have proper async closures
+                    macro_rules! send { {} => {
+                        let num = numbers.next().unwrap();
+                        eprintln!("tx send   {num}");
+                        tx.send(num).await.unwrap();
+                    } }
+
+                    eprintln!("tx starting");
+                    rt.sleep(ms(100)).await;
+                    send!();
+                    rt.sleep(ms(100)).await;
+                    send!();
+                    send!();
+                    rt.sleep(ms(100)).await;
+                    eprintln!("tx dropping");
+                    drop(tx);
+                    rt.sleep(ms(5)).await;
+                    eprintln!("tx ending");
+                    assert!(*ended.lock().unwrap());
+                }
+            });
+
+            rt.advance_until_stalled().await;
+        });
+    }
+}
