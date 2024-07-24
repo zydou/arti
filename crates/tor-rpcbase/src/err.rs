@@ -95,16 +95,6 @@ impl std::fmt::Debug for RpcError {
     }
 }
 
-impl From<crate::SendUpdateError> for RpcError {
-    fn from(value: crate::SendUpdateError) -> Self {
-        Self {
-            message: value.to_string(),
-            code: RpcCode::RpcRequestError,
-            kinds: tor_error::ErrorKind::Internal,
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

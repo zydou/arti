@@ -151,6 +151,12 @@ pub enum SendUpdateError {
     ConnectionClosed,
 }
 
+impl tor_error::HasKind for SendUpdateError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::Internal
+    }
+}
+
 impl From<Infallible> for SendUpdateError {
     fn from(_: Infallible) -> Self {
         unreachable!()
