@@ -294,8 +294,7 @@ impl ParticipQty {
     /// The data structure where this `ParticipQty` resides
     /// must be torn down (after we return).
     ///
-    /// The `ClaimedQty` must be passed to [`TotalQty::release`],
-    /// passing the same `p_used`.
+    /// The `ClaimedQty` must be passed to [`TotalQty::release`].
     //
     // We could provide this as a single transaction function, rather than requiring
     // two calls.  But the main code doesn't have a `TotalQty`, only a `TotalQtyNotifier`,

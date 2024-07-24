@@ -458,6 +458,35 @@ fn cache() {
     });
 }
 
+#[traced_test]
+#[test]
+fn explicit_destroy() {
+    test_with_various_mocks(|rt| async move {
+        let trk = mk_tracker(&rt);
+
+        let p0 = UnifiedP::new(&rt, &trk, None, secs(0), "0");
+        let p1 = p0.clone();
+
+        p0.lock().claim(mby(1)).unwrap();
+        UnifiedP::settle_check_consistency(&rt, &trk, [&p0]).await;
+
+        p1.lock().claim(mby(2)).unwrap();
+        UnifiedP::settle_check_consistency(&rt, &trk, [&p0]).await;
+
+        p1.lock().partn.clone().destroy_participant();
+
+        rt.advance_until_stalled().await;
+        check_consistency_general(&trk, |collector| {
+            collector.note_account(&p0.acct, Ok(()));
+            // We don't note the participation, since it's dead.
+        });
+
+        assert!(p1.lock().claim(mby(3)).is_err());
+
+        // Now we drop everything.  This exercises much of the teardown!
+    });
+}
+
 //---------- test client with multiple participants per account ----------
 
 #[derive(Debug)]
