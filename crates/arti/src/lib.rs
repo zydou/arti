@@ -105,6 +105,7 @@ pub use logging::{LoggingConfig, LoggingConfigBuilder};
 use arti_client::config::default_config_files;
 use arti_client::{TorClient, TorClientConfig};
 use safelog::with_safe_logging_suppressed;
+use tor_config::mistrust::BuilderExt as _;
 use tor_config::{ConfigurationSources, Listen};
 use tor_rtcompat::{BlockOn, Runtime};
 
@@ -512,8 +513,7 @@ where
             fs_mistrust::Mistrust::new_dangerously_trust_everyone()
         } else {
             fs_mistrust::MistrustBuilder::default()
-                .controlled_by_env_var(arti_client::config::FS_PERMISSIONS_CHECKS_DISABLE_VAR)
-                .build()
+                .build_for_arti()
                 .expect("Could not construct default fs-mistrust")
         };
 
