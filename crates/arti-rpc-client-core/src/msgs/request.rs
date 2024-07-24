@@ -29,6 +29,7 @@ pub(crate) struct Request<T> {
     /// (Every request goes to a single object.)
     pub(crate) obj: ObjectId,
     /// Additional information for Arti about how to handle the request.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) meta: Option<RequestMeta>,
     /// The name of the method to invoke.
     pub(crate) method: String,
@@ -86,7 +87,7 @@ pub(crate) struct RequestMeta {
     /// about the request that it sent.
     ///
     /// (Default: false)
-    updates: bool,
+    pub(crate) updates: bool,
 }
 
 /// Crate-internal: A parsed request from the application which may not (yet) be valid.

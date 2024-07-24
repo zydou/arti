@@ -10,7 +10,7 @@ impl super::SuccessResponse {
     /// Try to decode the "result" field of a SuccessResponse as an instance of `D`.
     //
     // TODO RPC: This might want to be moved and made public.  If we do, it needs a different error type.
-    fn deserialize_as<D: DeserializeOwned>(&self) -> Result<D, ConnectError> {
+    pub(crate) fn deserialize_as<D: DeserializeOwned>(&self) -> Result<D, ConnectError> {
         /// Helper object for decoding the "result" field.
         #[derive(Deserialize)]
         struct Response<R> {
