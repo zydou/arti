@@ -264,7 +264,7 @@ impl<S: Stream> StreamUnobtrusivePeeker<S> {
     // TODO this should be a trait method ?
     // TODO should there be peek_mut ?
     #[allow(dead_code)] // TODO remove this allow if and when we make this module public
-    pub(crate) fn peek<'s>(self: Pin<&'s mut Self>) -> PeekFuture<'s, S> {
+    pub(crate) fn peek(self: Pin<&mut Self>) -> PeekFuture<S> {
         PeekFuture { peeker: Some(self) }
     }
 
