@@ -43,7 +43,7 @@ macro_rules! define_ffi_status {
 
         $(
             $(#[$m])*
-            pub const [<ARTI_ $id:snake:upper >] : ArtiStatus = $e;
+            pub const [<ARTI_STATUS_ $id:snake:upper >] : ArtiStatus = $e;
         )+
 
         /// Return a string representing the meaning of a given `arti_status_t`.
@@ -53,7 +53,7 @@ macro_rules! define_ffi_status {
         pub extern "C" fn arti_status_to_str(status: ArtiStatus) -> *const c_char {
             match status {
                 $(
-                    [<ARTI_ $id:snake:upper>] => c_str!($s),
+                    [<ARTI_STATUS_ $id:snake:upper>] => c_str!($s),
                 )+
                 _ => c_str!("(unrecognized status)"),
             }.as_ptr()
@@ -312,7 +312,7 @@ pub unsafe extern "C" fn arti_err_status(err: *const ArtiError) -> ArtiStatus {
                 unsafe { (*err).status }
             }
         },
-        || ARTI_INTERNAL,
+        || ARTI_STATUS_INTERNAL,
     )
 }
 
@@ -458,7 +458,7 @@ where
     F: FnOnce() -> Result<(), FfiError> + UnwindSafe,
 {
     match catch_unwind(body) {
-        Ok(Ok(())) => ARTI_SUCCESS,
+        Ok(Ok(())) => ARTI_STATUS_SUCCESS,
         Ok(Err(e)) => {
             // "body" returned an error.
             let status = e.status;
@@ -469,7 +469,7 @@ where
             // "body" panicked.  Unfortunately, there is not a great way to get this
             // panic info to be exposed.
             let e = FfiError {
-                status: ARTI_INTERNAL,
+                status: ARTI_STATUS_INTERNAL,
                 message: "Internal panic in library code"
                     .to_string()
                     .try_into()
@@ -477,7 +477,7 @@ where
                 error_response: None,
             };
             set_last_error(e);
-            ARTI_INTERNAL
+            ARTI_STATUS_INTERNAL
         }
     }
 }
