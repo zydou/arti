@@ -98,6 +98,15 @@ typedef uint32_t ArtiStatus;
 typedef struct ArtiRpcConn ArtiRpcConn;
 
 /**
+ * An owned string, returned by this library.
+ *
+ * This string must be released with `arti_rpc_str_free`.
+ * You can inspect it with `arti_rpc_str_get`, but you may not modify it.
+ * The string is guaranteed to be UTF-8 and NUL-terminated.
+ */
+typedef struct ArtiRpcStr ArtiRpcStr;
+
+/**
  * An error returned by the Arti RPC code, exposed as an object.
  *
  * After a function has returned an [`ArtiStatus`] other than [`ARTI_SUCCESS`],
@@ -239,20 +248,33 @@ ArtiStatus arti_connect(const char *connection_string,
  */
 ArtiStatus arti_rpc_execute(const ArtiRpcConn *rpc_conn,
                             const char *msg,
-                            char **response_out);
+                            ArtiRpcStr **response_out);
 
 /**
  * Free a string returned by the Arti RPC API.
  *
  * # Safety
  *
- * The string must be returned by the Arti RPC API.
- *
  * The string must not have been modified since it was returned.
  *
  * After you have called this function, it is not safe to use the provided pointer from any thread.
  */
-void arti_free_str(char *string);
+void arti_rpc_str_free(ArtiRpcStr *string);
+
+/**
+ * Return the underlying nul-terminated string from an `ArtiRpcStr`.
+ *
+ * The resulting string is guaranteed to be valid UTF-8.
+ *
+ * (Returns NULL if the input is NULL.)
+ *
+ * # Safety
+ *
+ * Standard safety warnings apply; see library header.
+ *
+ * The resulting string is valid only for as long as the input `string` is not freed.
+ */
+const char *arti_rpc_str_get(const ArtiRpcStr *string);
 
 /**
  * Close and free an open Arti RPC connection.

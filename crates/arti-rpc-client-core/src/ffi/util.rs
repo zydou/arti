@@ -2,8 +2,6 @@
 
 use std::ffi::{c_char, CStr};
 
-use crate::util::Utf8CStr;
-
 use super::{
     err::{IntoFfiError, NullPointer},
     FfiStatus,
@@ -117,19 +115,6 @@ impl<'a, T> OutPtr<'a, T> {
         // value.
         if let Some(ptr) = self.0 {
             *ptr = Box::into_raw(Box::new(value));
-        }
-    }
-}
-
-impl<'a> OutPtr<'a, c_char> {
-    /// As `write_value`, but instead write a string from an Utf8CStr.
-    ///
-    /// # Safety note
-    ///
-    /// The resulting string must be freed with arti_free_str(), not free().
-    pub(super) fn write_str(mut self, str: Utf8CStr) {
-        if let Some(ptr) = self.0.take() {
-            *ptr = str.into_owned_ptr();
         }
     }
 }

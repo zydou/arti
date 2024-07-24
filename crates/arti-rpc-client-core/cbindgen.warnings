@@ -18,6 +18,7 @@ WARN: Skip arti-rpc-client-core::_ - (not `pub`).
 WARN: Skip arti-rpc-client-core::_ - (not `pub`).
 WARN: Cannot find a mangling for generic path GenericPath { path: Path { name: "Map" }, export_name: "Map", generics: [Type(Path(GenericPath { path: Path { name: "String" }, export_name: "String", generics: [], ctype: None })), Type(Path(GenericPath { path: Path { name: "Value" }, export_name: "Value", generics: [], ctype: None }))], ctype: None }. This usually means that a type referenced by this generic was incompatible or not found.
 WARN: Can't find RpcConn. This usually means that this type was incompatible or not found.
+WARN: Can't find Utf8CStr. This usually means that this type was incompatible or not found.
 WARN: Can't find FfiError. This usually means that this type was incompatible or not found.
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.
@@ -25,6 +26,8 @@ WARN: Can't find RpcErrorCode. This usually means that this type was incompatibl
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.
 WARN: Can't find RpcErrorCode. This usually means that this type was incompatible or not found.
+WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
+WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
 WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
 WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.
 WARN: Missing `[defines]` entry for `feature = "ffi"` in cbindgen config.

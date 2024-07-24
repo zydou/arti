@@ -20,8 +20,10 @@ pub(crate) use define_from_for_arc;
 
 /// A string that is guaranteed to be UTF-8 and NUL-terminated,
 /// for fast access as either type.
+//
+// TODO RPC: Rename so we can expose it more sensibly.
 #[derive(Clone, Debug)]
-pub(crate) struct Utf8CStr {
+pub struct Utf8CStr {
     /// The body of this string.
     ///
     /// INVARIANT: This string must be valid UTF-8.
@@ -64,18 +66,6 @@ pub(crate) mod ffi {
         /// Expose this Utf8CStr as a C string.
         pub(crate) fn as_ptr(&self) -> *const c_char {
             self.string.as_ptr()
-        }
-
-        /// Consume this Utf8CStr and return its value as an owned C string,
-        /// so that we can return it to the application.
-        ///
-        /// The resulting string may only be freed with [`arti_free_str`][crate::ffi::arti_free_str].
-        //
-        // Note: The requirement about how the string may be freed is potentially onerous, but our
-        // only other design options are not great here. TODO RPC: We should think about whether
-        // we can do better.
-        pub(crate) fn into_owned_ptr(self) -> *mut c_char {
-            self.string.into_c_string().into_raw()
         }
     }
 }

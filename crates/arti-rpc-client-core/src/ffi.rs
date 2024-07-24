@@ -9,7 +9,7 @@ pub mod err;
 mod util;
 
 use err::{catch_panic, handle_errors, FfiStatus};
-use std::ffi::{c_char, CString};
+use std::ffi::c_char;
 use util::{ptr_as_ref, OutPtr};
 
 use crate::{util::Utf8CStr, RpcConnBuilder};
@@ -27,6 +27,13 @@ pub type ArtiStatus = u32;
 /// Once you are no longer going to use this connection at all, you must free
 /// it with [`arti_rpc_conn_free`]
 pub type ArtiRpcConn = crate::RpcConn;
+
+/// An owned string, returned by this library.
+///
+/// This string must be released with `arti_rpc_str_free`.
+/// You can inspect it with `arti_rpc_str_get`, but you may not modify it.
+/// The string is guaranteed to be UTF-8 and NUL-terminated.
+pub type ArtiRpcStr = Utf8CStr;
 
 /// Try to open a new connection to an Arti instance.
 ///
@@ -81,7 +88,7 @@ pub unsafe extern "C" fn arti_connect(
 pub unsafe extern "C" fn arti_rpc_execute(
     rpc_conn: *const ArtiRpcConn,
     msg: *const c_char,
-    response_out: *mut *mut c_char,
+    response_out: *mut *mut ArtiRpcStr,
 ) -> ArtiStatus {
     handle_errors(|| {
         // Safety: we require that rpc_conn is a valid pointer.
@@ -94,7 +101,7 @@ pub unsafe extern "C" fn arti_rpc_execute(
 
         let success = rpc_conn.execute(msg)??;
 
-        response_out.write_str(Utf8CStr::from(success));
+        response_out.write_value(Utf8CStr::from(success));
 
         Ok(())
     })
@@ -104,25 +111,43 @@ pub unsafe extern "C" fn arti_rpc_execute(
 ///
 /// # Safety
 ///
-/// The string must be returned by the Arti RPC API.
-///
 /// The string must not have been modified since it was returned.
 ///
 /// After you have called this function, it is not safe to use the provided pointer from any thread.
 #[no_mangle]
-pub unsafe extern "C" fn arti_free_str(string: *mut c_char) {
+pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
     catch_panic(
         || {
             if !string.is_null() {
                 // Safety: We require that `string` is a pointer returned by a function in our API.
                 //
                 // The functions in this API only return owned strings via CString::into_raw.
-                let owned = unsafe { CString::from_raw(string) };
+                let owned = unsafe { Box::from_raw(string) };
                 drop(owned);
             }
         },
         || {},
     );
+}
+
+/// Return a const pointer to the underlying nul-terminated string from an `ArtiRpcStr`.
+///
+/// The resulting string is guaranteed to be valid UTF-8.
+///
+/// (Returns NULL if the input is NULL.)
+///
+/// # Safety
+///
+/// Standard safety warnings apply; see library header.
+///
+/// The resulting string is valid only for as long as the input `string` is not freed.
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c_char {
+    let Ok(str) = (unsafe { ptr_as_ref(string) }) else {
+        return std::ptr::null();
+    };
+
+    str.as_ptr()
 }
 
 /// Close and free an open Arti RPC connection.
