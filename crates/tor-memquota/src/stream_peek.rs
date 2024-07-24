@@ -54,9 +54,7 @@ use std::task::{Context, Poll, Poll::*, Waker};
 pub(crate) struct StreamUnobtrusivePeeker<S: Stream> {
     /// An item that we have peeked.
     ///
-    /// In some sense, represents the last value from a poll or peek of `inner`.
-    /// We use a custom type because `Poll<Option<...>>`
-    /// is quite confusing in practice and makes the code inscrutable.
+    /// (If we peeked EOF, that's represented by `None` in inner.)
     buffered: Option<S::Item>,
 
     /// The `Waker` from the last time we were polled and returned `Pending`
