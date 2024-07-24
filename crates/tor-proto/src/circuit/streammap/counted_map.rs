@@ -101,6 +101,7 @@ where
     /// preserve the original values of `P::check`.
     ///
     /// If the caller does not enforce this property, the count will become incorrect.
+    #[allow(dead_code)]
     pub fn iter_mut_unchecked(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
         self.map.iter_mut()
     }

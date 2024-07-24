@@ -48,7 +48,7 @@ use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
-    RelayCmd, StreamId, UnparsedRelayMsg,
+    RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
 };
 #[cfg(feature = "hs-service")]
 use {
@@ -900,9 +900,6 @@ impl Reactor {
             // since we need to check whether the channel can still receive cells after each one
             // that we send.
 
-            let mut streams_to_close = vec![];
-            let mut stream_relaycells = vec![];
-
             // (using this as a named block for early returns; not actually a loop)
             #[allow(clippy::never_loop)]
             'outer: loop {
@@ -918,8 +915,11 @@ impl Reactor {
                 // Let's look at our hops, and streams for each hop.
                 for i in 0..self.hops.len() {
                     let hop_num = HopNum::from(i as u8);
-                    // If we can, drain our queue of things we tried to send earlier, but
-                    // couldn't due to congestion control.
+                    // Look at all of the ready streams on this hop,
+                    // until we find one that is ready to send a message or close.
+                    // XXX: remove this outbound queue? We shouldn't need it
+                    // anymore since we only pull outgoing messages out of the
+                    // streammap when we know we can send them now.
                     'hop_outbound: loop {
                         if !self.chan_sender.poll_ready_unpin_bool(cx)? {
                             break 'outer;
@@ -949,74 +949,50 @@ impl Reactor {
                         // for packing.
                         self.send_relay_cell(cx, hop_num, early, cell)?;
                     }
-                    let hop = &mut self.hops[i];
-                    // Look at all of the streams on this hop.
-                    for (id, stream) in hop.map.iter_mut() {
-                        let StreamEntMut::Open(OpenStreamEnt {
-                            rx, send_window, ..
-                        }) = stream
-                        else {
-                            continue;
+                    let hop_send_window = self.hops[i].sendwindow.window();
+                    let mut stream_iter = self.hops[i].map.poll_ready_streams_iter(cx);
+                    'hop_streams: while let Some((sid, msg, stream)) = stream_iter.next() {
+                        let Some(msg) = msg else {
+                            drop(stream_iter);
+                            // Sender was dropped, so close the stream, which
+                            // also removes this entry from the iterator.
+                            self.close_stream(
+                                cx,
+                                hop_num,
+                                sid,
+                                CloseStreamBehavior::default(),
+                                streammap::TerminateReason::StreamTargetClosed,
+                            )?;
+                            did_things = true;
+                            break 'hop_streams;
                         };
-                        // Do the stream and hop send windows allow us to obtain and
-                        // send something?
-                        //
-                        // NOTE: not everything counts toward congestion
-                        // control. However, we can't easily remove
-                        // this check:
-                        // * We need to be careful not to buffer more
-                        // than ONE message per stream for the call to
-                        // `send_relay_cell` above, and potentially
-                        // closing the stream below, to be correct.
-                        // * We need to be careful about allowing
-                        // messages that *don't* count to be sent before
-                        // messages that *do*; e.g. we wouldn't want to
-                        // accept and send an END message on a stream where we
-                        // still have DATA messages queued.
-                        if send_window.window() > 0 && hop.sendwindow.window() > 0 {
-                            match Pin::new(rx).poll_next(cx) {
-                                Poll::Ready(Some(m)) => {
-                                    stream_relaycells
-                                        .push((hop_num, AnyRelayMsgOuter::new(Some(id), m)));
-                                }
-                                Poll::Ready(None) => {
-                                    // Stream channel was closed, so we'll close the stream.
-                                    //
-                                    // This can happen either when the last StreamTarget for the
-                                    // stream is dropped, or when StreamTarget::close() is called
-                                    // on one of the stream targets.
-                                    //
-                                    // We know there are no queued messages for the stream
-                                    // since we already flushed those above.
-                                    //
-                                    // We can't close it here due to
-                                    // borrowck; that will happen later.
-                                    streams_to_close.push((hop_num, id));
-                                }
-                                Poll::Pending => {}
-                            }
+                        if sendme::cmd_counts_towards_windows(msg.cmd())
+                            && (stream.send_window.window() == 0 || hop_send_window == 0)
+                        {
+                            // The stream has a message ready to be sent, but we
+                            // can't due to (circuit-level) congestion-control
+                            // or (stream-level) flow-control.
+                            // TODO: Move such streams to a seperate list so that we don't
+                            // keep iterating over them, until sendwindow is available?
+                            continue 'hop_streams;
                         }
+                        // Send the message.
+                        drop(stream_iter);
+                        let msg = self.hops[i]
+                            .map
+                            .take_ready_msg(sid)
+                            .expect("msg disappeared");
+                        self.send_relay_cell(
+                            cx,
+                            hop_num,
+                            false,
+                            AnyRelayMsgOuter::new(Some(sid), msg),
+                        )?;
+                        did_things = true;
+                        break 'hop_streams;
                     }
                 }
-
-                break;
-            }
-
-            // Close the streams we said we'd close.
-            for (hopn, id) in streams_to_close {
-                self.close_stream(
-                    cx,
-                    hopn,
-                    id,
-                    CloseStreamBehavior::default(),
-                    streammap::TerminateReason::StreamTargetClosed,
-                )?;
-                did_things = true;
-            }
-            // Send messages we said we'd send.
-            for (hopn, rc) in stream_relaycells {
-                self.send_relay_cell(cx, hopn, false, rc)?;
-                did_things = true;
+                break 'outer;
             }
 
             let _ = Pin::new(&mut self.chan_sender)

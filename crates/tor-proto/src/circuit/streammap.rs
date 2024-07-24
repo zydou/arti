@@ -5,6 +5,7 @@ mod counted_map;
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
 use crate::stream::AnyCmdChecker;
+use crate::util::stream_poll_set::StreamPollSet;
 use crate::{Error, Result};
 use tor_cell::relaycell::UnparsedRelayMsg;
 /// Mapping from stream ID to streams.
@@ -31,8 +32,6 @@ use self::counted_map::{CountedHashMap, Entry};
 pub(super) struct OpenStreamEnt {
     /// Sink to send relay cells tagged for this stream into.
     pub(super) sink: mpsc::Sender<UnparsedRelayMsg>,
-    /// Stream for cells that should be sent down this stream.
-    pub(super) rx: mpsc::Receiver<AnyRelayMsg>,
     /// Send window, for congestion control purposes.
     pub(super) send_window: sendme::StreamSendWindow,
     /// Number of cells dropped due to the stream disappearing before we can
@@ -113,15 +112,30 @@ impl counted_map::Predicate for IsOpen {
     }
 }
 
+/// A priority for use with [`StreamPollSet`].
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+struct Priority(u64);
+
 /// A map from stream IDs to stream entries. Each circuit has one for each
 /// hop.
 pub(super) struct StreamMap {
     /// Map from StreamId to StreamEnt.  If there is no entry for a
     /// StreamId, that stream doesn't exist.
+    // Invariants:
+    // * Every open stream also has an entry with the same `StreamId` in `rxs`.
     m: CountedHashMap<StreamId, StreamEnt, IsOpen>,
+    /// Streams for cells that should be sent down this stream.
+    // Invariants:
+    // * Every `StreamId` has an entry in `m` with an open stream.
+    rxs: StreamPollSet<StreamId, AnyRelayMsg, Priority, mpsc::Receiver<AnyRelayMsg>>,
     /// The next StreamId that we should use for a newly allocated
     /// circuit.
     next_stream_id: StreamId,
+    /// Next priority to use in `rxs`. We implement round-robin scheduling of
+    /// handling outgoing messages from streams by assigning a stream the next
+    /// priority whenever an outgoing message is processed from that stream,
+    /// putting it last in line.
+    next_priority: Priority,
 }
 
 impl StreamMap {
@@ -131,11 +145,15 @@ impl StreamMap {
         let next_stream_id: NonZeroU16 = rng.gen();
         StreamMap {
             m: CountedHashMap::new(),
+            rxs: StreamPollSet::new(),
             next_stream_id: next_stream_id.into(),
+            next_priority: Priority(0),
         }
     }
 
     /// Return an iterator over the entries in this StreamMap.
+    // TODO: Consider removing. May no longer be needed.
+    #[allow(dead_code)]
     pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = (StreamId, StreamEntMut<'_>)> {
         // CORRECTNESS: before we return any of the value references from this iterator,
         // we convert them into a StreamEntMut,
@@ -150,6 +168,13 @@ impl StreamMap {
         self.m.count()
     }
 
+    /// Return the next available priority.
+    fn take_next_priority(&mut self) -> Priority {
+        let rv = self.next_priority;
+        self.next_priority = Priority(rv.0 + 1);
+        rv
+    }
+
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
@@ -160,7 +185,6 @@ impl StreamMap {
     ) -> Result<StreamId> {
         let stream_ent = StreamEnt::Open(OpenStreamEnt {
             sink,
-            rx,
             send_window,
             dropped: 0,
             cmd_checker,
@@ -175,6 +199,13 @@ impl StreamMap {
             let ent = self.m.entry(id);
             if let Entry::Vacant(ent) = ent {
                 ent.insert(stream_ent);
+                let priority = self.take_next_priority();
+                self.rxs
+                    .try_insert(id, priority, rx)
+                    // By
+                    // * rxs invariant that every key is also in `m`
+                    // * We verified this key is not in `m`.
+                    .expect("Unexpected rx entry for unused StreamId");
                 return Ok(id);
             }
         }
@@ -194,7 +225,6 @@ impl StreamMap {
     ) -> Result<()> {
         let stream_ent = StreamEnt::Open(OpenStreamEnt {
             sink,
-            rx,
             send_window,
             dropped: 0,
             cmd_checker,
@@ -203,7 +233,13 @@ impl StreamMap {
         let ent = self.m.entry(id);
         if let Entry::Vacant(ent) = ent {
             ent.insert(stream_ent);
-
+            let priority = self.take_next_priority();
+            self.rxs
+                .try_insert(id, priority, rx)
+                // By
+                // * rxs invariant that every key is also in `m`
+                // * We verified this key is not in `m`.
+                .expect("Unexpected rx");
             Ok(())
         } else {
             Err(Error::IdUnavailable(id))
@@ -294,6 +330,12 @@ impl StreamMap {
                         explicitly_dropped,
                     }),
                 );
+                self.rxs
+                    .remove(&id)
+                    // By:
+                    // * Invariant on `m` that every open stream has a corresponding entry in `rxs`.
+                    // * We verified above that this id had an open stream in `m`.
+                    .expect("Missing receiver");
 
                 Ok(ShouldSendEnd::Send)
             }
@@ -315,6 +357,40 @@ impl StreamMap {
                 .into()),
             },
         }
+    }
+
+    /// Get an up-to-date iterator of streams with ready items. `Option<AnyRelayMsg>::None`
+    /// indicates that the local sender has been dropped.
+    ///
+    /// Conceptually all streams are in a queue; new streams are added to the
+    /// back of the queue, and a stream is sent to the back of the queue
+    /// whenever a ready message is taken from it (via
+    /// [`Self::take_ready_msg`]). The returned iterator is an ordered view of
+    /// this queue, showing the subset of streams that have a message ready to
+    /// send, or whose sender has been dropped.
+    pub(super) fn poll_ready_streams_iter<'a>(
+        &'a mut self,
+        cx: &mut std::task::Context,
+    ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>, &'a OpenStreamEnt)> + 'a {
+        self.rxs.poll_ready_iter(cx).map(|(sid, msg, _priority)| {
+            let Some(StreamEnt::Open(o)) = self.m.get(sid) else {
+                // By:
+                // * Invariant on `rxs` that every key has a corresponding open strema in `m`.
+                panic!("Missing open stream");
+            };
+            (*sid, msg, o)
+        })
+    }
+
+    /// If the stream `sid` has a message ready, take it, and reprioritize `sid`
+    /// to the "back of the line" with respec to
+    /// [`Self::poll_ready_streams_iter`].
+    pub(super) fn take_ready_msg(&mut self, sid: StreamId) -> Option<AnyRelayMsg> {
+        let new_priority = self.take_next_priority();
+        let (_prev_priority, val) = self
+            .rxs
+            .take_ready_value_and_reprioritize(&sid, new_priority)?;
+        Some(val)
     }
 
     // TODO: Eventually if we want relay support, we'll need to support
