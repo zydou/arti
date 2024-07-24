@@ -221,8 +221,8 @@ caret::caret_int! {
     pub struct RpcErrorCode(i32) {
         /// "The JSON sent is not a valid Request object."
         INVALID_REQUEST = -32600,
-        /// "The method does not exist / is not available on this object."
-        METHOD_NOT_FOUND = -32601,
+        /// "The method does not exist ."
+        NO_SUCH_METHOD = -32601,
         /// "Invalid method parameter(s)."
         INVALID_PARAMS = -32602,
         /// "The server suffered some kind of internal problem"
@@ -232,7 +232,7 @@ caret::caret_int! {
         /// "Some other error occurred"
         REQUEST_ERROR = 2,
         /// This method exists, but wasn't implemented on this object.
-        NO_METHOD_IMPL = 3,
+        METHOD_NOT_IMPL = 3,
     }
 }
 

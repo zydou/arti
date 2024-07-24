@@ -50,21 +50,22 @@ fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S
 /// Error codes for backward compatibility with json-rpc.
 #[derive(Clone, Debug, Eq, PartialEq, serde_repr::Serialize_repr)]
 #[repr(i32)]
+#[allow(clippy::enum_variant_names)]
 enum RpcCode {
     /// "The JSON sent is not a valid Request object."
-    InvalidRequest = -32600,
+    RpcInvalidRequest = -32600,
     /// "The method does not exist."
-    MethodNotFound = -32601,
+    RpcNoSuchMethod = -32601,
     /// "Invalid method parameter(s)."
-    InvalidParams = -32602,
+    RpcInvalidParams = -32602,
     /// "The server suffered some kind of internal problem"
-    InternalError = -32603,
+    RpcInternalError = -32603,
     /// "Some requested object was not valid"
-    ObjectError = 1,
+    RpcObjectError = 1,
     /// "Some other error occurred"
-    RequestError = 2,
+    RpcRequestError = 2,
     /// This method exists, but wasn't implemented on this object.
-    NoMethodImpl = 3,
+    RpcMethodNotImpl = 3,
 }
 
 /// Helper: Return an error code (for backward compat with json-rpc) for an
@@ -74,13 +75,13 @@ enum RpcCode {
 fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
     use tor_error::ErrorKind as EK;
     match kind {
-        EK::RpcInvalidRequest => RpcCode::InvalidRequest,
-        EK::RpcMethodNotFound => RpcCode::MethodNotFound,
-        EK::RpcNoMethodImpl => RpcCode::NoMethodImpl,
-        EK::RpcInvalidMethodParameters => RpcCode::InvalidParams,
-        EK::Internal | EK::BadApiUsage => RpcCode::InternalError,
-        EK::RpcObjectNotFound => RpcCode::ObjectError,
-        _ => RpcCode::RequestError, // (This is our catch-all "request error.")
+        EK::RpcInvalidRequest => RpcCode::RpcInvalidRequest,
+        EK::RpcMethodNotFound => RpcCode::RpcNoSuchMethod,
+        EK::RpcMethodNotImpl => RpcCode::RpcMethodNotImpl,
+        EK::RpcInvalidMethodParameters => RpcCode::RpcInvalidParams,
+        EK::Internal | EK::BadApiUsage => RpcCode::RpcInternalError,
+        EK::RpcObjectNotFound => RpcCode::RpcObjectError,
+        _ => RpcCode::RpcRequestError, // (This is our catch-all "request error.")
     }
 }
 
@@ -98,7 +99,7 @@ impl From<crate::SendUpdateError> for RpcError {
     fn from(value: crate::SendUpdateError) -> Self {
         Self {
             message: value.to_string(),
-            code: RpcCode::RequestError,
+            code: RpcCode::RpcRequestError,
             kinds: tor_error::ErrorKind::Internal,
         }
     }
@@ -167,7 +168,7 @@ mod test {
             why: "worse things happen at C".into(),
         };
         let err = RpcError::from(err);
-        assert_eq!(err.code, RpcCode::RequestError);
+        assert_eq!(err.code, RpcCode::RpcRequestError);
         let serialized = serde_json::to_string(&err).unwrap();
         let expected_json = r#"
           {

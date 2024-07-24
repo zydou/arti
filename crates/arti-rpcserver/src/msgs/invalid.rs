@@ -68,7 +68,7 @@ impl InvalidRequest {
         match &self.method {
             None => return E::MethodMissing,
             Some(Bad(_)) => return E::MethodType,
-            Some(Good(name)) if !rpc::is_method_name(name) => return E::MethodUnrecognized,
+            Some(Good(name)) if !rpc::is_method_name(name) => return E::MethodNotFound,
             _ => {}
         }
 

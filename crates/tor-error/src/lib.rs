@@ -718,7 +718,7 @@ pub enum ErrorKind {
     /// on the given object.
     #[display(fmt = "RPC method not implemented on this object")]
     #[cfg(feature = "rpc")]
-    RpcNoMethodImpl,
+    RpcMethodNotImpl,
 
     /// An RPC operation failed because the method type's parameters were not
     /// correct for it.
