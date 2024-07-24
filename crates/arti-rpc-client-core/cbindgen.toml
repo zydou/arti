@@ -22,7 +22,7 @@ header = """\
  * their corresponding JSON responses as they arrive.
  *
  * This library _does not_ do the work of creating well-formed requests,
- * interpreting the responses, or exposing these pairs.
+ * or interpreting the responses.
  *
  * (Note: Despite this library being exposed via a set of C functions,
  * we don't actually expect you to use it from C.  It's probably a better
@@ -32,7 +32,7 @@ header = """\
  *
  * TODO RPC Explain better.
  *
- * Your connection to Arti is represented by an `ArtiRpcConn`.  Use
+ * Your connection to Arti is represented by an `ArtiRpcConn *`.  Use
  * `arti_connect()` to create one of these.
  *
  * Once you have a connection, you can sent Arti various requests in
@@ -48,7 +48,7 @@ header = """\
  *
  * On success, fallible functions return `ARTI_SUCCESS`.  On failure,
  * they return some other error code, and store the most recent
- * error in a thread-local variable.
+ * error in thread-local state.
  *
  * You can access information about the most recent error
  * by calling `arti_err_{status,message,response}(NULL)`.
@@ -73,6 +73,9 @@ header = """\
  * - All input strings must obey the additional requirements of CStr::from_ptr:
  *   They must be valid for their entire extent, they must be no larger than SSIZE_MAX,
  *   they must be nul-terminated, and they must not be mutated while in use.
+ * - In each case where pointers are passed, we explicitly state
+ *   whether ownership is transferred.
+ * ^ TODO RPC: Make sure we actually document this!
  **/"""
 
 # This appears "between major sections"
