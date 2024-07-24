@@ -2,6 +2,7 @@
 
 pub(crate) mod ct;
 pub(crate) mod err;
+pub(crate) mod keyed_futures_unordered;
 pub(crate) mod skew;
 pub(crate) mod sometimes_unbounded_sink;
 pub(crate) mod ts;
