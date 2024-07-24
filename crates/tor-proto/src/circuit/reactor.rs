@@ -41,7 +41,6 @@ use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
 use crate::util::SinkExt as _;
 use crate::{Error, Result};
 use std::borrow::Borrow;
-use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
@@ -50,6 +49,7 @@ use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
     RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
 };
+use tor_error::internal;
 #[cfg(feature = "hs-service")]
 use {
     crate::stream::{DataCmdChecker, IncomingStreamRequest, IncomingStreamRequestFilter},
@@ -60,7 +60,6 @@ use futures::channel::mpsc;
 use futures::Stream;
 use futures::{Sink, StreamExt};
 use tor_async_utils::oneshot;
-use tor_error::internal;
 
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
@@ -329,18 +328,6 @@ pub(super) struct CircHop {
     recvwindow: sendme::CircRecvWindow,
     /// Window used to say how many cells we can send.
     sendwindow: sendme::CircSendWindow,
-    /// Buffer for messages we can't send to this hop yet due to congestion control.
-    ///
-    /// Contains the cell to send, and a boolean equivalent to the `early` parameter
-    /// in `Reactor::send_relay_cell` (as in, whether to send the cell using `RELAY_EARLY`).
-    ///
-    /// This shouldn't grow unboundedly: we try and pop things off it first before
-    /// doing things that would result in it growing (and stop before growing it
-    /// if popping things off it can't be done).
-    ///
-    /// NOTE: Control messages could potentially add unboundedly to this, although that's
-    ///       not likely to happen (and isn't triggereable from the network, either).
-    outbound: VecDeque<(bool, AnyRelayMsgOuter)>,
     /// Decodes relay cells received from this hop.
     inbound: RelayCellDecoder,
 }
@@ -361,7 +348,6 @@ impl CircHop {
             map: streammap::StreamMap::new(),
             recvwindow: sendme::CircRecvWindow::new(1000),
             sendwindow: sendme::CircSendWindow::new(initial_window),
-            outbound: VecDeque::new(),
             inbound: RelayCellDecoder::new(format),
         }
     }
@@ -891,64 +877,22 @@ impl Reactor {
                 }
             }
 
-            // Now for the tricky part. We want to grab some relay cells from all of our streams
-            // and forward them on to the channel, but we need to pay attention to both whether
-            // the channel can accept cells right now, and whether congestion control allows us
-            // to send them.
-            //
-            // We also have to do somewhat cursed things and call start_send inside this poll_fn,
-            // since we need to check whether the channel can still receive cells after each one
-            // that we send.
+            // Process outgoing messages for each hop.
 
             // (using this as a named block for early returns; not actually a loop)
             #[allow(clippy::never_loop)]
             'outer: loop {
-                // First, drain our queue of things we tried to send earlier, but couldn't.
-                //
-                // (It's not clear to me that this is needed.  We call this as the first thing
-                // for each hop, below.  So this would only be relevant if there were no hops.
-                // TODO #1397 the manual handling of Pending as `break 'outer` is weird.)
-                if !self.chan_sender.poll_ready_unpin_bool(cx)? {
-                    break 'outer;
-                }
-
                 // Let's look at our hops, and streams for each hop.
                 for i in 0..self.hops.len() {
+                    if !self.chan_sender.poll_ready_unpin_bool(cx)? {
+                        // Channel isn't ready to send; we can't act on anything else.
+                        // (Even processing an end-of-stream would end up having to buffer
+                        // an END message in the channel).
+                        break 'outer;
+                    }
                     let hop_num = HopNum::from(i as u8);
                     // Look at all of the ready streams on this hop,
                     // until we find one that is ready to send a message or close.
-                    // XXX: remove this outbound queue? We shouldn't need it
-                    // anymore since we only pull outgoing messages out of the
-                    // streammap when we know we can send them now.
-                    'hop_outbound: loop {
-                        if !self.chan_sender.poll_ready_unpin_bool(cx)? {
-                            break 'outer;
-                        }
-                        if self.hops[i].sendwindow.window() == 0 {
-                            break 'hop_outbound;
-                        }
-                        let Some((early, cell)) = self.hops[i].outbound.pop_front() else {
-                            break 'hop_outbound;
-                        };
-                        trace!(
-                            "{}: sending from hop-{}-enqueued: {:?}",
-                            self.unique_id,
-                            i,
-                            cell
-                        );
-                        // We know the stream has a non-empty SENDME
-                        // window because we accept at most one cell per
-                        // stream below, and only when the relevant
-                        // stream has a non-empty window and after
-                        // clearing the backlog here.
-                        //
-                        // TODO prop340: We need to be careful here when
-                        // adding fragmentation; e.g. this argument
-                        // fails to hold if we allow later breaking a
-                        // DATA message into multiple messages and cells
-                        // for packing.
-                        self.send_relay_cell(cx, hop_num, early, cell)?;
-                    }
                     let hop_send_window = self.hops[i].sendwindow.window();
                     let mut stream_iter = self.hops[i].map.poll_ready_streams_iter(cx);
                     'hop_streams: while let Some((sid, msg, stream)) = stream_iter.next() {
@@ -1456,11 +1400,8 @@ impl Reactor {
 
     /// Encode `msg`, encrypt it, and send it to the 'hop'th hop.
     ///
-    /// If there is insufficient outgoing *circuit-level* SENDME window, the
-    /// `msg` is enqueued in the hop's `outbound` queue instead.
-    ///
-    /// If there is insufficient outgoing *stream-level* SENDME window,
-    /// an error is returned instead.
+    /// If there is insufficient outgoing *circuit-level* or *stream-level*
+    /// SENDME window, an error is returned instead.
     ///
     /// Does not check whether the cell is well-formed or reasonable.
     fn send_relay_cell(
@@ -1488,8 +1429,9 @@ impl Reactor {
                     hop.display(),
                     msg
                 );
-                circhop.outbound.push_back((early, msg));
-                return Ok(());
+                return Err(Error::Bug(internal!(
+                    "Called send_relay_cell with insufficient circuit SendWindow",
+                )));
             }
         }
         let mut body: RelayCellBody = msg
