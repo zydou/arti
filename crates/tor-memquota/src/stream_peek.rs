@@ -26,18 +26,16 @@ use std::task::{Context, Poll, Poll::*, Waker};
 /// the two sets of APIs, while provided on the same type,
 /// are typically called from different contexts.
 //
-// TODO: is this the best name?  We intend, probably:
+// It wasn't particularly easy to think of a good name for this type.
+// We intend, probably:
 //     struct StreamUnobtrusivePeeker
 //     trait StreamUnobtrusivePeekable
 //     trait StreamPeekable (impl for StreamUnobtrusivePeeker and futures::stream::Peekable)
 //
 // Searching a thesaurus produced these suggested words:
-//     unobtrusive
-//     subtle
-//     discreet
-//     inconspicuous
-//     cautious
-//     furtive
+//     unobtrusive subtle discreet inconspicuous cautious furtive
+// Asking in MR review also suggested
+//     quick
 //
 // It's awkward because "peek" already has significant connotations of not disturbing things.
 // That's why it was used in Iterator::peek.
@@ -49,6 +47,9 @@ use std::task::{Context, Poll, Poll::*, Waker};
 // and therefore involves *mutating* the Peekable (to store the new waker).
 //
 // Now we end up needing a word for an *even less disturbing* kind of interaction.
+//
+// `quick` (and synonyms) isn't quite right either because it's not necessarily faster,
+// and certainly not more performant.
 #[derive(Debug)]
 #[pin_project(project = PeekerProj)]
 pub(crate) struct StreamUnobtrusivePeeker<S: Stream> {
