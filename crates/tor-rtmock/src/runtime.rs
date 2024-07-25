@@ -49,8 +49,9 @@ use crate::task::{MockExecutor, SchedulingPolicy};
 ///
 /// #### Not allowed
 ///
-///  * Direct access to the real-world clock (`SystemTime::now`, `Instant::now`).
-///    Including `coarsetime`, which is not mocked.
+///  * Direct access to the real-world clock (`SystemTime::now`, `Instant::now`),
+///    including direct use of `coarsetime`.
+///    Instead, use [`SleepProvider`] and [`CoarseTimeProvider`] methods on the runtime.
 ///    Exception: CPU use measurements.
 ///
 ///  * Anything that spawns threads and then communicates with those threads
