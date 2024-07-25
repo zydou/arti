@@ -94,14 +94,14 @@ impl<'a, T> OutPtr<'a, T> {
         }
     }
 
-    /// As [`Self::from_ptr`], but return an error if the pointer is NULL.
+    /// As [`Self::from_opt_ptr`], but return an error if the pointer is NULL.
     ///
     /// This is appropriate in cases where it makes no sense to call the FFI function
     /// if you are going to throw away the output immediately.
     ///
     /// # Safety
     ///
-    /// See [Self::from_ptr].
+    /// See [Self::from_opt_ptr].
     pub(super) unsafe fn from_ptr_nonnull(ptr: *mut *mut T) -> Result<Self, NullPointer> {
         // Safety: We require that the pointer be valid for use with from_ptr.
         let r = unsafe { Self::from_opt_ptr(ptr) };

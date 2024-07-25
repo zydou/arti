@@ -6,7 +6,7 @@
 pub mod err;
 mod util;
 
-use err::{catch_panic, handle_errors, ArtiError, FfiStatus};
+use err::{catch_panic, handle_errors, ArtiRpcError, FfiStatus};
 use std::ffi::c_char;
 use util::{ptr_as_ref, OutPtr};
 
@@ -16,7 +16,7 @@ use crate::{util::Utf8CStr, RpcConnBuilder};
 ///
 /// On success, a function will return `ARTI_SUCCESS (0)`.
 /// On failure, a function will return some other status code.
-pub type ArtiStatus = u32;
+pub type ArtiRpcStatus = u32;
 
 /// An open connection to Arti over an a RPC protocol.
 ///
@@ -40,16 +40,22 @@ pub type ArtiRpcStr = Utf8CStr;
 ///
 /// (TODO RPC: Document the format of this string better!)
 ///
-/// On success, return `ARTI_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
+/// On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
 /// Otherwise return some other status code, set `*rpc_conn_out` to NULL, and set
 /// `*error_out` (if provided) to a newly allocated error object.
+///
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*rpc_conn_out` and `*error_out`,
+/// if set, are eventually freed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_connect(
+pub unsafe extern "C" fn arti_rpc_connect(
     connection_string: *const c_char,
     rpc_conn_out: *mut *mut ArtiRpcConn,
-    error_out: *mut *mut ArtiError,
-) -> ArtiStatus {
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
     // Safety: we globally require that error_out is a valid pointer.
     let err_out = unsafe { OutPtr::from_opt_ptr(error_out) };
 
@@ -74,21 +80,25 @@ pub unsafe extern "C" fn arti_connect(
 /// The message `msg` should be a valid RPC request in JSON format.
 /// If you omit its `id` field, one will be generated: this is typically the best way to use this function.
 ///
-/// On success, return `ARTI_SUCCESS` and set `*response_out` to a newly allocated string
+/// On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*response_out` to a newly allocated string
 /// containing the JSON response to your request (including `id` and `response` fields).
 ///
 /// Otherwise return some other status code,  set `*response_out` to NULL,
 /// and set `*error_out` (if provided) to a newly allocated error object.
 ///
 /// (If response_out is set to NULL, then any successful response will be ignored.)
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_rpc_execute(
+pub unsafe extern "C" fn arti_rpc_conn_execute(
     rpc_conn: *const ArtiRpcConn,
     msg: *const c_char,
     response_out: *mut *mut ArtiRpcStr,
-    error_out: *mut *mut ArtiError,
-) -> ArtiStatus {
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
     // Safety: we globally require that error_out is a valid pointer.
     let err_out = unsafe { OutPtr::from_opt_ptr(error_out) };
 

@@ -33,7 +33,7 @@ header = """\
  * TODO RPC Explain better.
  *
  * Your connection to Arti is represented by an `ArtiRpcConn *`.  Use
- * `arti_connect()` to create one of these.
+ * `arti_rpc_connect()` to create one of these.
  *
  * Once you have a connection, you can sent Arti various requests in
  * JSON format.  See (TODO RPC: Add a link to a list of comments.)
@@ -46,15 +46,15 @@ header = """\
  *
  * ## Error handling
  *
- * On success, fallible functions return `ARTI_STATUS_SUCCESS`.  On failure,
+ * On success, fallible functions return `ARTI_RPC_STATUS_SUCCESS`.  On failure,
  * they return some other error code, and set an `* error_out` parameter
  * to a newly allocated `ArtiRpcError` object.
  * (If `error_out==NULL`, then no error is allocated.)
  *
  * You can access information about the an `ArtiRpcError`
- * by calling `arti_err_{status,message,response}()` on it.
+ * by calling `arti_rpc_err_{status,message,response}()` on it.
  * When you are done with an error, you should free it with
- * `arti_err_free()`.
+ * `arti_rpc_err_free()`.
  *
  * The `error_out` parameter always appears last.
  *
@@ -130,7 +130,7 @@ exclude = ["RpcErrorCode", "RpcConn", "FfiError", "Utf8CStr"]
 # Having not declared these structs, we can give them new names in the
 # typedefs that assign them their real names.
 "RpcConn" = "struct ArtiRpcConn"
-"FfiError" = "struct ArtiError"
+"FfiError" = "struct ArtiRpcError"
 "Utf8CStr" = "struct ArtiRpcStr"
 
 [fn]

@@ -10,7 +10,7 @@ use crate::conn::ErrorResponse;
 use crate::util::Utf8CStr;
 
 use super::util::OutPtr;
-use super::ArtiStatus;
+use super::ArtiRpcStatus;
 
 /// Helper:
 /// Given a restricted enum defining FfiStatus, also define a series of constants for its variants,
@@ -43,17 +43,17 @@ macro_rules! define_ffi_status {
 
         $(
             $(#[$m])*
-            pub const [<ARTI_STATUS_ $id:snake:upper >] : ArtiStatus = $e;
+            pub const [<ARTI_RPC_STATUS_ $id:snake:upper >] : ArtiRpcStatus = $e;
         )+
 
-        /// Return a string representing the meaning of a given `arti_status_t`.
+        /// Return a string representing the meaning of a given `ArtiRpcStatus`.
         ///
         /// The result will always be non-NULL, even if the status is unrecognized.
         #[no_mangle]
-        pub extern "C" fn arti_status_to_str(status: ArtiStatus) -> *const c_char {
+        pub extern "C" fn arti_status_to_str(status: ArtiRpcStatus) -> *const c_char {
             match status {
                 $(
-                    [<ARTI_STATUS_ $id:snake:upper>] => c_str!($s),
+                    [<ARTI_RPC_STATUS_ $id:snake:upper>] => c_str!($s),
                 )+
                 _ => c_str!("(unrecognized status)"),
             }.as_ptr()
@@ -145,7 +145,7 @@ pub(crate) enum FfiStatus {
 #[derive(Debug, Clone)]
 pub struct FfiError {
     /// The status of this error messages
-    pub(super) status: ArtiStatus,
+    pub(super) status: ArtiRpcStatus,
     /// A human-readable message describing this error
     message: Utf8CStr,
     /// If present, a Json-formatted message from our peer that we are representing with this error.
@@ -266,24 +266,25 @@ impl IntoFfiError for ErrorResponse {
 
 /// An error returned by the Arti RPC code, exposed as an object.
 ///
-/// When a function returns an [`ArtiStatus`] other than [`ARTI_STATUS_SUCCESS`],
+/// When a function returns an [`ArtiRpcStatus`] other than [`ARTI_RPC_STATUS_SUCCESS`],
 /// it will also expose a newly allocated value of this type
 /// via its `error_out` parameter.
-pub type ArtiError = FfiError;
+pub type ArtiRpcError = FfiError;
 
 /// Return the status code associated with a given error.
 ///
-/// If `err` is NULL, return [`ARTI_STATUS_INVALID_INPUT`].
+/// If `err` is NULL, return [`ARTI_RPC_STATUS_INVALID_INPUT`].
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_err_status(err: *const ArtiError) -> ArtiStatus {
+pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRpcStatus {
     catch_panic(
         || {
             // Safety: we require that this is NULL or a pointer to an ArtiError.
             let err = unsafe { err.as_ref() };
-            err.map(|e| e.status).unwrap_or(ARTI_STATUS_INVALID_INPUT)
+            err.map(|e| e.status)
+                .unwrap_or(ARTI_RPC_STATUS_INVALID_INPUT)
         },
-        || ARTI_STATUS_INTERNAL,
+        || ARTI_RPC_STATUS_INTERNAL,
     )
 }
 
@@ -299,7 +300,7 @@ pub unsafe extern "C" fn arti_err_status(err: *const ArtiError) -> ArtiStatus {
 /// The resulting string pointer is valid only for as long as the input `err` is not freed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_err_message(err: *const ArtiError) -> *const c_char {
+pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *const c_char {
     catch_panic(
         || {
             // Safety: we require that this is NULL or a pointer to an ArtiError.
@@ -324,7 +325,7 @@ pub unsafe extern "C" fn arti_err_message(err: *const ArtiError) -> *const c_cha
 /// The resulting string pointer is valid only for as long as the input `err` is not freed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_err_response(err: *const ArtiError) -> *const c_char {
+pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *const c_char {
     catch_panic(
         || {
             // Safety: we require that this is NULL or a pointer to an ArtiError.
@@ -348,7 +349,7 @@ pub unsafe extern "C" fn arti_err_response(err: *const ArtiError) -> *const c_ch
 /// is eventually freed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_err_clone(err: *const ArtiError) -> *mut ArtiError {
+pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut ArtiRpcError {
     catch_panic(
         || {
             // Safety: we require that this is NULL or a pointer to an ArtiError.
@@ -364,7 +365,7 @@ pub unsafe extern "C" fn arti_err_clone(err: *const ArtiError) -> *mut ArtiError
 /// Release storage held by a provided error.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_err_free(err: *mut ArtiError) {
+pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
     catch_panic(
         || {
             if err.is_null() {
@@ -393,12 +394,12 @@ where
 
 /// Call `body`, converting any errors or panics that occur into an FfiError, and storing that error in
 /// `error_out`.
-pub(super) fn handle_errors<F>(error_out: OutPtr<FfiError>, body: F) -> ArtiStatus
+pub(super) fn handle_errors<F>(error_out: OutPtr<FfiError>, body: F) -> ArtiRpcStatus
 where
     F: FnOnce() -> Result<(), FfiError> + UnwindSafe,
 {
     match catch_unwind(body) {
-        Ok(Ok(())) => ARTI_STATUS_SUCCESS,
+        Ok(Ok(())) => ARTI_RPC_STATUS_SUCCESS,
         Ok(Err(e)) => {
             // "body" returned an error.
             let status = e.status;
@@ -409,7 +410,7 @@ where
             // "body" panicked.  Unfortunately, there is not a great way to get this
             // panic info to be exposed.
             let e = FfiError {
-                status: ARTI_STATUS_INTERNAL,
+                status: ARTI_RPC_STATUS_INTERNAL,
                 message: "Internal panic in library code"
                     .to_string()
                     .try_into()
@@ -417,7 +418,7 @@ where
                 error_response: None,
             };
             error_out.write_value_if_nonnull(e);
-            ARTI_STATUS_INTERNAL
+            ARTI_RPC_STATUS_INTERNAL
         }
     }
 }
