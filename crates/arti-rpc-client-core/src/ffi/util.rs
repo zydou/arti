@@ -1,11 +1,11 @@
 //! Helpers for working with FFI.
 
-use std::ffi::{c_char, CStr};
-
-use super::{
-    err::{IntoFfiError, NullPointer},
-    FfiStatus,
+use std::{
+    ffi::{c_char, CStr},
+    mem::MaybeUninit,
 };
+
+use super::err::InvalidInput;
 
 /// Try to convert a `const char*` from C to a Rust `&str`, but return an error if the pointer
 /// is NULL or not UTF8.
@@ -14,32 +14,28 @@ use super::{
 ///
 /// See [`CStr::from_ptr`].  All those restrictions apply, except that we tolerate a NULL pointer.
 /// These rules are precisely those in the Arti RPC FFI for a `const char*` passed in from C.
-pub(super) unsafe fn ptr_to_str<'a>(p: *const c_char) -> Result<&'a str, PtrToStrError> {
+pub(super) unsafe fn ptr_to_str<'a>(p: *const c_char) -> Result<&'a str, InvalidInput> {
     if p.is_null() {
-        return Err(PtrToStrError::NullPointer);
+        return Err(InvalidInput::NullPointer);
     }
 
     // Safety: We require that the safety properties of CStr::from_ptr hold.
     unsafe { CStr::from_ptr(p) }
         .to_str()
-        .map_err(|_| PtrToStrError::BadUtf8)
+        .map_err(|_| InvalidInput::BadUtf8)
 }
 
-/// An error from [`ptr_to_str`].
-#[derive(Clone, Debug, thiserror::Error)]
-pub(super) enum PtrToStrError {
-    /// Tried to convert a NULL pointer to a string.
-    #[error("Provided string was NULL.")]
-    NullPointer,
-
-    /// Tried to convert a non-UTF string.
-    #[error("Provided string was not UTF-8")]
-    BadUtf8,
-}
-
-impl IntoFfiError for PtrToStrError {
-    fn status(&self) -> FfiStatus {
-        FfiStatus::InvalidInput
+/// If `p` is non-null, convert it into a `Box<T>`.  Otherwise return None.
+///
+/// # Safety
+///
+/// If `p` is non-NULL, it must point to a valid instance of T that was constructed
+/// using `Box::into_raw(Box::new(..))`.
+pub(super) unsafe fn ptr_to_opt_box<T>(p: *mut T) -> Option<Box<T>> {
+    if p.is_null() {
+        None
+    } else {
+        Some(unsafe { Box::from_raw(p) })
     }
 }
 
@@ -51,9 +47,9 @@ impl IntoFfiError for PtrToStrError {
 /// The underlying T must not be modified for so long as this reference exists.
 ///
 /// (These are the same as the rules for `const *`s passed into the arti RPC lib.)
-pub(super) unsafe fn ptr_as_ref<'a, T>(ptr: *const T) -> Result<&'a T, NullPointer> {
+pub(super) unsafe fn ptr_as_ref<'a, T>(ptr: *const T) -> Result<&'a T, InvalidInput> {
     // Safety: we require that ptr, if set, is valid.
-    unsafe { ptr.as_ref() }.ok_or(NullPointer)
+    unsafe { ptr.as_ref() }.ok_or(InvalidInput::NullPointer)
 }
 
 /// Helper for output parameters represented as `*mut *mut T`.
@@ -85,13 +81,17 @@ impl<'a, T> OutPtr<'a, T> {
     // (I have tested this using the `no-panic` crate.  But `no-panic` is not suitable
     // for use in production, since it breaks when run in debug mode.)
     pub(super) unsafe fn from_opt_ptr(ptr: *mut *mut T) -> Self {
-        let ptr: Option<&'a mut *mut T> = unsafe { ptr.as_mut() };
-        match ptr {
-            Some(p) => {
-                *p = std::ptr::null_mut();
-                OutPtr(Some(p))
-            }
-            None => OutPtr(None),
+        if ptr.is_null() {
+            OutPtr(None)
+        } else {
+            // TODO: Use `.as_mut_uninit` once it is stable.
+            //
+            // SAFETY: See documentation for [`<*mut *mut T>::as_uninit_mut`]
+            // at https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut :
+            // This is the same code.
+            let ptr: &mut MaybeUninit<*mut T> = unsafe { &mut *(ptr as *mut MaybeUninit<*mut T>) };
+            let ptr: &mut *mut T = ptr.write(std::ptr::null_mut());
+            OutPtr(Some(ptr))
         }
     }
 
@@ -103,11 +103,11 @@ impl<'a, T> OutPtr<'a, T> {
     /// # Safety
     ///
     /// See [Self::from_opt_ptr].
-    pub(super) unsafe fn from_ptr_nonnull(ptr: *mut *mut T) -> Result<Self, NullPointer> {
+    pub(super) unsafe fn from_ptr_nonnull(ptr: *mut *mut T) -> Result<Self, InvalidInput> {
         // Safety: We require that the pointer be valid for use with from_ptr.
         let r = unsafe { Self::from_opt_ptr(ptr) };
         if r.0.is_none() {
-            Err(NullPointer)
+            Err(InvalidInput::NullPointer)
         } else {
             Ok(r)
         }
@@ -127,6 +127,269 @@ impl<'a, T> OutPtr<'a, T> {
         }
     }
 }
+
+/// Implement the body of an FFI function.
+///
+/// This macro is meant to be invoked as follows:
+///
+/// ```ignore
+///     ffi_body_simple!(
+///         {
+///             [CONVERSIONS]
+///         } in {
+///             [BODY]
+///         } on invalid {
+///             [VALUE_ON_BAD_INPUT]
+///         } on panic {
+///             [VALUE_ON_PANIC]
+///         }
+///     )
+/// ```
+///
+/// For example:
+///
+/// ```ignore
+/// pub extern "C" fn arti_rpc_cook_meal(
+///     recipe: *const Recipe,
+///     special_ingredients: *const Ingredients,
+///     n_guests: usize,
+///     dietary_constraints: *const c_char,
+///     food_out: *mut *mut DeliciousMeal,
+/// ) -> usize {
+///     ffi_body_simple!(
+///         { // [CONVERSIONS]
+///             let recipe: &Recipe [in_ptr_required];
+///             let ingredients: Option<&Ingredients> [in_ptr_opt];
+///             let dietary_constraints: &str [in_str_required];
+///             let food_out: OutPtr<DeliciousMeal> [out_ptr_opt];
+///         } in {
+///             // [BODY]
+///             let delicious_meal = prepare_meal(recipe, ingredients, dietary_constraints, n_guests);
+///             food_out.write_value_if_nonnull(delicious_meal);
+///             n_guests as isize
+///         } on invalid {
+///             // [VALUE_ON_BAD_INPUT]
+///             0
+///         } on panic {
+///             // [VALUE_ON_PANIC]
+///             0
+///         }
+///     )
+/// }
+/// ```
+///
+/// The first part (`CONVERSIONS`) defines a set of conversions to be done on the function inputs.
+/// These are documented below.
+/// Each conversion performs an unsafe operation,
+/// making certain assumptions about an input variable,
+/// in order to produce an output of the specified type.
+/// Conversions can reject input values.
+/// If they do, the function will return;
+/// see discussion of `[VALUE_ON_BAD_INPUT]`
+///
+/// The second part (`BODY`) is the body of the function.
+/// It should generally be possible to write this body without using unsafe code.
+/// The result of this block is the returned value of the function.
+///
+/// The third part (`VALUE_ON_BAD_INPUT`) is an expression to be returned
+/// as the result of the function if any input pointer is NULL
+/// that is not permitted to be NULL.
+///
+/// The fourth part (`VALUE_ON_PANIC`) is an expression to be returned
+/// as the result of the function if any conversion
+/// (or the body of the function) causes a panic.
+///
+/// ## Supported conversions
+///
+/// All conversions take the following format:
+///
+/// `let NAME : TYPE [METHOD] ;`
+///
+/// The `NAME` must match one of the inputs to the function.
+///
+/// The `TYPE` must match the actual type that the input will be converted to.
+/// (These types are generally easy to use ergonomically from safe rust.)
+///
+/// The `METHOD` is an identifier explaining how the input is to be converted.
+///
+/// The following methods are recognized:
+///
+/// | method               | input type      | converted to     | can reject input? |
+/// |----------------------|-----------------|------------------|-------------------|
+/// | `in_ptr_required`    | `*const T`      | `&T`             | Y                 |
+/// | `in_ptr_opt`         | `*const T`      | `Option<&T>`     | N                 |
+/// | `in_str_required`    | `*const c_char` | `&str`           | Y                 |
+/// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>` | N                 |
+/// | `out_ptr_required`   | `*mut *mut T`   | `OutPtr<T>`      | Y                 |
+/// | `out_ptr_opt`        | `*mut *mut T`   | `OutPtr<T>`      | N                 |
+///
+/// > (Note: Other conversion methods are logically possible, but have not been added yet,
+/// > since they would not yet be used in this crate.)
+///
+/// ## Safety
+///
+/// The `in_ptr_required` and `in_ptr_opt` methods
+/// have the safety requirements of
+/// [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
+/// Informally, this means:
+/// * If the pointer is not null, it must point
+///   to a valid aligned dereferenceable instance of `T`.
+/// * The underlying `T` must not be freed or modified for so long as the function is running.
+///
+/// The `in_str_required` method, when its input is non-NULL,
+/// has the safety requirements of [`CStr::from_ptr`].
+/// Informally, this means:
+///  * If the pointer is not null, it must point to a nul-terminated string.
+///  * The string must not be freed or modified for so long as the function is running.
+///
+/// Additionally, the `[in_str_required]` method
+/// will detect invalid any string that is not UTF-8.
+///
+/// The `in_ptr_consume_opt` method, when its input is non-NULL,
+/// has the safety requirements of [`Box::from_raw`].
+/// Informally, this is satisfied when:
+///  * If the pointer is not null, it should be
+///    the result of an earlier a call to `Box<T>::into_raw`.
+///    (Note that using either `out_ptr_*` method
+///    will output pointers that can later be consumed in this way.)
+///
+/// The `out_ptr_required` and `out_ptr_opt` methods
+/// have the safety requirements of
+/// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
+/// Informally, this means:
+///   * If the pointer (call it "out") is non-NULL, then `*out` must point to aligned
+///     "dereferenceable" (q.v.) memory holding a possibly uninitialized "*mut T".
+///
+/// (Note that immediately upon conversion, if `out` is non-NULL,
+/// `*out` is set to NULL.  See documentation for `OptPtr`.)
+//
+// Design notes:
+// - I am keeping the conversions separate from the body below, since we don't want to catch
+//   InvalidInput from the body.
+// - The "on invalid" and "on panic" values must be specified explicitly,
+//   since in general we should force the caller to think about them.
+//   Getting a 0 or -1 wrong here can have nasty results.
+// - The conversion syntax deliberately includes the type of the converted argument,
+//   on the theory that it makes the functions more readable.
+macro_rules! ffi_body_simple {
+    { { $( let $name:ident : $type:ty [$how:ident]);* $(;)? }
+      in { $($body:tt)+ } on invalid { $err:expr } on panic { $panic:expr } } => {
+
+        crate::ffi::err::catch_panic(|| {
+
+            // run conversions and check for invalid input exceptions.
+            #[allow(redundant_closure_call,unused_parens)]
+            let ( $($name),* ) = match (|| -> Result<_, crate::ffi::err::InvalidInput> {
+                $( let $name : $type = crate::ffi::util::ffi_cvt!{ $how $name }; )*
+                Ok(($($name),*))
+            })() {
+                Ok(($($name),*)) => ($($name),*),
+                Err(_invalid) => {
+                    #[allow(unused_unit)]
+                    return $err;
+                }
+            };
+
+            $($body)+
+
+            },
+            || { $panic }
+        )
+    }
+}
+pub(super) use ffi_body_simple;
+
+/// Implement the body of an FFI function that returns an ArtiRpcStatus.
+///
+/// This macro is meant to be invoked as follows:
+/// ```text
+/// ffi_body_with_err!(
+///         {
+///             [CONVERSIONS]
+///             err [ERRNAME] : OutPtr<ArtiRpcError>;
+///         } in {
+///             [BODY]
+///         }
+/// })```
+///
+/// For example:
+///
+/// ```ignore
+/// pub extern "C" fn arti_rpc_wombat_feed(
+///     wombat: *const Wombat,
+///     wombat_chow: *const Meal,
+///     error_out: *mut *mut ArtiRpcError
+/// ) -> ArtiRpcStatus {
+///     ffi_body_with_err!(
+///         {
+///             let wombat: &Wombat [in_ptr_required];
+///             let wombat_chow: &Meal [in_ptr_required];
+///             err error_out: OutPtr<ArtiRpcError>;
+///         } in {
+///             wombat.please_enjoy(wombat_chow)?;
+///         }
+///     )
+/// }
+/// ```
+///
+/// The resulting function has the same kinds
+/// of conversions as would [`ffi_body_simple!`].
+///
+/// The differences are:
+///   * Instead of returning a value, the body can only give errors with `?`.
+///   * The function must return ArtiRpcStatus.
+///   * Any errors that occur during the conversions or the body
+///     are converted into an ArtiRpcError,
+///     and given to the user via `error_out` if it is non-NULL.
+///     A corresponding ArtiRpcStatus is returned.
+///
+/// ## Safety
+///
+/// The safety requirements for the `err` conversion
+/// are the same as those for `out_ptr_opt` (q.v.).
+macro_rules! ffi_body_with_err {
+    { { $( let $name:ident : $type:ty [$how:ident]; )*
+          err $err_out:ident : $out_type:ty $(;)? }
+      in {$($body:tt)+}
+    } => {{
+        let $err_out: $out_type =
+            crate::ffi::util::ffi_cvt!{ out_ptr_opt $err_out };
+
+        crate::ffi::err::handle_errors($err_out,
+            || {
+                $( let $name : $type = crate::ffi::util::ffi_cvt!{ $how $name }; )*
+
+                let () = { $($body)+ };
+
+                Ok(())
+            }
+        )
+    }}
+}
+pub(super) use ffi_body_with_err;
+
+/// Implement a single conversion.
+macro_rules! ffi_cvt {
+    { in_ptr_required $name:ident } => {
+        unsafe { crate::ffi::util::ptr_as_ref($name) }?
+    };
+    { in_ptr_opt $name:ident } => {
+        unsafe { crate::ffi::util::ptr_as_ref($name) }.ok()
+    };
+    { in_str_required $name:ident } => {
+        unsafe { crate::ffi::util::ptr_to_str($name) }?
+    };
+    { in_ptr_consume_opt $name:ident } => {
+        unsafe { crate::ffi::util::ptr_to_opt_box($name) }
+    };
+    { out_ptr_required $name:ident } => {
+        unsafe { crate::ffi::util::OutPtr::from_ptr_nonnull($name) }?
+    };
+    { out_ptr_opt $name:ident } => {
+        unsafe { crate::ffi::util::OutPtr::from_opt_ptr($name) }
+    };
+}
+pub(super) use ffi_cvt;
 
 #[cfg(test)]
 mod test {
@@ -176,7 +439,10 @@ mod test {
         assert_eq!(*boxed, 123);
     }
 
-    unsafe fn outptr_user_nn(ptr: *mut *mut i8, set_to_val: Option<i8>) -> Result<(), NullPointer> {
+    unsafe fn outptr_user_nn(
+        ptr: *mut *mut i8,
+        set_to_val: Option<i8>,
+    ) -> Result<(), InvalidInput> {
         let ptr = unsafe { OutPtr::from_ptr_nonnull(ptr) }?;
 
         if let Some(v) = set_to_val {

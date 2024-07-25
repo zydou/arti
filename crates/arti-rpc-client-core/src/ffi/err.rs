@@ -9,7 +9,7 @@ use std::panic::{catch_unwind, UnwindSafe};
 use crate::conn::ErrorResponse;
 use crate::util::Utf8CString;
 
-use super::util::OutPtr;
+use super::util::{ffi_body_simple, OutPtr};
 use super::ArtiRpcStatus;
 
 /// Helper:
@@ -197,12 +197,19 @@ impl<T: IntoFfiError> From<T> for FfiError {
     }
 }
 
-/// Tried to call a ffi function with a not-permitted null pointer argument.
+/// Tried to call a ffi function with a not-permitted argument.
 #[derive(Clone, Debug, thiserror::Error)]
-#[error("One of the arguments was NULL")]
-pub(super) struct NullPointer;
+pub(super) enum InvalidInput {
+    /// Tried to convert a NULL pointer to a string.
+    #[error("Provided string was NULL.")]
+    NullPointer,
 
-impl IntoFfiError for NullPointer {
+    /// Tried to convert a non-UTF string.
+    #[error("Provided string was not UTF-8")]
+    BadUtf8,
+}
+
+impl IntoFfiError for InvalidInput {
     fn status(&self) -> FfiStatus {
         FfiStatus::InvalidInput
     }
@@ -277,14 +284,14 @@ pub type ArtiRpcError = FfiError;
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRpcStatus {
-    catch_panic(
-        || {
-            // Safety: we require that this is NULL or a pointer to an ArtiError.
-            let err = unsafe { err.as_ref() };
-            err.map(|e| e.status)
-                .unwrap_or(ARTI_RPC_STATUS_INVALID_INPUT)
-        },
-        || ARTI_RPC_STATUS_INTERNAL,
+    ffi_body_simple!(
+        {
+            let err: &ArtiRpcError [in_ptr_required];
+        } in {
+            err.status
+        }
+        on invalid { ARTI_RPC_STATUS_INVALID_INPUT }
+        on panic { ARTI_RPC_STATUS_INTERNAL }
     )
 }
 
@@ -301,13 +308,14 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *const c_char {
-    catch_panic(
-        || {
-            // Safety: we require that this is NULL or a pointer to an ArtiError.
-            let err = unsafe { err.as_ref() };
-            err.map(|e| e.message.as_ptr()).unwrap_or(std::ptr::null())
-        },
-        || c_str!("internal error (panic)").as_ptr(),
+    ffi_body_simple!(
+        {
+            let err: &ArtiRpcError [in_ptr_required];
+        } in {
+           err.message.as_ptr()
+        }
+        on invalid { std::ptr::null() }
+        on panic { c_str!("internal error (panic)").as_ptr() }
     )
 }
 
@@ -326,14 +334,14 @@ pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *cons
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *const c_char {
-    catch_panic(
-        || {
-            // Safety: we require that this is NULL or a pointer to an ArtiError.
-            let err = unsafe { err.as_ref() };
-            err.and_then(|e| e.error_response_as_ptr())
-                .unwrap_or(std::ptr::null())
-        },
-        std::ptr::null,
+    ffi_body_simple!(
+        {
+            let err: &ArtiRpcError [in_ptr_required];
+        } in {
+            err.error_response_as_ptr().unwrap_or(std::ptr::null())
+        }
+        on invalid { std::ptr::null() }
+        on panic { c_str!("internal error (panic)").as_ptr() }
     )
 }
 
@@ -350,15 +358,14 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut ArtiRpcError {
-    catch_panic(
-        || {
-            // Safety: we require that this is NULL or a pointer to an ArtiError.
-            let err = unsafe { err.as_ref() };
-            // Note: arti_err_free will later call Box::from_raw on this pointer.
-            err.map(|e| Box::into_raw(Box::new(e.clone())))
-                .unwrap_or(std::ptr::null_mut())
-        },
-        std::ptr::null_mut,
+    ffi_body_simple!(
+        {
+            let err: &ArtiRpcError [in_ptr_required];
+        } in {
+            Box::into_raw(Box::new(err.clone()))
+        }
+        on invalid { std::ptr::null_mut() }
+        on panic { std::ptr::null_mut() }
     )
 }
 
@@ -366,21 +373,21 @@ pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut Ar
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
-    catch_panic(
-        || {
-            if err.is_null() {
-                return;
-            }
-            // Safety: We require that the pointer came from `arti_err_clone`,
-            // which returns a pointer that came from Box::into_raw().
-            let err = unsafe { Box::from_raw(err) };
+    ffi_body_simple!(
+        {
+            let err: Option<Box<ArtiRpcError>> [in_ptr_consume_opt];
+        } in {
             drop(err);
-        },
-        || {},
+        }
+        on invalid { () }
+        on panic { () }
     );
 }
 
 /// Run `body` and catch panics.  If one occurs, return the result of `on_err` instead.
+///
+/// We wrap the body of every C ffi function with this function (or with `handle_errors`, which uses
+/// this function), even if we do not think that the body can actually panic.
 pub(super) fn catch_panic<F, G, T>(body: F, on_err: G) -> T
 where
     F: FnOnce() -> T + UnwindSafe,

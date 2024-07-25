@@ -6,9 +6,9 @@
 pub mod err;
 mod util;
 
-use err::{catch_panic, handle_errors, ArtiRpcError, FfiStatus};
+use err::ArtiRpcError;
 use std::ffi::c_char;
-use util::{ptr_as_ref, OutPtr};
+use util::{ffi_body_simple, ffi_body_with_err, OutPtr};
 
 use crate::{util::Utf8CString, RpcConnBuilder};
 
@@ -56,23 +56,19 @@ pub unsafe extern "C" fn arti_rpc_connect(
     rpc_conn_out: *mut *mut ArtiRpcConn,
     error_out: *mut *mut ArtiRpcError,
 ) -> ArtiRpcStatus {
-    // Safety: we globally require that error_out is a valid pointer.
-    let err_out = unsafe { OutPtr::from_opt_ptr(error_out) };
+    ffi_body_with_err!(
+        {
+            let connection_string: &str [in_str_required];
+            let rpc_conn_out: OutPtr<ArtiRpcConn> [out_ptr_required];
+            err error_out : OutPtr<ArtiRpcError>;
+        } in {
+            let builder = RpcConnBuilder::from_connect_string(connection_string)?;
 
-    handle_errors(err_out, || {
-        // Safety: We globally require that `rpc_conn_out` is a valid pointer.
-        let rpc_conn_out = unsafe { OutPtr::from_ptr_nonnull(rpc_conn_out) }?;
+            let conn = builder.connect()?;
 
-        // Safety: We globally require that all strings are valid according to CStr::from_ptr.
-        let s = unsafe { util::ptr_to_str(connection_string) }?;
-        let builder = RpcConnBuilder::from_connect_string(s)?;
-
-        let conn = builder.connect()?;
-
-        rpc_conn_out.write_value_if_nonnull(conn);
-
-        Ok(())
-    })
+            rpc_conn_out.write_value_if_nonnull(conn);
+         }
+    )
 }
 
 /// Run an RPC request over `rpc_conn` and wait for a successful response.
@@ -99,41 +95,31 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
     response_out: *mut *mut ArtiRpcStr,
     error_out: *mut *mut ArtiRpcError,
 ) -> ArtiRpcStatus {
-    // Safety: we globally require that error_out is a valid pointer.
-    let err_out = unsafe { OutPtr::from_opt_ptr(error_out) };
-
-    handle_errors(err_out, || {
-        // Safety: we require that rpc_conn is a valid pointer.
-        let rpc_conn = unsafe { ptr_as_ref(rpc_conn) }?;
-        // Safety: we require that response_out is a valid pointer.
-        let response_out = unsafe { OutPtr::from_opt_ptr(response_out) };
-
-        // Safety: We globally require that the constraints of CStr::from_ptr apply.
-        let msg = unsafe { util::ptr_to_str(msg) }?;
-
-        let success = rpc_conn.execute(msg)??;
-
-        response_out.write_value_if_nonnull(Utf8CString::from(success));
-
-        Ok(())
-    })
+    ffi_body_with_err!(
+        {
+            let rpc_conn: &ArtiRpcConn [in_ptr_required];
+            let msg: &str [in_str_required];
+            let response_out: OutPtr<ArtiRpcStr> [out_ptr_opt];
+            err error_out: OutPtr<ArtiRpcError>;
+        } in {
+            let success = rpc_conn.execute(msg)??;
+                response_out.write_value_if_nonnull(Utf8CString::from(success));
+        }
+    )
 }
 
 /// Free a string returned by the Arti RPC API.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
-    catch_panic(
-        || {
-            if !string.is_null() {
-                // Safety: We require that `string` is a pointer returned by a function in our API.
-                //
-                // The functions in this API only return owned strings via CString::into_raw.
-                let owned = unsafe { Box::from_raw(string) };
-                drop(owned);
-            }
-        },
-        || {},
+    ffi_body_simple!(
+        {
+            let string: Option<Box<ArtiRpcStr>> [in_ptr_consume_opt];
+        } in {
+            drop(string);
+        }
+        on invalid { () }
+        on panic { () }
     );
 }
 
@@ -149,26 +135,28 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c_char {
-    let Ok(str) = (unsafe { ptr_as_ref(string) }) else {
-        return std::ptr::null();
-    };
-
-    str.as_ptr()
+    ffi_body_simple!(
+        {
+            let string: &ArtiRpcStr [in_ptr_required];
+        } in {
+            string.as_ptr()
+        }
+        on invalid { std::ptr::null() }
+        on panic { std::ptr::null() }
+    )
 }
 
 /// Close and free an open Arti RPC connection.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
-    catch_panic(
-        || {
-            if !rpc_conn.is_null() {
-                // Safety: We require that this input to this function be a valid pointer
-                // returned from this library, which uses Box::into_raw.
-                let owned = unsafe { Box::from_raw(rpc_conn) };
-                drop(owned);
-            }
-        },
-        || {},
+    ffi_body_simple!(
+        {
+            let rpc_conn: Option<Box<ArtiRpcConn>> [in_ptr_consume_opt];
+        } in {
+            drop(rpc_conn);
+        }
+        on invalid { () }
+        on panic { () }
     );
 }
