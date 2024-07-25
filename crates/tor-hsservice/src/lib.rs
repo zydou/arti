@@ -361,6 +361,7 @@ impl OnionService {
             config_rx,
             status_tx.clone().into(),
             Arc::clone(&keymgr),
+            Arc::clone(&authorized_clients),
         );
 
         let svc = Arc::new(RunningOnionService {
