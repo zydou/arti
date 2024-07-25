@@ -2043,22 +2043,24 @@ mod test {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
 
-        let circ_clone = circ.clone();
-        let begin_and_send_fut = async move {
-            // Take our circuit and make a stream on it.
-            let mut stream = circ_clone
-                .begin_stream("www.example.com", 443, None)
-                .await
-                .unwrap();
-            let junk = [0_u8; 1024];
-            let mut remaining = n_to_send;
-            while remaining > 0 {
-                let n = std::cmp::min(remaining, junk.len());
-                stream.write_all(&junk[..n]).await.unwrap();
-                remaining -= n;
+        let begin_and_send_fut = {
+            let circ = circ.clone();
+            async move {
+                // Take our circuit and make a stream on it.
+                let mut stream = circ
+                    .begin_stream("www.example.com", 443, None)
+                    .await
+                    .unwrap();
+                let junk = [0_u8; 1024];
+                let mut remaining = n_to_send;
+                while remaining > 0 {
+                    let n = std::cmp::min(remaining, junk.len());
+                    stream.write_all(&junk[..n]).await.unwrap();
+                    remaining -= n;
+                }
+                stream.flush().await.unwrap();
+                stream
             }
-            stream.flush().await.unwrap();
-            stream
         };
 
         let receive_fut = async move {
