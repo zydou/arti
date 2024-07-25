@@ -7,12 +7,13 @@ use super::{
     FfiStatus,
 };
 
-/// Try to convert a const ptr to a string, but return an error if the pointer
+/// Try to convert a `const char*` from C to a Rust `&str`, but return an error if the pointer
 /// is NULL or not UTF8.
 ///
 /// # Safety
 ///
 /// See [`CStr::from_ptr`].  All those restrictions apply, except that we tolerate a NULL pointer.
+/// These rules are precisely those in the Arti RPC FFI for a `const char*` passed in from C.
 pub(super) unsafe fn ptr_to_str<'a>(p: *const c_char) -> Result<&'a str, PtrToStrError> {
     if p.is_null() {
         return Err(PtrToStrError::NullPointer);
