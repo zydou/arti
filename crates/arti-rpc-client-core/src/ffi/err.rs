@@ -2,7 +2,6 @@
 
 use c_str_macro::c_str;
 use paste::paste;
-use std::cell::RefCell;
 use std::ffi::{c_char, CStr};
 use std::fmt::Display;
 use std::panic::{catch_unwind, UnwindSafe};
@@ -10,6 +9,7 @@ use std::panic::{catch_unwind, UnwindSafe};
 use crate::conn::ErrorResponse;
 use crate::util::Utf8CStr;
 
+use super::util::OutPtr;
 use super::ArtiStatus;
 
 /// Helper:
@@ -71,6 +71,7 @@ define_ffi_status! {
 #[repr(u32)]
 pub(crate) enum FfiStatus {
     /// The function has returned successfully.
+    #[allow(dead_code)]
     ["Success"]
     Success = 0,
 
@@ -154,10 +155,11 @@ pub struct FfiError {
 impl FfiError {
     /// Helper: If this error stems from a resoponse from our RPC peer,
     /// return that reponse.
-    fn error_response_as_cstr(&self) -> Option<&CStr> {
-        self.error_response
-            .as_ref()
-            .map(|response| response.as_ref())
+    fn error_response_as_ptr(&self) -> Option<*const c_char> {
+        self.error_response.as_ref().map(|response| {
+            let cstr: &CStr = response.as_ref();
+            cstr.as_ptr()
+        })
     }
 }
 
@@ -262,41 +264,16 @@ impl IntoFfiError for ErrorResponse {
     }
 }
 
-// TODO RPC: Decide whether to eliminate LAST_ERR?
-//
-// Reasonable people point out that it might be better just to give every failure-capable function
-// an out-param that can hold an error.
-//
-// This sounds a bit onerous to me, but the saving grace is that we expect basically nobody
-// to call the C APIs directly: nearly everybody will wrap them in some other language with
-// a real exception or error handling convention.
-thread_local! {
-    /// Thread-local: last error to occur in this thread.
-    static LAST_ERR: RefCell<FfiError> = RefCell::new(FfiError {
-        message: "(no error has occurred)".to_owned().try_into().expect("Error message couldn't become a CString?"),
-        status: FfiStatus::Success as u32,
-        error_response: None
-    });
-}
-
-/// Helper: replace the last error with `e`.
-pub(super) fn set_last_error(e: FfiError) {
-    LAST_ERR.with(|cell| *cell.borrow_mut() = e);
-}
-
 /// An error returned by the Arti RPC code, exposed as an object.
 ///
-/// After a function has returned an [`ArtiStatus`] other than [`ARTI_STATUS_SUCCESS`],
-/// you can use [`arti_err_clone`]`(NULL)` to get a copy of the most recent error.
-///
-/// Functions that return information about an error will either take a pointer
-/// to one of these objects, or NULL to indicate the most error in a given thread.
+/// When a function returns an [`ArtiStatus`] other than [`ARTI_STATUS_SUCCESS`],
+/// it will also expose a newly allocated value of this type
+/// via its `error_out` parameter.
 pub type ArtiError = FfiError;
 
 /// Return the status code associated with a given error.
 ///
-/// If `err` is NULL, instead return the status code from the most recent error to occur in this
-/// thread.
+/// If `err` is NULL, return [`ARTI_STATUS_INVALID_INPUT`].
 ///
 /// # Safety
 ///
@@ -305,12 +282,9 @@ pub type ArtiError = FfiError;
 pub unsafe extern "C" fn arti_err_status(err: *const ArtiError) -> ArtiStatus {
     catch_panic(
         || {
-            if err.is_null() {
-                LAST_ERR.with(|e| e.borrow().status)
-            } else {
-                // Safety: we require that `err` is a valid pointer of the proper type.
-                unsafe { (*err).status }
-            }
+            // Safety: we require that this is NULL or a pointer to an ArtiError.
+            let err = unsafe { err.as_ref() };
+            err.map(|e| e.status).unwrap_or(ARTI_STATUS_INVALID_INPUT)
         },
         || ARTI_STATUS_INTERNAL,
     )
@@ -318,31 +292,21 @@ pub unsafe extern "C" fn arti_err_status(err: *const ArtiError) -> ArtiStatus {
 
 /// Return a human-readable error message associated with a given error.
 ///
-/// If `err` is NULL, instead return the error message from the most recent error to occur in this
-/// thread.
-///
 /// The format of these messages may change arbitrarily between versions of this library;
 /// it is a mistake to depend on the actual contents of this message.
+///
+/// Return NULL if the input `err` is NULL.
 ///
 /// # Safety
 ///
 /// The returned pointer is only as valid for as long as `err` is valid.
-///
-/// If `err` is NULL, then the returned pointer is only valid until another
-/// error occurs in this thread.
 #[no_mangle]
 pub unsafe extern "C" fn arti_err_message(err: *const ArtiError) -> *const c_char {
     catch_panic(
         || {
-            if err.is_null() {
-                // Note: "as_ptr()" allows the `message` part of `e` to escape this borrow().
-                // This is safe so long as nothing mutates LAST_ERR while it is borrowed,
-                // which is what we have required in our documentation.
-                LAST_ERR.with(|e| e.borrow().message.as_ptr())
-            } else {
-                // Safety: We require that `err` is a valid pointer of the proper type.
-                unsafe { (*err).message.as_ptr() }
-            }
+            // Safety: we require that this is NULL or a pointer to an ArtiError.
+            let err = unsafe { err.as_ref() };
+            err.map(|e| e.message.as_ptr()).unwrap_or(std::ptr::null())
         },
         || c_str!("internal error (panic)").as_ptr(),
     )
@@ -350,41 +314,24 @@ pub unsafe extern "C" fn arti_err_message(err: *const ArtiError) -> *const c_cha
 
 /// Return a Json-formatted error response associated with a given error.
 ///
-/// If `err` is NULL, instead return the response from the most recent error to occur in this
-/// thread.
-///
 /// These messages are full responses, including the `error` field,
 /// and the `id` field (if present).
 ///
 /// Return NULL if the specified error does not represent an RPC error response.
 ///
+/// Return NULL if the input `err` is NULL.
+///
 /// # Safety
 ///
 /// The returned pointer is only as valid for as long as `err` is valid.
-///
-/// If `err` is NULL, then the returned pointer is only valid until another
-/// error occurs in this thread.
 #[no_mangle]
 pub unsafe extern "C" fn arti_err_response(err: *const ArtiError) -> *const c_char {
     catch_panic(
         || {
-            if err.is_null() {
-                // Note: "as_ptr()" allows the `error_response` part of `e` to escape this borrow().
-                // This is safe so long as nothing mutates LAST_ERR while it is borrowed,
-                // which is what we have required in our documentation.
-                LAST_ERR
-                    .with(|e| {
-                        e.borrow()
-                            .error_response_as_cstr()
-                            .map(|cstr| cstr.as_ptr())
-                    })
-                    .unwrap_or(std::ptr::null())
-            } else {
-                // Safety: We require that `err` is a valid pointer of the proper type.
-                unsafe { (*err).error_response_as_cstr() }
-                    .map(|cstr| cstr.as_ptr())
-                    .unwrap_or(std::ptr::null())
-            }
+            // Safety: we require that this is NULL or a pointer to an ArtiError.
+            let err = unsafe { err.as_ref() };
+            err.and_then(|e| e.error_response_as_ptr())
+                .unwrap_or(std::ptr::null())
         },
         std::ptr::null,
     )
@@ -392,7 +339,7 @@ pub unsafe extern "C" fn arti_err_response(err: *const ArtiError) -> *const c_ch
 
 /// Make and return copy of a provided error.
 ///
-/// If `err` is NULL, instead return a copy of the most recent error to occur in this thread.
+/// Return NULL if the input is NULL.
 ///
 /// May return NULL if an internal error occurs.
 ///
@@ -403,15 +350,11 @@ pub unsafe extern "C" fn arti_err_response(err: *const ArtiError) -> *const c_ch
 pub unsafe extern "C" fn arti_err_clone(err: *const ArtiError) -> *mut ArtiError {
     catch_panic(
         || {
-            let cloned = if err.is_null() {
-                LAST_ERR.with(|e| e.borrow().clone())
-            } else {
-                // Safety: We require that `err` is a valid pointer of the proper type.
-                unsafe { (*err).clone() }
-            };
-
+            // Safety: we require that this is NULL or a pointer to an ArtiError.
+            let err = unsafe { err.as_ref() };
             // Note: arti_err_free will later call Box::from_raw on this pointer.
-            Box::into_raw(Box::new(cloned))
+            err.map(|e| Box::into_raw(Box::new(e.clone())))
+                .unwrap_or(std::ptr::null_mut())
         },
         std::ptr::null_mut,
     )
@@ -451,9 +394,9 @@ where
     }
 }
 
-/// Call `body`, converting any errors or panics that occur into an FfiError,
-/// and storing that error as LAST_ERR.
-pub(super) fn handle_errors<F>(body: F) -> ArtiStatus
+/// Call `body`, converting any errors or panics that occur into an FfiError, and storing that error in
+/// `error_out`.
+pub(super) fn handle_errors<F>(error_out: OutPtr<FfiError>, body: F) -> ArtiStatus
 where
     F: FnOnce() -> Result<(), FfiError> + UnwindSafe,
 {
@@ -462,7 +405,7 @@ where
         Ok(Err(e)) => {
             // "body" returned an error.
             let status = e.status;
-            set_last_error(e);
+            error_out.write_value(e);
             status
         }
         Err(_panic_data) => {
@@ -476,7 +419,7 @@ where
                     .expect("couldn't make a valid C string"),
                 error_response: None,
             };
-            set_last_error(e);
+            error_out.write_value(e);
             ARTI_STATUS_INTERNAL
         }
     }

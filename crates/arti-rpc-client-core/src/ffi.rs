@@ -2,13 +2,11 @@
 //!
 //! See top-level documentation in header file for C conventions that affect the safety of these functions.
 //! (These include things like "all input pointers must be valid" and so on.)
-//!
-//!
 
 pub mod err;
 mod util;
 
-use err::{catch_panic, handle_errors, FfiStatus};
+use err::{catch_panic, handle_errors, ArtiError, FfiStatus};
 use std::ffi::c_char;
 use util::{ptr_as_ref, OutPtr};
 
@@ -40,8 +38,9 @@ pub type ArtiRpcStr = Utf8CStr;
 /// The location of the instance and the method to connect to it are described in
 /// `connection_string`.
 ///
-/// On success, return `ARTI_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
-/// Otherwise returns some other status cod and set `*rpc_conn_out` to NULL.
+/// On success, return `ARTI_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
+/// Otherwise return some other status code, set `*rpc_conn_out` to NULL, and set
+/// `*error_out` (if provided) to a newly allocated error object.
 ///
 /// # Safety
 ///
@@ -50,8 +49,12 @@ pub type ArtiRpcStr = Utf8CStr;
 pub unsafe extern "C" fn arti_connect(
     connection_string: *const c_char,
     rpc_conn_out: *mut *mut ArtiRpcConn,
+    error_out: *mut *mut ArtiError,
 ) -> ArtiStatus {
-    handle_errors(|| {
+    // Safety: we globally require that error_out is a valid pointer.
+    let err_out = unsafe { OutPtr::from_ptr(error_out) };
+
+    handle_errors(err_out, || {
         // Safety: We globally require that `rpc_conn_out` is a valid pointer.
         let rpc_conn_out = unsafe { OutPtr::from_ptr_nonnull(rpc_conn_out) }?;
 
@@ -70,27 +73,30 @@ pub unsafe extern "C" fn arti_connect(
 /// Run an RPC request over `rpc_conn` and wait for a successful response.
 ///
 /// The message `msg` should be a valid RPC request in JSON format.
-/// If you omit its `id`` field, one will be generated: this is typically the best way to use this function.
+/// If you omit its `id` field, one will be generated: this is typically the best way to use this function.
 ///
 /// On success, return `ARTI_SUCCESS` and set `*response_out` to a newly allocated string
 /// containing the Json response to your request (including `id` and `response` fields).
 ///
-/// Otherwise returns some other status code, and set `*response_out` to NULL.
+/// Otherwise return some other status code,  set `*response_out` to NULL,
+/// and set `*error_out` (if provided) to a newly allocated error object.
 ///
 /// (If response_out is set to NULL, then any successful response will be ignored.)
 ///
 /// # Safety
 ///
 /// The caller must not modify the length of `*response_out`.
-///
-/// The caller must free `*response_out` with `arti_free_str()`, not with `free()` or any other call.
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_execute(
     rpc_conn: *const ArtiRpcConn,
     msg: *const c_char,
     response_out: *mut *mut ArtiRpcStr,
+    error_out: *mut *mut ArtiError,
 ) -> ArtiStatus {
-    handle_errors(|| {
+    // Safety: we globally require that error_out is a valid pointer.
+    let err_out = unsafe { OutPtr::from_ptr(error_out) };
+
+    handle_errors(err_out, || {
         // Safety: we require that rpc_conn is a valid pointer.
         let rpc_conn = unsafe { ptr_as_ref(rpc_conn) }?;
         // Safety: we require that response_out is a valid pointer.

@@ -75,6 +75,14 @@ impl<'a, T> OutPtr<'a, T> {
     /// The outer pointer, if set, must be valid, and must not alias any other pointers.
     ///
     /// See also the requirements on `pointer::as_mut()`.
+    ///
+    /// # No panics!
+    ///
+    /// This method can be invoked in cases where panicking is not allowed (such as
+    /// in a FFI method, outside of `handle_errors()` or `catch_panic()`.)
+    //
+    // (I have tested this using the `no-panic` crate.  But `no-panic` is not suitable
+    // for use in production, since it breaks when run in debug mode.)
     pub(super) unsafe fn from_ptr(ptr: *mut *mut T) -> Self {
         let ptr: Option<&'a mut *mut T> = unsafe { ptr.as_mut() };
         match ptr {

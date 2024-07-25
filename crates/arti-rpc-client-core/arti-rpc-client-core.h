@@ -37,15 +37,17 @@
  *
  * ## Error handling
  *
- * On success, fallible functions return `ARTI_SUCCESS`.  On failure,
- * they return some other error code, and store the most recent
- * error in thread-local state.
+ * On success, fallible functions return `ARTI_STATUS_SUCCESS`.  On failure,
+ * they return some other error code, and set an `* error_out` parameter
+ * to a newly allocated `ArtiRpcError` object.
+ * (If `error_out==NULL`, then no error is allocated.)
  *
- * You can access information about the most recent error
- * by calling `arti_err_{status,message,response}(NULL)`.
- * Alternatively, you can make a copy of the most recent error
- * by calling `arti_err_clone(NULL)`, and then passing the resulting error
- * to the `arti_err_{status,message,response}()` functions.
+ * You can access information about the an `ArtiRpcError`
+ * by calling `arti_err_{status,message,response}()` on it.
+ * When you are done with an error, you should free it with
+ * `arti_err_free()`.
+ *
+ * The `error_out` parameter always appears last.
  *
  * ## Interface conventions
  *
@@ -56,6 +58,21 @@
  *
  * - All identifiers are prefixed with `arti`, in some case.
  *
+ * - Newly allocated objects are always returned via out-parameters, with `out` in their names.
+ *   (For example, `ArtiObject **out`).  In such cases, `* out`
+ *
+ * - When any object is exposed as a non-const pointer,
+ *   the application becomes the owner of that object.
+ *   The application is expected to eventually free that object via some `free()` function.
+ *
+ * - When any object is exposed via a const pointer,
+ *   that object is now owned by the application.
+ *   That object's lifetime will be as documented.
+ *   The application must not modify or free such an object.
+ *
+ * - If a function should be considered a method on a given type of object,
+ *   it will take a pointer to that object as its first argument.
+ *
  * ## Safety
  *
  * - Basic C safety requirements apply: every function's input pointers
@@ -64,6 +81,7 @@
  * - All input strings must obey the additional requirements of CStr::from_ptr:
  *   They must be valid for their entire extent, they must be no larger than SSIZE_MAX,
  *   they must be nul-terminated, and they must not be mutated while in use.
+ *
  * - In each case where pointers are passed, we explicitly state
  *   whether ownership is transferred.
  * ^ TODO RPC: Make sure we actually document this!
@@ -98,6 +116,15 @@ typedef uint32_t ArtiStatus;
 typedef struct ArtiRpcConn ArtiRpcConn;
 
 /**
+ * An error returned by the Arti RPC code, exposed as an object.
+ *
+ * When a function returns an [`ArtiStatus`] other than [`ARTI_STATUS_SUCCESS`],
+ * it will also expose a newly allocated value of this type
+ * via its `error_out` parameter.
+ */
+typedef struct ArtiError ArtiError;
+
+/**
  * An owned string, returned by this library.
  *
  * This string must be released with `arti_rpc_str_free`.
@@ -105,17 +132,6 @@ typedef struct ArtiRpcConn ArtiRpcConn;
  * The string is guaranteed to be UTF-8 and NUL-terminated.
  */
 typedef struct ArtiRpcStr ArtiRpcStr;
-
-/**
- * An error returned by the Arti RPC code, exposed as an object.
- *
- * After a function has returned an [`ArtiStatus`] other than [`ARTI_SUCCESS`],
- * you can use [`arti_err_clone`]`(NULL)` to get a copy of the most recent error.
- *
- * Functions that return information about an error will either take a pointer
- * to one of these objects, or NULL to indicate the most error in a given thread.
- */
-typedef struct ArtiError ArtiError;
 
 /**
  * The function has returned successfully.
@@ -217,38 +233,40 @@ extern "C" {
  * The location of the instance and the method to connect to it are described in
  * `connection_string`.
  *
- * On success, return `ARTI_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
- * Otherwise returns some other status cod and set `*rpc_conn_out` to NULL.
+ * On success, return `ARTI_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
+ * Otherwise return some other status code, set `*rpc_conn_out` to NULL, and set
+ * `*error_out` (if provided) to a newly allocated error object.
  *
  * # Safety
  *
  * Standard safety warnings apply; see library header.
  */
 ArtiStatus arti_connect(const char *connection_string,
-                        ArtiRpcConn **rpc_conn_out);
+                        ArtiRpcConn **rpc_conn_out,
+                        ArtiError **error_out);
 
 /**
  * Run an RPC request over `rpc_conn` and wait for a successful response.
  *
  * The message `msg` should be a valid RPC request in JSON format.
- * If you omit its `id`` field, one will be generated: this is typically the best way to use this function.
+ * If you omit its `id` field, one will be generated: this is typically the best way to use this function.
  *
  * On success, return `ARTI_SUCCESS` and set `*response_out` to a newly allocated string
  * containing the Json response to your request (including `id` and `response` fields).
  *
- * Otherwise returns some other status code, and set `*response_out` to NULL.
+ * Otherwise return some other status code,  set `*response_out` to NULL,
+ * and set `*error_out` (if provided) to a newly allocated error object.
  *
  * (If response_out is set to NULL, then any successful response will be ignored.)
  *
  * # Safety
  *
  * The caller must not modify the length of `*response_out`.
- *
- * The caller must free `*response_out` with `arti_free_str()`, not with `free()` or any other call.
  */
 ArtiStatus arti_rpc_execute(const ArtiRpcConn *rpc_conn,
                             const char *msg,
-                            ArtiRpcStr **response_out);
+                            ArtiRpcStr **response_out,
+                            ArtiError **error_out);
 
 /**
  * Free a string returned by the Arti RPC API.
@@ -295,8 +313,7 @@ const char *arti_status_to_str(ArtiStatus status);
 /**
  * Return the status code associated with a given error.
  *
- * If `err` is NULL, instead return the status code from the most recent error to occur in this
- * thread.
+ * If `err` is NULL, return [`ARTI_STATUS_INVALID_INPUT`].
  *
  * # Safety
  *
@@ -307,45 +324,37 @@ ArtiStatus arti_err_status(const ArtiError *err);
 /**
  * Return a human-readable error message associated with a given error.
  *
- * If `err` is NULL, instead return the error message from the most recent error to occur in this
- * thread.
- *
  * The format of these messages may change arbitrarily between versions of this library;
  * it is a mistake to depend on the actual contents of this message.
+ *
+ * Return NULL if the input `err` is NULL.
  *
  * # Safety
  *
  * The returned pointer is only as valid for as long as `err` is valid.
- *
- * If `err` is NULL, then the returned pointer is only valid until another
- * error occurs in this thread.
  */
 const char *arti_err_message(const ArtiError *err);
 
 /**
  * Return a Json-formatted error response associated with a given error.
  *
- * If `err` is NULL, instead return the response from the most recent error to occur in this
- * thread.
- *
  * These messages are full responses, including the `error` field,
  * and the `id` field (if present).
  *
  * Return NULL if the specified error does not represent an RPC error response.
  *
+ * Return NULL if the input `err` is NULL.
+ *
  * # Safety
  *
  * The returned pointer is only as valid for as long as `err` is valid.
- *
- * If `err` is NULL, then the returned pointer is only valid until another
- * error occurs in this thread.
  */
 const char *arti_err_response(const ArtiError *err);
 
 /**
  * Make and return copy of a provided error.
  *
- * If `err` is NULL, instead return a copy of the most recent error to occur in this thread.
+ * Return NULL if the input is NULL.
  *
  * May return NULL if an internal error occurs.
  *
