@@ -22,12 +22,11 @@ use serde::{Deserialize, Serialize};
 pub enum AnyRequestId {
     /// A numeric request ID.
     ///
-    /// Note that values above `2^53-1` may not work with all
+    /// Note that values larger than `±2^53-1` may not work with all
     /// JSON implementations.
-    Number(u64),
+    Number(i64),
     /// A string request ID.
     String(String),
-    // TODO RPC: Need to allow negative numbers!
 }
 
 /// An identifier for some object visible to the Arti RPC system.
