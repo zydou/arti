@@ -2256,4 +2256,6 @@ impl Drop for Reactor {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    // Tested in [`crate::circuit::test`].
+}
