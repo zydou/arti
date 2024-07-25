@@ -26,7 +26,12 @@ pub(crate) use define_from_for_arc;
 pub struct Utf8CString {
     /// The body of this string.
     ///
+    /// # Safety
+    ///
     /// INVARIANT: This string must be valid UTF-8.
+    ///
+    /// (We do not _yet_ depend on this invariant for safety in our rust code, but we do promise in
+    /// our C ffi that it will hold.)
     string: Box<CStr>,
 }
 
@@ -51,6 +56,7 @@ impl TryFrom<String> for Utf8CString {
     type Error = NulError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
+        // Safety: Since `value` is a string, it is guaranteed to be UTF-8.
         Ok(Utf8CString {
             string: CString::new(value)?.into_boxed_c_str(),
         })
