@@ -74,7 +74,7 @@ header = """\
  *
  * - When any object is exposed as a non-const pointer,
  *   the application becomes the owner of that object.
- *   The application is expected to eventually free that object via some `free()` function.
+ *   The application is expected to eventually free that object via the corresponding `arti_rpc_*_free()` function.
  *
  * - When any object is exposed via a const pointer,
  *   that object is now owned by the application.
@@ -86,7 +86,11 @@ header = """\
  *
  * ## Correctness requirements
  *
- * - Basic C safety requirements apply:
+ * If any correctness requirements stated here or elsewhere are violated,
+ * it is Undefined Behaviour.
+ * Violations will not be detected by the library.
+ * 
+ * - Basic C rules apply:
  *     - Every function's input pointers
  *       must point to valid data of the correct type, unless it is NULL.
  *     - If you receive data via a `const *`, you must not modify that data.
@@ -96,11 +100,9 @@ header = """\
  *   You must not use libc's free() to free such objects.
  * - All objects passed as input to a library function must not be mutated
  *   while that function is running.
- * - All strings passed as input to a library function must obey
- *   the additional requirements of Rust's CStr::from_ptr:
- *   They must be valid for their entire extent,
- *   they must be no larger than `SSIZE_MAX`,
- *   they must be nul-terminated, and they must not be mutated while in use.
+ * - All `const char*` passed as inputs to library functions
+ *   are nul-terminated strings.
+ *   Additionally, they must be no larger than `SSIZE_MAX`.
  *
  * In each case where a non-const pointer is passed, we explicitly state whether ownership
  * (that is to say, responsibility for freeing the pointed-to object)
