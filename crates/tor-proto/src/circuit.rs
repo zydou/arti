@@ -2128,7 +2128,7 @@ mod test {
         };
 
         let receive_fut = async move {
-            // Read the begindir cell.
+            // Read the begin cell.
             let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             let rmsg = match chmsg {
                 AnyChanMsg::Relay(r) => {
