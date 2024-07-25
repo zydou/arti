@@ -947,6 +947,12 @@ impl ClientCirc {
         self.unique_id
     }
 
+    /// Testing only: Extract the circuit ID of this circuit.
+    #[cfg(test)]
+    pub(crate) fn peek_circid(&self) -> CircId {
+        self.circid
+    }
+
     /// Return the number of hops in this circuit.
     ///
     /// NOTE: This function will currently return only the number of hops
@@ -1461,7 +1467,7 @@ mod test {
         let simulate_relay_fut = async move {
             let mut rng = testing_rng();
             let create_cell = rx.next().await.unwrap();
-            assert_eq!(create_cell.circid(), CircId::new(128));
+            assert_eq!(create_cell.circid(), Some(circid));
             let reply = match handshake_type {
                 HandshakeType::Fast => {
                     let cf = match create_cell.msg() {
@@ -1679,7 +1685,7 @@ mod test {
             // Here's what we tried to put on the TLS channel.  Note that
             // we're using dummy relay crypto for testing convenience.
             let rcvd = rx.next().await.unwrap();
-            assert_eq!(rcvd.circid(), CircId::new(128));
+            assert_eq!(rcvd.circid(), Some(circ.peek_circid()));
             let m = match rcvd.into_circid_and_msg().1 {
                 AnyChanMsg::Relay(r) => {
                     AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -1696,6 +1702,7 @@ mod test {
 
         let (chan, mut rx, _sink) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
+        let circid = circ.peek_circid();
         let params = CircParameters::default();
 
         let extend_fut = async move {
@@ -1712,7 +1719,7 @@ mod test {
             // We've disabled encryption on this circuit, so we can just
             // read the extend2 cell.
             let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-            assert_eq!(id, CircId::new(128));
+            assert_eq!(id, Some(circid));
             let rmsg = match chmsg {
                 AnyChanMsg::RelayEarly(r) => {
                     AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -1888,6 +1895,7 @@ mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
             let (circ, mut sink) = newcirc(&rt, chan).await;
+            let circid = circ.peek_circid();
 
             let begin_and_send_fut = async move {
                 // Here we'll say we've got a circuit, and we want to
@@ -1906,7 +1914,7 @@ mod test {
                 // We've disabled encryption on this circuit, so we can just
                 // read the begindir cell.
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128)); // hardcoded circid.
+                assert_eq!(id, Some(circid));
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -1923,7 +1931,7 @@ mod test {
 
                 // Now read a DATA cell...
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128));
+                assert_eq!(id, Some(circid));
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -2042,6 +2050,7 @@ mod test {
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
+        let circid = circ.peek_circid();
 
         let begin_and_send_fut = {
             let circ = circ.clone();
@@ -2084,7 +2093,7 @@ mod test {
             while bytes_received < n_to_send {
                 // Read a data cell, and remember how much we got.
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128));
+                assert_eq!(id, Some(circid));
 
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => {
