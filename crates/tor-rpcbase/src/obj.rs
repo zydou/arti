@@ -29,10 +29,6 @@ pub trait Object: DowncastSync + Send + Sync + 'static {
     /// stream, it needs to declare what RPC context (like a `TorClient`) it's
     /// using, which requires that some identifier for that context exist
     /// outside of the RPC session that owns it.
-    //
-    // TODO RPC: It would be neat if this were automatically set to true if and
-    // only if there were any "out-of-session psuedomethods" defined on the
-    // object.
     fn expose_outside_of_session(&self) -> bool {
         false
     }
@@ -286,9 +282,7 @@ define_derive_deftly! {
         }}
 
         fn get_cast_table(&self) -> &$crate::CastTable {
-            // TODO RPC: Is there a better way to check "is this a generic type"?
-            // See derive-deftly#37
-            ${if not(approx_equal({$tgens}, {})) {
+            ${if tgens {
                 // For generic types, we have a potentially unbounded number
                 // of CastTables: one for each instantiation of the type.
                 // Therefore we keep a mutable add-only HashMap of CastTables.

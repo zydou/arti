@@ -51,7 +51,7 @@ pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
 pub use err::RpcError;
 pub use method::{
     check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod,
-    InvalidMethodName, Method, NoUpdates,
+    InvalidMethodName, Method, NoUpdates, RpcMethod,
 };
 pub use obj::{Object, ObjectArcExt, ObjectId};
 
@@ -70,9 +70,6 @@ pub mod templates {
 }
 
 /// An error returned from [`ContextExt::lookup`].
-///
-/// TODO RPC: This type should be made to conform with however we represent RPC
-/// errors.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum LookupError {
@@ -85,6 +82,17 @@ pub enum LookupError {
     /// expected type.
     #[error("Unexpected type on object with ID {0:?}")]
     WrongType(ObjectId),
+}
+
+impl tor_error::HasKind for LookupError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use LookupError as E;
+        match self {
+            E::NoObject(_) => EK::RpcObjectNotFound,
+            E::WrongType(_) => EK::RpcInvalidRequest,
+        }
+    }
 }
 
 /// A trait describing the context in which an RPC method is executed.
@@ -143,6 +151,12 @@ pub enum SendUpdateError {
     ConnectionClosed,
 }
 
+impl tor_error::HasKind for SendUpdateError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::Internal
+    }
+}
+
 impl From<Infallible> for SendUpdateError {
     fn from(_: Infallible) -> Self {
         unreachable!()
@@ -183,10 +197,6 @@ pub fn invoke_rpc_method(
     method: Box<dyn DynMethod>,
     sink: dispatch::BoxedUpdateSink,
 ) -> Result<dispatch::RpcResultFuture, InvokeError> {
-    // TODO RPC: Possibly, we should make this and `invoke_special_method` into
-    // methods on an extension trait of Arc<dyn Context>.  We can't put them
-    // onto ContextExt, since they would impose a `Sized` requirement there.
-    // We also can't add inherent impls to Arc<dyn Context>.
     let invocable = ctx
         .dispatch_table()
         .read()
@@ -208,7 +218,7 @@ pub async fn invoke_special_method<M: Method>(
     ctx: Arc<dyn Context>,
     obj: Arc<dyn Object>,
     method: Box<M>,
-) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
+) -> Result<Box<M::Output>, InvokeError> {
     let invocable = ctx
         .dispatch_table()
         .read()
@@ -225,9 +235,6 @@ pub async fn invoke_special_method<M: Method>(
 /// A serializable empty object.
 ///
 /// Used when we need to declare that a method returns nothing.
-///
-/// TODO RPC: Perhaps we can get () to serialize as {} and make this an alias
-/// for ().
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Default)]
 #[non_exhaustive]
 pub struct Nil {}
@@ -266,7 +273,7 @@ mod test {
 
     #[async_test]
     async fn invoke() {
-        let ctx = Arc::new(Ctx::default());
+        let ctx = Arc::new(Ctx::from(DispatchTable::from_inventory()));
         let discard = || Box::pin(futures::sink::drain().sink_err_into());
         let r = invoke_rpc_method(ctx.clone(), Arc::new(Swan), Box::new(GetKids), discard())
             .unwrap()

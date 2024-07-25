@@ -10,9 +10,6 @@ pub struct RpcError {
     /// The ErrorKind(s) of this error.
     #[serde(serialize_with = "ser_kind")]
     kinds: tor_error::ErrorKind,
-    /// An underlying serializable object, if any, to be sent along with the
-    /// error.
-    data: Option<Box<dyn erased_serde::Serialize + Send>>,
 }
 
 impl RpcError {
@@ -24,41 +21,17 @@ impl RpcError {
 
 impl<T> From<T> for RpcError
 where
-    T: std::error::Error + tor_error::HasKind + serde::Serialize + Send + 'static,
+    T: std::error::Error + tor_error::HasKind + Send + 'static,
 {
-    fn from(value: T) -> Self {
-        let message = value.to_string();
+    fn from(value: T) -> RpcError {
+        use tor_error::ErrorReport as _;
+        let message = value.report().to_string();
         let code = kind_to_code(value.kind());
         let kinds = value.kind();
-        let boxed: Box<dyn erased_serde::Serialize + Send> = Box::new(value);
-        let data = Some(boxed);
         RpcError {
             message,
             code,
             kinds,
-            data,
-        }
-    }
-}
-
-impl From<crate::dispatch::InvokeError> for crate::RpcError {
-    fn from(_value: crate::dispatch::InvokeError) -> Self {
-        crate::RpcError {
-            message: "Tried to invoke unsupported method on object".to_string(),
-            code: RpcCode::MethodNotFound,
-            kinds: tor_error::ErrorKind::RpcMethodNotFound,
-            data: None,
-        }
-    }
-}
-
-impl From<crate::LookupError> for crate::RpcError {
-    fn from(value: crate::LookupError) -> Self {
-        crate::RpcError {
-            message: value.to_string(),
-            code: RpcCode::ObjectError,
-            kinds: tor_error::ErrorKind::RpcObjectNotFound,
-            data: None,
         }
     }
 }
@@ -77,23 +50,22 @@ fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S
 /// Error codes for backward compatibility with json-rpc.
 #[derive(Clone, Debug, Eq, PartialEq, serde_repr::Serialize_repr)]
 #[repr(i32)]
+#[allow(clippy::enum_variant_names)]
 enum RpcCode {
     /// "The JSON sent is not a valid Request object."
-    //
-    // TODO RPC: Our current serde code does not distinguish between "I know of
-    // no method called X", "I know of a method called X but the parameters were
-    // wrong", and "I couldn't even parse that thing as a Request!
-    InvalidRequest = -32600,
-    /// "The method does not exist / is not available on this object."
-    MethodNotFound = -32601,
+    RpcInvalidRequest = -32600,
+    /// "The method does not exist."
+    RpcNoSuchMethod = -32601,
     /// "Invalid method parameter(s)."
-    InvalidParams = -32602,
+    RpcInvalidParams = -32602,
     /// "The server suffered some kind of internal problem"
-    InternalError = -32603,
+    RpcInternalError = -32603,
     /// "Some requested object was not valid"
-    ObjectError = 1,
+    RpcObjectError = 1,
     /// "Some other error occurred"
-    RequestError = 2,
+    RpcRequestError = 2,
+    /// This method exists, but wasn't implemented on this object.
+    RpcMethodNotImpl = 3,
 }
 
 /// Helper: Return an error code (for backward compat with json-rpc) for an
@@ -103,12 +75,13 @@ enum RpcCode {
 fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
     use tor_error::ErrorKind as EK;
     match kind {
-        EK::RpcInvalidRequest => RpcCode::InvalidRequest,
-        EK::RpcMethodNotFound => RpcCode::MethodNotFound,
-        EK::RpcInvalidMethodParameters => RpcCode::InvalidParams,
-        EK::Internal | EK::BadApiUsage => RpcCode::InternalError,
-        EK::RpcObjectNotFound => RpcCode::ObjectError,
-        _ => RpcCode::RequestError, // (This is our catch-all "request error.")
+        EK::RpcInvalidRequest => RpcCode::RpcInvalidRequest,
+        EK::RpcMethodNotFound => RpcCode::RpcNoSuchMethod,
+        EK::RpcMethodNotImpl => RpcCode::RpcMethodNotImpl,
+        EK::RpcInvalidMethodParameters => RpcCode::RpcInvalidParams,
+        EK::Internal | EK::BadApiUsage => RpcCode::RpcInternalError,
+        EK::RpcObjectNotFound => RpcCode::RpcObjectError,
+        _ => RpcCode::RpcRequestError, // (This is our catch-all "request error.")
     }
 }
 
@@ -118,19 +91,7 @@ impl std::fmt::Debug for RpcError {
             .field("message", &self.message)
             .field("code", &self.code)
             .field("kinds", &self.kinds)
-            .field("data", &self.data.as_ref().map(|_| "..."))
             .finish()
-    }
-}
-
-impl From<crate::SendUpdateError> for RpcError {
-    fn from(value: crate::SendUpdateError) -> Self {
-        Self {
-            message: value.to_string(),
-            code: RpcCode::RequestError,
-            kinds: tor_error::ErrorKind::Internal,
-            data: None,
-        }
     }
 }
 
@@ -189,28 +150,21 @@ mod test {
 
     #[test]
     fn serialize_error() {
-        // TODO RPC: I am not sure that the error formats here-- especially for
-        // ProgramUnwilling-- match the one in the spec.  We may need to mess
-        // with our serde, unless we revise the spec to say these are okay.
+        // TODO: Since we do not expose `data`, these error formats are now more or less useless.
+        // We should revisit them if we decide to reintroduce error data.
 
         let err = ExampleError::SomethingExploded {
             what: "previous implementation".into(),
             why: "worse things happen at C".into(),
         };
         let err = RpcError::from(err);
-        assert_eq!(err.code, RpcCode::RequestError);
+        assert_eq!(err.code, RpcCode::RpcRequestError);
         let serialized = serde_json::to_string(&err).unwrap();
         let expected_json = r#"
           {
-            "message": "The previous implementation exploded because worse things happen at C",
+            "message": "error: The previous implementation exploded because worse things happen at C",
             "code": 2,
-            "kinds": ["arti:Other"],
-            "data": {
-                "SomethingExploded": {
-                    "what": "previous implementation",
-                    "why": "worse things happen at C"
-                }
-            }
+            "kinds": ["arti:Other"]
          }
         "#;
         assert_json_eq!(&serialized, expected_json);
@@ -223,15 +177,9 @@ mod test {
         let serialized = serde_json::to_string(&err).unwrap();
         let expected = r#"
         {
-            "message": "I'm hiding the zircon-encrusted tweezers in my chrome dinette",
+            "message": "error: I'm hiding the zircon-encrusted tweezers in my chrome dinette",
             "code": 1,
-            "kinds": ["arti:RpcObjectNotFound"],
-            "data": {
-                "SomethingWasHidden": [
-                    "zircon-encrusted tweezers",
-                    "chrome dinette"
-                ]
-            }
+            "kinds": ["arti:RpcObjectNotFound"]
          }
         "#;
         assert_json_eq!(&serialized, expected);
@@ -241,12 +189,9 @@ mod test {
         let serialized = serde_json::to_string(&err).unwrap();
         let expected = r#"
         {
-            "message": "The turbo-encabulator was missing",
+            "message": "error: The turbo-encabulator was missing",
             "code": 2,
-            "kinds": ["arti:FeatureDisabled"],
-            "data": {
-                "SomethingWasMissing": "turbo-encabulator"
-            }
+            "kinds": ["arti:FeatureDisabled"]
          }
         "#;
         assert_json_eq!(&serialized, expected);
@@ -256,10 +201,9 @@ mod test {
         let serialized = serde_json::to_string(&err).unwrap();
         let expected = r#"
         {
-            "message": "I don't feel up to it today",
+            "message": "error: I don't feel up to it today",
             "code": -32603,
-            "kinds": ["arti:Internal"],
-            "data": "ProgramUnwilling"
+            "kinds": ["arti:Internal"]
          }
         "#;
         assert_json_eq!(&serialized, expected);

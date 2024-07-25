@@ -195,10 +195,9 @@ mod test {
         stuff: u64,
     }
 
-    impl rpc::Method for DummyMethod {
+    impl rpc::RpcMethod for DummyMethod {
         type Output = DummyResponse;
         type Update = rpc::NoUpdates;
-        type Error = rpc::RpcError;
     }
 
     #[derive(Serialize)]
@@ -277,7 +276,7 @@ mod test {
             r#"{ "id": 3, "obj": "hello", "meta": { "updates": 3}, "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
-            RPE::MethodUnrecognized,
+            RPE::MethodNotFound,
             r#"{ "id": 3, "obj": "hello", "method": "arti:this-is-not-a-method", "params": {} }"#
         );
         expect_err!(
@@ -315,7 +314,7 @@ mod test {
         // NOTE: as above.
         assert_eq!(
             s,
-            r#"{"error":{"message":"Request did not have any `id` field.","code":-32600,"kinds":["arti:RpcInvalidRequest"],"data":"IdMissing"}}"#
+            r#"{"error":{"message":"error: Request did not have any `id` field.","code":-32600,"kinds":["arti:RpcInvalidRequest"]}}"#
         );
     }
 }

@@ -221,10 +221,9 @@ async fn rpcdatastream_resolve_ptr_with_prefs(
 #[deftly(rpc(method_name = "arti:new_stream_handle"))]
 pub(crate) struct NewStreamHandle {}
 
-impl rpc::Method for NewStreamHandle {
+impl rpc::RpcMethod for NewStreamHandle {
     type Output = rpc::SingletonId;
     type Update = rpc::NoUpdates; // TODO actually, updates are quite suitable here.
-    type Error = rpc::RpcError;
 }
 
 /// Helper: construct and register an RpcDataStream.

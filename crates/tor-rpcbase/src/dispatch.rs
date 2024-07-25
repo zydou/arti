@@ -158,8 +158,6 @@ macro_rules! declare_invocable_impl {
             OBJ: Object,
             S: 'static,
             E: 'static,
-            M::Output: From<S>,
-            M::Error: From<E>,
             Fut: futures::Future<Output = Result<S,E>> + Send + 'static,
             $( M::Update: From<$update_gen>, )?
             $( $($update_arg_where)+ )?
@@ -181,7 +179,6 @@ macro_rules! declare_invocable_impl {
                 )
             }
 
-            // TODO RPC Try to reduce duplication between special and serialisable methods, after things have settled down
             fn invoke_special(
                 &self,
                 obj: Arc<dyn Object>,
@@ -214,15 +211,14 @@ macro_rules! declare_invocable_impl {
         impl<M, OBJ, Fut, S, E, $($update_gen)?> RpcInvocable
             for fn(Arc<OBJ>, Box<M>, Arc<dyn Context + 'static> $(, $update_arg )? ) -> Fut
         where
-            M: crate::Method,
+            M: crate::RpcMethod,
             M::Output: serde::Serialize,
             S: 'static,
             E: 'static,
             OBJ: Object,
             Fut: futures::Future<Output = Result<S, E>> + Send + 'static,
             M::Output: From<S>,
-            M::Error: From<E>,
-            RpcError: From<M::Error>,
+            RpcError: From<E>,
             $( M::Update: From<$update_gen>, )?
             $( $($update_arg_where)+ )?
         {
@@ -255,7 +251,7 @@ macro_rules! declare_invocable_impl {
                         .map(|r| {
                             let r: RpcResult = match r {
                                 Ok(v) => Ok(Box::new(M::Output::from(v))),
-                                Err(e) => Err(RpcError::from(M::Error::from(e))),
+                                Err(e) => Err(RpcError::from(e)),
                             };
                             r
                         })
@@ -354,10 +350,6 @@ macro_rules! invoker_ent {
                 (Some($crate::invocable_func_as_dyn_invocable!($func, $crate::dispatch::RpcInvocable))),
         }
     };
-    // TODO RPC: Possibly, replace this with a separate macro?
-    //
-    // (If we do this, we'll likely need a separate versions
-    // of invoker_ent_list and static_rpc_invoke_fn.)
     { @special $func:expr } => {
         $crate::invoker_ent!{ @@impl
             func: ($func),
@@ -433,10 +425,9 @@ inventory::collect!(InvokerEnt);
 /// #[derive_deftly(DynMethod)]
 /// #[deftly(rpc(method_name = "arti:x-example"))]
 /// struct ExampleMethod {}
-/// impl rpc::Method for ExampleMethod {
+/// impl rpc::RpcMethod for ExampleMethod {
 ///     type Output = ExampleResult;
 ///     type Update = Progress;
-///     type Error = rpc::RpcError;
 /// }
 ///
 /// #[derive(serde::Serialize)]
@@ -690,45 +681,6 @@ impl DispatchTable {
         let ent = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
         Ok(ent.invoker)
     }
-
-    /// Try to find an appropriate function for calling a given RPC method on a
-    /// given RPC-visible object.
-    ///
-    /// On success, return a Future.
-    //
-    // TODO RPC: Possibly deprecate this in favor of crate::invoke_rpc_method
-    pub fn invoke(
-        &self,
-        obj: Arc<dyn Object>,
-        method: Box<dyn DynMethod>,
-        ctx: Arc<dyn Context>,
-        sink: BoxedUpdateSink,
-    ) -> Result<RpcResultFuture, InvokeError> {
-        let rpc_invoker = self.rpc_invoker(obj.as_ref(), method.as_ref())?;
-
-        rpc_invoker.invoke(obj, method, ctx, sink)
-    }
-
-    /// Invoke the given method on `obj` within `ctx`, and return its
-    /// actual result type.
-    ///
-    /// Unlike `invoke`, this method does not return a type-erased result,
-    /// and does not require that the result can be serialized as an RPC object.
-    //
-    // TODO RPC: Possibly deprecate this in favor of crate::invoke_special_method.
-    pub async fn invoke_special<M: crate::Method>(
-        &self,
-        obj: Arc<dyn Object>,
-        method: M,
-        ctx: Arc<dyn Context>,
-    ) -> Result<Box<Result<M::Output, M::Error>>, InvokeError> {
-        let invoker = self.special_invoker::<M>(obj.as_ref())?;
-
-        let fut = invoker.invoke_special(obj, Box::new(method), ctx)?;
-        fut.await
-            .downcast()
-            .map_err(|_| InvokeError::Bug(tor_error::internal!("Downcast to wrong type")))
-    }
 }
 
 /// An error that occurred while trying to invoke a method on an object.
@@ -771,7 +723,7 @@ pub(crate) mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::{templates::*, DispatchTable, Method, NoUpdates};
+    use crate::{method::RpcMethod, templates::*, DispatchTable, Method, NoUpdates};
     use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;
@@ -805,15 +757,13 @@ pub(crate) mod test {
     #[deftly(rpc(method_name = "x-test:getkids"))]
     pub(crate) struct GetKids;
 
-    impl Method for GetName {
+    impl RpcMethod for GetName {
         type Output = Outcome;
         type Update = NoUpdates;
-        type Error = crate::RpcError;
     }
-    impl Method for GetKids {
+    impl RpcMethod for GetKids {
         type Output = Outcome;
         type Update = String;
-        type Error = crate::RpcError;
     }
 
     #[derive(serde::Serialize)]
@@ -901,10 +851,10 @@ pub(crate) mod test {
     pub(crate) struct Ctx {
         table: Arc<RwLock<DispatchTable>>,
     }
-    impl Default for Ctx {
-        fn default() -> Self {
-            Ctx {
-                table: Arc::new(RwLock::new(DispatchTable::from_inventory())),
+    impl From<DispatchTable> for Ctx {
+        fn from(table: DispatchTable) -> Self {
+            Self {
+                table: Arc::new(RwLock::new(table)),
             }
         }
     }
@@ -995,25 +945,24 @@ pub(crate) mod test {
     async fn try_invoke() {
         use super::*;
         fn invoke_helper<O: Object, M: Method>(
-            table: &DispatchTable,
+            ctx: &Arc<dyn Context>,
             obj: O,
             method: M,
         ) -> Result<RpcResultFuture, InvokeError> {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
             let request: Box<dyn DynMethod> = Box::new(method);
-            let ctx = Arc::new(Ctx::default());
             let discard = Box::pin(futures::sink::drain().sink_err_into());
-            table.invoke(animal, request, ctx, discard)
+            crate::invoke_rpc_method(Arc::clone(ctx), animal, request, discard)
         }
         async fn invoke_ok<O: crate::Object, M: crate::Method>(
-            table: &DispatchTable,
+            table: &Arc<dyn Context>,
             obj: O,
             method: M,
         ) -> String {
             let res = invoke_helper(table, obj, method).unwrap().await.unwrap();
             serde_json::to_string(&res).unwrap()
         }
-        async fn sentence<O: crate::Object + Clone>(table: &DispatchTable, obj: O) -> String {
+        async fn sentence<O: crate::Object + Clone>(table: &Arc<dyn Context>, obj: O) -> String {
             format!(
                 "Hello I am a friendly {} and these are my lovely {}.",
                 invoke_ok(table, obj.clone(), GetName).await,
@@ -1021,7 +970,7 @@ pub(crate) mod test {
             )
         }
 
-        let table = DispatchTable::from_inventory();
+        let table: Arc<dyn Context> = Arc::new(Ctx::from(DispatchTable::from_inventory()));
 
         assert_eq!(
             sentence(&table, Swan).await,
@@ -1070,8 +1019,10 @@ pub(crate) mod test {
             invoke_helper(&table, obj3.clone(), GetKids),
             Err(InvokeError::NoImpl)
         ));
-        let mut table = table;
-        GenericObj::<u64, u64>::install_rpc_functions(&mut table);
+        {
+            let mut tab = table.dispatch_table().write().unwrap();
+            GenericObj::<u64, u64>::install_rpc_functions(&mut tab);
+        }
         assert_eq!(
             sentence(&table, obj3).await,
             r#"Hello I am a friendly {"v":"13371337"} and these are my lovely {"v":"2718281828"}."#
@@ -1087,8 +1038,7 @@ pub(crate) mod test {
     #[deftly(rpc(no_method_name))]
     struct SpecialOnly {}
     impl Method for SpecialOnly {
-        type Output = MyObject; // Doesn't implement deserialize.
-        type Error = MyObject;
+        type Output = Result<MyObject, MyObject>; // Doesn't implement deserialize.
         type Update = crate::NoUpdates;
     }
 
@@ -1104,36 +1054,41 @@ pub(crate) mod test {
     #[async_test]
     async fn try_invoke_special() {
         let table = crate::DispatchTable::from_inventory();
+        let ctx: Arc<dyn crate::Context> = Arc::new(Ctx::from(table));
 
-        let res: Outcome = table
-            .invoke_special(Arc::new(Swan), GetKids, Arc::new(Ctx::default()))
-            .await
-            .unwrap()
-            .unwrap();
+        let res: Outcome =
+            crate::invoke_special_method(Arc::clone(&ctx), Arc::new(Swan), Box::new(GetKids))
+                .await
+                .unwrap()
+                .unwrap();
 
         assert_eq!(res.v, "cygnets");
 
-        let _an_obj: MyObject = table
-            .invoke_special(Arc::new(Swan), SpecialOnly {}, Arc::new(Ctx::default()))
-            .await
-            .unwrap()
-            .unwrap();
+        let _an_obj: MyObject = crate::invoke_special_method(
+            Arc::clone(&ctx),
+            Arc::new(Swan),
+            Box::new(SpecialOnly {}),
+        )
+        .await
+        .unwrap()
+        .unwrap();
     }
 
     #[test]
     fn invoke_poorly() {
         // Make sure that our invoker function invocations return plausible bugs warnings on
         // misuse.
-        let table = DispatchTable::from_inventory();
+        let ctx: Arc<dyn crate::Context> = Arc::new(Ctx::from(DispatchTable::from_inventory()));
         let discard = || Box::pin(futures::sink::drain().sink_err_into());
 
+        let table = DispatchTable::from_inventory();
         let ent = table.rpc_invoker(&Swan, &GetKids).unwrap();
 
         // Wrong method
         let bug = ent.invoke(
             Arc::new(Swan),
             Box::new(GetName),
-            Arc::new(Ctx::default()),
+            Arc::clone(&ctx),
             discard(),
         );
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
@@ -1142,20 +1097,16 @@ pub(crate) mod test {
         let bug = ent.invoke(
             Arc::new(Wombat),
             Box::new(GetKids),
-            Arc::new(Ctx::default()),
+            Arc::clone(&ctx),
             discard(),
         );
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
 
         // Special: Wrong method.
-        let bug = ent.invoke_special(Arc::new(Swan), Box::new(GetName), Arc::new(Ctx::default()));
+        let bug = ent.invoke_special(Arc::new(Swan), Box::new(GetName), Arc::clone(&ctx));
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
         // Special: Wrong object type
-        let bug = ent.invoke_special(
-            Arc::new(Wombat),
-            Box::new(GetKids),
-            Arc::new(Ctx::default()),
-        );
+        let bug = ent.invoke_special(Arc::new(Wombat), Box::new(GetKids), Arc::clone(&ctx));
         assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
     }
 
