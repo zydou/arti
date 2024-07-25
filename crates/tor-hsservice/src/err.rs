@@ -4,6 +4,9 @@ use crate::internal_prelude::*;
 
 pub use crate::rend_handshake::{EstablishSessionError, IntroRequestError};
 
+#[cfg(feature = "restricted-discovery")]
+pub use crate::config::restricted_discovery::RestrictedDiscoveryConfigError;
+
 /// An error which occurs trying to create and start up an onion service
 ///
 /// This is only returned by startup methods.
@@ -55,6 +58,11 @@ pub enum StartupError {
         action: &'static str,
     },
 
+    /// Invalid restricted discovery configuration.
+    #[cfg(feature = "restricted-discovery")]
+    #[error("Invalid restricted discovery configuration")]
+    RestrictedDiscovery(#[from] RestrictedDiscoveryConfigError),
+
     /// Fatal error (during startup)
     #[error("fatal error")]
     Fatal(#[from] FatalError),
@@ -97,6 +105,8 @@ impl HasKind for StartupError {
             E::LoadState(e) => e.kind(),
             E::StateDirectoryInaccessible(e) => e.kind(),
             E::StateDirectoryInaccessibleIo { .. } => EK::PersistentStateAccessFailed,
+            #[cfg(feature = "restricted-discovery")]
+            E::RestrictedDiscovery(_) => EK::InvalidConfig,
             E::Fatal(e) => e.kind(),
         }
     }

@@ -82,6 +82,7 @@ pub mod time_store_for_doctests_unstable_no_semver_guarantees {
     pub use crate::time_store::*;
 }
 
+use config::restricted_discovery::RestrictedDiscoveryKeys;
 use internal_prelude::*;
 
 // ---------- public exports ----------
@@ -101,6 +102,8 @@ pub use req::{RendRequest, StreamRequest};
 
 pub use helpers::handle_rend_requests;
 
+#[cfg(feature = "restricted-discovery")]
+pub use err::RestrictedDiscoveryConfigError;
 //---------- top-level service implementation (types and methods) ----------
 
 /// Convenience alias for link specifiers of an intro point
@@ -126,6 +129,13 @@ pub struct RunningOnionService {
     nickname: HsNickname,
     /// The key manager, used for accessing the underlying key stores.
     keymgr: Arc<KeyMgr>,
+    /// The restricted discovery authorized clients.
+    ///
+    /// Set to `None` if restricted discovery mode is disabled.
+    //
+    // Not currently used (will be used when we add support for live updating the client keys).
+    #[allow(unused)]
+    authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
 }
 
 /// Implementation details for an onion service.
@@ -300,6 +310,24 @@ impl OnionService {
             .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "restricted-discovery")] {
+                let authorized_clients = config
+                    .restricted_discovery
+                    .read_keys()?;
+            } else {
+                let authorized_clients: Option<RestrictedDiscoveryKeys> = None;
+            }
+        }
+
+        if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
+            warn!(
+                "Running in restricted discovery mode, but we have no authorized clients. Service will be unreachable"
+            );
+        }
+
+        let authorized_clients = Arc::new(Mutex::new(authorized_clients));
+
         let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
@@ -338,6 +366,7 @@ impl OnionService {
         let svc = Arc::new(RunningOnionService {
             nickname,
             keymgr,
+            authorized_clients: Arc::clone(&authorized_clients),
             inner: Mutex::new(SvcInner {
                 config_tx,
                 _shutdown_tx: shutdown_tx,
@@ -406,6 +435,8 @@ impl RunningOnionService {
                 _ => Arc::new(new_config),
             })
         })
+
+        // TODO: reconfigure the authorized_clients too
 
         // TODO (#1153, #1209): We need to make sure that the various tasks listening on
         // config_rx actually enforce the configuration, not only on new
