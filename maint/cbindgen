@@ -7,7 +7,7 @@
 # if the warnings have not changed.
 # You can replace the old headers _and_ the old saved warnings
 # with the  "--force" option.
-# You can use "-check" to make any changes (to headers or warnings) a failure.
+# You can use "--check" to make any changes (to headers or warnings) a failure.
 #
 # Our cbindgen configurations require nightly rust—otherwise, we can't
 # expand macros.  If $RUSTC_NIGHTLY is set, or if $RUSTC is nightly,
