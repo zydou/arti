@@ -4,10 +4,17 @@ use crate::internal_prelude::*;
 
 use tor_cell::relaycell::hs::est_intro;
 
+#[cfg(feature = "restricted-discovery")]
+#[cfg_attr(docsrs, doc(cfg(feature = "restricted-discovery")))]
+pub mod restricted_discovery;
+
+#[cfg(not(feature = "restricted-discovery"))]
+pub(crate) mod restricted_discovery;
+
 /// Configuration for one onion service.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq))]
+#[builder(derive(Serialize, Deserialize, Debug, Deftly))]
 #[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.

@@ -5463,8 +5463,10 @@ dependencies = [
 name = "tor-hsservice"
 version = "0.21.0"
 dependencies = [
+ "amplify",
  "async-trait",
  "base64ct",
+ "cfg-if",
  "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
