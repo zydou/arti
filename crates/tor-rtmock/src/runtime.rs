@@ -15,10 +15,22 @@ use crate::net::MockNetProvider;
 use crate::simple_time::SimpleMockTimeProvider;
 use crate::task::{MockExecutor, SchedulingPolicy};
 
-/// Completely mock runtime
+/// Completely mock runtime, with simulated time
 ///
 /// Suitable for test cases that wish to completely control
 /// the environment experienced by the code under test.
+///
+/// ### Useful properties
+///
+/// The execution order is deterministic.
+/// Time will advance only in a controlled fashion.
+/// Typically, the main task in a test will call
+/// [`advance_until_stalled`](MockRuntime::advance_until_stalled).
+///
+/// Reliable sequencing techniques which can be used in tests include:
+/// sleeping for carefully chosen durations;
+/// interlocking via intertask channels; or,
+/// sequenced control of requests to the code under test.
 ///
 /// ### Restrictions
 ///
@@ -27,6 +39,10 @@ use crate::task::{MockExecutor, SchedulingPolicy};
 ///
 /// Tests that use this runtime *must not* interact with the outside world;
 /// everything must go through this runtime (and its pieces).
+///
+/// There is no mocking of filesystem access;
+/// the `MockRuntime`'s time will disagree with `SystemTime`'s
+/// obtained from (for example) `std::fs::Metadata`.
 ///
 /// #### Allowed
 ///
