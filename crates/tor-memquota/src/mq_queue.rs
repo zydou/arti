@@ -498,3 +498,182 @@ impl From<CollapsedDueToReclaim> for CollapseReason {
         CollapseReason::MemoryReclaimed
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use crate::mtracker::test::*;
+    use tor_rtmock::MockRuntime;
+    use tracing::debug;
+    use tracing_test::traced_test;
+
+    #[derive(Default, Debug)]
+    struct ItemTracker {
+        state: Mutex<ItemTrackerState>,
+    }
+    #[derive(Default, Debug)]
+    struct ItemTrackerState {
+        existing: usize,
+        next_id: usize,
+    }
+
+    #[derive(Debug)]
+    struct Item {
+        id: usize,
+        tracker: Arc<ItemTracker>,
+    }
+
+    impl ItemTracker {
+        fn new_item(self: &Arc<Self>) -> Item {
+            let mut state = self.lock();
+            let id = state.next_id;
+            state.existing += 1;
+            state.next_id += 1;
+            debug!("new {id}");
+            Item {
+                tracker: self.clone(),
+                id,
+            }
+        }
+
+        fn new_tracker() -> Arc<Self> {
+            Arc::default()
+        }
+
+        fn lock(&self) -> MutexGuard<ItemTrackerState> {
+            self.state.lock().unwrap()
+        }
+    }
+
+    impl Drop for Item {
+        fn drop(&mut self) {
+            debug!("old {}", self.id);
+            self.tracker.state.lock().unwrap().existing -= 1;
+        }
+    }
+
+    impl HasMemoryCost for Item {
+        fn memory_cost(&self) -> usize {
+            mby(1)
+        }
+    }
+
+    struct Setup {
+        trk: Arc<mtracker::MemoryQuotaTracker>,
+        acct: Account,
+        itrk: Arc<ItemTracker>,
+    }
+
+    fn setup(rt: &MockRuntime) -> Setup {
+        let trk = mk_tracker(rt);
+        let acct = trk.new_account(None).unwrap();
+        let itrk = ItemTracker::new_tracker();
+        Setup { trk, acct, itrk }
+    }
+
+    #[traced_test]
+    #[test]
+    fn lifecycle() {
+        MockRuntime::test_with_various(|rt| async move {
+            let s = setup(&rt);
+            let (mut tx, mut rx) = MpscUnbounded.new_mq(&rt, s.acct.clone()).unwrap();
+
+            tx.send(s.itrk.new_item()).await.unwrap();
+            let _: Item = rx.next().await.unwrap();
+
+            for _ in 0..20 {
+                tx.send(s.itrk.new_item()).await.unwrap();
+            }
+
+            // reclaim task hasn't had a chance to run
+            eprintln!("still existing items {}", s.itrk.lock().existing);
+
+            rt.advance_until_stalled().await;
+
+            // reclaim task should have torn everything down
+            assert!(s.itrk.lock().existing == 0);
+
+            assert!(rx.next().await.is_none());
+
+            // Empirically, this is a "disconnected" error from the inner mpsc,
+            // but let's not assert that.
+            let _: SendError<_> = tx.send(s.itrk.new_item()).await.unwrap_err();
+        });
+    }
+
+    #[traced_test]
+    #[test]
+    fn sink_error() {
+        #[derive(Default, Debug)]
+        struct BustedSink;
+
+        impl<T> Sink<T> for BustedSink {
+            type Error = BustedError;
+
+            fn poll_ready(
+                self: Pin<&mut Self>,
+                _: &mut Context<'_>,
+            ) -> Poll<Result<(), Self::Error>> {
+                Ready(Err(BustedError))
+            }
+            fn start_send(self: Pin<&mut Self>, _item: T) -> Result<(), Self::Error> {
+                panic!("poll_ready always gives error, start_send should not be called");
+            }
+            fn poll_flush(
+                self: Pin<&mut Self>,
+                _: &mut Context<'_>,
+            ) -> Poll<Result<(), Self::Error>> {
+                Ready(Ok(()))
+            }
+            fn poll_close(
+                self: Pin<&mut Self>,
+                _: &mut Context<'_>,
+            ) -> Poll<Result<(), Self::Error>> {
+                Ready(Ok(()))
+            }
+        }
+
+        #[derive(Error, Debug)]
+        #[error("busted, for testing")]
+        struct BustedError;
+
+        struct BustedQueueSpec;
+        impl Sealed for BustedQueueSpec {}
+        impl ChannelSpec for BustedQueueSpec {
+            type Sender<T: Debug + Send + 'static> = BustedSink;
+            type Receiver<T: Debug + Send + 'static> = futures::stream::Pending<T>;
+            type SendError = BustedError;
+            fn raw_channel<T: Debug + Send + 'static>(self) -> (BustedSink, Self::Receiver<T>) {
+                (BustedSink, futures::stream::pending())
+            }
+        }
+
+        MockRuntime::test_with_various(|rt| async move {
+            let s = setup(&rt);
+            let (mut tx, _rx) = BustedQueueSpec.new_mq(&rt, s.acct.clone()).unwrap();
+
+            let e = tx.send(s.itrk.new_item()).await.unwrap_err();
+            assert!(matches!(e, SendError::Channel(BustedError)));
+
+            // item should have been destroyed
+            assert_eq!(s.itrk.lock().existing, 0);
+
+            // no memory should be claimed
+            assert!(s.trk.used_current_approx().unwrap() <= *mtracker::MAX_CACHE);
+        });
+    }
+}
