@@ -52,7 +52,7 @@ pub unsafe extern "C" fn arti_connect(
     error_out: *mut *mut ArtiError,
 ) -> ArtiStatus {
     // Safety: we globally require that error_out is a valid pointer.
-    let err_out = unsafe { OutPtr::from_ptr(error_out) };
+    let err_out = unsafe { OutPtr::from_opt_ptr(error_out) };
 
     handle_errors(err_out, || {
         // Safety: We globally require that `rpc_conn_out` is a valid pointer.
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn arti_connect(
 
         let conn = builder.connect()?;
 
-        rpc_conn_out.write_value(conn);
+        rpc_conn_out.write_value_if_nonnull(conn);
 
         Ok(())
     })
@@ -94,20 +94,20 @@ pub unsafe extern "C" fn arti_rpc_execute(
     error_out: *mut *mut ArtiError,
 ) -> ArtiStatus {
     // Safety: we globally require that error_out is a valid pointer.
-    let err_out = unsafe { OutPtr::from_ptr(error_out) };
+    let err_out = unsafe { OutPtr::from_opt_ptr(error_out) };
 
     handle_errors(err_out, || {
         // Safety: we require that rpc_conn is a valid pointer.
         let rpc_conn = unsafe { ptr_as_ref(rpc_conn) }?;
         // Safety: we require that response_out is a valid pointer.
-        let response_out = unsafe { OutPtr::from_ptr(response_out) };
+        let response_out = unsafe { OutPtr::from_opt_ptr(response_out) };
 
         // Safety: We globally require that the constraints of CStr::from_ptr apply.
         let msg = unsafe { util::ptr_to_str(msg) }?;
 
         let success = rpc_conn.execute(msg)??;
 
-        response_out.write_value(Utf8CStr::from(success));
+        response_out.write_value_if_nonnull(Utf8CStr::from(success));
 
         Ok(())
     })

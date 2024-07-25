@@ -83,7 +83,7 @@ impl<'a, T> OutPtr<'a, T> {
     //
     // (I have tested this using the `no-panic` crate.  But `no-panic` is not suitable
     // for use in production, since it breaks when run in debug mode.)
-    pub(super) unsafe fn from_ptr(ptr: *mut *mut T) -> Self {
+    pub(super) unsafe fn from_opt_ptr(ptr: *mut *mut T) -> Self {
         let ptr: Option<&'a mut *mut T> = unsafe { ptr.as_mut() };
         match ptr {
             Some(p) => {
@@ -104,7 +104,7 @@ impl<'a, T> OutPtr<'a, T> {
     /// See [Self::from_ptr].
     pub(super) unsafe fn from_ptr_nonnull(ptr: *mut *mut T) -> Result<Self, NullPointer> {
         // Safety: We require that the pointer be valid for use with from_ptr.
-        let r = unsafe { Self::from_ptr(ptr) };
+        let r = unsafe { Self::from_opt_ptr(ptr) };
         if r.0.is_none() {
             Err(NullPointer)
         } else {
@@ -115,7 +115,7 @@ impl<'a, T> OutPtr<'a, T> {
     /// Consume this OutPtr and the provided value.
     ///
     /// If the OutPtr is null, `value` is discarded.  Otherwise it is written into the OutPtr.
-    pub(super) fn write_value(self, value: T) {
+    pub(super) fn write_value_if_nonnull(self, value: T) {
         // Note that all the unsafety happened when we constructed a &mut from the pointer.
         //
         // Note also that this method consumes `self`.  That's because we want to avoid multiple
@@ -146,10 +146,10 @@ mod test {
     use super::*;
 
     unsafe fn outptr_user(ptr: *mut *mut i8, set_to_val: Option<i8>) {
-        let ptr = unsafe { OutPtr::from_ptr(ptr) };
+        let ptr = unsafe { OutPtr::from_opt_ptr(ptr) };
 
         if let Some(v) = set_to_val {
-            ptr.write_value(v);
+            ptr.write_value_if_nonnull(v);
         }
     }
 
@@ -179,7 +179,7 @@ mod test {
         let ptr = unsafe { OutPtr::from_ptr_nonnull(ptr) }?;
 
         if let Some(v) = set_to_val {
-            ptr.write_value(v);
+            ptr.write_value_if_nonnull(v);
         }
         Ok(())
     }

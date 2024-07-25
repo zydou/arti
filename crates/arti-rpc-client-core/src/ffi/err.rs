@@ -405,7 +405,7 @@ where
         Ok(Err(e)) => {
             // "body" returned an error.
             let status = e.status;
-            error_out.write_value(e);
+            error_out.write_value_if_nonnull(e);
             status
         }
         Err(_panic_data) => {
@@ -419,7 +419,7 @@ where
                     .expect("couldn't make a valid C string"),
                 error_response: None,
             };
-            error_out.write_value(e);
+            error_out.write_value_if_nonnull(e);
             ARTI_STATUS_INTERNAL
         }
     }
