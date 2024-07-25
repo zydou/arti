@@ -274,10 +274,7 @@ pub type ArtiError = FfiError;
 /// Return the status code associated with a given error.
 ///
 /// If `err` is NULL, return [`ARTI_STATUS_INVALID_INPUT`].
-///
-/// # Safety
-///
-/// The provided pointer, if non-NULL, must be a valid `ArtiError`.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_err_status(err: *const ArtiError) -> ArtiStatus {
     catch_panic(
@@ -297,9 +294,10 @@ pub unsafe extern "C" fn arti_err_status(err: *const ArtiError) -> ArtiStatus {
 ///
 /// Return NULL if the input `err` is NULL.
 ///
-/// # Safety
+/// # Correctness requirements
 ///
-/// The returned pointer is only as valid for as long as `err` is valid.
+/// The resulting string pointer is valid only for as long as the input `err` is not freed.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_err_message(err: *const ArtiError) -> *const c_char {
     catch_panic(
@@ -321,9 +319,10 @@ pub unsafe extern "C" fn arti_err_message(err: *const ArtiError) -> *const c_cha
 ///
 /// Return NULL if the input `err` is NULL.
 ///
-/// # Safety
+/// # Correctness requirements
 ///
-/// The returned pointer is only as valid for as long as `err` is valid.
+/// The resulting string pointer is valid only for as long as the input `err` is not freed.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_err_response(err: *const ArtiError) -> *const c_char {
     catch_panic(
@@ -343,9 +342,11 @@ pub unsafe extern "C" fn arti_err_response(err: *const ArtiError) -> *const c_ch
 ///
 /// May return NULL if an internal error occurs.
 ///
-/// # Safety
+/// # Ownership
 ///
-/// The resulting error may only be freed via `arti_err_free().`
+/// The caller is responsible for making sure that the returned object
+/// is eventually freed.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_err_clone(err: *const ArtiError) -> *mut ArtiError {
     catch_panic(
@@ -361,11 +362,7 @@ pub unsafe extern "C" fn arti_err_clone(err: *const ArtiError) -> *mut ArtiError
 }
 
 /// Release storage held by a provided error.
-///
-/// # Safety
-///
-/// The provided pointer must be returned by `arti_err_clone`.
-/// After this call, it may not longer be used.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_err_free(err: *mut ArtiError) {
     catch_panic(

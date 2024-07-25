@@ -59,7 +59,9 @@
  * - All identifiers are prefixed with `arti`, in some case.
  *
  * - Newly allocated objects are always returned via out-parameters, with `out` in their names.
- *   (For example, `ArtiObject **out`).  In such cases, `* out`
+ *   (For example, `ArtiObject **out`).  In such cases, `* out` will be set to a resulting object,
+ *   or to NULL if no such object is returned.   (If `out` is NULL, then any such object will be
+ *   discarded.)
  *
  * - When any object is exposed as a non-const pointer,
  *   the application becomes the owner of that object.
@@ -73,18 +75,27 @@
  * - If a function should be considered a method on a given type of object,
  *   it will take a pointer to that object as its first argument.
  *
- * ## Safety
+ * ## Correctness requirements
  *
- * - Basic C safety requirements apply: every function's input pointers
- *   must point to valid data of the correct type.
- * - All input objects must not be mutated while they are in use.
- * - All input strings must obey the additional requirements of CStr::from_ptr:
- *   They must be valid for their entire extent, they must be no larger than SSIZE_MAX,
+ * - Basic C safety requirements apply:
+ *     - Every function's input pointers
+ *       must point to valid data of the correct type, unless it is NULL.
+ *     - If you receive data via a `const *`, you must not modify that data.
+ *     - You may not call any `_free()` function on an object that is currently in use.
+ *     - After you have `_freed()` an object, you may not use it again.
+ * - Every object allocated by this library has a corresponding `*_free()` function:
+ *   You must not use libc's free() to free such objects.
+ * - All objects passed as input to a library function must not be mutated
+ *   while that function is running.
+ * - All strings passed as input to a library function must obey
+ *   the additional requirements of Rust's CStr::from_ptr:
+ *   They must be valid for their entire extent,
+ *   they must be no larger than `SSIZE_MAX`,
  *   they must be nul-terminated, and they must not be mutated while in use.
  *
- * - In each case where pointers are passed, we explicitly state
- *   whether ownership is transferred.
- * ^ TODO RPC: Make sure we actually document this!
+ * In each case where a non-const pointer is passed, we explicitly state whether ownership
+ * (that is to say, responsibility for freeing the pointed-to object)
+ * is transferred.
  **/
 
 #ifndef ARTI_RPC_CLIENT_CORE_H_
@@ -233,13 +244,11 @@ extern "C" {
  * The location of the instance and the method to connect to it are described in
  * `connection_string`.
  *
+ * (TODO RPC: Document the format of this string better!)
+ *
  * On success, return `ARTI_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
  * Otherwise return some other status code, set `*rpc_conn_out` to NULL, and set
  * `*error_out` (if provided) to a newly allocated error object.
- *
- * # Safety
- *
- * Standard safety warnings apply; see library header.
  */
 ArtiStatus arti_connect(const char *connection_string,
                         ArtiRpcConn **rpc_conn_out,
@@ -252,16 +261,12 @@ ArtiStatus arti_connect(const char *connection_string,
  * If you omit its `id` field, one will be generated: this is typically the best way to use this function.
  *
  * On success, return `ARTI_SUCCESS` and set `*response_out` to a newly allocated string
- * containing the Json response to your request (including `id` and `response` fields).
+ * containing the JSON response to your request (including `id` and `response` fields).
  *
  * Otherwise return some other status code,  set `*response_out` to NULL,
  * and set `*error_out` (if provided) to a newly allocated error object.
  *
  * (If response_out is set to NULL, then any successful response will be ignored.)
- *
- * # Safety
- *
- * The caller must not modify the length of `*response_out`.
  */
 ArtiStatus arti_rpc_execute(const ArtiRpcConn *rpc_conn,
                             const char *msg,
@@ -270,12 +275,6 @@ ArtiStatus arti_rpc_execute(const ArtiRpcConn *rpc_conn,
 
 /**
  * Free a string returned by the Arti RPC API.
- *
- * # Safety
- *
- * The string must not have been modified since it was returned.
- *
- * After you have called this function, it is not safe to use the provided pointer from any thread.
  */
 void arti_rpc_str_free(ArtiRpcStr *string);
 
@@ -286,20 +285,14 @@ void arti_rpc_str_free(ArtiRpcStr *string);
  *
  * (Returns NULL if the input is NULL.)
  *
- * # Safety
+ * # Correctness requirements
  *
- * Standard safety warnings apply; see library header.
- *
- * The resulting string is valid only for as long as the input `string` is not freed.
+ * The resulting string pointer is valid only for as long as the input `string` is not freed.
  */
 const char *arti_rpc_str_get(const ArtiRpcStr *string);
 
 /**
  * Close and free an open Arti RPC connection.
- *
- * # Safety
- *
- * After you have called this function, it is not safe to use the provided pointer from any thread.
  */
 void arti_rpc_conn_free(ArtiRpcConn *rpc_conn);
 
@@ -314,10 +307,6 @@ const char *arti_status_to_str(ArtiStatus status);
  * Return the status code associated with a given error.
  *
  * If `err` is NULL, return [`ARTI_STATUS_INVALID_INPUT`].
- *
- * # Safety
- *
- * The provided pointer, if non-NULL, must be a valid `ArtiError`.
  */
 ArtiStatus arti_err_status(const ArtiError *err);
 
@@ -329,9 +318,9 @@ ArtiStatus arti_err_status(const ArtiError *err);
  *
  * Return NULL if the input `err` is NULL.
  *
- * # Safety
+ * # Correctness requirements
  *
- * The returned pointer is only as valid for as long as `err` is valid.
+ * The resulting string pointer is valid only for as long as the input `err` is not freed.
  */
 const char *arti_err_message(const ArtiError *err);
 
@@ -345,9 +334,9 @@ const char *arti_err_message(const ArtiError *err);
  *
  * Return NULL if the input `err` is NULL.
  *
- * # Safety
+ * # Correctness requirements
  *
- * The returned pointer is only as valid for as long as `err` is valid.
+ * The resulting string pointer is valid only for as long as the input `err` is not freed.
  */
 const char *arti_err_response(const ArtiError *err);
 
@@ -358,19 +347,15 @@ const char *arti_err_response(const ArtiError *err);
  *
  * May return NULL if an internal error occurs.
  *
- * # Safety
+ * # Ownership
  *
- * The resulting error may only be freed via `arti_err_free().`
+ * The caller is responsible for making sure that the returned object
+ * is eventually freed.
  */
 ArtiError *arti_err_clone(const ArtiError *err);
 
 /**
  * Release storage held by a provided error.
- *
- * # Safety
- *
- * The provided pointer must be returned by `arti_err_clone`.
- * After this call, it may not longer be used.
  */
 void arti_err_free(ArtiError *err);
 

@@ -38,13 +38,12 @@ pub type ArtiRpcStr = Utf8CStr;
 /// The location of the instance and the method to connect to it are described in
 /// `connection_string`.
 ///
+/// (TODO RPC: Document the format of this string better!)
+///
 /// On success, return `ARTI_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
 /// Otherwise return some other status code, set `*rpc_conn_out` to NULL, and set
 /// `*error_out` (if provided) to a newly allocated error object.
-///
-/// # Safety
-///
-/// Standard safety warnings apply; see library header.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_connect(
     connection_string: *const c_char,
@@ -76,16 +75,13 @@ pub unsafe extern "C" fn arti_connect(
 /// If you omit its `id` field, one will be generated: this is typically the best way to use this function.
 ///
 /// On success, return `ARTI_SUCCESS` and set `*response_out` to a newly allocated string
-/// containing the Json response to your request (including `id` and `response` fields).
+/// containing the JSON response to your request (including `id` and `response` fields).
 ///
 /// Otherwise return some other status code,  set `*response_out` to NULL,
 /// and set `*error_out` (if provided) to a newly allocated error object.
 ///
 /// (If response_out is set to NULL, then any successful response will be ignored.)
-///
-/// # Safety
-///
-/// The caller must not modify the length of `*response_out`.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_execute(
     rpc_conn: *const ArtiRpcConn,
@@ -114,12 +110,7 @@ pub unsafe extern "C" fn arti_rpc_execute(
 }
 
 /// Free a string returned by the Arti RPC API.
-///
-/// # Safety
-///
-/// The string must not have been modified since it was returned.
-///
-/// After you have called this function, it is not safe to use the provided pointer from any thread.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
     catch_panic(
@@ -142,11 +133,10 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
 ///
 /// (Returns NULL if the input is NULL.)
 ///
-/// # Safety
+/// # Correctness requirements
 ///
-/// Standard safety warnings apply; see library header.
-///
-/// The resulting string is valid only for as long as the input `string` is not freed.
+/// The resulting string pointer is valid only for as long as the input `string` is not freed.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c_char {
     let Ok(str) = (unsafe { ptr_as_ref(string) }) else {
@@ -157,10 +147,7 @@ pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c
 }
 
 /// Close and free an open Arti RPC connection.
-///
-/// # Safety
-///
-/// After you have called this function, it is not safe to use the provided pointer from any thread.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
     catch_panic(

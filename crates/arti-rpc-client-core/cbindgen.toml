@@ -68,7 +68,9 @@ header = """\
  * - All identifiers are prefixed with `arti`, in some case.
  *
  * - Newly allocated objects are always returned via out-parameters, with `out` in their names.
- *   (For example, `ArtiObject **out`).  In such cases, `* out`
+ *   (For example, `ArtiObject **out`).  In such cases, `* out` will be set to a resulting object,
+ *   or to NULL if no such object is returned.   (If `out` is NULL, then any such object will be
+ *   discarded.)
  *
  * - When any object is exposed as a non-const pointer,
  *   the application becomes the owner of that object.
@@ -82,18 +84,27 @@ header = """\
  * - If a function should be considered a method on a given type of object,
  *   it will take a pointer to that object as its first argument.
  *
- * ## Safety
+ * ## Correctness requirements
  *
- * - Basic C safety requirements apply: every function's input pointers
- *   must point to valid data of the correct type.
- * - All input objects must not be mutated while they are in use.
- * - All input strings must obey the additional requirements of CStr::from_ptr:
- *   They must be valid for their entire extent, they must be no larger than SSIZE_MAX,
+ * - Basic C safety requirements apply:
+ *     - Every function's input pointers
+ *       must point to valid data of the correct type, unless it is NULL.
+ *     - If you receive data via a `const *`, you must not modify that data.
+ *     - You may not call any `_free()` function on an object that is currently in use.
+ *     - After you have `_freed()` an object, you may not use it again.
+ * - Every object allocated by this library has a corresponding `*_free()` function:
+ *   You must not use libc's free() to free such objects.
+ * - All objects passed as input to a library function must not be mutated
+ *   while that function is running.
+ * - All strings passed as input to a library function must obey
+ *   the additional requirements of Rust's CStr::from_ptr:
+ *   They must be valid for their entire extent,
+ *   they must be no larger than `SSIZE_MAX`,
  *   they must be nul-terminated, and they must not be mutated while in use.
  *
- * - In each case where pointers are passed, we explicitly state
- *   whether ownership is transferred.
- * ^ TODO RPC: Make sure we actually document this!
+ * In each case where a non-const pointer is passed, we explicitly state whether ownership
+ * (that is to say, responsibility for freeing the pointed-to object)
+ * is transferred.
  **/"""
 
 # This appears "between major sections"
