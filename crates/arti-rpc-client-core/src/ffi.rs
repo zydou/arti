@@ -10,7 +10,7 @@ use err::{catch_panic, handle_errors, ArtiRpcError, FfiStatus};
 use std::ffi::c_char;
 use util::{ptr_as_ref, OutPtr};
 
-use crate::{util::Utf8CStr, RpcConnBuilder};
+use crate::{util::Utf8CString, RpcConnBuilder};
 
 /// A status code returned by an Arti RPC function.
 ///
@@ -31,7 +31,7 @@ pub type ArtiRpcConn = crate::RpcConn;
 /// This string must be released with `arti_rpc_str_free`.
 /// You can inspect it with `arti_rpc_str_get`, but you may not modify it.
 /// The string is guaranteed to be UTF-8 and NUL-terminated.
-pub type ArtiRpcStr = Utf8CStr;
+pub type ArtiRpcStr = Utf8CString;
 
 /// Try to open a new connection to an Arti instance.
 ///
@@ -113,7 +113,7 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
 
         let success = rpc_conn.execute(msg)??;
 
-        response_out.write_value_if_nonnull(Utf8CStr::from(success));
+        response_out.write_value_if_nonnull(Utf8CString::from(success));
 
         Ok(())
     })

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use super::AnyRequestId;
 use crate::{
     conn::ErrorResponse,
-    util::{define_from_for_arc, Utf8CStr},
+    util::{define_from_for_arc, Utf8CString},
 };
 
 /// An unparsed and unvalidated response, as received from Arti.
@@ -32,7 +32,7 @@ impl UnparsedResponse {
 #[derive(Clone, Debug)]
 pub(crate) struct ValidatedResponse {
     /// The text of this response.
-    pub(crate) msg: Utf8CStr,
+    pub(crate) msg: Utf8CString,
     /// The metadata from this response.
     pub(crate) meta: ResponseMeta,
 }

@@ -21,7 +21,7 @@ use crate::{
 mod auth;
 mod connimpl;
 
-use crate::util::Utf8CStr;
+use crate::util::Utf8CString;
 pub use connimpl::RpcConn;
 
 /// A handle to an open request.
@@ -58,7 +58,7 @@ pub struct RequestHandle {
 // TODO RPC: check that the newline invariant is enforced in constructors.
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::Into)]
 #[as_ref(forward)]
-pub struct SuccessResponse(Utf8CStr);
+pub struct SuccessResponse(Utf8CString);
 
 /// An Update Response from Arti, with information about the progress of a request.
 ///
@@ -69,7 +69,7 @@ pub struct SuccessResponse(Utf8CStr);
 // TODO RPC consider changing this to CString.
 #[derive(Clone, Debug, derive_more::AsRef)]
 #[as_ref(forward)]
-pub struct UpdateResponse(Utf8CStr);
+pub struct UpdateResponse(Utf8CString);
 
 /// A Error Response from Arti, indicating that an error occurred.
 ///
@@ -87,12 +87,12 @@ pub struct UpdateResponse(Utf8CStr);
 #[derive(Clone, Debug, derive_more::AsRef)]
 #[as_ref(forward)]
 // TODO: If we keep this, it should implement Error.
-pub struct ErrorResponse(Utf8CStr);
+pub struct ErrorResponse(Utf8CString);
 impl ErrorResponse {
     /// Construct an ErrorResponse from the Error reply.
     ///
     /// This not a From impl because we want it to be crate-internal.
-    pub(crate) fn from_validated_string(s: Utf8CStr) -> Self {
+    pub(crate) fn from_validated_string(s: Utf8CString) -> Self {
         ErrorResponse(s)
     }
 

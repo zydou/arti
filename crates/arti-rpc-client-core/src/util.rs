@@ -23,20 +23,20 @@ pub(crate) use define_from_for_arc;
 //
 // TODO RPC: Rename so we can expose it more sensibly.
 #[derive(Clone, Debug)]
-pub struct Utf8CStr {
+pub struct Utf8CString {
     /// The body of this string.
     ///
     /// INVARIANT: This string must be valid UTF-8.
     string: Box<CStr>,
 }
 
-impl AsRef<CStr> for Utf8CStr {
+impl AsRef<CStr> for Utf8CString {
     fn as_ref(&self) -> &CStr {
         &self.string
     }
 }
 
-impl AsRef<str> for Utf8CStr {
+impl AsRef<str> for Utf8CString {
     fn as_ref(&self) -> &str {
         // TODO: We might someday decide to implement this using unsafe methods, to avoid walking
         // over the string to enforce properties that are already there.
@@ -47,11 +47,11 @@ impl AsRef<str> for Utf8CStr {
 // TODO: In theory we could have an unchecked version of this function, if we are 100%
 // sure that serde_json will reject every string that contains a NUL.  But let's not do
 // that unless the NUL check shows up in profiles.
-impl TryFrom<String> for Utf8CStr {
+impl TryFrom<String> for Utf8CString {
     type Error = NulError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(Utf8CStr {
+        Ok(Utf8CString {
             string: CString::new(value)?.into_boxed_c_str(),
         })
     }
@@ -62,7 +62,7 @@ impl TryFrom<String> for Utf8CStr {
 pub(crate) mod ffi {
     use std::ffi::c_char;
 
-    impl super::Utf8CStr {
+    impl super::Utf8CString {
         /// Expose this Utf8CStr as a C string.
         pub(crate) fn as_ptr(&self) -> *const c_char {
             self.string.as_ptr()

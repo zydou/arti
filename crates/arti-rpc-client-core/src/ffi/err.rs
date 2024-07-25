@@ -7,7 +7,7 @@ use std::fmt::Display;
 use std::panic::{catch_unwind, UnwindSafe};
 
 use crate::conn::ErrorResponse;
-use crate::util::Utf8CStr;
+use crate::util::Utf8CString;
 
 use super::util::OutPtr;
 use super::ArtiRpcStatus;
@@ -147,7 +147,7 @@ pub struct FfiError {
     /// The status of this error messages
     pub(super) status: ArtiRpcStatus,
     /// A human-readable message describing this error
-    message: Utf8CStr,
+    message: Utf8CString,
     /// If present, a Json-formatted message from our peer that we are representing with this error.
     error_response: Option<ErrorResponse>,
 }
