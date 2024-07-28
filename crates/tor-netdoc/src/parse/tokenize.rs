@@ -179,7 +179,7 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
         } else {
             (line, true)
         };
-        let mut parts_iter = line.splitn(2, |c| c == ' ' || c == '\t');
+        let mut parts_iter = line.splitn(2, [' ', '\t']);
         let kwd = match parts_iter.next() {
             Some(k) => k,
             // This case seems like it can't happen: split always returns
