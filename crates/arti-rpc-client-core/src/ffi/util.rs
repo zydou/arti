@@ -278,17 +278,10 @@ macro_rules! ffi_body_simple {
         crate::ffi::err::catch_panic(|| {
 
             // run conversions and check for invalid input exceptions.
-            #[allow(redundant_closure_call,unused_parens)]
-            let ( $($name),* ) = match (|| -> Result<_, crate::ffi::err::InvalidInput> {
-                $( let $name : $type = crate::ffi::util::ffi_cvt!{ $how $name }; )*
-                Ok(($($name),*))
-            })() {
-                Ok(($($name),*)) => ($($name),*),
-                Err(_invalid) => {
-                    #[allow(unused_unit)]
-                    return $err;
-                }
-            };
+            crate::ffi::util::ffi_initialize!{ { $( let $name : $type [$how]; )* } else with _ignore_err {
+                #[allow(clippy::unused_unit)]
+                return $err;
+            }};
 
             $($body)+
 
@@ -349,15 +342,18 @@ pub(super) use ffi_body_simple;
 /// are the same as those for `out_ptr_opt` (q.v.).
 macro_rules! ffi_body_with_err {
     { { $( let $name:ident : $type:ty [$how:ident]; )*
-          err $err_out:ident : $out_type:ty $(;)? }
+          err $err_out:ident : $err_type:ty $(;)? }
       in {$($body:tt)+}
     } => {{
-        let $err_out: $out_type =
-            crate::ffi::util::ffi_cvt!{ out_ptr_opt $err_out };
+        // (This is equivalent to using `out_ptr_opt`, but makes it more clear that the conversion
+        // will never fail, and so we won't exit early.)
+        let $err_out: $err_type = unsafe { crate::ffi::util::OutPtr::from_opt_ptr($err_out) };
 
         crate::ffi::err::handle_errors($err_out,
             || {
-                $( let $name : $type = crate::ffi::util::ffi_cvt!{ $how $name }; )*
+                crate::ffi::util::ffi_initialize!{ { $( let $name : $type [$how]; )* } else with err {
+                    return Err(crate::ffi::err::ArtiRpcError::from(err));
+                }};
 
                 let () = { $($body)+ };
 
@@ -368,28 +364,57 @@ macro_rules! ffi_body_with_err {
 }
 pub(super) use ffi_body_with_err;
 
-/// Implement a single conversion.
-macro_rules! ffi_cvt {
-    { in_ptr_required $name:ident } => {
-        unsafe { crate::ffi::util::ptr_as_ref($name) }?
+/// Implement a set of conversions, trying each one.
+///
+/// (It's important that this cannot exit early,
+/// since some conversions have side effects: notably, the ones that create an OutPtr
+/// can initialize that pointer to NULL, and we want to do that unconditionally.
+///
+/// If any conversion fails, run `return ($on_invalid)(error)` _after_ trying every conversion.
+macro_rules! ffi_initialize {
+    {
+        { $( let $name:ident : $type:ty [$how:ident] ; )* } else with $err_id:ident { $($on_invalid:tt)* }
+    } => {
+        #[allow(unused_parens)]
+        let ($($name,)*) : ($($type,)*) = {
+            $(
+                let $name : Result<$type, crate::ffi::err::InvalidInput>
+                   = crate::ffi::util::ffi_initialize!{ @init $name [$how] };
+            )*
+            #[allow(clippy::needless_question_mark)]
+            // Note that the question marks here exit from _this_ closure.
+            match (|| -> Result<_,crate::ffi::err::InvalidInput> {Ok(($($name?,)*))})() {
+                Ok(v) => v,
+                Err($err_id) => {
+                    $($on_invalid)*
+                }
+            }
+        };
     };
-    { in_ptr_opt $name:ident } => {
-        unsafe { crate::ffi::util::ptr_as_ref($name) }.ok()
+    // Each of these conversions should evaluate `Err(InvalidInput)` if the conversion fails,
+    // and `Ok($ty)` if the conversion succeeds.
+    // (Infallible conversions always return `Ok`.)
+    // A conversion must not return early (via return or `?`).
+    { @init $name:ident [in_ptr_required] } => {
+        unsafe { crate::ffi::util::ptr_as_ref($name) }
     };
-    { in_str_required $name:ident } => {
-        unsafe { crate::ffi::util::ptr_to_str($name) }?
+    { @init $name:ident [in_ptr_opt] } => {
+        Ok(unsafe { crate::ffi::util::ptr_as_ref($name) })
     };
-    { in_ptr_consume_opt $name:ident } => {
-        unsafe { crate::ffi::util::ptr_to_opt_box($name) }
+    { @init $name:ident [in_str_required] } => {
+        unsafe { crate::ffi::util::ptr_to_str($name) }
     };
-    { out_ptr_required $name:ident } => {
-        unsafe { crate::ffi::util::OutPtr::from_ptr_nonnull($name) }?
+    { @init $name:ident [in_ptr_consume_opt] } => {
+        Ok(unsafe { crate::ffi::util::ptr_to_opt_box($name) })
     };
-    { out_ptr_opt $name:ident } => {
-        unsafe { crate::ffi::util::OutPtr::from_opt_ptr($name) }
+    { @init $name:ident [out_ptr_required] } => {
+        unsafe { crate::ffi::util::OutPtr::from_ptr_nonnull($name) }
+    };
+    { @init $name:ident [out_ptr_opt] } => {
+        Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr($name) })
     };
 }
-pub(super) use ffi_cvt;
+pub(super) use ffi_initialize;
 
 #[cfg(test)]
 mod test {
