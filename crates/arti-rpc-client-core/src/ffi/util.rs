@@ -271,6 +271,8 @@ impl<'a, T> OutPtr<'a, T> {
 //   Getting a 0 or -1 wrong here can have nasty results.
 // - The conversion syntax deliberately includes the type of the converted argument,
 //   on the theory that it makes the functions more readable.
+// - The conversion code deliberately shadows the original parameter with the
+//   converted parameter.
 macro_rules! ffi_body_simple {
     { { $( let $name:ident : $type:ty [$how:ident]);* $(;)? }
       in { $($body:tt)+ } on invalid { $err:expr } on panic { $panic:expr } } => {
