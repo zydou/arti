@@ -1049,12 +1049,6 @@ impl PendingClientCirc {
         (pending, reactor)
     }
 
-    /// Testing only: Extract the circuit ID for this pending circuit.
-    #[cfg(test)]
-    pub(crate) fn peek_circid(&self) -> CircId {
-        self.circ.circid
-    }
-
     /// Extract the process-unique identifier for this pending circuit.
     pub fn peek_unique_id(&self) -> UniqId {
         self.circ.unique_id
@@ -1368,6 +1362,20 @@ mod test {
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
+    impl PendingClientCirc {
+        /// Testing only: Extract the circuit ID for this pending circuit.
+        pub(crate) fn peek_circid(&self) -> CircId {
+            self.circ.circid
+        }
+    }
+
+    impl ClientCirc {
+        /// Testing only: Extract the circuit ID of this circuit.
+        pub(crate) fn peek_circid(&self) -> CircId {
+            self.circid
+        }
+    }
+
     fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg {
         let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
             .encode(&mut testing_rng())
@@ -1461,7 +1469,7 @@ mod test {
         let simulate_relay_fut = async move {
             let mut rng = testing_rng();
             let create_cell = rx.next().await.unwrap();
-            assert_eq!(create_cell.circid(), CircId::new(128));
+            assert_eq!(create_cell.circid(), Some(circid));
             let reply = match handshake_type {
                 HandshakeType::Fast => {
                     let cf = match create_cell.msg() {
@@ -1679,7 +1687,7 @@ mod test {
             // Here's what we tried to put on the TLS channel.  Note that
             // we're using dummy relay crypto for testing convenience.
             let rcvd = rx.next().await.unwrap();
-            assert_eq!(rcvd.circid(), CircId::new(128));
+            assert_eq!(rcvd.circid(), Some(circ.peek_circid()));
             let m = match rcvd.into_circid_and_msg().1 {
                 AnyChanMsg::Relay(r) => {
                     AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -1691,77 +1699,12 @@ mod test {
         });
     }
 
-    // NOTE(eta): this test is commented out because it basically tested implementation details
-    //            of the old code which are hard to port to the reactor version, and the behaviour
-    //            is covered by the extend tests anyway, so I don't think it's worth it.
-
-    /*
-    // Try getting a "meta-cell", which is what we're calling those not
-    // for a specific circuit.
-    #[async_test]
-    async fn recv_meta() {
-        let (chan, _, _sink) = working_fake_channel();
-        let (circ, mut reactor, mut sink) = newcirc(chan).await;
-
-        // 1: Try doing it via handle_meta_cell directly.
-        let meta_receiver = circ.register_meta_handler(2.into()).await.unwrap();
-        let extended: RelayMsg = relaymsg::Extended2::new((*b"123").into()).into();
-        {
-            circ.c
-                .lock()
-                .await
-                .handle_meta_cell(2.into(), extended.clone())
-                .await
-                .unwrap();
-        }
-        let msg = meta_receiver.await.unwrap().unwrap();
-        assert!(matches!(msg, RelayMsg::Extended2(_)));
-
-        // 2: Try doing it via the reactor.
-        let meta_receiver = circ.register_meta_handler(2.into()).await.unwrap();
-        sink.send(rmsg_to_ccmsg(0, extended.clone())).await.unwrap();
-        reactor.run_once().await.unwrap();
-        let msg = meta_receiver.await.unwrap().unwrap();
-        assert!(matches!(msg, RelayMsg::Extended2(_)));
-
-        // 3: Try getting a meta cell that we didn't want.
-        let e = {
-            circ.c
-                .lock()
-                .await
-                .handle_meta_cell(2.into(), extended.clone())
-                .await
-                .err()
-                .unwrap()
-        };
-        assert_eq!(
-            format!("{}", e),
-            "circuit protocol violation: Unexpected EXTENDED2 cell on client circuit"
-        );
-
-        // 3: Try getting a meta from a hop that we didn't want.
-        let _receiver = circ.register_meta_handler(2.into()).await.unwrap();
-        let e = {
-            circ.c
-                .lock()
-                .await
-                .handle_meta_cell(1.into(), extended.clone())
-                .await
-                .err()
-                .unwrap()
-        };
-        assert_eq!(
-            format!("{}", e),
-            "circuit protocol violation: Unexpected EXTENDED2 cell from hop 1 on client circuit"
-        );
-    }
-     */
-
     async fn test_extend<R: Runtime>(rt: &R, handshake_type: HandshakeType) {
         use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
 
         let (chan, mut rx, _sink) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
+        let circid = circ.peek_circid();
         let params = CircParameters::default();
 
         let extend_fut = async move {
@@ -1778,7 +1721,7 @@ mod test {
             // We've disabled encryption on this circuit, so we can just
             // read the extend2 cell.
             let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-            assert_eq!(id, CircId::new(128));
+            assert_eq!(id, Some(circid));
             let rmsg = match chmsg {
                 AnyChanMsg::RelayEarly(r) => {
                     AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -1954,6 +1897,7 @@ mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut rx, _sink) = working_fake_channel(&rt);
             let (circ, mut sink) = newcirc(&rt, chan).await;
+            let circid = circ.peek_circid();
 
             let begin_and_send_fut = async move {
                 // Here we'll say we've got a circuit, and we want to
@@ -1972,7 +1916,7 @@ mod test {
                 // We've disabled encryption on this circuit, so we can just
                 // read the begindir cell.
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128)); // hardcoded circid.
+                assert_eq!(id, Some(circid));
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -1989,7 +1933,7 @@ mod test {
 
                 // Now read a DATA cell...
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128));
+                assert_eq!(id, Some(circid));
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
@@ -2108,27 +2052,30 @@ mod test {
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
+        let circid = circ.peek_circid();
 
-        let circ_clone = circ.clone();
-        let begin_and_send_fut = async move {
-            // Take our circuit and make a stream on it.
-            let mut stream = circ_clone
-                .begin_stream("www.example.com", 443, None)
-                .await
-                .unwrap();
-            let junk = [0_u8; 1024];
-            let mut remaining = n_to_send;
-            while remaining > 0 {
-                let n = std::cmp::min(remaining, junk.len());
-                stream.write_all(&junk[..n]).await.unwrap();
-                remaining -= n;
+        let begin_and_send_fut = {
+            let circ = circ.clone();
+            async move {
+                // Take our circuit and make a stream on it.
+                let mut stream = circ
+                    .begin_stream("www.example.com", 443, None)
+                    .await
+                    .unwrap();
+                let junk = [0_u8; 1024];
+                let mut remaining = n_to_send;
+                while remaining > 0 {
+                    let n = std::cmp::min(remaining, junk.len());
+                    stream.write_all(&junk[..n]).await.unwrap();
+                    remaining -= n;
+                }
+                stream.flush().await.unwrap();
+                stream
             }
-            stream.flush().await.unwrap();
-            stream
         };
 
         let receive_fut = async move {
-            // Read the begindir cell.
+            // Read the begin cell.
             let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             let rmsg = match chmsg {
                 AnyChanMsg::Relay(r) => {
@@ -2148,7 +2095,7 @@ mod test {
             while bytes_received < n_to_send {
                 // Read a data cell, and remember how much we got.
                 let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-                assert_eq!(id, CircId::new(128));
+                assert_eq!(id, Some(circid));
 
                 let rmsg = match chmsg {
                     AnyChanMsg::Relay(r) => {
