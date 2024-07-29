@@ -151,10 +151,7 @@ cargo-audit:
     paths:
       - cache
 
-rust-latest:
-  stage: build
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+.rust-recent-template:
   script:
     - rustup show
     - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
@@ -167,15 +164,25 @@ rust-latest:
     - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+
+rust-recent:
+  extends: .rust-recent-template
+  stage: build
+  image: $RECENT_RUST_IMAGE
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
-rust-latest-arti-extra-features:
-  stage: build
+rust-latest:
+  extends: .rust-recent-template
+  stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+.rust-recent-arti-extra-features-template:
   script:
     - rustup show
     # Build the arti binary for use in chutney and shadow integration tests.
@@ -200,12 +207,25 @@ rust-latest-arti-extra-features:
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
     - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
+
+rust-recent-arti-extra-features:
+  extends: .rust-recent-arti-extra-features-template
+  stage: build
+  image: $RECENT_RUST_IMAGE
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
-rust-latest-async-std-rustls:
+rust-latest-arti-extra-features:
+  extends: .rust-recent-arti-extra-features-template
+  stage: test
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  image: amd64/rust:bookworm
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+rust-recent-async-std-rustls:
   stage: build
   image: $RECENT_RUST_IMAGE
   script:
@@ -423,7 +443,7 @@ integration-shadow:
     - amd64
     - tpa
 
-rust-latest-test-all-features:
+rust-recent-test-all-features:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
@@ -433,7 +453,7 @@ rust-latest-test-all-features:
 every-crate:
   stage: test
   image: $RECENT_RUST_IMAGE
-  needs: ["rust-checks", "rust-latest-async-std-rustls"]
+  needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
     - maint/common/apt-install python3-toml python-is-python3
     - ./maint/every-crate
@@ -441,7 +461,7 @@ every-crate:
 matrix-test:
   stage: test
   image: $RECENT_RUST_IMAGE
-  needs: ["rust-checks", "rust-latest-async-std-rustls"]
+  needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
     - maint/common/apt-install python3-toml python-is-python3
     - ./maint/matrix_test
