@@ -130,6 +130,16 @@ impl<'a, T> OutPtr<'a, T> {
 
 /// Implement the body of an FFI function.
 ///
+/// This macro handles the calling convention of an FFI function.
+/// Proper use of this macro will ensure that the FFI function behaves as documented,
+/// as regards pointer handling, ownership, lifetimes, and error handling.
+/// It also catches panics, making sure that we don't unwind into the FFI caller.
+/// I.e. it ensures that correct callers will not experience UB.
+///
+/// This variant is for simple infallible functions which
+/// don't pass back an `ArtiRpcError` via an out parameter.
+/// See [`ffi_body_with_err!`] for that.
+///
 /// This macro is meant to be invoked as follows:
 ///
 /// ```ignore
@@ -386,6 +396,14 @@ macro_rules! ffi_initialize {
     {
         { $( let $name:ident : $type:ty [$how:ident] ; )* } else with $err_id:ident { $($on_invalid:tt)* }
     } => {
+        // General approach
+        //
+        // First, we process each `$name` into `Result<$type>`, without doing any early exits.
+        // This ensures that we process every `$name`, even if some of the processing fails.
+        //
+        // Then we convert each `Result<X>` into just `X`
+        // (with an IEFE that returns a `Result<(X,...)>` - one `Result` with a big tuple.
+        // We rebinding the `$name`'s to the values from the tuple.
         #[allow(unused_parens)]
         let ($($name,)*) : ($($type,)*) = {
             $(
