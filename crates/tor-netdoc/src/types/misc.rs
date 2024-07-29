@@ -455,7 +455,7 @@ mod fingerprint {
             if s.starts_with('$') {
                 s = &s[1..];
             }
-            if let Some(idx) = s.find(|ch| ch == '=' || ch == '~') {
+            if let Some(idx) = s.find(['=', '~']) {
                 s = &s[..idx];
             }
             let ident = parse_hex_ident(s)?;

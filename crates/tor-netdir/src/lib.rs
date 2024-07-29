@@ -1036,7 +1036,7 @@ impl NetDir {
     /// even if it was not usable before.
     pub fn by_id<'a, T>(&self, id: T) -> Option<Relay<'_>>
     where
-        T: Into<RelayIdRef<'a>> + ?Sized,
+        T: Into<RelayIdRef<'a>>,
     {
         let id = id.into();
         let answer = match id {

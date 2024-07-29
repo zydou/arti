@@ -458,7 +458,7 @@ impl KeySpecifierComponent for TimePeriod {
 /// [`from_slug`](KeySpecifierComponent::from_slug) implementation, and
 /// return more descriptive errors through [`InvalidKeyPathComponentValue::Slug`].
 pub trait KeySpecifierComponentViaDisplayFromStr: Display + FromStr {}
-impl<T: KeySpecifierComponentViaDisplayFromStr + ?Sized> KeySpecifierComponent for T {
+impl<T: KeySpecifierComponentViaDisplayFromStr> KeySpecifierComponent for T {
     fn to_slug(&self) -> Result<Slug, Bug> {
         self.to_string()
             .try_into()

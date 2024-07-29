@@ -114,7 +114,7 @@ where
 }
 
 /// A future implementing [`SleepProviderExt::sleep_until_wallclock`].
-pub struct SleepUntilWallclock<'a, SP: SleepProvider + ?Sized> {
+pub struct SleepUntilWallclock<'a, SP: SleepProvider> {
     /// Reference to the provider that we use to make new SleepFutures.
     provider: &'a SP,
     /// The time that we are waiting for.
@@ -125,7 +125,7 @@ pub struct SleepUntilWallclock<'a, SP: SleepProvider + ?Sized> {
 
 impl<'a, SP> Future for SleepUntilWallclock<'a, SP>
 where
-    SP: SleepProvider + ?Sized,
+    SP: SleepProvider,
 {
     type Output = ();
 
