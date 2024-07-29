@@ -422,7 +422,7 @@ macro_rules! ffi_initialize {
         let ($($name,)*) : ($($type,)*) = {
             $(
                 let $name : Result<$type, crate::ffi::err::InvalidInput>
-                   = crate::ffi::util::ffi_initialize!{ @init $name [$how] };
+                   = unsafe { crate::ffi::util::arg_conversion::$how($name) };
             )*
             #[allow(clippy::needless_question_mark)]
             // Note that the question marks here exit from _this_ closure.
@@ -434,29 +434,108 @@ macro_rules! ffi_initialize {
             }
         };
     };
-    // Each of these conversions should evaluate `Err(InvalidInput)` if the conversion fails,
-    // and `Ok($ty)` if the conversion succeeds.
-    // (Infallible conversions always return `Ok`.)
-    // A conversion must not return early (via return or `?`).
-    { @init $name:ident [in_ptr_required] } => {
-        unsafe { crate::ffi::util::ptr_as_ref($name) }
-    };
-    { @init $name:ident [in_ptr_opt] } => {
-        Ok(unsafe { crate::ffi::util::ptr_as_ref($name) })
-    };
-    { @init $name:ident [in_str_required] } => {
-        unsafe { crate::ffi::util::ptr_to_str($name) }
-    };
-    { @init $name:ident [in_ptr_consume_opt] } => {
-        Ok(unsafe { crate::ffi::util::ptr_to_opt_box($name) })
-    };
-    { @init $name:ident [out_ptr_required] } => {
-        unsafe { crate::ffi::util::OutPtr::from_ptr_nonnull($name) }
-    };
-    { @init $name:ident [out_ptr_opt] } => {
-        Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr($name) })
-    };
 }
+
+/// Functions to implement argument conversion.
+///
+/// Each of these functions corresponds to a conversion mode used in `ffi_initialize!`.
+///
+/// Every function has all of these properties:
+///
+/// - It returns  `Err(InvalidInput)` if the conversion fails,
+///   and `Ok($ty)` if the conversion succeeds.
+///     (Infallible conversions always return `Ok`.)
+///
+/// Nothing outside of the `ffi_initialize!` macro should actually invoke these functions!
+#[allow(clippy::unnecessary_wraps)]
+pub(super) mod arg_conversion {
+    use super::OutPtr;
+    use crate::ffi::err::InvalidInput;
+    use std::ffi::c_char;
+
+    /// Try to convert a const pointer to a reference.
+    ///
+    /// A null pointer gives an error.
+    ///
+    /// # Safety
+    ///
+    /// As for [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
+    pub(in crate::ffi) unsafe fn in_ptr_required<'a, T>(
+        input: *const T,
+    ) -> Result<&'a T, InvalidInput> {
+        unsafe { crate::ffi::util::ptr_as_ref(input) }
+    }
+
+    /// Try to convert a const pointer to an optional reference.
+    ///
+    /// A null pointer is allowed, and converted to `None`.
+    ///
+    /// # Safety
+    ///
+    /// As for [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
+    #[allow(dead_code)] // TODO RPC REMOVE.
+    pub(in crate::ffi) unsafe fn in_ptr_opt<'a, T>(
+        input: *const T,
+    ) -> Result<Option<&'a T>, InvalidInput> {
+        Ok(unsafe { crate::ffi::util::ptr_as_ref(input) }.ok())
+    }
+
+    /// Try to convert a `const char *` to a `&str`.
+    ///
+    /// Null pointers and non-UTF-8 inputs will give an error.
+    ///
+    /// # Safety
+    ///
+    /// As for [`CStr::from_ptr`](std::ffi::CStr::from_ptr).
+    pub(in crate::ffi) unsafe fn in_str_required<'a>(
+        input: *const c_char,
+    ) -> Result<&'a str, InvalidInput> {
+        unsafe { crate::ffi::util::ptr_to_str(input) }
+    }
+
+    /// Try to convert a mutable pointer to a `Option<Box<T>>`.
+    ///
+    /// A null pointer is allowed, and converted to `None`.
+    ///
+    /// # Safety
+    ///
+    /// As for  [`Box::from_raw`].
+    pub(in crate::ffi) unsafe fn in_ptr_consume_opt<T>(
+        input: *mut T,
+    ) -> Result<Option<Box<T>>, InvalidInput> {
+        Ok(unsafe { crate::ffi::util::ptr_to_opt_box(input) })
+    }
+
+    /// Try to convert a mutable pointer-to-pointer into an `OutPtr<T>`.
+    ///
+    /// Null pointers will give an error.
+    ///
+    /// # Safety
+    ///
+    /// As for
+    /// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
+    pub(in crate::ffi) unsafe fn out_ptr_required<'a, T>(
+        input: *mut *mut T,
+    ) -> Result<OutPtr<'a, T>, InvalidInput> {
+        unsafe { crate::ffi::util::OutPtr::from_ptr_nonnull(input) }
+    }
+
+    /// Try to convertt a mutable pointer-to-pointer into an `OutPtr<T>`.
+    ///
+    /// A null pointer is allowed, and converted into an `OutPtr<T>` that discards anything written
+    /// to it.
+    ///
+    /// # Safety
+    ///
+    /// As for
+    /// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
+    pub(in crate::ffi) unsafe fn out_ptr_opt<'a, T>(
+        input: *mut *mut T,
+    ) -> Result<OutPtr<'a, T>, InvalidInput> {
+        Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr(input) })
+    }
+}
+
 pub(super) use ffi_initialize;
 
 #[cfg(test)]
