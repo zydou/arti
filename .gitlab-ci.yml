@@ -9,6 +9,9 @@ variables:
   CARGO_HUSKY_DONT_INSTALL_HOOKS: "true"
   # fs-mistrust doesn't like umask 0
   FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
+  # Pinned CI image for must Rust tests
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  RECENT_RUST_IMAGE: "amd64/rust:1.79.0-bookworm"
 
 default:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
@@ -118,8 +121,7 @@ blocking-todos:
 rust-checks:
   # This is too slow (and the cacheing of the "cargo build" too flaky) to be a "check"
   stage: build
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - rustup show
     - rustup component add rustfmt
@@ -140,8 +142,7 @@ cargo-audit:
   # Run it last, separately, so if we think we may want to merge anyway,
   # all the other tests will have been run.
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:1.79.0-bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-audit
@@ -150,10 +151,7 @@ cargo-audit:
     paths:
       - cache
 
-rust-latest:
-  stage: build
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+.rust-recent-template:
   script:
     - rustup show
     - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
@@ -166,15 +164,25 @@ rust-latest:
     - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
+
+rust-recent:
+  extends: .rust-recent-template
+  stage: build
+  image: $RECENT_RUST_IMAGE
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
-rust-latest-arti-extra-features:
-  stage: build
+rust-latest:
+  extends: .rust-recent-template
+  stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+.rust-recent-arti-extra-features-template:
   script:
     - rustup show
     # Build the arti binary for use in chutney and shadow integration tests.
@@ -199,15 +207,27 @@ rust-latest-arti-extra-features:
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
     - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
+
+rust-recent-arti-extra-features:
+  extends: .rust-recent-arti-extra-features-template
+  stage: build
+  image: $RECENT_RUST_IMAGE
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
-rust-latest-async-std-rustls:
-  stage: build
+rust-latest-arti-extra-features:
+  extends: .rust-recent-arti-extra-features-template
+  stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+rust-recent-async-std-rustls:
+  stage: build
+  image: $RECENT_RUST_IMAGE
   script:
     - rustup show
     - rustup component add clippy
@@ -239,8 +259,7 @@ coverage:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - maint/common/apt-install python3-pip python3-setuptools python3-bs4 python3-lxml
     - rustup component add llvm-tools
@@ -424,43 +443,38 @@ integration-shadow:
     - amd64
     - tpa
 
-rust-latest-test-all-features:
+rust-recent-test-all-features:
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - rustup show
     - cargo test --target x86_64-unknown-linux-gnu --locked --workspace --all-features
 
 every-crate:
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
-  needs: ["rust-checks", "rust-latest-async-std-rustls"]
+  image: $RECENT_RUST_IMAGE
+  needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
     - maint/common/apt-install python3-toml python-is-python3
     - ./maint/every-crate
 
 matrix-test:
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
-  needs: ["rust-checks", "rust-latest-async-std-rustls"]
+  image: $RECENT_RUST_IMAGE
+  needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
     - maint/common/apt-install python3-toml python-is-python3
     - ./maint/matrix_test
 
 matrix-test-cfg:
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - ./maint/matrix_test_cfg
 
 cli-help:
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - ./maint/check-cli-help
 
@@ -468,8 +482,7 @@ coverage-aggregated:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: $RECENT_RUST_IMAGE
   needs: []
   script:
     - maint/common/apt-install tor python3 python3-pip python3-setuptools curl python3-bs4 python3-lxml
@@ -491,8 +504,7 @@ check-targets:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   stage: test
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - ./maint/cargo_check_target -il
 
