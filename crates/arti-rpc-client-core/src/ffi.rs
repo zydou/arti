@@ -119,7 +119,6 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
             drop(string);
         }
         on invalid { () }
-        on panic { () }
     );
 }
 
@@ -142,7 +141,6 @@ pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c
             string.as_ptr()
         }
         on invalid { std::ptr::null() }
-        on panic { std::ptr::null() }
     )
 }
 
@@ -157,6 +155,5 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
             drop(rpc_conn);
         }
         on invalid { () }
-        on panic { () }
     );
 }

@@ -291,7 +291,6 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
             err.status
         }
         on invalid { ARTI_RPC_STATUS_INVALID_INPUT }
-        on panic { ARTI_RPC_STATUS_INTERNAL }
     )
 }
 
@@ -315,7 +314,6 @@ pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *cons
            err.message.as_ptr()
         }
         on invalid { std::ptr::null() }
-        on panic { c_str!("internal error (panic)").as_ptr() }
     )
 }
 
@@ -341,7 +339,6 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
             err.error_response_as_ptr().unwrap_or(std::ptr::null())
         }
         on invalid { std::ptr::null() }
-        on panic { c_str!("internal error (panic)").as_ptr() }
     )
 }
 
@@ -365,7 +362,6 @@ pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut Ar
             Box::into_raw(Box::new(err.clone()))
         }
         on invalid { std::ptr::null_mut() }
-        on panic { std::ptr::null_mut() }
     )
 }
 
@@ -380,7 +376,6 @@ pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
             drop(err);
         }
         on invalid { () }
-        on panic { () }
     );
 }
 
@@ -388,14 +383,17 @@ pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
 ///
 /// We wrap the body of every C ffi function with this function (or with `handle_errors`, which uses
 /// this function), even if we do not think that the body can actually panic.
-pub(super) fn catch_panic<F, G, T>(body: F, on_err: G) -> T
+pub(super) fn abort_on_panic<F, T>(body: F) -> T
 where
     F: FnOnce() -> T + UnwindSafe,
-    G: FnOnce() -> T,
 {
+    #[allow(clippy::print_stderr)]
     match catch_unwind(body) {
         Ok(x) => x,
-        Err(_panic_info) => on_err(),
+        Err(_panic_info) => {
+            eprintln!("Internal panic in arti-rpc library: aborting!");
+            std::process::abort();
+        }
     }
 }
 
@@ -405,27 +403,13 @@ pub(super) fn handle_errors<F>(error_out: OutPtr<FfiError>, body: F) -> ArtiRpcS
 where
     F: FnOnce() -> Result<(), FfiError> + UnwindSafe,
 {
-    match catch_unwind(body) {
-        Ok(Ok(())) => ARTI_RPC_STATUS_SUCCESS,
-        Ok(Err(e)) => {
+    match abort_on_panic(body) {
+        Ok(()) => ARTI_RPC_STATUS_SUCCESS,
+        Err(e) => {
             // "body" returned an error.
             let status = e.status;
             error_out.write_value_if_nonnull(e);
             status
-        }
-        Err(_panic_data) => {
-            // "body" panicked.  Unfortunately, there is not a great way to get this
-            // panic info to be exposed.
-            let e = FfiError {
-                status: ARTI_RPC_STATUS_INTERNAL,
-                message: "Internal panic in library code"
-                    .to_string()
-                    .try_into()
-                    .expect("couldn't make a valid C string"),
-                error_response: None,
-            };
-            error_out.write_value_if_nonnull(e);
-            ARTI_RPC_STATUS_INTERNAL
         }
     }
 }

@@ -150,8 +150,6 @@ impl<'a, T> OutPtr<'a, T> {
 ///             [BODY]
 ///         } on invalid {
 ///             [VALUE_ON_BAD_INPUT]
-///         } on panic {
-///             [VALUE_ON_PANIC]
 ///         }
 ///     )
 /// ```
@@ -179,9 +177,6 @@ impl<'a, T> OutPtr<'a, T> {
 ///             n_guests as isize
 ///         } on invalid {
 ///             // [VALUE_ON_BAD_INPUT]
-///             0
-///         } on panic {
-///             // [VALUE_ON_PANIC]
 ///             0
 ///         }
 ///     )
@@ -213,10 +208,6 @@ impl<'a, T> OutPtr<'a, T> {
 /// The third part (`VALUE_ON_BAD_INPUT`) is an expression to be returned
 /// as the result of the function if any input pointer is NULL
 /// that is not permitted to be NULL.
-///
-/// The fourth part (`VALUE_ON_PANIC`) is an expression to be returned
-/// as the result of the function if any conversion
-/// (or the body of the function) causes a panic.
 ///
 /// ## Supported conversions
 ///
@@ -285,8 +276,8 @@ impl<'a, T> OutPtr<'a, T> {
 // Design notes:
 // - I am keeping the conversions separate from the body below, since we don't want to catch
 //   InvalidInput from the body.
-// - The "on invalid" and "on panic" values must be specified explicitly,
-//   since in general we should force the caller to think about them.
+// - The "on invalid" value must be specified explicitly,
+//   since in general we should force the caller to think about it.
 //   Getting a 0 or -1 wrong here can have nasty results.
 // - The conversion syntax deliberately includes the type of the converted argument,
 //   on the theory that it makes the functions more readable.
@@ -294,9 +285,9 @@ impl<'a, T> OutPtr<'a, T> {
 //   converted parameter.
 macro_rules! ffi_body_simple {
     { { $( let $name:ident : $type:ty [$how:ident]);* $(;)? }
-      in { $($body:tt)+ } on invalid { $err:expr } on panic { $panic:expr } } => {
+      in { $($body:tt)+ } on invalid { $err:expr } } => {
 
-        crate::ffi::err::catch_panic(|| {
+        crate::ffi::err::abort_on_panic(|| {
 
             // run conversions and check for invalid input exceptions.
             crate::ffi::util::ffi_initialize!{ { $( let $name : $type [$how]; )* } else with _ignore_err {
@@ -307,7 +298,6 @@ macro_rules! ffi_body_simple {
             $($body)+
 
             },
-            || { $panic }
         )
     }
 }
