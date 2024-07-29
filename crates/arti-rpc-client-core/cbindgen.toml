@@ -79,6 +79,8 @@ header = """\
  *   While the function is running,
  *   `*out` and `**out` may not be read or written by any other part of the program,
  *   and they may not alias any other arguments.)
+ *   - Note that `*out` will be set (likely to `NULL`) even if an error occurs 
+ *     or the function's inputs are invalid.
  *
  * - When any object is exposed as a non-const pointer,
  *   the application becomes the owner of that object.
@@ -92,6 +94,9 @@ header = """\
  * - If a function should be considered a method on a given type of object,
  *   it will take a pointer to that object as its first argument.
  *
+ * - If a function consumes (takes ownership of) one of its inputs,
+ *   it does so regardless of whether the function succeeds or fails.
+ * 
  * ## Correctness requirements
  *
  * If any correctness requirements stated here or elsewhere are violated,
