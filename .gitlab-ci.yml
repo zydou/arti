@@ -9,6 +9,9 @@ variables:
   CARGO_HUSKY_DONT_INSTALL_HOOKS: "true"
   # fs-mistrust doesn't like umask 0
   FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
+  # Pinned CI image for must Rust tests
+  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
+  RECENT_RUST_IMAGE: "amd64/rust:1.79.0-bookworm"
 
 default:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
@@ -141,7 +144,7 @@ cargo-audit:
   # all the other tests will have been run.
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:1.79.0-bookworm
+  image: $RECENT_RUST_IMAGE
   script:
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-audit
