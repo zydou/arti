@@ -109,7 +109,7 @@ impl SqliteStore {
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
         };
         let conn = rusqlite::Connection::open_with_flags(&sqlpath, flags)?;
-        let mut store = SqliteStore::from_conn(conn, blob_dir, readonly)?;
+        let mut store = SqliteStore::from_conn_internal(conn, blob_dir, readonly)?;
         store.sql_path = Some(sqlpath);
         store.lockfile = Some(lockfile);
         Ok(store)
@@ -122,7 +122,16 @@ impl SqliteStore {
     ///
     /// Note: `blob_dir` must not be used for anything other than storing the blobs associated with
     /// this database, since we will freely remove unreferenced files from this directory.
-    pub(crate) fn from_conn(
+    #[cfg(test)]
+    fn from_conn(conn: rusqlite::Connection, blob_dir: CheckedDir) -> Result<Self> {
+        Self::from_conn_internal(conn, blob_dir, false)
+    }
+
+    /// Construct a new SqliteStore from a database connection and a location
+    /// for blob files.
+    ///
+    /// The `readonly` argument specifies whether the database connection should be read-only.
+    fn from_conn_internal(
         conn: rusqlite::Connection,
         blob_dir: CheckedDir,
         readonly: bool,
@@ -1105,7 +1114,7 @@ pub(crate) mod test {
             .verifier()
             .make_secure_dir(blob_path)
             .unwrap();
-        let store = SqliteStore::from_conn(conn, blob_dir, false)?;
+        let store = SqliteStore::from_conn(conn, blob_dir)?;
 
         Ok((tmp_dir, store))
     }
@@ -1124,24 +1133,24 @@ pub(crate) mod test {
         // Initial setup: everything should work.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
-            let _store = SqliteStore::from_conn(conn, blob_dir.clone(), false)?;
+            let _store = SqliteStore::from_conn(conn, blob_dir.clone())?;
         }
         // Second setup: shouldn't need to upgrade.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
-            let _store = SqliteStore::from_conn(conn, blob_dir.clone(), false)?;
+            let _store = SqliteStore::from_conn(conn, blob_dir.clone())?;
         }
         // Third setup: shouldn't need to upgrade.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
             conn.execute_batch("UPDATE TorSchemaMeta SET version = 9002;")?;
-            let _store = SqliteStore::from_conn(conn, blob_dir.clone(), false)?;
+            let _store = SqliteStore::from_conn(conn, blob_dir.clone())?;
         }
         // Fourth: this says we can't read it, so we'll get an error.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
             conn.execute_batch("UPDATE TorSchemaMeta SET readable_by = 9001;")?;
-            let val = SqliteStore::from_conn(conn, blob_dir, false);
+            let val = SqliteStore::from_conn(conn, blob_dir);
             assert!(val.is_err());
         }
         Ok(())
