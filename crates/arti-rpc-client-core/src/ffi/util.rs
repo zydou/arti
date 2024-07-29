@@ -392,6 +392,20 @@ pub(super) use ffi_body_with_err;
 /// can initialize that pointer to NULL, and we want to do that unconditionally.
 ///
 /// If any conversion fails, run `return ($on_invalid)(error)` _after_ trying every conversion.
+///
+/// The syntax is:
+///
+/// ```ignore
+/// ffi_initialize!{
+///    { [CONVERSIONS] }
+///    else with [ERR_IDENT] { [ERR_BODY] }
+/// }
+/// ```
+///
+/// The `[CONVERSIONS]` have the same syntax and behavior as in [`ffi_body_simple!`].
+/// After every conversion has been tried, if one or more of them failed,
+/// then the `[ERR_BODY]` code is run,
+/// with `[ERR_IDENT]` bound to an instance of `InvalidInput`.
 macro_rules! ffi_initialize {
     {
         { $( let $name:ident : $type:ty [$how:ident] ; )* } else with $err_id:ident { $($on_invalid:tt)* }
