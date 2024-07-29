@@ -141,7 +141,7 @@ cargo-audit:
   # all the other tests will have been run.
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:bookworm
+  image: amd64/rust:1.79.0-bookworm
   script:
     - rustup show
     - ./maint/common/via-cargo-install-in-ci cargo-audit
