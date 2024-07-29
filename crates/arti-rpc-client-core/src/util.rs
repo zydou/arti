@@ -56,7 +56,7 @@ impl TryFrom<String> for Utf8CString {
     type Error = NulError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        // Safety: Since `value` is a string, it is guaranteed to be UTF-8.
+        // Safety: Since `value` is a `String`, it is guaranteed to be UTF-8.
         Ok(Utf8CString {
             string: CString::new(value)?.into_boxed_c_str(),
         })

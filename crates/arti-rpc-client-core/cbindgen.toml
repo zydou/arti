@@ -75,14 +75,17 @@ header = """\
  *   or to NULL if no such object is returned.   Any earlier value of `*out` will be replaced
  *   without freeing it.
  *   (If `out` is NULL, then any object the library would have returned will instead be discareded.)
- *   discarded.)
+ *   discarded.
+ *   While the function is running,
+ *   `*out` and `**out` may not be read or written by any other part of the program,
+ *   and they may not alias any other arguments.)
  *
  * - When any object is exposed as a non-const pointer,
  *   the application becomes the owner of that object.
  *   The application is expected to eventually free that object via the corresponding `arti_rpc_*_free()` function.
  *
  * - When any object is exposed via a const pointer,
- *   that object is now owned by the application.
+ *   that object is *not* owned by the application.
  *   That object's lifetime will be as documented.
  *   The application must not modify or free such an object.
  *
@@ -118,7 +121,8 @@ header = """\
  *     and must not alias any const arguments passed to the function.
  * - All `const char*` passed as inputs to library functions
  *   are nul-terminated strings.
- *   Additionally, they must be no larger than `SSIZE_MAX`.
+ *   Additionally, they must be no larger than `SSIZE_MAX`,
+     including the nul.
  * - If a function takes any mutable pointers
  **/"""
 

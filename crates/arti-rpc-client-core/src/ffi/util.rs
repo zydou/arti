@@ -187,8 +187,17 @@ impl<'a, T> OutPtr<'a, T> {
 /// If they do, the function will return;
 /// see discussion of `[VALUE_ON_BAD_INPUT]`
 ///
+/// Pointer parameters to the outer function *must not be ignored*.
+/// Every raw pointer parameter must be processed by this macro.
+/// (For raw pointer arguments that are not,
+/// no gaurantees are made by the macro,
+/// and the overall function will probably be unsound.
+/// There is no checking that every pointer parameter is properly used,
+/// other than Rust's usual detection of unused variables.)
+///
 /// The second part (`BODY`) is the body of the function.
-/// It should generally be possible to write this body without using unsafe code.
+/// The body is *outside* `unsafe`, and
+/// it should generally be possible to write this body without using unsafe code.
 /// The result of this block is the returned value of the function.
 ///
 /// The third part (`VALUE_ON_BAD_INPUT`) is an expression to be returned
