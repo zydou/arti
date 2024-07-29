@@ -947,12 +947,6 @@ impl ClientCirc {
         self.unique_id
     }
 
-    /// Testing only: Extract the circuit ID of this circuit.
-    #[cfg(test)]
-    pub(crate) fn peek_circid(&self) -> CircId {
-        self.circid
-    }
-
     /// Return the number of hops in this circuit.
     ///
     /// NOTE: This function will currently return only the number of hops
@@ -1053,12 +1047,6 @@ impl PendingClientCirc {
             circ: Arc::new(circuit),
         };
         (pending, reactor)
-    }
-
-    /// Testing only: Extract the circuit ID for this pending circuit.
-    #[cfg(test)]
-    pub(crate) fn peek_circid(&self) -> CircId {
-        self.circ.circid
     }
 
     /// Extract the process-unique identifier for this pending circuit.
@@ -1373,6 +1361,20 @@ mod test {
     use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
+
+    impl PendingClientCirc {
+        /// Testing only: Extract the circuit ID for this pending circuit.
+        pub(crate) fn peek_circid(&self) -> CircId {
+            self.circ.circid
+        }
+    }
+
+    impl ClientCirc {
+        /// Testing only: Extract the circuit ID of this circuit.
+        pub(crate) fn peek_circid(&self) -> CircId {
+            self.circid
+        }
+    }
 
     fn rmsg_to_ccmsg(id: Option<StreamId>, msg: relaymsg::AnyRelayMsg) -> ClientCircChanMsg {
         let body: BoxedCellBody = AnyRelayMsgOuter::new(id, msg)
