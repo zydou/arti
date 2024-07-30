@@ -233,15 +233,28 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 // - The conversion code deliberately shadows the original parameter with the
 //   converted parameter.
 macro_rules! ffi_body_simple {
-    { { $( let $name:ident : $type:ty [$how:ident]);* $(;)? }
-      in { $($body:tt)+ } on invalid { $err:expr } } => {
-
+    {
+        {
+            $(
+                let $name:ident : $type:ty [$how:ident]
+            );*
+            $(;)?
+        } in {
+            $($body:tt)+
+        } on invalid {
+            $err:expr
+        }
+    } => {
         crate::ffi::err::abort_on_panic(|| {
             // run conversions and check for invalid input exceptions.
-            crate::ffi::util::ffi_initialize!{ { $( let $name : $type [$how]; )* } else with _ignore_err {
-                #[allow(clippy::unused_unit)]
-                return $err;
-            }};
+            crate::ffi::util::ffi_initialize!{
+                {
+                    $( let $name : $type [$how]; )*
+                } else with _ignore_err {
+                    #[allow(clippy::unused_unit)]
+                    return $err;
+                }
+            };
 
             $($body)+
 
@@ -302,9 +315,15 @@ pub(super) use ffi_body_simple;
 /// The safety requirements for the `err` conversion
 /// are the same as those for `out_ptr_opt` (q.v.).
 macro_rules! ffi_body_with_err {
-    { { $( let $name:ident : $type:ty [$how:ident]; )*
-          err $err_out:ident : $err_type:ty $(;)? }
-      in {$($body:tt)+}
+    {
+        {
+            $(
+                let $name:ident : $type:ty [$how:ident];
+            )*
+            err $err_out:ident : $err_type:ty $(;)?
+        } in {
+            $($body:tt)+
+        }
     } => {{
         // (This is equivalent to using `out_ptr_opt`, but makes it more clear that the conversion
         // will never fail, and so we won't exit early.)
@@ -312,9 +331,13 @@ macro_rules! ffi_body_with_err {
 
         crate::ffi::err::handle_errors($err_out,
             || {
-                crate::ffi::util::ffi_initialize!{ { $( let $name : $type [$how]; )* } else with err {
-                    return Err(crate::ffi::err::ArtiRpcError::from(err));
-                }};
+                crate::ffi::util::ffi_initialize!{
+                    {
+                        $( let $name : $type [$how]; )*
+                    } else with err {
+                        return Err(crate::ffi::err::ArtiRpcError::from(err));
+                    }
+                };
 
                 let () = { $($body)+ };
 
@@ -348,7 +371,11 @@ pub(super) use ffi_body_with_err;
 /// with `[ERR_IDENT]` bound to an instance of `InvalidInput`.
 macro_rules! ffi_initialize {
     {
-        { $( let $name:ident : $type:ty [$how:ident] ; )* } else with $err_id:ident { $($on_invalid:tt)* }
+        {
+            $( let $name:ident : $type:ty [$how:ident] ; )*
+        } else with $err_id:ident {
+            $($on_invalid:tt)*
+        }
     } => {
         // General approach
         //
