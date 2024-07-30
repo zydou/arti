@@ -431,14 +431,14 @@ mod test {
             .unwrap()
             .write_all("be the other guy".as_bytes())
             .unwrap();
-        assert!(checked.join("bar.tmp").unwrap().exists());
+        assert!(checked.join("bar.tmp").unwrap().try_exists().unwrap());
 
         checked
             .write_and_replace("bar.txt", "its hard and nobody understands")
             .unwrap();
 
         // Temp file should be gone.
-        assert!(!checked.join("bar.tmp").unwrap().exists());
+        assert!(!checked.join("bar.tmp").unwrap().try_exists().unwrap());
         let s4 = checked.read_to_string("bar.txt").unwrap();
         assert_eq!(s4, "its hard and nobody understands");
     }
