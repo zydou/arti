@@ -7,4 +7,5 @@ disallowed-methods = [
     { path = "futures::channel::oneshot::channel", reason = "Use tor_async_utils::oneshot to avoid bug with select macro" },
     { path = "std::path::Path::display", reason = "See tor_basic_utils::PathExt::display_lossy" },
 #    { path = "std::time::SystemTime::now", reason = "prefer using SleepProvider::wallclock instead when possible" },
+    { path = "std::path::Path::exists", reason = "Prefer using std::Path::try_exists or std::fs::exists" },
 ]

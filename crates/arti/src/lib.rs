@@ -203,7 +203,7 @@ async fn run<R: Runtime>(
                 .make_secure_dir(parent)?;
             // It's just a unix thing; if we leave this sitting around, binding to it won't
             // work right.  There is probably a better solution.
-            if path.exists() {
+            if path.try_exists()? {
                 std::fs::remove_file(&path)?;
             }
 

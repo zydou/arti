@@ -9,6 +9,7 @@ use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
@@ -125,7 +126,13 @@ impl Keystore for ArtiNativeKeystore {
                     err: err.into(),
                 })?;
 
-        Ok(abs_path.exists())
+        Ok(abs_path
+            .try_exists()
+            .map_err(|e| ArtiNativeKeystoreError::Filesystem {
+                action: FilesystemAction::Read,
+                path: self.keystore_dir.as_path().into(),
+                err: Arc::new(e),
+            })?)
     }
 
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
@@ -508,10 +515,10 @@ mod tests {
             .join(key_store.rel_path(&key_spec, ed_key_type).unwrap());
 
         // The key and its parent directories don't exist yet.
-        assert!(!path.parent().unwrap().exists());
+        assert!(!path.parent().unwrap().try_exists().unwrap());
         assert!(key_store.insert(&*key, &key_spec, ed_key_type).is_ok());
         // insert() is supposed to create the missing directories
-        assert!(path.parent().unwrap().exists());
+        assert!(path.parent().unwrap().try_exists().unwrap());
 
         // Found!
         assert_found!(

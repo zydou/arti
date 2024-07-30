@@ -1413,7 +1413,7 @@ pub(crate) mod test {
         // Nothing there: can't open read-only
         let r = SqliteStore::from_path_and_mistrust(tmp.path(), &mistrust, true);
         assert!(r.is_err());
-        assert!(!tmp.path().join("dir_blobs").exists());
+        assert!(!tmp.path().join("dir_blobs").try_exists().unwrap());
 
         // Opening it read-write will crate the files
         {
