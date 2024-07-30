@@ -9,7 +9,7 @@ use std::panic::{catch_unwind, UnwindSafe};
 use crate::conn::ErrorResponse;
 use crate::util::Utf8CString;
 
-use super::util::{ffi_body_simple, OutPtr};
+use super::util::{ffi_body_simple, OptOutPtrExt as _, OutPtr};
 use super::ArtiRpcStatus;
 
 /// Helper:
@@ -286,9 +286,10 @@ pub type ArtiRpcError = FfiError;
 pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRpcStatus {
     ffi_body_simple!(
         {
-            let err: &ArtiRpcError [in_ptr_required];
+            let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
-            err.status
+            err.map(|e| e.status)
+               .unwrap_or(ARTI_RPC_STATUS_INVALID_INPUT)
         }
         on invalid { ARTI_RPC_STATUS_INVALID_INPUT }
     )
@@ -309,9 +310,10 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
 pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *const c_char {
     ffi_body_simple!(
         {
-            let err: &ArtiRpcError [in_ptr_required];
+            let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
-           err.message.as_ptr()
+            err.map(|e| e.message.as_ptr())
+               .unwrap_or(std::ptr::null())
         }
         on invalid { std::ptr::null() }
     )
@@ -334,9 +336,10 @@ pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *cons
 pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *const c_char {
     ffi_body_simple!(
         {
-            let err: &ArtiRpcError [in_ptr_required];
+            let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
-            err.error_response_as_ptr().unwrap_or(std::ptr::null())
+            err.and_then(ArtiRpcError::error_response_as_ptr)
+               .unwrap_or(std::ptr::null())
         }
         on invalid { std::ptr::null() }
     )
@@ -357,9 +360,10 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
 pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut ArtiRpcError {
     ffi_body_simple!(
         {
-            let err: &ArtiRpcError [in_ptr_required];
+            let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
-            Box::into_raw(Box::new(err.clone()))
+            err.map(|e| Box::into_raw(Box::new(e.clone())))
+               .unwrap_or(std::ptr::null_mut())
         }
         on invalid { std::ptr::null_mut() }
     )
@@ -399,7 +403,7 @@ where
 
 /// Call `body`, converting any errors or panics that occur into an FfiError, and storing that error in
 /// `error_out`.
-pub(super) fn handle_errors<F>(error_out: OutPtr<FfiError>, body: F) -> ArtiRpcStatus
+pub(super) fn handle_errors<F>(error_out: Option<OutPtr<FfiError>>, body: F) -> ArtiRpcStatus
 where
     F: FnOnce() -> Result<(), FfiError> + UnwindSafe,
 {
@@ -408,7 +412,7 @@ where
         Err(e) => {
             // "body" returned an error.
             let status = e.status;
-            error_out.write_value_if_nonnull(e);
+            error_out.write_value_if_ptr_set(e);
             status
         }
     }

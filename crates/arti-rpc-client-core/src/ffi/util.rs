@@ -1,71 +1,19 @@
 //! Helpers for working with FFI.
 
-use std::{
-    ffi::{c_char, CStr},
-    mem::MaybeUninit,
-};
-
-use super::err::InvalidInput;
-
-/// Try to convert a `const char*` from C to a Rust `&str`, but return an error if the pointer
-/// is NULL or not UTF8.
-///
-/// # Safety
-///
-/// See [`CStr::from_ptr`].  All those restrictions apply, except that we tolerate a NULL pointer.
-/// These rules are precisely those in the Arti RPC FFI for a `const char*` passed in from C.
-pub(super) unsafe fn ptr_to_str<'a>(p: *const c_char) -> Result<&'a str, InvalidInput> {
-    if p.is_null() {
-        return Err(InvalidInput::NullPointer);
-    }
-
-    // Safety: We require that the safety properties of CStr::from_ptr hold.
-    unsafe { CStr::from_ptr(p) }
-        .to_str()
-        .map_err(|_| InvalidInput::BadUtf8)
-}
-
-/// If `p` is non-null, convert it into a `Box<T>`.  Otherwise return None.
-///
-/// # Safety
-///
-/// If `p` is non-NULL, it must point to a valid instance of T that was constructed
-/// using `Box::into_raw(Box::new(..))`.
-pub(super) unsafe fn ptr_to_opt_box<T>(p: *mut T) -> Option<Box<T>> {
-    if p.is_null() {
-        None
-    } else {
-        Some(unsafe { Box::from_raw(p) })
-    }
-}
-
-/// Convert `ptr` into a reference, or return a null pointer exception.
-///
-/// # Safety
-///
-/// If `ptr` is not null, it must be a valid pointer to an instance of `T`.
-/// The underlying T must not be modified for so long as this reference exists.
-///
-/// (These are the same as the rules for `const *`s passed into the arti RPC lib.)
-pub(super) unsafe fn ptr_as_ref<'a, T>(ptr: *const T) -> Result<&'a T, InvalidInput> {
-    // Safety: we require that ptr, if set, is valid.
-    unsafe { ptr.as_ref() }.ok_or(InvalidInput::NullPointer)
-}
+use std::mem::MaybeUninit;
 
 /// Helper for output parameters represented as `*mut *mut T`.
 ///
 /// This is for an API which, from a C POV, returns an output via a parameter of type
-/// `Foo **foo_out`.  If
-///
-/// The outer `foo_out` pointer may be NULL; if so, the caller wants to discard any values.
+/// `Foo **foo_out`.  When an `OutPtr` is constructed, `*foo_out` is necessarily non-null.
 ///
 /// If `foo_out` is not NULL, then `*foo_out` is always set to NULL when an `OutPtr`
 /// is constructed, so that even if the FFI code panics, the inner pointer will be initialized to
 /// _something_.
-pub(super) struct OutPtr<'a, T>(Option<&'a mut *mut T>);
+pub(super) struct OutPtr<'a, T>(&'a mut *mut T);
 
 impl<'a, T> OutPtr<'a, T> {
-    /// Construct `Self` from a possibly NULL pointer; initialize `*ptr` to NULL if possible.
+    /// Construct `Option<Self>` from a possibly NULL pointer; initialize `*ptr` to NULL if possible.
     ///
     /// # Safety
     ///
@@ -80,9 +28,9 @@ impl<'a, T> OutPtr<'a, T> {
     //
     // (I have tested this using the `no-panic` crate.  But `no-panic` is not suitable
     // for use in production, since it breaks when run in debug mode.)
-    pub(super) unsafe fn from_opt_ptr(ptr: *mut *mut T) -> Self {
+    pub(super) unsafe fn from_opt_ptr(ptr: *mut *mut T) -> Option<Self> {
         if ptr.is_null() {
-            OutPtr(None)
+            None
         } else {
             // TODO: Use `.as_mut_uninit` once it is stable.
             //
@@ -91,39 +39,41 @@ impl<'a, T> OutPtr<'a, T> {
             // This is the same code.
             let ptr: &mut MaybeUninit<*mut T> = unsafe { &mut *(ptr as *mut MaybeUninit<*mut T>) };
             let ptr: &mut *mut T = ptr.write(std::ptr::null_mut());
-            OutPtr(Some(ptr))
+            Some(OutPtr(ptr))
         }
     }
 
-    /// As [`Self::from_opt_ptr`], but return an error if the pointer is NULL.
-    ///
-    /// This is appropriate in cases where it makes no sense to call the FFI function
-    /// if you are going to throw away the output immediately.
-    ///
-    /// # Safety
-    ///
-    /// See [Self::from_opt_ptr].
-    pub(super) unsafe fn from_ptr_nonnull(ptr: *mut *mut T) -> Result<Self, InvalidInput> {
-        // Safety: We require that the pointer be valid for use with from_ptr.
-        let r = unsafe { Self::from_opt_ptr(ptr) };
-        if r.0.is_none() {
-            Err(InvalidInput::NullPointer)
-        } else {
-            Ok(r)
-        }
-    }
-
-    /// Consume this OutPtr and the provided value.
-    ///
-    /// If the OutPtr is null, `value` is discarded.  Otherwise it is written into the OutPtr.
-    pub(super) fn write_value_if_nonnull(self, value: T) {
+    /// Consume this OutPtr and the provided value, writing the value into the outptr.
+    pub(super) fn write_value(self, value: T) {
         // Note that all the unsafety happened when we constructed a &mut from the pointer.
         //
         // Note also that this method consumes `self`.  That's because we want to avoid multiple
         // writes to the same OutPtr: If we did that, we would sometimes have to free a previous
         // value.
-        if let Some(ptr) = self.0 {
-            *ptr = Box::into_raw(Box::new(value));
+        *self.0 = Box::into_raw(Box::new(value));
+    }
+}
+
+/// define a sealing trait.
+mod sealed {
+    /// Trait to prevent implementation of OptOutPtrExt inappropriately.
+    pub(super) trait Sealed {}
+}
+/// Extension trait on `Option<OutPtr<T>>`
+#[allow(private_bounds)]
+pub(super) trait OptOutPtrExt<T>: sealed::Sealed {
+    /// Consume this `Option<OutPtr<T>>` and the provided value.
+    ///
+    /// If this is Some, write the value into the outptr.
+    ///
+    /// Otherwise, discard the value.
+    fn write_value_if_ptr_set(self, value: T);
+}
+impl<'a, T> sealed::Sealed for Option<OutPtr<'a, T>> {}
+impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
+    fn write_value_if_ptr_set(self, value: T) {
+        if let Some(outptr) = self {
+            outptr.write_value(value);
         }
     }
 }
@@ -166,15 +116,16 @@ impl<'a, T> OutPtr<'a, T> {
 /// ) -> usize {
 ///     ffi_body_simple!(
 ///         { // [CONVERSIONS]
-///             let recipe: &Recipe [in_ptr_required];
+///             let recipe: Option<&Recipe> [in_ptr_opt];
 ///             let ingredients: Option<&Ingredients> [in_ptr_opt];
-///             let dietary_constraints: &str [in_str_required];
+///             let dietary_constraints: Option<&str> [in_str_opt];
 ///             let food_out: OutPtr<DeliciousMeal> [out_ptr_opt];
 ///         } in {
 ///             // [BODY]
+///             let Some(recipe) = recipe else { return 0 };
 ///             let delicious_meal = prepare_meal(recipe, ingredients, dietary_constraints, n_guests);
 ///             food_out.write_value_if_nonnull(delicious_meal);
-///             n_guests as isize
+///             n_guests
 ///         } on invalid {
 ///             // [VALUE_ON_BAD_INPUT]
 ///             0
@@ -224,35 +175,33 @@ impl<'a, T> OutPtr<'a, T> {
 ///
 /// The following methods are recognized:
 ///
-/// | method               | input type      | converted to     | can reject input? |
-/// |----------------------|-----------------|------------------|-------------------|
-/// | `in_ptr_required`    | `*const T`      | `&T`             | Y                 |
-/// | `in_ptr_opt`         | `*const T`      | `Option<&T>`     | N                 |
-/// | `in_str_required`    | `*const c_char` | `&str`           | Y                 |
-/// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>` | N                 |
-/// | `out_ptr_required`   | `*mut *mut T`   | `OutPtr<T>`      | Y                 |
-/// | `out_ptr_opt`        | `*mut *mut T`   | `OutPtr<T>`      | N                 |
+/// | method               | input type      | converted to       | can reject input? |
+/// |----------------------|-----------------|--------------------|-------------------|
+/// | `in_ptr_opt`         | `*const T`      | `Option<&T>`       | N                 |
+/// | `in_str_opt`         | `*const c_char` | `Option<&str>`     | Y                 |
+/// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>`   | N                 |
+/// | `out_ptr_opt`        | `*mut *mut T`   | `Option<OutPtr<T>>`| N                 |
 ///
 /// > (Note: Other conversion methods are logically possible, but have not been added yet,
 /// > since they would not yet be used in this crate.)
 ///
 /// ## Safety
 ///
-/// The `in_ptr_required` and `in_ptr_opt` methods
-/// have the safety requirements of
+/// The `in_ptr_opt` method
+/// has the safety requirements of
 /// [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
 /// Informally, this means:
 /// * If the pointer is not null, it must point
 ///   to a valid aligned dereferenceable instance of `T`.
 /// * The underlying `T` must not be freed or modified for so long as the function is running.
 ///
-/// The `in_str_required` method, when its input is non-NULL,
-/// has the safety requirements of [`CStr::from_ptr`].
+/// The `in_str_opt` method, when its input is non-NULL,
+/// has the safety requirements of [`CStr::from_ptr`](std::ffi::CStr::from_ptr).
 /// Informally, this means:
 ///  * If the pointer is not null, it must point to a nul-terminated string.
 ///  * The string must not be freed or modified for so long as the function is running.
 ///
-/// Additionally, the `[in_str_required]` method
+/// Additionally, the `[in_str_opt]` method
 /// will detect invalid any string that is not UTF-8.
 ///
 /// The `in_ptr_consume_opt` method, when its input is non-NULL,
@@ -263,8 +212,8 @@ impl<'a, T> OutPtr<'a, T> {
 ///    (Note that using either `out_ptr_*` method
 ///    will output pointers that can later be consumed in this way.)
 ///
-/// The `out_ptr_required` and `out_ptr_opt` methods
-/// have the safety requirements of
+/// The `out_ptr_opt` method
+/// has the safety requirements of
 /// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
 /// Informally, this means:
 ///   * If the pointer (call it "out") is non-NULL, then `*out` must point to aligned
@@ -288,7 +237,6 @@ macro_rules! ffi_body_simple {
       in { $($body:tt)+ } on invalid { $err:expr } } => {
 
         crate::ffi::err::abort_on_panic(|| {
-
             // run conversions and check for invalid input exceptions.
             crate::ffi::util::ffi_initialize!{ { $( let $name : $type [$how]; )* } else with _ignore_err {
                 #[allow(clippy::unused_unit)]
@@ -326,10 +274,12 @@ pub(super) use ffi_body_simple;
 /// ) -> ArtiRpcStatus {
 ///     ffi_body_with_err!(
 ///         {
-///             let wombat: &Wombat [in_ptr_required];
-///             let wombat_chow: &Meal [in_ptr_required];
-///             err error_out: OutPtr<ArtiRpcError>;
+///             let wombat: Option<&Wombat> [in_ptr_opt];
+///             let wombat_chow: Option<&Meal> [in_ptr_opt];
+///             err error_out: Option<OutPtr<ArtiRpcError>>;
 ///         } in {
+///             let wombat = wombat.ok_or(InvalidInput::NullPointer)?
+///             let wombat_chow = wombat_chow.ok_or(InvalidInput::NullPointer)?
 ///             wombat.please_enjoy(wombat_chow)?;
 ///         }
 ///     )
@@ -441,20 +391,7 @@ macro_rules! ffi_initialize {
 pub(super) mod arg_conversion {
     use super::OutPtr;
     use crate::ffi::err::InvalidInput;
-    use std::ffi::c_char;
-
-    /// Try to convert a const pointer to a reference.
-    ///
-    /// A null pointer gives an error.
-    ///
-    /// # Safety
-    ///
-    /// As for [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
-    pub(in crate::ffi) unsafe fn in_ptr_required<'a, T>(
-        input: *const T,
-    ) -> Result<&'a T, InvalidInput> {
-        unsafe { crate::ffi::util::ptr_as_ref(input) }
-    }
+    use std::ffi::{c_char, CStr};
 
     /// Try to convert a const pointer to an optional reference.
     ///
@@ -463,24 +400,32 @@ pub(super) mod arg_conversion {
     /// # Safety
     ///
     /// As for [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
-    #[allow(dead_code)] // TODO RPC REMOVE.
     pub(in crate::ffi) unsafe fn in_ptr_opt<'a, T>(
         input: *const T,
     ) -> Result<Option<&'a T>, InvalidInput> {
-        Ok(unsafe { crate::ffi::util::ptr_as_ref(input) }.ok())
+        Ok(unsafe { input.as_ref() })
     }
 
     /// Try to convert a `const char *` to a `&str`.
     ///
-    /// Null pointers and non-UTF-8 inputs will give an error.
+    /// A null pointer is allowed, and converted to `None`.
+    /// Non-UTF-8 inputs will give an error.
     ///
     /// # Safety
     ///
     /// As for [`CStr::from_ptr`](std::ffi::CStr::from_ptr).
-    pub(in crate::ffi) unsafe fn in_str_required<'a>(
+    pub(in crate::ffi) unsafe fn in_str_opt<'a>(
         input: *const c_char,
-    ) -> Result<&'a str, InvalidInput> {
-        unsafe { crate::ffi::util::ptr_to_str(input) }
+    ) -> Result<Option<&'a str>, InvalidInput> {
+        if input.is_null() {
+            return Ok(None);
+        }
+
+        // Safety: We require that the safety properties of CStr::from_ptr hold.
+        unsafe { CStr::from_ptr(input) }
+            .to_str()
+            .map(Some)
+            .map_err(|_| InvalidInput::BadUtf8)
     }
 
     /// Try to convert a mutable pointer to a `Option<Box<T>>`.
@@ -493,27 +438,21 @@ pub(super) mod arg_conversion {
     pub(in crate::ffi) unsafe fn in_ptr_consume_opt<T>(
         input: *mut T,
     ) -> Result<Option<Box<T>>, InvalidInput> {
-        Ok(unsafe { crate::ffi::util::ptr_to_opt_box(input) })
+        Ok(if input.is_null() {
+            None
+        } else {
+            Some(unsafe { Box::from_raw(input) })
+        })
     }
 
-    /// Try to convert a mutable pointer-to-pointer into an `OutPtr<T>`.
+    /// Try to convert a mutable pointer-to-pointer into an `Option<OutPtr<T>>`.
     ///
-    /// Null pointers will give an error.
+    /// A null pointer is allowed, and converted into None.
     ///
-    /// # Safety
+    /// Whatever the target of the original pointer (`input: *mut *mut T`), if `input` is non-null.
+    /// then `*input` is initialized to NULL.
     ///
-    /// As for
-    /// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
-    pub(in crate::ffi) unsafe fn out_ptr_required<'a, T>(
-        input: *mut *mut T,
-    ) -> Result<OutPtr<'a, T>, InvalidInput> {
-        unsafe { crate::ffi::util::OutPtr::from_ptr_nonnull(input) }
-    }
-
-    /// Try to convertt a mutable pointer-to-pointer into an `OutPtr<T>`.
-    ///
-    /// A null pointer is allowed, and converted into an `OutPtr<T>` that discards anything written
-    /// to it.
+    /// It is safe for `*input` to be uninitialized.
     ///
     /// # Safety
     ///
@@ -521,7 +460,7 @@ pub(super) mod arg_conversion {
     /// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
     pub(in crate::ffi) unsafe fn out_ptr_opt<'a, T>(
         input: *mut *mut T,
-    ) -> Result<OutPtr<'a, T>, InvalidInput> {
+    ) -> Result<Option<OutPtr<'a, T>>, InvalidInput> {
         Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr(input) })
     }
 }
@@ -550,7 +489,7 @@ mod test {
         let ptr = unsafe { OutPtr::from_opt_ptr(ptr) };
 
         if let Some(v) = set_to_val {
-            ptr.write_value_if_nonnull(v);
+            ptr.write_value_if_ptr_set(v);
         }
     }
 
@@ -571,44 +510,6 @@ mod test {
 
         // Case 4: Actually set something.
         unsafe { outptr_user(&mut ptr_to_int as _, Some(123)) };
-        assert!(!ptr_to_int.is_null());
-        let boxed = unsafe { Box::from_raw(ptr_to_int) };
-        assert_eq!(*boxed, 123);
-    }
-
-    unsafe fn outptr_user_nn(
-        ptr: *mut *mut i8,
-        set_to_val: Option<i8>,
-    ) -> Result<(), InvalidInput> {
-        let ptr = unsafe { OutPtr::from_ptr_nonnull(ptr) }?;
-
-        if let Some(v) = set_to_val {
-            ptr.write_value_if_nonnull(v);
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn outptr_nonnull() {
-        let mut ptr_to_int: *mut i8 = 7 as _; // This is a junk dangling pointer.  It will get overwritten.
-
-        // Case 1: Don't set to anything.
-        let r = unsafe { outptr_user_nn(&mut ptr_to_int as _, None) };
-        assert!(r.is_ok());
-        assert!(ptr_to_int.is_null());
-
-        // Cases 2, 3: Provide a null pointer for the output pointer.
-        ptr_to_int = 7 as _; // make it junk again.
-        let r = unsafe { outptr_user_nn(std::ptr::null_mut(), None) };
-        assert!(r.is_err());
-        assert_eq!(ptr_to_int, 7 as _); // we didn't pass this in, so it wasn't set.
-        let r = unsafe { outptr_user_nn(std::ptr::null_mut(), Some(5)) };
-        assert!(r.is_err());
-        assert_eq!(ptr_to_int, 7 as _); // we didn't pass this in, so it wasn't set.
-
-        // Case 4: Actually set something.
-        let r = unsafe { outptr_user_nn(&mut ptr_to_int as _, Some(123)) };
-        assert!(r.is_ok());
         assert!(!ptr_to_int.is_null());
         let boxed = unsafe { Box::from_raw(ptr_to_int) };
         assert_eq!(*boxed, 123);

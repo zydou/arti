@@ -6,9 +6,9 @@
 pub mod err;
 mod util;
 
-use err::ArtiRpcError;
+use err::{ArtiRpcError, InvalidInput};
 use std::ffi::c_char;
-use util::{ffi_body_simple, ffi_body_with_err, OutPtr};
+use util::{ffi_body_simple, ffi_body_with_err, OptOutPtrExt as _, OutPtr};
 
 use crate::{util::Utf8CString, RpcConnBuilder};
 
@@ -58,16 +58,19 @@ pub unsafe extern "C" fn arti_rpc_connect(
 ) -> ArtiRpcStatus {
     ffi_body_with_err!(
         {
-            let connection_string: &str [in_str_required];
-            let rpc_conn_out: OutPtr<ArtiRpcConn> [out_ptr_required];
-            err error_out : OutPtr<ArtiRpcError>;
+            let connection_string: Option<&str> [in_str_opt];
+            let rpc_conn_out: Option<OutPtr<ArtiRpcConn>> [out_ptr_opt];
+            err error_out : Option<OutPtr<ArtiRpcError>>;
         } in {
+            let connection_string = connection_string
+                .ok_or(InvalidInput::NullPointer)?;
+
             let builder = RpcConnBuilder::from_connect_string(connection_string)?;
 
             let conn = builder.connect()?;
 
-            rpc_conn_out.write_value_if_nonnull(conn);
-         }
+            rpc_conn_out.write_value_if_ptr_set(conn);
+        }
     )
 }
 
@@ -97,13 +100,16 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
 ) -> ArtiRpcStatus {
     ffi_body_with_err!(
         {
-            let rpc_conn: &ArtiRpcConn [in_ptr_required];
-            let msg: &str [in_str_required];
-            let response_out: OutPtr<ArtiRpcStr> [out_ptr_opt];
-            err error_out: OutPtr<ArtiRpcError>;
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let msg: Option<&str> [in_str_opt];
+            let response_out: Option<OutPtr<ArtiRpcStr>> [out_ptr_opt];
+            err error_out: Option<OutPtr<ArtiRpcError>>;
         } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+            let msg = msg.ok_or(InvalidInput::NullPointer)?;
+
             let success = rpc_conn.execute(msg)??;
-                response_out.write_value_if_nonnull(Utf8CString::from(success));
+            response_out.write_value_if_ptr_set(Utf8CString::from(success));
         }
     )
 }
@@ -136,9 +142,12 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
 pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c_char {
     ffi_body_simple!(
         {
-            let string: &ArtiRpcStr [in_ptr_required];
+            let string: Option<&ArtiRpcStr> [in_ptr_opt];
         } in {
-            string.as_ptr()
+            match string {
+                Some(s) => s.as_ptr(),
+                None => std::ptr::null(),
+            }
         }
         on invalid { std::ptr::null() }
     )
