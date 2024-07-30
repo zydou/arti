@@ -316,9 +316,9 @@ mod tests {
         test_temp_dir!().used_by(|dir| {
             let file = dir.join("file");
             let flock_guard = LockFileGuard::lock(&file).unwrap();
-            assert!(file.exists());
+            assert!(file.try_exists().unwrap());
             drop(flock_guard);
-            assert!(file.exists());
+            assert!(file.try_exists().unwrap());
         });
     }
 
@@ -327,9 +327,9 @@ mod tests {
         test_temp_dir!().used_by(|dir| {
             let file = dir.join("file");
             let flock_guard = LockFileGuard::lock(&file).unwrap();
-            assert!(file.exists());
+            assert!(file.try_exists().unwrap());
             assert!(flock_guard.delete_lock_file(&file).is_ok());
-            assert!(!file.exists());
+            assert!(!file.try_exists().unwrap());
         });
     }
 }
