@@ -1,9 +1,8 @@
 //! Service discovery client key providers.
 
-use crate::config::restricted_discovery::{HsClientNickname, RestrictedDiscoveryKeys};
+use crate::config::restricted_discovery::HsClientNickname;
 use crate::internal_prelude::*;
 
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
 use derive_more::{AsRef, Into};
@@ -116,7 +115,7 @@ define_list_builder_helper! {
 
 impl DirectoryKeyProvider {
     /// Read the client service discovery keys from the specified directory.
-    pub(super) fn read_keys(&self) -> Result<RestrictedDiscoveryKeys, DirectoryKeyProviderError> {
+    pub(super) fn read_keys(&self) -> Result<Vec<(HsClientNickname, HsClientDescEncKey)>, DirectoryKeyProviderError> {
         let dir_path =
             self.path
                 .path()
@@ -138,24 +137,14 @@ impl DirectoryKeyProvider {
 
         // TODO: should this be a method on CheckedDir?
         let key_entries = fs::read_dir(checked_dir.as_path()).map_err(make_err)?;
-        let mut keys = BTreeMap::new();
+        let mut keys = vec![];
 
         for entry in key_entries {
             let entry = entry.map_err(make_err)?;
             let path = entry.path();
 
             match read_key_file(&checked_dir, &path) {
-                Ok((client_nickname, key)) => match keys.entry(client_nickname.clone()) {
-                    Entry::Vacant(v) => {
-                        let _: &mut HsClientDescEncKey = v.insert(key);
-                    }
-                    Entry::Occupied(_) => {
-                        warn!(
-                            client_nickname=%client_nickname,
-                            "Ignoring duplicate client key"
-                        );
-                    }
-                },
+                Ok((client_nickname, key)) => keys.push((client_nickname, key)),
                 Err(e) => {
                     warn_report!(
                         e,
@@ -164,7 +153,7 @@ impl DirectoryKeyProvider {
                     );
                     continue;
                 }
-            }
+            };
         }
 
         Ok(keys)

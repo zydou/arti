@@ -55,6 +55,7 @@ pub use key_provider::{
 use crate::internal_prelude::*;
 
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 
 use derive_more::{Display, Into};
 
@@ -111,6 +112,20 @@ impl FromStr for HsClientNickname {
 
 /// Configuration for enabling restricted discovery mode.
 ///
+/// # Client nickname uniqueness
+///
+/// The client nicknames specified in `key_dirs` and `static_keys`
+/// **must** be unique. Any nickname occurring in `static_keys` must not
+/// already have an entry in any of the configured `key_dirs`,
+/// and any one nickname must not occur in more than one of the `key_dirs`.
+///
+/// Violating this rule will cause the additional keys to be ignored.
+/// If there are multiple entries for the same nickname,
+/// the entry with the highest precedence will be used, and all the others will be ignored.
+/// The precedence rules are as follows:
+///   * the `static_keys` take precedence over the keys from `key_dirs`
+///   * the ordering of the directories in `key_dirs` represents the order of precedence
+///
 /// # Reloading the configuration
 ///
 /// Currently, the `static_keys` and `key_dirs` directories will *not* be monitored for updates,
@@ -144,11 +159,6 @@ pub struct RestrictedDiscoveryConfig {
     ///
     /// Each file in this directory must have a file name of the form `<nickname>.auth`,
     /// where `<nickname>` is a valid [`HsClientNickname`].
-    ///
-    /// Important: the nicknames **must** be unique. Any nickname can have an
-    /// entry in at most **one** of these directories.
-    ///
-    /// Violating this rule will cause the duplicated keys to be ignored.
     #[builder(default, sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     key_dirs: DirectoryKeyProviderList,
@@ -157,11 +167,6 @@ pub struct RestrictedDiscoveryConfig {
     ///
     /// Each client key must be in the `descriptor:x25519:<base32-encoded-x25519-public-key>`
     /// format.
-    ///
-    /// Important: the nicknames **must** be unique. Any nickname specified here must
-    /// not already have an entry in the [`DirectoryKeyProviderList`].
-    ///
-    /// Violating this rule will cause the duplicated keys to be ignored.
     #[builder(default, sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     static_keys: StaticKeyProvider,
@@ -180,9 +185,9 @@ impl RestrictedDiscoveryConfig {
     // the restricted-discovery feature non-experimental:
     /// Note: if there are multiple entries for the same [`HsClientNickname`],
     /// only one of them will be used (the others are ignored).
-    /// The deduplication logic is unspecified.
-    ///
-    // TODO: perhaps we should be tolerant of duplicates?
+    /// The deduplication logic is as follows:
+    ///   * the `static_keys` take precedence over the keys from `key_dirs`
+    ///   * the ordering of the directories in `key_dirs` represents the order of precedence
     pub(crate) fn read_keys(
         &self,
     ) -> Option<RestrictedDiscoveryKeys> {
@@ -192,10 +197,15 @@ impl RestrictedDiscoveryConfig {
 
         let mut authorized_clients = BTreeMap::new();
 
+        // The static_keys are inserted first, so they have precedence over
+        // the keys from key_dirs.
         extend_key_map(
             &mut authorized_clients,
             RestrictedDiscoveryKeys::from(self.static_keys.clone()),
         );
+
+        // The key_dirs are read in order of appearance,
+        // which is also the order of precedence.
         for dir in &self.key_dirs {
             match dir.read_keys() {
                 Ok(keys) => {
@@ -226,9 +236,17 @@ fn extend_key_map(
     keys: impl IntoIterator<Item = (HsClientNickname, HsClientDescEncKey)>,
 ) {
     for (nickname, key) in keys.into_iter() {
-        if key_map.insert(nickname.clone(), key).is_some() {
-            warn!("Ignoring duplicate key for client {nickname}");
-        };
+        match key_map.entry(nickname.clone()) {
+            Entry::Vacant(v) => {
+                let _: &mut HsClientDescEncKey = v.insert(key);
+            }
+            Entry::Occupied(_) => {
+                warn!(
+                    client_nickname=%nickname,
+                    "Ignoring duplicate client key"
+                );
+            }
+        }
     }
 }
 
@@ -365,6 +383,11 @@ mod test {
         let pk = keypair.public();
 
         (nickname, pk.clone())
+    }
+
+    fn write_key_to_file(dir: &Path, nickname: &HsClientNickname, key: &HsClientDescEncKey) {
+        let path = dir.join(nickname.to_string()).with_extension("auth");
+        fs::write(path, key.to_string()).unwrap();
     }
 
     #[test]
@@ -536,6 +559,62 @@ mod test {
 
             assert_eq!(authorized_clients.as_slice(), all_keys.index(range));
         }
+    }
+
+    #[test]
+    #[cfg(feature = "restricted-discovery")]
+    fn key_precedence() {
+        // A builder with static keys, and two key dirs.
+        let mut builder = RestrictedDiscoveryConfigBuilder::default();
+        builder.enabled(true);
+        let (foo_nick, foo_key1) = make_authorized_client("foo");
+        builder
+            .static_keys()
+            .access()
+            .push((foo_nick.clone(), foo_key1.clone()));
+
+        // Make another client key with the same nickname
+        let (_foo_nick, foo_key2) = make_authorized_client("foo");
+
+        let dir1 = tempfile::TempDir::new().unwrap();
+        let dir2 = tempfile::TempDir::new().unwrap();
+
+        // Write a different key with the same nickname to dir1
+        // (we will check that the entry from static_keys takes precedence over it)
+        write_key_to_file(dir1.path(), &foo_nick, foo_key2);
+
+        // Write two keys sharing the same nickname to dir1 and dir2
+        // (we will check that the first dir_keys entry takes precedence over the second)
+        let (bar_nick, bar_key1) = make_authorized_client("bar");
+        write_key_to_file(dir1.path(), &bar_nick, &bar_key1);
+
+        let (_bar_nick, bar_key2) = make_authorized_client("bar");
+        write_key_to_file(dir2.path(), &bar_nick, bar_key2);
+
+        let mut key_dir1 = DirectoryKeyProviderBuilder::default();
+        key_dir1
+            .path(CfgPath::new_literal(dir1.path()))
+            .permissions()
+            .dangerously_trust_everyone();
+
+        let mut key_dir2 = DirectoryKeyProviderBuilder::default();
+        key_dir2
+            .path(CfgPath::new_literal(dir2.path()))
+            .permissions()
+            .dangerously_trust_everyone();
+
+        builder.key_dirs().access().extend([key_dir1, key_dir2]);
+        let config = builder.build().unwrap();
+        let keys = config.read_keys().unwrap();
+
+        // Check that foo is the entry we inserted into static_keys:
+        let foo_key_found = keys.get(&foo_nick).unwrap();
+        assert_eq!(foo_key_found, &foo_key1);
+
+        // Check that bar is the entry from key_dir1
+        // (dir1 takes precedence over dir2)
+        let bar_key_found = keys.get(&bar_nick).unwrap();
+        assert_eq!(bar_key_found, &bar_key1);
     }
 
     #[test]
