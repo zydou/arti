@@ -16,6 +16,7 @@ use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, Key
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 use ssh::UnparsedOpenSshKey;
 
+use derive_more::{AsRef, From, Into};
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
 use walkdir::WalkDir;
@@ -84,12 +85,22 @@ impl ArtiNativeKeystore {
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
-    ) -> StdResult<PathBuf, ArtiPathUnavailableError> {
+    ) -> StdResult<RelKeyPath, ArtiPathUnavailableError> {
         let arti_path: String = key_spec.arti_path()?.into();
         let mut rel_path = PathBuf::from(arti_path);
         rel_path.set_extension(key_type.arti_extension());
 
-        Ok(rel_path)
+        Ok(rel_path.into())
+    }
+}
+
+/// The path of a key, relative to the keystore root.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, From, Into, AsRef)]
+struct RelKeyPath(PathBuf);
+
+impl AsRef<Path> for RelKeyPath {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
     }
 }
 
@@ -122,7 +133,7 @@ impl Keystore for ArtiNativeKeystore {
                 .join(&path)
                 .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
                     action: FilesystemAction::Read,
-                    path: path.clone(),
+                    path: path.into(),
                     err: err.into(),
                 })?;
 
@@ -145,12 +156,12 @@ impl Keystore for ArtiNativeKeystore {
             }
             res => res.map_err(|err| ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Read,
-                path: path.clone(),
+                path: path.clone().into(),
                 err: err.into(),
             })?,
         };
 
-        UnparsedOpenSshKey::new(inner, path)
+        UnparsedOpenSshKey::new(inner, path.into())
             .parse_ssh_format_erased(key_type)
             .map(Some)
     }
@@ -166,7 +177,7 @@ impl Keystore for ArtiNativeKeystore {
             .map_err(|e| tor_error::internal!("{e}"))?;
 
         // Create the parent directories as needed
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = path.0.parent() {
             self.keystore_dir.make_directory(parent).map_err(|err| {
                 ArtiNativeKeystoreError::FsMistrust {
                     action: FilesystemAction::Write,
@@ -187,7 +198,7 @@ impl Keystore for ArtiNativeKeystore {
             .write_and_replace(&path, openssh_key)
             .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Write,
-                path,
+                path: path.into(),
                 err: err.into(),
             })?)
     }
@@ -202,7 +213,7 @@ impl Keystore for ArtiNativeKeystore {
             Err(fs_mistrust::Error::NotFound(_)) => Ok(None),
             Err(e) => Err(ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Remove,
-                path: rel_path,
+                path: rel_path.into(),
                 err: e.into(),
             }
             .into()),
@@ -404,14 +415,14 @@ mod tests {
             key_store
                 .rel_path(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
                 .unwrap(),
-            PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private")
+            PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private").into()
         );
 
         assert_eq!(
             key_store
                 .rel_path(&TestSpecifier::default(), &KeyType::X25519StaticKeypair)
                 .unwrap(),
-            PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private")
+            PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private").into()
         );
     }
 
@@ -451,6 +462,7 @@ mod tests {
                 key_store
                     .rel_path(&key_spec, ed_key_type)
                     .unwrap()
+                    .0
                     .display_lossy()
             ),
         );
