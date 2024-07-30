@@ -344,6 +344,7 @@ dependencies = [
  "socketpair",
  "thiserror",
  "tor-basic-utils",
+ "void",
 ]
 
 [[package]]

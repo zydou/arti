@@ -146,7 +146,7 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 /// Pointer parameters to the outer function *must not be ignored*.
 /// Every raw pointer parameter must be processed by this macro.
 /// (For raw pointer arguments that are not,
-/// no gaurantees are made by the macro,
+/// no guarantees are made by the macro,
 /// and the overall function will probably be unsound.
 /// There is no checking that every pointer parameter is properly used,
 /// other than Rust's usual detection of unused variables.)
@@ -157,8 +157,10 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 /// The result of this block is the returned value of the function.
 ///
 /// The third part (`VALUE_ON_BAD_INPUT`) is an expression to be returned
-/// as the result of the function if any input pointer is NULL
-/// that is not permitted to be NULL.
+/// as the result of the function if any input pointer has a rejected value.
+/// You may omit the entire `on invalid { ... }` part of the macro's input
+/// when all of the conversions are infallible.
+/// (This is checked statically.)
 ///
 /// ## Supported conversions
 ///
@@ -225,7 +227,7 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 // Design notes:
 // - I am keeping the conversions separate from the body below, since we don't want to catch
 //   InvalidInput from the body.
-// - The "on invalid" value must be specified explicitly,
+// - The "on invalid" value must be specified explicitly if it can happen,
 //   since in general we should force the caller to think about it.
 //   Getting a 0 or -1 wrong here can have nasty results.
 // - The conversion syntax deliberately includes the type of the converted argument,
@@ -250,7 +252,7 @@ macro_rules! ffi_body_simple {
             crate::ffi::util::ffi_initialize!{
                 {
                     $( let $name : $type [$how]; )*
-                } else with _ignore_err {
+                } else with _ignore_err : crate::ffi::err::InvalidInput {
                     #[allow(clippy::unused_unit)]
                     return $err;
                 }
@@ -260,7 +262,34 @@ macro_rules! ffi_body_simple {
 
             },
         )
-    }
+    };
+
+    {
+        {
+            $(
+                let $name:ident : $type:ty [$how:ident]
+            );*
+            $(;)?
+        } in {
+            $($body:tt)+
+        }
+    } => {
+        crate::ffi::err::abort_on_panic(|| {
+            // run conversions and check for invalid input exceptions.
+            crate::ffi::util::ffi_initialize!{
+                {
+                    $( let $name : $type [$how]; )*
+                } else with impossible_error : void::Void {
+                    void::unreachable(impossible_error);
+                }
+            };
+
+            $($body)+
+
+            },
+        )
+    };
+
 }
 pub(super) use ffi_body_simple;
 
@@ -325,16 +354,17 @@ macro_rules! ffi_body_with_err {
             $($body:tt)+
         }
     } => {{
-        // (This is equivalent to using `out_ptr_opt`, but makes it more clear that the conversion
-        // will never fail, and so we won't exit early.)
-        let $err_out: $err_type = unsafe { crate::ffi::util::OutPtr::from_opt_ptr($err_out) };
+        use void::ResultVoidExt as _;
+        let $err_out: $err_type =
+            unsafe { crate::ffi::util::arg_conversion::out_ptr_opt($err_out) }
+            .void_unwrap();
 
         crate::ffi::err::handle_errors($err_out,
             || {
                 crate::ffi::util::ffi_initialize!{
                     {
                         $( let $name : $type [$how]; )*
-                    } else with err {
+                    } else with err: crate::ffi::err::ArtiRpcError {
                         return Err(crate::ffi::err::ArtiRpcError::from(err));
                     }
                 };
@@ -373,7 +403,7 @@ macro_rules! ffi_initialize {
     {
         {
             $( let $name:ident : $type:ty [$how:ident] ; )*
-        } else with $err_id:ident {
+        } else with $err_id:ident: $err_type:ty {
             $($on_invalid:tt)*
         }
     } => {
@@ -388,12 +418,12 @@ macro_rules! ffi_initialize {
         #[allow(unused_parens)]
         let ($($name,)*) : ($($type,)*) = {
             $(
-                let $name : Result<$type, crate::ffi::err::InvalidInput>
+                let $name : Result<$type, _>
                    = unsafe { crate::ffi::util::arg_conversion::$how($name) };
             )*
             #[allow(clippy::needless_question_mark)]
             // Note that the question marks here exit from _this_ closure.
-            match (|| -> Result<_,crate::ffi::err::InvalidInput> {Ok(($($name?,)*))})() {
+            match (|| -> Result<_,$err_type> {Ok(($($name?,)*))})() {
                 Ok(v) => v,
                 Err($err_id) => {
                     $($on_invalid)*
@@ -419,6 +449,7 @@ pub(super) mod arg_conversion {
     use super::OutPtr;
     use crate::ffi::err::InvalidInput;
     use std::ffi::{c_char, CStr};
+    use void::Void;
 
     /// Try to convert a const pointer to an optional reference.
     ///
@@ -427,9 +458,7 @@ pub(super) mod arg_conversion {
     /// # Safety
     ///
     /// As for [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
-    pub(in crate::ffi) unsafe fn in_ptr_opt<'a, T>(
-        input: *const T,
-    ) -> Result<Option<&'a T>, InvalidInput> {
+    pub(in crate::ffi) unsafe fn in_ptr_opt<'a, T>(input: *const T) -> Result<Option<&'a T>, Void> {
         Ok(unsafe { input.as_ref() })
     }
 
@@ -464,7 +493,7 @@ pub(super) mod arg_conversion {
     /// As for  [`Box::from_raw`].
     pub(in crate::ffi) unsafe fn in_ptr_consume_opt<T>(
         input: *mut T,
-    ) -> Result<Option<Box<T>>, InvalidInput> {
+    ) -> Result<Option<Box<T>>, Void> {
         Ok(if input.is_null() {
             None
         } else {
@@ -487,7 +516,7 @@ pub(super) mod arg_conversion {
     /// [`<*mut *mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
     pub(in crate::ffi) unsafe fn out_ptr_opt<'a, T>(
         input: *mut *mut T,
-    ) -> Result<Option<OutPtr<'a, T>>, InvalidInput> {
+    ) -> Result<Option<OutPtr<'a, T>>, Void> {
         Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr(input) })
     }
 }

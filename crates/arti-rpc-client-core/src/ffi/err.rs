@@ -196,6 +196,11 @@ impl<T: IntoFfiError> From<T> for FfiError {
         }
     }
 }
+impl From<void::Void> for FfiError {
+    fn from(value: void::Void) -> Self {
+        void::unreachable(value)
+    }
+}
 
 /// Tried to call a ffi function with a not-permitted argument.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -207,6 +212,12 @@ pub(super) enum InvalidInput {
     /// Tried to convert a non-UTF string.
     #[error("Provided string was not UTF-8")]
     BadUtf8,
+}
+
+impl From<void::Void> for InvalidInput {
+    fn from(value: void::Void) -> Self {
+        void::unreachable(value)
+    }
 }
 
 impl IntoFfiError for InvalidInput {
@@ -291,7 +302,6 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
             err.map(|e| e.status)
                .unwrap_or(ARTI_RPC_STATUS_INVALID_INPUT)
         }
-        on invalid { ARTI_RPC_STATUS_INVALID_INPUT }
     )
 }
 
@@ -315,7 +325,6 @@ pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *cons
             err.map(|e| e.message.as_ptr())
                .unwrap_or(std::ptr::null())
         }
-        on invalid { std::ptr::null() }
     )
 }
 
@@ -341,7 +350,6 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
             err.and_then(ArtiRpcError::error_response_as_ptr)
                .unwrap_or(std::ptr::null())
         }
-        on invalid { std::ptr::null() }
     )
 }
 
@@ -365,7 +373,6 @@ pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut Ar
             err.map(|e| Box::into_raw(Box::new(e.clone())))
                .unwrap_or(std::ptr::null_mut())
         }
-        on invalid { std::ptr::null_mut() }
     )
 }
 
@@ -379,7 +386,6 @@ pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
         } in {
             drop(err);
         }
-        on invalid { () }
     );
 }
 
