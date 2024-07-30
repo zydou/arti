@@ -70,7 +70,7 @@ header = """\
  *
  * - All identifiers are prefixed with `ARTI_RPC`, `ArtiRpc`, or `arti_rpc` as appropriate.
  *
- * - Newly allocated objects are always returned via out-parameters, with `out` in their names.
+ * - Newly allocated objects are returned via out-parameters, with `out` in their names.
  *   (For example, `ArtiRpcObject **out`).  In such cases, `* out` will be set to a resulting object,
  *   or to NULL if no such object is returned.   Any earlier value of `*out` will be replaced
  *   without freeing it.
@@ -79,8 +79,10 @@ header = """\
  *   While the function is running,
  *   `*out` and `**out` may not be read or written by any other part of the program,
  *   and they may not alias any other arguments.)
- *   - Note that `*out` will be set (likely to `NULL`) even if an error occurs 
+ *   - Note that `*out` will be set to NULL if an error occurs
  *     or the function's inputs are invalid.
+ *     (The `*error_out` parameter, of course,
+ *     is set to NULL when there is _no_ error, and to an error otherwise.)
  *
  * - When any object is exposed as a non-const pointer,
  *   the application becomes the owner of that object.
@@ -96,7 +98,7 @@ header = """\
  *
  * - If a function consumes (takes ownership of) one of its inputs,
  *   it does so regardless of whether the function succeeds or fails.
- * 
+ *
  * ## Correctness requirements
  *
  * If any correctness requirements stated here or elsewhere are violated,
