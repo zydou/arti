@@ -123,7 +123,9 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 ///         } in {
 ///             // [BODY]
 ///             let Some(recipe) = recipe else { return 0 };
-///             let delicious_meal = prepare_meal(recipe, ingredients, dietary_constraints, n_guests);
+///             let delicious_meal = prepare_meal(
+///                 recipe, ingredients, dietary_constraints, n_guests
+///             );
 ///             food_out.write_value_if_nonnull(delicious_meal);
 ///             n_guests
 ///         } on invalid {
@@ -384,7 +386,8 @@ pub(super) use ffi_body_with_err;
 /// since some conversions have side effects: notably, the ones that create an OutPtr
 /// can initialize that pointer to NULL, and we want to do that unconditionally.
 ///
-/// If any conversion fails, run `return ($on_invalid)(error)` _after_ trying every conversion.
+/// If any conversion fails, run `return ($on_invalid)(error)`
+/// _after_ every conversion has succeeded or failed.
 ///
 /// The syntax is:
 ///
@@ -421,9 +424,12 @@ macro_rules! ffi_initialize {
                 let $name : Result<$type, _>
                    = unsafe { crate::ffi::util::arg_conversion::$how($name) };
             )*
+
             #[allow(clippy::needless_question_mark)]
             // Note that the question marks here exit from _this_ closure.
-            match (|| -> Result<_,$err_type> {Ok(($($name?,)*))})() {
+            match (|| -> Result<_,$err_type> {
+                Ok(($($name?,)*))
+            })() {
                 Ok(v) => v,
                 Err($err_id) => {
                     $($on_invalid)*
