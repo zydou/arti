@@ -113,6 +113,13 @@ impl FromStr for HsClientNickname {
 
 /// Configuration for enabling restricted discovery mode.
 ///
+/// # Reloading the configuration
+///
+/// Currently, the `static_keys` and `key_dirs` directories will *not* be monitored for updates,
+/// even when automatic config reload is enabled. We hope to change that in the future.
+/// In the meantime, you will need to restart your service every time you update
+/// its restricted discovery settings in order for the changes to be applied.
+///
 /// See the [module-level documentation](self) for more details.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", name = "build_unvalidated"))]
