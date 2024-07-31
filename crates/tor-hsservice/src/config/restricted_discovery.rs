@@ -33,16 +33,14 @@
 //!
 //! # Limitations
 //!
-//! Restricted discovery services can have at most
-//! [`MAX_RESTRICTED_DISCOVERY_CLIENTS`] authorized clients.
-//! This is because in this mode of operation,
-//! the `encrypted` section of the hidden service descriptor is encrypted
-//! for each authorized client, so the more clients we add,
-//! the larger the descriptor will be.
-//!
-//! To avoid building descriptors that exceed the maximum descriptor size specified
-//! in the [`HSV3MaxDescriptorSize`] consensus parameter (currently 50kB),
-//! we set an upper limit on the number of authorized clients.
+//! Hidden service descriptors are not allowed to exceed
+//! the maximum size specified in the [`HSV3MaxDescriptorSize`] consensus parameter,
+//! so there is an implicit upper limit for the number of clients you can authorize
+//! (the `encrypted` section of the descriptor is encrypted
+//! for each authorized client, so the more clients there are, the larger the descriptor will be).
+//! While we recommend configuring no more than [`MAX_RESTRICTED_DISCOVERY_CLIENTS`] clients,
+//! the *actual* limit for your service depends on the rest of its configuration
+//! (such as the number of introduction points).
 //!
 //! [KS_hsc_desc_enc]: https://spec.torproject.org/rend-spec/protocol-overview.html#CLIENT-AUTH
 //! [`HSV3MaxDescriptorSize`]: https://spec.torproject.org/param-spec.html?highlight=maximum%20descriptor#onion-service
@@ -63,13 +61,13 @@ use derive_more::{Display, Into};
 use tor_error::warn_report;
 use tor_persist::slug::BadSlug;
 
-/// The maximum number of restricted mode clients.
+/// The recommended maximum number of restricted mode clients.
 ///
 /// See the [module-level documentation](self) for an explanation of this limitation.
 ///
-/// Note: this is a very conservative, one-size-fits-all figure.
+/// Note: this is an approximate, one-size-fits-all figure.
 /// In practice, the maximum number of clients depends on the rest of the service's configuration,
-/// and may in fact be higher than this value.
+/// and may in fact be higher, or lower, than this value.
 //
 // TODO: we should come up with a more accurate upper limit. The actual limit might be even lower,
 // depending on the service's configuration (i.e. number of intro points).
@@ -172,12 +170,7 @@ pub struct RestrictedDiscoveryConfig {
 impl RestrictedDiscoveryConfig {
     /// Read the client keys from all the configured key providers.
     ///
-    /// Returns `Ok(None)` if restricted mode is disabled.
-    ///
-    // TODO: perhaps we should return an error for other types of badness too
-    // (such as enabled=true with no authorized clients).
-    /// Returns an error if the number of configured keys exceeds
-    /// [`MAX_RESTRICTED_DISCOVERY_CLIENTS`].
+    /// Returns `None` if restricted mode is disabled.
     ///
     // TODO: this is not currently implemented (reconfigure() doesn't call read_keys)
     /// When reconfiguring a [`RunningOnionService`](crate::RunningOnionService),
@@ -192,9 +185,9 @@ impl RestrictedDiscoveryConfig {
     // TODO: perhaps we should be tolerant of duplicates?
     pub(crate) fn read_keys(
         &self,
-    ) -> Result<Option<RestrictedDiscoveryKeys>, RestrictedDiscoveryConfigError> {
+    ) -> Option<RestrictedDiscoveryKeys> {
         if !self.enabled {
-            return Ok(None);
+            return None;
         }
 
         let mut authorized_clients = BTreeMap::new();
@@ -214,12 +207,14 @@ impl RestrictedDiscoveryConfig {
             }
         }
 
-        // TODO: perhaps this shouldn't be an error, but a warning?
         if authorized_clients.len() > MAX_RESTRICTED_DISCOVERY_CLIENTS {
-            return Err(RestrictedDiscoveryConfigError::TooManyAuthorizedClients);
+            warn!(
+                "You have configured over {} restricted discovery clients. Your service's descriptor is likely to exceed the 50kB limit",
+                MAX_RESTRICTED_DISCOVERY_CLIENTS
+            );
         }
 
-        Ok(Some(authorized_clients))
+        Some(authorized_clients)
     }
 }
 
@@ -322,17 +317,6 @@ impl RestrictedDiscoveryConfigBuilder {
             static_keys,
         })
     }
-}
-
-/// Error type representing an invalid [`RestrictedDiscoveryConfig`].
-//
-// TODO: perhaps this shouldn't be an error, but a warning?
-#[non_exhaustive]
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum RestrictedDiscoveryConfigError {
-    /// Too many authorized clients.
-    #[error("Too many authorized clients provided (max is {MAX_RESTRICTED_DISCOVERY_CLIENTS})")]
-    TooManyAuthorizedClients,
 }
 
 #[cfg(test)]
@@ -449,7 +433,7 @@ mod test {
             .push(dir_prov_builder);
 
         let restricted_config = builder.build().unwrap();
-        assert!(restricted_config.read_keys().unwrap().unwrap().is_empty());
+        assert!(restricted_config.read_keys().unwrap().is_empty());
     }
 
     #[test]
@@ -546,47 +530,12 @@ mod test {
             let mut authorized_clients = config
                 .read_keys()
                 .unwrap()
-                .unwrap()
                 .into_iter()
                 .collect_vec();
             authorized_clients.sort_by(|k1, k2| k1.0.cmp(&k2.0));
 
             assert_eq!(authorized_clients.as_slice(), all_keys.index(range));
         }
-    }
-
-    #[test]
-    #[cfg(feature = "restricted-discovery")]
-    fn too_many_clients() {
-        let mut builder = RestrictedDiscoveryConfigBuilder::default();
-        builder.enabled(true);
-
-        for i in 0..MAX_RESTRICTED_DISCOVERY_CLIENTS {
-            let (nickname, key) = make_authorized_client(&format!("client-{i}"));
-            builder.static_keys().access().push((nickname, key));
-        }
-
-        let config = builder.build().unwrap();
-
-        assert_eq!(
-            config.read_keys().unwrap().unwrap().len(),
-            MAX_RESTRICTED_DISCOVERY_CLIENTS
-        );
-
-        let (nickname, key) = make_authorized_client("bob");
-        builder.static_keys().access().push((nickname, key));
-        // The config builds successfully...
-        let config = builder.build().unwrap();
-        // But read_keys() will return an error.
-        let err = config.read_keys().unwrap_err();
-        assert!(
-            matches!(
-                err,
-                RestrictedDiscoveryConfigError::TooManyAuthorizedClients
-            ),
-            "{}",
-            err
-        );
     }
 
     #[test]
@@ -630,6 +579,6 @@ mod test {
             .push(dir_prov_builder);
         let config = builder.build().unwrap();
 
-        assert_eq!(config.read_keys().unwrap().unwrap().len(), VALID_COUNT);
+        assert_eq!(config.read_keys().unwrap().len(), VALID_COUNT);
     }
 }

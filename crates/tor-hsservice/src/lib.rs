@@ -102,8 +102,6 @@ pub use req::{RendRequest, StreamRequest};
 
 pub use helpers::handle_rend_requests;
 
-#[cfg(feature = "restricted-discovery")]
-pub use err::RestrictedDiscoveryConfigError;
 //---------- top-level service implementation (types and methods) ----------
 
 /// Convenience alias for link specifiers of an intro point
@@ -310,15 +308,9 @@ impl OnionService {
             .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "restricted-discovery")] {
-                let authorized_clients = config
-                    .restricted_discovery
-                    .read_keys()?;
-            } else {
-                let authorized_clients: Option<RestrictedDiscoveryKeys> = None;
-            }
-        }
+        let authorized_clients = config
+            .restricted_discovery
+            .read_keys();
 
         if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
             warn!(
