@@ -9,7 +9,7 @@ use std::panic::{catch_unwind, UnwindSafe};
 use crate::conn::ErrorResponse;
 use crate::util::Utf8CString;
 
-use super::util::{ffi_body_simple, OptOutPtrExt as _, OutPtr};
+use super::util::{ffi_body_raw, OptOutPtrExt as _, OutPtr};
 use super::ArtiRpcStatus;
 
 /// Helper:
@@ -296,7 +296,7 @@ pub type ArtiRpcError = FfiError;
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRpcStatus {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
@@ -319,7 +319,7 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *const c_char {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
@@ -344,7 +344,7 @@ pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *cons
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *const c_char {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
@@ -367,7 +367,7 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut ArtiRpcError {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let err: Option<&ArtiRpcError> [in_ptr_opt];
         } in {
@@ -381,7 +381,7 @@ pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut Ar
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let err: Option<Box<ArtiRpcError>> [in_ptr_consume_opt];
         } in {

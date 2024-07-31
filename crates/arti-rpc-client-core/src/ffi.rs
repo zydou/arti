@@ -8,7 +8,7 @@ mod util;
 
 use err::{ArtiRpcError, InvalidInput};
 use std::ffi::c_char;
-use util::{ffi_body_simple, ffi_body_with_err, OptOutPtrExt as _, OutPtr};
+use util::{ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OutPtr};
 
 use crate::{util::Utf8CString, RpcConnBuilder};
 
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let string: Option<Box<ArtiRpcStr>> [in_ptr_consume_opt];
         } in {
@@ -139,7 +139,7 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c_char {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let string: Option<&ArtiRpcStr> [in_ptr_opt];
         } in {
@@ -155,7 +155,7 @@ pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
-    ffi_body_simple!(
+    ffi_body_raw!(
         {
             let rpc_conn: Option<Box<ArtiRpcConn>> [in_ptr_consume_opt];
         } in {

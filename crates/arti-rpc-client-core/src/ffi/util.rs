@@ -86,14 +86,14 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 /// It also catches panics, making sure that we don't unwind into the FFI caller.
 /// I.e. it ensures that correct callers will not experience UB.
 ///
-/// This variant is for simple infallible functions which
+/// This variant is for functions that
 /// don't pass back an `ArtiRpcError` via an out parameter.
 /// See [`ffi_body_with_err!`] for that.
 ///
 /// This macro is meant to be invoked as follows:
 ///
 /// ```ignore
-///     ffi_body_simple!(
+///     ffi_body_raw!(
 ///         {
 ///             [CONVERSIONS]
 ///         } in {
@@ -114,7 +114,7 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 ///     dietary_constraints: *const c_char,
 ///     food_out: *mut *mut DeliciousMeal,
 /// ) -> usize {
-///     ffi_body_simple!(
+///     ffi_body_raw!(
 ///         { // [CONVERSIONS]
 ///             let recipe: Option<&Recipe> [in_ptr_opt];
 ///             let ingredients: Option<&Ingredients> [in_ptr_opt];
@@ -244,7 +244,7 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 //   on the theory that it makes the functions more readable.
 // - The conversion code deliberately shadows the original parameter with the
 //   converted parameter.
-macro_rules! ffi_body_simple {
+macro_rules! ffi_body_raw {
     {
         {
             $(
@@ -301,7 +301,7 @@ macro_rules! ffi_body_simple {
     };
 
 }
-pub(super) use ffi_body_simple;
+pub(super) use ffi_body_raw;
 
 /// Implement the body of an FFI function that returns an ArtiRpcStatus.
 ///
@@ -339,7 +339,7 @@ pub(super) use ffi_body_simple;
 /// ```
 ///
 /// The resulting function has the same kinds
-/// of conversions as would [`ffi_body_simple!`].
+/// of conversions as would [`ffi_body_raw!`].
 ///
 /// The differences are:
 ///   * Instead of returning a value, the body can only give errors with `?`.
@@ -351,7 +351,7 @@ pub(super) use ffi_body_simple;
 ///
 /// ## Safety
 ///
-/// The safety requirements are the same as for `ffi_body_simple`, except that:
+/// The safety requirements are the same as for `ffi_body_raw`, except that:
 ///
 /// The safety requirements for the `err` conversion
 /// are the same as those for `out_ptr_opt` (q.v.).
@@ -411,7 +411,7 @@ pub(super) use ffi_body_with_err;
 /// }
 /// ```
 ///
-/// The `[CONVERSIONS]` have the same syntax and behavior as in [`ffi_body_simple!`].
+/// The `[CONVERSIONS]` have the same syntax and behavior as in [`ffi_body_raw!`].
 /// After every conversion has been tried, if one or more of them failed,
 /// then the `[ERR_BODY]` code is run,
 /// with `[ERR_IDENT]` bound to an instance of `InvalidInput`.
