@@ -151,8 +151,10 @@ cargo-audit:
     paths:
       - cache
 
+# For use with YAML anchor.  See
+#   https://docs.gitlab.com/ee/ci/yaml/yaml_optimization.html#yaml-anchors-for-scripts
 .rust-recent-template:
-  script:
+  script: &rust-recent-script
     - rustup show
     - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
     - cargo test --verbose --target x86_64-unknown-linux-gnu
@@ -163,27 +165,29 @@ cargo-audit:
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
     - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
-    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
 
 rust-recent:
-  extends: .rust-recent-template
   stage: build
   image: $RECENT_RUST_IMAGE
+  script:
+    - *rust-recent-script
+    - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
 rust-latest:
-  extends: .rust-recent-template
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - *rust-recent-script
 
 .rust-recent-arti-extra-features-template:
-  script:
+  script: &rust-recent-arti-extra-features-script
     - rustup show
     # Build the arti binary for use in chutney and shadow integration tests.
     #
@@ -203,27 +207,29 @@ rust-latest:
       -p arti -p tor-circmgr
       --bin arti
       --features full,experimental-api,arti-client/keymgr,tor-circmgr/ntor_v3,onion-service-service,vanguards
+
+rust-recent-arti-extra-features:
+  stage: build
+  image: $RECENT_RUST_IMAGE
+  script:
+    - *rust-recent-arti-extra-features-script
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti
     # Save the full-featured binary under a different name to prevent it from being
     # overwritten by the other jobs that preserve the arti binary.
     - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
-
-rust-recent-arti-extra-features:
-  extends: .rust-recent-arti-extra-features-template
-  stage: build
-  image: $RECENT_RUST_IMAGE
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
 rust-latest-arti-extra-features:
-  extends: .rust-recent-arti-extra-features-template
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - *rust-recent-arti-extra-features-script
 
 rust-recent-async-std-rustls:
   stage: build
