@@ -30,6 +30,9 @@ pub enum Error {
     /// rusqlite gave us an error.
     #[error("Error from sqlite database")]
     SqliteError(#[source] Arc<rusqlite::Error>),
+    /// Error while creating a read-only store.
+    #[error("Failed to create read-only store")]
+    ReadOnlyStorage(#[from] ReadOnlyStorageError),
     /// A schema version that says we can't read it.
     #[error("Unrecognized data storage schema v{schema}. (We support v{supported})")]
     UnrecognizedSchema {
@@ -232,6 +235,7 @@ impl Error {
             | Error::CachePermissions(_)
             | Error::CacheAccess(_)
             | Error::SqliteError(_)
+            | Error::ReadOnlyStorage(_)
             | Error::UnrecognizedSchema { .. }
             | Error::DirectoryNotPresent
             | Error::ManagerDropped
@@ -302,6 +306,7 @@ impl Error {
             | Error::OfflineMode
             | Error::CacheCorruption(_)
             | Error::SqliteError(_)
+            | Error::ReadOnlyStorage(_)
             | Error::UnrecognizedSchema { .. }
             | Error::ManagerDropped
             | Error::LockFile { .. }
@@ -345,6 +350,7 @@ impl HasKind for Error {
             E::CachePermissions(e) => e.cache_error_kind(),
             E::CacheAccess(e) => e.cache_error_kind(),
             E::SqliteError(e) => sqlite_error_kind(e),
+            E::ReadOnlyStorage(_) => EK::LocalResourceAlreadyInUse,
             E::UnrecognizedSchema { .. } => EK::CacheCorrupted,
             E::DirectoryNotPresent => EK::DirectoryExpired,
             E::NetDirOlder => EK::TorDirectoryError,
@@ -415,4 +421,22 @@ fn sqlite_error_kind(e: &rusqlite::Error) -> ErrorKind {
         // found a way to distinguish when.
         _ => EK::Internal,
     }
+}
+
+/// An error coming from a read-only store.
+#[derive(Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum ReadOnlyStorageError {
+    /// We couldn't find the database.
+    #[error("The database could not be found.")]
+    NoDatabase,
+
+    /// A schema version that is not current.
+    #[error("Incomaptible data storage schema v{schema}. (We expected v{supported})")]
+    IncompatibleSchema {
+        /// The schema version in the database
+        schema: u32,
+        /// The schema that we actually support.
+        supported: u32,
+    },
 }

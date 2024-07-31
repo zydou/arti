@@ -5,6 +5,7 @@
 
 use super::ExpirationConfig;
 use crate::docmeta::{AuthCertMeta, ConsensusMeta};
+use crate::err::ReadOnlyStorageError;
 use crate::storage::{InputString, Store};
 use crate::{Error, Result};
 
@@ -108,7 +109,7 @@ impl SqliteStore {
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
         };
         let conn = rusqlite::Connection::open_with_flags(&sqlpath, flags)?;
-        let mut store = SqliteStore::from_conn(conn, blob_dir)?;
+        let mut store = SqliteStore::from_conn_internal(conn, blob_dir, readonly)?;
         store.sql_path = Some(sqlpath);
         store.lockfile = Some(lockfile);
         Ok(store)
@@ -121,7 +122,20 @@ impl SqliteStore {
     ///
     /// Note: `blob_dir` must not be used for anything other than storing the blobs associated with
     /// this database, since we will freely remove unreferenced files from this directory.
-    pub(crate) fn from_conn(conn: rusqlite::Connection, blob_dir: CheckedDir) -> Result<Self> {
+    #[cfg(test)]
+    fn from_conn(conn: rusqlite::Connection, blob_dir: CheckedDir) -> Result<Self> {
+        Self::from_conn_internal(conn, blob_dir, false)
+    }
+
+    /// Construct a new SqliteStore from a database connection and a location
+    /// for blob files.
+    ///
+    /// The `readonly` argument specifies whether the database connection should be read-only.
+    fn from_conn_internal(
+        conn: rusqlite::Connection,
+        blob_dir: CheckedDir,
+        readonly: bool,
+    ) -> Result<Self> {
         // sqlite (as of Jun 2024) does not enforce foreign keys automatically unless you set this
         // pragma on the connection.
         conn.pragma_update(None, "foreign_keys", "ON")?;
@@ -133,14 +147,14 @@ impl SqliteStore {
             sql_path: None,
         };
 
-        result.check_schema()?;
+        result.check_schema(readonly)?;
 
         Ok(result)
     }
 
     /// Check whether this database has a schema format we can read, and
     /// install or upgrade the schema if necessary.
-    fn check_schema(&mut self) -> Result<()> {
+    fn check_schema(&mut self, readonly: bool) -> Result<()> {
         let tx = self.conn.transaction()?;
         let db_n_tables: u32 = tx.query_row(
             "SELECT COUNT(name) FROM sqlite_master
@@ -165,9 +179,14 @@ impl SqliteStore {
         };
 
         if !db_exists {
-            tx.execute_batch(INSTALL_V0_SCHEMA)?;
-            update_schema(&tx, 0)?;
-            tx.commit()?;
+            if !readonly {
+                tx.execute_batch(INSTALL_V0_SCHEMA)?;
+                update_schema(&tx, 0)?;
+                tx.commit()?;
+            } else {
+                // The other process should have created the database!
+                return Err(Error::ReadOnlyStorage(ReadOnlyStorageError::NoDatabase));
+            }
             return Ok(());
         }
 
@@ -179,8 +198,18 @@ impl SqliteStore {
         )?;
 
         if version < SCHEMA_VERSION {
-            update_schema(&tx, version)?;
-            tx.commit()?;
+            if !readonly {
+                update_schema(&tx, version)?;
+                tx.commit()?;
+            } else {
+                return Err(Error::ReadOnlyStorage(
+                    ReadOnlyStorageError::IncompatibleSchema {
+                        schema: version,
+                        supported: SCHEMA_VERSION,
+                    },
+                ));
+            }
+
             return Ok(());
         } else if readable_by > SCHEMA_VERSION {
             return Err(Error::UnrecognizedSchema {
