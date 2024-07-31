@@ -151,8 +151,10 @@ cargo-audit:
     paths:
       - cache
 
+# For use with YAML anchor.  See
+#   https://docs.gitlab.com/ee/ci/yaml/yaml_optimization.html#yaml-anchors-for-scripts
 .rust-recent-template:
-  script:
+  script: &rust-recent-script
     - rustup show
     - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
     - cargo test --verbose --target x86_64-unknown-linux-gnu
@@ -166,24 +168,26 @@ cargo-audit:
     - ./maint/preserve target/x86_64-unknown-linux-gnu/debug/arti target/x86_64-unknown-linux-gnu/release/arti-bench
 
 rust-recent:
-  extends: .rust-recent-template
   stage: build
   image: $RECENT_RUST_IMAGE
+  script:
+    - *rust-recent-script
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
 rust-latest:
-  extends: .rust-recent-template
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - *rust-recent-script
 
 .rust-recent-arti-extra-features-template:
-  script:
+  script: &rust-recent-arti-extra-features-script
     - rustup show
     # Build the arti binary for use in chutney and shadow integration tests.
     #
@@ -209,21 +213,23 @@ rust-latest:
     - mv artifacts/target/x86_64-unknown-linux-gnu/debug/arti artifacts/target/x86_64-unknown-linux-gnu/debug/arti-extra
 
 rust-recent-arti-extra-features:
-  extends: .rust-recent-arti-extra-features-template
   stage: build
   image: $RECENT_RUST_IMAGE
+  script:
+    - *rust-recent-arti-extra-features-script
   artifacts:
     paths:
       - artifacts
     expire_in: 1 hours
 
 rust-latest-arti-extra-features:
-  extends: .rust-recent-arti-extra-features-template
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/rust:bookworm
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - *rust-recent-arti-extra-features-script
 
 rust-recent-async-std-rustls:
   stage: build
