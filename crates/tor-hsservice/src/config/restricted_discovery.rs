@@ -15,7 +15,8 @@
 //! Each authorized client must generate a service discovery keypair ([KS_hsc_desc_enc])
 //! and share the public part of the keypair with the service.
 //! The service can then authorize the client by adding its public key
-//! to one of the [`KeyProvider`]s from its [`RestrictedDiscoveryConfig`].
+//! to the `static_keys` list, or as an entry in one of the `key_dirs` specified
+//! in its [`RestrictedDiscoveryConfig`].
 //!
 //! Restricted discovery mode is only suitable for services that have a known set
 //! of no more than [`MAX_RESTRICTED_DISCOVERY_CLIENTS`] users.
@@ -28,8 +29,6 @@
 //! The [`RestrictedDiscoveryConfig`] supports two key providers:
 //!   * [`StaticKeyProvider`], where keys are specified as a static mapping from nicknames to keys
 //!   * [`DirectoryKeyProvider`], which represents a directory of client keys.
-//!
-//! See the [`KeyProvider`] documentation for more details.
 //!
 //! # Limitations
 //!
@@ -146,9 +145,8 @@ pub struct RestrictedDiscoveryConfig {
     ///
     /// Can only be enabled if the `restricted-discovery` feature is enabled.
     ///
-    /// If you enable this, you must also configure at least one
-    /// [`KeyProvider`], and the list of authorized clients
-    /// must be non-empty.
+    /// If you enable this, you must also specify the authorized clients (via `static_keys`),
+    /// or the directories where the authorized client keys should be read from (via `key_dirs`).
     ///
     /// Restricted discovery mode is disabled by default.
     #[builder(default)]
