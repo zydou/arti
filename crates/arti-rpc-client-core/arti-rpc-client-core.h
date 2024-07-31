@@ -52,52 +52,77 @@
  * ## Interface conventions
  *
  * - All functions check for NULL pointers in their arguments.
- *   - As in C tor, `foo_free()` functions treat `foo_free(NULL)` as a no-op
+ *   - As in C tor, `foo_free()` functions treat `foo_free(NULL)` as a no-op.
+ *
+ * - All input strings should be valid UTF-8.  (The library will check.)
+ *   All output strings will be valid UTF-8.
  *
  * - Fallible functions return an ArtiStatus.
  *
- * - All identifiers are prefixed with `arti`, in some case.
+ * - All identifiers are prefixed with `ARTI_RPC`, `ArtiRpc`, or `arti_rpc` as appropriate.
  *
- * - Newly allocated objects are always returned via out-parameters, with `out` in their names.
- *   (For example, `ArtiObject **out`).  In such cases, `* out` will be set to a resulting object,
- *   or to NULL if no such object is returned.   (If `out` is NULL, then any such object will be
- *   discarded.)
+ * - Newly allocated objects are returned via out-parameters,
+ *   with `out` in their names.
+ *   (For example, `ArtiRpcObject **out`).  In such cases, `* out` will be set to a resulting object,
+ *   or to NULL if no such object is returned.   Any earlier value of `*out` will be replaced
+ *   without freeing it.
+ *   (If `out` is NULL, then any object the library would have returned will instead be discareded.)
+ *   discarded.
+ *   While the function is running,
+ *   `*out` and `**out` may not be read or written by any other part of the program,
+ *   and they may not alias any other arguments.)
+ *   - Note that `*out` will be set to NULL if an error occurs
+ *     or the function's inputs are invalid.
+ *     (The `*error_out` parameter, of course,
+ *     is set to NULL when there is _no_ error, and to an error otherwise.)
  *
  * - When any object is exposed as a non-const pointer,
  *   the application becomes the owner of that object.
  *   The application is expected to eventually free that object via the corresponding `arti_rpc_*_free()` function.
  *
  * - When any object is exposed via a const pointer,
- *   that object is now owned by the application.
+ *   that object is *not* owned by the application.
  *   That object's lifetime will be as documented.
  *   The application must not modify or free such an object.
  *
  * - If a function should be considered a method on a given type of object,
  *   it will take a pointer to that object as its first argument.
  *
+ * - If a function consumes (takes ownership of) one of its inputs,
+ *   it does so regardless of whether the function succeeds or fails.
+ *
  * ## Correctness requirements
  *
  * If any correctness requirements stated here or elsewhere are violated,
  * it is Undefined Behaviour.
  * Violations will not be detected by the library.
- * 
+ *
  * - Basic C rules apply:
- *     - Every function's input pointers
- *       must point to valid data of the correct type, unless it is NULL.
+ *     - If you pass a non-NULL pointer to a function, the pointer must be properly aligned.
+ *       It must point to valid, initialized data of the correct type.
+ *       - As an exception, functions that take a `Type **out` parameter allow the value of `*out`
+ *         (but not `out` itself!) to be uninitialized.
  *     - If you receive data via a `const *`, you must not modify that data.
+ *     - If you receive a pointer of type `struct Type *`,
+ *       and we do not give you the definition of `struct Type`,
+ *       you must not attempt to dereference the pointer.
  *     - You may not call any `_free()` function on an object that is currently in use.
  *     - After you have `_freed()` an object, you may not use it again.
  * - Every object allocated by this library has a corresponding `*_free()` function:
  *   You must not use libc's free() to free such objects.
  * - All objects passed as input to a library function must not be mutated
  *   while that function is running.
+ * - All objects passed as input to a library function via a non-const pointer
+ *   must not be mutated, inspected, or passed to another library function
+ *   while the function is running.
+ *   - Furthermore, if a function takes any non-const pointer arguments,
+ *     those arguments must not alias one another,
+ *     and must not alias any const arguments passed to the function.
  * - All `const char*` passed as inputs to library functions
  *   are nul-terminated strings.
- *   Additionally, they must be no larger than `SSIZE_MAX`.
- *
- * In each case where a non-const pointer is passed, we explicitly state whether ownership
- * (that is to say, responsibility for freeing the pointed-to object)
- * is transferred.
+ *   Additionally, they must be no larger than `SSIZE_MAX`,
+     including the nul.
+ * - If a function takes any mutable pointers
  **/
 
 #ifndef ARTI_RPC_CLIENT_CORE_H_
@@ -109,6 +134,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+/**
+ * A string that is guaranteed to be UTF-8 and NUL-terminated,
+ * for fast access as either type.
+ */
+typedef struct Utf8CString Utf8CString;
 
 /**
  * A status code returned by an Arti RPC function.
@@ -144,7 +175,7 @@ typedef struct ArtiRpcError ArtiRpcError;
  * You can inspect it with `arti_rpc_str_get`, but you may not modify it.
  * The string is guaranteed to be UTF-8 and NUL-terminated.
  */
-typedef struct ArtiRpcStr ArtiRpcStr;
+typedef struct Utf8CString ArtiRpcStr;
 
 /**
  * The function has returned successfully.
@@ -159,7 +190,8 @@ typedef struct ArtiRpcStr ArtiRpcStr;
 #define ARTI_RPC_STATUS_INVALID_INPUT 1
 
 /**
- * Tried to use some functionality (for example, an authentication method or connection scheme)
+ * Tried to use some functionality
+ * (for example, an authentication method or connection scheme)
  * that wasn't available on this platform or build.
  *
  * (This error was generated by the library, before any request was sent.)
@@ -236,6 +268,8 @@ typedef struct ArtiRpcStr ArtiRpcStr;
 
 
 
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -291,7 +325,7 @@ ArtiRpcStatus arti_rpc_conn_execute(const ArtiRpcConn *rpc_conn,
 void arti_rpc_str_free(ArtiRpcStr *string);
 
 /**
- * Return the underlying nul-terminated string from an `ArtiRpcStr`.
+ * Return a const pointer to the underlying nul-terminated string from an `ArtiRpcStr`.
  *
  * The resulting string is guaranteed to be valid UTF-8.
  *
@@ -357,12 +391,10 @@ const char *arti_rpc_err_response(const ArtiRpcError *err);
  *
  * Return NULL if the input is NULL.
  *
- * May return NULL if an internal error occurs.
- *
  * # Ownership
  *
  * The caller is responsible for making sure that the returned object
- * is eventually freed.
+ * is eventually freed with `arti_rpc_err_free()`.
  */
 ArtiRpcError *arti_rpc_err_clone(const ArtiRpcError *err);
 
