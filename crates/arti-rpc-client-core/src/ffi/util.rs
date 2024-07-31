@@ -54,14 +54,14 @@ impl<'a, T> OutPtr<'a, T> {
     }
 }
 
-/// define a sealing trait.
-mod sealed {
-    /// Trait to prevent implementation of OptOutPtrExt inappropriately.
-    pub(super) trait Sealed {}
-}
+/// Trait to prevent implementation of OptOutPtrExt inappropriately.
+//
+// TODO: Move this into a separate module once our MSRV allows us to do so.
+// With 1.70, it causes an error.
+pub(super) trait Sealed {}
 /// Extension trait on `Option<OutPtr<T>>`
 #[allow(private_bounds)]
-pub(super) trait OptOutPtrExt<T>: sealed::Sealed {
+pub(super) trait OptOutPtrExt<T>: Sealed {
     /// Consume this `Option<OutPtr<T>>` and the provided value.
     ///
     /// If this is Some, write the value into the outptr.
@@ -69,7 +69,7 @@ pub(super) trait OptOutPtrExt<T>: sealed::Sealed {
     /// Otherwise, discard the value.
     fn write_value_if_ptr_set(self, value: T);
 }
-impl<'a, T> sealed::Sealed for Option<OutPtr<'a, T>> {}
+impl<'a, T> Sealed for Option<OutPtr<'a, T>> {}
 impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
     fn write_value_if_ptr_set(self, value: T) {
         if let Some(outptr) = self {
