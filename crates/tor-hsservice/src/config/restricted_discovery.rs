@@ -381,7 +381,7 @@ mod test {
         (nickname, pk.clone())
     }
 
-    fn write_key_to_file(dir: &Path, nickname: &HsClientNickname, key: &HsClientDescEncKey) {
+    fn write_key_to_file(dir: &Path, nickname: &HsClientNickname, key: impl fmt::Display) {
         let path = dir.join(nickname.to_string()).with_extension("auth");
         fs::write(path, key.to_string()).unwrap();
     }
@@ -618,16 +618,13 @@ mod test {
         let dir = tempfile::TempDir::new().unwrap();
         for i in 0..VALID_COUNT {
             let (nickname, key) = make_authorized_client(&format!("client-{i}"));
-
-            let path = dir.path().join(nickname.to_string()).with_extension("auth");
-            fs::write(path, key.to_string()).unwrap();
+            write_key_to_file(dir.path(), &nickname, &key);
         }
 
         // Add some malformed keys
         let nickname: HsClientNickname = "foo".parse().unwrap();
 
-        let path = dir.path().join(nickname.to_string()).with_extension("auth");
-        fs::write(path, "descriptor:x25519:foobar").unwrap();
+        write_key_to_file(dir.path(), &nickname, "descriptor:x25519:foobar");
 
         let (nickname, key) = make_authorized_client("bar");
         let path = dir
