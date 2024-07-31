@@ -4,6 +4,7 @@ use crate::config::restricted_discovery::HsClientNickname;
 use crate::internal_prelude::*;
 
 use std::collections::BTreeMap;
+use std::fs::DirEntry;
 
 use derive_more::{AsRef, Into};
 use fs_mistrust::{CheckedDir, Mistrust, MistrustBuilder};
@@ -143,15 +144,14 @@ impl DirectoryKeyProvider {
 
         for entry in key_entries {
             let entry = entry.map_err(make_err)?;
-            let path = entry.path();
 
-            match read_key_file(&checked_dir, &path) {
+            match read_key_file(&checked_dir, &entry) {
                 Ok((client_nickname, key)) => keys.push((client_nickname, key)),
                 Err(e) => {
                     warn_report!(
                         e,
                         "Failed to read client discovery key at {}",
-                        path.display_lossy()
+                        entry.path().display_lossy()
                     );
                     continue;
                 }
@@ -165,51 +165,46 @@ impl DirectoryKeyProvider {
 /// Read the client key at  `path`.
 fn read_key_file(
     checked_dir: &CheckedDir,
-    path: &Path,
+    entry: &DirEntry,
 ) -> Result<(HsClientNickname, HsClientDescEncKey), DirectoryKeyProviderError> {
     /// The extension the client key files are expected to have.
     const KEY_EXTENSION: &str = "auth";
 
-    if path.is_dir() {
+    if entry.path().is_dir() {
         return Err(DirectoryKeyProviderError::InvalidKeyDirectoryEntry {
-            path: path.into(),
+            path: entry.path(),
             problem: "entry is a directory".into(),
         });
     }
 
-    let extension = path.extension().and_then(|e| e.to_str());
+    let file_name = entry.file_name();
+    let file_name: &Path = file_name.as_ref();
+    let extension = file_name.extension().and_then(|e| e.to_str());
     if extension != Some(KEY_EXTENSION) {
         return Err(DirectoryKeyProviderError::InvalidKeyDirectoryEntry {
-            path: path.into(),
+            path: file_name.into(),
             problem: "invalid extension (file must end in .auth)".into(),
         });
     }
 
     // We unwrap_or_default() instead of returning an error if the file stem is None,
     // because empty slugs handled by HsClientNickname::from_str (they are rejected).
-    let client_nickname = path
+    let client_nickname = file_name
         .file_stem()
         .and_then(|e| e.to_str())
         .unwrap_or_default();
     let client_nickname = HsClientNickname::from_str(client_nickname)?;
 
-    // CheckedDir::read_to_string needs a relative path
-    let rel_path =
-        path.file_name()
-            .ok_or_else(|| DirectoryKeyProviderError::InvalidKeyDirectoryEntry {
-                path: path.into(),
-                problem: "invalid filename".into(),
-            })?;
-    let key = checked_dir.read_to_string(rel_path).map_err(|err| {
+    let key = checked_dir.read_to_string(file_name).map_err(|err| {
         DirectoryKeyProviderError::FsMistrust {
-            path: checked_dir.as_path().join(rel_path),
+            path: entry.path(),
             err,
         }
     })?;
 
     let parsed_key = HsClientDescEncKey::from_str(key.trim()).map_err(|err| {
         DirectoryKeyProviderError::KeyParse {
-            path: rel_path.into(),
+            path: entry.path(),
             err,
         }
     })?;
