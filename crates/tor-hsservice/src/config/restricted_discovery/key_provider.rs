@@ -136,39 +136,29 @@ impl DirectoryKeyProvider {
                 err,
             })?;
 
-        let make_err = |e| DirectoryKeyProviderError::IoError(Arc::new(e));
-
         // TODO: should this be a method on CheckedDir?
-        let key_entries = fs::read_dir(checked_dir.as_path()).map_err(make_err)?;
-        let mut keys = vec![];
-
-        for entry in key_entries {
-            let entry = entry.map_err(make_err)?;
-
-            match read_key_file(&checked_dir, &entry) {
-                Ok((client_nickname, key)) => keys.push((client_nickname, key)),
+        Ok(fs::read_dir(checked_dir.as_path())
+            .map_err(|e| DirectoryKeyProviderError::IoError(Arc::new(e)))?
+            .flat_map(|entry| match read_key_file(&checked_dir, entry) {
+                Ok((client_nickname, key)) => Some((client_nickname, key)),
                 Err(e) => {
-                    warn_report!(
-                        e,
-                        "Failed to read client discovery key at {}",
-                        entry.path().display_lossy()
-                    );
-                    continue;
+                    warn_report!(e, "Failed to read client discovery key",);
+                    None
                 }
-            };
-        }
-
-        Ok(keys)
+            })
+            .collect_vec())
     }
 }
 
 /// Read the client key at  `path`.
 fn read_key_file(
     checked_dir: &CheckedDir,
-    entry: &DirEntry,
+    entry: io::Result<DirEntry>,
 ) -> Result<(HsClientNickname, HsClientDescEncKey), DirectoryKeyProviderError> {
     /// The extension the client key files are expected to have.
     const KEY_EXTENSION: &str = "auth";
+
+    let entry = entry.map_err(|e| DirectoryKeyProviderError::IoError(Arc::new(e)))?;
 
     if entry.path().is_dir() {
         return Err(DirectoryKeyProviderError::InvalidKeyDirectoryEntry {
