@@ -1,0 +1,14 @@
+{
+  "default": {
+    "guards": [],
+    "confirmed": []
+  },
+  "restricted": {
+    "guards": [],
+    "confirmed": []
+  },
+  "bridges": {
+    "guards": [],
+    "confirmed": []
+  }
+}
