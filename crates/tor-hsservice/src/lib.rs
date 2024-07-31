@@ -308,9 +308,7 @@ impl OnionService {
             .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
-        let authorized_clients = config
-            .restricted_discovery
-            .read_keys();
+        let authorized_clients = config.restricted_discovery.read_keys();
 
         if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
             warn!(

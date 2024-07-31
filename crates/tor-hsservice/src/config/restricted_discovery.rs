@@ -54,8 +54,8 @@ pub use key_provider::{
 
 use crate::internal_prelude::*;
 
-use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
 
 use derive_more::{Display, Into};
 
@@ -188,9 +188,7 @@ impl RestrictedDiscoveryConfig {
     /// The deduplication logic is as follows:
     ///   * the `static_keys` take precedence over the keys from `key_dirs`
     ///   * the ordering of the directories in `key_dirs` represents the order of precedence
-    pub(crate) fn read_keys(
-        &self,
-    ) -> Option<RestrictedDiscoveryKeys> {
+    pub(crate) fn read_keys(&self) -> Option<RestrictedDiscoveryKeys> {
         if !self.enabled {
             return None;
         }
@@ -208,9 +206,7 @@ impl RestrictedDiscoveryConfig {
         // which is also the order of precedence.
         for dir in &self.key_dirs {
             match dir.read_keys() {
-                Ok(keys) => {
-                    extend_key_map(&mut authorized_clients, keys);
-                }
+                Ok(keys) => extend_key_map(&mut authorized_clients, keys),
                 Err(e) => {
                     warn_report!(e, "Failed to read keys at {}", dir.path());
                 }
@@ -550,11 +546,7 @@ mod test {
         for (range, builder) in test_cases {
             let config = builder.build().unwrap();
 
-            let mut authorized_clients = config
-                .read_keys()
-                .unwrap()
-                .into_iter()
-                .collect_vec();
+            let mut authorized_clients = config.read_keys().unwrap().into_iter().collect_vec();
             authorized_clients.sort_by(|k1, k2| k1.0.cmp(&k2.0));
 
             assert_eq!(authorized_clients.as_slice(), all_keys.index(range));

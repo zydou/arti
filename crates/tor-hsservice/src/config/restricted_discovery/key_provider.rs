@@ -115,7 +115,9 @@ define_list_builder_helper! {
 
 impl DirectoryKeyProvider {
     /// Read the client service discovery keys from the specified directory.
-    pub(super) fn read_keys(&self) -> Result<Vec<(HsClientNickname, HsClientDescEncKey)>, DirectoryKeyProviderError> {
+    pub(super) fn read_keys(
+        &self,
+    ) -> Result<Vec<(HsClientNickname, HsClientDescEncKey)>, DirectoryKeyProviderError> {
         let dir_path =
             self.path
                 .path()
