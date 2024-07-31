@@ -1,0 +1,25 @@
+[package]
+name = "slotmap-careful"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Wrap the slotmap crate and prevent key reuse"
+keywords = ["slotmap", "arena"]
+categories = ["data-structures"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+paste = "1"
+serde = "1.0"
+slotmap = { version = "1.0.7", features = ["serde"] }
+thiserror = "1"
+void = "1"
+
+[dev-dependencies]
+serde_json = "1.0.50"
+
+[features]
+full = []

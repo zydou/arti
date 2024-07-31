@@ -6,6 +6,7 @@
 # Please keep this list topologically sorted by dependency relation, so
 # that every crate appears _before_ any other crate that depends on it.
 members = [
+    "crates/slotmap-careful",
     "crates/test-temp-dir",
     "crates/fslock-guard",
     "crates/hashx",
@@ -94,6 +95,9 @@ codegen-units = 1
 # Optimize for size.  [Actually this is even smaller than 'z' on rust
 # 1.56.  It saves about 11% download size over the default value of '3'.]
 opt-level = 's'
+
+[profile.release.package.slotmap-careful]
+opt-level = 2
 
 [profile.quicktest]
 # This profile is meant to be a compromise between "release" (which
