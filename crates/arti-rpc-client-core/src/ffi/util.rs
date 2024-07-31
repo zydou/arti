@@ -225,6 +225,14 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 ///
 /// (Note that immediately upon conversion, if `out` is non-NULL,
 /// `*out` is set to NULL.  See documentation for `OptPtr`.)
+///
+/// The return value of `BODY` becomes the return value of the C FFI function.
+/// It is the macro user's responsibility to ensure
+/// that it conforms to the published API.
+/// For example, if the return value is a raw pointer,
+/// the macro user must ensure it's suitably dereferencable,
+/// that its lifetime is documented,
+/// and only null when the API says that's allowed.
 //
 // Design notes:
 // - I am keeping the conversions separate from the body below, since we don't want to catch
@@ -343,8 +351,13 @@ pub(super) use ffi_body_simple;
 ///
 /// ## Safety
 ///
+/// The safety requirements are the same as for `ffi_body_simple`, except that:
+///
 /// The safety requirements for the `err` conversion
 /// are the same as those for `out_ptr_opt` (q.v.).
+///
+/// `ffi_body_with_err` then additionally ensures conformance of
+/// the return value with the API's error handling rules.
 macro_rules! ffi_body_with_err {
     {
         {
