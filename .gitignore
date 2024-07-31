@@ -9,6 +9,7 @@
 /crates/*/fuzz/Cargo.lock
 /crates/*/fuzz-*.log
 *~
+*.tmp
 .#*
 \#*\#
 .cargo

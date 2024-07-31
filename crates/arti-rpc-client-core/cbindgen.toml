@@ -1,0 +1,178 @@
+
+# We emit a C header by default.
+language = "C"
+
+# We use this macro to prevent double-includes of our header.
+include_guard = "ARTI_RPC_CLIENT_CORE_H_"
+
+# This appears at the top of the file.
+header = """\
+/**
+ * # Arti RPC core library header.
+ *
+ * (TODO RPC: This is still a work in progress; please don't rely on it
+ * being the final API.)
+ *
+ * ## What this library does
+ *
+ * The Arti RPC system works by establishing connections to an Arti instance,
+ * and then exchanging requests and replies in a format inspired by
+ * JSON-RPC.  This library takes care of the work of connecting to an Arti
+ * instance, authenticating, validating outgoing JSON requests, and matching
+ * their corresponding JSON responses as they arrive.
+ *
+ * This library _does not_ do the work of creating well-formed requests,
+ * or interpreting the responses.
+ *
+ * (Note: Despite this library being exposed via a set of C functions,
+ * we don't actually expect you to use it from C.  It's probably a better
+ * idea to wrap it in a higher-level language and then use it from there.)
+ *
+ * ## Using this library
+ *
+ * TODO RPC Explain better.
+ *
+ * Your connection to Arti is represented by an `ArtiRpcConn *`.  Use
+ * `arti_rpc_connect()` to create one of these.
+ *
+ * Once you have a connection, you can sent Arti various requests in
+ * JSON format.  See (TODO RPC: Add a link to a list of comments.)
+ * Use `arti_rpc_execute()` to send a simple request; the function will
+ * return when the request succeeds, or fails.
+ *
+ * TODO: Explain handles and other APIs once I add those APIs.
+ *
+ * Except when noted otherwise, all functions in this library are thread-safe.
+ *
+ * ## Error handling
+ *
+ * On success, fallible functions return `ARTI_RPC_STATUS_SUCCESS`.  On failure,
+ * they return some other error code, and set an `* error_out` parameter
+ * to a newly allocated `ArtiRpcError` object.
+ * (If `error_out==NULL`, then no error is allocated.)
+ *
+ * You can access information about the an `ArtiRpcError`
+ * by calling `arti_rpc_err_{status,message,response}()` on it.
+ * When you are done with an error, you should free it with
+ * `arti_rpc_err_free()`.
+ *
+ * The `error_out` parameter always appears last.
+ *
+ * ## Interface conventions
+ *
+ * - All functions check for NULL pointers in their arguments.
+ *   - As in C tor, `foo_free()` functions treat `foo_free(NULL)` as a no-op.
+ *
+ * - All input strings should be valid UTF-8.  (The library will check.)
+ *   All output strings will be valid UTF-8.
+ *
+ * - Fallible functions return an ArtiStatus.
+ *
+ * - All identifiers are prefixed with `ARTI_RPC`, `ArtiRpc`, or `arti_rpc` as appropriate.
+ *
+ * - Newly allocated objects are returned via out-parameters,
+ *   with `out` in their names.
+ *   (For example, `ArtiRpcObject **out`).  In such cases, `* out` will be set to a resulting object,
+ *   or to NULL if no such object is returned.   Any earlier value of `*out` will be replaced
+ *   without freeing it.
+ *   (If `out` is NULL, then any object the library would have returned will instead be discareded.)
+ *   discarded.
+ *   While the function is running,
+ *   `*out` and `**out` may not be read or written by any other part of the program,
+ *   and they may not alias any other arguments.)
+ *   - Note that `*out` will be set to NULL if an error occurs
+ *     or the function's inputs are invalid.
+ *     (The `*error_out` parameter, of course,
+ *     is set to NULL when there is _no_ error, and to an error otherwise.)
+ *
+ * - When any object is exposed as a non-const pointer,
+ *   the application becomes the owner of that object.
+ *   The application is expected to eventually free that object via the corresponding `arti_rpc_*_free()` function.
+ *
+ * - When any object is exposed via a const pointer,
+ *   that object is *not* owned by the application.
+ *   That object's lifetime will be as documented.
+ *   The application must not modify or free such an object.
+ *
+ * - If a function should be considered a method on a given type of object,
+ *   it will take a pointer to that object as its first argument.
+ *
+ * - If a function consumes (takes ownership of) one of its inputs,
+ *   it does so regardless of whether the function succeeds or fails.
+ *
+ * ## Correctness requirements
+ *
+ * If any correctness requirements stated here or elsewhere are violated,
+ * it is Undefined Behaviour.
+ * Violations will not be detected by the library.
+ *
+ * - Basic C rules apply:
+ *     - If you pass a non-NULL pointer to a function, the pointer must be properly aligned.
+ *       It must point to valid, initialized data of the correct type.
+ *       - As an exception, functions that take a `Type **out` parameter allow the value of `*out`
+ *         (but not `out` itself!) to be uninitialized.
+ *     - If you receive data via a `const *`, you must not modify that data.
+ *     - If you receive a pointer of type `struct Type *`,
+ *       and we do not give you the definition of `struct Type`,
+ *       you must not attempt to dereference the pointer.
+ *     - You may not call any `_free()` function on an object that is currently in use.
+ *     - After you have `_freed()` an object, you may not use it again.
+ * - Every object allocated by this library has a corresponding `*_free()` function:
+ *   You must not use libc's free() to free such objects.
+ * - All objects passed as input to a library function must not be mutated
+ *   while that function is running.
+ * - All objects passed as input to a library function via a non-const pointer
+ *   must not be mutated, inspected, or passed to another library function
+ *   while the function is running.
+ *   - Furthermore, if a function takes any non-const pointer arguments,
+ *     those arguments must not alias one another,
+ *     and must not alias any const arguments passed to the function.
+ * - All `const char*` passed as inputs to library functions
+ *   are nul-terminated strings.
+ *   Additionally, they must be no larger than `SSIZE_MAX`,
+     including the nul.
+ * - If a function takes any mutable pointers
+ **/"""
+
+# This appears "between major sections"
+autogen_warning = "/* Automatically generated by cbindgen. Don't modify manually. */"
+
+# make sure our header can be included in C++.
+cpp_compat = true
+
+# Consistency with Arti.
+tab_width = 8
+
+[defines]
+# This is where we would add mappings from `cfg()` to `#ifdef`.
+# But the only relevant cfg we have is `cfg(feature="ffi")`,
+# which we want to assume is always present if you're using the header.
+
+[export]
+# These structs are not ones we want to expose under their actual names,
+# or ones that we don't want to expose at all.
+exclude = ["RpcErrorCode", "RpcConn", "FfiError", "Utf8CStr"]
+
+[export.rename]
+# Having not declared these structs, we can give them new names in the
+# typedefs that assign them their real names.
+"RpcConn" = "struct ArtiRpcConn"
+"FfiError" = "struct ArtiRpcError"
+"Utf8CStr" = "struct ArtiRpcStr"
+
+[fn]
+# Lay out one argument per line.
+args = "vertical"
+
+[parse]
+
+[parse.expand]
+# We need to run our crate through macro expansion in order to get all
+# of the right functions and constants.
+#
+# (Unfortunately, this requires us to use nightly rust, so that cbindgen
+# can invoke rustc with `-Zunpretty=expanded`.)
+crates = ["arti-rpc-client-core"]
+
+# Run macro-expansion with --all-features so that we see `ffi`.
+all_features = true

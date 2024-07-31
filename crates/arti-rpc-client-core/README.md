@@ -22,6 +22,7 @@ Notes so far:
  * [ ] More tests.
  * [ ] update this readme.
  * [x] interface for connecting to arti
+ * [x] Initial C FFI wrappers.
  * [ ] C FFI wrappers for everything reasonable
  * [x] enable the usual warnings.
  * [ ] Finish this readme.

@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+#
+# Run cbindgen in each appropriate crate (the ones with a ffi interface),
+# and inspect the output for changes.
+#
+# This script will, by default, replace the headers
+# if the warnings have not changed.
+# You can replace the old headers _and_ the old saved warnings
+# with the  "--force" option.
+# You can use "--check" to make any changes (to headers or warnings) a failure.
+#
+# Our cbindgen configurations require nightly rust—otherwise, we can't
+# expand macros.  If $RUSTC_NIGHTLY is set, or if $RUSTC is nightly,
+# or if "rustc" is nightly, we'll use that.  Otherwise, we'll try to
+# ask `rustup` if there is a nightly toolchain.
+
+# TODO: Use maint/common helpers once they are merged.
+
+set -eou pipefail
+
+TOPLEVEL=$(realpath "$(dirname "$0")"/..)
+
+: "${CBINDGEN_RUSTC:=}"
+: "${RUSTC:=rustc}"
+
+replace=1
+emit_all_warnings=0
+fail_on_change=0
+overwrite_warnings=0
+
+function usage()
+{
+    cat <<EOF
+cbindgen: Run cbindgen in appropriate crates, and inspect outputs for changes.
+
+Usage:
+  cbindgen [opts]
+
+Options:
+  -h: Print this message.
+  -v: Do not suppress expected warnings.
+
+  -f: Overwrite files, even if there are new warnings.
+  -c: Give a nonzero exit status if any files have changed; do not overwrite.
+EOF
+}
+
+set +e
+options=$(getopt -ohfvc --long help,force,verbose,check -- "$@")
+status="$?"
+set -e
+if test "$status" != 0; then
+    usage
+    exit 1
+fi
+
+eval set -- "$options"
+
+while true; do
+    case "$1" in
+	-h | --help)
+	    usage
+	    exit 1
+	    ;;
+	-f | --force)
+	    overwrite_warnings=1
+	    shift
+	    ;;
+	-v | --verbose)
+	    emit_all_warnings=1
+	    shift
+	    ;;
+	-c | --check)
+	    fail_on_change=0
+	    replace=0
+	    shift
+	    ;;
+	--)
+	    shift
+	    break
+	    ;;
+    esac
+done
+
+# First, find a suitable rustc.
+if test "$CBINDGEN_RUSTC" != ""; then
+    # Supposedly we have one. Use that.
+    :
+elif $RUSTC --version |grep -q nightly; then
+    # Our rustc is apparently nightly. That'll do.
+    CBINDGEN_RUSTC="$RUSTC"
+else
+    # Maybe rustup can help us?
+    #
+    # TODO: If we start to see differences depending on the version
+    # of nightly, we may want to change this to instead look at a
+    # particular version of nightly.
+    : "${CBINDGEN_TOOLCHAIN:=nightly}"
+    CBINDGEN_RUSTC=$(rustup "+$CBINDGEN_TOOLCHAIN" which rustc)
+fi
+
+ANY_DIFFERENCES=0
+SUGGEST_FORCE=0
+
+for cratedir in $("$TOPLEVEL/maint/list_crates" --subdir); do
+    crate=$(basename "$cratedir")
+    if ! test -e "$cratedir/cbindgen.toml"; then
+	# no cbindgen.toml here; we don't run in this crate.
+	continue
+    fi
+
+    echo "$crate ..."
+    pushd "$TOPLEVEL/$cratedir">/dev/null
+
+    set +e
+    RUSTC="${CBINDGEN_RUSTC}" cbindgen --lockfile ../../Cargo.lock >"$crate.h.tmp" 2>cbindgen.warnings.tmp
+    status="$?"
+    set -e
+    if test "$emit_all_warnings" = 1 || test "$status" != 0; then
+	cat cbindgen.warnings.tmp 1>&2
+	if "$status" != 0; then
+	    echo "cbindgen failed with status $status: See warnings above."
+	    exit "$status"
+	fi
+    fi
+
+    changed_this_time=0
+    new_warnings_this_time=0
+    if diff -uN "$crate.h" "$crate.h.tmp"; then
+	echo "  (No changes in the header)"
+    else
+	changed_this_time=1
+	ANY_DIFFERENCES=1
+    fi
+    if diff -uN "cbindgen.warnings" "cbindgen.warnings.tmp"; then
+	echo "  (No changes in the warnings)"
+    else
+	new_warnings_this_time=1
+	changed_this_time=1
+	ANY_DIFFERENCES=1
+    fi
+
+    if test "$changed_this_time" = 1 && test "$replace" = 1; then
+	if test "$new_warnings_this_time" = 1 && test "$overwrite_warnings" = 0; then
+	    # TODO: Possibly we should only refuse to overwrite when there
+	    # are _new_ warnings; not when warnings have gone away or been
+	    # re-ordered.
+	    echo "   CHANGED WARNINGS; not overwriting."
+	    SUGGEST_FORCE=1
+	else
+	    echo "   Overwriting warnings and header file."
+	    mv -f cbindgen.warnings.tmp cbindgen.warnings
+	    mv -f "$crate.h.tmp" "$crate.h"
+	fi
+    fi
+
+    popd>/dev/null
+done
+
+if test "$ANY_DIFFERENCES" = 1; then
+    echo "------------------------------"
+    echo "At least one file changed; see above for diffs."
+    if test "$replace" = 0; then
+    	echo "(Running in 'check' mode, so nothing was changed.)"
+    elif test "$SUGGEST_FORCE" = 1; then
+	echo "(Did not overwrite files in which the warnings changed.)"
+	echo "Make sure to look over the list of warnings, and then run with -f"
+    fi
+    if test "$fail_on_change" = 1; then
+	exit 2
+    fi
+fi

@@ -5,7 +5,10 @@ use std::sync::Arc;
 use serde::Deserialize;
 
 use super::AnyRequestId;
-use crate::{conn::ErrorResponse, util::define_from_for_arc};
+use crate::{
+    conn::ErrorResponse,
+    util::{define_from_for_arc, Utf8CString},
+};
 
 /// An unparsed and unvalidated response, as received from Arti.
 ///
@@ -29,7 +32,7 @@ impl UnparsedResponse {
 #[derive(Clone, Debug)]
 pub(crate) struct ValidatedResponse {
     /// The text of this response.
-    pub(crate) msg: String,
+    pub(crate) msg: Utf8CString,
     /// The metadata from this response.
     pub(crate) meta: ResponseMeta,
 }
@@ -58,10 +61,11 @@ impl UnparsedResponse {
     /// return it as a ValidatedResponse.
     pub(crate) fn try_validate(self) -> Result<ValidatedResponse, DecodeResponseError> {
         let meta = response_meta(self.as_ref())?;
-        Ok(ValidatedResponse {
-            msg: self.msg,
-            meta,
-        })
+        let msg = self.msg.try_into().map_err(|_| {
+            // (This should be impossible; serde_json rejects NULs.)
+            DecodeResponseError::ProtocolViolation("Unexpected NUL in validated message")
+        })?;
+        Ok(ValidatedResponse { msg, meta })
     }
 }
 
@@ -78,12 +82,6 @@ impl ValidatedResponse {
     /// Return the request ID associated with this response.
     pub(crate) fn id(&self) -> &AnyRequestId {
         &self.meta.id
-    }
-}
-
-impl From<ValidatedResponse> for String {
-    fn from(value: ValidatedResponse) -> Self {
-        value.msg
     }
 }
 
@@ -158,7 +156,13 @@ pub(crate) fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError
     let ResponseMetaDe { id, body } = serde_json::from_str(s)?;
     match (id, body) {
         (None, Body::Error(_ignore)) => {
-            Err(E::Fatal(ErrorResponse::from_validated_string(s.to_owned())))
+            let msg = s.to_owned().try_into().map_err(|_| {
+                // (This should be impossible; serde_json rejects NULs.)
+                DecodeResponseError::ProtocolViolation(
+                    "Unexpected NUL in validated fatal error message",
+                )
+            })?;
+            Err(E::Fatal(ErrorResponse::from_validated_string(msg)))
         }
         (None, _) => Err(E::ProtocolViolation("Missing ID field")),
         (Some(id), body) => Ok(ResponseMeta {

@@ -17,6 +17,7 @@ WORKSPACE_TOML = os.path.join(TOPDIR, "Cargo.toml")
 class Crate:
     '''Information about one crate'''
     name: str
+    subdir: str
     publish: bool
     version: str
     raw_metadata: Any
@@ -26,14 +27,14 @@ def list_crates() -> Iterator[Crate]:
     Iterator over all the crates in the workspace.
     '''
     t = toml.decoder.load(WORKSPACE_TOML)
-    for path in t['workspace']['members']:
-        pt = toml.decoder.load(path + "/Cargo.toml")
+    for subdir in t['workspace']['members']:
+        pt = toml.decoder.load(subdir + "/Cargo.toml")
         package = pt["package"]["name"]
         publish = pt["package"].get("publish")
         version = pt["package"]["version"]
         if publish is None:
             publish = True
-        yield Crate(package, publish, version, pt)
+        yield Crate(package, subdir, publish, version, pt)
 
 def print_crates(args: argparse.Namespace) -> None:
     shown_any = False
@@ -44,6 +45,8 @@ def print_crates(args: argparse.Namespace) -> None:
         shown_any = True
         if args.version:
             print("%-23s %s" % (c.name, c.version))
+        elif args.subdir:
+            print(c.subdir)
         else:
             print(c.name)
 
@@ -56,6 +59,7 @@ if __name__ == '__main__':
         )
     parser.add_argument('--all', action='store_true', help='list even unpublished crates')
     parser.add_argument('--version', action='store_true', help='print versions')
+    parser.add_argument('--subdir', action='store_true', help="print relative directories")
     parser.add_argument('-p', '--package', help='specific crate')
 
     args = parser.parse_args()
