@@ -391,9 +391,10 @@ pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
     ffi_body_raw!(
         {
             let err: Option<Box<ArtiRpcError>> [in_ptr_consume_opt];
-            // Safety: Return value is (); trivially safe.
         } in {
             drop(err);
+            // Safety: Return value is (); trivially safe.
+            ()
         }
     );
 }

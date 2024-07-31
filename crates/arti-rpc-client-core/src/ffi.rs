@@ -124,6 +124,7 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
         } in {
             drop(string);
             // Safety: Return value is (); trivially safe.
+            ()
         }
     );
 }
@@ -163,9 +164,11 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
     ffi_body_raw!(
         {
             let rpc_conn: Option<Box<ArtiRpcConn>> [in_ptr_consume_opt];
-            // Safety: Return value is (); trivially safe.
         } in {
             drop(rpc_conn);
+            // Safety: Return value is (); trivially safe.
+            ()
+
         }
     );
 }
