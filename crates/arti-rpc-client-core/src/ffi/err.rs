@@ -302,6 +302,7 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
         } in {
             err.map(|e| e.status)
                .unwrap_or(ARTI_RPC_STATUS_INVALID_INPUT)
+            // Safety: Return value is ArtiRpcStatus; trivially safe.
         }
     )
 }
@@ -325,6 +326,9 @@ pub unsafe extern "C" fn arti_rpc_err_message(err: *const ArtiRpcError) -> *cons
         } in {
             err.map(|e| e.message.as_ptr())
                .unwrap_or(std::ptr::null())
+            // Safety: returned pointer is null, or semantically borrowed from `err`.
+            // It is only null if `err` was null.
+            // The caller is not allowed to modify it.
         }
     )
 }
@@ -350,6 +354,9 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
         } in {
             err.and_then(ArtiRpcError::error_response_as_ptr)
                .unwrap_or(std::ptr::null())
+            // Safety: returned pointer is null, or semantically borrowed from `err`.
+            // It is only null if `err` was null, or if `err` contained no response field.
+            // The caller is not allowed to modify it.
         }
     )
 }
@@ -358,12 +365,10 @@ pub unsafe extern "C" fn arti_rpc_err_response(err: *const ArtiRpcError) -> *con
 ///
 /// Return NULL if the input is NULL.
 ///
-/// May return NULL if an internal error occurs.
-///
 /// # Ownership
 ///
 /// The caller is responsible for making sure that the returned object
-/// is eventually freed.
+/// is eventually freed with `arti_rpc_err_free()`.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut ArtiRpcError {
@@ -373,6 +378,8 @@ pub unsafe extern "C" fn arti_rpc_err_clone(err: *const ArtiRpcError) -> *mut Ar
         } in {
             err.map(|e| Box::into_raw(Box::new(e.clone())))
                .unwrap_or(std::ptr::null_mut())
+            // Safety: returned pointer is null, or newly allocated via Box::new().
+            // It is only null if the input was null.
         }
     )
 }
@@ -384,6 +391,7 @@ pub unsafe extern "C" fn arti_rpc_err_free(err: *mut ArtiRpcError) {
     ffi_body_raw!(
         {
             let err: Option<Box<ArtiRpcError>> [in_ptr_consume_opt];
+            // Safety: Return value is (); trivially safe.
         } in {
             drop(err);
         }

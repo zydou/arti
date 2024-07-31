@@ -123,6 +123,7 @@ pub unsafe extern "C" fn arti_rpc_str_free(string: *mut ArtiRpcStr) {
             let string: Option<Box<ArtiRpcStr>> [in_ptr_consume_opt];
         } in {
             drop(string);
+            // Safety: Return value is (); trivially safe.
         }
     );
 }
@@ -143,10 +144,14 @@ pub unsafe extern "C" fn arti_rpc_str_get(string: *const ArtiRpcStr) -> *const c
         {
             let string: Option<&ArtiRpcStr> [in_ptr_opt];
         } in {
+            // Safety: returned pointer is null, or semantically borrowed from `string`.
+            // It is only null if `string` was null.
+            // The caller is not allowed to modify it.
             match string {
                 Some(s) => s.as_ptr(),
                 None => std::ptr::null(),
             }
+
         }
     )
 }
@@ -158,6 +163,7 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
     ffi_body_raw!(
         {
             let rpc_conn: Option<Box<ArtiRpcConn>> [in_ptr_consume_opt];
+            // Safety: Return value is (); trivially safe.
         } in {
             drop(rpc_conn);
         }
