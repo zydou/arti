@@ -176,12 +176,15 @@ impl Keystore for ArtiNativeKeystore {
 
         let openssh_key = key.to_openssh_string(comment)?;
 
-        Ok(checked_op!(write_and_replace, path, openssh_key)
-            .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
-                action: FilesystemAction::Write,
-                path: unchecked_path.into(),
-                err: err.into(),
-            })?)
+        Ok(
+            checked_op!(write_and_replace, path, openssh_key).map_err(|err| {
+                ArtiNativeKeystoreError::FsMistrust {
+                    action: FilesystemAction::Write,
+                    path: unchecked_path.into(),
+                    err: err.into(),
+                }
+            })?,
+        )
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>> {
@@ -506,9 +509,12 @@ mod tests {
 
         let key_spec = TestSpecifier::default();
         let ed_key_type = &KeyType::Ed25519Keypair;
-        let path = keystore_dir
-            .as_ref()
-            .join(key_store.rel_path(&key_spec, ed_key_type).unwrap().rel_path_unchecked());
+        let path = keystore_dir.as_ref().join(
+            key_store
+                .rel_path(&key_spec, ed_key_type)
+                .unwrap()
+                .rel_path_unchecked(),
+        );
 
         // The key and its parent directories don't exist yet.
         assert!(!path.parent().unwrap().try_exists().unwrap());
