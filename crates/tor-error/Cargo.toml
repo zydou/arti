@@ -24,8 +24,9 @@ tracing = ["dep:tracing", "static_assertions"]
 
 __is_experimental = []
 
+backtrace = []
+
 [dependencies]
-backtrace = { version = "0.3.68", optional = true }
 derive_more = "0.99.3"
 futures = "0.3"
 once_cell = "1"
