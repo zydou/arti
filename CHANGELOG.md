@@ -43,8 +43,8 @@ the RPC subsystem, and relay infrastructure.
 
 - New `arti hsc` command for managing client state and keys for connecting
   to onion services. ([#1281], [#1291], [!2212], [!2257])
-- Incomplete code support for listing authorized clients when running in
-  restricted discovery (a.k.a. "client authorization") mode.
+- Support parsing client restricted discovery (a.k.a. "client authorization") keys
+  from C Tor's `descriptor:x25519:<base32-encoded-x25519-public-key>` key format.
   ([#1292], [!2246])
 - Ensure that `hsc` subcommand can build correctly with unusual combinations
   of features. ([!2254])
