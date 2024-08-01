@@ -58,7 +58,7 @@ the RPC subsystem, and relay infrastructure.
 - The obsolete and unused "TAP" keys are now optional
   when parsing network documents.
   This is phase one of [our plan][prop350] to eventually remove them entirely.
-  ([!2227], [prop-350])
+  ([!2227], [prop350])
 - New `TorClient::wait_for_stop` method, for code that needs to wait
   until a TorClient instance has definitely shut down.
   ([#1418], [!2259], [!2278])
@@ -127,11 +127,71 @@ the [Bureau of Democracy, Human Rights and Labor],
 and our [other sponsors]
 for funding the development of Arti!
 
-
-
-
-
-
+[!2212]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2212
+[!2213]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2213
+[!2227]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2227
+[!2240]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2240
+[!2243]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2243
+[!2244]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2244
+[!2246]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2246
+[!2248]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2248
+[!2249]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2249
+[!2251]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2251
+[!2252]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2252
+[!2253]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2253
+[!2254]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2254
+[!2255]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2255
+[!2256]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2256
+[!2257]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2257
+[!2259]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2259
+[!2260]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2260
+[!2261]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2261
+[!2262]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2262
+[!2264]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2264
+[!2267]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2267
+[!2270]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2270
+[!2273]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2273
+[!2274]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2274
+[!2275]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2275
+[!2276]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2276
+[!2277]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2277
+[!2278]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2278
+[!2279]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2279
+[!2280]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2280
+[!2281]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2281
+[!2283]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2283
+[!2284]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2284
+[!2286]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2286
+[!2287]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2287
+[!2288]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2288
+[!2289]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2289
+[!2290]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2290
+[!2293]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2293
+[#1250]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1250
+[#1281]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1281
+[#1291]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1291
+[#1292]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1292
+[#1300]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1300
+[#1418]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1418
+[#1469]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1469
+[#1473]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1473
+[#1481]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1481
+[#1485]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1485
+[#1490]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1490
+[#1492]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1492
+[#1493]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1493
+[#1495]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1495
+[#1497]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1497
+[#351]: https://gitlab.torproject.org/tpo/core/arti/-/issues/351
+[#737]: https://gitlab.torproject.org/tpo/core/arti/-/issues/737
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[RUSTSEC-2024-0357]: https://rustsec.org/advisories/RUSTSEC-2024-0357.html
+[TROVE-2024-009]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1495
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[arti-rpc-client-core-header]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/crates/arti-rpc-client-core
+[arti-rpc-client-core]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-rpc-client-core/arti-rpc-client-core.h?ref_type=heads
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[prop350]: https://spec.torproject.org/proposals/350-remove-tap.html
 
 
 
