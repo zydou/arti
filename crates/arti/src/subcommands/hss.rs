@@ -1,5 +1,6 @@
 //! The `hss` subcommand.
 
+use anyhow::anyhow;
 use arti_client::TorClientConfig;
 use clap::ArgMatches;
 
@@ -23,8 +24,7 @@ pub(crate) fn run(
             .find(|(n, _)| **n == nickname)
             .map(|(_, cfg)| cfg.svc_cfg.clone())
         else {
-            println!("Service {nickname} is not configured");
-            return Ok(());
+            return Err(anyhow!("Service {nickname} is not configured"));
         };
 
         // TODO: PreferredRuntime was arbitrarily chosen and is entirely unused
@@ -43,7 +43,9 @@ pub(crate) fn run(
         if let Some(onion) = onion_svc.onion_name() {
             println!("{onion}");
         } else {
-            println!("Service {nickname} does not exist, or does not have an K_hsid yet");
+            return Err(anyhow!(
+                "Service {nickname} does not exist, or does not have an K_hsid yet"
+            ));
         }
     }
 

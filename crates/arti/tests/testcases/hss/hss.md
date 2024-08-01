@@ -9,6 +9,7 @@ $ arti -c hss.toml hss --nickname acutus-cepa onion-name
 mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion
 
 $ arti -c hss.toml hss --nickname flamingo onion-name
-Service flamingo is not configured
+? 127
+[..]/arti: error: Service flamingo is not configured
 
 ```
