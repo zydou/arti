@@ -1300,6 +1300,16 @@ mod test {
             "STATUS ADDRESS=198.51.100.123:1234 CONNECT=Success".parse(),
             Ok(PtMessage::Status(PtStatus { data: map }))
         );
+
+        let mut map = HashMap::new();
+        map.insert("ADDRESS".to_string(), "198.51.100.123:1234".to_string());
+        map.insert("CONNECT".to_string(), "Success".to_string());
+        map.insert("TRANSPORT".to_string(), "obfs4".to_string());
+        assert_eq!(
+            "STATUS TRANSPORT=obfs4 ADDRESS=198.51.100.123:1234 CONNECT=Success".parse(),
+            Ok(PtMessage::Status(PtStatus { data: map }))
+        );
+
         let mut map = HashMap::new();
         map.insert("ADDRESS".to_string(), "198.51.100.222:2222".to_string());
         map.insert("CONNECT".to_string(), "Failed".to_string());
