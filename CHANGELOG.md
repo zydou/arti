@@ -3,12 +3,10 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# Arti 1.2.6 — ?? ???? ????
+# Arti 1.2.6 — 1 August 2024
 
 Arti 1.2.6 continues development on onion service client authorization,
 the RPC subsystem, and relay infrastructure.
-
-(Changelog Up-to-date as of 5eb74737a54041a39293344a5e0193465f4eb52d)
 
 ### Security fixes
 
@@ -45,7 +43,7 @@ the RPC subsystem, and relay infrastructure.
   to onion services. ([#1281], [#1291], [!2212], [!2257])
 - Support parsing client restricted discovery (a.k.a. "client authorization") keys
   from C Tor's `descriptor:x25519:<base32-encoded-x25519-public-key>` key format.
-  ([#1292], [!2246])
+  ([!2246])
 - Ensure that `hsc` subcommand can build correctly with unusual combinations
   of features. ([!2254])
 - Remove some unused code for publishing and authentication support.
@@ -90,15 +88,15 @@ the RPC subsystem, and relay infrastructure.
   ([#1485], [!2255])
 - Script to make sure that every crate has a valid set of crates.io
   categories. ([#1481], [!2256])
-- Move our commonly used rust maintenance scripts to a seperate repository,
-  imported with git-subtree. ([#1300], [!2267])
+- Move our commonly used rust maintenance scripts to a separate repository,
+  imported with `git-subtree`. ([#1300], [!2267])
 - In gitlab CI, pin the compiler version we use to build cargo-audit
   and some other tools. ([!2289], [!2290])
 
 
 ### Cleanups, minor features, and bugfixes
 
-- Remove an unused constant from `hashx`. ([!2243])
+- Remove an unused constant from `equix`. ([!2243])
 - Suppress and resolve a few warnings about documentation and dead code.
   ([!2244])
 - Fix parsing time-periods from "key slug" identifiers. ([!2248])
@@ -119,7 +117,6 @@ the RPC subsystem, and relay infrastructure.
 
 Thanks to everybody who's contributed to this release, including
 Alexander Færøy, Clara Engler, Jim Newsome, and trinity-1686a!
-
 
 Also, our deep thanks to
 [Zcash Community Grants],
