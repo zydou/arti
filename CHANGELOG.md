@@ -86,7 +86,7 @@ the RPC subsystem, and relay infrastructure.
   Previously, it would sometimes choose a docker image for the wrong
   architecture. ([!2249])
 - Split and refactor reproducible-build CI job. ([!2252])
-- Improvements to script for detecting crate  ownership problems.
+- Improvements to script for detecting crate ownership problems.
   ([#1485], [!2255])
 - Script to make sure that every crate has a valid set of crates.io
   categories. ([#1481], [!2256])
