@@ -8,7 +8,7 @@ pub(crate) mod ssh;
 mod rel_path;
 
 use std::io::{self, ErrorKind};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -16,9 +16,9 @@ use std::sync::Arc;
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
+use rel_path::RelKeyPath;
 use ssh::UnparsedOpenSshKey;
 
-use derive_more::{AsRef, From, Into};
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
 use walkdir::WalkDir;
@@ -88,21 +88,7 @@ impl ArtiNativeKeystore {
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> StdResult<RelKeyPath, ArtiPathUnavailableError> {
-        let arti_path: String = key_spec.arti_path()?.into();
-        let mut rel_path = PathBuf::from(arti_path);
-        rel_path.set_extension(key_type.arti_extension());
-
-        Ok(rel_path.into())
-    }
-}
-
-/// The path of a key, relative to the keystore root.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, From, Into, AsRef)]
-struct RelKeyPath(PathBuf);
-
-impl AsRef<Path> for RelKeyPath {
-    fn as_ref(&self) -> &Path {
-        self.0.as_ref()
+        RelKeyPath::new(&self.keystore_dir, key_spec, key_type)
     }
 }
 
@@ -130,14 +116,7 @@ impl Keystore for ArtiNativeKeystore {
 
     fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
         let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(false));
-        let abs_path =
-            self.keystore_dir
-                .join(&path)
-                .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
-                    action: FilesystemAction::Read,
-                    path: path.into(),
-                    err: err.into(),
-                })?;
+        let abs_path = path.checked_path()?;
 
         Ok(abs_path
             .try_exists()
@@ -151,19 +130,20 @@ impl Keystore for ArtiNativeKeystore {
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
         let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(None));
 
-        let inner = match self.keystore_dir.read_to_string(&path) {
+        let inner = match checked_op!(read_to_string, path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
             Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
                 return Ok(None);
             }
             res => res.map_err(|err| ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Read,
-                path: path.clone().into(),
+                path: path.rel_path_unchecked().into(),
                 err: err.into(),
             })?,
         };
 
-        UnparsedOpenSshKey::new(inner, path.into())
+        let abs_path = path.checked_path()?;
+        UnparsedOpenSshKey::new(inner, abs_path)
             .parse_ssh_format_erased(key_type)
             .map(Some)
     }
@@ -177,9 +157,10 @@ impl Keystore for ArtiNativeKeystore {
         let path = self
             .rel_path(key_spec, key_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
+        let unchecked_path = path.rel_path_unchecked();
 
         // Create the parent directories as needed
-        if let Some(parent) = path.0.parent() {
+        if let Some(parent) = unchecked_path.parent() {
             self.keystore_dir.make_directory(parent).map_err(|err| {
                 ArtiNativeKeystoreError::FsMistrust {
                     action: FilesystemAction::Write,
@@ -195,12 +176,10 @@ impl Keystore for ArtiNativeKeystore {
 
         let openssh_key = key.to_openssh_string(comment)?;
 
-        Ok(self
-            .keystore_dir
-            .write_and_replace(&path, openssh_key)
+        Ok(checked_op!(write_and_replace, path, openssh_key)
             .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Write,
-                path: path.into(),
+                path: unchecked_path.into(),
                 err: err.into(),
             })?)
     }
@@ -210,12 +189,12 @@ impl Keystore for ArtiNativeKeystore {
             .rel_path(key_spec, key_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
 
-        match self.keystore_dir.remove_file(&rel_path) {
+        match checked_op!(remove_file, rel_path) {
             Ok(()) => Ok(Some(())),
             Err(fs_mistrust::Error::NotFound(_)) => Ok(None),
             Err(e) => Err(ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Remove,
-                path: rel_path.into(),
+                path: rel_path.rel_path_unchecked().into(),
                 err: e.into(),
             }
             .into()),
@@ -321,6 +300,7 @@ mod tests {
     use crate::test_utils::TestSpecifier;
     use crate::{ArtiPath, KeyPath};
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::{tempdir, TempDir};
     use tor_llcrypto::pk::ed25519;
 
@@ -329,7 +309,7 @@ mod tests {
             .rel_path(&TestSpecifier::default(), key_type)
             .unwrap();
 
-        key_store.keystore_dir.as_path().join(rel_key_path)
+        rel_key_path.checked_path().unwrap()
     }
 
     fn init_keystore(gen_keys: bool) -> (ArtiNativeKeystore, TempDir) {
@@ -416,15 +396,17 @@ mod tests {
         assert_eq!(
             key_store
                 .rel_path(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
-                .unwrap(),
-            PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private").into()
+                .unwrap()
+                .rel_path_unchecked(),
+            PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private")
         );
 
         assert_eq!(
             key_store
                 .rel_path(&TestSpecifier::default(), &KeyType::X25519StaticKeypair)
-                .unwrap(),
-            PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private").into()
+                .unwrap()
+                .rel_path_unchecked(),
+            PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private")
         );
     }
 
@@ -464,7 +446,7 @@ mod tests {
                 key_store
                     .rel_path(&key_spec, ed_key_type)
                     .unwrap()
-                    .0
+                    .rel_path_unchecked()
                     .display_lossy()
             ),
         );
@@ -526,7 +508,7 @@ mod tests {
         let ed_key_type = &KeyType::Ed25519Keypair;
         let path = keystore_dir
             .as_ref()
-            .join(key_store.rel_path(&key_spec, ed_key_type).unwrap());
+            .join(key_store.rel_path(&key_spec, ed_key_type).unwrap().rel_path_unchecked());
 
         // The key and its parent directories don't exist yet.
         assert!(!path.parent().unwrap().try_exists().unwrap());

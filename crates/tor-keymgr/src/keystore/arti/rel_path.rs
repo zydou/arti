@@ -13,7 +13,6 @@ use fs_mistrust::CheckedDir;
 use crate::keystore::arti::err::{ArtiNativeKeystoreError, FilesystemAction};
 use crate::{ArtiPathUnavailableError, KeySpecifier, KeyType, Result};
 
-
 /// The path of a key, relative to a [`CheckedDir`].
 ///
 /// See the [module-level documentation](self) for a general overview.
