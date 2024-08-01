@@ -26,21 +26,21 @@ full = [
 [dependencies]
 anyhow = "1.0.23"
 arti = { package = "arti", path = "../arti", version = "1.2.5" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.20.0", features = ["dirfilter"] }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.21.0", features = ["dirfilter"] }
 async-trait = "0.1.54"
 clap = { version = "4.3.24", features = ["wrap_help"] }
 futures = "0.3.14"
 pin-project = "1"
 rand = "0.8"
 tokio = { version = "1.7", features = ["signal", "macros"] }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.20.0" }
-tor-config = { path = "../tor-config", version = "0.20.0" }
-tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.20.0", features = ["dirfilter"] }
-tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.20.0", features = [
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0" }
+tor-config = { path = "../tor-config", version = "0.21.0" }
+tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.21.0", features = ["dirfilter"] }
+tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.21.0", features = [
     "experimental-api",
     "dangerous-expose-struct-fields",
 ] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.20.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0" }
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 [package.metadata.docs.rs]
