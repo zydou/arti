@@ -4,6 +4,8 @@
 
 pub(crate) mod err;
 pub(crate) mod ssh;
+#[macro_use]
+mod rel_path;
 
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
