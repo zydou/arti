@@ -198,7 +198,6 @@ dependencies = [
  "arti-rpcserver",
  "async-ctrlc",
  "backtrace",
- "cc",
  "cfg-if",
  "clap",
  "derive_builder_fork_arti",
