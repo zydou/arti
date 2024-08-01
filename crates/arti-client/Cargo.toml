@@ -1,6 +1,6 @@
 [package]
 name = "arti-client"
-version = "0.20.0"
+version = "0.21.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -129,28 +129,28 @@ rand = "0.8"
 safelog = { path = "../safelog", version = "0.3.6" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
-tor-async-utils = { path = "../tor-async-utils", version = "0.20.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.20.0" }
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.20.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.20.0" }
-tor-config = { path = "../tor-config", version = "0.20.0" }
-tor-dirmgr = { path = "../tor-dirmgr", version = "0.20.0", default-features = false, features = ["mmap"] }
-tor-error = { path = "../tor-error", version = "0.20.0", features = ["tracing"] }
-tor-geoip = { path = "../tor-geoip", version = "0.20.0", optional = true }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.20.0" }
-tor-hsclient = { path = "../tor-hsclient", version = "0.20.0", optional = true }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.20.0", optional = true }
-tor-hsservice = { path = "../tor-hsservice", version = "0.20.0", optional = true }
-tor-keymgr = { path = "../tor-keymgr", version = "0.20.0", default-features = false }
-tor-linkspec = { path = "../tor-linkspec", version = "0.20.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.20.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.20.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.20.0" }
-tor-persist = { path = "../tor-persist", version = "0.20.0" }
-tor-proto = { path = "../tor-proto", version = "0.20.0" }
-tor-ptmgr = { path = "../tor-ptmgr", version = "0.20.0", optional = true }
-tor-rpcbase = { path = "../tor-rpcbase", version = "0.20.0", optional = true }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.20.0" }
+tor-async-utils = { path = "../tor-async-utils", version = "0.21.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.21.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.21.0" }
+tor-config = { path = "../tor-config", version = "0.21.0" }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.21.0", default-features = false, features = ["mmap"] }
+tor-error = { path = "../tor-error", version = "0.21.0", features = ["tracing"] }
+tor-geoip = { path = "../tor-geoip", version = "0.21.0", optional = true }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.21.0" }
+tor-hsclient = { path = "../tor-hsclient", version = "0.21.0", optional = true }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.21.0", optional = true }
+tor-hsservice = { path = "../tor-hsservice", version = "0.21.0", optional = true }
+tor-keymgr = { path = "../tor-keymgr", version = "0.21.0", default-features = false }
+tor-linkspec = { path = "../tor-linkspec", version = "0.21.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.21.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.21.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.21.0" }
+tor-persist = { path = "../tor-persist", version = "0.21.0" }
+tor-proto = { path = "../tor-proto", version = "0.21.0" }
+tor-ptmgr = { path = "../tor-ptmgr", version = "0.21.0", optional = true }
+tor-rpcbase = { path = "../tor-rpcbase", version = "0.21.0", optional = true }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0" }
 tracing = "0.1.36"
 void = "1"
 
@@ -169,8 +169,8 @@ tokio-crate = { package = "tokio", version = "1.7", features = [
     "macros",
 ] }
 toml = "0.8.8"
-tor-relay-selection = { path = "../tor-relay-selection", version = "0.20.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.20.0", features = ["tokio", "native-tls"] }
+tor-relay-selection = { path = "../tor-relay-selection", version = "0.21.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.0"
 
 [package.metadata.docs.rs]

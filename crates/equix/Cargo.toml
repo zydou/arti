@@ -1,6 +1,6 @@
 [package]
 name = "equix"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["The Tor Project, Inc.", "Micah Elizabeth Scott <beth@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"

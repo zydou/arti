@@ -1,6 +1,6 @@
 [package]
 name = "tor-rtcompat"
-version = "0.20.0"
+version = "0.21.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -58,7 +58,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
     "time",
 ] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
-tor-error = { version = "0.20.0", path = "../tor-error" }
+tor-error = { version = "0.21.0", path = "../tor-error" }
 tracing = "0.1.36"
 x509-signature = { version = "0.5.0", optional = true }
 
