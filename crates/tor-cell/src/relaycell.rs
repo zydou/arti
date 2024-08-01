@@ -149,7 +149,7 @@ impl RelayCmd {
 /// These identifiers are local to each hop on a circuit.
 /// This can't be zero; if you need something that can be zero in the protocol,
 /// use `Option<StreamId>`.
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug, Hash)]
 pub struct StreamId(NonZeroU16);
 
 impl From<NonZeroU16> for StreamId {
