@@ -167,7 +167,6 @@ for funding the development of Arti!
 [#1250]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1250
 [#1281]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1281
 [#1291]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1291
-[#1292]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1292
 [#1300]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1300
 [#1418]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1418
 [#1469]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1469
