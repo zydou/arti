@@ -104,4 +104,3 @@ tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0", features = ["tokio", "native-tls"] }
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

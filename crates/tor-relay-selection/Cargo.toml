@@ -45,4 +45,3 @@ tor-netdoc = { path = "../tor-netdoc", version = "0.21.0", features = ["testing"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

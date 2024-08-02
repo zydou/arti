@@ -129,4 +129,3 @@ tor-basic-utils = { version = "0.21.0", path = "../tor-basic-utils" }
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

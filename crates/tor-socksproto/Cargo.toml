@@ -31,4 +31,3 @@ tor-error = { path = "../tor-error", version = "0.21.0" }
 hex-literal = "0.4"
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

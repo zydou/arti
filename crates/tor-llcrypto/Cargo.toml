@@ -72,4 +72,3 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0" }
 getrandom = { version = "0.2.3", features = ["js"] }
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

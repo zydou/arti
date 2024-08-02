@@ -24,6 +24,5 @@ thiserror = "1"
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.21.0" }
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
 [dev-dependencies]
 humantime = "2"

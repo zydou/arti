@@ -36,4 +36,3 @@ ffi = ["c_str_macro", "paste"]
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

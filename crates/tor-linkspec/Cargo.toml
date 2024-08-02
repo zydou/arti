@@ -56,4 +56,3 @@ serde_test = "1.0.124"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
