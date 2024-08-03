@@ -3,7 +3,7 @@
 use c_str_macro::c_str;
 use paste::paste;
 use std::error::Error as StdError;
-use std::ffi::{c_char, CStr};
+use std::ffi::{c_char, c_int, CStr};
 use std::fmt::Display;
 use std::io::Error as IoError;
 use std::panic::{catch_unwind, UnwindSafe};
@@ -156,7 +156,6 @@ pub struct FfiError {
     /// If present, the OS error code that caused this error.
     //
     // (Actually, this should be RawOsError, but that type isn't stable.)
-    #[allow(unused)] // XXXX
     os_error_code: Option<i32>,
 }
 
@@ -343,6 +342,28 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
             err.map(|e| e.status)
                .unwrap_or(ARTI_RPC_STATUS_INVALID_INPUT)
             // Safety: Return value is ArtiRpcStatus; trivially safe.
+        }
+    )
+}
+
+/// Return the OS error code underlying `err`, if any.
+///
+/// This is typically an `errno` on unix-like systems , or the result of `GetLastError()`
+/// on Windows.  It is only present when `err` was caused by the failure of some
+/// OS library call, like a `connect()` or `read()`.
+///
+/// Returns 0 if `err` is NULL, or if `err` was not caused by the failure of an
+/// OS library call.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_err_os_error_code(err: *const ArtiRpcError) -> c_int {
+    ffi_body_raw!(
+        {
+            let err: Option<&ArtiRpcError> [in_ptr_opt];
+        } in {
+            err.and_then(|e| e.os_error_code)
+               .unwrap_or(0)
+             // Safety: Return value is c_int; trivially safe.
         }
     )
 }
