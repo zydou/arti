@@ -154,8 +154,8 @@ pub struct FfiError {
 }
 
 impl FfiError {
-    /// Helper: If this error stems from a resoponse from our RPC peer,
-    /// return that reponse.
+    /// Helper: If this error stems from a response from our RPC peer,
+    /// return that response.
     fn error_response_as_ptr(&self) -> Option<*const c_char> {
         self.error_response.as_ref().map(|response| {
             let cstr: &CStr = response.as_ref();
