@@ -80,8 +80,10 @@ pub(crate) struct ParsedRequest {
     pub(crate) method: String,
     /// Parameters to pass to the method.
     pub(crate) params: JsonMap,
-    // TODO: This loses any extra fields that the application may have set.
-    //  I am presuming that's okay, but we may want to revisit that.
+    /// Any unrecognized fields that we received from the user.
+    /// (We re-encode these in case the user knows about fields that we don't.)
+    #[serde(flatten)]
+    pub(crate) unrecognized_fields: JsonMap,
 }
 
 /// A known-valid request, encoded as a string (in a single line, with a terminating newline).
@@ -121,6 +123,10 @@ pub(crate) struct RequestMeta {
     ///
     /// (Default: false)
     pub(crate) updates: bool,
+    /// Any unrecognized fields that we received from the user.
+    /// (We re-encode these in case the user knows about fields that we don't.)
+    #[serde(flatten)]
+    pub(crate) unrecognized_fields: JsonMap,
 }
 
 /// Crate-internal: A parsed request from the application which may not (yet) be valid.
@@ -134,8 +140,10 @@ pub(crate) struct LooseParsedRequest {
     meta: Option<RequestMeta>,
     method: String,
     params: JsonMap,
-    // TODO: This loses any extra fields that the application may have set.
-    //  I am presuming that's okay, but we may want to revisit that.
+    /// Any unrecognized fields that we received from the user.
+    /// (We re-encode these in case the user knows about fields that we don't.)
+    #[serde(flatten)]
+    pub(crate) unrecognized_fields: JsonMap,
 }
 
 impl LooseParsedRequest {
@@ -151,6 +159,7 @@ impl LooseParsedRequest {
             meta: self.meta,
             method: self.method,
             params: self.params,
+            unrecognized_fields: self.unrecognized_fields,
         }
     }
 }
@@ -268,5 +277,30 @@ mod test {
         let with_id = req.format().unwrap();
         let req2: ParsedRequest = serde_json::from_str(with_id.as_ref()).unwrap();
         assert_eq!(req, req2);
+    }
+
+    #[test]
+    fn preserve_fields() {
+        let orig = r#"
+            {"obj":"hi",
+             "meta": { "updates": true, "waffles": "yesplz" },
+             "method":"twiddle",
+             "params":{"stuff":"nonsense"},
+             "explosions": -70
+            }"#;
+        let loose: LooseParsedRequest = serde_json::from_str(orig).unwrap();
+        let req = loose.into_request(|| 77.into());
+        let with_id = req.format().unwrap();
+        dbg!(&with_id);
+        let req2: ParsedRequest = serde_json::from_str(with_id.as_ref()).unwrap();
+        assert_eq!(req, req2);
+        assert!(req2
+            .meta
+            .unwrap()
+            .unrecognized_fields
+            .get("waffles")
+            .is_some());
+        assert!(req2.unrecognized_fields.get("explosions").is_some());
+        assert!(req2.unrecognized_fields.get("waffles").is_none());
     }
 }
