@@ -1,4 +1,15 @@
 //! Support for encoding and decoding RPC Requests.
+//!
+//! There are several types in this module:
+//!
+//! - [`Request`] is for requests that are generated from within this crate,
+//!   to implement authentication, negotiation, and other functionality.
+//! - [`LooseParsedRequest`] is for a request we've received from the user
+//!   (or parsed from a `Request`)
+//!   which might not have a request ID yet.
+//! - [`ParsedRequest`] is for a request we've completely validated,
+//!   with all of its fields present.
+//! - [`ValidatedRequest`] is for a string that we have validated as a request.
 
 use std::sync::Arc;
 
@@ -11,15 +22,49 @@ use crate::conn::ProtoError;
 
 use super::{AnyRequestId, ObjectId};
 
+/// An outbound request that we have generated from within this crate.
+///
+/// It lacks a required `id` field (since we will generate one when sending it),
+/// and it allows any Serialize for its `params`.
+#[derive(Serialize, Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq, Deserialize))]
+#[allow(clippy::missing_docs_in_private_items)] // Fields are as for ParsedRequest.
+pub(crate) struct Request<T> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) id: Option<AnyRequestId>,
+    pub(crate) obj: ObjectId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) meta: Option<RequestMeta>,
+    pub(crate) method: String,
+    pub(crate) params: T,
+}
+
+impl<T: Serialize> Request<T> {
+    /// Construct a new outbound Request.
+    pub(crate) fn new(obj: ObjectId, method: impl Into<String>, params: T) -> Self {
+        Self {
+            id: None,
+            obj,
+            meta: Default::default(),
+            method: method.into(),
+            params,
+        }
+    }
+    /// Try to encode this request as a String.
+    ///
+    /// The string may not yet be a valid request; it might need to get an ID assigned.
+    pub(crate) fn encode(&self) -> Result<String, ProtoError> {
+        serde_json::to_string(self).map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))
+    }
+}
+
 /// A request in its decoded (or unencoded) format.
 ///
 /// We use this type to validate outbound requests from the application,
 /// and to generate our own requests.
-//
-// TODO RPC: Conceivably this should not be the same type as ParsedRequest.
 #[derive(Deserialize, Serialize, Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub(crate) struct Request<T> {
+pub(crate) struct ParsedRequest {
     /// The identifier for this request.
     ///
     /// Used to match a request with its responses.
@@ -34,22 +79,10 @@ pub(crate) struct Request<T> {
     /// The name of the method to invoke.
     pub(crate) method: String,
     /// Parameters to pass to the method.
-    pub(crate) params: T,
+    pub(crate) params: JsonMap,
     // TODO: This loses any extra fields that the application may have set.
     //  I am presuming that's okay, but we may want to revisit that.
 }
-
-impl<T: Serialize> Request<T> {
-    /// Try to encode this request as a String.
-    pub(crate) fn encode(&self) -> Result<String, ProtoError> {
-        serde_json::to_string(self).map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))
-    }
-}
-
-/// Crate-internal: An outbound request.
-///
-/// We use this type to make sure that a request is syntactically valid before sending it out.
-pub(crate) type ParsedRequest = Request<JsonMap>;
 
 /// A known-valid request, encoded as a string (in a single line, with a terminating newline).
 #[derive(derive_more::AsRef, Debug, Clone)]
@@ -94,7 +127,7 @@ pub(crate) struct RequestMeta {
 ///
 /// We can convert this into a ParsedRequest after fixing up any missing or invalid fields.
 #[derive(Deserialize, Debug)]
-#[allow(clippy::missing_docs_in_private_items)] // Fields are as for Request.
+#[allow(clippy::missing_docs_in_private_items)] // Fields are as for ParsedRequest.
 pub(crate) struct LooseParsedRequest {
     id: Option<AnyRequestId>,
     obj: ObjectId,
@@ -158,7 +191,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    impl<T> Request<T> {
+    impl ParsedRequest {
         /// Return true if this request is asking for updates.
         fn updates_requested(&self) -> bool {
             self.meta.as_ref().map(|m| m.updates).unwrap_or(false)

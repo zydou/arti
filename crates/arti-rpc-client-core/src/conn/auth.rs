@@ -46,15 +46,13 @@ impl RpcConn {
         &self,
         scheme_name: &str,
     ) -> Result<ObjectId, ConnectError> {
-        let r: Request<AuthParams> = Request {
-            id: 0.into(),
-            obj: "connection".to_string().into(),
-            meta: Default::default(),
-            method: "auth:authenticate".into(),
-            params: AuthParams {
+        let r: Request<AuthParams> = Request::new(
+            ObjectId::from("connection".to_string()),
+            "auth:authenticate",
+            AuthParams {
                 scheme: scheme_name,
             },
-        };
+        );
         let authenticated = self
             .execute(&r.encode()?)?
             .map_err(ConnectError::AuthenticationRejected)?
