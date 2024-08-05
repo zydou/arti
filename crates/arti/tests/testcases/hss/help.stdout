@@ -8,8 +8,7 @@ Commands:
 
 Options:
   -c, --config <FILE>                 Specify which config file(s) to read. Defaults to
-                                      [File("[..]"),
-                                      Dir("[..]")]
+...
   -n, --nickname <HS_NICKNAME>        The nickname of the service
   -o <KEY=VALUE>                      Override config file parameters, using TOML-like syntax.
   -l, --log-level <LEVEL>             Override the log level (usually one of 'trace', 'debug',
