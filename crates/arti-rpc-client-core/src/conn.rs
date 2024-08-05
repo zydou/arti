@@ -315,10 +315,10 @@ impl RequestHandle {
 pub enum ShutdownError {
     /// Io error occurred while reading.
     #[error("Unable to read response: {0}")]
-    Read(Arc<io::Error>),
+    Read(#[source] Arc<io::Error>),
     /// Io error occurred while writing.
     #[error("Unable to write request: {0}")]
-    Write(Arc<io::Error>),
+    Write(#[source] Arc<io::Error>),
     /// Something was wrong with Arti's responses; this is a protocol violation.
     #[error("Arti sent a message that didn't conform to the RPC protocol: {0}")]
     ProtocolViolated(String),
@@ -354,7 +354,7 @@ pub enum ProtoError {
 
     /// There was a problem in the request we tried to send.
     #[error("Invalid request: {0}")]
-    InvalidRequest(Arc<serde_json::Error>),
+    InvalidRequest(#[source] Arc<serde_json::Error>),
 
     /// We tried to send a request with an ID that was already pending.
     #[error("Request ID already in use.")]
@@ -377,7 +377,7 @@ pub enum ProtoError {
     ///
     /// (This should be impossible.)
     #[error("Internal error while encoding request: {0}")]
-    CouldNotEncode(Arc<serde_json::Error>),
+    CouldNotEncode(#[source] Arc<serde_json::Error>),
 }
 
 /// An error while trying to connect to the Arti process.
@@ -390,13 +390,13 @@ pub enum ConnectError {
     SchemeNotSupported,
     /// IO error while connecting to Arti.
     #[error("Unable to make a connection: {0}")]
-    CannotConnect(Arc<std::io::Error>),
+    CannotConnect(#[source] Arc<std::io::Error>),
     /// One of our authentication messages was rejected.
     #[error("Arti rejected our authentication: {0:?}")]
     AuthenticationRejected(ErrorResponse),
     /// We couldn't decode one of the responses we got.
     #[error("Message not in expected format: {0:?}")]
-    BadMessage(Arc<serde_json::Error>),
+    BadMessage(#[source] Arc<serde_json::Error>),
     /// A protocol error occurred during negotiations.
     #[error("Error while negotiating with Arti: {0}")]
     ProtoError(#[from] ProtoError),

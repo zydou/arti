@@ -43,7 +43,7 @@ pub(crate) struct ValidatedResponse {
 pub(crate) enum DecodeResponseError {
     /// We couldn't decode a response as json.
     #[error("Arti sent a message that didn't conform to the RPC protocol: {0}")]
-    JsonProtocolViolation(Arc<serde_json::Error>),
+    JsonProtocolViolation(#[source] Arc<serde_json::Error>),
 
     /// There was something (other than json encoding) wrong with a response.
     #[error("Arti sent a message that didn't conform to the RPC protocol: {0}")]

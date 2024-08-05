@@ -2,8 +2,10 @@
 
 use c_str_macro::c_str;
 use paste::paste;
-use std::ffi::{c_char, CStr};
+use std::error::Error as StdError;
+use std::ffi::{c_char, c_int, CStr};
 use std::fmt::Display;
+use std::io::Error as IoError;
 use std::panic::{catch_unwind, UnwindSafe};
 
 use crate::conn::ErrorResponse;
@@ -151,6 +153,10 @@ pub struct FfiError {
     message: Utf8CString,
     /// If present, a Json-formatted message from our peer that we are representing with this error.
     error_response: Option<ErrorResponse>,
+    /// If present, the OS error code that caused this error.
+    //
+    // (Actually, this should be RawOsError, but that type isn't stable.)
+    os_error_code: Option<i32>,
 }
 
 impl FfiError {
@@ -171,11 +177,27 @@ impl FfiError {
 pub(crate) trait IntoFfiError: Display + Sized {
     /// Return the status
     fn status(&self) -> FfiStatus;
+    /// Return this type as an Error, if it is one.
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)>;
     /// Return a message for this error.
     ///
     /// By default, returns the Display of this error.
     fn message(&self) -> String {
         self.to_string()
+    }
+    /// Return the OS error code (if any) underlying this error.
+    ///
+    /// On unix-like platforms, this is an `errno`; on Windows, it's a
+    /// code from `GetLastError.`
+    fn os_error_code(&self) -> Option<i32> {
+        let mut err = self.as_error()?;
+
+        loop {
+            if let Some(io_error) = err.downcast_ref::<IoError>() {
+                return io_error.raw_os_error() as Option<i32>;
+            }
+            err = err.source()?;
+        }
     }
     /// Consume this error and return an [`ErrorResponse`]
     fn into_error_response(self) -> Option<ErrorResponse> {
@@ -189,11 +211,13 @@ impl<T: IntoFfiError> From<T> for FfiError {
             .message()
             .try_into()
             .expect("Error message had a NUL?");
+        let os_error_code = value.os_error_code();
         let error_response = value.into_error_response();
         Self {
             status,
             message,
             error_response,
+            os_error_code,
         }
     }
 }
@@ -225,6 +249,9 @@ impl IntoFfiError for InvalidInput {
     fn status(&self) -> FfiStatus {
         FfiStatus::InvalidInput
     }
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(self)
+    }
 }
 
 impl IntoFfiError for crate::ConnectError {
@@ -247,6 +274,9 @@ impl IntoFfiError for crate::ConnectError {
             _ => None,
         }
     }
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(self)
+    }
 }
 
 impl IntoFfiError for crate::ProtoError {
@@ -262,6 +292,9 @@ impl IntoFfiError for crate::ProtoError {
             E::CouldNotEncode(_) => F::Internal,
         }
     }
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(self)
+    }
 }
 
 impl IntoFfiError for crate::BuilderError {
@@ -272,6 +305,9 @@ impl IntoFfiError for crate::BuilderError {
             E::InvalidConnectString => F::InvalidInput,
         }
     }
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(self)
+    }
 }
 
 impl IntoFfiError for ErrorResponse {
@@ -280,6 +316,9 @@ impl IntoFfiError for ErrorResponse {
     }
     fn into_error_response(self) -> Option<ErrorResponse> {
         Some(self)
+    }
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
+        None
     }
 }
 
@@ -303,6 +342,28 @@ pub unsafe extern "C" fn arti_rpc_err_status(err: *const ArtiRpcError) -> ArtiRp
             err.map(|e| e.status)
                .unwrap_or(ARTI_RPC_STATUS_INVALID_INPUT)
             // Safety: Return value is ArtiRpcStatus; trivially safe.
+        }
+    )
+}
+
+/// Return the OS error code underlying `err`, if any.
+///
+/// This is typically an `errno` on unix-like systems , or the result of `GetLastError()`
+/// on Windows.  It is only present when `err` was caused by the failure of some
+/// OS library call, like a `connect()` or `read()`.
+///
+/// Returns 0 if `err` is NULL, or if `err` was not caused by the failure of an
+/// OS library call.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_err_os_error_code(err: *const ArtiRpcError) -> c_int {
+    ffi_body_raw!(
+        {
+            let err: Option<&ArtiRpcError> [in_ptr_opt];
+        } in {
+            err.and_then(|e| e.os_error_code)
+               .unwrap_or(0)
+             // Safety: Return value is c_int; trivially safe.
         }
     )
 }
