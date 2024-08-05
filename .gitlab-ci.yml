@@ -417,10 +417,10 @@ integration-shadow:
         echo "Using tgen binary from cache"
       else
         echo "Building tgen"
+        maint/common/apt-install cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev make
         git clone --shallow-since=2022-01-01 -b $JOB_TGEN_BRANCH $JOB_TGEN_REPO ~/src/tgen
         pushd ~/src/tgen
         git checkout $JOB_TGEN_COMMIT
-        maint/common/apt-install cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev make
         mkdir build
         cd build
         cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/tgen
