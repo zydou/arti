@@ -192,7 +192,8 @@ mod test {
             let res = w.send_request(
                 r#"{"id":7,
                  "obj":"foo",
-                 "method":"arti:x-frob", "params":{}
+                 "method":"arti:x-frob", "params":{},
+                 "extra": "preserved"
             }"#,
             );
             w.flush().unwrap();
@@ -209,7 +210,7 @@ mod test {
         let read_result = rt.join().unwrap().unwrap();
         assert_eq!(
             read_result.strip_suffix('\n').unwrap(),
-            r#"{"id":7,"obj":"foo","method":"arti:x-frob","params":{}}"#
+            r#"{"id":7,"obj":"foo","method":"arti:x-frob","params":{},"extra":"preserved"}"#
         );
     }
 

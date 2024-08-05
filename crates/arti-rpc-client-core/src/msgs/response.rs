@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use super::AnyRequestId;
+use super::{request::JsonMap, AnyRequestId};
 use crate::{
     conn::ErrorResponse,
     util::{define_from_for_arc, Utf8CString},
@@ -27,11 +27,12 @@ impl UnparsedResponse {
 }
 
 /// A response that we have validated for correct syntax,
-/// and decoded enough to find the information we need about it
+/// re-encoded in canonical form,
+/// and enough to find the information we need about it
 /// to deliver it to the application.
 #[derive(Clone, Debug)]
 pub(crate) struct ValidatedResponse {
-    /// The text of this response.
+    /// The re-encoded text of this response.
     pub(crate) msg: Utf8CString,
     /// The metadata from this response.
     pub(crate) meta: ResponseMeta,
@@ -58,10 +59,13 @@ define_from_for_arc!( serde_json::Error => DecodeResponseError [JsonProtocolViol
 
 impl UnparsedResponse {
     /// If this response is well-formed, and it corresponds to a single request,
-    /// return it as a ValidatedResponse.
+    /// re-encode it and return it as a ValidatedResponse.
     pub(crate) fn try_validate(self) -> Result<ValidatedResponse, DecodeResponseError> {
-        let meta = response_meta(self.as_ref())?;
-        let msg = self.msg.try_into().map_err(|_| {
+        let response: Response = serde_json::from_str(&self.msg)?;
+        let meta = ResponseMeta::try_from(&response)?;
+        // Re-encode the body, to ensure that it is in the form expected.
+        let msg = serde_json::to_string(&response)?;
+        let msg = msg.try_into().map_err(|_| {
             // (This should be impossible; serde_json rejects NULs.)
             DecodeResponseError::ProtocolViolation("Unexpected NUL in validated message")
         })?;
@@ -110,19 +114,24 @@ pub(crate) enum ResponseKind {
 
 /// Serde-only type: decodes enough fields from a response in order to validate it
 /// and route it to the application.
-#[derive(Deserialize, Debug)]
-struct ResponseMetaDe {
+#[derive(Deserialize, Serialize, Debug)]
+struct Response {
     /// The request ID for this response.
     ///
     /// This field is mandatory for any non-Error response.
     id: Option<AnyRequestId>,
     /// The body as decoded for this response.
     #[serde(flatten)]
-    body: ResponseMetaBodyDe,
+    body: ResponseBody,
+    /// Any unrecognized fields that we received from Arti.
+    /// (We re-encode these in case Arti knows about fields that we don't.)
+    #[serde(flatten)]
+    pub(crate) unrecognized_fields: JsonMap,
 }
-/// Inner type to implement ResponseMetaDe
-#[derive(Deserialize, Debug)]
-enum ResponseMetaBodyDe {
+
+/// Inner type to implement `Response``
+#[derive(Deserialize, Serialize, Debug)]
+enum ResponseBody {
     /// Arti reports that an error has occurred.
     ///
     /// In this case, we decode the error to make sure it's well-formed.
@@ -130,15 +139,15 @@ enum ResponseMetaBodyDe {
     Error(RpcError),
     /// Arti reports that the request completed successfully.
     #[serde(rename = "result")]
-    Success(JsonAnyObj),
+    Success(JsonMap),
     /// Arti reports an incremental update for the request.
     #[serde(rename = "update")]
-    Update(JsonAnyObj),
+    Update(JsonMap),
 }
-impl<'a> From<&'a ResponseMetaBodyDe> for ResponseKind {
-    fn from(value: &'a ResponseMetaBodyDe) -> Self {
+impl<'a> From<&'a ResponseBody> for ResponseKind {
+    fn from(value: &'a ResponseBody) -> Self {
+        use ResponseBody as RMB;
         use ResponseKind as RK;
-        use ResponseMetaBodyDe as RMB;
         // TODO RPC: If we keep the current set of types,
         // we should have this discriminant code be macro-generated.
         match value {
@@ -149,26 +158,32 @@ impl<'a> From<&'a ResponseMetaBodyDe> for ResponseKind {
     }
 }
 
-/// Try to extract metadata for a request in `s`, and make sure it is well-formed.
-pub(crate) fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError> {
-    use DecodeResponseError as E;
-    use ResponseMetaBodyDe as Body;
-    let ResponseMetaDe { id, body } = serde_json::from_str(s)?;
-    match (id, body) {
-        (None, Body::Error(_ignore)) => {
-            let msg = s.to_owned().try_into().map_err(|_| {
-                // (This should be impossible; serde_json rejects NULs.)
-                DecodeResponseError::ProtocolViolation(
-                    "Unexpected NUL in validated fatal error message",
-                )
-            })?;
-            Err(E::Fatal(ErrorResponse::from_validated_string(msg)))
+impl<'a> TryFrom<&'a Response> for ResponseMeta {
+    type Error = DecodeResponseError;
+
+    fn try_from(response: &'a Response) -> Result<Self, Self::Error> {
+        use DecodeResponseError as E;
+        use ResponseBody as Body;
+
+        match (&response.id, &response.body) {
+            (None, Body::Error(_ignore)) => {
+                // No ID, so this is a fatal response.
+                // Re-encode the response.
+                let msg = serde_json::to_string(&response)?;
+                let msg: Utf8CString = msg.try_into().map_err(|_| {
+                    // (This should be impossible; serde_json rejects NULs.)
+                    DecodeResponseError::ProtocolViolation(
+                        "Unexpected NUL in validated fatal error message",
+                    )
+                })?;
+                Err(E::Fatal(ErrorResponse::from_validated_string(msg)))
+            }
+            (None, _) => Err(E::ProtocolViolation("Missing ID field")),
+            (Some(id), body) => Ok(ResponseMeta {
+                id: id.clone(),
+                kind: (body).into(),
+            }),
         }
-        (None, _) => Err(E::ProtocolViolation("Missing ID field")),
-        (Some(id), body) => Ok(ResponseMeta {
-            id,
-            kind: (&body).into(),
-        }),
     }
 }
 
@@ -179,20 +194,16 @@ pub(crate) fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError
 // TODO RPC: Eventually we should try to refactor this out if we can; it is only called in one
 // place.
 pub(crate) fn try_decode_response_as_err(s: &str) -> Result<Option<RpcError>, DecodeResponseError> {
-    let ResponseMetaDe { body, .. } = serde_json::from_str(s)?;
+    let Response { body, .. } = serde_json::from_str(s)?;
     match body {
-        ResponseMetaBodyDe::Error(e) => Ok(Some(e)),
+        ResponseBody::Error(e) => Ok(Some(e)),
         _ => Ok(None),
     }
 }
 
-/// Serde helper: deserializes (and discards) the contents of any json Object.
-#[derive(serde::Deserialize, Debug)]
-struct JsonAnyObj {}
-
 /// An error sent by Arti, decoded into its parts.
-#[derive(Clone, Debug, Deserialize)]
-#[cfg_attr(test, derive(PartialEq, Eq, serde::Serialize))]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct RpcError {
     /// A human-readable message from Arti.
     message: String,
@@ -200,6 +211,10 @@ pub struct RpcError {
     code: RpcErrorCode,
     /// One or more `ErrorKind`s, encoded as strings.
     kinds: Vec<String>,
+    /// Any unrecognized fields that we received from Arti.
+    /// (We re-encode these in case Arti knows about fields that we don't.)
+    #[serde(flatten)]
+    pub(crate) unrecognized_fields: JsonMap,
 }
 
 impl RpcError {
@@ -258,20 +273,10 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn any_obj_good() {
-        for ok in [
-            r#"{}"#,
-            r#"{"7": 7}"#,
-            r#"{"stuff": "nonsense", "this": {"that": "the other"}}"#,
-        ] {
-            let _obj: JsonAnyObj = serde_json::from_str(ok).unwrap();
-        }
-
-        for bad in [r#"7"#, r#"ksldjfa"#, r#""#, r#"{7:"foo"}"#] {
-            let err: Result<JsonAnyObj, _> = serde_json::from_str(bad);
-            assert!(err.is_err());
-        }
+    /// Helper: Decode a string into a Response, then convert it into
+    /// a ResponseMeta.
+    fn response_meta(s: &str) -> Result<ResponseMeta, DecodeResponseError> {
+        (&serde_json::from_str::<Response>(s)?).try_into()
     }
 
     #[test]
@@ -354,8 +359,30 @@ mod test {
             "{ \0 }",     // contains nul byte.
             "{ \"\0\" }", // string contains nul byte.
         ] {
-            let r: Result<JsonAnyObj, _> = serde_json::from_str(s);
+            let r: Result<serde_json::Value, _> = serde_json::from_str(s);
             assert!(dbg!(r.err()).is_some());
         }
+    }
+
+    #[test]
+    fn re_encode() {
+        let response = r#"{
+            "id": 6,
+            "error": {
+                "message":"iffy wobbler",
+                "code":999,
+                "kinds": ["BadVibes"],
+                "data": {"a":"b"},
+                "explosion": 22
+             },
+             "xyzzy":"plugh"
+        }"#;
+        let resp = UnparsedResponse::new(response.into());
+        let valid = resp.try_validate().unwrap();
+        let msg: &str = valid.msg.as_ref();
+        assert_eq!(
+            msg,
+            r#"{"id":6,"error":{"message":"iffy wobbler","code":999,"kinds":["BadVibes"],"data":{"a":"b"},"explosion":22},"xyzzy":"plugh"}"#
+        );
     }
 }

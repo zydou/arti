@@ -434,7 +434,7 @@ mod test {
     use rand::{seq::SliceRandom as _, Rng as _, SeedableRng as _};
     use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
 
-    use crate::msgs::request::{JsonMap, Request};
+    use crate::msgs::request::{JsonMap, ParsedRequest, Request};
 
     use super::*;
 
@@ -469,7 +469,7 @@ mod test {
             let mut sock = BufReader::new(sock);
             let mut s = String::new();
             let _len = sock.read_line(&mut s).unwrap();
-            let request: Request<JsonMap> = serde_json::from_str(&s).unwrap();
+            let request: ParsedRequest = serde_json::from_str(&s).unwrap();
             let response = serde_json::json!({
                 "id": request.id.clone(),
                 "result": { "xyz" : 3 }
