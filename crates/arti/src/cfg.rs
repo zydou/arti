@@ -325,6 +325,15 @@ mod test {
     use std::time::Duration;
     use tor_config::load::{ConfigResolveError, ResolutionResults};
 
+    #[cfg(feature = "restricted-discovery")]
+    use {
+        arti_client::HsClientDescEncKey,
+        std::str::FromStr as _,
+        tor_hsservice::config::restricted_discovery::{
+            DirectoryKeyProviderBuilder, HsClientNickname,
+        },
+    };
+
     use super::*;
 
     //---------- tests that rely on the provided example config file ----------
@@ -1125,21 +1134,20 @@ example config file {which:?}, uncommented={uncommented:?}
     #[test]
     fn onion_services() {
         // Here we require that the onion services configuration is between a
-        // line labeled with "#     [onion_service" a line that looks like a
-        // section opener, and that each line of _real_ configuration in that
-        // section begins with "#    ".
+        // line labeled with `#     [onion_service."allium-cepa"]` and
+        // a line that contains the start of the [vanguards] section,
+        // and that each line of _real_ configuration in that section begins with "#    ".
         let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
-        file.narrow((r"^#    \[onion_service", true), (r"^#? *\]", true));
+        file.narrow(
+            (r#"^#    \[onion_services."allium\-cepa"\]"#, true),
+            (r#"^\[vanguards\]"#, true),
+        );
         file.lines.retain(|line| line.starts_with("#    "));
         file.strip_prefix("#    ");
 
         let result = file.resolve::<(TorClientConfig, ArtiConfig)>();
         #[cfg(feature = "onion-service-service")]
         {
-            let cfg = result.unwrap();
-            let services = cfg.1.onion_services;
-            assert_eq!(services.len(), 1);
-            let svc = services.values().next().unwrap();
             let svc_expected = {
                 use tor_hsrproxy::config::*;
                 let mut b = OnionServiceProxyConfigBuilder::default();
@@ -1172,9 +1180,53 @@ example config file {which:?}, uncommented={uncommented:?}
                     ProxyPattern::all_ports(),
                     ProxyAction::DestroyCircuit,
                 ));
+
+                #[cfg(feature = "restricted-discovery")]
+                {
+                    const ALICE_KEY: &str =
+                        "descriptor:x25519:PU63REQUH4PP464E2Y7AVQ35HBB5DXDH5XEUVUNP3KCPNOXZGIBA";
+                    const BOB_KEY: &str =
+                        "descriptor:x25519:b5zqgtpermmuda6vc63lhjuf5ihpokjmuk26ly2xksf7vg52aesq";
+                    for (nickname, key) in [("alice", ALICE_KEY), ("bob", BOB_KEY)] {
+                        b.service()
+                            .restricted_discovery()
+                            .enabled(true)
+                            .static_keys()
+                            .access()
+                            .push((
+                                HsClientNickname::from_str(nickname).unwrap(),
+                                HsClientDescEncKey::from_str(key).unwrap(),
+                            ));
+                    }
+                    let mut dir = DirectoryKeyProviderBuilder::default();
+                    dir.path(CfgPath::new(
+                        "/var/lib/tor/hidden_service/authorized_clients".to_string(),
+                    ));
+
+                    b.service()
+                        .restricted_discovery()
+                        .key_dirs()
+                        .access()
+                        .push(dir);
+                }
+
                 b.build().unwrap()
             };
-            assert_eq!(svc, &svc_expected);
+
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "restricted-discovery")] {
+                    let cfg = result.unwrap();
+                    let services = cfg.1.onion_services;
+                    assert_eq!(services.len(), 1);
+                    let svc = services.values().next().unwrap();
+                    assert_eq!(svc, &svc_expected);
+                } else {
+                    expect_err_contains(
+                        result.unwrap_err(),
+                        "restricted_discovery.enabled=true, but restricted-discovery feature not enabled"
+                    );
+                }
+            }
         }
         #[cfg(not(feature = "onion-service-service"))]
         {

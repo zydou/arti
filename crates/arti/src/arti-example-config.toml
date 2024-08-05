@@ -445,6 +445,39 @@
 #
 #    max_concurrent_streams_per_circuit = 65535
 
+#    [onion_services."allium-cepa".restricted_discovery]
+# Whether to enable restricted discovery mode.
+#
+# Services running in restricted discovery mode are only discoverable
+# by the configured clients.
+#
+# Can only be enabled if the `restricted-discovery` feature is enabled.
+#
+# If you enable this, you must also specify the authorized clients (via `static_keys`),
+# or the directories where the authorized client keys should be read from (via `key_dirs`).
+#
+# Restricted discovery mode is disabled by default.
+#
+#    enabled = true
+
+#    [[onion_services."allium-cepa".restricted_discovery.key_dirs]]
+# Directories containing the client keys, each in the
+# `descriptor:x25519:<base32-encoded-x25519-public-key>` format.
+#
+# Each file in this directory must have a file name of the form `<nickname>.auth`,
+# where `<nickname>` is a valid client nickname.
+#
+#    path = "/var/lib/tor/hidden_service/authorized_clients"
+
+# A static mapping from client nicknames to keys.
+#
+# Each client key must be in the `descriptor:x25519:<base32-encoded-x25519-public-key>`
+# format.
+#
+#    [onion_services."allium-cepa".restricted_discovery.static_keys]
+#    alice = "descriptor:x25519:PU63REQUH4PP464E2Y7AVQ35HBB5DXDH5XEUVUNP3KCPNOXZGIBA"
+#    bob = "descriptor:x25519:B5ZQGTPERMMUDA6VC63LHJUF5IHPOKJMUK26LY2XKSF7VG52AESQ"
+
 [vanguards]
 # The kind of vanguard to use when building onion service circuits.
 #

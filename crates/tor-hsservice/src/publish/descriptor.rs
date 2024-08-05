@@ -10,9 +10,11 @@ use tor_cell::chancell::msg::HandshakeType;
 ///
 /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
 /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     keymgr: &Arc<KeyMgr>,
     config: &Arc<OnionServiceConfig>,
+    authorized_clients: &Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     ipt_set: &IptSet,
     period: TimePeriod,
     revision_counter: RevisionCounter,
@@ -75,14 +77,26 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     let intro_enc_key_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
     let hs_desc_sign_cert_expiry = now + HS_DESC_CERT_LIFETIME_SEC;
 
-    // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
-    // work; see #1028
-    /*
-    let auth_clients: Option<Vec<curve25519::PublicKey>> = config.encrypt_descriptor
-        .map(|auth_clients| build_auth_clients(&auth_clients));
-    */
-
-    let auth_clients: Option<Vec<curve25519::PublicKey>> = None;
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "restricted-discovery")] {
+            let authorized_clients = authorized_clients.lock().expect("lock poisoned");
+            let auth_clients: Option<Vec<curve25519::PublicKey>> = authorized_clients
+                .as_ref()
+                .map(|authorized_clients| {
+                    if authorized_clients.is_empty() {
+                        return Err(FatalError::RestrictedDiscoveryNoClients);
+                    }
+                    let auth_clients = authorized_clients
+                        .iter()
+                        .map(|(_nickname, key)| (*key).clone().into())
+                        .collect_vec();
+                    Ok(auth_clients)
+                })
+                .transpose()?;
+        } else {
+            let auth_clients: Option<Vec<curve25519::PublicKey>> = None;
+        }
+    }
 
     let desc_signing_key_cert = create_desc_sign_key_cert(
         &hs_desc_sign.as_ref().verifying_key(),

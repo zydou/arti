@@ -250,6 +250,11 @@ pub enum FatalError {
     #[error("Missing field when constructing OnionService")]
     MissingField(#[from] derive_builder::UninitializedFieldError),
 
+    /// Invalid restricted discovery configuration.
+    #[error("Restricted discovery is enabled, but no authorized clients are configured. Service will be unreachable")]
+    #[cfg(feature = "restricted-discovery")]
+    RestrictedDiscoveryNoClients,
+
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
     #[error("Programming error")]
@@ -280,6 +285,8 @@ impl HasKind for FatalError {
             FE::IptKeysFoundUnexpectedly(_) => EK::Internal, // This is indeed quite bad.
             FE::NetdirProviderShutdown(e) => e.kind(),
             FE::MissingField(_) => EK::BadApiUsage,
+            #[cfg(feature = "restricted-discovery")]
+            FE::RestrictedDiscoveryNoClients => EK::InvalidConfig,
             FE::Bug(e) => e.kind(),
         }
     }

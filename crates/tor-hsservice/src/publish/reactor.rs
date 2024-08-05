@@ -52,6 +52,8 @@
 
 use tor_netdir::DirEvent;
 
+use crate::config::restricted_discovery::RestrictedDiscoveryKeys;
+
 use super::*;
 
 /// The upload rate-limiting threshold.
@@ -145,6 +147,10 @@ struct Immutable<R: Runtime, M: Mockable> {
     nickname: HsNickname,
     /// The key manager,
     keymgr: Arc<KeyMgr>,
+    /// The restricted discovery authorized clients.
+    ///
+    /// `None`, unless the service is running in restricted discovery mode.
+    authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     /// A sender for updating the status of the onion service.
     status_tx: PublisherStatusSender,
 }
@@ -473,6 +479,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
+        authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -495,6 +502,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             nickname,
             keymgr,
             status_tx,
+            authorized_clients,
         };
 
         let inner = Inner {
@@ -1270,6 +1278,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             build_sign(
                                 &imm.keymgr,
                                 &config,
+                                &imm.authorized_clients,
                                 ipts,
                                 time_period,
                                 revision_counter,

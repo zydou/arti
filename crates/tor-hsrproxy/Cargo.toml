@@ -24,6 +24,16 @@ full = [
     "tor-async-utils/full", "tor-log-ratelim/full",
 ]
 
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental = ["tor-hsservice/experimental", "experimental-api", "restricted-discovery"]
+experimental-api = ["__is_experimental"]
+__is_experimental = []
+
+restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
+
 [dependencies]
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }

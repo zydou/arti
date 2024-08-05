@@ -4,10 +4,21 @@ use crate::internal_prelude::*;
 
 use tor_cell::relaycell::hs::est_intro;
 
+use crate::config::restricted_discovery::{
+    RestrictedDiscoveryConfig, RestrictedDiscoveryConfigBuilder,
+};
+
+#[cfg(feature = "restricted-discovery")]
+#[cfg_attr(docsrs, doc(cfg(feature = "restricted-discovery")))]
+pub mod restricted_discovery;
+
+#[cfg(not(feature = "restricted-discovery"))]
+pub(crate) mod restricted_discovery;
+
 /// Configuration for one onion service.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
-#[builder(derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq))]
+#[builder(derive(Serialize, Deserialize, Debug, Deftly))]
 #[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.
@@ -30,7 +41,7 @@ pub struct OnionServiceConfig {
     /// A rate-limit on the acceptable rate of introduction requests.
     ///
     /// We send this to the send to the introduction point to configure how many
-    /// introduction requests it sends us.  
+    /// introduction requests it sends us.
     /// If this is not set, the introduction point chooses a default based on
     /// the current consensus.
     ///
@@ -45,6 +56,14 @@ pub struct OnionServiceConfig {
     /// this service?
     #[builder(default = "65535")]
     max_concurrent_streams_per_circuit: u32,
+
+    /// Configure restricted discovery mode.
+    ///
+    /// When this is enabled, we encrypt our list of introduction point and keys
+    /// so that only clients holding one of the listed keys can decrypt it.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
     // // enable_pow: bool,
@@ -60,19 +79,6 @@ pub struct OnionServiceConfig {
     // /// our proof-of-work defense is enabled.
     // pow_queue_rate: TokenBucketConfig,
     // ...
-
-    // /// Configure descriptor-based client authorization.
-    // ///
-    // /// When this is enabled, we encrypt our list of introduction point and keys
-    // /// so that only clients holding one of the listed keys can decrypt it.
-    //
-    // TODO (#1206): we'd like this to be an Option, but that doesn't work well with
-    // sub_builder.  We need to figure out what to do there.
-    //
-    // TODO (#1206): Temporarily disabled while we figure out how we want it to work;
-    // see also #1028
-    //
-    // pub(crate) encrypt_descriptor: Option<DescEncryptionConfig>,
 }
 
 /// Default number of introduction points.
@@ -174,6 +180,24 @@ impl OnionServiceConfig {
 
             // We extract this on every introduction request.
             max_concurrent_streams_per_circuit: simply_update,
+
+            // The IPT manager does not currently handle restricted discovery config changes.
+            //
+            // You must restart the service to change the restricted discovery settings.
+            //
+            // TODO: we should decide if we want to support hot-reloading.
+            //
+            // This will involve adding a watcher for each client key directory,
+            // and generating and publishing a new descriptor on change.
+            // We most likely don't want to republish the descriptor on *every* change though:
+            // consider a hidden service operator copying client keys individually
+            // to the key directory while the service is running.
+            // This would trigger a burst of descriptor uploads
+            // that could've been avoided by more careful client key management.
+            //
+            // We might also want to also rotate the IPTs as part of this process,
+            // to prevent any no-longer-authorized clients from reaching the service.
+            restricted_discovery: unchangeable,
         }
 
         Ok(other)
@@ -278,83 +302,4 @@ fn dos_params_from_token_bucket_config(
     };
     let cast = |n| i32::try_from(n).map_err(|_| err());
     est_intro::DosParams::new(Some(cast(c.rate)?), Some(cast(c.burst)?)).map_err(|_| err())
-}
-
-/// Configuration for descriptor encryption.
-#[derive(Debug, Clone, Builder, PartialEq)]
-#[builder(derive(Serialize, Deserialize))]
-#[non_exhaustive]
-pub struct DescEncryptionConfig {
-    /// A list of our authorized clients.
-    ///
-    /// Note that if this list is empty, no clients can connect.  
-    //
-    // TODO (#1206): It might be good to replace this with a trait or something, so that
-    // we can let callers give us a ClientKeyProvider or some plug-in that reads
-    // keys from somewhere else. On the other hand, we might have this configure
-    // our default ClientKeyProvider, and only allow programmatic ClientKeyProviders
-    pub authorized_client: Vec<AuthorizedClientConfig>,
-}
-
-/// A single client (or a collection of clients) authorized using the descriptor encryption mechanism.
-#[derive(Debug, Clone, PartialEq, serde_with::DeserializeFromStr, serde_with::SerializeDisplay)]
-#[non_exhaustive]
-pub enum AuthorizedClientConfig {
-    /// A directory full of authorized public keys.
-    ///
-    /// Currently, only valid unicode pathnames are supported.
-    DirectoryOfKeys(String),
-    /// A single authorized public key.
-    Curve25519Key(HsClientDescEncKey),
-}
-
-impl std::fmt::Display for AuthorizedClientConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::DirectoryOfKeys(pb) => write!(f, "dir:{}", pb),
-            Self::Curve25519Key(key) => write!(
-                f,
-                "curve25519:{}",
-                Base64Unpadded::encode_string(key.as_bytes())
-            ),
-        }
-    }
-}
-
-/// A problem encountered while parsing an AuthorizedClientConfig.
-#[derive(thiserror::Error, Clone, Debug)]
-#[non_exhaustive]
-pub enum AuthorizedClientParseError {
-    /// Didn't recognize the type of this [`AuthorizedClientConfig`].
-    ///
-    /// Recognized types are `dir` and `curve25519`.
-    #[error("Unrecognized authorized client type")]
-    InvalidType,
-    /// Couldn't parse a curve25519 key.
-    #[error("Invalid curve25519 key")]
-    InvalidKey,
-}
-
-impl std::str::FromStr for AuthorizedClientConfig {
-    type Err = AuthorizedClientParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let Some((tp, val)) = s.split_once(':') else {
-            return Err(Self::Err::InvalidType);
-        };
-        if tp == "dir" {
-            Ok(Self::DirectoryOfKeys(val.into()))
-        } else if tp == "curve25519" {
-            let bytes: [u8; 32] = Base64Unpadded::decode_vec(val)
-                .map_err(|_| Self::Err::InvalidKey)?
-                .try_into()
-                .map_err(|_| Self::Err::InvalidKey)?;
-
-            Ok(Self::Curve25519Key(HsClientDescEncKey::from(
-                curve25519::PublicKey::from(bytes),
-            )))
-        } else {
-            Err(Self::Err::InvalidType)
-        }
-    }
 }

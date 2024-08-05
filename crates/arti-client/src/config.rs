@@ -14,6 +14,7 @@ pub use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 pub use tor_config::convert_helper_via_multi_line_list_builder;
 pub use tor_config::impl_standard_builder;
 pub use tor_config::list_builder::{MultilineListBuilder, MultilineListBuilderError};
+pub use tor_config::mistrust::BuilderExt as _;
 pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 pub use tor_config::{BoolOrAuto, ConfigError};
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
@@ -135,29 +136,6 @@ fn default_dns_resolve_timeout() -> Duration {
 /// Return the default PTR resolve timeout
 fn default_dns_resolve_ptr_timeout() -> Duration {
     Duration::new(10, 0)
-}
-
-/// Extension trait for `MistrustBuilder` to convert the error type on
-/// build.
-trait BuilderExt {
-    /// Type that this builder provides.
-    type Built;
-    /// Run this builder and convert its error type (if any)
-    fn build_for_arti(&self) -> Result<Self::Built, ConfigBuildError>;
-}
-
-impl BuilderExt for MistrustBuilder {
-    type Built = Mistrust;
-
-    fn build_for_arti(&self) -> Result<Self::Built, ConfigBuildError> {
-        self.clone()
-            .controlled_by_env_var_if_not_set(FS_PERMISSIONS_CHECKS_DISABLE_VAR)
-            .build()
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "permissions".to_string(),
-                problem: e.to_string(),
-            })
-    }
 }
 
 /// Configuration for where information should be stored on disk.
@@ -777,6 +755,7 @@ pub fn default_config_files() -> Result<Vec<ConfigurationSource>, CfgPathError> 
 }
 
 /// The environment variable we look at when deciding whether to disable FS permissions checking.
+#[deprecated = "use tor-config::mistrust::ARTI_FS_DISABLE_PERMISSION_CHECKS instead"]
 pub const FS_PERMISSIONS_CHECKS_DISABLE_VAR: &str = "ARTI_FS_DISABLE_PERMISSION_CHECKS";
 
 /// Return true if the environment has been set up to disable FS permissions
@@ -786,6 +765,7 @@ pub const FS_PERMISSIONS_CHECKS_DISABLE_VAR: &str = "ARTI_FS_DISABLE_PERMISSION_
 /// as `arti-client`.  For more information, see
 /// [`TorClientBuilder`](crate::TorClientBuilder).
 #[deprecated(since = "0.5.0")]
+#[allow(deprecated)]
 pub fn fs_permissions_checks_disabled_via_env() -> bool {
     std::env::var_os(FS_PERMISSIONS_CHECKS_DISABLE_VAR).is_some()
 }

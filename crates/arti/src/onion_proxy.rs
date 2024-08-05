@@ -38,7 +38,7 @@ pub struct OnionServiceProxyConfig {
 // We cannot easily use derive_builder on this builder type, since we want it to be a
 // "Flatten<>" internally.  Fortunately, it's easy enough to implement the
 // pieces that we need.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 #[serde(transparent)]
 pub struct OnionServiceProxyConfigBuilder(Flatten<OnionServiceConfigBuilder, ProxyConfigBuilder>);
 

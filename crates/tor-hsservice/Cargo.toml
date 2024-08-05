@@ -38,15 +38,28 @@ full = [
     "tor-log-ratelim/full", "tor-relay-selection/full",
 ]
 
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental = ["experimental-api", "restricted-discovery"]
+experimental-api = ["restricted-discovery", "__is_experimental"]
+
+restricted-discovery = ["__is_experimental"]
+
+__is_experimental = []
+
 [dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
 async-trait = "0.1.54"
 base64ct = "1.5.1"
+cfg-if = "1.0.0"
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.17"
 digest = "0.10.0"
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.9" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde"] }
 futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
 hex = "0.4"
