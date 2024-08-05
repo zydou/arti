@@ -98,6 +98,10 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
         }
     }
 
+    if let Some(ref auth_clients) = auth_clients {
+        debug!("Encrypting descriptor for {} clients", auth_clients.len());
+    }
+
     let desc_signing_key_cert = create_desc_sign_key_cert(
         &hs_desc_sign.as_ref().verifying_key(),
         &blind_id_kp,
