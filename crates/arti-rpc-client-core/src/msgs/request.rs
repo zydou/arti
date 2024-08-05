@@ -122,6 +122,7 @@ pub(crate) struct RequestMeta {
     /// about the request that it sent.
     ///
     /// (Default: false)
+    #[serde(default)]
     pub(crate) updates: bool,
     /// Any unrecognized fields that we received from the user.
     /// (We re-encode these in case the user knows about fields that we don't.)
