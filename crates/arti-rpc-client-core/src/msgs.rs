@@ -52,6 +52,12 @@ impl ObjectId {
                 .expect("Surprising NULs in string"),
         )
     }
+
+    /// Return this ID as a nul-terminated C string.
+    #[cfg(feature = "ffi")]
+    pub(crate) fn as_ptr(&self) -> *const std::ffi::c_char {
+        self.0.as_ptr()
+    }
 }
 
 impl TryFrom<String> for ObjectId {

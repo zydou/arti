@@ -74,6 +74,37 @@ pub unsafe extern "C" fn arti_rpc_connect(
     )
 }
 
+/// Given a pointer to an RPC connection, return the object ID for its negotiated session.
+///
+/// (The session was negotiated as part of establishing the connection.
+/// Its object ID is necessary to invoke most other functionality on Arti.)
+///
+/// The caller should be prepared for a possible NULL return, in case somehow
+/// no session was negotiated.
+///
+/// # Ownership
+///
+/// The resulting string is a reference to part of the `ArtiRpcConn`.
+/// It lives for no longer than the underlying `ArtiRpcConn` object.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_conn_get_session_id(
+    rpc_conn: *const ArtiRpcConn,
+) -> *const c_char {
+    ffi_body_raw! {
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+        } in {
+            rpc_conn.and_then(crate::RpcConn::session)
+                .map(|s| s.as_ptr())
+                .unwrap_or(std::ptr::null())
+            // Safety: returned pointer is null, or semantically borrowed from `rpc_conn`.
+            // It is only null if `rpc_conn` was null or its session was null.
+            // The caller is not allowed to modify it.
+        }
+    }
+}
+
 /// Run an RPC request over `rpc_conn` and wait for a successful response.
 ///
 /// The message `msg` should be a valid RPC request in JSON format.
