@@ -12,6 +12,7 @@ use std::{
 use crate::{
     llconn,
     msgs::{
+        request::InvalidRequestError,
         response::{ResponseKind, RpcError, ValidatedResponse},
         AnyRequestId, ObjectId,
     },
@@ -354,7 +355,7 @@ pub enum ProtoError {
 
     /// There was a problem in the request we tried to send.
     #[error("Invalid request: {0}")]
-    InvalidRequest(#[source] Arc<serde_json::Error>),
+    InvalidRequest(#[from] InvalidRequestError),
 
     /// We tried to send a request with an ID that was already pending.
     #[error("Request ID already in use.")]

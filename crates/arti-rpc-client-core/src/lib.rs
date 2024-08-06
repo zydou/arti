@@ -52,4 +52,4 @@ mod msgs;
 mod util;
 
 pub use conn::{BuilderError, ConnectError, ProtoError, RpcConn, RpcConnBuilder};
-pub use msgs::{response::RpcError, AnyRequestId, ObjectId};
+pub use msgs::{request::InvalidRequestError, response::RpcError, AnyRequestId, ObjectId};

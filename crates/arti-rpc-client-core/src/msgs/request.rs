@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 /// Alias for a Map as used by the serde_json.
 pub(crate) type JsonMap = serde_json::Map<String, serde_json::Value>;
 
-use crate::{conn::ProtoError, llconn::SendRequestError};
+use crate::conn::ProtoError;
 
 use super::{AnyRequestId, ObjectId};
 
@@ -37,6 +37,23 @@ pub(crate) struct Request<T> {
     pub(crate) meta: Option<RequestMeta>,
     pub(crate) method: String,
     pub(crate) params: T,
+}
+
+/// An error that has prevented us from validating an request.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum InvalidRequestError {
+    /* not yet used XXXXX; see next commit.
+    /// We failed to turn the request into any kind of json.
+    #[error("Request was not valid Json")]
+    InvalidJson(#[source] Arc<serde_json::Error>),
+    */
+    /// We got the request into json, but we couldn't find the fields we wanted.
+    #[error("Request's fields were invalid or missing")]
+    InvalidFormat(#[source] Arc<serde_json::Error>),
+    /// We validated the request, but couldn't re-encode it.
+    #[error("Unable to re-encode or format request")]
+    ReencodeFailed(#[source] Arc<serde_json::Error>),
 }
 
 impl<T: Serialize> Request<T> {
@@ -114,24 +131,28 @@ impl ValidatedRequest {
     }
 
     /// Try to construct a validated request using `s`.
-    pub(crate) fn from_string_strict(s: &str) -> Result<Self, SendRequestError> {
-        let req: ParsedRequest = serde_json::from_str(s)?;
+    pub(crate) fn from_string_strict(s: &str) -> Result<Self, InvalidRequestError> {
+        let req: ParsedRequest =
+            serde_json::from_str(s).map_err(|e| InvalidRequestError::InvalidFormat(Arc::new(e)))?;
         req.format()
-            .map_err(|e| SendRequestError::ReEncode(Arc::new(e)))
+            .map_err(|e| InvalidRequestError::ReencodeFailed(Arc::new(e)))
     }
 
     /// Try to construct a ValidatedRequest from the string in `s`.
     ///
     /// If it has no `id`, add one using `id_generator`.
-    pub(crate) fn from_string_loose<F>(s: &str, id_generator: F) -> Result<Self, ProtoError>
+    pub(crate) fn from_string_loose<F>(
+        s: &str,
+        id_generator: F,
+    ) -> Result<Self, InvalidRequestError>
     where
         F: FnOnce() -> AnyRequestId,
     {
         let req: LooseParsedRequest =
-            serde_json::from_str(s).map_err(|e| ProtoError::InvalidRequest(Arc::new(e)))?;
+            serde_json::from_str(s).map_err(|e| InvalidRequestError::InvalidFormat(Arc::new(e)))?;
         let req: ParsedRequest = req.into_request(id_generator);
         req.format()
-            .map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))
+            .map_err(|e| InvalidRequestError::ReencodeFailed(Arc::new(e)))
     }
 }
 

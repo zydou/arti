@@ -3,7 +3,10 @@
 //! Treats messages as unrelated strings, and validates outgoing messages for correctness.
 
 use crate::{
-    msgs::{request::ValidatedRequest, response::UnparsedResponse},
+    msgs::{
+        request::{InvalidRequestError, ValidatedRequest},
+        response::UnparsedResponse,
+    },
     util::define_from_for_arc,
 };
 use std::{io, sync::Arc};
@@ -100,13 +103,12 @@ pub enum SendRequestError {
     Io(Arc<io::Error>),
     /// We found a problem in the JSON while sending a request.
     #[error("Invalid Json request: {0}")]
-    InvalidRequest(Arc<serde_json::Error>),
+    InvalidRequest(#[from] InvalidRequestError),
     /// Internal error while re-encoding request.  Should be impossible.
     #[error("Unable to re-encode request after parsing it‽")]
     ReEncode(Arc<serde_json::Error>),
 }
 define_from_for_arc!( io::Error => SendRequestError [Io] );
-define_from_for_arc!( serde_json::Error => SendRequestError [InvalidRequest] );
 
 #[cfg(test)]
 mod test {
