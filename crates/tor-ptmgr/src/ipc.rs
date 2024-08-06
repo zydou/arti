@@ -38,8 +38,6 @@ const PT_STDIO_BUFFER: usize = 64;
 /// An arbitrary key/value status update from a pluggable transport.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct PtStatus {
-    /// The name of the pluggable transport.
-    transport: PtTransportName,
     /// Arbitrary key-value data about the state of this transport, from the binary running
     /// said transport.
     // NOTE(eta): This is assumed to not have duplicate keys.
@@ -345,15 +343,7 @@ impl FromStr for PtMessage {
                         message = &message[1..];
                     }
                 }
-                let transport = ret
-                    .remove("TRANSPORT")
-                    .ok_or_else(|| Cow::from("no TRANSPORT in STATUS"))?;
-                Self::Status(PtStatus {
-                    transport: transport
-                        .parse()
-                        .map_err(|_| Cow::from("bad transport ID"))?,
-                    data: ret,
-                })
+                Self::Status(PtStatus { data: ret })
             }
             _ => Self::Unknown(s.into()),
         })
@@ -1307,21 +1297,27 @@ mod test {
         map.insert("ADDRESS".to_string(), "198.51.100.123:1234".to_string());
         map.insert("CONNECT".to_string(), "Success".to_string());
         assert_eq!(
-            "STATUS TRANSPORT=obfs4 ADDRESS=198.51.100.123:1234 CONNECT=Success".parse(),
-            Ok(PtMessage::Status(PtStatus {
-                transport: "obfs4".parse().unwrap(),
-                data: map
-            }))
+            "STATUS ADDRESS=198.51.100.123:1234 CONNECT=Success".parse(),
+            Ok(PtMessage::Status(PtStatus { data: map }))
         );
+
+        let mut map = HashMap::new();
+        map.insert("ADDRESS".to_string(), "198.51.100.123:1234".to_string());
+        map.insert("CONNECT".to_string(), "Success".to_string());
+        map.insert("TRANSPORT".to_string(), "obfs4".to_string());
+        assert_eq!(
+            "STATUS TRANSPORT=obfs4 ADDRESS=198.51.100.123:1234 CONNECT=Success".parse(),
+            Ok(PtMessage::Status(PtStatus { data: map }))
+        );
+
         let mut map = HashMap::new();
         map.insert("ADDRESS".to_string(), "198.51.100.222:2222".to_string());
         map.insert("CONNECT".to_string(), "Failed".to_string());
         map.insert("FINGERPRINT".to_string(), "<Fingerprint>".to_string());
         map.insert("ERRSTR".to_string(), "Connection refused".to_string());
         assert_eq!(
-            "STATUS TRANSPORT=obfs4 ADDRESS=198.51.100.222:2222 CONNECT=Failed FINGERPRINT=<Fingerprint> ERRSTR=\"Connection refused\"".parse(),
+            "STATUS ADDRESS=198.51.100.222:2222 CONNECT=Failed FINGERPRINT=<Fingerprint> ERRSTR=\"Connection refused\"".parse(),
             Ok(PtMessage::Status(PtStatus {
-                transport: "obfs4".parse().unwrap(),
                 data: map
             }))
         );
