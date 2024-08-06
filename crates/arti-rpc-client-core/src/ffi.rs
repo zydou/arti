@@ -69,7 +69,7 @@ pub unsafe extern "C" fn arti_rpc_connect(
 
             let conn = builder.connect()?;
 
-            rpc_conn_out.write_value_if_ptr_set(conn);
+            rpc_conn_out.write_boxed_value_if_ptr_set(conn);
         }
     )
 }
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
             let msg = msg.ok_or(InvalidInput::NullPointer)?;
 
             let success = rpc_conn.execute(msg)??;
-            response_out.write_value_if_ptr_set(Utf8CString::from(success));
+            response_out.write_boxed_value_if_ptr_set(Utf8CString::from(success));
         }
     )
 }
