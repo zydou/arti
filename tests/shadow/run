@@ -37,6 +37,15 @@ for HOST in articlient articlient-extra articlient-bridge; do
   fi
 done
 
+# Look for any non-empty stderr files. In particular rust panics sometimes end
+# up showing up here (even though we try to log them properly).
+nonempty_stderr=$(find shadow.data/hosts/ -name '*.stderr' -size +0 -print -quit)
+if [ -n "$nonempty_stderr" ]; then
+  echo "Found non-empty stderr file $nonempty_stderr:"
+  cat "$nonempty_stderr"
+  exit 1
+fi
+
 HOSTS=(
   articlient-onion
   articlient-onion-auth
