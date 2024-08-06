@@ -68,7 +68,7 @@ pub struct SuccessResponse(Utf8CString);
 // Invariant: it is valid JSON and contains no NUL bytes or newlines.
 // TODO RPC: check that the newline invariant is enforced in constructors.
 // TODO RPC consider changing this to CString.
-#[derive(Clone, Debug, derive_more::AsRef)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::Into)]
 #[as_ref(forward)]
 pub struct UpdateResponse(Utf8CString);
 
@@ -85,7 +85,7 @@ pub struct UpdateResponse(Utf8CString);
 // Otherwise the `decode` method may panic.
 //
 // TODO RPC: check that the newline invariant is enforced in constructors.
-#[derive(Clone, Debug, derive_more::AsRef)]
+#[derive(Clone, Debug, derive_more::AsRef, derive_more::Into)]
 #[as_ref(forward)]
 // TODO: If we keep this, it should implement Error.
 pub struct ErrorResponse(Utf8CString);
@@ -209,6 +209,16 @@ impl AnyResponse {
             ResponseKind::Error => AnyResponse::Error(ErrorResponse::from_validated_string(v.msg)),
             ResponseKind::Success => AnyResponse::Success(SuccessResponse(v.msg)),
             ResponseKind::Update => AnyResponse::Update(UpdateResponse(v.msg)),
+        }
+    }
+
+    /// Consume this `AnyResponse`, and return its internal string.
+    #[cfg(feature = "ffi")]
+    pub(crate) fn into_string(self) -> Utf8CString {
+        match self {
+            AnyResponse::Success(m) => m.into(),
+            AnyResponse::Error(m) => m.into(),
+            AnyResponse::Update(m) => m.into(),
         }
     }
 }

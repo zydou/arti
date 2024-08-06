@@ -178,6 +178,43 @@ typedef struct ArtiRpcError ArtiRpcError;
 typedef struct Utf8CString ArtiRpcStr;
 
 /**
+ * A handle to an in-progress RPC request.
+ *
+ * This handle must eventually be freed with `arti_rpc_handle_free`.
+ *
+ * You can wait for the next message with `arti_rpc_handle_wait`.
+ */
+typedef struct ArtiRpcHandle ArtiRpcHandle;
+
+/**
+ * The type of a message returned by an RPC request.
+ */
+typedef int ArtiRpcResponseType;
+
+/**
+ * A constant indicating that a message is a final result.
+ *
+ * After a result has been received, a handle will not return any more responses,
+ * and should be freed.
+ */
+#define ARTI_RPC_RESPONSE_TYPE_RESULT 1
+
+/**
+ * A constant indicating that a message is a non-final update.
+ *
+ * After an update has been received, the handle may return additional responses.
+ */
+#define ARTI_RPC_RESPONSE_TYPE_UPDATE 2
+
+/**
+ * A constant indicating that a message is a final error.
+ *
+ * After an error has been received, a handle will not return any more responses,
+ * and should be freed.
+ */
+#define ARTI_RPC_RESPONSE_TYPE_ERROR 3
+
+/**
  * The function has returned successfully.
  */
 #define ARTI_RPC_STATUS_SUCCESS 0
@@ -329,11 +366,79 @@ const char *arti_rpc_conn_get_session_id(const ArtiRpcConn *rpc_conn);
  * # Ownership
  *
  * The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+ *
+ * The caller is responsible for making sure that `*response_out`, if set, is eventually freed.
  */
 ArtiRpcStatus arti_rpc_conn_execute(const ArtiRpcConn *rpc_conn,
                                     const char *msg,
                                     ArtiRpcStr **response_out,
                                     ArtiRpcError **error_out);
+
+/**
+ * Send an RPC request over `rpc_conn`, and return a handle that can wait for a successful response.
+ *
+ * The message `msg` should be a valid RPC request in JSON format.
+ * If you omit its `id` field, one will be generated: this is typically the best way to use this function.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*handle_out` to a newly allocated `ArtiRpcHandle`.
+ *
+ * Otherwise return some other status code,  set `*handle_out` to NULL,
+ * and set `*error_out` (if provided) to a newly allocated error object.
+ *
+ * (If `handle_out` is set to NULL, the request will not be sent, and an error will be returned.)
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+ *
+ * The caller is responsible for making sure that `*handle_out`, if set, is eventually freed.
+ */
+ArtiRpcStatus arti_rpc_conn_execute_with_handle(const ArtiRpcConn *rpc_conn,
+                                                const char *msg,
+                                                ArtiRpcHandle **handle_out,
+                                                ArtiRpcError **error_out);
+
+/**
+ * Wait until some response arrives on an arti_rpc_handle, or until an error occurs.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`; set `*response_out`, if present, to a
+ * newly allocated string, and set `*response_type_out`, to the type of the response.
+ * (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
+ * or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
+ * or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
+ *
+ * Otherwise return some other status code, set `*response_out` to NULL,
+ * set `*response_type_out` to zero,
+ * and set `*error_out` (if provided) to a newly allocated error object.
+ *
+ * Note that receiving an error reply from Arti is _not_ treated as an error in this function.
+ * That is to say, if Arti sends back an error, this function will return `ARTI_SUCCESS`,
+ * and deliver the error from Arti in `*response_out`, setting `*response_type_out` to
+ * `ARTI_RPC_RESPONSE_TYPE_ERROR`.
+ *
+ * # Correctness requirements
+ *
+ * No other thread or code must be using `handle` while this function is running.
+ * Accessing `handle` from multiple functions at once may result in undefined behavior.
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+ *
+ * The caller is responsible for making sure that `*response_out`, if set, is eventually freed.
+ */
+ArtiRpcStatus arti_rpc_handle_wait(ArtiRpcHandle *handle,
+                                   ArtiRpcStr **response_out,
+                                   ArtiRpcResponseType *response_type_out,
+                                   ArtiRpcError **error_out);
+
+/**
+ * Release storage held by an `ArtiRpcHandle`.
+ *
+ * NOTE, TODO: This does not cancel the request, but that is not guaranteed.
+ * Once we implement cancellation, this may behave differently.
+ */
+void arti_rpc_handle_free(ArtiRpcHandle *handle);
 
 /**
  * Free a string returned by the Arti RPC API.

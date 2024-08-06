@@ -80,7 +80,6 @@ pub(super) trait OptOutPtrExt<T>: Sealed {
     fn write_boxed_value_if_ptr_set(self, value: T);
 }
 /// Extension trait on `Option<OutVal<T>>`
-#[allow(dead_code)] // XXXX will remove
 pub(super) trait OptOutValExt<T>: Sealed {
     /// Consume this `Option<OutVal<T>>` and the provided value.
     ///
@@ -534,7 +533,6 @@ pub(super) mod arg_conversion {
     /// # Safety
     ///
     /// As for [`<*const T>::as_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut).
-    #[allow(dead_code)] // XXXX will remove
     pub(in crate::ffi) unsafe fn in_mut_ptr_opt<'a, T>(
         input: *mut T,
     ) -> Result<Option<&'a mut T>, Void> {
@@ -612,7 +610,6 @@ pub(super) mod arg_conversion {
     ///
     /// As for
     /// [`<*mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
-    #[allow(dead_code)] // XXXX will remove
     pub(in crate::ffi) unsafe fn out_val_opt<'a, T>(
         input: *mut T,
     ) -> Result<Option<OutVal<'a, T>>, Void>
