@@ -68,7 +68,10 @@ impl UnparsedResponse {
         // JsonMap in each struct.  But that creates a risk of forgetting to do so in some
         // struct that we create in the future.
         let json: serde_json::Value = serde_json::from_str(&self.msg)?;
-        let msg: Utf8CString = serde_json::to_string(&json)?.try_into().map_err(|_| {
+        let mut msg: String = serde_json::to_string(&json)?;
+        debug_assert!(!msg.contains('\n'));
+        msg.push('\n');
+        let msg: Utf8CString = msg.try_into().map_err(|_| {
             // (This should be impossible; serde_json rejects NULs.)
             DecodeResponseError::ProtocolViolation("Unexpected NUL in validated message")
         })?;
