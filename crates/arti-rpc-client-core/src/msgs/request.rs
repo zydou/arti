@@ -4,10 +4,7 @@
 //!
 //! - [`Request`] is for requests that are generated from within this crate,
 //!   to implement authentication, negotiation, and other functionality.
-//! - [`LooseParsedRequest`] is for a request we've received from the user
-//!   (or parsed from a `Request`)
-//!   which might not have a request ID yet.
-//! - [`ParsedRequest`] is for a request we've completely validated,
+//! - `ParsedRequestFields` (internal) is for a request we've completely validated,
 //!   with all of its fields present.
 //! - [`ValidatedRequest`] is for a string that we have validated as a request.
 
@@ -27,6 +24,7 @@ use super::{AnyRequestId, JsonAnyObj, ObjectId};
 /// It lacks a required `id` field (since we will generate one when sending it),
 /// and it allows any Serialize for its `params`.
 #[derive(Serialize, Debug)]
+// Testing only. Don't implement Deserialize here; this is not the type you should parse into!
 #[cfg_attr(test, derive(Eq, PartialEq, Deserialize))]
 #[allow(clippy::missing_docs_in_private_items)] // Fields are as for ParsedRequest.
 pub(crate) struct Request<T> {
@@ -77,8 +75,9 @@ impl<T: Serialize> Request<T> {
 ///
 /// We use this type to validate outbound requests from the application.
 #[derive(Deserialize, Debug)]
+// Don't implement Serialize here; this is not for generating requests!
 #[allow(dead_code)] // The fields here are only used for validating serde objects.
-struct ParsedRequest {
+struct ParsedRequestFields {
     /// The identifier for this request.
     ///
     /// Used to match a request with its responses.
@@ -119,7 +118,7 @@ impl ValidatedRequest {
         debug_assert!(!msg.contains('\n'));
         msg.push('\n');
 
-        let req: ParsedRequest = serde_json::from_value(val)
+        let req: ParsedRequestFields = serde_json::from_value(val)
             .map_err(|e| InvalidRequestError::InvalidFormat(Arc::new(e)))?;
         let id = req.id;
 
@@ -207,7 +206,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    impl ParsedRequest {
+    impl ParsedRequestFields {
         /// Return true if this request is asking for updates.
         fn updates_requested(&self) -> bool {
             self.meta.as_ref().map(|m| m.updates).unwrap_or(false)
@@ -224,19 +223,19 @@ mod test {
 
     #[test]
     fn parse_requests() {
-        let req1: ParsedRequest = serde_json::from_str(REQ1).unwrap();
+        let req1: ParsedRequestFields = serde_json::from_str(REQ1).unwrap();
         assert_eq!(req1.id, 7.into());
         assert_eq!(req1.obj.as_ref(), "hi");
         assert_eq!(req1.updates_requested(), true);
         assert_eq!(req1.method, "twiddle");
 
-        let req2: ParsedRequest = serde_json::from_str(REQ2).unwrap();
+        let req2: ParsedRequestFields = serde_json::from_str(REQ2).unwrap();
         assert_eq!(req2.id, "fred".to_string().into());
         assert_eq!(req2.obj.as_ref(), "hi");
         assert_eq!(req2.updates_requested(), false);
         assert_eq!(req2.method, "twiddle");
 
-        let _req3: ParsedRequest = serde_json::from_str(REQ2).unwrap();
+        let _req3: ParsedRequestFields = serde_json::from_str(REQ2).unwrap();
     }
 
     #[test]
@@ -270,7 +269,7 @@ mod test {
             // weird method
             r#"{"obj":"hi", "id": 7, "method":6", "params":{"stuff":"nonsense"}}"#,
         ] {
-            let r: Result<ParsedRequest, _> = serde_json::from_str(dbg!(text));
+            let r: Result<ParsedRequestFields, _> = serde_json::from_str(dbg!(text));
             assert!(r.is_err());
         }
     }
