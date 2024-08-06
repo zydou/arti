@@ -287,6 +287,10 @@ impl StreamMap {
             }
             StreamEnt::Open { .. } => {
                 stream_entry.insert(StreamEnt::EndReceived);
+                self.rxs
+                    .remove(&id)
+                    // By invariant on `self.m` that every open stream has an entry in `rxs`.
+                    .expect("Missing stream for {id:?}");
 
                 Ok(())
             }
