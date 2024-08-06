@@ -42,6 +42,11 @@ additional_required['tor-llcrypto']= [
     ('aes', 'all()'),
 ]
 
+additional_required['tor-hsservice'] = [
+    ('restricted_discovery', 'feature = "restricted-discovery"'),
+    ('restricted_discovery', 'all()'),
+]
+
 # This is an * include; expended wildcard must be in additional_required
 additional_provided['tor-proto']= [
     ('*', 'feature = "testing"'),
