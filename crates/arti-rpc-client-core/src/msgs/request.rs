@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 /// Alias for a Map as used by the serde_json.
 pub(crate) type JsonMap = serde_json::Map<String, serde_json::Value>;
 
-use crate::conn::ProtoError;
+use crate::{conn::ProtoError, llconn::SendRequestError};
 
 use super::{AnyRequestId, ObjectId};
 
@@ -64,26 +64,26 @@ impl<T: Serialize> Request<T> {
 /// and to generate our own requests.
 #[derive(Deserialize, Serialize, Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub(crate) struct ParsedRequest {
+struct ParsedRequest {
     /// The identifier for this request.
     ///
     /// Used to match a request with its responses.
-    pub(crate) id: AnyRequestId,
+    id: AnyRequestId,
     /// The ID for the object to which this request is addressed.
     ///
     /// (Every request goes to a single object.)
-    pub(crate) obj: ObjectId,
+    obj: ObjectId,
     /// Additional information for Arti about how to handle the request.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) meta: Option<RequestMeta>,
+    meta: Option<RequestMeta>,
     /// The name of the method to invoke.
-    pub(crate) method: String,
+    method: String,
     /// Parameters to pass to the method.
-    pub(crate) params: JsonMap,
+    params: JsonMap,
     /// Any unrecognized fields that we received from the user.
     /// (We re-encode these in case the user knows about fields that we don't.)
     #[serde(flatten)]
-    pub(crate) unrecognized_fields: JsonMap,
+    unrecognized_fields: JsonMap,
 }
 
 /// A known-valid request, encoded as a string (in a single line, with a terminating newline).
@@ -112,6 +112,27 @@ impl ValidatedRequest {
     pub(crate) fn id(&self) -> &AnyRequestId {
         &self.id
     }
+
+    /// Try to construct a validated request using `s`.
+    pub(crate) fn from_string_strict(s: &str) -> Result<Self, SendRequestError> {
+        let req: ParsedRequest = serde_json::from_str(s)?;
+        req.format()
+            .map_err(|e| SendRequestError::ReEncode(Arc::new(e)))
+    }
+
+    /// Try to construct a ValidatedRequest from the string in `s`.
+    ///
+    /// If it has no `id`, add one using `id_generator`.
+    pub(crate) fn from_string_loose<F>(s: &str, id_generator: F) -> Result<Self, ProtoError>
+    where
+        F: FnOnce() -> AnyRequestId,
+    {
+        let req: LooseParsedRequest =
+            serde_json::from_str(s).map_err(|e| ProtoError::InvalidRequest(Arc::new(e)))?;
+        let req: ParsedRequest = req.into_request(id_generator);
+        req.format()
+            .map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))
+    }
 }
 
 /// Crate-internal: The "meta" field in a request.
@@ -135,7 +156,7 @@ pub(crate) struct RequestMeta {
 /// We can convert this into a ParsedRequest after fixing up any missing or invalid fields.
 #[derive(Deserialize, Debug)]
 #[allow(clippy::missing_docs_in_private_items)] // Fields are as for ParsedRequest.
-pub(crate) struct LooseParsedRequest {
+struct LooseParsedRequest {
     id: Option<AnyRequestId>,
     obj: ObjectId,
     meta: Option<RequestMeta>,

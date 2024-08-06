@@ -3,10 +3,7 @@
 //! Treats messages as unrelated strings, and validates outgoing messages for correctness.
 
 use crate::{
-    msgs::{
-        request::{ParsedRequest, ValidatedRequest},
-        response::UnparsedResponse,
-    },
+    msgs::{request::ValidatedRequest, response::UnparsedResponse},
     util::define_from_for_arc,
 };
 use std::{io, sync::Arc};
@@ -75,11 +72,7 @@ impl Writer {
     ///
     /// Return an error if an IO problems occurred, or if the request was not well-formed.
     pub fn send_request(&mut self, request: &str) -> Result<(), SendRequestError> {
-        let req: ParsedRequest = serde_json::from_str(request)?;
-        // TODO: Perhaps someday we'd like a way to send without re-encoding.
-        let validated = req
-            .format()
-            .map_err(|e| SendRequestError::ReEncode(Arc::new(e)))?;
+        let validated = ValidatedRequest::from_string_strict(request)?;
         self.send_valid(&validated)?;
         Ok(())
     }

@@ -15,7 +15,7 @@ use std::{
 use crate::{
     llconn,
     msgs::{
-        request::{IdGenerator, LooseParsedRequest, ValidatedRequest},
+        request::{IdGenerator, ValidatedRequest},
         response::ValidatedResponse,
         AnyRequestId, ObjectId,
     },
@@ -214,8 +214,6 @@ impl RpcConn {
     pub(super) fn send_request(&self, msg: &str) -> Result<super::RequestHandle, ProtoError> {
         use std::collections::hash_map::Entry::*;
 
-        let loose: LooseParsedRequest =
-            serde_json::from_str(msg).map_err(|e| ProtoError::InvalidRequest(Arc::new(e)))?;
         let mut state = self.receiver.state.lock().expect("poisoned");
         if let Some(f) = &state.fatal {
             // If there's been a fatal error we don't even try to send the request.
@@ -223,10 +221,8 @@ impl RpcConn {
         }
 
         // Convert this request into validated form (with an ID) and re-encode it.
-        let valid: ValidatedRequest = loose
-            .into_request(|| state.id_gen.next_id())
-            .format()
-            .map_err(|e| ProtoError::CouldNotEncode(Arc::new(e)))?;
+        let valid: ValidatedRequest =
+            ValidatedRequest::from_string_loose(msg, || state.id_gen.next_id())?;
 
         // Do the necessary housekeeping before we send the request, so that
         // we'll be able to understand the replies.
