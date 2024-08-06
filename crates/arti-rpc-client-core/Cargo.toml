@@ -12,6 +12,9 @@ keywords = ["tor", "arti"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[lib]
+crate-type = ["cdylib", "lib"]
+
 [dependencies]
 
 c_str_macro = { version = "1", optional = true }
