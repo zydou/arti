@@ -26,7 +26,3 @@ hsdir_interval = 120
 
 [storage]
 state_dir = "./"
-
-# Configure the keystore dir
-[storage.keystore]
-enabled = true
