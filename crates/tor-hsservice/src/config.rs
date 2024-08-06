@@ -13,6 +13,7 @@ use crate::config::restricted_discovery::{
 pub mod restricted_discovery;
 
 #[cfg(not(feature = "restricted-discovery"))]
+#[cfg_attr(docsrs, doc(cfg(all())))]
 pub(crate) mod restricted_discovery;
 
 /// Configuration for one onion service.
