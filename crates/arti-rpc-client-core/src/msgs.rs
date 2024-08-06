@@ -33,6 +33,18 @@ pub enum AnyRequestId {
     String(String),
 }
 
+impl AnyRequestId {
+    /// Convert this request ID into a json value.
+    //
+    // (This is a private function because we don't want to expose serde_json in our API.)
+    fn into_json_value(self) -> serde_json::Value {
+        match self {
+            AnyRequestId::Number(n) => serde_json::Value::Number(n.into()),
+            AnyRequestId::String(s) => serde_json::Value::String(s),
+        }
+    }
+}
+
 /// An identifier for some object visible to the Arti RPC system.
 ///
 /// A single object may have multiple underlying identifiers.

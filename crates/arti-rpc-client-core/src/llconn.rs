@@ -130,6 +130,8 @@ mod test {
 
     use io::{BufRead, BufReader, Cursor};
 
+    use crate::util::assert_same_json;
+
     use super::*;
 
     struct NeverConnected;
@@ -203,7 +205,7 @@ mod test {
         let write_result = wt.join().unwrap();
         assert!(write_result.is_ok());
         let read_result = rt.join().unwrap().unwrap();
-        assert_eq!(
+        assert_same_json!(
             read_result.strip_suffix('\n').unwrap(),
             r#"{"id":7,"obj":"foo","method":"arti:x-frob","params":{},"extra":"preserved"}"#
         );
