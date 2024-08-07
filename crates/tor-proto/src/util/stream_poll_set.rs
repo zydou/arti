@@ -55,7 +55,7 @@ where
 
 impl<K, V, P, S> StreamPollSet<K, V, P, S>
 where
-    K: Ord + Hash + Clone,
+    K: Ord + Hash + Clone + Send + Sync + 'static,
     S: futures::Stream<Item = V> + Unpin,
     P: Ord + Clone,
 {
