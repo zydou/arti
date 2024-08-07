@@ -106,9 +106,8 @@ where
     }
 
     /// Remove the entry for `key`, if any, and return the corresponding future.
-    // XXX: Return the future too instead of dropping it. (follow-up commit)
-    pub fn remove(&mut self, key: &K) -> Option<K> {
-        self.futures.remove_entry(key).map(|(k, _fut)| k)
+    pub fn remove(&mut self, key: &K) -> Option<(K, F)> {
+        self.futures.remove_entry(key)
     }
 }
 
@@ -206,11 +205,7 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use futures::{
-        executor::block_on,
-        future::{self, poll_fn},
-        StreamExt as _,
-    };
+    use futures::{executor::block_on, future::poll_fn, StreamExt as _};
     use tor_async_utils::oneshot;
     use tor_rtmock::MockRuntime;
 
@@ -221,6 +216,45 @@ mod tests {
 
     #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
     struct Value(u64);
+
+    /// Alternative to futures::future::Ready that supports comparison for testing.
+    #[derive(Eq, PartialEq, Debug)]
+    struct ReadyFut<V>(Option<V>);
+
+    impl<V> ReadyFut<V> {
+        fn new(value: V) -> Self {
+            Self(Some(value))
+        }
+    }
+
+    impl<V> Future for ReadyFut<V>
+    where
+        V: Unpin,
+    {
+        type Output = V;
+
+        fn poll(mut self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+            Poll::Ready(self.0.take().expect("Polled future after it was ready"))
+        }
+    }
+
+    /// Alternative to futures::future::Pending that supports comparison for testing.
+    #[derive(Eq, PartialEq, Debug, Default)]
+    struct PendingFut<V>(V);
+
+    impl<V> PendingFut<V> {
+        fn new(value: V) -> Self {
+            Self(value)
+        }
+    }
+
+    impl<V> Future for PendingFut<V> {
+        type Output = V;
+
+        fn poll(self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+            Poll::Pending
+        }
+    }
 
     #[test]
     fn test_empty() {
@@ -240,7 +274,7 @@ mod tests {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
 
-            kfu.try_insert(Key(0), future::pending::<()>()).unwrap();
+            kfu.try_insert(Key(0), PendingFut::new(Value(0))).unwrap();
 
             // When there are futures in the set, but none are ready, returns
             // `Poll::Pending`, as for `FuturesUnordered`
@@ -258,7 +292,7 @@ mod tests {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
 
-            kfu.try_insert(Key(0), future::ready(Value(1))).unwrap();
+            kfu.try_insert(Key(0), ReadyFut::new(Value(1))).unwrap();
 
             // When there is a ready future, returns it.
             assert_eq!(
@@ -302,8 +336,11 @@ mod tests {
     fn test_remove_pending() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), future::pending::<()>()).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some(Key(0)));
+            kfu.try_insert(Key(0), PendingFut::new(Value(0))).unwrap();
+            assert_eq!(
+                kfu.remove(&Key(0)),
+                Some((Key(0), PendingFut::new(Value(0))))
+            );
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
             Poll::Ready(())
         }));
@@ -313,8 +350,8 @@ mod tests {
     fn test_remove_ready() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), future::ready(Value(1))).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some(Key(0)));
+            kfu.try_insert(Key(0), ReadyFut::new(Value(1))).unwrap();
+            assert_eq!(kfu.remove(&Key(0)), Some((Key(0), ReadyFut::new(Value(1)))));
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
             Poll::Ready(())
         }));
@@ -324,9 +361,9 @@ mod tests {
     fn test_remove_and_reuse_ready() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), future::ready(Value(1))).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some(Key(0)));
-            kfu.try_insert(Key(0), future::ready(Value(2))).unwrap();
+            kfu.try_insert(Key(0), ReadyFut::new(Value(1))).unwrap();
+            assert_eq!(kfu.remove(&Key(0)), Some((Key(0), ReadyFut::new(Value(1)))));
+            kfu.try_insert(Key(0), ReadyFut::new(Value(2))).unwrap();
 
             // We should get back *only* the second value.
             assert_eq!(
