@@ -9,7 +9,6 @@ use crate::config::restricted_discovery::{
 };
 
 #[cfg(feature = "restricted-discovery")]
-#[cfg_attr(docsrs, doc(cfg(feature = "restricted-discovery")))]
 pub mod restricted_discovery;
 
 // Only exported with pub visibility if the restricted-discovery feature is enabled.

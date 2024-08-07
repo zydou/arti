@@ -43,7 +43,6 @@ additional_required['tor-llcrypto']= [
 ]
 
 additional_required['tor-hsservice'] = [
-    ('restricted_discovery', 'feature = "restricted-discovery"'),
     ('restricted_discovery', 'all()'),
 ]
 
