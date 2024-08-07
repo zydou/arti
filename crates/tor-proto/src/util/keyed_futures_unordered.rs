@@ -242,6 +242,8 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use std::task::Waker;
+
     use futures::{executor::block_on, future::poll_fn, StreamExt as _};
     use tor_async_utils::oneshot;
     use tor_rtmock::MockRuntime;
@@ -254,49 +256,74 @@ mod tests {
     #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
     struct Value(u64);
 
-    /// Alternative to futures::future::Ready that supports comparison for testing.
-    #[derive(Eq, PartialEq, Debug, Clone)]
-    struct ReadyFut<V>(Option<V>);
+    /// Simple future for testing. Supports comparison, and can be mutated directly to become ready.
+    #[derive(Debug, Clone)]
+    struct ValueFut<V> {
+        /// Value that will be produced when ready.
+        value: Option<V>,
+        /// Whether this is ready.
+        // We use a distinct flag here instead of a None value so that pending
+        // instances are still unequal if they have different values.
+        ready: bool,
+        // Waker
+        waker: Option<Waker>,
+    }
 
-    impl<V> ReadyFut<V> {
-        fn new(value: V) -> Self {
-            Self(Some(value))
+    impl<V> std::cmp::PartialEq for ValueFut<V>
+    where
+        V: std::cmp::PartialEq,
+    {
+        fn eq(&self, other: &Self) -> bool {
+            // Ignores the waker, which isn't comparable
+            self.value == other.value && self.ready == other.ready
         }
     }
 
-    impl<V> Future for ReadyFut<V>
+    impl<V> std::cmp::Eq for ValueFut<V> where V: std::cmp::Eq {}
+
+    impl<V> ValueFut<V> {
+        fn ready(value: V) -> Self {
+            Self {
+                value: Some(value),
+                ready: true,
+                waker: None,
+            }
+        }
+        fn pending(value: V) -> Self {
+            Self {
+                value: Some(value),
+                ready: false,
+                waker: None,
+            }
+        }
+        fn make_ready(&mut self) {
+            self.ready = true;
+            if let Some(waker) = self.waker.take() {
+                waker.wake();
+            }
+        }
+    }
+
+    impl<V> Future for ValueFut<V>
     where
         V: Unpin,
     {
         type Output = V;
 
-        fn poll(mut self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-            Poll::Ready(self.0.take().expect("Polled future after it was ready"))
-        }
-    }
-
-    /// Alternative to futures::future::Pending that supports comparison for testing.
-    #[derive(Eq, PartialEq, Debug, Clone)]
-    struct PendingFut<V>(V);
-
-    impl<V> PendingFut<V> {
-        fn new(value: V) -> Self {
-            Self(value)
-        }
-    }
-
-    impl<V> Future for PendingFut<V> {
-        type Output = V;
-
-        fn poll(self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-            Poll::Pending
+        fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+            if !self.ready {
+                self.waker.replace(cx.waker().clone());
+                Poll::Pending
+            } else {
+                Poll::Ready(self.value.take().expect("Polled future after it was ready"))
+            }
         }
     }
 
     #[test]
     fn test_empty() {
         block_on(poll_fn(|cx| {
-            let mut kfu = KeyedFuturesUnordered::<Key, PendingFut<Value>>::new();
+            let mut kfu = KeyedFuturesUnordered::<Key, ValueFut<Value>>::new();
 
             // When there are no futures in the set (ready or pending), returns
             // `Poll::Ready(None)` as for `FuturesUnordered`.
@@ -315,7 +342,7 @@ mod tests {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
 
-            kfu.try_insert(Key(0), PendingFut::new(Value(0))).unwrap();
+            kfu.try_insert(Key(0), ValueFut::pending(Value(0))).unwrap();
 
             // When there are futures in the set, but none are ready, returns
             // `Poll::Pending`, as for `FuturesUnordered`
@@ -327,11 +354,11 @@ mod tests {
             // We should be able to get the future.
             assert_eq!(
                 kfu.get(&Key(0)).map(|x| x.clone()),
-                Some(PendingFut::new(Value(0)))
+                Some(ValueFut::pending(Value(0)))
             );
             assert_eq!(
                 kfu.get_mut(&Key(0)).map(|x| x.clone()),
-                Some(PendingFut::new(Value(0)))
+                Some(ValueFut::pending(Value(0)))
             );
 
             Poll::Ready(())
@@ -343,16 +370,16 @@ mod tests {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
 
-            kfu.try_insert(Key(0), ReadyFut::new(Value(1))).unwrap();
+            kfu.try_insert(Key(0), ValueFut::ready(Value(1))).unwrap();
 
             // Should be able to get the future before it's polled.
             assert_eq!(
                 kfu.get(&Key(0)).map(|x| x.clone()),
-                Some(ReadyFut::new(Value(1)))
+                Some(ValueFut::ready(Value(1)))
             );
             assert_eq!(
                 kfu.get_mut(&Key(0)).map(|x| x.clone()),
-                Some(ReadyFut::new(Value(1)))
+                Some(ValueFut::ready(Value(1)))
             );
 
             // When there is a ready future, returns it.
@@ -405,10 +432,10 @@ mod tests {
     fn test_remove_pending() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), PendingFut::new(Value(0))).unwrap();
+            kfu.try_insert(Key(0), ValueFut::pending(Value(0))).unwrap();
             assert_eq!(
                 kfu.remove(&Key(0)),
-                Some((Key(0), PendingFut::new(Value(0))))
+                Some((Key(0), ValueFut::pending(Value(0))))
             );
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
             Poll::Ready(())
@@ -419,8 +446,11 @@ mod tests {
     fn test_remove_ready() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), ReadyFut::new(Value(1))).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some((Key(0), ReadyFut::new(Value(1)))));
+            kfu.try_insert(Key(0), ValueFut::ready(Value(1))).unwrap();
+            assert_eq!(
+                kfu.remove(&Key(0)),
+                Some((Key(0), ValueFut::ready(Value(1))))
+            );
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
             Poll::Ready(())
         }));
@@ -430,11 +460,42 @@ mod tests {
     fn test_remove_and_reuse_ready() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), ReadyFut::new(Value(1))).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some((Key(0), ReadyFut::new(Value(1)))));
-            kfu.try_insert(Key(0), ReadyFut::new(Value(2))).unwrap();
+            kfu.try_insert(Key(0), ValueFut::ready(Value(1))).unwrap();
+            assert_eq!(
+                kfu.remove(&Key(0)),
+                Some((Key(0), ValueFut::ready(Value(1))))
+            );
+            kfu.try_insert(Key(0), ValueFut::ready(Value(2))).unwrap();
 
             // We should get back *only* the second value.
+            assert_eq!(
+                kfu.poll_next_unpin(cx),
+                Poll::Ready(Some((Key(0), Value(2))))
+            );
+            assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
+
+            Poll::Ready(())
+        }));
+    }
+
+    #[test]
+    fn test_remove_and_reuse_pending_then_ready() {
+        block_on(poll_fn(|cx| {
+            let mut kfu = KeyedFuturesUnordered::new();
+            kfu.try_insert(Key(0), ValueFut::pending(Value(1))).unwrap();
+            let (_key, mut removed_value) = kfu.remove(&Key(0)).unwrap();
+            kfu.try_insert(Key(0), ValueFut::pending(Value(2))).unwrap();
+
+            // Make the *removed* future ready before polling again. This should
+            // cause an internal spurious wakeup, but not be visible from the
+            // user's perspective.
+            removed_value.make_ready();
+            assert_eq!(kfu.poll_next_unpin(cx), Poll::Pending);
+
+            // Make the future that we replaced it with become ready.
+            kfu.get_mut(&Key(0)).unwrap().make_ready();
+
+            // We should now get back *only* the second value.
             assert_eq!(
                 kfu.poll_next_unpin(cx),
                 Poll::Ready(Some((Key(0), Value(2))))
