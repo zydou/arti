@@ -728,7 +728,7 @@ impl Data {
                     let n = locs.len();
                     for (i, loc) in locs.iter().enumerate() {
                         prefix(f)?;
-                        writeln!(f, "asleep, backtrace {i}/{n}:\n{loc:?}",)?;
+                        writeln!(f, "asleep, backtrace {i}/{n}:\n{loc}",)?;
                     }
                     if n == 0 {
                         prefix(f)?;

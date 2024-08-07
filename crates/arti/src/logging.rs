@@ -283,8 +283,8 @@ fn install_panic_handler() {
 
         let backtrace = std::backtrace::Backtrace::force_capture();
         match panic_info.location() {
-            Some(location) => error!("Panic at {}: {}\n{:?}", location, msg, backtrace),
-            None => error!("Panic at ???: {}\n{:?}", msg, backtrace),
+            Some(location) => error!("Panic at {}: {}\n{}", location, msg, backtrace),
+            None => error!("Panic at ???: {}\n{}", msg, backtrace),
         };
     }));
 }
