@@ -47,7 +47,7 @@ impl RpcConn {
         scheme_name: &str,
     ) -> Result<ObjectId, ConnectError> {
         let r: Request<AuthParams> = Request::new(
-            ObjectId::from("connection".to_string()),
+            ObjectId::connection_id(),
             "auth:authenticate",
             AuthParams {
                 scheme: scheme_name,

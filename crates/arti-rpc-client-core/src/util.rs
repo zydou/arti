@@ -22,7 +22,7 @@ pub(crate) use define_from_for_arc;
 /// for fast access as either type.
 //
 // TODO RPC: Rename so we can expose it more sensibly.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Utf8CString {
     /// The body of this string.
     ///
@@ -60,6 +60,63 @@ impl TryFrom<String> for Utf8CString {
         Ok(Utf8CString {
             string: CString::new(value)?.into_boxed_c_str(),
         })
+    }
+}
+
+/// An error from trying to convert a byte-slice to a Utf8CString.
+#[derive(Clone, Debug, thiserror::Error)]
+enum Utf8CStringFromBytesError {
+    /// The bytes contained a nul, so we can't convert into a nul-terminated string.
+    #[error("Bytes contained 0")]
+    Nul(#[from] NulError),
+    /// The bytes were not value UTF-8
+    #[error("Bytes were not utf-8.")]
+    Utf8(#[from] std::str::Utf8Error),
+}
+
+impl Utf8CString {
+    /// Try to construct a new `Utf8CString` from a given byte slice.
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, Utf8CStringFromBytesError> {
+        let s: &str = std::str::from_utf8(bytes)?;
+        Ok(s.to_owned().try_into()?)
+    }
+}
+
+impl serde::Serialize for Utf8CString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_ref())
+    }
+}
+impl<'de> serde::Deserialize<'de> for Utf8CString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        /// Visitor to implement Deserialize for Utf8CString
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Utf8CString;
+
+            fn expecting(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+                fmt.write_str("a UTF-8 string with no internal NULs")
+            }
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Utf8CString::try_from_bytes(v).map_err(|e| E::custom(e))
+            }
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Utf8CString::try_from(v.to_owned()).map_err(|e| E::custom(e))
+            }
+        }
+        deserializer.deserialize_str(Visitor)
     }
 }
 
