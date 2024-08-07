@@ -71,7 +71,7 @@ while true; do
 	    shift
 	    ;;
 	-c | --check)
-	    fail_on_change=0
+	    fail_on_change=1
 	    replace=0
 	    shift
 	    ;;
