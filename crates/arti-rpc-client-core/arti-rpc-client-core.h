@@ -297,6 +297,22 @@ ArtiRpcStatus arti_rpc_connect(const char *connection_string,
                                ArtiRpcError **error_out);
 
 /**
+ * Given a pointer to an RPC connection, return the object ID for its negotiated session.
+ *
+ * (The session was negotiated as part of establishing the connection.
+ * Its object ID is necessary to invoke most other functionality on Arti.)
+ *
+ * The caller should be prepared for a possible NULL return, in case somehow
+ * no session was negotiated.
+ *
+ * # Ownership
+ *
+ * The resulting string is a reference to part of the `ArtiRpcConn`.
+ * It lives for no longer than the underlying `ArtiRpcConn` object.
+ */
+const char *arti_rpc_conn_get_session_id(const ArtiRpcConn *rpc_conn);
+
+/**
  * Run an RPC request over `rpc_conn` and wait for a successful response.
  *
  * The message `msg` should be a valid RPC request in JSON format.
@@ -355,6 +371,18 @@ const char *arti_status_to_str(ArtiRpcStatus status);
  * If `err` is NULL, return [`ARTI_RPC_STATUS_INVALID_INPUT`].
  */
 ArtiRpcStatus arti_rpc_err_status(const ArtiRpcError *err);
+
+/**
+ * Return the OS error code underlying `err`, if any.
+ *
+ * This is typically an `errno` on unix-like systems , or the result of `GetLastError()`
+ * on Windows.  It is only present when `err` was caused by the failure of some
+ * OS library call, like a `connect()` or `read()`.
+ *
+ * Returns 0 if `err` is NULL, or if `err` was not caused by the failure of an
+ * OS library call.
+ */
+int arti_rpc_err_os_error_code(const ArtiRpcError *err);
 
 /**
  * Return a human-readable error message associated with a given error.
