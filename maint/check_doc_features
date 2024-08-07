@@ -42,6 +42,10 @@ additional_required['tor-llcrypto']= [
     ('aes', 'all()'),
 ]
 
+additional_required['tor-hsservice'] = [
+    ('restricted_discovery', 'all()'),
+]
+
 # This is an * include; expended wildcard must be in additional_required
 additional_provided['tor-proto']= [
     ('*', 'feature = "testing"'),
@@ -109,7 +113,7 @@ def extract_cfg_attr(path):
                 # last line was a cfg and this is a declaration
                 subline = line[pos:]
                 subline = subline[subline.find(' ') + 1:]
-                end = min(subline.find(pat) for pat in ' (<' if subline.find(pat) !=-1)
+                end = min(subline.find(pat) for pat in ' (<;' if subline.find(pat) !=-1)
                 ident = subline[:end]
                 res.append((ident, cfg))
                 cfg = None

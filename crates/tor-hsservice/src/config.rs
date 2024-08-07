@@ -9,10 +9,13 @@ use crate::config::restricted_discovery::{
 };
 
 #[cfg(feature = "restricted-discovery")]
-#[cfg_attr(docsrs, doc(cfg(feature = "restricted-discovery")))]
 pub mod restricted_discovery;
 
+// Only exported with pub visibility if the restricted-discovery feature is enabled.
 #[cfg(not(feature = "restricted-discovery"))]
+// Use cfg(all()) to prevent this from being documented as
+// "Available on non-crate feature `restricted-discovery` only"
+#[cfg_attr(docsrs, doc(cfg(all())))]
 pub(crate) mod restricted_discovery;
 
 /// Configuration for one onion service.
