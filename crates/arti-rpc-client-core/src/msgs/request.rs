@@ -4,10 +4,7 @@
 //!
 //! - [`Request`] is for requests that are generated from within this crate,
 //!   to implement authentication, negotiation, and other functionality.
-//! - [`LooseParsedRequest`] is for a request we've received from the user
-//!   (or parsed from a `Request`)
-//!   which might not have a request ID yet.
-//! - [`ParsedRequest`] is for a request we've completely validated,
+//! - `ParsedRequestFields` (internal) is for a request we've completely validated,
 //!   with all of its fields present.
 //! - [`ValidatedRequest`] is for a string that we have validated as a request.
 
@@ -20,13 +17,14 @@ pub(crate) type JsonMap = serde_json::Map<String, serde_json::Value>;
 
 use crate::conn::ProtoError;
 
-use super::{AnyRequestId, ObjectId};
+use super::{AnyRequestId, JsonAnyObj, ObjectId};
 
 /// An outbound request that we have generated from within this crate.
 ///
 /// It lacks a required `id` field (since we will generate one when sending it),
 /// and it allows any Serialize for its `params`.
 #[derive(Serialize, Debug)]
+// Testing only. Don't implement Deserialize here; this is not the type you should parse into!
 #[cfg_attr(test, derive(Eq, PartialEq, Deserialize))]
 #[allow(clippy::missing_docs_in_private_items)] // Fields are as for ParsedRequest.
 pub(crate) struct Request<T> {
@@ -37,6 +35,21 @@ pub(crate) struct Request<T> {
     pub(crate) meta: Option<RequestMeta>,
     pub(crate) method: String,
     pub(crate) params: T,
+}
+
+/// An error that has prevented us from validating an request.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum InvalidRequestError {
+    /// We failed to turn the request into any kind of json.
+    #[error("Request was not valid Json")]
+    InvalidJson(#[source] Arc<serde_json::Error>),
+    /// We got the request into json, but we couldn't find the fields we wanted.
+    #[error("Request's fields were invalid or missing")]
+    InvalidFormat(#[source] Arc<serde_json::Error>),
+    /// We validated the request, but couldn't re-encode it.
+    #[error("Unable to re-encode or format request")]
+    ReencodeFailed(#[source] Arc<serde_json::Error>),
 }
 
 impl<T: Serialize> Request<T> {
@@ -60,30 +73,26 @@ impl<T: Serialize> Request<T> {
 
 /// A request in its decoded (or unencoded) format.
 ///
-/// We use this type to validate outbound requests from the application,
-/// and to generate our own requests.
-#[derive(Deserialize, Serialize, Debug)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
-pub(crate) struct ParsedRequest {
+/// We use this type to validate outbound requests from the application.
+#[derive(Deserialize, Debug)]
+// Don't implement Serialize here; this is not for generating requests!
+#[allow(dead_code)] // The fields here are only used for validating serde objects.
+struct ParsedRequestFields {
     /// The identifier for this request.
     ///
     /// Used to match a request with its responses.
-    pub(crate) id: AnyRequestId,
+    id: AnyRequestId,
     /// The ID for the object to which this request is addressed.
     ///
     /// (Every request goes to a single object.)
-    pub(crate) obj: ObjectId,
+    obj: ObjectId,
     /// Additional information for Arti about how to handle the request.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) meta: Option<RequestMeta>,
+    meta: Option<RequestMeta>,
     /// The name of the method to invoke.
-    pub(crate) method: String,
+    method: String,
     /// Parameters to pass to the method.
-    pub(crate) params: JsonMap,
-    /// Any unrecognized fields that we received from the user.
-    /// (We re-encode these in case the user knows about fields that we don't.)
-    #[serde(flatten)]
-    pub(crate) unrecognized_fields: JsonMap,
+    params: JsonAnyObj,
 }
 
 /// A known-valid request, encoded as a string (in a single line, with a terminating newline).
@@ -96,21 +105,52 @@ pub(crate) struct ValidatedRequest {
     id: AnyRequestId,
 }
 
-impl ParsedRequest {
-    /// Convert a ParsedRequest into a string that is known to be valid.
-    pub(crate) fn format(&self) -> Result<ValidatedRequest, serde_json::Error> {
-        let id = self.id.clone();
-        let mut msg = serde_json::to_string(self)?;
-        debug_assert!(!msg.contains('\n'));
-        msg.push('\n');
-        Ok(ValidatedRequest { id, msg })
-    }
-}
-
 impl ValidatedRequest {
     /// Return the Id associated with this request.
     pub(crate) fn id(&self) -> &AnyRequestId {
         &self.id
+    }
+
+    /// Try to construct a validated request from a `serde_json::Value`.
+    fn from_json_value(val: serde_json::Value) -> Result<Self, InvalidRequestError> {
+        let mut msg = serde_json::to_string(&val)
+            .map_err(|e| InvalidRequestError::ReencodeFailed(Arc::new(e)))?;
+        debug_assert!(!msg.contains('\n'));
+        msg.push('\n');
+
+        let req: ParsedRequestFields = serde_json::from_value(val)
+            .map_err(|e| InvalidRequestError::InvalidFormat(Arc::new(e)))?;
+        let id = req.id;
+
+        Ok(ValidatedRequest { id, msg })
+    }
+
+    /// Try to construct a validated request using `s`.
+    pub(crate) fn from_string_strict(s: &str) -> Result<Self, InvalidRequestError> {
+        let value: serde_json::Value =
+            serde_json::from_str(s).map_err(|e| InvalidRequestError::InvalidJson(Arc::new(e)))?;
+        Self::from_json_value(value)
+    }
+
+    /// Try to construct a ValidatedRequest from the string in `s`.
+    ///
+    /// If it has no `id`, add one using `id_generator`.
+    pub(crate) fn from_string_loose<F>(
+        s: &str,
+        id_generator: F,
+    ) -> Result<Self, InvalidRequestError>
+    where
+        F: FnOnce() -> AnyRequestId,
+    {
+        let mut value: serde_json::Value =
+            serde_json::from_str(s).map_err(|e| InvalidRequestError::InvalidJson(Arc::new(e)))?;
+
+        if let Some(obj) = value.as_object_mut() {
+            obj.entry("id")
+                .or_insert_with(|| id_generator().into_json_value());
+        }
+
+        Self::from_json_value(value)
     }
 }
 
@@ -128,41 +168,6 @@ pub(crate) struct RequestMeta {
     /// (We re-encode these in case the user knows about fields that we don't.)
     #[serde(flatten)]
     pub(crate) unrecognized_fields: JsonMap,
-}
-
-/// Crate-internal: A parsed request from the application which may not (yet) be valid.
-///
-/// We can convert this into a ParsedRequest after fixing up any missing or invalid fields.
-#[derive(Deserialize, Debug)]
-#[allow(clippy::missing_docs_in_private_items)] // Fields are as for ParsedRequest.
-pub(crate) struct LooseParsedRequest {
-    id: Option<AnyRequestId>,
-    obj: ObjectId,
-    meta: Option<RequestMeta>,
-    method: String,
-    params: JsonMap,
-    /// Any unrecognized fields that we received from the user.
-    /// (We re-encode these in case the user knows about fields that we don't.)
-    #[serde(flatten)]
-    pub(crate) unrecognized_fields: JsonMap,
-}
-
-impl LooseParsedRequest {
-    /// Convert this `LooseParsedRequest` into a valid `ParsedRequest`,
-    /// by filling in any missing fields.
-    pub(crate) fn into_request<F>(self, id_generator: F) -> ParsedRequest
-    where
-        F: FnOnce() -> AnyRequestId,
-    {
-        ParsedRequest {
-            id: self.id.unwrap_or_else(id_generator),
-            obj: self.obj,
-            meta: self.meta,
-            method: self.method,
-            params: self.params,
-            unrecognized_fields: self.unrecognized_fields,
-        }
-    }
 }
 
 /// A helper to return unique Request identifiers.
@@ -201,12 +206,14 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    impl ParsedRequest {
+    impl ParsedRequestFields {
         /// Return true if this request is asking for updates.
         fn updates_requested(&self) -> bool {
             self.meta.as_ref().map(|m| m.updates).unwrap_or(false)
         }
     }
+
+    use crate::util::assert_same_json;
 
     use super::*;
     const REQ1: &str = r#"{"id":7, "obj": "hi", "meta": {"updates": true}, "method":"twiddle", "params":{"stuff": "nonsense"} }"#;
@@ -216,32 +223,29 @@ mod test {
 
     #[test]
     fn parse_requests() {
-        let req1: ParsedRequest = serde_json::from_str(REQ1).unwrap();
+        let req1: ParsedRequestFields = serde_json::from_str(REQ1).unwrap();
         assert_eq!(req1.id, 7.into());
         assert_eq!(req1.obj.as_ref(), "hi");
         assert_eq!(req1.updates_requested(), true);
         assert_eq!(req1.method, "twiddle");
-        assert_eq!(
-            req1.params.get("stuff").unwrap(),
-            &serde_json::Value::String("nonsense".into())
-        );
 
-        let req2: ParsedRequest = serde_json::from_str(REQ2).unwrap();
+        let req2: ParsedRequestFields = serde_json::from_str(REQ2).unwrap();
         assert_eq!(req2.id, "fred".to_string().into());
         assert_eq!(req2.obj.as_ref(), "hi");
         assert_eq!(req2.updates_requested(), false);
         assert_eq!(req2.method, "twiddle");
-        assert!(req2.params.is_empty());
 
-        let _req3: ParsedRequest = serde_json::from_str(REQ2).unwrap();
+        let _req3: ParsedRequestFields = serde_json::from_str(REQ2).unwrap();
     }
+
     #[test]
     fn reencode_requests() {
         for r in [REQ1, REQ2, REQ3] {
-            let r: ParsedRequest = serde_json::from_str(r).unwrap();
-            let v = r.format().unwrap();
-            let r2: ParsedRequest = serde_json::from_str(v.as_ref()).unwrap();
-            assert_eq!(r, r2);
+            let val1 = ValidatedRequest::from_string_strict(r).unwrap();
+            let val2 = ValidatedRequest::from_string_loose(r, || panic!()).unwrap();
+
+            assert_same_json!(val1.as_ref(), val2.as_ref());
+            assert_same_json!(val1.as_ref(), r);
         }
     }
 
@@ -265,7 +269,7 @@ mod test {
             // weird method
             r#"{"obj":"hi", "id": 7, "method":6", "params":{"stuff":"nonsense"}}"#,
         ] {
-            let r: Result<ParsedRequest, _> = serde_json::from_str(text);
+            let r: Result<ParsedRequestFields, _> = serde_json::from_str(dbg!(text));
             assert!(r.is_err());
         }
     }
@@ -273,11 +277,10 @@ mod test {
     #[test]
     fn fix_requests() {
         let no_id = r#"{"obj":"hi", "method":"twiddle", "params":{"stuff":"nonsense"}}"#;
-        let loose: LooseParsedRequest = serde_json::from_str(no_id).unwrap();
-        let req = loose.into_request(|| 7.into());
-        let with_id = req.format().unwrap();
-        let req2: ParsedRequest = serde_json::from_str(with_id.as_ref()).unwrap();
-        assert_eq!(req, req2);
+        let validated = ValidatedRequest::from_string_loose(no_id, || 7.into()).unwrap();
+        let expected_with_id =
+            r#"{"id": 7, "obj":"hi", "method":"twiddle", "params":{"stuff":"nonsense"}}"#;
+        assert_same_json!(validated.as_ref(), expected_with_id);
     }
 
     #[test]
@@ -289,19 +292,15 @@ mod test {
              "params":{"stuff":"nonsense"},
              "explosions": -70
             }"#;
-        let loose: LooseParsedRequest = serde_json::from_str(orig).unwrap();
-        let req = loose.into_request(|| 77.into());
-        let with_id = req.format().unwrap();
-        dbg!(&with_id);
-        let req2: ParsedRequest = serde_json::from_str(with_id.as_ref()).unwrap();
-        assert_eq!(req, req2);
-        assert!(req2
-            .meta
-            .unwrap()
-            .unrecognized_fields
-            .get("waffles")
-            .is_some());
-        assert!(req2.unrecognized_fields.get("explosions").is_some());
-        assert!(req2.unrecognized_fields.get("waffles").is_none());
+        let validated = ValidatedRequest::from_string_loose(orig, || 77.into()).unwrap();
+        let expected_with_id = r#"
+            {"id":77,
+            "obj":"hi",
+            "meta": { "updates": true, "waffles": "yesplz" },
+            "method":"twiddle",
+            "params":{"stuff":"nonsense"},
+            "explosions": -70
+            }"#;
+        assert_same_json!(validated.as_ref(), expected_with_id);
     }
 }

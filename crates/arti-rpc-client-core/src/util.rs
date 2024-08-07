@@ -132,3 +132,15 @@ pub(crate) mod ffi {
         }
     }
 }
+
+#[cfg(test)]
+/// Assert that s1 and s2 are both valid json, and parse to the same serde_json::Value.
+macro_rules! assert_same_json {
+        { $s1:expr, $s2:expr } => {
+            let v1: serde_json::Value = serde_json::from_str($s1).unwrap();
+            let v2: serde_json::Value = serde_json::from_str($s2).unwrap();
+            assert_eq!(v1, v2);
+        }
+    }
+#[cfg(test)]
+pub(crate) use assert_same_json;

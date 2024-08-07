@@ -4,7 +4,7 @@
 
 use crate::{
     msgs::{
-        request::{ParsedRequest, ValidatedRequest},
+        request::{InvalidRequestError, ValidatedRequest},
         response::UnparsedResponse,
     },
     util::define_from_for_arc,
@@ -75,11 +75,7 @@ impl Writer {
     ///
     /// Return an error if an IO problems occurred, or if the request was not well-formed.
     pub fn send_request(&mut self, request: &str) -> Result<(), SendRequestError> {
-        let req: ParsedRequest = serde_json::from_str(request)?;
-        // TODO: Perhaps someday we'd like a way to send without re-encoding.
-        let validated = req
-            .format()
-            .map_err(|e| SendRequestError::ReEncode(Arc::new(e)))?;
+        let validated = ValidatedRequest::from_string_strict(request)?;
         self.send_valid(&validated)?;
         Ok(())
     }
@@ -107,13 +103,12 @@ pub enum SendRequestError {
     Io(Arc<io::Error>),
     /// We found a problem in the JSON while sending a request.
     #[error("Invalid Json request: {0}")]
-    InvalidRequest(Arc<serde_json::Error>),
+    InvalidRequest(#[from] InvalidRequestError),
     /// Internal error while re-encoding request.  Should be impossible.
     #[error("Unable to re-encode request after parsing it‽")]
     ReEncode(Arc<serde_json::Error>),
 }
 define_from_for_arc!( io::Error => SendRequestError [Io] );
-define_from_for_arc!( serde_json::Error => SendRequestError [InvalidRequest] );
 
 #[cfg(test)]
 mod test {
@@ -134,6 +129,8 @@ mod test {
     use std::thread;
 
     use io::{BufRead, BufReader, Cursor};
+
+    use crate::util::assert_same_json;
 
     use super::*;
 
@@ -208,7 +205,7 @@ mod test {
         let write_result = wt.join().unwrap();
         assert!(write_result.is_ok());
         let read_result = rt.join().unwrap().unwrap();
-        assert_eq!(
+        assert_same_json!(
             read_result.strip_suffix('\n').unwrap(),
             r#"{"id":7,"obj":"foo","method":"arti:x-frob","params":{},"extra":"preserved"}"#
         );

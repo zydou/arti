@@ -33,6 +33,18 @@ pub enum AnyRequestId {
     String(String),
 }
 
+impl AnyRequestId {
+    /// Convert this request ID into a json value.
+    //
+    // (This is a private function because we don't want to expose serde_json in our API.)
+    fn into_json_value(self) -> serde_json::Value {
+        match self {
+            AnyRequestId::Number(n) => serde_json::Value::Number(n.into()),
+            AnyRequestId::String(s) => serde_json::Value::String(s),
+        }
+    }
+}
+
 /// An identifier for some object visible to the Arti RPC system.
 ///
 /// A single object may have multiple underlying identifiers.
@@ -75,5 +87,78 @@ impl AsRef<str> for ObjectId {
 impl From<ObjectId> for String {
     fn from(v: ObjectId) -> String {
         v.as_ref().into()
+    }
+}
+
+/// Serde helper: deserializes (and discards) the contents of any json Object,
+/// and does not accept any other type.
+#[derive(Debug)]
+struct JsonAnyObj {}
+// Note: We can't just use `derive(Deserialize)` here, since that would permit empty arrays.
+impl<'de> serde::de::Deserialize<'de> for JsonAnyObj {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        /// Visitor to implement deserialize.
+        struct Vis;
+        impl<'de> serde::de::Visitor<'de> for Vis {
+            type Value = JsonAnyObj;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a JSON object")
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                // We need to iterate over the map, or else we'll get an error.
+                while let Some((k, v)) = map.next_entry()? {
+                    // It's okay to allow any type here for keys;
+                    // serde_json won't deserialize a key  unless it is a string.
+                    let _: serde::de::IgnoredAny = k;
+                    let _: serde::de::IgnoredAny = v;
+                }
+                Ok(JsonAnyObj {})
+            }
+        }
+
+        deserializer.deserialize_map(Vis)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn any_obj_good() {
+        for ok in [
+            r#"{}"#,
+            r#"{"7": 7}"#,
+            r#"{"stuff": "nonsense", "this": {"that": "the other"}}"#,
+        ] {
+            let _obj: JsonAnyObj = serde_json::from_str(ok).unwrap();
+        }
+    }
+    #[test]
+    fn any_obj_bad() {
+        for bad in [r"[]", r#"7"#, r#"ksldjfa"#, r#""#, r#"{7:"foo"}"#] {
+            let err: Result<JsonAnyObj, _> = serde_json::from_str(bad);
+            assert!(err.is_err());
+        }
     }
 }

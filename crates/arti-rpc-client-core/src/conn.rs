@@ -12,6 +12,7 @@ use std::{
 use crate::{
     llconn,
     msgs::{
+        request::InvalidRequestError,
         response::{ResponseKind, RpcError, ValidatedResponse},
         AnyRequestId, ObjectId,
     },
@@ -354,7 +355,7 @@ pub enum ProtoError {
 
     /// There was a problem in the request we tried to send.
     #[error("Invalid request: {0}")]
-    InvalidRequest(#[source] Arc<serde_json::Error>),
+    InvalidRequest(#[from] InvalidRequestError),
 
     /// We tried to send a request with an ID that was already pending.
     #[error("Request ID already in use.")]
@@ -434,7 +435,7 @@ mod test {
     use rand::{seq::SliceRandom as _, Rng as _, SeedableRng as _};
     use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
 
-    use crate::msgs::request::{JsonMap, ParsedRequest, Request};
+    use crate::msgs::request::{JsonMap, Request, ValidatedRequest};
 
     use super::*;
 
@@ -469,9 +470,9 @@ mod test {
             let mut sock = BufReader::new(sock);
             let mut s = String::new();
             let _len = sock.read_line(&mut s).unwrap();
-            let request: ParsedRequest = serde_json::from_str(&s).unwrap();
+            let request = ValidatedRequest::from_string_strict(s.as_ref()).unwrap();
             let response = serde_json::json!({
-                "id": request.id.clone(),
+                "id": request.id().clone(),
                 "result": { "xyz" : 3 }
             });
             write_val(sock.get_mut(), &response);
