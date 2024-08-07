@@ -50,6 +50,10 @@ pub(crate) enum ArtiNativeKeystoreError {
     #[error("{0}")]
     UnknownKeyType(#[from] UnknownKeyTypeError),
 
+    /// An error due to encountering a directory or symlink at a key path.
+    #[error("File at {0} is not a regular file")]
+    NotARegularFile(PathBuf),
+
     /// Failed to parse an OpenSSH key
     #[error("Failed to parse OpenSSH with type {key_type:?}")]
     SshKeyParse {
@@ -125,6 +129,7 @@ impl HasKind for ArtiNativeKeystoreError {
             KE::FsMistrust { err, .. } => err.keystore_error_kind(),
             KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
             KE::UnknownKeyType(_) => ErrorKind::KeystoreAccessFailed,
+            KE::NotARegularFile(_) => ErrorKind::KeystoreCorrupted,
             KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } => {
                 ErrorKind::KeystoreCorrupted
             }

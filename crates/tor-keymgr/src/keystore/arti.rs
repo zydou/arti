@@ -11,7 +11,6 @@ use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::result::Result as StdResult;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
@@ -116,15 +115,29 @@ impl Keystore for ArtiNativeKeystore {
 
     fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
         let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(false));
-        let abs_path = path.checked_path()?;
 
-        Ok(abs_path
-            .try_exists()
-            .map_err(|e| ArtiNativeKeystoreError::Filesystem {
-                action: FilesystemAction::Read,
-                path: self.keystore_dir.as_path().into(),
-                err: Arc::new(e),
-            })?)
+        let meta = match checked_op!(metadata, path) {
+            Ok(meta) => meta,
+            Err(fs_mistrust::Error::NotFound(_)) => return Ok(false),
+            Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
+                return Ok(false);
+            }
+            Err(e) => {
+                return Err(ArtiNativeKeystoreError::FsMistrust {
+                    action: FilesystemAction::Read,
+                    path: path.rel_path_unchecked().into(),
+                    err: e.into(),
+                }
+                .into())
+            }
+        };
+
+        // The path exists, now check that it's actually a file and not a directory or symlink.
+        if meta.is_file() {
+            Ok(true)
+        } else {
+            Err(ArtiNativeKeystoreError::NotARegularFile(path.rel_path_unchecked().into()).into())
+        }
     }
 
     fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
@@ -307,6 +320,9 @@ mod tests {
     use tempfile::{tempdir, TempDir};
     use tor_llcrypto::pk::ed25519;
 
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
     fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
         let rel_key_path = key_store
             .rel_path(&TestSpecifier::default(), key_type)
@@ -316,9 +332,6 @@ mod tests {
     }
 
     fn init_keystore(gen_keys: bool) -> (ArtiNativeKeystore, TempDir) {
-        #[cfg(unix)]
-        use std::os::unix::fs::PermissionsExt;
-
         let keystore_dir = tempdir().unwrap();
 
         #[cfg(unix)]
@@ -597,5 +610,23 @@ mod tests {
             ],
             key_store.list().unwrap()
         );
+    }
+
+    #[test]
+    fn key_path_not_regular_file() {
+        let (key_store, _keystore_dir) = init_keystore(false);
+
+        let key_path = key_path(&key_store, &KeyType::Ed25519Keypair);
+        // The key is a directory, not a regular file
+        fs::create_dir_all(&key_path).unwrap();
+        assert!(key_path.try_exists().unwrap());
+        let parent = key_path.parent().unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let err = key_store
+            .contains(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+            .unwrap_err();
+        assert!(err.to_string().contains("not a regular file"), "{err}");
     }
 }
