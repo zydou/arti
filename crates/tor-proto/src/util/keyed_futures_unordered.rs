@@ -6,6 +6,7 @@
 use std::{
     collections::{hash_map, HashMap},
     hash::Hash,
+    ops::{Deref, DerefMut},
     pin::Pin,
     sync::Arc,
     task::Poll,
@@ -108,6 +109,42 @@ where
     /// Remove the entry for `key`, if any, and return the corresponding future.
     pub fn remove(&mut self, key: &K) -> Option<(K, F)> {
         self.futures.remove_entry(key)
+    }
+
+    /// Get the future corresponding to `key`, if any.
+    ///
+    /// As for [`Self::get_mut`], removing or replacing its [`std::task::Waker`]
+    /// without waking it (e.g. using internal mutability) results in
+    /// unspecified (but sound) behavior.
+    #[allow(dead_code)]
+    pub fn get<'a>(&'a self, key: &K) -> Option<impl Deref<Target = F> + 'a> {
+        self.futures.get(key)
+    }
+
+    /// Get the future corresponding to `key`, if any.
+    ///
+    /// The future should not be `poll`d, nor its registered
+    /// [`std::task::Waker`] otherwise removed or replaced (unless it is also
+    /// woken; see below). The result of doing either is unspecified (but
+    /// sound).
+    ///
+    /// This method is useful primarily when the future has other functionality
+    /// or data bundled with it besides its implementation of the `Future`
+    /// trait, though it *is* permitted to mutate the object in a way that
+    /// causes it to become ready (i.e. wakes and discards its registered
+    /// [`std::task::Waker`]`), or become unready (cause its next poll result to
+    /// be `Poll::Pending` when it otherwise would have been `Poll::Ready` and
+    /// may have already woken its registered `Waker`).
+    //
+    // More specifically:
+    // * If the waker is lost without being woken, we'll never
+    //   poll this future again.
+    // * If our waker is woken *and* the caller polls the future to completion,
+    //   we could end up polling it again after completion,
+    //   breaking the `Future` contract.
+    #[allow(dead_code)]
+    pub fn get_mut<'a>(&'a mut self, key: &K) -> Option<impl DerefMut<Target = F> + 'a> {
+        self.futures.get_mut(key)
     }
 }
 
@@ -218,7 +255,7 @@ mod tests {
     struct Value(u64);
 
     /// Alternative to futures::future::Ready that supports comparison for testing.
-    #[derive(Eq, PartialEq, Debug)]
+    #[derive(Eq, PartialEq, Debug, Clone)]
     struct ReadyFut<V>(Option<V>);
 
     impl<V> ReadyFut<V> {
@@ -239,7 +276,7 @@ mod tests {
     }
 
     /// Alternative to futures::future::Pending that supports comparison for testing.
-    #[derive(Eq, PartialEq, Debug, Default)]
+    #[derive(Eq, PartialEq, Debug, Clone)]
     struct PendingFut<V>(V);
 
     impl<V> PendingFut<V> {
@@ -259,11 +296,15 @@ mod tests {
     #[test]
     fn test_empty() {
         block_on(poll_fn(|cx| {
-            let mut kfu = KeyedFuturesUnordered::<Key, oneshot::Receiver<Value>>::new();
+            let mut kfu = KeyedFuturesUnordered::<Key, PendingFut<Value>>::new();
 
             // When there are no futures in the set (ready or pending), returns
             // `Poll::Ready(None)` as for `FuturesUnordered`.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
+
+            // Nothing to get.
+            assert_eq!(kfu.get(&Key(0)).map(|x| x.clone()), None);
+            assert_eq!(kfu.get_mut(&Key(0)).map(|x| x.clone()), None);
 
             Poll::Ready(())
         }));
@@ -283,6 +324,16 @@ mod tests {
             // State should be unchanged; same result if we poll again.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Pending);
 
+            // We should be able to get the future.
+            assert_eq!(
+                kfu.get(&Key(0)).map(|x| x.clone()),
+                Some(PendingFut::new(Value(0)))
+            );
+            assert_eq!(
+                kfu.get_mut(&Key(0)).map(|x| x.clone()),
+                Some(PendingFut::new(Value(0)))
+            );
+
             Poll::Ready(())
         }));
     }
@@ -294,6 +345,16 @@ mod tests {
 
             kfu.try_insert(Key(0), ReadyFut::new(Value(1))).unwrap();
 
+            // Should be able to get the future before it's polled.
+            assert_eq!(
+                kfu.get(&Key(0)).map(|x| x.clone()),
+                Some(ReadyFut::new(Value(1)))
+            );
+            assert_eq!(
+                kfu.get_mut(&Key(0)).map(|x| x.clone()),
+                Some(ReadyFut::new(Value(1)))
+            );
+
             // When there is a ready future, returns it.
             assert_eq!(
                 kfu.poll_next_unpin(cx),
@@ -302,6 +363,8 @@ mod tests {
 
             // After having returned the ready future, should be empty again.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
+            assert_eq!(kfu.get(&Key(0)).map(|x| x.clone()), None);
+            assert_eq!(kfu.get_mut(&Key(0)).map(|x| x.clone()), None);
 
             Poll::Ready(())
         }));
@@ -317,6 +380,10 @@ mod tests {
             // Nothing ready yet.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Pending);
 
+            // Should be able to get it.
+            assert!(kfu.get(&Key(0)).is_some());
+            assert!(kfu.get_mut(&Key(0)).is_some());
+
             send.send(Value(1)).unwrap();
 
             // oneshot future should be ready.
@@ -326,6 +393,8 @@ mod tests {
             );
 
             // Empty again.
+            assert!(kfu.get(&Key(0)).is_none());
+            assert!(kfu.get_mut(&Key(0)).is_none());
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
 
             Poll::Ready(())
