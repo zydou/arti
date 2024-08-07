@@ -148,4 +148,3 @@ trycmd = "0.15.4"
 winapi = { version = "0.3.8", features = ["winerror"] }
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

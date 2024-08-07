@@ -38,4 +38,3 @@ tempfile = "3"
 toml = "0.8.8"
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

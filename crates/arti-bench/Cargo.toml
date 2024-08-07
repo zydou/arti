@@ -37,4 +37,3 @@ tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 full = ["arti/full", "arti-client/full", "fs-mistrust/full", "tor-config/full", "tor-rtcompat/full"]
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

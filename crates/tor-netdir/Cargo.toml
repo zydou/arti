@@ -80,4 +80,3 @@ hex-literal = "0.4"
 tor-netdoc = { path = "../tor-netdoc", version = "0.21.0", features = ["build_docs"] }
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

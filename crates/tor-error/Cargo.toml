@@ -42,4 +42,3 @@ tracing-test = "0.2.4"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

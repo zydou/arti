@@ -100,4 +100,3 @@ tor-rtmock = { path = "../tor-rtmock", version = "0.21.0" }
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
