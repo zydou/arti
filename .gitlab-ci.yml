@@ -99,6 +99,15 @@ maint-check-ownership:
     # a chance to run `cargo add`.
     - if: $CI_COMMIT_BRANCH == "main"
 
+maint-check-cbindgen:
+  stage: test
+  # cbindgen needs nightly rust to do macro expansion
+  image: rustlang/rust:nightly
+  script:
+    - ./maint/common/apt-install python3-toml
+    - ./maint/common/via-cargo-install-in-ci cbindgen
+    - ./maint/cbindgen --check
+
 # non-blocking for now, see
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/581
 #      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
