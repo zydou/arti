@@ -1,11 +1,14 @@
 #0 Contributors to exclude when running maint/thanks.
-#1 Include members of the Tor Project here.
+#1 Include employees and contractors of the Tor Project here.
 #2 WARNING: This file MUST be sorted.
+Alexander Færøy
 David Goulet
 eta
+Gaba
 gabi-250
 Gabi Moldovan
 Gabriela Moldovan
 Ian Jackson
+Jim Newsome
 Nick Mathewson
 Tor CI Release
