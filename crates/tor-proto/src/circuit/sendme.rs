@@ -64,6 +64,7 @@ pub(crate) type StreamRecvWindow = RecvWindow<StreamParams>;
 /// Additionally, remembers a list of tags that could be used to
 /// acknowledge the cells we have already sent, so we know it's safe
 /// to send more.
+#[derive(Debug)]
 pub(crate) struct SendWindow<P, T>
 where
     P: WindowParams,

@@ -16,6 +16,7 @@ use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 /// We need to track these streams instead of forgetting about them entirely,
 /// since otherwise we'd be vulnerable to a class of "DropMark" attacks;
 /// see <https://gitlab.torproject.org/tpo/core/tor/-/issues/25573>.
+#[derive(Debug)]
 pub(super) struct HalfStream {
     /// Send window for this stream. Used to detect whether we get too many
     /// SENDME cells.

@@ -29,6 +29,7 @@ use self::counted_map::{CountedHashMap, Entry};
 ///
 /// (For the purposes of this module, an open stream is one where we have not
 /// sent or received any message indicating that the stream is ended.)
+#[derive(Debug)]
 pub(super) struct OpenStreamEnt {
     /// Sink to send relay cells tagged for this stream into.
     pub(super) sink: mpsc::Sender<UnparsedRelayMsg>,
@@ -43,6 +44,7 @@ pub(super) struct OpenStreamEnt {
 
 /// Entry for a stream where we have sent an END, or other message
 /// indicating that the stream is terminated.
+#[derive(Debug)]
 pub(super) struct EndSentStreamEnt {
     /// A "half-stream" that we use to check the validity of incoming
     /// messages on this stream.
@@ -53,6 +55,7 @@ pub(super) struct EndSentStreamEnt {
 }
 
 /// The entry for a stream.
+#[derive(Debug)]
 enum StreamEnt {
     /// An open stream.
     Open(OpenStreamEnt),
@@ -284,6 +287,10 @@ impl StreamMap {
             }
             StreamEnt::Open { .. } => {
                 stream_entry.insert(StreamEnt::EndReceived);
+                self.rxs
+                    .remove(&id)
+                    // By invariant on `self.m` that every open stream has an entry in `rxs`.
+                    .expect("Missing stream for {id:?}");
 
                 Ok(())
             }
@@ -373,10 +380,11 @@ impl StreamMap {
         cx: &mut std::task::Context,
     ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>, &'a OpenStreamEnt)> + 'a {
         self.rxs.poll_ready_iter(cx).map(|(sid, msg, _priority)| {
-            let Some(StreamEnt::Open(o)) = self.m.get(sid) else {
+            let ent = self.m.get(sid);
+            let Some(StreamEnt::Open(o)) = ent else {
                 // By:
                 // * Invariant on `rxs` that every key has a corresponding open strema in `m`.
-                panic!("Missing open stream");
+                panic!("Missing open stream for {sid:?}: {ent:?}");
             };
             (*sid, msg, o)
         })
