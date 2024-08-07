@@ -568,7 +568,10 @@ mod test {
                 checked.remove_file("x/y/z"),
                 Err(Error::BadPermission(_, _, _))
             ));
-            assert!(matches!(checked.metadata("x/y/z"), Err(Error::BadPermission(_, _, _))));
+            assert!(matches!(
+                checked.metadata("x/y/z"),
+                Err(Error::BadPermission(_, _, _))
+            ));
         }
     }
 }
