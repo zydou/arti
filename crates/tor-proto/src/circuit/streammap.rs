@@ -379,15 +379,17 @@ impl StreamMap {
         &'a mut self,
         cx: &mut std::task::Context,
     ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>, &'a OpenStreamEnt)> + 'a {
-        self.rxs.poll_ready_iter(cx).map(|(sid, msg, _priority)| {
-            let ent = self.m.get(sid);
-            let Some(StreamEnt::Open(o)) = ent else {
-                // By:
-                // * Invariant on `rxs` that every key has a corresponding open strema in `m`.
-                panic!("Missing open stream for {sid:?}: {ent:?}");
-            };
-            (*sid, msg, o)
-        })
+        self.rxs
+            .poll_ready_iter(cx)
+            .map(|(sid, msg, _priority, _rx)| {
+                let ent = self.m.get(sid);
+                let Some(StreamEnt::Open(o)) = ent else {
+                    // By:
+                    // * Invariant on `rxs` that every key has a corresponding open strema in `m`.
+                    panic!("Missing open stream for {sid:?}: {ent:?}");
+                };
+                (*sid, msg, o)
+            })
     }
 
     /// If the stream `sid` has a message ready, take it, and reprioritize `sid`

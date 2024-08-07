@@ -98,19 +98,26 @@ where
         Ok(())
     }
 
-    /// Remove the entry `key`.
-    pub fn remove(&mut self, key: &K) -> Option<(K, P)> {
+    /// Remove the entry for `key`, if any. This is the key, priority, buffered value, and stream.
+    ///
+    /// The buffered value is `None` if there is no buffered value, `Some(None)`
+    /// if the last item read was `None` (i.e. the stream is exhausted), and
+    /// `Some(Some(_))` if we had a buffered value.
+    pub fn remove(&mut self, key: &K) -> Option<(K, P, Option<Option<V>>, S)> {
         let priority = self.priorities.remove(key)?;
-        if let Some((key, _stream_fut)) = self.pending_streams.remove(key) {
-            // Validate `pending_streams` invariant that keys are also present in exactly one of
+        if let Some((key, stream_fut)) = self.pending_streams.remove(key) {
+            // Validate `priorities` invariant that keys are also present in exactly one of
             // `pending_streams` and `ready_values`.
             debug_assert!(!self
                 .ready_values
                 .contains_key(&(priority.clone(), key.clone())));
-
-            Some((key, priority))
+            let stream = stream_fut
+                .into_inner()
+                // We know the future hasn't completed, so the stream should be present.
+                .expect("Missing stream");
+            Some((key, priority, None, stream))
         } else {
-            let ((_priority, key), _value) = self
+            let ((_priority, key), (value, stream)) = self
                 .ready_values
                 .remove_entry(&(priority.clone(), key.clone()))
                 // By
@@ -119,7 +126,7 @@ where
                 // * validated above that the key was in `pending_streams`, and
                 // not in `ready_values`.
                 .expect("Unexpectedly no value for key");
-            Some((key, priority))
+            Some((key, priority, Some(value), stream))
         }
     }
 
@@ -136,6 +143,9 @@ where
     /// [`Poll::Ready`] result from calling [`futures::Stream::poll_next`]. i.e.
     /// either `Some` value read from the stream, or a `None` indicating that
     /// the `Stream` is exhausted.
+    ///
+    /// The same restrictions apply as for [`Self::stream_mut`] with respect to
+    /// accessing the Stream object (e.g. using interior mutability).
     ///
     /// This method does *not* drain ready items. `Some` values can be removed
     /// with [`Self::take_ready_value_and_reprioritize`]. `None` values can only
@@ -161,7 +171,7 @@ where
     /// # fn new_priority(priority: &Priority) -> Priority { *priority }
     /// fn process_a_ready_stream(sps: &mut StreamPollSet<Key, Value, Priority, MyStream>, cx: &mut std::task::Context) -> std::task::Poll<()> {
     ///   let mut iter = sps.poll_ready_iter(cx);
-    ///   while let Some((key, value, priority)) = iter.next() {
+    ///   while let Some((key, value, priority, _stream)) = iter.next() {
     ///     let Some(value) = value else {
     ///        // Stream exhausted. Remove the stream. We have to drop the iterator
     ///        // first, though, so that we can mutate.
@@ -197,7 +207,7 @@ where
     pub fn poll_ready_iter<'a>(
         &'a mut self,
         cx: &mut std::task::Context,
-    ) -> impl Iterator<Item = (&'a K, Option<&'a V>, &'a P)> + 'a {
+    ) -> impl Iterator<Item = (&'a K, Option<&'a V>, &'a P, &'a S)> + 'a {
         // First poll for ready streams
         while let Poll::Ready(Some((key, (value, stream)))) =
             self.pending_streams.poll_next_unpin(cx)
@@ -214,7 +224,7 @@ where
         }
         self.ready_values
             .iter()
-            .map(|((p, k), (v, _s))| (k, v.as_ref(), p))
+            .map(|((p, k), (v, s))| (k, v.as_ref(), p, s))
     }
 
     /// If the stream for `key` has `Some(value)` ready, take that value and set the
@@ -279,6 +289,53 @@ where
             .0;
         value.as_mut()
     }
+
+    /// Get a reference to the stream for `key`.
+    ///
+    /// The same restrictions apply as for [`Self::stream_mut`] (e.g. using
+    /// interior mutability).
+    #[allow(dead_code)]
+    pub fn stream(&self, key: &K) -> Option<&S> {
+        if let Some(s) = self.pending_streams.get(key) {
+            let s = s.get_ref();
+            // Stream must be present since it's still pending.
+            debug_assert!(s.is_some(), "Unexpected missing pending stream");
+            return s;
+        }
+        let priority = self.priorities.get(key)?;
+        self.ready_values
+            .get(&(priority.clone(), key.clone()))
+            .map(|(_v, s)| s)
+    }
+
+    /// Get a mut reference to the stream for `key`.
+    ///
+    /// Polling the stream through this reference, or otherwise causing its
+    /// registered `Waker` to be removed without waking it, will result in
+    /// unspecified (but not unsound) behavior.
+    ///
+    /// This is mostly intended for accessing non-`Stream` functionality of the stream
+    /// object, though it *is* permitted to mutate it in a way that the stream becomes
+    /// ready (potentially removing and waking its registered Waker(s)).
+    //
+    // In particular:
+    // * Doing so and getting a Pending result will override the internal waker
+    //   used in KeyedFuturesUnordered, causing it not to be notified when the
+    //   stream is ready.
+    // * Pulling items out of the stream directly may "jump the line" in front
+    //   of a ready item we've already pulled from the stream.
+    pub fn stream_mut(&mut self, key: &K) -> Option<&mut S> {
+        if let Some(s) = self.pending_streams.get_mut(key) {
+            let s = s.get_mut();
+            // Stream must be present since it's still pending.
+            debug_assert!(s.is_some(), "Unexpected missing pending stream");
+            return s;
+        }
+        let priority = self.priorities.get(key)?;
+        self.ready_values
+            .get_mut(&(priority.clone(), key.clone()))
+            .map(|(_v, s)| s)
+    }
 }
 
 /// Error returned by [`StreamPollSet::try_insert`].
@@ -313,11 +370,12 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use std::{
+        collections::VecDeque,
         sync::{Arc, Mutex},
         task::Poll,
     };
 
-    use futures::{stream, SinkExt as _};
+    use futures::SinkExt as _;
     use tor_rtmock::MockRuntime;
 
     use super::*;
@@ -331,9 +389,72 @@ mod test {
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     struct Value(u64);
 
-    trait TestStreamTrait: futures::Stream<Item = Value> + Unpin + std::fmt::Debug {}
-    impl<T> TestStreamTrait for T where T: futures::Stream<Item = Value> + Unpin + std::fmt::Debug {}
-    type TestStream = Box<dyn TestStreamTrait>;
+    /// Test stream that we can directly manipulate and examine.
+    #[derive(Debug)]
+    struct VecDequeStream<T> {
+        // Ready items.
+        vec: VecDeque<T>,
+        // Whether any more items will be written.
+        closed: bool,
+        // Registered waker.
+        waker: Option<std::task::Waker>,
+    }
+    impl<T> VecDequeStream<T> {
+        fn new_open<I: IntoIterator<Item = T>>(values: I) -> Self {
+            Self {
+                vec: VecDeque::from_iter(values),
+                waker: None,
+                closed: false,
+            }
+        }
+        fn new_closed<I: IntoIterator<Item = T>>(values: I) -> Self {
+            Self {
+                vec: VecDeque::from_iter(values),
+                waker: None,
+                closed: true,
+            }
+        }
+        fn push(&mut self, value: T) {
+            assert!(!self.closed);
+            self.vec.push_back(value);
+            if let Some(waker) = self.waker.take() {
+                waker.wake();
+            }
+        }
+    }
+    impl<T> futures::Stream for VecDequeStream<T>
+    where
+        T: Unpin,
+    {
+        type Item = T;
+
+        fn poll_next(
+            mut self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> Poll<Option<Self::Item>> {
+            if let Some(val) = self.as_mut().vec.pop_front() {
+                Poll::Ready(Some(val))
+            } else if self.as_mut().closed {
+                // No more items coming.
+                Poll::Ready(None)
+            } else {
+                self.as_mut().waker.replace(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+    impl<T> std::cmp::PartialEq for VecDequeStream<T>
+    where
+        T: std::cmp::PartialEq,
+    {
+        fn eq(&self, other: &Self) -> bool {
+            // Ignore waker, which isn't comparable
+            self.vec == other.vec && self.closed == other.closed
+        }
+    }
+    impl<T> std::cmp::Eq for VecDequeStream<T> where T: std::cmp::Eq {}
+
+    type TestStream = VecDequeStream<Value>;
 
     #[test]
     fn test_empty() {
@@ -349,7 +470,7 @@ mod test {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
             let mut pollset = StreamPollSet::<Key, Value, Priority, TestStream>::new();
             pollset
-                .try_insert(Key(0), Priority(0), Box::new(stream::pending()))
+                .try_insert(Key(0), Priority(0), TestStream::new_open([]))
                 .unwrap();
             assert_eq!(pollset.poll_ready_iter(ctx).collect::<Vec<_>>(), vec![]);
             Poll::Ready(())
@@ -364,20 +485,30 @@ mod test {
                 .try_insert(
                     Key(0),
                     Priority(0),
-                    Box::new(stream::iter(vec![Value(1), Value(2)])),
+                    TestStream::new_closed([Value(1), Value(2)]),
                 )
                 .unwrap();
 
             // We only see the first value of the one ready stream.
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
-                vec![(&Key(0), Some(&Value(1)), &Priority(0))]
+                vec![(
+                    &Key(0),
+                    Some(&Value(1)),
+                    &Priority(0),
+                    &TestStream::new_closed([Value(2)])
+                )],
             );
 
             // Same result, the same value is still at the head of the stream..
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
-                vec![(&Key(0), Some(&Value(1)), &Priority(0))]
+                vec![(
+                    &Key(0),
+                    Some(&Value(1)),
+                    &Priority(0),
+                    &TestStream::new_closed([Value(2)])
+                )]
             );
 
             // Take the head of the stream.
@@ -389,7 +520,12 @@ mod test {
             // Should see the next value, with the new priority.
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
-                vec![(&Key(0), Some(&Value(2)), &Priority(1))]
+                vec![(
+                    &Key(0),
+                    Some(&Value(2)),
+                    &Priority(1),
+                    &TestStream::new_closed([])
+                )]
             );
 
             // Take again.
@@ -401,11 +537,14 @@ mod test {
             // Should see end-of-stream.
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
-                vec![(&Key(0), None, &Priority(2))]
+                vec![(&Key(0), None, &Priority(2), &TestStream::new_closed([]))]
             );
 
             // Remove the now-ended stream.
-            assert_eq!(pollset.remove(&Key(0)), Some((Key(0), Priority(2))));
+            assert_eq!(
+                pollset.remove(&Key(0)),
+                Some((Key(0), Priority(2), Some(None), TestStream::new_closed([])))
+            );
 
             // Should now be empty.
             assert_eq!(pollset.poll_ready_iter(ctx).collect::<Vec<_>>(), vec![]);
@@ -422,14 +561,14 @@ mod test {
                 .try_insert(
                     Key(0),
                     Priority(0),
-                    Box::new(stream::iter(vec![Value(1), Value(2)])),
+                    TestStream::new_closed([Value(1), Value(2)]),
                 )
                 .unwrap();
             pollset
                 .try_insert(
                     Key(1),
                     Priority(1),
-                    Box::new(stream::iter(vec![Value(3), Value(4)])),
+                    TestStream::new_closed([Value(3), Value(4)]),
                 )
                 .unwrap();
 
@@ -437,8 +576,18 @@ mod test {
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
                 vec![
-                    (&Key(0), Some(&Value(1)), &Priority(0)),
-                    (&Key(1), Some(&Value(3)), &Priority(1)),
+                    (
+                        &Key(0),
+                        Some(&Value(1)),
+                        &Priority(0),
+                        &TestStream::new_closed([Value(2)])
+                    ),
+                    (
+                        &Key(1),
+                        Some(&Value(3)),
+                        &Priority(1),
+                        &TestStream::new_closed([Value(4)])
+                    ),
                 ]
             );
 
@@ -452,8 +601,18 @@ mod test {
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
                 vec![
-                    (&Key(1), Some(&Value(3)), &Priority(1)),
-                    (&Key(0), Some(&Value(2)), &Priority(2)),
+                    (
+                        &Key(1),
+                        Some(&Value(3)),
+                        &Priority(1),
+                        &TestStream::new_closed([Value(4)])
+                    ),
+                    (
+                        &Key(0),
+                        Some(&Value(2)),
+                        &Priority(2),
+                        &TestStream::new_closed([])
+                    ),
                 ]
             );
 
@@ -465,8 +624,18 @@ mod test {
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
                 vec![
-                    (&Key(0), Some(&Value(2)), &Priority(2)),
-                    (&Key(1), Some(&Value(4)), &Priority(3)),
+                    (
+                        &Key(0),
+                        Some(&Value(2)),
+                        &Priority(2),
+                        &TestStream::new_closed([])
+                    ),
+                    (
+                        &Key(1),
+                        Some(&Value(4)),
+                        &Priority(3),
+                        &TestStream::new_closed([])
+                    ),
                 ]
             );
             assert_eq!(
@@ -476,8 +645,13 @@ mod test {
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
                 vec![
-                    (&Key(1), Some(&Value(4)), &Priority(3)),
-                    (&Key(0), None, &Priority(4)),
+                    (
+                        &Key(1),
+                        Some(&Value(4)),
+                        &Priority(3),
+                        &TestStream::new_closed([])
+                    ),
+                    (&Key(0), None, &Priority(4), &TestStream::new_closed([])),
                 ]
             );
             assert_eq!(
@@ -486,7 +660,10 @@ mod test {
             );
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
-                vec![(&Key(0), None, &Priority(4)), (&Key(1), None, &Priority(5)),]
+                vec![
+                    (&Key(0), None, &Priority(4), &TestStream::new_closed([])),
+                    (&Key(1), None, &Priority(5), &TestStream::new_closed([])),
+                ]
             );
 
             Poll::Ready(())
@@ -501,26 +678,144 @@ mod test {
                 .try_insert(
                     Key(0),
                     Priority(0),
-                    Box::new(stream::iter(vec![Value(1), Value(2)])),
+                    TestStream::new_closed([Value(1), Value(2)]),
                 )
                 .unwrap();
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
-                vec![(&Key(0), Some(&Value(1)), &Priority(0)),]
+                vec![(
+                    &Key(0),
+                    Some(&Value(1)),
+                    &Priority(0),
+                    &TestStream::new_closed([Value(2)])
+                ),]
             );
-            assert_eq!(pollset.remove(&Key(0)), Some((Key(0), Priority(0))));
+            assert_eq!(
+                pollset.remove(&Key(0)),
+                Some((
+                    Key(0),
+                    Priority(0),
+                    Some(Some(Value(1))),
+                    TestStream::new_closed([Value(2)])
+                ))
+            );
             pollset
                 .try_insert(
                     Key(0),
                     Priority(1),
-                    Box::new(stream::iter(vec![Value(3), Value(4)])),
+                    TestStream::new_closed([Value(3), Value(4)]),
                 )
                 .unwrap();
             // Ensure we see the ready value in the new stream, and *not* anything from the previous stream at that key.
             assert_eq!(
                 pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
-                vec![(&Key(0), Some(&Value(3)), &Priority(1)),]
+                vec![(
+                    &Key(0),
+                    Some(&Value(3)),
+                    &Priority(1),
+                    &TestStream::new_closed([Value(4)])
+                ),]
             );
+            Poll::Ready(())
+        }));
+    }
+
+    #[test]
+    fn get_ready_stream() {
+        futures::executor::block_on(futures::future::poll_fn(|_ctx| {
+            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            pollset
+                .try_insert(Key(0), Priority(0), VecDequeStream::new_open([Value(1)]))
+                .unwrap();
+            assert_eq!(pollset.stream(&Key(0)).unwrap().vec[0], Value(1));
+            Poll::Ready(())
+        }));
+    }
+
+    #[test]
+    fn get_pending_stream() {
+        futures::executor::block_on(futures::future::poll_fn(|_ctx| {
+            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            pollset
+                .try_insert(Key(0), Priority(0), VecDequeStream::new_open([]))
+                .unwrap();
+            assert!(pollset.stream(&Key(0)).unwrap().vec.is_empty());
+            Poll::Ready(())
+        }));
+    }
+
+    #[test]
+    fn mutate_pending_stream() {
+        futures::executor::block_on(futures::future::poll_fn(|ctx| {
+            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            pollset
+                .try_insert(Key(0), Priority(0), VecDequeStream::new_open([]))
+                .unwrap();
+            assert_eq!(pollset.poll_ready_iter(ctx).collect::<Vec<_>>(), vec![]);
+
+            // This should cause the stream to become ready.
+            pollset.stream_mut(&Key(0)).unwrap().push(Value(0));
+
+            assert_eq!(
+                pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
+                vec![(
+                    &Key(0),
+                    Some(&Value(0)),
+                    &Priority(0),
+                    &VecDequeStream::new_open([])
+                ),]
+            );
+
+            Poll::Ready(())
+        }));
+    }
+
+    #[test]
+    fn mutate_ready_stream() {
+        futures::executor::block_on(futures::future::poll_fn(|ctx| {
+            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            pollset
+                .try_insert(Key(0), Priority(0), VecDequeStream::new_open([Value(0)]))
+                .unwrap();
+            assert_eq!(
+                pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
+                vec![(
+                    &Key(0),
+                    Some(&Value(0)),
+                    &Priority(0),
+                    &VecDequeStream::new_open([])
+                ),]
+            );
+
+            pollset.stream_mut(&Key(0)).unwrap().push(Value(1));
+
+            assert_eq!(
+                pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
+                vec![(
+                    &Key(0),
+                    Some(&Value(0)),
+                    &Priority(0),
+                    &VecDequeStream::new_open([Value(1)])
+                ),]
+            );
+
+            // Consume the value that was there.
+            assert_eq!(
+                pollset.take_ready_value_and_reprioritize(&Key(0), Priority(0)),
+                Some((Priority(0), Value(0)))
+            );
+
+            // We should now see the value we added.
+            assert_eq!(
+                pollset.poll_ready_iter(ctx).collect::<Vec<_>>(),
+                vec![(
+                    &Key(0),
+                    Some(&Value(1)),
+                    &Priority(0),
+                    &VecDequeStream::new_open([])
+                ),]
+            );
+
             Poll::Ready(())
         }));
     }
@@ -559,7 +854,7 @@ mod test {
                             .poll_ready_iter(ctx)
                             .next()
                         {
-                            Some((key, value, priority)) => {
+                            Some((key, value, priority, _stream)) => {
                                 Poll::Ready((*key, value.copied(), *priority))
                             }
                             // No streams ready, but there could be more items coming.
