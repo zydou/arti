@@ -1,0 +1,29 @@
+Source: arti
+Section: net
+Priority: optional
+Maintainer: NoisyCoil <noisycoil@tutanota.com>
+Build-Depends:
+  debhelper-compat (= 13),
+  rustc:native,
+  cargo:native,
+  libstd-rust-dev,
+  pkgconf,
+  ca-certificates,
+  libssl-dev,
+  libsqlite3-dev,
+Standards-Version: 4.7.0
+Homepage: https://arti.torproject.org/
+Rules-Requires-Root: no
+Vcs-Git: https://gitlab.torproject.org/tpo/core/arti.git
+Vcs-Browser: https://gitlab.torproject.org/tpo/core/arti
+
+Package: arti
+Architecture: any
+Multi-Arch: foreign
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Tor client written in Rust
+ Arti is a minimal command line program for connecting to the
+ Tor network. Currently it can run as a simple SOCKS proxy. 
+ .
+ You can direct programs to connect via the SOCKS port, and
+ their connections will be anonymized via Tor.

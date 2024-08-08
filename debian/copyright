@@ -1,0 +1,75 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: arti
+Upstream-Contact: The Tor Project, Inc.
+Source: https://gitlab.torproject.org/tpo/core/arti
+
+Files:     *
+Copyright: 2019-2024 The Tor Project, Inc.
+License:   Apache-2.0 or MIT
+
+Files:     crates/equix/*
+           crates/hashx/*
+Copyright: 2023-2024 The Tor Project, Inc.
+License:   LGPL-3.0-only
+
+Files:     debian/*
+Copyright: 2024 NoisyCoil <noisycoil@tutanota.com>
+License:   Apache-2.0 or MIT
+
+License: Apache-2.0
+ Debian systems provide the Apache 2.0 license in
+ /usr/share/common-licenses/Apache-2.0
+
+License: MIT
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+
+License: LGPL-3.0-only
+ This library is free software; you can redistribute it and/or modify
+ it under the terms of the GNU Lesser General Public License version
+ 3 as published by the Free Software Foundation.
+ .
+ This library is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+ .
+ You should have received a copy of the GNU Lesser General Public
+ License along with this library.  If not, see
+ <http://www.gnu.org/licenses/>.
+ .
+ On Debian systems, the complete text of the GNU Lesser General
+ Public License version 3 can be found in
+ `/usr/share/common-licenses/LGPL-3’.
+
+License: GPL-3.0-only
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GPL License as published by the Free
+ Software Foundation, version 3.
+ .
+ This package is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <http://www.gnu.org/licenses/>.
+ .
+ On Debian systems, the complete text of the GNU General Public
+ License version 3 can be found in
+ `/usr/share/common-licenses/GPL-3’.
