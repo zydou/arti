@@ -283,6 +283,7 @@ impl CheckedDir {
     /// [^1]: the permissions are incorrect if the path is readable or writable by untrusted users
     pub fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Metadata> {
         let path = path.as_ref();
+        // TODO: Refactor this to not open the file here (use PathBuf::metadata() instead).
         let file = self.open(path, OpenOptions::new().read(true))?;
         let meta = file.metadata().map_err(|e| Error::inspecting(e, path))?;
         Ok(meta)
