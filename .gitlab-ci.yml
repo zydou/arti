@@ -522,8 +522,7 @@ coverage-aggregated:
   script:
     - maint/common/apt-install tor python3 python3-pip python3-setuptools curl python3-bs4 python3-lxml
     - rustup component add llvm-tools
-    - cp grcov $CARGO_HOME/bin/ || cargo install grcov
-    - cp $CARGO_HOME/bin/grcov .
+    - ./maint/common/via-cargo-install-in-ci grcov
     # Generate report
     - ./maint/coverage unit
   cache:
