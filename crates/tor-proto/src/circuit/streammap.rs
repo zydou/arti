@@ -456,13 +456,16 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn streammap_basics() -> Result<()> {
         let mut map = StreamMap::new();
         let mut next_id = map.next_stream_id;
         let mut ids = Vec::new();
 
+        assert_eq!(map.n_open_streams(), 0);
+
         // Try add_ent
-        for _ in 0..128 {
+        for n in 1..=128 {
             let (sink, _) = mpsc::channel(128);
             let (_, rx) = mpsc::channel(2);
             let id = map.add_ent(
@@ -475,6 +478,7 @@ mod test {
             assert_eq!(expect_id, id);
             next_id = wrapping_next_stream_id(next_id);
             ids.push(id);
+            assert_eq!(map.n_open_streams(), n);
         }
 
         // Test get_mut.
@@ -487,7 +491,9 @@ mod test {
 
         // Test end_received
         assert!(map.ending_msg_received(nonesuch_id).is_err());
+        assert_eq!(map.n_open_streams(), 128);
         assert!(map.ending_msg_received(ids[1]).is_ok());
+        assert_eq!(map.n_open_streams(), 127);
         assert!(matches!(
             map.get_mut(ids[1]),
             Some(StreamEntMut::EndReceived)
@@ -497,10 +503,12 @@ mod test {
         // Test terminate
         use TerminateReason as TR;
         assert!(map.terminate(nonesuch_id, TR::ExplicitEnd).is_err());
+        assert_eq!(map.n_open_streams(), 127);
         assert_eq!(
             map.terminate(ids[2], TR::ExplicitEnd).unwrap(),
             ShouldSendEnd::Send
         );
+        assert_eq!(map.n_open_streams(), 126);
         assert!(matches!(
             map.get_mut(ids[2]),
             Some(StreamEntMut::EndSent { .. })
@@ -509,11 +517,15 @@ mod test {
             map.terminate(ids[1], TR::ExplicitEnd).unwrap(),
             ShouldSendEnd::DontSend
         );
+        // This stream was already closed when we called `ending_msg_received`
+        // above.
+        assert_eq!(map.n_open_streams(), 126);
         assert!(map.get_mut(ids[1]).is_none());
 
         // Try receiving an end after a terminate.
         assert!(map.ending_msg_received(ids[2]).is_ok());
         assert!(map.get_mut(ids[2]).is_none());
+        assert_eq!(map.n_open_streams(), 126);
 
         Ok(())
     }
