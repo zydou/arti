@@ -13,6 +13,18 @@ use futures::stream::StreamExt;
 
 use crate::util::keyed_futures_unordered::KeyedFuturesUnordered;
 
+/// Represents a potentially-buffered value read from a stream. Returned by
+/// [`StreamPollSet::remove`].
+#[derive(Debug, Eq, PartialEq)]
+pub enum BufferedPollNextResult<T> {
+    /// No buffered result.
+    None,
+    /// Received end-of-stream (`None`).
+    StreamEnd,
+    /// A value read from the stream.
+    Value(T),
+}
+
 /// Manages a dynamic set of [`futures::Stream`] with associated keys and
 /// priorities.
 ///
@@ -98,12 +110,9 @@ where
         Ok(())
     }
 
-    /// Remove the entry for `key`, if any. This is the key, priority, buffered value, and stream.
-    ///
-    /// The buffered value is `None` if there is no buffered value, `Some(None)`
-    /// if the last item read was `None` (i.e. the stream is exhausted), and
-    /// `Some(Some(_))` if we had a buffered value.
-    pub fn remove(&mut self, key: &K) -> Option<(K, P, Option<Option<V>>, S)> {
+    /// Remove the entry for `key`, if any. This is the key, priority, buffered
+    /// poll_next result, and stream.
+    pub fn remove(&mut self, key: &K) -> Option<(K, P, BufferedPollNextResult<V>, S)> {
         let priority = self.priorities.remove(key)?;
         if let Some((key, stream_fut)) = self.pending_streams.remove(key) {
             // Validate `priorities` invariant that keys are also present in exactly one of
@@ -115,7 +124,7 @@ where
                 .into_inner()
                 // We know the future hasn't completed, so the stream should be present.
                 .expect("Missing stream");
-            Some((key, priority, None, stream))
+            Some((key, priority, BufferedPollNextResult::None, stream))
         } else {
             let ((_priority, key), (value, stream)) = self
                 .ready_values
@@ -126,7 +135,11 @@ where
                 // * validated above that the key was in `pending_streams`, and
                 // not in `ready_values`.
                 .expect("Unexpectedly no value for key");
-            Some((key, priority, Some(value), stream))
+            let buf = match value {
+                Some(x) => BufferedPollNextResult::Value(x),
+                None => BufferedPollNextResult::StreamEnd,
+            };
+            Some((key, priority, buf, stream))
         }
     }
 
@@ -548,7 +561,12 @@ mod test {
             // Remove the now-ended stream.
             assert_eq!(
                 pollset.remove(&Key(0)),
-                Some((Key(0), Priority(2), Some(None), TestStream::new_closed([])))
+                Some((
+                    Key(0),
+                    Priority(2),
+                    BufferedPollNextResult::StreamEnd,
+                    TestStream::new_closed([])
+                ))
             );
 
             // Should now be empty.
@@ -700,7 +718,7 @@ mod test {
                 Some((
                     Key(0),
                     Priority(0),
-                    Some(Some(Value(1))),
+                    BufferedPollNextResult::Value(Value(1)),
                     TestStream::new_closed([Value(2)])
                 ))
             );
