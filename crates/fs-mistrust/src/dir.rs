@@ -271,7 +271,7 @@ impl CheckedDir {
     ///
     /// `path` must be a relative path, containing no `..` components.
     /// We check the file's parent directories,
-    /// and the file's permissions after opening it.
+    /// and the file's permissions.
     /// If the file exists, it must not be a symlink.
     ///
     /// Returns [`Error::NotFound`] if the file does not exist.
@@ -283,10 +283,24 @@ impl CheckedDir {
     /// [^1]: the permissions are incorrect if the path is readable or writable by untrusted users
     pub fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Metadata> {
         let path = path.as_ref();
-        // TODO: Refactor this to not open the file here (use PathBuf::metadata() instead).
-        let file = self.open(path, OpenOptions::new().read(true))?;
-        let meta = file.metadata().map_err(|e| Error::inspecting(e, path))?;
-        Ok(meta)
+        self.check_path(path)?;
+        let path = self.location.join(path);
+        if let Some(parent) = path.parent() {
+            self.verifier().check(parent)?;
+        }
+
+        let meta = path.metadata().map_err(|e| Error::inspecting(e, &path))?;
+
+        if let Some(error) = self
+            .verifier()
+            .check_one(path.as_path(), PathType::Content, &meta)
+            .into_iter()
+            .next()
+        {
+            Err(error)
+        } else {
+            Ok(meta)
+        }
     }
 
     /// Create a [`Verifier`] with the appropriate rules for this
