@@ -54,6 +54,19 @@ where
 ///
 /// Implements [`futures::Stream`], producing a stream of completed futures and
 /// their associated keys.
+///
+/// # Stream behavior
+///
+/// `Stream::poll_next` returns:
+/// * `Poll::Ready(None)` if there are no futures managed by this object.
+/// * `Poll::Ready(Some((key, output)))` with the key and output of a ready
+///    future when there is one.
+/// * `Poll::Pending` when there are futures managed by this object, but none
+///    are currently ready.
+///
+/// Unlike for a generic `Stream`, it *is* permitted to call `poll_next` again
+/// after having received `Poll::Ready(None)`. It will still behave as above
+/// (i.e. returning `Pending` or `Ready` if futures have since been inserted).
 #[derive(Debug)]
 #[pin_project]
 pub struct KeyedFuturesUnordered<K, F>
