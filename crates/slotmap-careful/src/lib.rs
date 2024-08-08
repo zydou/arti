@@ -868,16 +868,12 @@ mod test {
 
             #[test]
             fn retain_and_panic() {
-                use std::sync::Mutex;
-                let (m, k1, _k2) = construct_near_saturated_slotmap();
-                let m = Mutex::new(m);
+                use std::panic::AssertUnwindSafe;
+                let (mut m, k1, _k2) = construct_near_saturated_slotmap();
 
-                let _ = std::panic::catch_unwind(|| {
-                    let mut m = m.lock().expect("lock poisoned");
+                let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
                     m.retain(|k,_| if k == k1 { false } else { panic!() })
-                }).unwrap_err();
-                m.clear_poison();
-                let m = m.into_inner().unwrap();
+                })).unwrap_err();
                 m.assert_rep_ok();
             }
 
