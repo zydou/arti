@@ -274,6 +274,8 @@ impl CheckedDir {
     /// and the file's permissions after opening it.
     /// If the file exists, it must not be a symlink.
     ///
+    /// Returns [`Error::NotFound`] if the file does not exist.
+    ///
     /// Return an error if `path` is absent, if its permissions are incorrect[^1],
     /// if the permissions of any of its the parent directories are incorrect,
     /// or if it has any components that could take us outside of this directory.
