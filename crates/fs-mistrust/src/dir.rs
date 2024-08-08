@@ -2,7 +2,7 @@
 //! we've checked.
 
 use std::{
-    fs::{File, OpenOptions},
+    fs::{File, Metadata, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
@@ -267,6 +267,28 @@ impl CheckedDir {
         Ok(())
     }
 
+    /// Return the [`Metadata`] of the file located at `path`.
+    ///
+    /// `path` must be a relative path, containing no `..` components.
+    /// We check the file's parent directories,
+    /// and the file's permissions after opening it.
+    /// If the file exists, it must not be a symlink.
+    ///
+    /// Returns [`Error::NotFound`] if the file does not exist.
+    ///
+    /// Return an error if `path` is absent, if its permissions are incorrect[^1],
+    /// if the permissions of any of its the parent directories are incorrect,
+    /// or if it has any components that could take us outside of this directory.
+    ///
+    /// [^1]: the permissions are incorrect if the path is readable or writable by untrusted users
+    pub fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Metadata> {
+        let path = path.as_ref();
+        // TODO: Refactor this to not open the file here (use PathBuf::metadata() instead).
+        let file = self.open(path, OpenOptions::new().read(true))?;
+        let meta = file.metadata().map_err(|e| Error::inspecting(e, path))?;
+        Ok(meta)
+    }
+
     /// Create a [`Verifier`] with the appropriate rules for this
     /// `CheckedDir`.
     pub fn verifier(&self) -> Verifier<'_> {
@@ -392,7 +414,12 @@ mod test {
 
         let e = sd.make_directory("hello/../world").unwrap_err();
         assert!(matches!(e, Error::InvalidSubdirectory));
+        let e = sd.metadata("hello/../world").unwrap_err();
+        assert!(matches!(e, Error::InvalidSubdirectory));
+
         let e = sd.make_directory("/hello").unwrap_err();
+        assert!(matches!(e, Error::InvalidSubdirectory));
+        let e = sd.metadata("/hello").unwrap_err();
         assert!(matches!(e, Error::InvalidSubdirectory));
 
         sd.make_directory("hello/world").unwrap();
@@ -519,11 +546,13 @@ mod test {
 
         // Remove a file that is there, and then make sure it is gone.
         assert!(checked.read_to_string("b/f").is_ok());
+        assert!(checked.metadata("b/f").unwrap().is_file());
         checked.remove_file("b/f").unwrap();
         assert!(matches!(
             checked.read_to_string("b/f"),
             Err(Error::NotFound(_))
         ));
+        assert!(matches!(checked.metadata("b/f"), Err(Error::NotFound(_))));
         assert!(matches!(
             checked.remove_file("b/f"),
             Err(Error::NotFound(_))
@@ -540,6 +569,10 @@ mod test {
         {
             assert!(matches!(
                 checked.remove_file("x/y/z"),
+                Err(Error::BadPermission(_, _, _))
+            ));
+            assert!(matches!(
+                checked.metadata("x/y/z"),
                 Err(Error::BadPermission(_, _, _))
             ));
         }
