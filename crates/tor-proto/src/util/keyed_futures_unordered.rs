@@ -7,65 +7,43 @@ use std::{
     collections::{hash_map, HashMap},
     hash::Hash,
     pin::Pin,
+    sync::Arc,
     task::Poll,
 };
 
+use futures::future::FutureExt;
 use futures::{
-    future::abortable,
-    stream::{AbortHandle, Abortable},
+    channel::mpsc::{UnboundedReceiver, UnboundedSender},
     Future,
 };
 use pin_project::pin_project;
 
-/// Wraps a future `F` to add an associated key.
+/// Waker for internal use in [`KeyedFuturesUnordered`]
 ///
-/// The new future will return `(K, F::Output)`.
-///
-/// `KeyedFuture::new(key, fut)` behaves the same as
-/// `fut.map(|v| (key, v))`, except that it has a type that you can name.
-// It'd be nice to just use futures::future::Map instead, but it takes a
-// `FnOnce` type parameter, and there is currently no way to name a type
-// implementing `FnOnce`.
-#[derive(Debug)]
-#[pin_project]
-struct KeyedFuture<K, F> {
-    /// Key
-    // Invariant:
-    // * Present until this future is polled to completion.
-    key: Option<K>,
-    /// Inner future
-    #[pin]
-    future: F,
+/// When woken, it notifies the parent [`KeyedFuturesUnordered`] that the future
+/// for a corresponding key is ready to be polled.
+struct KeyedWaker<K> {
+    /// The key associated with this waker.
+    key: K,
+    /// Sender cloned from the parent [`KeyedFuturesUnordered`].
+    sender: UnboundedSender<K>,
 }
 
-impl<K, F> KeyedFuture<K, F> {
-    /// Create a new [`KeyedFuture`].
-    fn new(key: K, future: F) -> Self {
-        Self {
-            key: Some(key),
-            future,
-        }
-    }
-}
-
-impl<K, F> Future for KeyedFuture<K, F>
+impl<K> std::task::Wake for KeyedWaker<K>
 where
-    F: Future,
+    K: Clone,
 {
-    type Output = (K, F::Output);
-
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let self_ = self.project();
-        self_.future.poll(cx).map(|o| {
-            let key = self_
-                .key
-                .take()
-                // By:
-                // * Invariant on `key` that it'll be present until polled to completion.
-                // * Contract of `Future::poll` requires `poll` not called again after completion.
-                .expect("Polled after completion");
-            (key, o)
-        })
+    fn wake(self: Arc<Self>) {
+        self.sender
+            .unbounded_send(self.key.clone())
+            .unwrap_or_else(|e| {
+                if e.is_disconnected() {
+                    // Other side has disappeared. Can safely ignore.
+                    return;
+                }
+                // Shouldn't happen, but probably no need to `panic`.
+                tracing::error!("Unexpected send error: {e:?}");
+            });
     }
 }
 
@@ -76,25 +54,37 @@ where
 ///
 /// Implements [`futures::Stream`], producing a stream of completed futures and
 /// their associated keys.
+///
+/// # Stream behavior
+///
+/// `Stream::poll_next` returns:
+/// * `Poll::Ready(None)` if there are no futures managed by this object.
+/// * `Poll::Ready(Some((key, output)))` with the key and output of a ready
+///    future when there is one.
+/// * `Poll::Pending` when there are futures managed by this object, but none
+///    are currently ready.
+///
+/// Unlike for a generic `Stream`, it *is* permitted to call `poll_next` again
+/// after having received `Poll::Ready(None)`. It will still behave as above
+/// (i.e. returning `Pending` or `Ready` if futures have since been inserted).
 #[derive(Debug)]
 #[pin_project]
 pub struct KeyedFuturesUnordered<K, F>
 where
     F: Future,
 {
-    /// The futures themselves.
-    // Invariants:
-    // * The key for every uncanceled future has a corresponding entry in
-    // `abort_handles`.
-    // * Contains at most one uncanceled future for any given key `K`.
-    //   (FuturesUnordered doesn't support efficient removal of individual futures).
+    /// Receiver on which we're notified of keys that are ready to be polled.
     #[pin]
-    futures_unordered: futures::stream::FuturesUnordered<Abortable<KeyedFuture<K, F>>>,
-    /// Handles allowing cancellation.
-    // Invariants:
-    // * For every key K, there is an uncanceled future with that key in
-    // `futures_unordered`.
-    abort_handles: HashMap<K, AbortHandle>,
+    notification_receiver: UnboundedReceiver<K>,
+    /// Sender on which to notify `notifications_receiver` that keys are ready
+    /// to be polled.
+    // In particular, keys are sent here:
+    // * When a future is inserted.
+    // * In `KeyedWaker`, which is the `Waker` we register with futures when we
+    //   poll them internally.
+    notification_sender: UnboundedSender<K>,
+    /// Map of pending futures.
+    futures: HashMap<K, F>,
 }
 
 impl<K, F> KeyedFuturesUnordered<K, F>
@@ -104,49 +94,76 @@ where
 {
     /// Create an empty [`KeyedFuturesUnordered`].
     pub fn new() -> Self {
+        let (send, recv) = futures::channel::mpsc::unbounded();
         Self {
-            futures_unordered: Default::default(),
-            abort_handles: Default::default(),
+            notification_sender: send,
+            notification_receiver: recv,
+            futures: Default::default(),
         }
     }
 
     /// Insert a future and associate it with `key`. Return an error if there is already an entry for `key`.
     pub fn try_insert(&mut self, key: K, fut: F) -> Result<(), KeyAlreadyInsertedError<K, F>> {
-        let hash_map::Entry::Vacant(v) = self.abort_handles.entry(key.clone()) else {
+        let hash_map::Entry::Vacant(v) = self.futures.entry(key.clone()) else {
             // Key is already present.
             return Err(KeyAlreadyInsertedError { key, fut });
         };
-        let (fut, handle) = abortable(KeyedFuture::new(key, fut));
-        v.insert(handle);
-        self.futures_unordered.push(fut);
+        v.insert(fut);
+        // Immediately "notify" ourselves, to enqueue this key to be polled.
+        self.notification_sender
+            .unbounded_send(key)
+            // * Since the sender is unbounded, can't fail due to fullness.
+            // * Since we have our own copy of the receiver, can't be disconnected.
+            .expect("Unbounded send unexpectedly failed");
         Ok(())
     }
 
-    /// Remove the entry for `key`, if any. If the corresponding future hasn't
-    /// completed yet, it will be canceled. Note however that the underlying
-    /// future won't be guaranteed to have been dropped until all available
-    /// items have been read from this object's [`futures::Stream`]
+    /// Remove the entry for `key`, if any, and return the corresponding future.
+    pub fn remove(&mut self, key: &K) -> Option<(K, F)> {
+        self.futures.remove_entry(key)
+    }
+
+    /// Get the future corresponding to `key`, if any.
+    ///
+    /// As for [`Self::get_mut`], removing or replacing its [`std::task::Waker`]
+    /// without waking it (e.g. using internal mutability) results in
+    /// unspecified (but sound) behavior.
+    #[allow(dead_code)]
+    pub fn get<'a>(&'a self, key: &K) -> Option<&'a F> {
+        self.futures.get(key)
+    }
+
+    /// Get the future corresponding to `key`, if any.
+    ///
+    /// The future should not be `poll`d, nor its registered
+    /// [`std::task::Waker`] otherwise removed or replaced (unless it is also
+    /// woken; see below). The result of doing either is unspecified (but
+    /// sound).
+    ///
+    /// This method is useful primarily when the future has other functionality
+    /// or data bundled with it besides its implementation of the `Future`
+    /// trait, though it *is* permitted to mutate the object in a way that
+    /// causes it to become ready (i.e. wakes and discards its registered
+    /// [`std::task::Waker`]`), or become unready (cause its next poll result to
+    /// be `Poll::Pending` when it otherwise would have been `Poll::Ready` and
+    /// may have already woken its registered `Waker`).
     //
-    // It'd be nice to guarantee that the future is dropped immediately, or take
-    // and return it here. The inner `FuturesUnordered` doesn't support removing
-    // an individual item, though, which is why we wrap the inner futures in
-    // `futures::Abortable`.  Unfortunately that also doesn't provide a way to
-    // immediately drop or take the inner future. If we decide we need that
-    // functionality, we could do it by implementing our own alternative to
-    // `Abortable` that puts the inner future inside an `Arc<Mutex<Option<_>>>`
-    // shared with the abort-handle. It's more code to maintain though, and
-    // probably a bit less efficient.
-    pub fn remove(&mut self, key: &K) -> Option<K> {
-        let (key, e) = self.abort_handles.remove_entry(key)?;
-        e.abort();
-        Some(key)
+    // More specifically:
+    // * If the waker is lost without being woken, we'll never
+    //   poll this future again.
+    // * If our waker is woken *and* the caller polls the future to completion,
+    //   we could end up polling it again after completion,
+    //   breaking the `Future` contract.
+    #[allow(dead_code)]
+    pub fn get_mut<'a>(&'a mut self, key: &K) -> Option<&'a mut F> {
+        self.futures.get_mut(key)
     }
 }
 
 impl<K, F> futures::Stream for KeyedFuturesUnordered<K, F>
 where
-    F: Future,
-    K: Clone + Hash + Eq,
+    F: Future + Unpin,
+    K: Clone + Hash + Eq + Send + Sync + 'static,
 {
     type Item = (K, F::Output);
 
@@ -154,24 +171,55 @@ where
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
+        if self.futures.is_empty() {
+            // Follow precedent of `FuturesUnordered` of returning None in this case.
+            // TODO: Consider breaking this precedent? This behavior is a bit
+            // odd, since the documentation of the Stream trait indicates that a
+            // stream shouldn't be polled again after returning None.
+            return Poll::Ready(None);
+        }
         let mut self_ = self.project();
         loop {
-            match self_.futures_unordered.as_mut().poll_next(cx) {
-                Poll::Pending => return Poll::Pending,
-                // End of stream (no registered futures)
-                Poll::Ready(None) => return Poll::Ready(None),
-                // Aborted. Silently ignore and move on to the next value.
-                Poll::Ready(Some(Err(_aborted))) => continue,
-                // A completed future.
-                Poll::Ready(Some(Ok((key, output)))) => {
-                    self_
-                        .abort_handles
-                        .remove(&key)
-                        // By invariant on `futures_unordered`. We verified that
-                        // the future wasn't canceled, so there must be an
-                        // `abort_handle` entry.
-                        .expect("Cancellation sender is missing");
-                    return Poll::Ready(Some((key, output)));
+            // Get the next pollable future, registering the caller's waker.
+            let key = match self_.notification_receiver.as_mut().poll_next(cx) {
+                Poll::Ready(key) => key.expect("Unexpected end of stream"),
+                Poll::Pending => {
+                    // No more keys to try.
+                    return Poll::Pending;
+                }
+            };
+            let Some(fut) = self_.futures.get_mut(&key) else {
+                // No future for this key. Presumably because it was removed
+                // from the map. Try the next key.
+                continue;
+            };
+            // Poll the future itself, using our own waker that will notify us
+            // that this key is ready.
+            let waker = std::task::Waker::from(Arc::new(KeyedWaker {
+                key: key.clone(),
+                sender: self_.notification_sender.clone(),
+            }));
+            match fut.poll_unpin(&mut std::task::Context::from_waker(&waker)) {
+                Poll::Ready(o) => {
+                    // Remove and drop the future itself.
+                    // We *could* return it along with the item, but this would
+                    // be a departure from the interface of `FuturesUnordered`,
+                    // and most futures are designed to be discarded after
+                    // completion.
+                    self_.futures.remove(&key);
+
+                    return Poll::Ready(Some((key, o)));
+                }
+                Poll::Pending => {
+                    // This future wasn't actually ready.
+                    //
+                    // This can happen, e.g. because:
+                    // * This is our first time actually polling this future.
+                    // * The futures waker was called spuriously.
+                    // * This was actually a reused key, and we received the notification from
+                    //   a waker for a previous future registered with this key.
+                    //
+                    // Move on to the next key.
                 }
             }
         }
@@ -206,11 +254,9 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use futures::{
-        executor::block_on,
-        future::{self, poll_fn},
-        StreamExt as _,
-    };
+    use std::task::Waker;
+
+    use futures::{executor::block_on, future::poll_fn, StreamExt as _};
     use tor_async_utils::oneshot;
     use tor_rtmock::MockRuntime;
 
@@ -222,14 +268,82 @@ mod tests {
     #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
     struct Value(u64);
 
+    /// Simple future for testing. Supports comparison, and can be mutated directly to become ready.
+    #[derive(Debug, Clone)]
+    struct ValueFut<V> {
+        /// Value that will be produced when ready.
+        value: Option<V>,
+        /// Whether this is ready.
+        // We use a distinct flag here instead of a None value so that pending
+        // instances are still unequal if they have different values.
+        ready: bool,
+        // Waker
+        waker: Option<Waker>,
+    }
+
+    impl<V> std::cmp::PartialEq for ValueFut<V>
+    where
+        V: std::cmp::PartialEq,
+    {
+        fn eq(&self, other: &Self) -> bool {
+            // Ignores the waker, which isn't comparable
+            self.value == other.value && self.ready == other.ready
+        }
+    }
+
+    impl<V> std::cmp::Eq for ValueFut<V> where V: std::cmp::Eq {}
+
+    impl<V> ValueFut<V> {
+        fn ready(value: V) -> Self {
+            Self {
+                value: Some(value),
+                ready: true,
+                waker: None,
+            }
+        }
+        fn pending(value: V) -> Self {
+            Self {
+                value: Some(value),
+                ready: false,
+                waker: None,
+            }
+        }
+        fn make_ready(&mut self) {
+            self.ready = true;
+            if let Some(waker) = self.waker.take() {
+                waker.wake();
+            }
+        }
+    }
+
+    impl<V> Future for ValueFut<V>
+    where
+        V: Unpin,
+    {
+        type Output = V;
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+            if !self.ready {
+                self.waker.replace(cx.waker().clone());
+                Poll::Pending
+            } else {
+                Poll::Ready(self.value.take().expect("Polled future after it was ready"))
+            }
+        }
+    }
+
     #[test]
     fn test_empty() {
         block_on(poll_fn(|cx| {
-            let mut kfu = KeyedFuturesUnordered::<Key, oneshot::Receiver<Value>>::new();
+            let mut kfu = KeyedFuturesUnordered::<Key, ValueFut<Value>>::new();
 
             // When there are no futures in the set (ready or pending), returns
             // `Poll::Ready(None)` as for `FuturesUnordered`.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
+
+            // Nothing to get.
+            assert_eq!(kfu.get(&Key(0)), None);
+            assert_eq!(kfu.get_mut(&Key(0)), None);
 
             Poll::Ready(())
         }));
@@ -240,7 +354,7 @@ mod tests {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
 
-            kfu.try_insert(Key(0), future::pending::<()>()).unwrap();
+            kfu.try_insert(Key(0), ValueFut::pending(Value(0))).unwrap();
 
             // When there are futures in the set, but none are ready, returns
             // `Poll::Pending`, as for `FuturesUnordered`
@@ -248,6 +362,10 @@ mod tests {
 
             // State should be unchanged; same result if we poll again.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Pending);
+
+            // We should be able to get the future.
+            assert_eq!(kfu.get(&Key(0)), Some(&ValueFut::pending(Value(0))));
+            assert_eq!(kfu.get_mut(&Key(0)), Some(&mut ValueFut::pending(Value(0))));
 
             Poll::Ready(())
         }));
@@ -258,7 +376,11 @@ mod tests {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
 
-            kfu.try_insert(Key(0), future::ready(Value(1))).unwrap();
+            kfu.try_insert(Key(0), ValueFut::ready(Value(1))).unwrap();
+
+            // Should be able to get the future before it's polled.
+            assert_eq!(kfu.get(&Key(0)), Some(&ValueFut::ready(Value(1))));
+            assert_eq!(kfu.get_mut(&Key(0)), Some(&mut ValueFut::ready(Value(1))));
 
             // When there is a ready future, returns it.
             assert_eq!(
@@ -268,6 +390,8 @@ mod tests {
 
             // After having returned the ready future, should be empty again.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
+            assert_eq!(kfu.get(&Key(0)), None);
+            assert_eq!(kfu.get_mut(&Key(0)), None);
 
             Poll::Ready(())
         }));
@@ -283,6 +407,10 @@ mod tests {
             // Nothing ready yet.
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Pending);
 
+            // Should be able to get it.
+            assert!(kfu.get(&Key(0)).is_some());
+            assert!(kfu.get_mut(&Key(0)).is_some());
+
             send.send(Value(1)).unwrap();
 
             // oneshot future should be ready.
@@ -292,6 +420,8 @@ mod tests {
             );
 
             // Empty again.
+            assert!(kfu.get(&Key(0)).is_none());
+            assert!(kfu.get_mut(&Key(0)).is_none());
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
 
             Poll::Ready(())
@@ -302,8 +432,11 @@ mod tests {
     fn test_remove_pending() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), future::pending::<()>()).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some(Key(0)));
+            kfu.try_insert(Key(0), ValueFut::pending(Value(0))).unwrap();
+            assert_eq!(
+                kfu.remove(&Key(0)),
+                Some((Key(0), ValueFut::pending(Value(0))))
+            );
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
             Poll::Ready(())
         }));
@@ -313,8 +446,11 @@ mod tests {
     fn test_remove_ready() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), future::ready(Value(1))).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some(Key(0)));
+            kfu.try_insert(Key(0), ValueFut::ready(Value(1))).unwrap();
+            assert_eq!(
+                kfu.remove(&Key(0)),
+                Some((Key(0), ValueFut::ready(Value(1))))
+            );
             assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
             Poll::Ready(())
         }));
@@ -324,11 +460,42 @@ mod tests {
     fn test_remove_and_reuse_ready() {
         block_on(poll_fn(|cx| {
             let mut kfu = KeyedFuturesUnordered::new();
-            kfu.try_insert(Key(0), future::ready(Value(1))).unwrap();
-            assert_eq!(kfu.remove(&Key(0)), Some(Key(0)));
-            kfu.try_insert(Key(0), future::ready(Value(2))).unwrap();
+            kfu.try_insert(Key(0), ValueFut::ready(Value(1))).unwrap();
+            assert_eq!(
+                kfu.remove(&Key(0)),
+                Some((Key(0), ValueFut::ready(Value(1))))
+            );
+            kfu.try_insert(Key(0), ValueFut::ready(Value(2))).unwrap();
 
             // We should get back *only* the second value.
+            assert_eq!(
+                kfu.poll_next_unpin(cx),
+                Poll::Ready(Some((Key(0), Value(2))))
+            );
+            assert_eq!(kfu.poll_next_unpin(cx), Poll::Ready(None));
+
+            Poll::Ready(())
+        }));
+    }
+
+    #[test]
+    fn test_remove_and_reuse_pending_then_ready() {
+        block_on(poll_fn(|cx| {
+            let mut kfu = KeyedFuturesUnordered::new();
+            kfu.try_insert(Key(0), ValueFut::pending(Value(1))).unwrap();
+            let (_key, mut removed_value) = kfu.remove(&Key(0)).unwrap();
+            kfu.try_insert(Key(0), ValueFut::pending(Value(2))).unwrap();
+
+            // Make the *removed* future ready before polling again. This should
+            // cause an internal spurious wakeup, but not be visible from the
+            // user's perspective.
+            removed_value.make_ready();
+            assert_eq!(kfu.poll_next_unpin(cx), Poll::Pending);
+
+            // Make the future that we replaced it with become ready.
+            kfu.get_mut(&Key(0)).unwrap().make_ready();
+
+            // We should now get back *only* the second value.
             assert_eq!(
                 kfu.poll_next_unpin(cx),
                 Poll::Ready(Some((Key(0), Value(2))))

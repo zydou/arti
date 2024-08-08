@@ -55,7 +55,7 @@ where
 
 impl<K, V, P, S> StreamPollSet<K, V, P, S>
 where
-    K: Ord + Hash + Clone,
+    K: Ord + Hash + Clone + Send + Sync + 'static,
     S: futures::Stream<Item = V> + Unpin,
     P: Ord + Clone,
 {
@@ -101,7 +101,7 @@ where
     /// Remove the entry `key`.
     pub fn remove(&mut self, key: &K) -> Option<(K, P)> {
         let priority = self.priorities.remove(key)?;
-        if let Some(key) = self.pending_streams.remove(key) {
+        if let Some((key, _stream_fut)) = self.pending_streams.remove(key) {
             // Validate `pending_streams` invariant that keys are also present in exactly one of
             // `pending_streams` and `ready_values`.
             debug_assert!(!self
