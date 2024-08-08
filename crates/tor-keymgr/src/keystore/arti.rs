@@ -119,9 +119,6 @@ impl Keystore for ArtiNativeKeystore {
         let meta = match checked_op!(metadata, path) {
             Ok(meta) => meta,
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(false),
-            Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
-                return Ok(false);
-            }
             Err(e) => {
                 return Err(ArtiNativeKeystoreError::FsMistrust {
                     action: FilesystemAction::Read,
@@ -145,9 +142,6 @@ impl Keystore for ArtiNativeKeystore {
 
         let inner = match checked_op!(read_to_string, path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
-            Err(fs_mistrust::Error::Io { err, .. }) if err.kind() == ErrorKind::NotFound => {
-                return Ok(None);
-            }
             res => res.map_err(|err| ArtiNativeKeystoreError::FsMistrust {
                 action: FilesystemAction::Read,
                 path: path.rel_path_unchecked().into(),
