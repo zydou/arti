@@ -336,6 +336,11 @@ where
             .get_mut(&(priority.clone(), key.clone()))
             .map(|(_v, s)| s)
     }
+
+    /// Number of streams managed by this object.
+    pub fn len(&self) -> usize {
+        self.priorities.len()
+    }
 }
 
 /// Error returned by [`StreamPollSet::try_insert`].

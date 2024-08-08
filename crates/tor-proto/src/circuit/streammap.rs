@@ -6,8 +6,9 @@ mod counted_map;
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
 use crate::stream::AnyCmdChecker;
-use crate::util::stream_poll_set::StreamPollSet;
+use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
+use futures::StreamExt;
 use tor_cell::relaycell::UnparsedRelayMsg;
 /// Mapping from stream ID to streams.
 // NOTE: This is a work in progress and I bet I'll refactor it a lot;
@@ -41,6 +42,28 @@ pub(super) struct OpenStreamEnt {
     pub(super) dropped: u16,
     /// A `CmdChecker` used to tell whether cells on this stream are valid.
     pub(super) cmd_checker: AnyCmdChecker,
+    /// Stream for cells that should be sent down this stream.
+    // Not directly exposed. This should only be polled via
+    // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
+    // only be used through `StreamPollSet`.
+    rx: mpsc::Receiver<AnyRelayMsg>,
+}
+
+/// Private wrapper over `OpenStreamEnt`. We implement `futures::Stream` for
+/// this wrapper, and not directly for `OpenStreamEnt`, so that client code
+/// can't directly access the stream.
+#[derive(Debug)]
+struct OpenStreamEntStream(OpenStreamEnt);
+
+impl futures::Stream for OpenStreamEntStream {
+    type Item = AnyRelayMsg;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.0.rx.poll_next_unpin(cx)
+    }
 }
 
 /// Entry for a stream where we have sent an END, or other message
@@ -90,9 +113,9 @@ impl<'a> From<&'a mut ClosedStreamEnt> for StreamEntMut<'a> {
     }
 }
 
-impl<'a> From<&'a mut OpenStreamEnt> for StreamEntMut<'a> {
-    fn from(value: &'a mut OpenStreamEnt) -> Self {
-        Self::Open(value)
+impl<'a> From<&'a mut OpenStreamEntStream> for StreamEntMut<'a> {
+    fn from(value: &'a mut OpenStreamEntStream) -> Self {
+        Self::Open(&mut value.0)
     }
 }
 
@@ -116,13 +139,7 @@ pub(super) struct StreamMap {
     /// Open streams.
     // Invariants:
     // * Keys are disjoint with `closed_streams`.
-    // * Every open stream also has an entry with the same `StreamId` in `rxs`.
-    // XXX: Subsequent commit will merge `rxs` into `open_streams`
-    open_streams: HashMap<StreamId, OpenStreamEnt>,
-    /// Streams for cells that should be sent down this stream.
-    // Invariants:
-    // * Every `StreamId` has an entry in `open_streams`.
-    rxs: StreamPollSet<StreamId, AnyRelayMsg, Priority, mpsc::Receiver<AnyRelayMsg>>,
+    open_streams: StreamPollSet<StreamId, AnyRelayMsg, Priority, OpenStreamEntStream>,
     /// Closed streams.
     // Invariants:
     // * Keys are disjoint with `open_streams`.
@@ -143,8 +160,7 @@ impl StreamMap {
         let mut rng = rand::thread_rng();
         let next_stream_id: NonZeroU16 = rng.gen();
         StreamMap {
-            open_streams: HashMap::new(),
-            rxs: StreamPollSet::new(),
+            open_streams: StreamPollSet::new(),
             closed_streams: HashMap::new(),
             next_stream_id: next_stream_id.into(),
             next_priority: Priority(0),
@@ -163,43 +179,22 @@ impl StreamMap {
         rv
     }
 
-    fn try_insert_open_stream(
-        &mut self,
-        id: StreamId,
-        stream: OpenStreamEnt,
-        rx: mpsc::Receiver<AnyRelayMsg>,
-    ) -> std::result::Result<(), (OpenStreamEnt, mpsc::Receiver<AnyRelayMsg>)> {
-        let hash_map::Entry::Vacant(ent) = self.open_streams.entry(id) else {
-            return Err((stream, rx));
-        };
-        if self.closed_streams.contains_key(&id) {
-            return Err((stream, rx));
-        }
-        ent.insert(stream);
-        let priority = self.take_next_priority();
-        self.rxs
-            .try_insert(id, priority, rx)
-            // By
-            // * rxs invariant that every key is also in `open_streams`
-            // * We verified this key is not in `open_streams`.
-            .expect("Unexpected rx entry for unused StreamId");
-        Ok(())
-    }
-
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
         sink: mpsc::Sender<UnparsedRelayMsg>,
-        mut rx: mpsc::Receiver<AnyRelayMsg>,
+        rx: mpsc::Receiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
-        let mut stream_ent = OpenStreamEnt {
+        let mut stream_ent = OpenStreamEntStream(OpenStreamEnt {
             sink,
             send_window,
             dropped: 0,
             cmd_checker,
-        };
+            rx,
+        });
+        let priority = self.take_next_priority();
         // This "65536" seems too aggressive, but it's what tor does.
         //
         // Also, going around in a loop here is (sadly) needed in order
@@ -207,9 +202,13 @@ impl StreamMap {
         for _ in 1..=65536 {
             let id: StreamId = self.next_stream_id;
             self.next_stream_id = wrapping_next_stream_id(self.next_stream_id);
-            (stream_ent, rx) = match self.try_insert_open_stream(id, stream_ent, rx) {
+            stream_ent = match self.open_streams.try_insert(id, priority, stream_ent) {
                 Ok(_) => return Ok(id),
-                Err((s, r)) => (s, r),
+                Err(KeyAlreadyInsertedError {
+                    key: _,
+                    priority: _,
+                    stream,
+                }) => stream,
             };
         }
 
@@ -226,19 +225,22 @@ impl StreamMap {
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
-        let stream_ent = OpenStreamEnt {
+        let stream_ent = OpenStreamEntStream(OpenStreamEnt {
             sink,
             send_window,
             dropped: 0,
             cmd_checker,
-        };
-        self.try_insert_open_stream(id, stream_ent, rx)
+            rx,
+        });
+        let priority = self.take_next_priority();
+        self.open_streams
+            .try_insert(id, priority, stream_ent)
             .map_err(|_| Error::IdUnavailable(id))
     }
 
     /// Return the entry for `id` in this map, if any.
     pub(super) fn get_mut(&mut self, id: StreamId) -> Option<StreamEntMut<'_>> {
-        if let Some(e) = self.open_streams.get_mut(&id) {
+        if let Some(e) = self.open_streams.stream_mut(&id) {
             return Some(e.into());
         }
         if let Some(e) = self.closed_streams.get_mut(&id) {
@@ -253,10 +255,6 @@ impl StreamMap {
     /// Returns true if there was really a stream there.
     pub(super) fn ending_msg_received(&mut self, id: StreamId) -> Result<()> {
         if self.open_streams.remove(&id).is_some() {
-            self.rxs
-                .remove(&id)
-                // By invariant on `self.m` that every open stream has an entry in `rxs`.
-                .expect("Missing stream for {id:?}");
             let prev = self.closed_streams.insert(id, ClosedStreamEnt::EndReceived);
             debug_assert!(prev.is_none(), "Unexpected duplicate entry for {id}");
             return Ok(());
@@ -291,19 +289,20 @@ impl StreamMap {
     ) -> Result<ShouldSendEnd> {
         use TerminateReason as TR;
 
-        if let Some(OpenStreamEnt {
-            send_window,
-            dropped,
-            cmd_checker,
-            // notably absent: the channels for sink and stream, which will get dropped and
-            // closed (meaning reads/writes from/to this stream will now fail)
-            ..
-        }) = self.open_streams.remove(&id)
+        if let Some((
+            _id,
+            _priority,
+            _buffered_val,
+            OpenStreamEntStream(OpenStreamEnt {
+                send_window,
+                dropped,
+                cmd_checker,
+                // notably absent: the channels for sink and stream, which will get dropped and
+                // closed (meaning reads/writes from/to this stream will now fail)
+                ..
+            }),
+        )) = self.open_streams.remove(&id)
         {
-            self.rxs
-                .remove(&id)
-                // By invariant on `self.m` that every open stream has an entry in `rxs`.
-                .expect("Missing rx for {id:?}");
             // FIXME(eta): we don't copy the receive window, instead just creating a new one,
             //             so a malicious peer can send us slightly more data than they should
             //             be able to; see arti#230.
@@ -363,17 +362,9 @@ impl StreamMap {
         &'a mut self,
         cx: &mut std::task::Context,
     ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>, &'a OpenStreamEnt)> + 'a {
-        self.rxs
+        self.open_streams
             .poll_ready_iter(cx)
-            .map(|(sid, msg, _priority, _rx)| {
-                let ent = self.open_streams.get(sid);
-                let Some(o) = ent else {
-                    // By:
-                    // * Invariant on `rxs` that every key has a corresponding open strema in `m`.
-                    panic!("Missing open stream for {sid:?}: {ent:?}");
-                };
-                (*sid, msg, o)
-            })
+            .map(|(sid, msg, _priority, ent)| (*sid, msg, &ent.0))
     }
 
     /// If the stream `sid` has a message ready, take it, and reprioritize `sid`
@@ -382,7 +373,7 @@ impl StreamMap {
     pub(super) fn take_ready_msg(&mut self, sid: StreamId) -> Option<AnyRelayMsg> {
         let new_priority = self.take_next_priority();
         let (_prev_priority, val) = self
-            .rxs
+            .open_streams
             .take_ready_value_and_reprioritize(&sid, new_priority)?;
         Some(val)
     }
