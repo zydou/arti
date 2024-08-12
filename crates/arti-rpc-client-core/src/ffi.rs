@@ -7,10 +7,14 @@ pub mod err;
 mod util;
 
 use err::{ArtiRpcError, InvalidInput};
-use std::ffi::c_char;
-use util::{ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OutPtr};
+use std::ffi::{c_char, c_int};
+use util::{ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OptOutValExt, OutPtr, OutVal};
 
-use crate::{util::Utf8CString, RpcConnBuilder};
+use crate::{
+    conn::{AnyResponse, RequestHandle},
+    util::Utf8CString,
+    RpcConnBuilder,
+};
 
 /// A status code returned by an Arti RPC function.
 ///
@@ -32,6 +36,16 @@ pub type ArtiRpcConn = crate::RpcConn;
 /// You can inspect it with `arti_rpc_str_get`, but you may not modify it.
 /// The string is guaranteed to be UTF-8 and NUL-terminated.
 pub type ArtiRpcStr = Utf8CString;
+
+/// A handle to an in-progress RPC request.
+///
+/// This handle must eventually be freed with `arti_rpc_handle_free`.
+///
+/// You can wait for the next message with `arti_rpc_handle_wait`.
+pub type ArtiRpcHandle = RequestHandle;
+
+/// The type of a message returned by an RPC request.
+pub type ArtiRpcResponseType = c_int;
 
 /// Try to open a new connection to an Arti instance.
 ///
@@ -69,7 +83,7 @@ pub unsafe extern "C" fn arti_rpc_connect(
 
             let conn = builder.connect()?;
 
-            rpc_conn_out.write_value_if_ptr_set(conn);
+            rpc_conn_out.write_boxed_value_if_ptr_set(conn);
         }
     )
 }
@@ -121,6 +135,8 @@ pub unsafe extern "C" fn arti_rpc_conn_get_session_id(
 /// # Ownership
 ///
 /// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+///
+/// The caller is responsible for making sure that `*response_out`, if set, is eventually freed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_conn_execute(
@@ -140,11 +156,149 @@ pub unsafe extern "C" fn arti_rpc_conn_execute(
             let msg = msg.ok_or(InvalidInput::NullPointer)?;
 
             let success = rpc_conn.execute(msg)??;
-            response_out.write_value_if_ptr_set(Utf8CString::from(success));
+            response_out.write_boxed_value_if_ptr_set(Utf8CString::from(success));
         }
     )
 }
 
+/// Send an RPC request over `rpc_conn`, and return a handle that can wait for a successful response.
+///
+/// The message `msg` should be a valid RPC request in JSON format.
+/// If you omit its `id` field, one will be generated: this is typically the best way to use this function.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*handle_out` to a newly allocated `ArtiRpcHandle`.
+///
+/// Otherwise return some other status code,  set `*handle_out` to NULL,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// (If `handle_out` is set to NULL, the request will not be sent, and an error will be returned.)
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+///
+/// The caller is responsible for making sure that `*handle_out`, if set, is eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_conn_execute_with_handle(
+    rpc_conn: *const ArtiRpcConn,
+    msg: *const c_char,
+    handle_out: *mut *mut ArtiRpcHandle,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let msg: Option<&str> [in_str_opt];
+            let handle_out: Option<OutPtr<ArtiRpcHandle>> [out_ptr_opt];
+            err error_out: Option<OutPtr<ArtiRpcError>>;
+        } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+            let msg = msg.ok_or(InvalidInput::NullPointer)?;
+            let handle_out = handle_out.ok_or(InvalidInput::NullPointer)?;
+
+            let handle = rpc_conn.execute_with_handle(msg)?;
+            handle_out.write_value_boxed(handle);
+        }
+    )
+}
+
+/// A constant indicating that a message is a final result.
+///
+/// After a result has been received, a handle will not return any more responses,
+/// and should be freed.
+pub const ARTI_RPC_RESPONSE_TYPE_RESULT: ArtiRpcResponseType = 1;
+/// A constant indicating that a message is a non-final update.
+///
+/// After an update has been received, the handle may return additional responses.
+pub const ARTI_RPC_RESPONSE_TYPE_UPDATE: ArtiRpcResponseType = 2;
+/// A constant indicating that a message is a final error.
+///
+/// After an error has been received, a handle will not return any more responses,
+/// and should be freed.
+pub const ARTI_RPC_RESPONSE_TYPE_ERROR: ArtiRpcResponseType = 3;
+
+impl AnyResponse {
+    /// Return an appropriate `ARTI_RPC_RESPONSE_TYPE_*` for this response.
+    fn response_type(&self) -> ArtiRpcResponseType {
+        match self {
+            Self::Success(_) => ARTI_RPC_RESPONSE_TYPE_RESULT,
+            Self::Update(_) => ARTI_RPC_RESPONSE_TYPE_UPDATE,
+            Self::Error(_) => ARTI_RPC_RESPONSE_TYPE_ERROR,
+        }
+    }
+}
+
+/// Wait until some response arrives on an arti_rpc_handle, or until an error occurs.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`; set `*response_out`, if present, to a
+/// newly allocated string, and set `*response_type_out`, to the type of the response.
+/// (The type will be `ARTI_RPC_RESPONSE_TYPE_RESULT` if the response is a final result,
+/// or `ARTI_RPC_RESPONSE_TYPE_ERROR` if the response is a final error,
+/// or `ARTI_RPC_RESPONSE_TYPE_UPDATE` if the response is a non-final update.)
+///
+/// Otherwise return some other status code, set `*response_out` to NULL,
+/// set `*response_type_out` to zero,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// Note that receiving an error reply from Arti is _not_ treated as an error in this function.
+/// That is to say, if Arti sends back an error, this function will return `ARTI_SUCCESS`,
+/// and deliver the error from Arti in `*response_out`, setting `*response_type_out` to
+/// `ARTI_RPC_RESPONSE_TYPE_ERROR`.
+///
+/// # Correctness requirements
+///
+/// No other thread or code must be using `handle` while this function is running.
+/// Accessing `handle` from multiple functions at once may result in undefined behavior.
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`, if set, is eventually freed.
+///
+/// The caller is responsible for making sure that `*response_out`, if set, is eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_handle_wait(
+    handle: *mut ArtiRpcHandle,
+    response_out: *mut *mut ArtiRpcStr,
+    response_type_out: *mut ArtiRpcResponseType,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err! {
+        {
+            let handle: Option<&mut ArtiRpcHandle> [in_mut_ptr_opt];
+            let response_out: Option<OutPtr<ArtiRpcStr>> [out_ptr_opt];
+            let response_type_out: Option<OutVal<ArtiRpcResponseType>> [out_val_opt];
+            err error_out: Option<OutPtr<ArtiRpcError>>;
+        } in {
+            let handle = handle.ok_or(InvalidInput::NullPointer)?;
+
+            let response = handle.wait_with_updates()?;
+
+            let rtype = response.response_type();
+            response_type_out.write_value_if_ptr_set(rtype);
+            response_out.write_boxed_value_if_ptr_set(response.into_string());
+        }
+    }
+}
+
+/// Release storage held by an `ArtiRpcHandle`.
+///
+/// NOTE, TODO: This does not cancel the request, but that is not guaranteed.
+/// Once we implement cancellation, this may behave differently.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_handle_free(handle: *mut ArtiRpcHandle) {
+    ffi_body_raw!(
+        {
+            let handle: Option<Box<ArtiRpcHandle>> [in_ptr_consume_opt];
+        } in {
+            drop(handle);
+            // Safety: Return value is (); trivially safe.
+            ()
+        }
+    );
+}
 /// Free a string returned by the Arti RPC API.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]

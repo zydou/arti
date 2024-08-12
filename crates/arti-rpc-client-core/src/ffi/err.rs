@@ -490,7 +490,7 @@ where
         Err(e) => {
             // "body" returned an error.
             let status = e.status;
-            error_out.write_value_if_ptr_set(e);
+            error_out.write_boxed_value_if_ptr_set(e);
             status
         }
     }

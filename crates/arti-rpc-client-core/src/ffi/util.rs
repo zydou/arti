@@ -2,18 +2,21 @@
 
 use std::mem::MaybeUninit;
 
-/// Helper for output parameters represented as `*mut *mut T`.
+/// Helper for output parameters represented as `*mut T`.
 ///
 /// This is for an API which, from a C POV, returns an output via a parameter of type
-/// `Foo **foo_out`.  When an `OutPtr` is constructed, `*foo_out` is necessarily non-null.
+/// `Foo *foo_out` .  When an `OutPtr` is constructed, `foo_out` is necessarily non-null;
 ///
-/// If `foo_out` is not NULL, then `*foo_out` is always set to NULL when an `OutPtr`
+/// If `foo_out` is not NULL, then `*foo_out` is always initialized when an `OutPtr`
 /// is constructed, so that even if the FFI code panics, the inner pointer will be initialized to
 /// _something_.
-pub(super) struct OutPtr<'a, T>(&'a mut *mut T);
+pub(super) struct OutVal<'a, T>(&'a mut T);
 
-impl<'a, T> OutPtr<'a, T> {
-    /// Construct `Option<Self>` from a possibly NULL pointer; initialize `*ptr` to NULL if possible.
+/// Alias for an `OutVal` representing a `*mut *mut T`.
+pub(super) type OutPtr<'a, T> = OutVal<'a, *mut T>;
+
+impl<'a, T> OutVal<'a, T> {
+    /// Construct `Option<Self>` from a possibly NULL pointer; initialize `*ptr` to `initial_value` if possible.
     ///
     /// # Safety
     ///
@@ -28,7 +31,7 @@ impl<'a, T> OutPtr<'a, T> {
     //
     // (I have tested this using the `no-panic` crate.  But `no-panic` is not suitable
     // for use in production, since it breaks when run in debug mode.)
-    pub(super) unsafe fn from_opt_ptr(ptr: *mut *mut T) -> Option<Self> {
+    pub(super) unsafe fn from_opt_ptr(ptr: *mut T, initial_value: T) -> Option<Self> {
         if ptr.is_null() {
             None
         } else {
@@ -37,20 +40,27 @@ impl<'a, T> OutPtr<'a, T> {
             // SAFETY: See documentation for [`<*mut *mut T>::as_uninit_mut`]
             // at https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut :
             // This is the same code.
-            let ptr: &mut MaybeUninit<*mut T> = unsafe { &mut *(ptr as *mut MaybeUninit<*mut T>) };
-            let ptr: &mut *mut T = ptr.write(std::ptr::null_mut());
-            Some(OutPtr(ptr))
+            let ptr: &mut MaybeUninit<T> = unsafe { &mut *(ptr as *mut MaybeUninit<T>) };
+            let ptr: &mut T = ptr.write(initial_value);
+            Some(OutVal(ptr))
         }
     }
 
-    /// Consume this OutPtr and the provided value, writing the value into the outptr.
+    /// Consume this `OutVal` and the provided value, writing the value into the outval.
     pub(super) fn write_value(self, value: T) {
         // Note that all the unsafety happened when we constructed a &mut from the pointer.
         //
         // Note also that this method consumes `self`.  That's because we want to avoid multiple
-        // writes to the same OutPtr: If we did that, we would sometimes have to free a previous
+        // writes to the same OutVal: If we did that, we would sometimes have to free a previous
         // value.
-        *self.0 = Box::into_raw(Box::new(value));
+        *self.0 = value;
+    }
+}
+
+impl<'a, T> OutVal<'a, *mut T> {
+    /// Consume this `OutPtr` and the provided value, writing the value into the outptr.
+    pub(super) fn write_value_boxed(self, value: T) {
+        self.write_value(Box::into_raw(Box::new(value)));
     }
 }
 
@@ -67,10 +77,26 @@ pub(super) trait OptOutPtrExt<T>: Sealed {
     /// If this is Some, write the value into the outptr.
     ///
     /// Otherwise, discard the value.
+    fn write_boxed_value_if_ptr_set(self, value: T);
+}
+/// Extension trait on `Option<OutVal<T>>`
+pub(super) trait OptOutValExt<T>: Sealed {
+    /// Consume this `Option<OutVal<T>>` and the provided value.
+    ///
+    /// If this is Some, write the value into the outptr.
+    ///
+    /// Otherwise, discard the value.
     fn write_value_if_ptr_set(self, value: T);
 }
-impl<'a, T> Sealed for Option<OutPtr<'a, T>> {}
-impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
+impl<'a, T> Sealed for Option<OutVal<'a, T>> {}
+impl<'a, T> OptOutPtrExt<T> for Option<OutVal<'a, *mut T>> {
+    fn write_boxed_value_if_ptr_set(self, value: T) {
+        if let Some(outptr) = self {
+            outptr.write_value_boxed(value);
+        }
+    }
+}
+impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
     fn write_value_if_ptr_set(self, value: T) {
         if let Some(outptr) = self {
             outptr.write_value(value);
@@ -182,9 +208,11 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 /// | method               | input type      | converted to       | can reject input? |
 /// |----------------------|-----------------|--------------------|-------------------|
 /// | `in_ptr_opt`         | `*const T`      | `Option<&T>`       | N                 |
+/// | `in_mut_ptr_opt`     | `*mut T`        | `Option<&mut T>`   | N                 |
 /// | `in_str_opt`         | `*const c_char` | `Option<&str>`     | Y                 |
 /// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>`   | N                 |
 /// | `out_ptr_opt`        | `*mut *mut T`   | `Option<OutPtr<T>>`| N                 |
+/// | `out_val_opt`        | `*mut T`        | `Option<OutVal<T>>`| N                 |
 ///
 /// > (Note: Other conversion methods are logically possible, but have not been added yet,
 /// > since they would not yet be used in this crate.)
@@ -198,6 +226,16 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 /// * If the pointer is not null, it must point
 ///   to a valid aligned dereferenceable instance of `T`.
 /// * The underlying `T` must not be freed or modified for so long as the function is running.
+///
+/// The `in_mut_ptr_opt` method
+/// has the safety requirements of
+/// [`<*const T>::as_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut).
+/// Informally, this means:
+/// * If the pointer is not null, it must point
+///   to a valid aligned dereferenceable instance of `T`.
+/// * The underlying `T` must not be freed or modified for so long as the function is running.
+/// * The underlying `T` must not be referenced any other rust function at the same time,
+///   or the aliasing rules otherwise violated.
 ///
 /// The `in_str_opt` method, when its input is non-NULL,
 /// has the safety requirements of [`CStr::from_ptr`](std::ffi::CStr::from_ptr).
@@ -215,6 +253,13 @@ impl<'a, T> OptOutPtrExt<T> for Option<OutPtr<'a, T>> {
 ///    the result of an earlier a call to `Box<T>::into_raw`.
 ///    (Note that using either `out_ptr_*` method
 ///    will output pointers that can later be consumed in this way.)
+///
+/// The `out_val_opt` method
+/// has the safety requirements of
+/// [`<*mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
+/// Informally, this means:
+///   * If the pointer (call it "out") is non-NULL, then `*out` must point to aligned
+///     "dereferenceable" (q.v.) memory holding a possibly uninitialized "T".
 ///
 /// The `out_ptr_opt` method
 /// has the safety requirements of
@@ -465,7 +510,7 @@ macro_rules! ffi_initialize {
 /// Nothing outside of the `ffi_initialize!` macro should actually invoke these functions!
 #[allow(clippy::unnecessary_wraps)]
 pub(super) mod arg_conversion {
-    use super::OutPtr;
+    use super::{OutPtr, OutVal};
     use crate::ffi::err::InvalidInput;
     use std::ffi::{c_char, CStr};
     use void::Void;
@@ -479,6 +524,19 @@ pub(super) mod arg_conversion {
     /// As for [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
     pub(in crate::ffi) unsafe fn in_ptr_opt<'a, T>(input: *const T) -> Result<Option<&'a T>, Void> {
         Ok(unsafe { input.as_ref() })
+    }
+
+    /// Try to convert a mut pointer to an optional reference.
+    ///
+    /// A null pointer is allowed, and converted to `None`.
+    ///
+    /// # Safety
+    ///
+    /// As for [`<*const T>::as_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut).
+    pub(in crate::ffi) unsafe fn in_mut_ptr_opt<'a, T>(
+        input: *mut T,
+    ) -> Result<Option<&'a mut T>, Void> {
+        Ok(unsafe { input.as_mut() })
     }
 
     /// Try to convert a `const char *` to a `&str`.
@@ -536,7 +594,29 @@ pub(super) mod arg_conversion {
     pub(in crate::ffi) unsafe fn out_ptr_opt<'a, T>(
         input: *mut *mut T,
     ) -> Result<Option<OutPtr<'a, T>>, Void> {
-        Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr(input) })
+        Ok(unsafe { crate::ffi::util::OutPtr::from_opt_ptr(input, std::ptr::null_mut()) })
+    }
+
+    /// Try to convert a mutable pointer-to-value into an `Option<OutVal<T>>`.
+    ///
+    /// A null pointer is allowed, and converted into None.
+    ///
+    /// Whatever the target of the original pointer (`input: *mut T`), if `input` is non-null.
+    /// then `*input` is initialized to T::default().
+    ///
+    /// It is safe for `*input` to be uninitialized.
+    ///
+    /// # Safety
+    ///
+    /// As for
+    /// [`<*mut T>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
+    pub(in crate::ffi) unsafe fn out_val_opt<'a, T>(
+        input: *mut T,
+    ) -> Result<Option<OutVal<'a, T>>, Void>
+    where
+        T: Default,
+    {
+        Ok(unsafe { crate::ffi::util::OutVal::from_opt_ptr(input, T::default()) })
     }
 }
 
@@ -561,10 +641,10 @@ mod test {
     use super::*;
 
     unsafe fn outptr_user(ptr: *mut *mut i8, set_to_val: Option<i8>) {
-        let ptr = unsafe { OutPtr::from_opt_ptr(ptr) };
+        let ptr = unsafe { OutPtr::from_opt_ptr(ptr, std::ptr::null_mut()) };
 
         if let Some(v) = set_to_val {
-            ptr.write_value_if_ptr_set(v);
+            ptr.write_boxed_value_if_ptr_set(v);
         }
     }
 
