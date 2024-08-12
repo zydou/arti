@@ -432,7 +432,7 @@ ArtiRpcError *arti_rpc_err_clone(const ArtiRpcError *err);
 void arti_rpc_err_free(ArtiRpcError *err);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* ARTI_RPC_CLIENT_CORE_H_ */
+#endif  /* ARTI_RPC_CLIENT_CORE_H_ */
