@@ -43,7 +43,7 @@ pub enum BufferedPollNextResult<T> {
 ///   ready or exhausted (e.g. a corresponding [`futures::Sink`] is written-to or
 ///   dropped). A ready stream won't be polled again until the ready item has been
 ///   removed.
-pub struct StreamPollSet<K, V, P, S>
+pub struct StreamPollSet<K, P, S>
 where
     S: futures::Stream + Unpin,
 {
@@ -58,17 +58,18 @@ where
     /// Streams that have a result ready, in ascending order by priority.
     // Invariants:
     // * Keys are a (non-strict) subset of those in `priorities`.
-    ready_values: BTreeMap<(P, K), (Option<V>, S)>,
+    #[allow(clippy::type_complexity)]
+    ready_values: BTreeMap<(P, K), (Option<S::Item>, S)>,
     /// Streams for which we're still waiting for the next result.
     // Invariants:
     // * Keys are a (non-strict) subset of those in `priorities`.
     pending_streams: KeyedFuturesUnordered<K, futures::stream::StreamFuture<S>>,
 }
 
-impl<K, V, P, S> StreamPollSet<K, V, P, S>
+impl<K, P, S> StreamPollSet<K, P, S>
 where
     K: Ord + Hash + Clone + Send + Sync + 'static,
-    S: futures::Stream<Item = V> + Unpin,
+    S: futures::Stream + Unpin,
     P: Ord + Clone,
 {
     /// Create a new, empty, `StreamPollSet`.
@@ -112,7 +113,7 @@ where
 
     /// Remove the entry for `key`, if any. This is the key, priority, buffered
     /// poll_next result, and stream.
-    pub fn remove(&mut self, key: &K) -> Option<(K, P, BufferedPollNextResult<V>, S)> {
+    pub fn remove(&mut self, key: &K) -> Option<(K, P, BufferedPollNextResult<S::Item>, S)> {
         let priority = self.priorities.remove(key)?;
         if let Some((key, stream_fut)) = self.pending_streams.remove(key) {
             // Validate `priorities` invariant that keys are also present in exactly one of
@@ -220,7 +221,7 @@ where
     pub fn poll_ready_iter<'a>(
         &'a mut self,
         cx: &mut std::task::Context,
-    ) -> impl Iterator<Item = (&'a K, Option<&'a V>, &'a P, &'a S)> + 'a {
+    ) -> impl Iterator<Item = (&'a K, Option<&'a S::Item>, &'a P, &'a S)> + 'a {
         // First poll for ready streams
         while let Poll::Ready(Some((key, (value, stream)))) =
             self.pending_streams.poll_next_unpin(cx)
@@ -255,7 +256,7 @@ where
         &mut self,
         key: &K,
         new_priority: P,
-    ) -> Option<(P, V)> {
+    ) -> Option<(P, S::Item)> {
         // Get the priority entry, but don't replace until the lookup in ready_streams is confirmed.
         let hash_map::Entry::Occupied(mut priority_entry) = self.priorities.entry(key.clone())
         else {
@@ -294,7 +295,7 @@ where
     /// ensure streams make progress.
     // This will be used for packing and fragmentation, to take part of a DATA message.
     #[allow(unused)]
-    pub fn ready_value_mut(&mut self, key: &K) -> Option<&mut V> {
+    pub fn ready_value_mut(&mut self, key: &K) -> Option<&mut S::Item> {
         let priority = self.priorities.get(key)?;
         let value = &mut self
             .ready_values
@@ -477,7 +478,7 @@ mod test {
     #[test]
     fn test_empty() {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, TestStream>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, TestStream>::new();
             assert_eq!(pollset.poll_ready_iter(ctx).collect::<Vec<_>>(), vec![]);
             Poll::Ready(())
         }));
@@ -486,7 +487,7 @@ mod test {
     #[test]
     fn test_one_pending() {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, TestStream>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, TestStream>::new();
             pollset
                 .try_insert(Key(0), Priority(0), TestStream::new_open([]))
                 .unwrap();
@@ -498,7 +499,7 @@ mod test {
     #[test]
     fn test_one_ready() {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, TestStream>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, TestStream>::new();
             pollset
                 .try_insert(
                     Key(0),
@@ -579,7 +580,7 @@ mod test {
     #[test]
     fn test_round_robin() {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, TestStream>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, TestStream>::new();
             pollset
                 .try_insert(
                     Key(0),
@@ -696,7 +697,7 @@ mod test {
     #[test]
     fn test_remove_and_reuse_key() {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, TestStream>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, TestStream>::new();
             pollset
                 .try_insert(
                     Key(0),
@@ -746,7 +747,7 @@ mod test {
     #[test]
     fn get_ready_stream() {
         futures::executor::block_on(futures::future::poll_fn(|_ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, VecDequeStream<Value>>::new();
             pollset
                 .try_insert(Key(0), Priority(0), VecDequeStream::new_open([Value(1)]))
                 .unwrap();
@@ -758,7 +759,7 @@ mod test {
     #[test]
     fn get_pending_stream() {
         futures::executor::block_on(futures::future::poll_fn(|_ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, VecDequeStream<Value>>::new();
             pollset
                 .try_insert(Key(0), Priority(0), VecDequeStream::new_open([]))
                 .unwrap();
@@ -770,7 +771,7 @@ mod test {
     #[test]
     fn mutate_pending_stream() {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, VecDequeStream<Value>>::new();
             pollset
                 .try_insert(Key(0), Priority(0), VecDequeStream::new_open([]))
                 .unwrap();
@@ -796,7 +797,7 @@ mod test {
     #[test]
     fn mutate_ready_stream() {
         futures::executor::block_on(futures::future::poll_fn(|ctx| {
-            let mut pollset = StreamPollSet::<Key, Value, Priority, VecDequeStream<Value>>::new();
+            let mut pollset = StreamPollSet::<Key, Priority, VecDequeStream<Value>>::new();
             pollset
                 .try_insert(Key(0), Priority(0), VecDequeStream::new_open([Value(0)]))
                 .unwrap();
@@ -846,12 +847,8 @@ mod test {
     #[test]
     fn test_async() {
         MockRuntime::test_with_various(|rt| async move {
-            let mut pollset = StreamPollSet::<
-                Key,
-                Value,
-                Priority,
-                futures::channel::mpsc::Receiver<Value>,
-            >::new();
+            let mut pollset =
+                StreamPollSet::<Key, Priority, futures::channel::mpsc::Receiver<Value>>::new();
 
             // Create 2 mpsc channels, bounded so that we can exercise back-pressure.
             // These are analogous to Tor streams.
