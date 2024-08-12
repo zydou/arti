@@ -109,7 +109,14 @@ pub trait Invocable: Send + Sync + 'static {
     /// Describe the types for this Invocable.  Used for debugging.
     fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (object_name, method_name) = self.object_and_method_type_names();
-        write!(f, "Invocable({} for {})", method_name, object_name,)
+        let rpc_method_name = crate::method::method_info_by_typeid(self.method_type())
+            .map(|mi| mi.method_name)
+            .unwrap_or("???");
+        write!(
+            f,
+            "Invocable({} ({}) for {})",
+            method_name, rpc_method_name, object_name,
+        )
     }
 
     /// Invoke this method on an object.
@@ -1129,8 +1136,10 @@ pub(crate) mod test {
         assert_eq!(ent2.same_decl(&ent2), true);
         assert_eq!(ent2.same_decl(&ent2b), false);
 
-        let re =
-            regex::Regex::new(r#"^Invocable\(.*GetName for .*GenericObj.*String.*String"#).unwrap();
+        let re = regex::Regex::new(
+            r#"^Invocable\(.*GetName \(x-test:getname\) for .*GenericObj.*String.*String"#,
+        )
+        .unwrap();
         let debug_fmt = format!("{:?}", &ent2);
         dbg!(&debug_fmt);
         assert!(re.is_match(&debug_fmt));

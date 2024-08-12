@@ -1,6 +1,9 @@
 //! Method type for the RPC system.
 
-use std::collections::HashSet;
+use std::{
+    any,
+    collections::{HashMap, HashSet},
+};
 
 use derive_deftly::define_derive_deftly;
 use downcast_rs::Downcast;
@@ -98,6 +101,14 @@ pub enum NoUpdates {}
 pub struct MethodInfo_ {
     /// The name of the method.
     pub method_name: &'static str,
+    /// A function returning the TypeId for this method's underlying type.
+    ///
+    /// (This needs to be a fn since TypeId::of isn't `const` yet.)
+    pub typeid: fn() -> any::TypeId,
+    /// A function returning the name for this method's output type.
+    pub output_name: fn() -> &'static str,
+    /// A function returning the name for this method's update type.
+    pub update_name: fn() -> &'static str,
 }
 
 inventory::collect!(MethodInfo_);
@@ -142,7 +153,12 @@ define_derive_deftly! {
                 }
             }
             $crate::inventory::submit! {
-                $crate::MethodInfo_ { method_name : ${tmeta(rpc(method_name)) as str} }
+                $crate::MethodInfo_ {
+                    method_name : ${tmeta(rpc(method_name)) as str},
+                    typeid : std::any::TypeId::of::<$ttype>,
+                    output_name: std::any::type_name::<<$ttype as $crate::RpcMethod>::Output>,
+                    update_name: std::any::type_name::<<$ttype as $crate::RpcMethod>::Update>,
+                }
             }
         } else if tmeta(rpc(no_method_name)) {
             // don't derive DeserMethod.
@@ -163,6 +179,19 @@ pub fn is_method_name(name: &str) -> bool {
 /// Used (e.g.) to enforce syntactic requirements on method names.
 pub fn iter_method_names() -> impl Iterator<Item = &'static str> {
     inventory::iter::<MethodInfo_>().map(|mi| mi.method_name)
+}
+
+/// Given a type ID, return its RPC MethodInfo_ (if any).
+pub(crate) fn method_info_by_typeid(typeid: any::TypeId) -> Option<&'static MethodInfo_> {
+    /// Lazy map from TypeId to RPC method name.
+    static METHOD_INFO_BY_TYPEID: Lazy<HashMap<any::TypeId, &'static MethodInfo_>> =
+        Lazy::new(|| {
+            inventory::iter::<MethodInfo_>()
+                .map(|mi| ((mi.typeid)(), mi))
+                .collect()
+        });
+
+    METHOD_INFO_BY_TYPEID.get(&typeid).copied()
 }
 
 /// Error representing an "invalid" method name.
