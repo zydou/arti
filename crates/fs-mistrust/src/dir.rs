@@ -3,7 +3,7 @@
 
 use std::{
     fs::{File, Metadata, OpenOptions},
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -289,7 +289,20 @@ impl CheckedDir {
             self.verifier().check(parent)?;
         }
 
-        let meta = path.metadata().map_err(|e| Error::inspecting(e, &path))?;
+        let meta = path
+            .symlink_metadata()
+            .map_err(|e| Error::inspecting(e, &path))?;
+
+        if meta.is_symlink() {
+            // TODO: this is inconsistent with CheckedDir::open()'s behavior, which returns a
+            // FilesystemLoop io error in this case (we can't construct such an error here, because
+            // ErrorKind::FilesystemLoop is only available on nightly)
+            let err = io::Error::new(
+                io::ErrorKind::Other,
+                format!("Path {:?} is a symlink", path),
+            );
+            return Err(Error::io(err, &path, "metadata"));
+        }
 
         if let Some(error) = self
             .verifier()
@@ -590,5 +603,35 @@ mod test {
                 Err(Error::BadPermission(_, _, _))
             ));
         }
+    }
+
+    #[test]
+    #[cfg(target_family = "unix")]
+    fn metadata_symlink() {
+        use crate::testing::LinkType;
+
+        let d = Dir::new();
+        d.dir("a/b");
+        d.file("a/b/f1");
+
+        d.chmod("a/b", 0o700);
+        d.chmod("a/b/f1", 0o600);
+        d.link_rel(LinkType::File, "f1", "a/b/f1-link");
+
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
+
+        let sd = m.verifier().secure_dir(d.path("a/b")).unwrap();
+
+        assert!(sd.open("f1", OpenOptions::new().read(true)).is_ok());
+
+        // Metadata returns an error if called on a symlink
+        let e = sd.metadata("f1-link").unwrap_err();
+        assert!(
+            matches!(e, Error::Io { ref err, .. } if err.to_string().contains("is a symlink")),
+            "{e:?}"
+        );
     }
 }
