@@ -5,6 +5,9 @@
 
 // So that we can declare these things as if they were in their own crate.
 #![allow(unreachable_pub)]
+// This module is currently unused.
+// TODO: remove?
+#![allow(dead_code)]
 
 use std::{
     borrow::Borrow,
