@@ -5277,6 +5277,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-test",
+ "void",
 ]
 
 [[package]]

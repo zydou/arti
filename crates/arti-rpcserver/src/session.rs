@@ -201,7 +201,6 @@ async fn session_resolve_ptr_with_prefs(
         .await
         .map_err(|e| Box::new(e) as _)?
 }
-
 static_rpc_invoke_fn! {
     rpc_release;
     echo_on_session;
@@ -210,4 +209,45 @@ static_rpc_invoke_fn! {
     @special session_connect_with_prefs;
     @special session_resolve_with_prefs;
     @special session_resolve_ptr_with_prefs;
+}
+
+#[cfg(feature = "describe-methods")]
+mod list_all_methods {
+    use std::{convert::Infallible, sync::Arc};
+
+    use derive_deftly::Deftly;
+    use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*, RpcDispatchInformation};
+
+    /// An RPC method to return a description of methods recognized on a session.
+    ///
+    /// Note that not every recognized method is necessarily invocable in practice
+    /// depending on the session's access level, you might not be able to
+    /// access any objects that the method might be invocable upon.
+    ///
+    /// Methods starting with "x_" are extra-unstable.
+    /// See [`RpcDispatchInformation`] for caveats about type names.
+    #[derive(Debug, serde::Deserialize, Deftly)]
+    #[derive_deftly(DynMethod)]
+    #[deftly(rpc(method_name = "arti:x_list_all_rpc_methods"))]
+    struct ListAllRpcMethods {}
+
+    impl rpc::RpcMethod for ListAllRpcMethods {
+        type Output = RpcDispatchInformation;
+        type Update = rpc::NoUpdates;
+    }
+
+    /// Implement ListAllRpcMethods on an RpcSession.
+    async fn session_list_all_rpc_methods(
+        _session: Arc<super::RpcSession>,
+        _method: Box<ListAllRpcMethods>,
+        ctx: Arc<dyn rpc::Context>,
+    ) -> Result<RpcDispatchInformation, Infallible> {
+        Ok(ctx
+            .dispatch_table()
+            .read()
+            .expect("poisoned lock")
+            .dispatch_information())
+    }
+
+    static_rpc_invoke_fn! { session_list_all_rpc_methods; }
 }
