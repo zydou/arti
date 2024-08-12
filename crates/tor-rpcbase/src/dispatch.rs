@@ -102,8 +102,15 @@ pub trait Invocable: Send + Sync + 'static {
     fn object_type(&self) -> any::TypeId;
     /// Return the type of method that this Invocable will accept.
     fn method_type(&self) -> any::TypeId;
+    /// Return the names of the type for the object and methods types this Invocable will accept.
+    ///
+    /// Caveats apply as for [`any::type_name`].
+    fn object_and_method_type_names(&self) -> (&'static str, &'static str);
     /// Describe the types for this Invocable.  Used for debugging.
-    fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (object_name, method_name) = self.object_and_method_type_names();
+        write!(f, "Invocable({} for {})", method_name, object_name,)
+    }
 
     /// Invoke this method on an object.
     ///
@@ -170,12 +177,10 @@ macro_rules! declare_invocable_impl {
                 any::TypeId::of::<M>()
             }
 
-            fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(
-                    f,
-                    "Invocable({} for {})",
-                    any::type_name::<M>(),
+            fn object_and_method_type_names(&self) -> (&'static str, &'static str) {
+                (
                     any::type_name::<OBJ>(),
+                    any::type_name::<M>(),
                 )
             }
 
