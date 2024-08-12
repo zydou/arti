@@ -13,6 +13,7 @@ mod cmdcheck;
 #[cfg(feature = "stream-ctrl")]
 mod ctrl;
 mod data;
+mod flow_control;
 #[cfg(feature = "hs-service")]
 mod incoming;
 mod params;
@@ -40,3 +41,5 @@ pub use tor_cell::relaycell::msg::IpVersionPreference;
 #[cfg(feature = "stream-ctrl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "stream-ctrl")))]
 pub use {ctrl::ClientStreamCtrl, data::DataStreamCtrl};
+
+pub(crate) use flow_control::StreamSendFlowControl;

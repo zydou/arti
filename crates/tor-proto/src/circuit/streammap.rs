@@ -2,7 +2,7 @@
 
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
-use crate::stream::AnyCmdChecker;
+use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use futures::StreamExt;
@@ -13,6 +13,7 @@ use futures::channel::mpsc;
 use std::collections::hash_map;
 use std::collections::HashMap;
 use std::num::NonZeroU16;
+use std::task::Poll;
 use tor_error::{bad_api_usage, internal};
 
 use rand::Rng;
@@ -29,13 +30,13 @@ use tracing::debug;
 pub(super) struct OpenStreamEnt {
     /// Sink to send relay cells tagged for this stream into.
     pub(super) sink: mpsc::Sender<UnparsedRelayMsg>,
-    /// Send window, for congestion control purposes.
-    pub(super) send_window: sendme::StreamSendWindow,
     /// Number of cells dropped due to the stream disappearing before we can
     /// transform this into an `EndSent`.
     pub(super) dropped: u16,
     /// A `CmdChecker` used to tell whether cells on this stream are valid.
     pub(super) cmd_checker: AnyCmdChecker,
+    /// Flow control for this stream.
+    pub(super) flow_ctrl: StreamSendFlowControl,
     /// Stream for cells that should be sent down this stream.
     // Not directly exposed. This should only be polled via
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
@@ -55,7 +56,7 @@ impl futures::Stream for OpenStreamEntStream {
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    ) -> Poll<Option<Self::Item>> {
         self.0.rx.poll_next_unpin(cx)
     }
 }
@@ -183,7 +184,7 @@ impl StreamMap {
     ) -> Result<StreamId> {
         let mut stream_ent = OpenStreamEntStream(OpenStreamEnt {
             sink,
-            send_window,
+            flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
             dropped: 0,
             cmd_checker,
             rx,
@@ -221,7 +222,7 @@ impl StreamMap {
     ) -> Result<()> {
         let stream_ent = OpenStreamEntStream(OpenStreamEnt {
             sink,
-            send_window,
+            flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
             dropped: 0,
             cmd_checker,
             rx,
@@ -288,7 +289,7 @@ impl StreamMap {
             _priority,
             _buffered_val,
             OpenStreamEntStream(OpenStreamEnt {
-                send_window,
+                flow_ctrl,
                 dropped,
                 cmd_checker,
                 // notably absent: the channels for sink and stream, which will get dropped and
@@ -303,7 +304,7 @@ impl StreamMap {
             let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
             recv_window.decrement_n(dropped)?;
             // TODO: would be nice to avoid new_ref.
-            let half_stream = HalfStream::new(send_window, recv_window, cmd_checker);
+            let half_stream = HalfStream::new(flow_ctrl, recv_window, cmd_checker);
             let explicitly_dropped = why == TR::StreamTargetClosed;
             let prev = self.closed_streams.insert(
                 id,
@@ -362,7 +363,7 @@ impl StreamMap {
     }
 
     /// If the stream `sid` has a message ready, take it, and reprioritize `sid`
-    /// to the "back of the line" with respec to
+    /// to the "back of the line" with respect to
     /// [`Self::poll_ready_streams_iter`].
     pub(super) fn take_ready_msg(&mut self, sid: StreamId) -> Option<AnyRelayMsg> {
         let new_priority = self.take_next_priority();

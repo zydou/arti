@@ -3,8 +3,8 @@
 //! A half-closed stream is one that we've sent an END on, but where
 //! we might still receive some cells.
 
-use crate::circuit::sendme::{cmd_counts_towards_windows, StreamRecvWindow, StreamSendWindow};
-use crate::stream::{AnyCmdChecker, StreamStatus};
+use crate::circuit::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
+use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
 use crate::{Error, Result};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
@@ -18,9 +18,9 @@ use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 /// see <https://gitlab.torproject.org/tpo/core/tor/-/issues/25573>.
 #[derive(Debug)]
 pub(super) struct HalfStream {
-    /// Send window for this stream. Used to detect whether we get too many
-    /// SENDME cells.
-    sendw: StreamSendWindow,
+    /// Send flow control for this stream. Used to detect whether we get too
+    /// many SENDME cells.
+    send_flow_control: StreamSendFlowControl,
     /// Receive window for this stream. Used to detect whether we get too
     /// many data cells.
     recvw: StreamRecvWindow,
@@ -31,12 +31,12 @@ pub(super) struct HalfStream {
 impl HalfStream {
     /// Create a new half-closed stream.
     pub(super) fn new(
-        sendw: StreamSendWindow,
+        send_flow_control: StreamSendFlowControl,
         recvw: StreamRecvWindow,
         cmd_checker: AnyCmdChecker,
     ) -> Self {
         HalfStream {
-            sendw,
+            send_flow_control,
             recvw,
             cmd_checker,
         }
@@ -56,7 +56,7 @@ impl HalfStream {
             let _ = msg
                 .decode::<Sendme>()
                 .map_err(|e| Error::from_bytes_err(e, "SENDME on half-closed stream"))?;
-            self.sendw.put(Some(()))?;
+            self.send_flow_control.put_for_incoming_sendme()?;
             return Ok(Open);
         }
 
@@ -114,7 +114,11 @@ mod test {
         let mut sendw = StreamSendWindow::new(101);
         sendw.take(&())?; // Make sure that it will accept one sendme.
 
-        let mut hs = HalfStream::new(sendw, StreamRecvWindow::new(20), DataCmdChecker::new_any());
+        let mut hs = HalfStream::new(
+            StreamSendFlowControl::new_window_based(sendw),
+            StreamRecvWindow::new(20),
+            DataCmdChecker::new_any(),
+        );
 
         // one sendme is fine
         let m = msg::Sendme::new_empty();
@@ -135,7 +139,7 @@ mod test {
 
     fn hs_new() -> HalfStream {
         HalfStream::new(
-            StreamSendWindow::new(20),
+            StreamSendFlowControl::new_window_based(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             DataCmdChecker::new_any(),
         )
@@ -192,7 +196,7 @@ mod test {
                 .unwrap();
         }
         let mut hs = HalfStream::new(
-            StreamSendWindow::new(20),
+            StreamSendFlowControl::new_window_based(StreamSendWindow::new(20)),
             StreamRecvWindow::new(20),
             cmd_checker,
         );

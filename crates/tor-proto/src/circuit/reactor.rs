@@ -19,7 +19,7 @@
 pub(super) mod syncview;
 
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
+use super::streammap::{EndSentStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -910,8 +910,9 @@ impl Reactor {
                             did_things = true;
                             break 'hop_streams;
                         };
-                        if sendme::cmd_counts_towards_windows(msg.cmd())
-                            && (stream.send_window.window() == 0 || hop_send_window == 0)
+                        if !stream.flow_ctrl.can_send(msg)
+                            || (sendme::cmd_counts_towards_windows(msg.cmd())
+                                && hop_send_window == 0)
                         {
                             // The stream has a message ready to be sent, but we
                             // can't due to (circuit-level) congestion-control
@@ -1413,6 +1414,24 @@ impl Reactor {
     ) -> Result<()> {
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
+        let hop_num = Into::<usize>::into(hop);
+        let circhop = &mut self.hops[hop_num];
+        // We need to apply stream-level flow control *before* encoding the message.
+        if c_t_w {
+            if let Some(stream_id) = stream_id {
+                let Some(StreamEntMut::Open(ent)) = circhop.map.get_mut(stream_id) else {
+                    warn!(
+                        "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
+                        self.unique_id, stream_id
+                    );
+                    return Err(Error::CircProto(format!(
+                        "tried to send a relay cell on non-open stream {}",
+                        sv(stream_id),
+                    )));
+                };
+                ent.flow_ctrl.take_capacity_to_send(msg.msg())?;
+            }
+        }
         let mut body: RelayCellBody = msg
             .encode(&mut rand::thread_rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
@@ -1429,31 +1448,7 @@ impl Reactor {
         // If the cell counted towards our sendme window, decrement
         // that window, and maybe remember the authentication tag.
         if c_t_w {
-            let hop_num = Into::<usize>::into(hop);
-            let hop = &mut self.hops[hop_num];
-            // checked by earlier conditional, so this shouldn't fail
-            hop.sendwindow.take(tag)?;
-            if let Some(stream_id) = stream_id {
-                // We need to decrement the stream-level sendme window.
-                // Stream data cells should only be dequeued and fed into this function if
-                // the window is above zero, so we don't need to worry about
-                // enqueuing things.
-                match hop.map.get_mut(stream_id) {
-                    Some(StreamEntMut::Open(OpenStreamEnt { send_window, .. })) => {
-                        send_window.take(&())?;
-                    }
-                    _ => {
-                        warn!(
-                            "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
-                            self.unique_id, stream_id
-                        );
-                        return Err(Error::CircProto(format!(
-                            "tried to send a relay cell on non-open stream {}",
-                            sv(stream_id),
-                        )));
-                    }
-                }
-            }
+            circhop.sendwindow.take(tag)?;
         }
         self.send_msg_direct(cx, msg)
     }
@@ -1885,13 +1880,7 @@ impl Reactor {
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         match hop.map.get_mut(streamid) {
-            Some(StreamEntMut::Open(OpenStreamEnt {
-                sink,
-                send_window,
-                dropped,
-                cmd_checker,
-                ..
-            })) => {
+            Some(StreamEntMut::Open(ent)) => {
                 // The stream for this message exists, and is open.
 
                 if msg.cmd() == RelayCmd::SENDME {
@@ -1902,13 +1891,14 @@ impl Reactor {
                     // We need to handle sendmes here, not in the stream's
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
-                    send_window.put(Some(()))?;
+                    ent.flow_ctrl.put_for_incoming_sendme()?;
                     return Ok(CellStatus::Continue);
                 }
 
-                let message_closes_stream = cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+                let message_closes_stream =
+                    ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
-                if let Err(e) = sink.try_send(msg) {
+                if let Err(e) = ent.sink.try_send(msg) {
                     if e.is_full() {
                         // If we get here, we either have a logic bug (!), or an attacker
                         // is sending us more cells than we asked for via congestion control.
@@ -1922,7 +1912,7 @@ impl Reactor {
                         // that we received a cell that we couldn't queue for it.
                         //
                         // Later this value will be recorded in a half-stream.
-                        *dropped += 1;
+                        ent.dropped += 1;
                     }
                 }
                 if message_closes_stream {
