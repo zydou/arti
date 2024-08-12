@@ -10,17 +10,15 @@ use super::*;
 /// Backtrace implementation for when the feature is enabled
 mod ie_backtrace {
     use super::*;
-    // TODO MSRV 1.65: std::backtrace::Backtrace is stable; maybe we should be
-    // using that instead?
-    use backtrace::Backtrace;
+    use std::backtrace::Backtrace;
 
     #[derive(Debug, Clone)]
     /// Captured backtrace, if turned on
-    pub(crate) struct Captured(Backtrace);
+    pub(crate) struct Captured(Arc<Backtrace>);
 
     /// Capture a backtrace, if turned on
     pub(crate) fn capture() -> Captured {
-        Captured(Backtrace::new())
+        Captured(Arc::new(Backtrace::force_capture()))
     }
 
     impl Display for Captured {

@@ -16,11 +16,11 @@ use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
 
-use backtrace::Backtrace;
 use educe::Educe;
 use itertools::Either;
 use itertools::{chain, izip};
 use slotmap::DenseSlotMap;
+use std::backtrace::Backtrace;
 use strum::EnumIter;
 use tracing::trace;
 
@@ -711,35 +711,12 @@ static RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
 
 //---------- Sleep location tracking and dumping ----------
 
-/// Proof token that `resolve_backtraces` has been called.
-#[derive(Clone, Copy)]
-struct BacktracesResolved {}
-
 /// We record "where a future went to sleep" as (just) a backtrace
 type SleepLocation = Backtrace;
 
 impl Data {
-    /// Resolve backtraces (for debug dump)
-    fn resolve_backtraces(&mut self) -> BacktracesResolved {
-        for (_id, task) in &mut self.tasks {
-            match &mut task.state {
-                Awake => {}
-                Asleep(locs) => {
-                    for loc in locs {
-                        loc.resolve();
-                    }
-                }
-            }
-        }
-        BacktracesResolved {}
-    }
-
     /// Dump tasks and their sleep location backtraces
-    ///
-    /// `resolve_backtraces` must have been called.
-    /// (This split allows us to make a wrapper that can be `Debug`,
-    /// where the printing has to work with `&` not `&mut`.)
-    fn dump_backtraces(&self, f: &mut fmt::Formatter, _: BacktracesResolved) -> fmt::Result {
+    fn dump_backtraces(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (id, task) in &self.tasks {
             let prefix = |f: &mut fmt::Formatter| write!(f, "{id:?}={task:?}: ");
             match &task.state {
@@ -751,7 +728,7 @@ impl Data {
                     let n = locs.len();
                     for (i, loc) in locs.iter().enumerate() {
                         prefix(f)?;
-                        writeln!(f, "asleep, backtrace {i}/{n}:\n{loc:?}",)?;
+                        writeln!(f, "asleep, backtrace {i}/{n}:\n{loc}",)?;
                     }
                     if n == 0 {
                         prefix(f)?;
@@ -780,7 +757,7 @@ impl Clone for ActualWaker {
             if let Some(task) = data.tasks.get_mut(self.id) {
                 match &mut task.state {
                     Awake => trace!("MockExecutor cloned waker for awake task {id:?}"),
-                    Asleep(locs) => locs.push(SleepLocation::new_unresolved()),
+                    Asleep(locs) => locs.push(SleepLocation::force_capture()),
                 }
             } else {
                 trace!("MockExecutor cloned waker for dead task {id:?}");
@@ -803,7 +780,7 @@ impl Clone for ActualWaker {
 // Existence implies backtraces have been resolved
 //
 // We use `Either` so that we can also use this internally when we have &mut Data.
-pub struct DebugDump<'a>(Either<&'a Data, MutexGuard<'a, Data>>, BacktracesResolved);
+pub struct DebugDump<'a>(Either<&'a Data, MutexGuard<'a, Data>>);
 
 impl MockExecutor {
     /// Dump the executor's state including backtraces of waiting tasks, to stderr
@@ -863,17 +840,15 @@ impl MockExecutor {
     /// **Backtrace salience (possible spurious traces)** -
     /// see [`.debug_dump()`](MockExecutor::debug_dump).
     pub fn as_debug_dump(&self) -> DebugDump {
-        let mut data = self.data.lock();
-        let resolved = data.resolve_backtraces();
-        DebugDump(Either::Right(data), resolved)
+        let data = self.data.lock();
+        DebugDump(Either::Right(data))
     }
 }
 
 impl Data {
     /// Convenience function: dump including backtraces, to stderr
     fn debug_dump(&mut self) {
-        let resolved = self.resolve_backtraces();
-        DebugDump(Either::Left(self), resolved).to_stderr();
+        DebugDump(Either::Left(self)).to_stderr();
     }
 }
 
@@ -894,7 +869,7 @@ impl Debug for DebugDump<'_> {
 
         writeln!(f, "MockExecutor state:\n{self_:#?}")?;
         writeln!(f, "MockExecutor task dump:")?;
-        self_.dump_backtraces(f, self.1)?;
+        self_.dump_backtraces(f)?;
 
         Ok(())
     }
