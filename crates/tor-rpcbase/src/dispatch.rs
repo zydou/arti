@@ -58,6 +58,9 @@ use futures::Sink;
 use tor_error::internal;
 use void::Void;
 
+#[cfg(feature = "describe-methods")]
+pub(crate) mod description;
+
 use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
 
 /// A type-erased serializable value.
