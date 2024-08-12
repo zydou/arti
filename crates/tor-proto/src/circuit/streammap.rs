@@ -1,8 +1,5 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
-// TODO: No longer used; remove?
-mod counted_map;
-
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
 use crate::stream::AnyCmdChecker;
