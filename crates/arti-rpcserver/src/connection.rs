@@ -4,6 +4,7 @@ pub(crate) mod auth;
 
 use std::{
     collections::HashMap,
+    io::Error as IoError,
     pin::Pin,
     sync::{Arc, Mutex, RwLock, Weak},
 };
@@ -31,7 +32,7 @@ use crate::{
 use tor_rpcbase as rpc;
 use tor_rpcbase::templates::*;
 
-/// An open connection from an RPC client.  
+/// An open connection from an RPC client.
 ///
 /// Tracks information that persists from one request to another.
 ///
@@ -283,7 +284,7 @@ impl Connection {
                     // to stop reading the client's requests if the client is
                     // not reading their responses (or not) reading them fast
                     // enough.
-                    response_sink.send(update).await.map_err(|_| ConnectionError::WriteFailed)?;
+                    response_sink.send(update).await.map_err(ConnectionError::writing)?;
                 }
 
                 req = request_stream.next() => {
@@ -295,30 +296,30 @@ impl Connection {
                         }
                         Some(Err(e)) => {
                             // We got a non-recoverable error from the JSON codec.
-                           let error = match e {
-                                JsonCodecError::Io(_) => return Err(ConnectionError::ReadFailed),
-                                JsonCodecError::Json(e) => match e.classify() {
-                                    JsonErrorCategory::Eof => break 'outer,
-                                    JsonErrorCategory::Io => return Err(ConnectionError::ReadFailed),
-                                    JsonErrorCategory::Syntax => RequestParseError::InvalidJson,
-                                    JsonErrorCategory::Data => RequestParseError::NotAnObject,
-                                }
+
+                            let (reply_with_error, return_error) = match ConnectionError::classify_read_error(e) {
+                                Ok(()) => break 'outer,
+                                Err(e) => if let Some(r) = e.as_request_parse_err() {
+                                    (r, e)
+                                } else {
+                                    return Err(e);
+                                },
                             };
 
                             response_sink
                                 .send(
-                                    BoxedResponse::from_error(None, error)
-                                ).await.map_err(|_| ConnectionError::WriteFailed)?;
+                                    BoxedResponse::from_error(None, reply_with_error)
+                                ).await.map_err(ConnectionError::writing)?;
 
                             // TODO RPC: Perhaps we should keep going on the NotAnObject case?
                             //      (InvalidJson is not recoverable!)
-                            break 'outer;
+                            return Err(return_error);
                         }
                         Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
                             response_sink
                                 .send(
                                     BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
-                                ).await.map_err(|_| ConnectionError::WriteFailed)?;
+                                ).await.map_err( ConnectionError::writing)?;
                             if bad_req.id().is_none() {
                                 // The spec says we must close the connection in this case.
                                 break 'outer;
@@ -441,10 +442,59 @@ impl Connection {
 pub enum ConnectionError {
     /// Unable to write to our connection.
     #[error("Could not write to connection")]
-    WriteFailed,
+    WriteFailed(#[source] Arc<IoError>),
     /// Read error from connection.
     #[error("Problem reading from connection")]
-    ReadFailed,
+    ReadFailed(#[source] Arc<IoError>),
+    /// Read something that we could not decode.
+    #[error("Unable to decode request from connection")]
+    DecodeFailed(#[source] Arc<serde_json::Error>),
+    /// Unable to write our response as json.
+    #[error("Unable to encode response onto connection")]
+    EncodeFailed(#[source] Arc<serde_json::Error>),
+}
+
+impl ConnectionError {
+    /// Construct a new `ConnectionError` from a `JsonCodecError` that has occurred while writing.
+    fn writing(error: JsonCodecError) -> Self {
+        match error {
+            JsonCodecError::Io(e) => Self::WriteFailed(Arc::new(e)),
+            JsonCodecError::Json(e) => Self::EncodeFailed(Arc::new(e)),
+        }
+    }
+
+    /// If this error is the result of a Json decode failure, return an appropriate
+    /// `RequestParseError`.
+    fn as_request_parse_err(&self) -> Option<RequestParseError> {
+        match self {
+            ConnectionError::DecodeFailed(d) => match d.classify() {
+                JsonErrorCategory::Syntax => Some(RequestParseError::InvalidJson),
+                JsonErrorCategory::Data => Some(RequestParseError::NotAnObject),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Decide what to do with an error that has occurred while reading from a Json codec.
+    ///
+    /// Return Ok(()) if the error should silently be ignored, and treated as closing the session.
+    /// Otherwise return the error object.
+    fn classify_read_error(error: JsonCodecError) -> Result<(), Self> {
+        use std::io::ErrorKind as IK;
+        use JsonCodecError as E;
+        use JsonErrorCategory as JK;
+        match error {
+            E::Io(e) => match e.kind() {
+                IK::UnexpectedEof | IK::ConnectionAborted | IK::BrokenPipe => Ok(()),
+                _ => Err(ConnectionError::ReadFailed(Arc::new(e))),
+            },
+            E::Json(e) => match e.classify() {
+                JK::Eof => Ok(()),
+                _ => Err(ConnectionError::DecodeFailed(Arc::new(e))),
+            },
+        }
+    }
 }
 
 /// A failure from trying to upgrade a `Weak<RpcMgr>`.
