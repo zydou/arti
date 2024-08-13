@@ -898,43 +898,34 @@ impl Reactor {
                 let hop_num = HopNum::from(i as u8);
                 // Look at all of the ready streams on this hop,
                 // until we find one that is ready to send a message or close.
-                let mut stream_iter = self.hops[i].map.poll_ready_streams_iter(cx);
-                // XXX: To be fixed in next commit.
-                #[allow(clippy::never_loop)]
-                'hop_streams: while let Some((sid, msg, stream)) = stream_iter.next() {
-                    let Some(msg) = msg else {
-                        drop(stream_iter);
-                        // Sender was dropped, so close the stream, which
-                        // also removes this entry from the iterator.
-                        self.close_stream(
-                            cx,
-                            hop_num,
-                            sid,
-                            CloseStreamBehavior::default(),
-                            streammap::TerminateReason::StreamTargetClosed,
-                        )?;
-                        did_things = true;
-                        break 'hop_streams;
-                    };
-                    debug_assert!(
-                        stream.can_send(msg),
-                        "Stream {sid} produced a message it can't send: {msg:?}"
-                    );
-                    // Send the message.
-                    drop(stream_iter);
-                    let msg = self.hops[i]
-                        .map
-                        .take_ready_msg(sid)
-                        .expect("msg disappeared");
-                    self.send_relay_cell(
+                let Some((sid, msg, stream)) = self.hops[i].map.poll_ready_streams_iter(cx).next()
+                else {
+                    // No ready streams for this hop.
+                    continue;
+                };
+                let Some(msg) = msg else {
+                    // Sender was dropped, so close the stream, which
+                    // also removes this entry from the streams iterator.
+                    self.close_stream(
                         cx,
                         hop_num,
-                        false,
-                        AnyRelayMsgOuter::new(Some(sid), msg),
+                        sid,
+                        CloseStreamBehavior::default(),
+                        streammap::TerminateReason::StreamTargetClosed,
                     )?;
                     did_things = true;
-                    break 'hop_streams;
-                }
+                    continue;
+                };
+                debug_assert!(
+                    stream.can_send(msg),
+                    "Stream {sid} produced a message it can't send: {msg:?}"
+                );
+                let msg = self.hops[i]
+                    .map
+                    .take_ready_msg(sid)
+                    .expect("msg disappeared");
+                self.send_relay_cell(cx, hop_num, false, AnyRelayMsgOuter::new(Some(sid), msg))?;
+                did_things = true;
             }
 
             let _ = Pin::new(&mut self.chan_sender)
