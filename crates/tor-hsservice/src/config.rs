@@ -2,6 +2,7 @@
 
 use crate::internal_prelude::*;
 
+use derive_deftly::derive_deftly_adhoc;
 use tor_cell::relaycell::hs::est_intro;
 
 use crate::config::restricted_discovery::{
@@ -19,12 +20,14 @@ pub mod restricted_discovery;
 pub(crate) mod restricted_discovery;
 
 /// Configuration for one onion service.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Deftly)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 #[builder(derive(Serialize, Deserialize, Debug, Deftly))]
 #[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
+#[derive_deftly_adhoc]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.
+    #[deftly(publisher_view)]
     pub(crate) nickname: HsNickname,
 
     // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
@@ -35,6 +38,7 @@ pub struct OnionServiceConfig {
     /// We could skip this in v1.  We should make sure that our state
     /// is built to make it hard to accidentally set this.
     #[builder(default)]
+    #[deftly(publisher_view)]
     pub(crate) anonymity: crate::Anonymity,
 
     /// Number of intro points; defaults to 3; max 20.
@@ -66,6 +70,7 @@ pub struct OnionServiceConfig {
     /// so that only clients holding one of the listed keys can decrypt it.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
+    #[deftly(publisher_view)]
     pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
@@ -82,6 +87,49 @@ pub struct OnionServiceConfig {
     // /// our proof-of-work defense is enabled.
     // pow_queue_rate: TokenBucketConfig,
     // ...
+}
+
+derive_deftly_adhoc! {
+    OnionServiceConfig expect items:
+
+    ${defcond PUBLISHER_VIEW fmeta(publisher_view)}
+
+    #[doc = concat!("Descriptor publisher's view of [`", stringify!($tname), "`]")]
+    #[derive(PartialEq, Clone, Debug)]
+    pub(crate) struct $<$tname PublisherView><$tdefgens>
+    where $twheres
+    ${vdefbody $vname $(
+        ${when PUBLISHER_VIEW}
+        ${fattrs doc}
+        $fvis $fname: $ftype,
+    ) }
+
+    impl<$tgens> From<$tname> for $<$tname PublisherView><$tdefgens>
+    where $twheres
+    {
+        fn from(config: $tname) -> $<$tname PublisherView><$tdefgens> {
+            Self {
+                $(
+                    ${when PUBLISHER_VIEW}
+                    $fname: config.$fname,
+                )
+            }
+        }
+    }
+
+    impl<$tgens> From<&$tname> for $<$tname PublisherView><$tdefgens>
+    where $twheres
+    {
+        fn from(config: &$tname) -> $<$tname PublisherView><$tdefgens> {
+            Self {
+                $(
+                    ${when PUBLISHER_VIEW}
+                    #[allow(clippy::clone_on_copy)] // some fields are Copy
+                    $fname: config.$fname.clone(),
+                )
+            }
+        }
+    }
 }
 
 /// Default number of introduction points.
