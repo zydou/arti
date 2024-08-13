@@ -53,6 +53,7 @@
 use tor_netdir::DirEvent;
 
 use crate::config::restricted_discovery::RestrictedDiscoveryKeys;
+use crate::config::OnionServiceConfigPublisherView;
 
 use super::*;
 
@@ -322,7 +323,7 @@ impl<R: Runtime> Mockable for Real<R> {
 /// The mutable state of a [`Reactor`].
 struct Inner {
     /// The onion service config.
-    config: Arc<OnionServiceConfig>,
+    config: Arc<OnionServiceConfigPublisherView>,
     /// The relevant time periods.
     ///
     /// This includes the current time period, as well as any other time periods we need to be
@@ -514,7 +515,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let inner = Inner {
             time_periods: vec![],
-            config,
+            config: Arc::new((&*config).into()),
             netdir: None,
             last_uploaded: None,
             reupload_timers: Default::default(),
@@ -691,7 +692,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(ShutdownStatus::Terminate);
                 };
 
-                self.handle_svc_config_change(config).await?;
+                self.handle_svc_config_change(&config).await?;
             },
 
             should_upload = self.publish_status_rx.next().fuse() => {
@@ -886,19 +887,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Replace our view of the service config with `new_config` if `new_config` contains changes
     /// that would cause us to generate a new descriptor.
-    fn replace_config_if_changed(&self, new_config: Arc<OnionServiceConfig>) -> bool {
+    fn replace_config_if_changed(&self, new_config: Arc<OnionServiceConfigPublisherView>) -> bool {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let old_config = &mut inner.config;
 
         // The fields we're interested in haven't changed, so there's no need to update
         // `inner.config`.
-        //
-        // TODO: maybe `Inner` should only contain the fields we're interested in instead of
-        // the entire config.
-        //
-        // Alternatively, a less error-prone solution would be to introduce a separate
-        // `DescriptorConfigView` as described in
-        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603#note_2944902
 
         // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
         // work; see #1028
@@ -910,7 +904,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
         */
 
-        let _old: Arc<OnionServiceConfig> = std::mem::replace(old_config, new_config);
+        let _old: Arc<OnionServiceConfigPublisherView> = std::mem::replace(old_config, new_config);
 
         true
     }
@@ -1004,9 +998,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Update the descriptors based on the config change.
     async fn handle_svc_config_change(
         &mut self,
-        config: Arc<OnionServiceConfig>,
+        config: &OnionServiceConfig,
     ) -> Result<(), FatalError> {
-        if self.replace_config_if_changed(config) {
+        if self.replace_config_if_changed(Arc::new(config.into())) {
             info!(nickname=%self.imm.nickname, "Config has changed, generating a new descriptor");
             self.mark_all_dirty();
 
@@ -1161,7 +1155,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn upload_for_time_period(
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
-        config: Arc<OnionServiceConfig>,
+        config: Arc<OnionServiceConfigPublisherView>,
         params: HsDirParams,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
