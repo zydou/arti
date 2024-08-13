@@ -290,6 +290,18 @@ impl OnionService {
 
         let nickname = config.nickname.clone();
 
+        if config.restricted_discovery.enabled {
+            info!(
+                nickname=%nickname,
+                "Launching onion service in restricted discovery mode"
+            );
+        } else {
+            info!(
+                nickname=%nickname,
+                "Launching onion service"
+            );
+        }
+
         let state_handle = state_dir
             .acquire_instance(&config.nickname)
             .map_err(StartupError::StateDirectoryInaccessible)?;
