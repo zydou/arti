@@ -47,7 +47,7 @@ use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
-    RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
+    RelayCmd, StreamId, UnparsedRelayMsg,
 };
 use tor_error::internal;
 #[cfg(feature = "hs-service")]
@@ -890,10 +890,19 @@ impl Reactor {
                         // an END message in the channel).
                         break 'outer;
                     }
+                    if self.hops[i].sendwindow.window() == 0 {
+                        // We can't send anything on this hop that counts towards SENDME windows.
+                        // In theory we could send messages that don't count towards windows,
+                        // but it's probably not worth iterating over all of our streams to see
+                        // if that's the case.
+                        // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
+                        // congestion control has "bottomed out" might not be so bad, and the
+                        // alternatives have complexity and/or performance costs.
+                        continue;
+                    }
                     let hop_num = HopNum::from(i as u8);
                     // Look at all of the ready streams on this hop,
                     // until we find one that is ready to send a message or close.
-                    let hop_send_window = self.hops[i].sendwindow.window();
                     let mut stream_iter = self.hops[i].map.poll_ready_streams_iter(cx);
                     'hop_streams: while let Some((sid, msg, stream)) = stream_iter.next() {
                         let Some(msg) = msg else {
@@ -914,22 +923,6 @@ impl Reactor {
                             stream.can_send(msg),
                             "Stream {sid} produced a message it can't send: {msg:?}"
                         );
-                        if sendme::cmd_counts_towards_windows(msg.cmd()) && hop_send_window == 0 {
-                            // The stream has a message ready to be sent, but we
-                            // can't due to (circuit-level) congestion-control.
-                            // TODO: Avoid iterating over streams that are blocked on circuit-level congestion
-                            // control? e.g.:
-                            // * Don't process streams at all when we don't have
-                            //   CC capacity (unnecessarily blocking streams that want to send
-                            //   messages that don't count towards windows)
-                            // * Give the streams themselves a reference to circuit-level congestion
-                            //   control and only have them produce messages when they can send WRT it.
-                            //   This is tricky and may have performance consequences. e.g. if we track
-                            //   *all* streams that are blocked on congestion control, and wake them
-                            //   all when we get a little bit of capacity, but can only process some of them
-                            //   before running out again.
-                            continue 'hop_streams;
-                        }
                         // Send the message.
                         drop(stream_iter);
                         let msg = self.hops[i]
