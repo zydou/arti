@@ -897,6 +897,19 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             return false;
         }
 
+        let log_change = match (
+            old_config.restricted_discovery.enabled,
+            new_config.restricted_discovery.enabled,
+        ) {
+            (true, false) => Some("Disabling restricted discovery mode"),
+            (false, true) => Some("Enabling restricted discovery mode"),
+            _ => None,
+        };
+
+        if let Some(msg) = log_change {
+            info!(nickname=%self.imm.nickname, "{}", msg);
+        }
+
         let _old: Arc<OnionServiceConfigPublisherView> = std::mem::replace(old_config, new_config);
 
         true
