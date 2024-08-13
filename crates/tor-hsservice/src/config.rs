@@ -248,7 +248,7 @@ impl OnionServiceConfig {
             //
             // We might also want to also rotate the IPTs as part of this process,
             // to prevent any no-longer-authorized clients from reaching the service.
-            restricted_discovery: unchangeable,
+            restricted_discovery: simply_update,
         }
 
         Ok(other)
