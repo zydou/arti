@@ -1116,7 +1116,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         &mut self,
         config: &OnionServiceConfig,
     ) -> Result<(), FatalError> {
-        if self.replace_config_if_changed(Arc::new(config.into())) {
+        let new_config = Arc::new(config.into());
+        if self.replace_config_if_changed(Arc::clone(&new_config)) {
+            self.update_file_watcher_if_changed(&new_config);
+            self.update_authorized_clients_if_changed().await?;
+
             info!(nickname=%self.imm.nickname, "Config has changed, generating a new descriptor");
             self.mark_all_dirty();
 
