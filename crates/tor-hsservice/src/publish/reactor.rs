@@ -475,7 +475,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         nickname: HsNickname,
         dir_provider: Arc<dyn NetDirProvider>,
         mockable: M,
-        config: Arc<OnionServiceConfig>,
+        config: &OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         status_tx: PublisherStatusSender,
@@ -515,7 +515,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let inner = Inner {
             time_periods: vec![],
-            config: Arc::new((&*config).into()),
+            config: Arc::new(config.into()),
             netdir: None,
             last_uploaded: None,
             reupload_timers: Default::default(),
