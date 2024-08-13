@@ -878,68 +878,63 @@ impl Reactor {
             }
 
             // Process outgoing messages for each hop.
-
-            // (using this as a named block for early returns; not actually a loop)
-            #[allow(clippy::never_loop)]
-            'outer: loop {
-                // Let's look at our hops, and streams for each hop.
-                for i in 0..self.hops.len() {
-                    if !self.chan_sender.poll_ready_unpin_bool(cx)? {
-                        // Channel isn't ready to send; we can't act on anything else.
-                        // (Even processing an end-of-stream would end up having to buffer
-                        // an END message in the channel).
-                        break 'outer;
-                    }
-                    if self.hops[i].sendwindow.window() == 0 {
-                        // We can't send anything on this hop that counts towards SENDME windows.
-                        // In theory we could send messages that don't count towards windows,
-                        // but it's probably not worth iterating over all of our streams to see
-                        // if that's the case.
-                        // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
-                        // congestion control has "bottomed out" might not be so bad, and the
-                        // alternatives have complexity and/or performance costs.
-                        continue;
-                    }
-                    let hop_num = HopNum::from(i as u8);
-                    // Look at all of the ready streams on this hop,
-                    // until we find one that is ready to send a message or close.
-                    let mut stream_iter = self.hops[i].map.poll_ready_streams_iter(cx);
-                    'hop_streams: while let Some((sid, msg, stream)) = stream_iter.next() {
-                        let Some(msg) = msg else {
-                            drop(stream_iter);
-                            // Sender was dropped, so close the stream, which
-                            // also removes this entry from the iterator.
-                            self.close_stream(
-                                cx,
-                                hop_num,
-                                sid,
-                                CloseStreamBehavior::default(),
-                                streammap::TerminateReason::StreamTargetClosed,
-                            )?;
-                            did_things = true;
-                            break 'hop_streams;
-                        };
-                        debug_assert!(
-                            stream.can_send(msg),
-                            "Stream {sid} produced a message it can't send: {msg:?}"
-                        );
-                        // Send the message.
+            for i in 0..self.hops.len() {
+                if !self.chan_sender.poll_ready_unpin_bool(cx)? {
+                    // Channel isn't ready to send; we can't act on anything else.
+                    // (Even processing an end-of-stream would end up having to buffer
+                    // an END message in the channel).
+                    break;
+                }
+                if self.hops[i].sendwindow.window() == 0 {
+                    // We can't send anything on this hop that counts towards SENDME windows.
+                    // In theory we could send messages that don't count towards windows,
+                    // but it's probably not worth iterating over all of our streams to see
+                    // if that's the case.
+                    // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
+                    // congestion control has "bottomed out" might not be so bad, and the
+                    // alternatives have complexity and/or performance costs.
+                    continue;
+                }
+                let hop_num = HopNum::from(i as u8);
+                // Look at all of the ready streams on this hop,
+                // until we find one that is ready to send a message or close.
+                let mut stream_iter = self.hops[i].map.poll_ready_streams_iter(cx);
+                // XXX: To be fixed in next commit.
+                #[allow(clippy::never_loop)]
+                'hop_streams: while let Some((sid, msg, stream)) = stream_iter.next() {
+                    let Some(msg) = msg else {
                         drop(stream_iter);
-                        let msg = self.hops[i]
-                            .map
-                            .take_ready_msg(sid)
-                            .expect("msg disappeared");
-                        self.send_relay_cell(
+                        // Sender was dropped, so close the stream, which
+                        // also removes this entry from the iterator.
+                        self.close_stream(
                             cx,
                             hop_num,
-                            false,
-                            AnyRelayMsgOuter::new(Some(sid), msg),
+                            sid,
+                            CloseStreamBehavior::default(),
+                            streammap::TerminateReason::StreamTargetClosed,
                         )?;
                         did_things = true;
                         break 'hop_streams;
-                    }
+                    };
+                    debug_assert!(
+                        stream.can_send(msg),
+                        "Stream {sid} produced a message it can't send: {msg:?}"
+                    );
+                    // Send the message.
+                    drop(stream_iter);
+                    let msg = self.hops[i]
+                        .map
+                        .take_ready_msg(sid)
+                        .expect("msg disappeared");
+                    self.send_relay_cell(
+                        cx,
+                        hop_num,
+                        false,
+                        AnyRelayMsgOuter::new(Some(sid), msg),
+                    )?;
+                    did_things = true;
+                    break 'hop_streams;
                 }
-                break 'outer;
             }
 
             let _ = Pin::new(&mut self.chan_sender)
