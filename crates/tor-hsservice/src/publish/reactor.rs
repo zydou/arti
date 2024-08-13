@@ -50,7 +50,7 @@
 //! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
 //! status for reporting fatal errors (crashes).
 
-use tor_config::file_watcher::{self, FileEventReceiver, FileEventSender};
+use tor_config::file_watcher::{self, Event as FileEvent, FileEventReceiver, FileEventSender};
 use tor_netdir::DirEvent;
 
 use crate::config::restricted_discovery::{RestrictedDiscoveryConfig, RestrictedDiscoveryKeys};
@@ -699,7 +699,17 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                 self.handle_svc_config_change(&config).await?;
             },
+            res = self.key_dirs_rx.next().fuse() => {
+                let Some(event) = res else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
+                while let Some(_ignore) = self.key_dirs_rx.try_recv() {
+                    // Discard other events, so that we only reload once.
+                }
+
+                self.handle_key_dirs_change(event).await?;
+            }
             should_upload = self.publish_status_rx.next().fuse() => {
                 let Some(should_upload) = should_upload else {
                     return Ok(ShutdownStatus::Terminate);
@@ -1021,6 +1031,52 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
 
         Ok(())
+    }
+
+    /// Update the descriptors based on a restricted discovery key_dirs change.
+    ///
+    /// If the authorized clients from the [`RestrictedDiscoveryConfig`] have changed,
+    /// this marks the descriptor as dirty for all time periods,
+    /// and schedules a reupload.
+    async fn handle_key_dirs_change(&mut self, event: FileEvent) -> Result<(), FatalError> {
+        debug!("The configured key_dirs have changed");
+        match event {
+            FileEvent::Rescan | FileEvent::FileChanged => {
+                // These events are handled in the same way, by re-reading the keys from disk
+                // and republishing the descriptor if necessary
+            }
+            _ => return Err(internal!("file watcher event {event:?}").into()),
+        };
+
+        if self.update_authorized_clients_if_changed().await? {
+            self.mark_all_dirty();
+
+            // Schedule an upload, unless we're still waiting for IPTs.
+            self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Recreate the authorized_clients based on the current config.
+    ///
+    /// Returns `true` if the authorized clients have changed.
+    async fn update_authorized_clients_if_changed(&mut self) -> Result<bool, FatalError> {
+        let authorized_clients = {
+            let inner = self.inner.lock().expect("poisoned lock");
+            Self::read_authorized_clients(&inner.config.restricted_discovery)
+        };
+
+        let mut clients_lock = self.imm.authorized_clients.lock().expect("poisoned lock");
+        let changed = clients_lock.as_ref() != authorized_clients.as_ref();
+
+        if changed {
+            info!("The restricted discovery mode authorized clients have changed");
+            *clients_lock = authorized_clients;
+        }
+
+        Ok(changed)
     }
 
     /// Read the authorized `RestrictedDiscoveryKeys` from `config`.
