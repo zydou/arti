@@ -910,15 +910,24 @@ impl Reactor {
                             did_things = true;
                             break 'hop_streams;
                         };
-                        if !stream.flow_ctrl.can_send(msg)
-                            || (sendme::cmd_counts_towards_windows(msg.cmd())
-                                && hop_send_window == 0)
-                        {
+                        debug_assert!(
+                            stream.can_send(msg),
+                            "Stream {sid} produced a message it can't send: {msg:?}"
+                        );
+                        if sendme::cmd_counts_towards_windows(msg.cmd()) && hop_send_window == 0 {
                             // The stream has a message ready to be sent, but we
-                            // can't due to (circuit-level) congestion-control
-                            // or (stream-level) flow-control.
-                            // TODO: Move such streams to a seperate list so that we don't
-                            // keep iterating over them, until sendwindow is available?
+                            // can't due to (circuit-level) congestion-control.
+                            // TODO: Avoid iterating over streams that are blocked on circuit-level congestion
+                            // control? e.g.:
+                            // * Don't process streams at all when we don't have
+                            //   CC capacity (unnecessarily blocking streams that want to send
+                            //   messages that don't count towards windows)
+                            // * Give the streams themselves a reference to circuit-level congestion
+                            //   control and only have them produce messages when they can send WRT it.
+                            //   This is tricky and may have performance consequences. e.g. if we track
+                            //   *all* streams that are blocked on congestion control, and wake them
+                            //   all when we get a little bit of capacity, but can only process some of them
+                            //   before running out again.
                             continue 'hop_streams;
                         }
                         // Send the message.
@@ -1429,7 +1438,7 @@ impl Reactor {
                         sv(stream_id),
                     )));
                 };
-                ent.flow_ctrl.take_capacity_to_send(msg.msg())?;
+                ent.take_capacity_to_send(msg.msg())?;
             }
         }
         let mut body: RelayCellBody = msg
@@ -1891,7 +1900,7 @@ impl Reactor {
                     // We need to handle sendmes here, not in the stream's
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
-                    ent.flow_ctrl.put_for_incoming_sendme()?;
+                    ent.put_for_incoming_sendme()?;
                     return Ok(CellStatus::Continue);
                 }
 
