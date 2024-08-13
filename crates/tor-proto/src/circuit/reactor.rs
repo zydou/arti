@@ -1413,27 +1413,6 @@ impl Reactor {
     ) -> Result<()> {
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
-        // Check whether the hop send window is empty, if this cell counts towards windows.
-        // NOTE(eta): It is imperative this happens *before* calling encrypt() below, otherwise
-        //            we'll have cells rejected due to a protocol violation! (Cells have to be
-        //            sent out in the order they were passed to encrypt().)
-        if c_t_w {
-            let hop_num = Into::<usize>::into(hop);
-            let circhop = &mut self.hops[hop_num];
-            if circhop.sendwindow.window() == 0 {
-                // Send window is empty! Push this cell onto the hop's outbound queue, and it'll
-                // get sent later.
-                trace!(
-                    "{}: having to use onto hop {} queue for cell: {:?}",
-                    self.unique_id,
-                    hop.display(),
-                    msg
-                );
-                return Err(Error::Bug(internal!(
-                    "Called send_relay_cell with insufficient circuit SendWindow",
-                )));
-            }
-        }
         let mut body: RelayCellBody = msg
             .encode(&mut rand::thread_rng())
             .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
