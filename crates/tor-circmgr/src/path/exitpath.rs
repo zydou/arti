@@ -276,7 +276,9 @@ mod test {
         }
     }
 
-    fn assert_exit_path_ok(relays: &[MaybeOwnedRelay<'_>]) {
+    // `skip_guard_subnet_check` is a workaround for `select_guard` not preventing the guard from
+    // having an extended family with the exit relay (both can be in the same network range).
+    fn assert_exit_path_ok(relays: &[MaybeOwnedRelay<'_>], skip_guard_subnet_check: bool) {
         assert_eq!(relays.len(), 3);
 
         let r1 = &relays[0];
@@ -294,7 +296,18 @@ mod test {
         let subnet_config = SubnetConfig::default();
         assert!(r1.can_share_circuit(r2, subnet_config));
         assert!(r2.can_share_circuit(r3, subnet_config));
-        assert!(r1.can_share_circuit(r3, subnet_config));
+
+        if !skip_guard_subnet_check {
+            assert!(r1.can_share_circuit(r3, subnet_config));
+        } else {
+            // Don't check whether r1 and r3 can share a circuit since `select_guard` doesn't
+            // prevent the guard from being in the same network range as the exit. But
+            // `select_guard` does prevent the guard from being in the same family as the exit, so
+            // we can check that.
+            if let (MaybeOwnedRelay::Relay(r1), MaybeOwnedRelay::Relay(r3)) = (r1, r3) {
+                assert!(!r1.low_level_details().in_same_family(r3));
+            }
+        }
     }
 
     #[test]
@@ -319,7 +332,7 @@ mod test {
                 assert_same_path_when_owned(&path);
 
                 if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..]);
+                    assert_exit_path_ok(&p[..], /* skip_guard_subnet_check= */ false);
                     let exit = match &p[2] {
                         MaybeOwnedRelay::Relay(r) => r,
                         MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
@@ -339,7 +352,7 @@ mod test {
                     .unwrap();
                 assert_same_path_when_owned(&path);
                 if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..]);
+                    assert_exit_path_ok(&p[..], /* skip_guard_subnet_check= */ true);
                     let exit = &p[2];
                     assert!(exit.same_relay_ids(&chosen));
                 } else {
@@ -368,7 +381,7 @@ mod test {
                     .unwrap();
                 assert_same_path_when_owned(&path);
                 if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..]);
+                    assert_exit_path_ok(&p[..], /* skip_guard_subnet_check= */ false);
                     let exit = match &p[2] {
                         MaybeOwnedRelay::Relay(r) => r,
                         MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
@@ -463,7 +476,7 @@ mod test {
                 assert_eq!(path.len(), 3);
                 assert_same_path_when_owned(&path);
                 if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..]);
+                    assert_exit_path_ok(&p[..], /* skip_guard_subnet_check= */ false);
                     distinct_guards.insert(RelayIds::from_relay_ids(&p[0]));
                     distinct_mid.insert(RelayIds::from_relay_ids(&p[1]));
                     distinct_exit.insert(RelayIds::from_relay_ids(&p[2]));
@@ -493,7 +506,7 @@ mod test {
                 .unwrap();
             assert_eq!(path.len(), 3);
             if let TorPathInner::Path(p) = path.inner {
-                assert_exit_path_ok(&p[..]);
+                assert_exit_path_ok(&p[..], /* skip_guard_subnet_check= */ false);
                 // We get our regular guard and our chosen exit.
                 assert_eq!(p[0].ed_identity(), guard_relay.ed_identity());
                 assert_eq!(p[2].ed_identity(), exit_relay.ed_identity());

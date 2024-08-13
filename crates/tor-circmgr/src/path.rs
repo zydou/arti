@@ -415,6 +415,9 @@ fn select_guard<'a, RT: Runtime>(
         // relays at this point if they have a known Ed25519
         // identity.  But if in the future the ed25519 identity
         // becomes optional, this will need to change.
+        // NOTE(opara): This only excludes close family members and
+        // not extended family members (relays in the same network
+        // range).
         let mut family = RelayIdSet::new();
         family.insert(*exit_relay.id());
         // TODO(nickm): See "limitations" note on `known_family_members`.
