@@ -1007,6 +1007,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config: Arc<OnionServiceConfig>,
     ) -> Result<(), FatalError> {
         if self.replace_config_if_changed(config) {
+            info!(nickname=%self.imm.nickname, "Config has changed, generating a new descriptor");
             self.mark_all_dirty();
 
             // Schedule an upload, unless we're still waiting for IPTs.
