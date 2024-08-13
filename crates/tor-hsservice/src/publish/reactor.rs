@@ -1323,22 +1323,19 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     // here, since the backoff::Runner code will handle that for us.)
                     let upload_res = select_biased! {
                         shutdown = shutdown_rx.next().fuse() => {
-                            match shutdown {
-                                Some(_) => unreachable!("received Void value?!"),
-                                None => {
+                            // This will always be None, since Void is uninhabited.
+                            let _: Option<Void> = shutdown;
 
-                                    // It looks like the reactor has shut down,
-                                    // so there is no point in uploading the descriptor anymore.
-                                    //
-                                    // Let's shut down the upload task too.
-                                    trace!(
-                                        nickname=%imm.nickname, time_period=?time_period,
-                                        "upload task received shutdown signal"
-                                    );
+                            // It looks like the reactor has shut down,
+                            // so there is no point in uploading the descriptor anymore.
+                            //
+                            // Let's shut down the upload task too.
+                            trace!(
+                                nickname=%imm.nickname, time_period=?time_period,
+                                "upload task received shutdown signal"
+                            );
 
-                                    return Err(PublishError::Shutdown);
-                                }
-                            }
+                            return Err(PublishError::Shutdown);
                         },
                         res = run_upload(desc.clone()).fuse() => res,
                     };

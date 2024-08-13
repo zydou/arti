@@ -117,6 +117,7 @@ tor-protover = { path = "../tor-protover", version = "0.21.0" }
 tor-units = { version = "0.21.0", path = "../tor-units", optional = true }
 visibility = { version = "0.1.0", optional = true }
 visible = { version = "0.0.1", optional = true }
+void = "1"
 weak-table = "0.3.0"
 zeroize = "1"
 
