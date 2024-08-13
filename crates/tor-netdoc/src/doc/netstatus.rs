@@ -78,6 +78,7 @@ pub use rs::build::RouterStatusBuilder;
 pub use rs::MdConsensusRouterStatus;
 #[cfg(feature = "ns_consensus")]
 pub use rs::NsConsensusRouterStatus;
+use void::ResultVoidExt as _;
 
 /// The lifetime of a networkstatus document.
 ///
@@ -1192,7 +1193,7 @@ impl ConsensusVoterInfo {
 }
 
 impl std::str::FromStr for RelayFlags {
-    type Err = std::convert::Infallible;
+    type Err = void::Void;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Ok(match s {
             "Authority" => RelayFlags::AUTHORITY,
@@ -1235,17 +1236,9 @@ impl RelayFlags {
                         .with_msg("Flags out of order"));
                 }
             }
-            match s.parse() {
-                Ok(fl) => {
-                    flags |= fl;
-                    prev = Some(s);
-                }
-                Err(_e) => {
-                    return Err(EK::BadArgument
-                        .at_pos(item.pos())
-                        .with_msg("failed to parse flag"))
-                }
-            };
+            let fl = s.parse().void_unwrap();
+            flags |= fl;
+            prev = Some(s);
         }
 
         Ok(flags)

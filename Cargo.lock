@@ -5733,6 +5733,7 @@ dependencies = [
  "tor-units",
  "visibility",
  "visible",
+ "void",
  "weak-table",
  "zeroize",
 ]
