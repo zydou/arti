@@ -50,6 +50,7 @@
 //! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
 //! status for reporting fatal errors (crashes).
 
+use tor_config::file_watcher::{self, FileEventReceiver, FileEventSender};
 use tor_netdir::DirEvent;
 
 use crate::config::restricted_discovery::RestrictedDiscoveryKeys;
@@ -100,6 +101,10 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+    /// A channel for receiving restricted discovery key_dirs change notifications.
+    key_dirs_rx: FileEventReceiver,
+    /// A channel for sending restricted discovery key_dirs change notifications.
+    key_dirs_tx: FileEventSender,
     /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
     /// The main loop of the reactor watches for updates on this channel.
@@ -504,6 +509,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             );
         }
 
+        // Create a channel for watching for changes in the configured
+        // restricted_discovery.key_dirs.
+        let (key_dirs_tx, key_dirs_rx) = file_watcher::channel();
+
         let imm = Immutable {
             runtime,
             mockable,
@@ -527,6 +536,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
+            key_dirs_rx,
+            key_dirs_tx,
             publish_status_rx,
             publish_status_tx,
             upload_task_complete_rx,
