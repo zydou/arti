@@ -279,11 +279,13 @@ mod test {
     fn assert_exit_path_ok(relays: &[MaybeOwnedRelay<'_>]) {
         assert_eq!(relays.len(), 3);
 
-        // TODO: Eventually assert that r1 has Guard, once we enforce that.
-
         let r1 = &relays[0];
         let r2 = &relays[1];
         let r3 = &relays[2];
+
+        if let MaybeOwnedRelay::Relay(r1) = r1 {
+            assert!(r1.low_level_details().is_suitable_as_guard());
+        }
 
         assert!(!r1.same_relay_ids(r2));
         assert!(!r1.same_relay_ids(r3));
