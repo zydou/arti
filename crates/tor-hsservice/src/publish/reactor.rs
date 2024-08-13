@@ -479,7 +479,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
-        authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -496,13 +495,21 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // since we never actually send anything on this channel.
         let (shutdown_tx, _shutdown_rx) = broadcast::channel(0);
 
+        let authorized_clients = config.restricted_discovery.read_keys();
+
+        if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
+            warn!(
+                "Running in restricted discovery mode, but we have no authorized clients. Service will be unreachable"
+            );
+        }
+
         let imm = Immutable {
             runtime,
             mockable,
             nickname,
             keymgr,
             status_tx,
-            authorized_clients,
+            authorized_clients: Arc::new(Mutex::new(authorized_clients)),
         };
 
         let inner = Inner {

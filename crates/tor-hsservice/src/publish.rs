@@ -44,10 +44,6 @@ pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     keymgr: Arc<KeyMgr>,
     /// A sender for updating the status of the onion service.
     status_tx: PublisherStatusSender,
-    /// The restricted discovery authorized clients.
-    ///
-    /// `None`, unless the service is running in restricted discovery mode.
-    authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
 }
 
 impl<R: Runtime, M: Mockable> Publisher<R, M> {
@@ -67,7 +63,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
-        authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     ) -> Self {
         let config = config_rx.borrow().clone();
         Self {
@@ -80,7 +75,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config_rx,
             status_tx,
             keymgr,
-            authorized_clients,
         }
     }
 
@@ -96,7 +90,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config_rx,
             status_tx,
             keymgr,
-            authorized_clients,
         } = self;
 
         let reactor = Reactor::new(
@@ -109,7 +102,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config_rx,
             status_tx,
             keymgr,
-            authorized_clients,
         );
 
         runtime
@@ -481,7 +473,6 @@ mod test {
                 config_rx,
                 status_tx,
                 keymgr,
-                Arc::new(Mutex::new(None)),
             );
 
             publisher.launch().unwrap();
