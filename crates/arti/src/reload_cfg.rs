@@ -266,8 +266,6 @@ fn reconfigure(
 /// directories in order to learn about changes in some specific files that they
 /// contain.
 ///
-/// The wrapper contains the `Watcher` and also the channel for receiving events.
-///
 /// The `Watcher` implementation in `notify` has a weakness: it gives sensible
 /// results when you're watching directories, but if you start watching
 /// non-directory files, it won't notice when those files get replaced.  That's
@@ -279,9 +277,7 @@ fn reconfigure(
 /// <https://github.com/notify-rs/notify/pull/166>.
 ///
 /// TODO: Someday we might want to make this code exported someplace.  If we do,
-/// we should test it, and improve its API a lot.  Right now, the caller needs
-/// to mess around with `std::sync::mpsc` and filter out the events they want
-/// using `FileWatcher::event_matched`.
+/// we should test it, and improve its API a lot.
 struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
     // this field is kept only so the watcher is not dropped
