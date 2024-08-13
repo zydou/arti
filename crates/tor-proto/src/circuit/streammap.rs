@@ -7,9 +7,6 @@ use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use futures::StreamExt;
 use tor_cell::relaycell::UnparsedRelayMsg;
-/// Mapping from stream ID to streams.
-// NOTE: This is a work in progress and I bet I'll refactor it a lot;
-// it needs to stay opaque!
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 
 use futures::channel::mpsc;
