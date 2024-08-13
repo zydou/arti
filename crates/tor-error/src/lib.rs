@@ -771,6 +771,18 @@ impl HasKind for futures::task::SpawnError {
     }
 }
 
+impl HasKind for void::Void {
+    fn kind(&self) -> ErrorKind {
+        void::unreachable(*self)
+    }
+}
+
+impl HasKind for std::convert::Infallible {
+    fn kind(&self) -> ErrorKind {
+        unreachable!()
+    }
+}
+
 /// Sealed
 mod sealed {
     /// Sealed

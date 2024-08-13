@@ -58,6 +58,9 @@ use futures::Sink;
 use tor_error::internal;
 use void::Void;
 
+#[cfg(feature = "describe-methods")]
+pub(crate) mod description;
+
 use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
 
 /// A type-erased serializable value.
@@ -102,8 +105,22 @@ pub trait Invocable: Send + Sync + 'static {
     fn object_type(&self) -> any::TypeId;
     /// Return the type of method that this Invocable will accept.
     fn method_type(&self) -> any::TypeId;
+    /// Return the names of the type for the object and methods types this Invocable will accept.
+    ///
+    /// Caveats apply as for [`any::type_name`].
+    fn object_and_method_type_names(&self) -> (&'static str, &'static str);
     /// Describe the types for this Invocable.  Used for debugging.
-    fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (object_name, method_name) = self.object_and_method_type_names();
+        let rpc_method_name = crate::method::method_info_by_typeid(self.method_type())
+            .map(|mi| mi.method_name)
+            .unwrap_or("???");
+        write!(
+            f,
+            "Invocable({} ({}) for {})",
+            method_name, rpc_method_name, object_name,
+        )
+    }
 
     /// Invoke this method on an object.
     ///
@@ -170,12 +187,10 @@ macro_rules! declare_invocable_impl {
                 any::TypeId::of::<M>()
             }
 
-            fn describe_invocable(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(
-                    f,
-                    "Invocable({} for {})",
-                    any::type_name::<M>(),
+            fn object_and_method_type_names(&self) -> (&'static str, &'static str) {
+                (
                     any::type_name::<OBJ>(),
+                    any::type_name::<M>(),
                 )
             }
 
@@ -1124,8 +1139,10 @@ pub(crate) mod test {
         assert_eq!(ent2.same_decl(&ent2), true);
         assert_eq!(ent2.same_decl(&ent2b), false);
 
-        let re =
-            regex::Regex::new(r#"^Invocable\(.*GetName for .*GenericObj.*String.*String"#).unwrap();
+        let re = regex::Regex::new(
+            r#"^Invocable\(.*GetName \(x-test:getname\) for .*GenericObj.*String.*String"#,
+        )
+        .unwrap();
         let debug_fmt = format!("{:?}", &ent2);
         dbg!(&debug_fmt);
         assert!(re.is_match(&debug_fmt));

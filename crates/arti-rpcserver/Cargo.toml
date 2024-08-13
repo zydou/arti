@@ -22,7 +22,9 @@ full = [
     "tor-bytes/full",
     "tor-llcrypto/full",
     "tor-proto/full",
+    "describe-methods",
 ]
+describe-methods = ["tor-rpcbase/describe-methods"]
 
 [dependencies]
 arti-client = { path = "../arti-client", version = "0.21.0", features = ["rpc"] }
