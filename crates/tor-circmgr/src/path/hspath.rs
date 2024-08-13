@@ -115,10 +115,10 @@ impl HsPathBuilder {
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,
-        guards: Option<&GuardMgr<RT>>,
+        guards: &GuardMgr<RT>,
         config: &PathConfig,
         now: SystemTime,
-    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+    ) -> Result<(TorPath<'a>, GuardMonitor, GuardUsable)> {
         pick_path(self, rng, netdir, guards, config, now)
     }
 
@@ -132,11 +132,11 @@ impl HsPathBuilder {
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,
-        guards: Option<&GuardMgr<RT>>,
+        guards: &GuardMgr<RT>,
         vanguards: &VanguardMgr<RT>,
         config: &PathConfig,
         now: SystemTime,
-    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+    ) -> Result<(TorPath<'a>, GuardMonitor, GuardUsable)> {
         let mode = vanguards.mode();
         if mode == VanguardMode::Disabled {
             return pick_path(self, rng, netdir, guards, config, now);
@@ -147,7 +147,7 @@ impl HsPathBuilder {
             compatible_with: self.compatible_with.clone(),
         };
 
-        vanguard_path_builder.pick_path(rng, netdir, guards, vanguards, config)
+        vanguard_path_builder.pick_path(rng, netdir, guards, vanguards)
     }
 }
 
@@ -206,10 +206,9 @@ impl VanguardHsPathBuilder {
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,
-        guards: Option<&GuardMgr<RT>>,
+        guards: &GuardMgr<RT>,
         vanguards: &VanguardMgr<RT>,
-        config: &PathConfig,
-    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+    ) -> Result<(TorPath<'a>, GuardMonitor, GuardUsable)> {
         let netdir = match netdir {
             DirInfo::Directory(d) => d,
             _ => {
@@ -222,8 +221,7 @@ impl VanguardHsPathBuilder {
 
         // Select the guard, allowing it to appear as
         // either of the last two hops of the circuit.
-        let (l1_guard, mon, usable) =
-            select_guard(rng, netdir, guards, config, None, None, self.path_kind())?;
+        let (l1_guard, mon, usable) = select_guard(netdir, guards, None, None)?;
 
         let target_exclusion = if let Some(target) = self.compatible_with.as_ref() {
             RelayExclusion::exclude_identities(
@@ -314,12 +312,6 @@ impl VanguardHsPathBuilder {
             .add_vanguard(target_exclusion, Layer::Layer2)?
             .add_middle(target_exclusion)?
             .build()
-    }
-
-    /// Return a short description of the path we're trying to build,
-    /// for error reporting purposes.
-    fn path_kind(&self) -> &'static str {
-        "onion-service vanguard circuit"
     }
 }
 
@@ -521,7 +513,7 @@ mod test {
         let now = SystemTime::now();
         let dirinfo = (netdir).into();
         HsPathBuilder::new(target.cloned(), stub_kind)
-            .pick_path_with_vanguards(&mut rng, dirinfo, Some(&guards), &vanguardmgr, &config, now)
+            .pick_path_with_vanguards(&mut rng, dirinfo, &guards, &vanguardmgr, &config, now)
             .map(|res| res.0)
     }
 
@@ -545,7 +537,7 @@ mod test {
         let netdir_provider: Arc<dyn NetDirProvider> = netdir_provider;
         guards.install_netdir_provider(&netdir_provider).unwrap();
         HsPathBuilder::new(target.cloned(), HsCircStubKind::Short)
-            .pick_path(&mut rng, dirinfo, Some(&guards), &config, now)
+            .pick_path(&mut rng, dirinfo, &guards, &config, now)
             .map(|res| res.0)
     }
 

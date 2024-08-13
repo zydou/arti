@@ -218,7 +218,7 @@ impl TargetCircUsage {
         &self,
         rng: &mut R,
         netdir: crate::DirInfo<'a>,
-        guards: Option<&GuardMgr<RT>>,
+        guards: &GuardMgr<RT>,
         #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguards: &VanguardMgr<RT>,
         config: &crate::PathConfig,
         now: SystemTime,
@@ -230,8 +230,8 @@ impl TargetCircUsage {
     )> {
         match self {
             TargetCircUsage::Dir => {
-                let (path, mon, usable) = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
-                Ok((path, SupportedCircUsage::Dir, mon, usable))
+                let (path, mon, usable) = DirPathBuilder::new().pick_path(guards)?;
+                Ok((path, SupportedCircUsage::Dir, Some(mon), Some(usable)))
             }
             TargetCircUsage::Preemptive {
                 port,
@@ -258,8 +258,8 @@ impl TargetCircUsage {
                         country_code,
                         all_relays_stable,
                     },
-                    mon,
-                    usable,
+                    Some(mon),
+                    Some(usable),
                 ))
             }
             TargetCircUsage::Exit {
@@ -306,8 +306,8 @@ impl TargetCircUsage {
                         country_code: resulting_cc,
                         all_relays_stable,
                     },
-                    mon,
-                    usable,
+                    Some(mon),
+                    Some(usable),
                 ))
             }
             TargetCircUsage::TimeoutTesting => {
@@ -329,7 +329,7 @@ impl TargetCircUsage {
                     _ => SupportedCircUsage::NoUsage,
                 };
 
-                Ok((path, usage, mon, usable))
+                Ok((path, usage, Some(mon), Some(usable)))
             }
             #[cfg(feature = "specific-relay")]
             TargetCircUsage::DirSpecificTarget(target) => {
@@ -353,7 +353,7 @@ impl TargetCircUsage {
                     }
                 };
                 let usage = SupportedCircUsage::HsOnly;
-                Ok((path, usage, mon, usable))
+                Ok((path, usage, Some(mon), Some(usable)))
             }
         }
     }
@@ -530,13 +530,11 @@ pub(crate) mod test {
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
     use crate::isolation::{IsolationToken, StreamIsolationBuilder};
     use crate::path::OwnedPath;
-    use crate::test::OptDummyGuardMgr;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_guardmgr::TestConfig;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
-    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use tor_persist::TestingStateMgr;
-    use tor_rtmock::MockRuntime;
 
     impl IsolationTokenEq for TargetCircUsage {
         fn isol_eq(&self, other: &Self) -> bool {
@@ -868,12 +866,16 @@ pub(crate) mod test {
     fn buildpath() {
         use crate::mgr::AbstractSpec;
 
-        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let mut rng = testing_rng();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let di = (&netdir).into();
             let config = crate::PathConfig::default();
-            let guards: OptDummyGuardMgr<'_, MockRuntime> = None;
+            let statemgr = TestingStateMgr::new();
+            let guards =
+                tor_guardmgr::GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default())
+                    .unwrap();
+            guards.install_test_netdir(&netdir);
             let now = SystemTime::now();
 
             // Only doing basic tests for now.  We'll test the path
@@ -881,20 +883,15 @@ pub(crate) mod test {
             // and friends.
 
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-            let vanguards = VanguardMgr::new(
-                &Default::default(),
-                MockRuntime::new(),
-                TestingStateMgr::default(),
-                false,
-            )
-            .unwrap();
+            let vanguards =
+                VanguardMgr::new(&Default::default(), rt.clone(), statemgr, false).unwrap();
 
             // First, a one-hop directory circuit
             let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
                 .build_path(
                     &mut rng,
                     di,
-                    guards,
+                    &guards,
                     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
                     &vanguards,
                     &config,
@@ -921,7 +918,7 @@ pub(crate) mod test {
                 .build_path(
                     &mut rng,
                     di,
-                    guards,
+                    &guards,
                     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
                     &vanguards,
                     &config,
@@ -943,7 +940,7 @@ pub(crate) mod test {
                 .build_path(
                     &mut rng,
                     di,
-                    guards,
+                    &guards,
                     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
                     &vanguards,
                     &config,
@@ -979,7 +976,7 @@ pub(crate) mod test {
     fn build_testing_noexit() {
         // Here we'll try to build paths for testing circuits on a network
         // with no exits.
-        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let mut rng = testing_rng();
             let netdir = testnet::construct_custom_netdir(|_idx, bld| {
                 bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
@@ -989,23 +986,22 @@ pub(crate) mod test {
             .unwrap();
             let di = (&netdir).into();
             let config = crate::PathConfig::default();
-            let guards: OptDummyGuardMgr<'_, MockRuntime> = None;
+            let statemgr = TestingStateMgr::new();
+            let guards =
+                tor_guardmgr::GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default())
+                    .unwrap();
+            guards.install_test_netdir(&netdir);
             let now = SystemTime::now();
 
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-            let vanguards = VanguardMgr::new(
-                &Default::default(),
-                MockRuntime::new(),
-                TestingStateMgr::default(),
-                false,
-            )
-            .unwrap();
+            let vanguards =
+                VanguardMgr::new(&Default::default(), rt.clone(), statemgr, false).unwrap();
 
             let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
                 .build_path(
                     &mut rng,
                     di,
-                    guards,
+                    &guards,
                     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
                     &vanguards,
                     &config,

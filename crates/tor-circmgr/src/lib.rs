@@ -923,10 +923,6 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    /// Helper type used to help type inference.
-    pub(crate) type OptDummyGuardMgr<'a, R = tor_rtcompat::tokio::TokioNativeTlsRuntime> =
-        Option<&'a tor_guardmgr::GuardMgr<R>>;
-
     #[test]
     fn get_params() {
         use tor_netdir::{MdReceiver, PartialNetDir};
