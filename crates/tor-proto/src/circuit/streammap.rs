@@ -136,7 +136,7 @@ pub(super) struct StreamMap {
     /// Open streams.
     // Invariants:
     // * Keys are disjoint with `closed_streams`.
-    open_streams: StreamPollSet<StreamId, AnyRelayMsg, Priority, OpenStreamEntStream>,
+    open_streams: StreamPollSet<StreamId, Priority, OpenStreamEntStream>,
     /// Closed streams.
     // Invariants:
     // * Keys are disjoint with `open_streams`.
