@@ -53,7 +53,7 @@
 use tor_config::file_watcher::{self, FileEventReceiver, FileEventSender};
 use tor_netdir::DirEvent;
 
-use crate::config::restricted_discovery::RestrictedDiscoveryKeys;
+use crate::config::restricted_discovery::{RestrictedDiscoveryConfig, RestrictedDiscoveryKeys};
 use crate::config::OnionServiceConfigPublisherView;
 
 use super::*;
@@ -501,13 +501,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // since we never actually send anything on this channel.
         let (shutdown_tx, _shutdown_rx) = broadcast::channel(0);
 
-        let authorized_clients = config.restricted_discovery.read_keys();
-
-        if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
-            warn!(
-                "Running in restricted discovery mode, but we have no authorized clients. Service will be unreachable"
-            );
-        }
+        let authorized_clients = Self::read_authorized_clients(&config.restricted_discovery);
 
         // Create a channel for watching for changes in the configured
         // restricted_discovery.key_dirs.
@@ -1027,6 +1021,21 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
 
         Ok(())
+    }
+
+    /// Read the authorized `RestrictedDiscoveryKeys` from `config`.
+    fn read_authorized_clients(
+        config: &RestrictedDiscoveryConfig,
+    ) -> Option<RestrictedDiscoveryKeys> {
+        let authorized_clients = config.read_keys();
+
+        if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
+            warn!(
+                "Running in restricted discovery mode, but we have no authorized clients. Service will be unreachable"
+            );
+        }
+
+        authorized_clients
     }
 
     /// Mark the descriptor dirty for all time periods.
