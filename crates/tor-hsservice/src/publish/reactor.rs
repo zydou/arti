@@ -893,16 +893,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         // The fields we're interested in haven't changed, so there's no need to update
         // `inner.config`.
-
-        // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
-        // work; see #1028
-        /*
-        if old_config.anonymity == new_config.anonymity
-            && old_config.encrypt_descriptor == new_config.encrypt_descriptor
-        {
+        if *old_config == new_config {
             return false;
         }
-        */
 
         let _old: Arc<OnionServiceConfigPublisherView> = std::mem::replace(old_config, new_config);
 
