@@ -136,12 +136,6 @@
 #include <stdlib.h>
 
 /**
- * A string that is guaranteed to be UTF-8 and NUL-terminated,
- * for fast access as either type.
- */
-typedef struct Utf8CString Utf8CString;
-
-/**
  * A status code returned by an Arti RPC function.
  *
  * On success, a function will return `ARTI_SUCCESS (0)`.
@@ -175,7 +169,7 @@ typedef struct ArtiRpcError ArtiRpcError;
  * You can inspect it with `arti_rpc_str_get`, but you may not modify it.
  * The string is guaranteed to be UTF-8 and NUL-terminated.
  */
-typedef struct Utf8CString ArtiRpcStr;
+typedef struct ArtiRpcStr ArtiRpcStr;
 
 /**
  * A handle to an in-progress RPC request.
