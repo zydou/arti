@@ -661,40 +661,62 @@ impl DispatchTable {
         ents.into_iter().for_each(|e| self.insert(e));
     }
 
-    /// Helper: Return the invoker for a given RPC object and a given method type,
-    /// if there is one.
-    pub(crate) fn rpc_invoker(
+    /// Helper: Look up the `InvokerEnt` for a given method on a given object,
+    /// performing delegation as necessary.
+    ///
+    /// Along with the `InvokerEnt`, return either the object, or a delegation target
+    /// on which the method should be invoked.
+    fn resolve_entry(
         &self,
-        obj: &dyn Object,
+        mut obj: Arc<dyn Object>,
+        method_id: std::any::TypeId,
+    ) -> Result<(Arc<dyn Object>, &InvokerEnt), InvokeError> {
+        loop {
+            let obj_id = {
+                let dyn_obj: &dyn Object = obj.as_ref();
+                dyn_obj.type_id()
+            };
+            let func_type = FuncType { obj_id, method_id };
+            if let Some(ent) = self.map.get(&func_type) {
+                return Ok((obj, ent));
+            } else if let Some(delegation) = obj.delegate() {
+                obj = delegation;
+            } else {
+                return Err(InvokeError::NoImpl);
+            }
+        }
+    }
+
+    /// Helper: Resolve the invoker for a given RPC object and a given method type,
+    /// if there is one.
+    ///
+    /// Along with the invoker, return either the object, or a delegation target
+    /// on which the method should be invoked.
+    pub(crate) fn resolve_rpc_invoker(
+        &self,
+        obj: Arc<dyn Object>,
         method: &dyn DynMethod,
-    ) -> Result<&'static dyn RpcInvocable, InvokeError> {
-        let func_type = FuncType {
-            obj_id: obj.type_id(),
-            method_id: method.type_id(),
-        };
-        self.map
-            .get(&func_type)
-            .ok_or(InvokeError::NoImpl)?
-            .rpc_invoker
-            .ok_or_else(|| {
-                InvokeError::Bug(internal!(
-                    "Somehow tried to call a special method as an RPC method."
-                ))
-            })
+    ) -> Result<(Arc<dyn Object>, &'static dyn RpcInvocable), InvokeError> {
+        let (obj, invoker_ent) = self.resolve_entry(obj, method.type_id())?;
+        let rpc_invoker = invoker_ent.rpc_invoker.ok_or_else(|| {
+            InvokeError::Bug(internal!(
+                "Somehow tried to call a special method as an RPC method."
+            ))
+        })?;
+        Ok((obj, rpc_invoker))
     }
 
     /// Helper: Return the special invoker for a given object and a given method type,
     /// if there is one.
-    pub(crate) fn special_invoker<M: crate::Method>(
+    ///
+    /// Along with the invoker, return either the object, or a delegation target
+    /// on which the method should be invoked.
+    pub(crate) fn resolve_special_invoker<M: crate::Method>(
         &self,
-        obj: &dyn Object,
-    ) -> Result<&'static dyn Invocable, InvokeError> {
-        let func_type = FuncType {
-            obj_id: obj.type_id(),
-            method_id: std::any::TypeId::of::<M>(),
-        };
-        let ent = self.map.get(&func_type).ok_or(InvokeError::NoImpl)?;
-        Ok(ent.invoker)
+        obj: Arc<dyn Object>,
+    ) -> Result<(Arc<dyn Object>, &'static dyn Invocable), InvokeError> {
+        let (obj, invoker_ent) = self.resolve_entry(obj, std::any::TypeId::of::<M>())?;
+        Ok((obj, invoker_ent.invoker))
     }
 }
 
@@ -956,6 +978,14 @@ pub(crate) mod test {
         }
     }
 
+    // Define an object with delegation.
+    #[derive(Clone, Deftly)]
+    #[derive_deftly(Object)]
+    #[deftly(rpc(delegate_with = "|this: &Self| this.contents.clone()"))]
+    struct CatCarrier {
+        contents: Option<Arc<dyn crate::Object>>,
+    }
+
     #[async_test]
     async fn try_invoke() {
         use super::*;
@@ -1042,6 +1072,34 @@ pub(crate) mod test {
             sentence(&table, obj3).await,
             r#"Hello I am a friendly {"v":"13371337"} and these are my lovely {"v":"2718281828"}."#
         );
+
+        // Try with delegation.
+        let carrier_1 = CatCarrier {
+            contents: Some(Arc::new(Wombat)),
+        };
+        let carrier_2 = CatCarrier {
+            contents: Some(Arc::new(Swan)),
+        };
+        let carrier_3 = CatCarrier {
+            contents: Some(Arc::new(Brick)),
+        };
+        let carrier_4 = CatCarrier { contents: None };
+        assert_eq!(
+            sentence(&table, carrier_1).await,
+            r#"Hello I am a friendly {"v":"wombat"} and these are my lovely {"v":"joeys"}."#
+        );
+        assert_eq!(
+            sentence(&table, carrier_2).await,
+            r#"Hello I am a friendly {"v":"swan"} and these are my lovely {"v":"cygnets"}."#
+        );
+        assert!(matches!(
+            invoke_helper(&table, carrier_3, GetKids),
+            Err(InvokeError::NoImpl)
+        ));
+        assert!(matches!(
+            invoke_helper(&table, carrier_4, GetKids),
+            Err(InvokeError::NoImpl)
+        ));
     }
 
     // Doesn't implement Deserialize.
@@ -1097,7 +1155,7 @@ pub(crate) mod test {
         let discard = || Box::pin(futures::sink::drain().sink_err_into());
 
         let table = DispatchTable::from_inventory();
-        let ent = table.rpc_invoker(&Swan, &GetKids).unwrap();
+        let (_swan, ent) = table.resolve_rpc_invoker(Arc::new(Swan), &GetKids).unwrap();
 
         // Wrong method
         let bug = ent.invoke(

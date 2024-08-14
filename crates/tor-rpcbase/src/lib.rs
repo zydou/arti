@@ -202,11 +202,11 @@ pub fn invoke_rpc_method(
     method: Box<dyn DynMethod>,
     sink: dispatch::BoxedUpdateSink,
 ) -> Result<dispatch::RpcResultFuture, InvokeError> {
-    let invocable = ctx
+    let (obj, invocable) = ctx
         .dispatch_table()
         .read()
         .expect("poisoned lock")
-        .rpc_invoker(obj.as_ref(), method.as_ref())?;
+        .resolve_rpc_invoker(obj, method.as_ref())?;
 
     invocable.invoke(obj, method, ctx, sink)
 }
@@ -224,11 +224,11 @@ pub async fn invoke_special_method<M: Method>(
     obj: Arc<dyn Object>,
     method: Box<M>,
 ) -> Result<Box<M::Output>, InvokeError> {
-    let invocable = ctx
+    let (obj, invocable) = ctx
         .dispatch_table()
         .read()
         .expect("poisoned lock")
-        .special_invoker::<M>(obj.as_ref())?;
+        .resolve_special_invoker::<M>(obj)?;
 
     invocable
         .invoke_special(obj, method, ctx)?
