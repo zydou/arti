@@ -902,12 +902,11 @@ impl Reactor {
                 // TODO: Consider looping here to process multiple ready
                 // streams. Need to be careful though to balance that with
                 // continuing to service incoming and control messages.
-                let Some((sid, msg, stream)) = self.hops[i].map.poll_ready_streams_iter(cx).next()
-                else {
+                let Some((sid, msg)) = self.hops[i].map.poll_ready_streams_iter(cx).next() else {
                     // No ready streams for this hop.
                     continue;
                 };
-                let Some(msg) = msg else {
+                if msg.is_none() {
                     // Sender was dropped, so close the stream, which
                     // also removes this entry from the streams iterator.
                     self.close_stream(
@@ -920,14 +919,19 @@ impl Reactor {
                     did_things = true;
                     continue;
                 };
-                debug_assert!(
-                    stream.can_send(msg),
-                    "Stream {sid} produced a message it can't send: {msg:?}"
-                );
                 let msg = self.hops[i]
                     .map
                     .take_ready_msg(sid)
                     .expect("msg disappeared");
+                debug_assert!(
+                    {
+                        let Some(StreamEntMut::Open(s)) = self.hops[i].map.get_mut(sid) else {
+                            panic!("Stream {sid} disappeared");
+                        };
+                        s.can_send(&msg)
+                    },
+                    "Stream {sid} produced a message it can't send: {msg:?}"
+                );
                 self.send_relay_cell(cx, hop_num, false, AnyRelayMsgOuter::new(Some(sid), msg))?;
                 did_things = true;
             }

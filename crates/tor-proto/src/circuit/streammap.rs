@@ -5,7 +5,10 @@ use crate::circuit::sendme;
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
+use futures::task::noop_waker_ref;
 use futures::StreamExt;
+use pin_project::pin_project;
+use tor_async_utils::peekable_stream::PeekableStream;
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -14,7 +17,7 @@ use std::collections::hash_map;
 use std::collections::HashMap;
 use std::num::NonZeroU16;
 use std::pin::Pin;
-use std::task::{Poll, Waker};
+use std::task::{Context, Poll, Waker};
 use tor_error::{bad_api_usage, internal};
 
 use rand::Rng;
@@ -28,6 +31,7 @@ use tracing::debug;
 /// (For the purposes of this module, an open stream is one where we have not
 /// sent or received any message indicating that the stream is ended.)
 #[derive(Debug)]
+#[pin_project]
 pub(super) struct OpenStreamEnt {
     /// Sink to send relay cells tagged for this stream into.
     pub(super) sink: mpsc::Sender<UnparsedRelayMsg>,
@@ -44,6 +48,7 @@ pub(super) struct OpenStreamEnt {
     // Not directly exposed. This should only be polled via
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
     // only be used through `StreamPollSet`.
+    #[pin]
     rx: futures::stream::Peekable<mpsc::Receiver<AnyRelayMsg>>,
     /// Waker to be woken when more sending capacity becomes available (e.g.
     /// receiving a SENDME).
@@ -86,7 +91,12 @@ impl OpenStreamEnt {
 /// this wrapper, and not directly for `OpenStreamEnt`, so that client code
 /// can't directly access the stream.
 #[derive(Debug)]
-struct OpenStreamEntStream(OpenStreamEnt);
+#[pin_project]
+struct OpenStreamEntStream {
+    /// Inner value.
+    #[pin]
+    inner: OpenStreamEnt,
+}
 
 impl futures::Stream for OpenStreamEntStream {
     type Item = AnyRelayMsg;
@@ -95,24 +105,32 @@ impl futures::Stream for OpenStreamEntStream {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        // Split the borrow.
-        let OpenStreamEntStream(OpenStreamEnt {
-            rx,
-            flow_ctrl,
-            flow_ctrl_waker,
-            ..
-        }) = &mut *self;
-        let mut rx = Pin::new(rx);
-        let m = match rx.as_mut().poll_peek(cx) {
+        if !self.as_mut().poll_peek_mut(cx).is_ready() {
+            return Poll::Pending;
+        };
+        let res = self.project().inner.project().rx.poll_next(cx);
+        debug_assert!(res.is_ready());
+        res
+    }
+}
+
+impl PeekableStream for OpenStreamEntStream {
+    fn poll_peek_mut(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<&mut <Self as futures::Stream>::Item>> {
+        let s = self.project();
+        let inner = s.inner.project();
+        let m = match inner.rx.poll_peek_mut(cx) {
             Poll::Ready(Some(m)) => m,
             Poll::Ready(None) => return Poll::Ready(None),
             Poll::Pending => return Poll::Pending,
         };
-        if !flow_ctrl.can_send(m) {
-            flow_ctrl_waker.replace(cx.waker().clone());
+        if !inner.flow_ctrl.can_send(m) {
+            inner.flow_ctrl_waker.replace(cx.waker().clone());
             return Poll::Pending;
         }
-        rx.poll_next(cx)
+        Poll::Ready(Some(m))
     }
 }
 
@@ -165,7 +183,7 @@ impl<'a> From<&'a mut ClosedStreamEnt> for StreamEntMut<'a> {
 
 impl<'a> From<&'a mut OpenStreamEntStream> for StreamEntMut<'a> {
     fn from(value: &'a mut OpenStreamEntStream) -> Self {
-        Self::Open(&mut value.0)
+        Self::Open(&mut value.inner)
     }
 }
 
@@ -237,14 +255,16 @@ impl StreamMap {
         send_window: sendme::StreamSendWindow,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
-        let mut stream_ent = OpenStreamEntStream(OpenStreamEnt {
-            sink,
-            flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
-            dropped: 0,
-            cmd_checker,
-            rx: rx.peekable(),
-            flow_ctrl_waker: None,
-        });
+        let mut stream_ent = OpenStreamEntStream {
+            inner: OpenStreamEnt {
+                sink,
+                flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
+                dropped: 0,
+                cmd_checker,
+                rx: rx.peekable(),
+                flow_ctrl_waker: None,
+            },
+        };
         let priority = self.take_next_priority();
         // This "65536" seems too aggressive, but it's what tor does.
         //
@@ -276,14 +296,16 @@ impl StreamMap {
         id: StreamId,
         cmd_checker: AnyCmdChecker,
     ) -> Result<()> {
-        let stream_ent = OpenStreamEntStream(OpenStreamEnt {
-            sink,
-            flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
-            dropped: 0,
-            cmd_checker,
-            rx: rx.peekable(),
-            flow_ctrl_waker: None,
-        });
+        let stream_ent = OpenStreamEntStream {
+            inner: OpenStreamEnt {
+                sink,
+                flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
+                dropped: 0,
+                cmd_checker,
+                rx: rx.peekable(),
+                flow_ctrl_waker: None,
+            },
+        };
         let priority = self.take_next_priority();
         self.open_streams
             .try_insert(id, priority, stream_ent)
@@ -341,20 +363,18 @@ impl StreamMap {
     ) -> Result<ShouldSendEnd> {
         use TerminateReason as TR;
 
-        if let Some((
-            _id,
-            _priority,
-            _buffered_val,
-            OpenStreamEntStream(OpenStreamEnt {
-                flow_ctrl,
-                dropped,
-                cmd_checker,
-                // notably absent: the channels for sink and stream, which will get dropped and
-                // closed (meaning reads/writes from/to this stream will now fail)
-                ..
-            }),
-        )) = self.open_streams.remove(&id)
-        {
+        if let Some((_id, _priority, ent)) = self.open_streams.remove(&id) {
+            let OpenStreamEntStream {
+                inner:
+                    OpenStreamEnt {
+                        flow_ctrl,
+                        dropped,
+                        cmd_checker,
+                        // notably absent: the channels for sink and stream, which will get dropped and
+                        // closed (meaning reads/writes from/to this stream will now fail)
+                        ..
+                    },
+            } = ent;
             // FIXME(eta): we don't copy the receive window, instead just creating a new one,
             //             so a malicious peer can send us slightly more data than they should
             //             be able to; see arti#230.
@@ -413,10 +433,17 @@ impl StreamMap {
     pub(super) fn poll_ready_streams_iter<'a>(
         &'a mut self,
         cx: &mut std::task::Context,
-    ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>, &'a OpenStreamEnt)> + 'a {
+    ) -> impl Iterator<Item = (StreamId, Option<&'a AnyRelayMsg>)> + 'a {
         self.open_streams
-            .poll_ready_iter(cx)
-            .map(|(sid, msg, _priority, ent)| (*sid, msg, &ent.0))
+            .poll_ready_iter_mut(cx)
+            .map(|(sid, _priority, ent)| {
+                let ent = Pin::new(ent);
+                let Poll::Ready(msg) = ent.poll_peek(&mut Context::from_waker(noop_waker_ref()))
+                else {
+                    panic!("Ready message disappeared");
+                };
+                (*sid, msg)
+            })
     }
 
     /// If the stream `sid` has a message ready, take it, and reprioritize `sid`
