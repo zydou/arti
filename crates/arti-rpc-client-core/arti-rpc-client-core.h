@@ -462,7 +462,7 @@ void arti_rpc_conn_free(ArtiRpcConn *rpc_conn);
  *
  * The result will always be non-NULL, even if the status is unrecognized.
  */
-const char *arti_status_to_str(ArtiRpcStatus status);
+const char *arti_rpc_status_to_str(ArtiRpcStatus status);
 
 /**
  * Return the status code associated with a given error.
