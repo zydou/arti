@@ -153,6 +153,12 @@ pub struct RestrictedDiscoveryConfig {
     #[builder(default)]
     pub(crate) enabled: bool,
 
+    /// If true, the provided `key_dirs` will be watched for changes.
+    #[builder(default)]
+    #[builder_field_attr(serde(skip))]
+    #[getter(as_mut, as_copy)]
+    watch_configuration: bool,
+
     /// Directories containing the client keys, each in the
     /// `descriptor:x25519:<base32-encoded-x25519-public-key>` format.
     ///
@@ -257,6 +263,7 @@ impl RestrictedDiscoveryConfigBuilder {
             enabled,
             key_dirs,
             static_keys,
+            watch_configuration,
         } = self.build_unvalidated()?;
         let key_list = static_keys.as_ref().iter().collect_vec();
 
@@ -328,6 +335,7 @@ impl RestrictedDiscoveryConfigBuilder {
             enabled,
             key_dirs,
             static_keys,
+            watch_configuration,
         })
     }
 }
