@@ -1,6 +1,6 @@
-//! Queues that participates in the memory quota system
+//! Queues that participate in the memory quota system
 //!
-//! Wraps an communication channel, such as [`futures::channel::mpsc`],
+//! Wraps a communication channel, such as [`futures::channel::mpsc`],
 //! tracks the memory use of the queue,
 //! and participates in the memory quota system.
 //!
@@ -13,7 +13,7 @@
 //!
 //! The ends implement [`Stream`] and [`Sink`].
 //! If the underlying channel's sender is `Clone`,
-//! for example witth an MPSC queue, the returned sender is also `Clone`.
+//! for example with an MPSC queue, the returned sender is also `Clone`.
 //!
 //! # Example
 //!

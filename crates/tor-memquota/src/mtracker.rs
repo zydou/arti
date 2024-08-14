@@ -855,7 +855,7 @@ impl WeakAccount {
 
     /// Creates a new dangling, dummy, `WeakAccount`
     ///
-    /// This can be used as a standin where a value of tyep `WeakAccount` is needed.
+    /// This can be used as a standin where a value of type `WeakAccount` is needed.
     /// The returned value cannot be upgraded to an `Account`,
     /// so cannot be used to claim memory or find a `MemoryQuotaTracker`.
     pub fn new_dangling() -> Self {
@@ -988,7 +988,7 @@ impl Participation {
 
     /// Creates a new dangling, dummy, `Participation`
     ///
-    /// This can be used as a standin where a value of tyep `Participation` is needed.
+    /// This can be used as a standin where a value of type `Participation` is needed.
     /// The returned value cannot be used to claim memory,
     /// or find an `Account` or `MemoryQuotaTracker`.
     pub fn new_dangling() -> Self {
