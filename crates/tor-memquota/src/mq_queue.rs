@@ -275,6 +275,12 @@ pub trait ChannelSpec: Sealed /* see Correctness, above */ + Sized + 'static {
     //
     // This is called by `mq_queue`.
     fn raw_channel<T: Debug + Send + 'static>(self) -> (Self::Sender<T>, Self::Receiver<T>);
+
+    /// Close the receiver, preventing further sends
+    ///
+    /// This should ensure that only a smallish bounded number of further items
+    /// can be sent, before errors start being returned.
+    fn close_receiver<T: Debug + Send + 'static>(rx: &mut Self::Receiver<T>);
 }
 
 //---------- impls of Channel ----------
@@ -311,6 +317,10 @@ impl ChannelSpec for Mpsc {
     fn raw_channel<T: Debug + Send + 'static>(self) -> (mpsc::Sender<T>, mpsc::Receiver<T>) {
         mpsc::channel(self.buffer)
     }
+
+    fn close_receiver<T: Debug + Send + 'static>(rx: &mut Self::Receiver<T>) {
+        rx.close();
+    }
 }
 
 impl ChannelSpec for MpscUnbounded {
@@ -320,6 +330,10 @@ impl ChannelSpec for MpscUnbounded {
 
     fn raw_channel<T: Debug + Send + 'static>(self) -> (Self::Sender<T>, Self::Receiver<T>) {
         mpsc::unbounded()
+    }
+
+    fn close_receiver<T: Debug + Send + 'static>(rx: &mut Self::Receiver<T>) {
+        rx.close();
     }
 }
 
@@ -466,16 +480,28 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
 impl<T: Debug + Send + 'static, C: ChannelSpec> Drop for ReceiverState<T, C> {
     fn drop(&mut self) {
         // If there's a mutex, we're in its drop
+
+        // `destroy_participant` prevents the sender from making further non-cached claims
         mem::replace(&mut self.mq, Participation::new_dangling().into())
             .into_raw()
             .destroy_participant();
+
         for call in self.collapse_callbacks.drain(..) {
             call(CollapseReason::ReceiverDropped);
         }
+
         // try to free whatever is in the queue, in case the stream doesn't do that itself
         // No-one can poll us any more, so we are no longer interested in wakeups
         let noop_waker = Waker::from(Arc::new(NoopWaker));
         let mut noop_cx = Context::from_waker(&noop_waker);
+
+        // prevent further sends, so that our drain doesn't race indefinitely with the sender
+        if let Some(mut rx_inner) =
+            StreamUnobtrusivePeeker::as_raw_inner_pin_mut(Pin::new(&mut self.rx))
+        {
+            C::close_receiver(&mut rx_inner);
+        }
+
         while let Ready(Some(item)) = self.rx.poll_next_unpin(&mut noop_cx) {
             drop::<Entry<T>>(item);
         }
@@ -689,6 +715,7 @@ mod test {
             fn raw_channel<T: Debug + Send + 'static>(self) -> (BustedSink, Self::Receiver<T>) {
                 (BustedSink, futures::stream::pending())
             }
+            fn close_receiver<T: Debug + Send + 'static>(_rx: &mut Self::Receiver<T>) {}
         }
 
         MockRuntime::test_with_various(|rt| async move {
