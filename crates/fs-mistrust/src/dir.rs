@@ -3,7 +3,7 @@
 
 use std::{
     fs::{File, Metadata, OpenOptions},
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -271,7 +271,7 @@ impl CheckedDir {
     ///
     /// `path` must be a relative path, containing no `..` components.
     /// We check the file's parent directories,
-    /// and the file's permissions after opening it.
+    /// and the file's permissions.
     /// If the file exists, it must not be a symlink.
     ///
     /// Returns [`Error::NotFound`] if the file does not exist.
@@ -283,10 +283,37 @@ impl CheckedDir {
     /// [^1]: the permissions are incorrect if the path is readable or writable by untrusted users
     pub fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Metadata> {
         let path = path.as_ref();
-        // TODO: Refactor this to not open the file here (use PathBuf::metadata() instead).
-        let file = self.open(path, OpenOptions::new().read(true))?;
-        let meta = file.metadata().map_err(|e| Error::inspecting(e, path))?;
-        Ok(meta)
+        self.check_path(path)?;
+        let path = self.location.join(path);
+        if let Some(parent) = path.parent() {
+            self.verifier().check(parent)?;
+        }
+
+        let meta = path
+            .symlink_metadata()
+            .map_err(|e| Error::inspecting(e, &path))?;
+
+        if meta.is_symlink() {
+            // TODO: this is inconsistent with CheckedDir::open()'s behavior, which returns a
+            // FilesystemLoop io error in this case (we can't construct such an error here, because
+            // ErrorKind::FilesystemLoop is only available on nightly)
+            let err = io::Error::new(
+                io::ErrorKind::Other,
+                format!("Path {:?} is a symlink", path),
+            );
+            return Err(Error::io(err, &path, "metadata"));
+        }
+
+        if let Some(error) = self
+            .verifier()
+            .check_one(path.as_path(), PathType::Content, &meta)
+            .into_iter()
+            .next()
+        {
+            Err(error)
+        } else {
+            Ok(meta)
+        }
     }
 
     /// Create a [`Verifier`] with the appropriate rules for this
@@ -576,5 +603,35 @@ mod test {
                 Err(Error::BadPermission(_, _, _))
             ));
         }
+    }
+
+    #[test]
+    #[cfg(target_family = "unix")]
+    fn metadata_symlink() {
+        use crate::testing::LinkType;
+
+        let d = Dir::new();
+        d.dir("a/b");
+        d.file("a/b/f1");
+
+        d.chmod("a/b", 0o700);
+        d.chmod("a/b/f1", 0o600);
+        d.link_rel(LinkType::File, "f1", "a/b/f1-link");
+
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
+
+        let sd = m.verifier().secure_dir(d.path("a/b")).unwrap();
+
+        assert!(sd.open("f1", OpenOptions::new().read(true)).is_ok());
+
+        // Metadata returns an error if called on a symlink
+        let e = sd.metadata("f1-link").unwrap_err();
+        assert!(
+            matches!(e, Error::Io { ref err, .. } if err.to_string().contains("is a symlink")),
+            "{e:?}"
+        );
     }
 }
