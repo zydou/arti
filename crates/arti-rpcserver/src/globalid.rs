@@ -167,13 +167,14 @@ mod test {
 
     #[test]
     fn roundtrip() {
-        use generational_arena as ga;
+        use crate::objmap::{StrongIdx, WeakIdx};
+        use slotmap_careful::KeyData;
         let mut rng = tor_basic_utils::test_rng::testing_rng();
 
         let conn1 = ConnectionId::from(*b"example1-------!");
         let conn2 = ConnectionId::from(*b"example2!!!!!!!!");
-        let genidx_s1 = GenIdx::Strong(ga::Index::from_raw_parts(42, 42));
-        let genidx_w2 = GenIdx::Weak(ga::Index::from_raw_parts(172, 171));
+        let genidx_s1 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x43_0000_0043)));
+        let genidx_w2 = GenIdx::Weak(WeakIdx::from(KeyData::from_ffi(0x171_0000_0171)));
 
         let gid1 = GlobalId {
             connection: conn1,
@@ -200,13 +201,14 @@ mod test {
 
     #[test]
     fn mac_works() {
-        use generational_arena as ga;
+        use crate::objmap::{StrongIdx, WeakIdx};
+        use slotmap_careful::KeyData;
         let mut rng = tor_basic_utils::test_rng::testing_rng();
 
         let conn1 = ConnectionId::from(*b"example1-------!");
         let conn2 = ConnectionId::from(*b"example2!!!!!!!!");
-        let genidx_s1 = GenIdx::Strong(ga::Index::from_raw_parts(42, 42));
-        let genidx_w1 = GenIdx::Weak(ga::Index::from_raw_parts(172, 171));
+        let genidx_s1 = GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(0x43_0000_0043)));
+        let genidx_w1 = GenIdx::Weak(WeakIdx::from(KeyData::from_ffi(0x171_0000_0171)));
 
         let gid1 = GlobalId {
             connection: conn1,
