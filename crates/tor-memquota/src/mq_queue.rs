@@ -307,6 +307,7 @@ impl ChannelSpec for Mpsc {
     type Sender<T: Debug + Send + 'static> = mpsc::Sender<T>;
     type Receiver<T: Debug + Send + 'static> = mpsc::Receiver<T>;
     type SendError = mpsc::SendError;
+
     fn raw_channel<T: Debug + Send + 'static>(self) -> (mpsc::Sender<T>, mpsc::Receiver<T>) {
         mpsc::channel(self.buffer)
     }
@@ -316,6 +317,7 @@ impl ChannelSpec for MpscUnbounded {
     type Sender<T: Debug + Send + 'static> = mpsc::UnboundedSender<T>;
     type Receiver<T: Debug + Send + 'static> = mpsc::UnboundedReceiver<T>;
     type SendError = mpsc::SendError;
+
     fn raw_channel<T: Debug + Send + 'static>(self) -> (Self::Sender<T>, Self::Receiver<T>) {
         mpsc::unbounded()
     }
@@ -339,6 +341,7 @@ where
             .poll_ready_unpin(cx)
             .map_err(SendError::Channel)
     }
+
     fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
         let self_ = self.get_mut();
         let item = Entry {
@@ -349,11 +352,13 @@ where
             self_.tx.start_send_unpin(item).map_err(SendError::Channel)
         })?
     }
+
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.tx
             .poll_flush_unpin(cx)
             .map(|r| r.map_err(SendError::Channel))
     }
+
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.tx
             .poll_close_unpin(cx)
@@ -437,6 +442,7 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
             .map(|peeked| peeked.when);
         peeked
     }
+
     fn reclaim(self: Arc<Self>) -> mtracker::ReclaimFuture {
         Box::pin(async move {
             let reason = CollapsedDueToReclaim;
