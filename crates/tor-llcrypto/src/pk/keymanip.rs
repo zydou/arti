@@ -248,7 +248,7 @@ pub fn blind_pubkey(pk: &VerifyingKey, h: [u8; 32]) -> Result<VerifyingKey, Blin
 ///
 /// # Availability
 ///
-/// This function is only available when the `hsv3-client` feature is enabled.
+/// This function is only available when the `hsv3-service` feature is enabled.
 #[cfg(feature = "hsv3-service")]
 pub fn blind_keypair(
     keypair: &ExpandedKeypair,
@@ -280,7 +280,7 @@ pub fn blind_keypair(
     };
     let public = VerifyingKey::from(&secret);
 
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, feature = "hsv3-client"))]
     {
         // Make sure that the public key that derives from our
         // blinded key is the same as the key that we get when we re-blind the
