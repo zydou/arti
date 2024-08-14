@@ -600,7 +600,7 @@ mod test {
 
     impl HasMemoryCost for Item {
         fn memory_cost(&self) -> usize {
-            mby(1)
+            mbytes(1)
         }
     }
 

@@ -234,7 +234,7 @@ mod test {
             //
             // This proves that claim does claim, or we'd underflow on release,
             // and that release does release, not claim, or we'd reclaim and crash.
-            TEST_DEFAULT_LIMIT - mby(1)
+            TEST_DEFAULT_LIMIT - mbytes(1)
         }
     }
 
