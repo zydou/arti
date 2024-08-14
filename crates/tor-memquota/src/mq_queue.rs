@@ -40,6 +40,20 @@
 //! # }
 //! # m().unwrap();
 //! ```
+//!
+//! # Caveat
+//!
+//! The memory use tracking is based on external observations,
+//! i.e., items inserted and removed.
+//!
+//! How well this reflects the actual memory use of the channel
+//! depends on the channel's implementation.
+//!
+//! For example, if the channel uses a single contiguous buffer
+//! containing the unboxed items, and that buffer doesn't shrink,
+//! then the memory tracking can be based on an underestimate.
+//! (This is significantly mitigated if the bulk of the memory use
+//! for each item is separately boxed.)
 
 use crate::internal_prelude::*;
 
