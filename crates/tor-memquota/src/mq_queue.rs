@@ -623,6 +623,29 @@ mod test {
 
     #[traced_test]
     #[test]
+    fn fill_and_empty() {
+        MockRuntime::test_with_various(|rt| async move {
+            let s = setup(&rt);
+            let (mut tx, mut rx) = MpscUnbounded.new_mq(&rt, s.acct.clone()).unwrap();
+
+            const COUNT: usize = 19;
+
+            for _ in 0..COUNT {
+                tx.send(s.itrk.new_item()).await.unwrap();
+            }
+
+            rt.advance_until_stalled().await;
+
+            for _ in 0..COUNT {
+                let _: Item = rx.next().await.unwrap();
+            }
+
+            rt.advance_until_stalled().await;
+        });
+    }
+
+    #[traced_test]
+    #[test]
     fn sink_error() {
         #[derive(Default, Debug)]
         struct BustedSink;
