@@ -290,6 +290,17 @@ impl<S: Stream> StreamUnobtrusivePeeker<S> {
         };
         r
     }
+
+    /// Obtain a raw reference to the inner stream
+    ///
+    /// ### Correctness!
+    ///
+    /// This method must be used with care!
+    /// Whatever you do mustn't interfere with polling and peeking.
+    /// Careless use can result in wrong behaviour including deadlocks.
+    pub(crate) fn as_raw_inner_pin_mut<'s>(self: Pin<&'s mut Self>) -> Option<Pin<&'s mut S>> {
+        self.project().inner.as_pin_mut()
+    }
 }
 
 impl<S: Stream> Stream for StreamUnobtrusivePeeker<S> {
