@@ -56,6 +56,7 @@ use crate::internal_prelude::*;
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
+use amplify::Getters;
 use derive_more::{Display, Into};
 
 use tor_error::warn_report;
@@ -133,7 +134,7 @@ impl FromStr for HsClientNickname {
 /// its restricted discovery settings in order for the changes to be applied.
 ///
 /// See the [module-level documentation](self) for more details.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Getters)]
 #[builder(build_fn(error = "ConfigBuildError", name = "build_unvalidated"))]
 #[builder(derive(Serialize, Deserialize, Debug, Deftly))]
 #[non_exhaustive]

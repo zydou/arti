@@ -2,6 +2,7 @@
 
 use crate::internal_prelude::*;
 
+use amplify::Getters;
 use derive_deftly::derive_deftly_adhoc;
 use tor_cell::relaycell::hs::est_intro;
 
@@ -20,7 +21,7 @@ pub mod restricted_discovery;
 pub(crate) mod restricted_discovery;
 
 /// Configuration for one onion service.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Deftly)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Deftly, Getters)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 #[builder(derive(Serialize, Deserialize, Debug, Deftly))]
 #[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
@@ -71,6 +72,7 @@ pub struct OnionServiceConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     #[deftly(publisher_view)]
+    #[getter(as_mut)]
     pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
@@ -136,11 +138,6 @@ derive_deftly_adhoc! {
 const DEFAULT_NUM_INTRO_POINTS: u8 = 3;
 
 impl OnionServiceConfig {
-    /// Return a reference to this configuration's nickname.
-    pub fn nickname(&self) -> &HsNickname {
-        &self.nickname
-    }
-
     /// Check whether an onion service running with this configuration can
     /// switch over `other` according to the rules of `how`.
     ///
