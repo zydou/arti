@@ -97,3 +97,15 @@ offline hsid) would then be added to `ServiceKeyMgr`.
 (Within the same process, `ServiceKeyMgr` and `ClientKeyMgr` are just views over
 the same `KeyMgr`, with different high-level APIs. Alternatively, they could
 just be one and the same `FooHighLevelKeyMgr` type).
+
+## Alternatives
+
+A more future-proof idea might be to add a more general-purpose
+`TorClientThatIsntRunning` (name TBD) type for accessing the keystore *and*
+other on-disk state. Initially,  its only methods will be
+`generate_service_discovery_key`, `get_service_discovery_key` (we can always
+expose other operations on the on-disk storage later, when/if the need arises).
+
+Like `TorClient`, `TorClientThatIsntRunning` will be created by
+`TorClientBuilder` (TODO: decide whether to allow turning a
+`TorClientThatIsntRunning` into a running `TorClient`).
