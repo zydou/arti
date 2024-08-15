@@ -636,6 +636,22 @@ mod test {
         Setup { trk, acct, itrk }
     }
 
+    impl Setup {
+        /// Check that claims and releases have balanced out
+        ///
+        /// `n_queues` is the number of queues that exist.
+        /// This is used to provide some slop, since each queue has two [`Participation`]s
+        /// each of which can have some cached claim.
+        fn check_zero_claimed(&self, n_queues: usize) {
+            let used = self.trk.used_current_approx();
+            debug!(
+                "checking zero balance (with slop {n_queues} * 2 * {}; used={used:?}",
+                *mtracker::MAX_CACHE,
+            );
+            assert!(used.unwrap() <= n_queues * 2 * *mtracker::MAX_CACHE);
+        }
+    }
+
     #[traced_test]
     #[test]
     fn lifecycle() {
@@ -748,7 +764,7 @@ mod test {
             assert_eq!(s.itrk.lock().existing, 0);
 
             // no memory should be claimed
-            assert!(s.trk.used_current_approx().unwrap() <= *mtracker::MAX_CACHE);
+            s.check_zero_claimed(1);
         });
     }
 }
