@@ -199,8 +199,15 @@ mod utils;
 mod config;
 mod error;
 pub mod memory_cost;
+pub mod mq_queue;
 pub mod mtracker;
 mod stream_peek;
+
+/// For trait sealing
+mod private {
+    /// Inaccessible trait
+    pub trait Sealed {}
+}
 
 //---------- re-exports at the crate root ----------
 

@@ -31,13 +31,13 @@ pub(crate) use futures::{
     channel::mpsc,
     stream::FusedStream,
     task::{Spawn, SpawnError, SpawnExt as _},
-    FutureExt as _, Stream, StreamExt as _,
+    FutureExt as _, Sink, SinkExt as _, Stream, StreamExt as _,
 };
 
 pub(crate) use {
     derive_builder::Builder,
     derive_deftly::{define_derive_deftly, Deftly},
-    derive_more::{Deref, DerefMut, From, Into},
+    derive_more::{Constructor, Deref, DerefMut, From, Into},
     educe::Educe,
     pin_project::pin_project,
     serde::{Deserialize, Serialize},
@@ -52,7 +52,7 @@ pub(crate) use {
     tor_config::ConfigBuildError,
     tor_error::{error_report, internal, into_internal, Bug, ErrorKind, HasKind},
     tor_log_ratelim::log_ratelim,
-    tor_rtcompat::CoarseInstant,
+    tor_rtcompat::{CoarseInstant, CoarseTimeProvider},
 };
 
 pub(crate) use crate::{
@@ -60,7 +60,10 @@ pub(crate) use crate::{
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
-    mtracker::Participation,
+    memory_cost::{HasMemoryCost, HasTypedMemoryCost, TypedParticipation},
+    mtracker::{self, Account, IsParticipant, Participation},
+    private::Sealed,
     refcount,
+    stream_peek::StreamUnobtrusivePeeker,
     utils::{DefaultExtTake, NoopWaker, Qty},
 };

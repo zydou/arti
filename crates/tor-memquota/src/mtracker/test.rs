@@ -27,19 +27,19 @@ use slotmap::Key as _;
 use tracing_test::traced_test;
 
 use tor_basic_utils::RngExt as _;
-use tor_rtcompat::{CoarseDuration, CoarseTimeProvider as _, Runtime};
+use tor_rtcompat::{CoarseDuration, Runtime};
 use tor_rtmock::MockRuntime;
 
 //---------- useful utilities ----------
 
-pub(crate) const TEST_DEFAULT_LIMIT: usize = mby(20);
-pub(crate) const TEST_DEFAULT_LOWWATER: usize = mby(15);
+pub(crate) const TEST_DEFAULT_LIMIT: usize = mbytes(20);
+pub(crate) const TEST_DEFAULT_LOWWATER: usize = mbytes(15);
 
 fn secs(s: u64) -> CoarseDuration {
     Duration::from_secs(s).into()
 }
 
-pub(crate) const fn mby(mib: usize) -> usize {
+pub(crate) const fn mbytes(mib: usize) -> usize {
     mib * 1024 * 1024
 }
 
@@ -333,7 +333,7 @@ fn basic() {
             .collect();
 
         for p in &ps[0..19] {
-            p.lock().claim(mby(1)).unwrap();
+            p.lock().claim(mbytes(1)).unwrap();
             UnifiedP::settle_check_consistency(&rt, &trk, &ps).await;
         }
 
@@ -347,7 +347,7 @@ fn basic() {
             assert_ne!(p.lock().partn.cache, Qty(0));
 
             p.lock()
-                .claim(mby(1))
+                .claim(mbytes(1))
                 .expect("allocation rejected, during collapse, but collapse is async");
         }
 
@@ -372,17 +372,17 @@ fn parent() {
             let mk_p = |parent, age, show| UnifiedP::new(&rt, &trk, parent, age, show);
 
             let parent = mk_p(None, parent_age, "parent");
-            parent.lock().claim(mby(7)).unwrap();
+            parent.lock().claim(mbytes(7)).unwrap();
             rt.advance_until_stalled().await;
             assert!(parent.is_reclaimed().is_ok());
 
             let child = mk_p(Some(&parent.acct), child_age, "child");
-            child.lock().claim(mby(7)).unwrap();
+            child.lock().claim(mbytes(7)).unwrap();
             assert!(parent.is_reclaimed().is_ok());
             assert!(child.is_reclaimed().is_ok());
 
             let trigger = mk_p(None, secs(0), "trigger");
-            trigger.lock().claim(mby(7)).unwrap();
+            trigger.lock().claim(mbytes(7)).unwrap();
             assert!(trigger.is_reclaimed().is_ok());
 
             rt.advance_until_stalled().await;
@@ -474,10 +474,10 @@ fn explicit_destroy() {
         let p0 = UnifiedP::new(&rt, &trk, None, secs(0), "0");
         let p1 = p0.clone();
 
-        p0.lock().claim(mby(1)).unwrap();
+        p0.lock().claim(mbytes(1)).unwrap();
         UnifiedP::settle_check_consistency(&rt, &trk, [&p0]).await;
 
-        p1.lock().claim(mby(2)).unwrap();
+        p1.lock().claim(mbytes(2)).unwrap();
         UnifiedP::settle_check_consistency(&rt, &trk, [&p0]).await;
 
         p1.lock().partn.clone().destroy_participant();
@@ -488,7 +488,7 @@ fn explicit_destroy() {
             // We don't note the participation, since it's dead.
         });
 
-        assert!(p1.lock().claim(mby(3)).is_err());
+        assert!(p1.lock().claim(mbytes(3)).is_err());
 
         // Now we drop everything.  This exercises much of the teardown!
     });
@@ -576,8 +576,8 @@ fn complex() {
             });
         };
 
-        up.lock().claim(mby(1)).unwrap();
-        ah.ps[0].lock().claim(mby(11)).unwrap();
+        up.lock().claim(mbytes(1)).unwrap();
+        ah.ps[0].lock().claim(mbytes(11)).unwrap();
 
         settle_check_consistency().await;
 
@@ -586,7 +586,7 @@ fn complex() {
             assert!(p.is_reclaimed().is_ok());
         }
 
-        ah.ps[1].lock().claim(mby(11)).unwrap();
+        ah.ps[1].lock().claim(mbytes(11)).unwrap();
 
         settle_check_consistency().await;
         assert!(up.is_reclaimed().is_ok());
@@ -664,7 +664,7 @@ fn errors() {
             let p = ah.ps.pop().unwrap();
             let mut state = Arc::into_inner(p).unwrap().state.into_inner().unwrap();
 
-            state.claim(mby(30)).unwrap(); // will trigger reclaim, which discovers the loss
+            state.claim(mbytes(30)).unwrap(); // will trigger reclaim, which discovers the loss
 
             rt.advance_until_stalled().await;
             check_consistency_general(&trk, |collector| {
@@ -678,7 +678,7 @@ fn errors() {
         // Reclaimed account
         {
             let ah = mk_ah();
-            ah.ps[0].lock().claim(mby(30)).unwrap();
+            ah.ps[0].lock().claim(mbytes(30)).unwrap();
 
             rt.advance_until_stalled().await;
             check_consistency_general(&trk, |_collector| ());
