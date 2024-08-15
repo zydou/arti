@@ -60,7 +60,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // we have set up the watcher *after* loading the config.
         // ignore send error, rx can't be disconnected if we are here
         let _ = tx.send(Event::Rescan);
-        let mut watcher = FileWatcher::builder();
+        let mut watcher = FileWatcher::builder(runtime.clone());
         prepare(&mut watcher, &sources)?;
         Some(watcher.start_watching(tx.clone())?)
     } else {
@@ -87,6 +87,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         })?;
     }
 
+    let runtime = runtime.clone();
     #[allow(clippy::cognitive_complexity)]
     std::thread::spawn(move || {
         // TODO: If someday we make this facility available outside of the
@@ -109,7 +110,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                 debug!("Config reload event {:?}: reloading configuration.", event);
 
                 let found_files = if watcher.is_some() {
-                    let mut new_watcher = FileWatcher::builder();
+                    let mut new_watcher = FileWatcher::builder(runtime.clone());
                     let found_files = prepare(&mut new_watcher, &sources)
                         .context("FS watch: failed to rescan config and re-establish watch")?;
                     let new_watcher = new_watcher
@@ -132,7 +133,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                             // we have set up the watcher *after* loading the config.
                             // ignore send error, rx can't be disconnected if we are here
                             let _ = tx.send(Event::Rescan);
-                            let mut new_watcher = FileWatcher::builder();
+                            let mut new_watcher = FileWatcher::builder(runtime.clone());
                             let _found_files = prepare(&mut new_watcher, &sources).context(
                                 "FS watch: failed to rescan config and re-establish watch: {}",
                             )?;
@@ -220,8 +221,8 @@ impl ReconfigurableModule for Application {
 }
 
 /// Find the configuration files and prepare the watcher
-fn prepare<'a>(
-    watcher: &mut FileWatcherBuilder,
+fn prepare<'a, R: Runtime>(
+    watcher: &mut FileWatcherBuilder<R>,
     sources: &'a ConfigurationSources,
 ) -> anyhow::Result<FoundConfigFiles<'a>> {
     let sources = sources.scan()?;

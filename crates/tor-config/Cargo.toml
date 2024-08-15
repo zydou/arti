@@ -48,6 +48,7 @@ thiserror = "1"
 toml = "0.8.8"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0" }
 tor-error = { path = "../tor-error", version = "0.21.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0" }
 tracing = "0.1.36"
 void = "1"
 

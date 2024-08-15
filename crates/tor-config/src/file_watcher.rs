@@ -5,6 +5,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc};
 
+use tor_rtcompat::Runtime;
+
 use notify::Watcher;
 
 /// `Result` whose `Err` is [`FileWatcherBuildError`].
@@ -34,8 +36,8 @@ pub struct FileWatcher {
 
 impl FileWatcher {
     /// Create a `FileWatcherBuilder`
-    pub fn builder() -> FileWatcherBuilder {
-        FileWatcherBuilder::new()
+    pub fn builder<R: Runtime>(runtime: R) -> FileWatcherBuilder<R> {
+        FileWatcherBuilder::new(runtime)
     }
 }
 
@@ -53,17 +55,20 @@ pub enum Event {
 }
 
 /// Builder used to configure a [`FileWatcher`] before it starts watching for changes.
-pub struct FileWatcherBuilder {
+pub struct FileWatcherBuilder<R: Runtime> {
+    /// The runtime.
+    runtime: R,
     /// The list of directories that we're currently watching.
     watching_dirs: HashSet<PathBuf>,
     /// The list of files we actually care about.
     watching_files: HashSet<PathBuf>,
 }
 
-impl FileWatcherBuilder {
+impl<R: Runtime> FileWatcherBuilder<R> {
     /// Create a `FileWatcherBuilder`
-    pub fn new() -> Self {
+    pub fn new(runtime: R) -> Self {
         FileWatcherBuilder {
+            runtime,
             watching_dirs: HashSet::new(),
             watching_files: HashSet::new(),
         }
@@ -169,12 +174,6 @@ impl FileWatcherBuilder {
         }
 
         Ok(FileWatcher { _watcher: watcher })
-    }
-}
-
-impl Default for FileWatcherBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

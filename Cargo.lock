@@ -5167,6 +5167,7 @@ dependencies = [
  "toml",
  "tor-basic-utils",
  "tor-error",
+ "tor-rtcompat",
  "tracing",
  "tracing-test",
  "void",
