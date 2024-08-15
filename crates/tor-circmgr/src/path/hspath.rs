@@ -151,11 +151,7 @@ impl HsPathBuilder {
     }
 }
 
-impl<'a> AnonymousPathBuilder<'a> for HsPathBuilder {
-    fn chosen_exit(&self) -> Option<&Relay<'_>> {
-        None
-    }
-
+impl AnonymousPathBuilder for HsPathBuilder {
     fn compatible_with(&self) -> Option<&OwnedChanTarget> {
         self.compatible_with.as_ref()
     }
@@ -164,8 +160,8 @@ impl<'a> AnonymousPathBuilder<'a> for HsPathBuilder {
         "onion-service circuit"
     }
 
-    fn pick_exit<'s, R: Rng>(
-        &'s self,
+    fn pick_exit<'a, R: Rng>(
+        &self,
         rng: &mut R,
         netdir: &'a NetDir,
         guard_exclusion: RelayExclusion<'a>,
@@ -221,7 +217,7 @@ impl VanguardHsPathBuilder {
 
         // Select the guard, allowing it to appear as
         // either of the last two hops of the circuit.
-        let (l1_guard, mon, usable) = select_guard(netdir, guards, None, None)?;
+        let (l1_guard, mon, usable) = select_guard(netdir, guards, None)?;
 
         let target_exclusion = if let Some(target) = self.compatible_with.as_ref() {
             RelayExclusion::exclude_identities(

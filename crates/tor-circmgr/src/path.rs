@@ -267,10 +267,7 @@ impl OwnedPath {
 }
 
 /// A path builder that builds multi-hop, anonymous paths.
-trait AnonymousPathBuilder<'a> {
-    /// Return the relay to use as exit node.
-    fn chosen_exit(&self) -> Option<&Relay<'_>>;
-
+trait AnonymousPathBuilder {
     /// Return the "target" that every chosen relay must be able to share a circuit with with.
     fn compatible_with(&self) -> Option<&OwnedChanTarget>;
 
@@ -282,8 +279,8 @@ trait AnonymousPathBuilder<'a> {
     ///
     /// Return the exit, along with the usage for a middle node corresponding
     /// to this exit.
-    fn pick_exit<'s, R: Rng>(
-        &'s self,
+    fn pick_exit<'a, R: Rng>(
+        &self,
         rng: &mut R,
         netdir: &'a NetDir,
         guard_exclusion: RelayExclusion<'a>,
@@ -293,7 +290,7 @@ trait AnonymousPathBuilder<'a> {
 
 /// Try to create and return a path corresponding to the requirements of
 /// this builder.
-fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
+fn pick_path<'a, B: AnonymousPathBuilder, R: Rng, RT: Runtime>(
     builder: &B,
     rng: &mut R,
     netdir: DirInfo<'a>,
@@ -328,12 +325,7 @@ fn pick_path<'a, B: AnonymousPathBuilder<'a>, R: Rng, RT: Runtime>(
 
     // TODO-SPEC: Because of limitations in guard selection, we have to
     // pick the guard before the exit, which is not what our spec says.
-    let (guard, mon, usable) = select_guard(
-        netdir,
-        guards,
-        builder.chosen_exit(),
-        builder.compatible_with(),
-    )?;
+    let (guard, mon, usable) = select_guard(netdir, guards, builder.compatible_with())?;
 
     let guard_exclusion = match &guard {
         MaybeOwnedRelay::Relay(r) => RelayExclusion::exclude_relays_in_same_family(
@@ -399,32 +391,12 @@ fn ensure_unique_hops<'a>(hops: &'a [MaybeOwnedRelay<'a>]) -> StdResult<(), Bug>
 fn select_guard<'a, RT: Runtime>(
     netdir: &'a NetDir,
     guardmgr: &GuardMgr<RT>,
-    chosen_exit: Option<&Relay<'_>>,
     compatible_with: Option<&OwnedChanTarget>,
 ) -> Result<(MaybeOwnedRelay<'a>, GuardMonitor, GuardUsable)> {
-    let path_is_fully_random = chosen_exit.is_none();
     // TODO: Extract this section into its own function, and see
     // what it can share with tor_relay_selection.
     let mut b = tor_guardmgr::GuardUsageBuilder::default();
     b.kind(tor_guardmgr::GuardUsageKind::Data);
-    if let Some(exit_relay) = chosen_exit {
-        // TODO(nickm): Our way of building a family here is
-        // somewhat questionable. We're only adding the ed25519
-        // identities of the exit relay and its family to the
-        // RelayId set.  That's fine for now, since we will only use
-        // relays at this point if they have a known Ed25519
-        // identity.  But if in the future the ed25519 identity
-        // becomes optional, this will need to change.
-        // NOTE(opara): This only excludes close family members and
-        // not extended family members (relays in the same network
-        // range).
-        let mut family = RelayIdSet::new();
-        family.insert(*exit_relay.id());
-        // TODO(nickm): See "limitations" note on `known_family_members`.
-        family.extend(netdir.known_family_members(exit_relay).map(|r| *r.id()));
-        b.restrictions()
-            .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
-    }
     if let Some(avoid_target) = compatible_with {
         let mut family = RelayIdSet::new();
         family.extend(avoid_target.identities().map(|id| id.to_owned()));
@@ -435,7 +407,7 @@ fn select_guard<'a, RT: Runtime>(
             .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
     }
     let guard_usage = b.build().expect("Failed while building guard usage!");
-    let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage)?;
+    let (guard, mon, usable) = guardmgr.select_guard(guard_usage)?;
     let guard = if let Some(ct) = guard.as_circ_target() {
         // This is a bridge; we will not look for it in the network directory.
         MaybeOwnedRelay::from(ct.clone())
@@ -451,15 +423,6 @@ fn select_guard<'a, RT: Runtime>(
             })?
             .into()
     };
-    if !path_is_fully_random {
-        // We were given a specific exit relay to use, and
-        // the choice of exit relay might be forced by
-        // something outside of our control.
-        //
-        // Therefore, we must not blame the guard for any failure
-        // to complete the circuit.
-        mon.ignore_indeterminate_status();
-    }
     Ok((guard, mon, usable))
 }
 
