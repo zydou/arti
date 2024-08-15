@@ -9,7 +9,7 @@
 //!
 //! New queues are created by calling the [`new_mq`](ChannelSpec::new_mq) method
 //! on a [`ChannelSpec`],
-//! for example [`Mpsc`] or [`MpscUnbounded`].
+//! for example [`MpscSpec`] or [`MpscUnboundedSpec`].
 //!
 //! The ends implement [`Stream`] and [`Sink`].
 //! If the underlying channel's sender is `Clone`,
@@ -20,7 +20,7 @@
 //! ```
 //! use tor_memquota::{MemoryQuotaTracker, HasMemoryCost};
 //! use tor_rtcompat::PreferredRuntime;
-//! use tor_memquota::mq_queue::{Mpsc, ChannelSpec as _};
+//! use tor_memquota::mq_queue::{MpscSpec, ChannelSpec as _};
 //! # fn m() -> tor_memquota::Result<()> {
 //!
 //! #[derive(Debug)]
@@ -34,7 +34,7 @@
 //! let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();
 //! let account = trk.new_account(None).unwrap();
 //!
-//! let (tx, rx) = Mpsc { buffer: 10 }.new_mq::<Message, _>(&runtime, account)?;
+//! let (tx, rx) = MpscSpec { buffer: 10 }.new_mq::<Message, _>(&runtime, account)?;
 //! #
 //! # Ok(())
 //! # }
@@ -209,7 +209,7 @@ struct CollapsedDueToReclaim;
 
 /// Specification for a communication channel
 ///
-/// Implemented for [`Mpsc`] and [`MpscUnbounded`].
+/// Implemented for [`MpscSpec`] and [`MpscUnboundedSpec`].
 //
 // # Correctness (uncomment this if this trait is made unsealed)
 //
@@ -306,7 +306,7 @@ pub trait ChannelSpec: Sealed /* see Correctness, above */ + Sized + 'static {
 /// Call [`new_mq`](ChannelSpec::new_mq) on this unit type:
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(clippy::exhaustive_structs)] // This is precisely the arguments to mpsc::channel
-pub struct Mpsc {
+pub struct MpscSpec {
     /// Buffer size; see [`futures::channel::mpsc::channel`].
     pub buffer: usize,
 }
@@ -318,12 +318,12 @@ pub struct Mpsc {
 /// Call [`new_mq`](ChannelSpec::new_mq) on a value of this type.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(clippy::exhaustive_structs)] // This is precisely the arguments to mpsc::unbounded
-pub struct MpscUnbounded;
+pub struct MpscUnboundedSpec;
 
-impl Sealed for Mpsc {}
-impl Sealed for MpscUnbounded {}
+impl Sealed for MpscSpec {}
+impl Sealed for MpscUnboundedSpec {}
 
-impl ChannelSpec for Mpsc {
+impl ChannelSpec for MpscSpec {
     type Sender<T: Debug + Send + 'static> = mpsc::Sender<T>;
     type Receiver<T: Debug + Send + 'static> = mpsc::Receiver<T>;
     type SendError = mpsc::SendError;
@@ -337,7 +337,7 @@ impl ChannelSpec for Mpsc {
     }
 }
 
-impl ChannelSpec for MpscUnbounded {
+impl ChannelSpec for MpscUnboundedSpec {
     type Sender<T: Debug + Send + 'static> = mpsc::UnboundedSender<T>;
     type Receiver<T: Debug + Send + 'static> = mpsc::UnboundedReceiver<T>;
     type SendError = mpsc::SendError;
@@ -636,7 +636,7 @@ mod test {
     fn lifecycle() {
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, mut rx) = MpscUnbounded.new_mq(&rt, s.acct.clone()).unwrap();
+            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, s.acct.clone()).unwrap();
 
             tx.send(s.itrk.new_item()).await.unwrap();
             let _: Item = rx.next().await.unwrap();
@@ -666,7 +666,7 @@ mod test {
     fn fill_and_empty() {
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, mut rx) = MpscUnbounded.new_mq(&rt, s.acct.clone()).unwrap();
+            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, s.acct.clone()).unwrap();
 
             const COUNT: usize = 19;
 
