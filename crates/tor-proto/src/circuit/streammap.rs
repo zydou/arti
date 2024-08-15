@@ -5,21 +5,19 @@ use crate::circuit::sendme;
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
-use futures::task::noop_waker_ref;
-use futures::StreamExt;
 use pin_project::pin_project;
 use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use futures::channel::mpsc;
-use tor_memquota::stream_peek::StreamUnobtrusivePeeker;
 use std::collections::hash_map;
 use std::collections::HashMap;
 use std::num::NonZeroU16;
 use std::pin::Pin;
-use std::task::{Context, Poll, Waker};
+use std::task::{Poll, Waker};
 use tor_error::{bad_api_usage, internal};
+use tor_memquota::stream_peek::StreamUnobtrusivePeeker;
 
 use rand::Rng;
 
@@ -132,6 +130,21 @@ impl PeekableStream for OpenStreamEntStream {
             return Poll::Pending;
         }
         Poll::Ready(Some(m))
+    }
+}
+
+impl UnobtrusivePeekableStream for OpenStreamEntStream {
+    fn unobtrusive_peek_mut(
+        self: std::pin::Pin<&mut Self>,
+    ) -> Option<&mut <Self as futures::Stream>::Item> {
+        let s = self.project();
+        let inner = s.inner.project();
+        let m = inner.rx.unobtrusive_peek_mut()?;
+        if inner.flow_ctrl.can_send(m) {
+            Some(m)
+        } else {
+            None
+        }
     }
 }
 
@@ -439,10 +452,7 @@ impl StreamMap {
             .poll_ready_iter_mut(cx)
             .map(|(sid, _priority, ent)| {
                 let ent = Pin::new(ent);
-                let Poll::Ready(msg) = ent.poll_peek(&mut Context::from_waker(noop_waker_ref()))
-                else {
-                    panic!("Ready message disappeared");
-                };
+                let msg = ent.unobtrusive_peek();
                 (*sid, msg)
             })
     }

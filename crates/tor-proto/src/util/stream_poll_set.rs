@@ -184,13 +184,12 @@ where
     /// results) become potentially ready (based on when the inner stream wakes
     /// the `Context` provided to its own `poll_next`).
     ///
-    /// The iterator values include the key, priority, and the stream.
-    /// The caller may freely peek and extract items via this stream reference.
-    //
-    // XXX: This seems like a confusing exception to the "don't poll managed
-    // streams" rule. Maybe we ought to return a custom iterator or cursor that
-    // does the polling on the caller's behalf.
-    //
+    /// The same restrictions apply as for [`Self::stream_mut`].  e.g. do not
+    /// directly call [`PeekableStream::poll_peek`] to see what item is
+    /// available on the stream; instead use [`Self::peek_mut`]. (Or
+    /// [`tor_async_utils::peekable_stream::UnobtrusivePeekableStream`] if
+    /// implemented for the stream).
+    ///
     /// This method does *not* drain ready items. `Some` values can be removed
     /// with [`Self::take_ready_value_and_reprioritize`]. `None` values can only
     /// be removed by removing the whole stream with [`Self::remove`].
@@ -202,7 +201,6 @@ where
     ///
     /// Example:
     ///
-    // XXX: need to update.
     /// ```nocompile
     /// # // We need the `nocompile` since `StreamPollSet` is non-pub.
     /// # // TODO: take away the nocompile if we make this pub or implement some
@@ -216,8 +214,8 @@ where
     /// # fn new_priority(priority: &Priority) -> Priority { *priority }
     /// fn process_a_ready_stream(sps: &mut StreamPollSet<Key, Value, Priority, MyStream>, cx: &mut std::task::Context) -> std::task::Poll<()> {
     ///   let mut iter = sps.poll_ready_iter(cx);
-    ///   while let Some((key, value, priority, _stream)) = iter.next() {
-    ///     let Some(value) = value else {
+    ///   while let Some((key, priority, stream)) = iter.next() {
+    ///     let Some(value) = stream.unobtrusive_peek(Pin::new(stream)) else {
     ///        // Stream exhausted. Remove the stream. We have to drop the iterator
     ///        // first, though, so that we can mutate.
     ///        let key = *key;
@@ -237,12 +235,21 @@ where
     ///   return std::task::Poll::Pending;
     /// }
     /// ```
+    // In the current implementation we *could* actually permit the caller to
+    // `poll_peek` a stream that we know is ready. But this may change as the
+    // impl evolves further, and it's probably better to blanket disallow it
+    // than to have complex rules for the caller about when it's ok.
+    //
     // TODO: It would be nice if the returned iterator supported additional
     // actions, e.g. allowing the user to consume the iterator and take and
-    // reprioritize the inner value. I *think* we'd either need to make a
-    // self-referential type holding both a reference and the inner iterator, or
-    // else keep a copy of the current position `(K, P)` and do O(log(N))
-    // lookups on each access, though.
+    // reprioritize the inner value, but this is tricky.
+    //
+    // I've sketched out a working "cursor" that holds the current position (K, P)
+    // and a &mut StreamPollSet. This can't implement the Iterator interface though
+    // since it needs to borrow from self. I was able to implement an Iterator-*like* interface
+    // that does borrow from self, but this doesn't compose well. e.g. in StreamMap
+    // we can't use the same technique again since the object would need a mut reference to the
+    // StreamMap *and* to this inner cursor object, which is illegal.
     pub fn poll_ready_iter_mut<'a>(
         &'a mut self,
         cx: &mut Context,
@@ -333,15 +340,14 @@ where
     /// ensure streams make progress.
     // This will be used for packing and fragmentation, to take part of a DATA message.
     #[allow(unused)]
-    pub fn ready_value_mut<'a>(&'a mut self, key: &K) -> Option<&'a mut S::Item> {
+    pub fn peek_mut<'a>(&'a mut self, key: &K) -> Option<Poll<Option<&'a mut S::Item>>> {
         let priority = self.priorities.get(key)?;
-        let peekable = self
-            .ready_streams
-            .get_mut(&(priority.clone(), key.clone()))?;
-        match Pin::new(peekable).poll_peek_mut(&mut Context::from_waker(noop_waker_ref())) {
-            Poll::Ready(Some(val)) => Some(val),
-            Poll::Ready(None) | Poll::Pending => None,
-        }
+        let Some(peekable) = self.ready_streams.get_mut(&(priority.clone(), key.clone())) else {
+            return Some(Poll::Pending);
+        };
+        // We don't have a waker registered here, so we can juse use the noop waker.
+        // TODO: Create a mut future for `PeekableStream`.
+        Some(Pin::new(peekable).poll_peek_mut(&mut Context::from_waker(noop_waker_ref())))
     }
 
     /// Get a reference to the stream for `key`.
