@@ -17,7 +17,7 @@ use tor_rtcompat::Runtime;
 use {tor_geoip::CountryCode, tor_relay_selection::RelayRestriction};
 
 /// Internal representation of PathBuilder.
-enum ExitPathBuilderInner<'a> {
+enum ExitPathBuilderInner {
     /// Request a path that allows exit to the given `TargetPort`s.
     WantsPorts(Vec<TargetPort>),
 
@@ -41,10 +41,6 @@ enum ExitPathBuilderInner<'a> {
         /// exit.
         strict: bool,
     },
-
-    /// Request a path that uses a given relay as exit node.
-    #[allow(unused)]
-    ChosenExit(Relay<'a>),
 }
 
 /// A PathBuilder that builds a path to an exit relay supporting a given
@@ -52,16 +48,16 @@ enum ExitPathBuilderInner<'a> {
 ///
 /// NOTE: The name of this type is no longer completely apt: given some circuits,
 /// it is happy to build a circuit ending at a non-exit.
-pub(crate) struct ExitPathBuilder<'a> {
+pub(crate) struct ExitPathBuilder {
     /// The inner ExitPathBuilder state.
-    inner: ExitPathBuilderInner<'a>,
+    inner: ExitPathBuilderInner,
     /// If present, a "target" that every chosen relay must be able to share a circuit with with.
     compatible_with: Option<OwnedChanTarget>,
     /// If true, all relays on this path must be Stable.
     require_stability: bool,
 }
 
-impl<'a> ExitPathBuilder<'a> {
+impl ExitPathBuilder {
     /// Create a new builder that will try to get an exit relay
     /// containing all the ports in `ports`.
     ///
@@ -108,7 +104,7 @@ impl<'a> ExitPathBuilder<'a> {
 
     /// Try to create and return a path corresponding to the requirements of
     /// this builder.
-    pub(crate) fn pick_path<R: Rng, RT: Runtime>(
+    pub(crate) fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,
@@ -137,21 +133,13 @@ impl<'a> ExitPathBuilder<'a> {
     }
 }
 
-impl<'a> AnonymousPathBuilder<'a> for ExitPathBuilder<'a> {
-    fn chosen_exit(&self) -> Option<&Relay<'_>> {
-        if let ExitPathBuilderInner::ChosenExit(e) = &self.inner {
-            Some(e)
-        } else {
-            None
-        }
-    }
-
+impl AnonymousPathBuilder for ExitPathBuilder {
     fn compatible_with(&self) -> Option<&OwnedChanTarget> {
         self.compatible_with.as_ref()
     }
 
-    fn pick_exit<'s, R: Rng>(
-        &'s self,
+    fn pick_exit<'a, R: Rng>(
+        &self,
         rng: &mut R,
         netdir: &'a NetDir,
         guard_exclusion: RelayExclusion<'a>,
@@ -181,13 +169,6 @@ impl<'a> AnonymousPathBuilder<'a> for ExitPathBuilder<'a> {
                 RelayUsage::exit_to_all_ports(rs_cfg, wantports.clone()),
                 guard_exclusion,
             ),
-
-            ExitPathBuilderInner::ChosenExit(exit_relay) => {
-                // NOTE that this doesn't check
-                // relays_can_share_circuit_opt(exit_relay,guard).  we
-                // already did that, sort of, in pick_path.
-                return Ok((exit_relay.clone(), RelayUsage::middle_relay(None)));
-            }
         };
 
         let (relay, info) = selector.select_relay(rng, netdir);
@@ -206,7 +187,6 @@ impl<'a> AnonymousPathBuilder<'a> for ExitPathBuilder<'a> {
             #[cfg(feature = "geoip")]
             ExitInCountry { .. } => "country-specific exit circuit",
             AnyExit { .. } => "testing circuit",
-            ChosenExit(_) => "circuit to a specific exit",
         }
     }
 }
@@ -234,23 +214,10 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::TestConfig;
     use tor_linkspec::{HasRelayIds, RelayIds};
-    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::{testnet, SubnetConfig};
     use tor_persist::TestingStateMgr;
     use tor_relay_selection::LowLevelRelayPredicate;
     use tor_rtcompat::SleepProvider;
-
-    impl<'a> ExitPathBuilder<'a> {
-        /// Create a new builder that will try to build a path with the given exit
-        /// relay as the last hop.
-        fn from_chosen_exit(exit_relay: Relay<'a>) -> Self {
-            Self {
-                inner: ExitPathBuilderInner::ChosenExit(exit_relay),
-                compatible_with: None,
-                require_stability: true,
-            }
-        }
-    }
 
     impl<'a> MaybeOwnedRelay<'a> {
         fn can_share_circuit(
@@ -338,23 +305,6 @@ mod test {
                         MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
                     };
                     assert!(exit.low_level_details().ipv4_policy().allows_port(1119));
-                } else {
-                    panic!("Generated the wrong kind of path");
-                }
-            }
-
-            let chosen = netdir.by_id(&Ed25519Identity::from([0x20; 32])).unwrap();
-
-            let config = PathConfig::default();
-            for _ in 0..1000 {
-                let (path, _, _) = ExitPathBuilder::from_chosen_exit(chosen.clone())
-                    .pick_path(&mut rng, dirinfo, &guards, &config, now)
-                    .unwrap();
-                assert_same_path_when_owned(&path);
-                if let TorPathInner::Path(p) = path.inner {
-                    assert_exit_path_ok(&p[..], /* skip_guard_subnet_check= */ true);
-                    let exit = &p[2];
-                    assert!(exit.same_relay_ids(&chosen));
                 } else {
                     panic!("Generated the wrong kind of path");
                 }
@@ -493,56 +443,6 @@ mod test {
             assert_eq!(distinct_guards.len(), 1);
             assert_ne!(distinct_mid.len(), 1);
             assert_ne!(distinct_exit.len(), 1);
-
-            let guard_relay = netdir
-                .by_ids(distinct_guards.iter().next().unwrap())
-                .unwrap();
-            let exit_relay = netdir.by_ids(distinct_exit.iter().next().unwrap()).unwrap();
-
-            // Now we'll try a forced exit that is not the same as our
-            // actual guard.
-            let (path, mon, usable) = ExitPathBuilder::from_chosen_exit(exit_relay.clone())
-                .pick_path(&mut rng, dirinfo, &guards, &config, rt.wallclock())
-                .unwrap();
-            assert_eq!(path.len(), 3);
-            if let TorPathInner::Path(p) = path.inner {
-                assert_exit_path_ok(&p[..], /* skip_guard_subnet_check= */ false);
-                // We get our regular guard and our chosen exit.
-                assert_eq!(p[0].ed_identity(), guard_relay.ed_identity());
-                assert_eq!(p[2].ed_identity(), exit_relay.ed_identity());
-            } else {
-                panic!("Wrong kind of path");
-            }
-            // This time, "ignore indeterminate status" was set to true.
-            assert!(matches!(
-                mon.inspect_pending_status(),
-                (GuardStatus::AttemptAbandoned, true)
-            ));
-            mon.succeeded();
-            assert!(usable.await.unwrap());
-
-            // Finally, try with our exit forced to be our regular guard,
-            // and make sure we get a different guard.
-            let (path, mon, usable) = ExitPathBuilder::from_chosen_exit(guard_relay.clone())
-                .pick_path(&mut rng, dirinfo, &guards, &config, rt.wallclock())
-                .unwrap();
-            assert_eq!(path.len(), 3);
-            if let TorPathInner::Path(p) = path.inner {
-                // This is no longer guaranteed; see arti#183 :(
-                // assert_exit_path_ok(&p[..]);
-                // We get our chosen exit, and a different guard.
-                assert_ne!(p[0].ed_identity(), guard_relay.ed_identity());
-                assert_eq!(p[2].ed_identity(), guard_relay.ed_identity());
-            } else {
-                panic!("Wrong kind of path");
-            }
-            // This time, "ignore indeterminate status" was set to true.
-            assert!(matches!(
-                mon.inspect_pending_status(),
-                (GuardStatus::AttemptAbandoned, true)
-            ));
-            mon.succeeded();
-            assert!(usable.await.unwrap());
         });
     }
 }
