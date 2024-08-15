@@ -151,14 +151,20 @@ tab_width = 8
 [export]
 # These structs are not ones we want to expose under their actual names,
 # or ones that we don't want to expose at all.
-exclude = ["RpcErrorCode", "RpcConn", "FfiError", "Utf8CStr", "RequestHandle"]
+exclude = [
+        "FfiError",
+        "RequestHandle",
+        "RpcConn",
+        "RpcErrorCode",
+        "Utf8CString"
+]
 
 [export.rename]
 # Having not declared these structs, we can give them new names in the
 # typedefs that assign them their real names.
 "RpcConn" = "struct ArtiRpcConn"
 "FfiError" = "struct ArtiRpcError"
-"Utf8CStr" = "struct ArtiRpcStr"
+"Utf8CString" = "struct ArtiRpcStr"
 "RequestHandle" = "struct ArtiRpcHandle"
 
 [fn]

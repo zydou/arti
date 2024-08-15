@@ -52,7 +52,7 @@ macro_rules! define_ffi_status {
         ///
         /// The result will always be non-NULL, even if the status is unrecognized.
         #[no_mangle]
-        pub extern "C" fn arti_status_to_str(status: ArtiRpcStatus) -> *const c_char {
+        pub extern "C" fn arti_rpc_status_to_str(status: ArtiRpcStatus) -> *const c_char {
             match status {
                 $(
                     [<ARTI_RPC_STATUS_ $id:snake:upper>] => c_str!($s),
