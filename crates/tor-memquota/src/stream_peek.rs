@@ -298,18 +298,19 @@ impl<S: Stream> FusedStream for StreamUnobtrusivePeeker<S> {
 }
 
 /// Future from [`StreamUnobtrusivePeeker::peek`]
+// TODO: Move to tor_async_utils::peekable_stream.
 #[derive(Educe)]
-#[educe(Debug(bound("StreamUnobtrusivePeeker<S>: Debug")))]
+#[educe(Debug(bound("S: Debug")))]
 #[must_use = "peek() return a Future, which does nothing unless awaited"]
-pub(crate) struct PeekFuture<'s, S: Stream> {
-    /// The underlying `StreamUnobtrusivePeeker`.
+pub(crate) struct PeekFuture<'s, S: PeekableStream> {
+    /// The underlying stream.
     ///
     /// `Some` until we have returned `Ready`, then `None`.
     /// See comment in `poll`.
-    peeker: Option<Pin<&'s mut StreamUnobtrusivePeeker<S>>>,
+    peeker: Option<Pin<&'s mut S>>,
 }
 
-impl<'s, S: Stream> Future for PeekFuture<'s, S> {
+impl<'s, S: PeekableStream> Future for PeekFuture<'s, S> {
     type Output = Option<&'s S::Item>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<&'s S::Item>> {
         let self_ = self.get_mut();
