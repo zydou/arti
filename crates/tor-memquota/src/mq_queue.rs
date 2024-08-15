@@ -702,6 +702,9 @@ mod test {
             }
 
             rt.advance_until_stalled().await;
+
+            // no memory should be claimed
+            s.check_zero_claimed(1);
         });
     }
 
