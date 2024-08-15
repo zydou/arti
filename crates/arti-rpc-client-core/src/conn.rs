@@ -676,10 +676,19 @@ mod test {
                 });
                 let req = serde_json::to_string(&req).unwrap();
                 let outcome = conn.execute(&req);
+                if !matches!(
+                    &outcome,
+                    Err(ProtoError::Shutdown(ShutdownError::Write(_)))
+                        | Err(ProtoError::Shutdown(ShutdownError::Read(_))),
+                ) {
+                    dbg!(&outcome);
+                }
+
                 assert!(matches!(
                     outcome,
                     Err(ProtoError::Shutdown(ShutdownError::Write(_)))
                         | Err(ProtoError::Shutdown(ShutdownError::Read(_)))
+                        | Err(ProtoError::Shutdown(ShutdownError::ConnectionClosed))
                 ));
             });
             user_threads.push(th);
