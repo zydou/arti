@@ -1,16 +1,24 @@
 //! Code to watch configuration files for any changes.
 
-use std::sync::mpsc::{channel as std_channel};
 use std::sync::Weak;
 use std::time::Duration;
 
 use anyhow::Context;
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
-use tor_config::file_watcher::FileWatcherBuilder;
-use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSources, file_watcher::{Event, FileWatcher}};
+use futures::{select_biased, FutureExt as _, Stream};
+use tor_config::file_watcher::{self, FileWatcherBuilder, FileEventSender, FileWatcher};
+use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSources};
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
+use futures::task::SpawnExt;
+use futures::StreamExt;
+
+#[cfg(target_family = "unix")]
+use crate::process::sighup_stream;
+
+#[cfg(not(target_family = "unix"))]
+use futures::stream;
 
 use crate::{ArtiCombinedConfig, ArtiConfig};
 
@@ -46,7 +54,6 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 /// from keeping them alive.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
-    #[cfg_attr(not(target_family = "unix"), allow(unused_variables))]
     runtime: &R,
     sources: ConfigurationSources,
     config: &ArtiConfig,
@@ -54,12 +61,39 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 ) -> anyhow::Result<()> {
     let watch_file = config.application().watch_configuration;
 
-    let (tx, rx) = std_channel();
+    cfg_if::cfg_if! {
+        if #[cfg(target_family = "unix")] {
+            let sighup_stream = sighup_stream()?;
+        } else {
+            let sighup_stream = stream::pending();
+        }
+    }
+
+    let rt = runtime.clone();
+    let () = runtime.clone().spawn(async move {
+        let res: anyhow::Result<()> = run_watcher(rt, sources, modules, watch_file, sighup_stream).await;
+        match res {
+            Ok(()) => debug!("Config watcher task exiting"),
+            // TODO: warn_report does not work on anyhow::Error.
+            Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
+        }
+    }).context("failed to spawn task")?;
+
+    Ok(())
+}
+
+/// Start watching for configuration changes.
+///
+/// Spawned from `watch_for_config_changes`.
+async fn run_watcher<R: Runtime>(
+    runtime: R,
+    sources: ConfigurationSources,
+    modules: Vec<Weak<dyn ReconfigurableModule>>,
+    watch_file: bool,
+    mut sighup_stream: impl Stream<Item = ()> + Unpin,
+) -> anyhow::Result<()> {
+    let (tx, mut rx) = file_watcher::channel();
     let mut watcher = if watch_file {
-        // If watching, we must reload the config once right away, because
-        // we have set up the watcher *after* loading the config.
-        // ignore send error, rx can't be disconnected if we are here
-        let _ = tx.send(Event::Rescan);
         let mut watcher = FileWatcher::builder(runtime.clone());
         prepare(&mut watcher, &sources)?;
         Some(watcher.start_watching(tx.clone())?)
@@ -67,39 +101,23 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         None
     };
 
-    #[cfg(target_family = "unix")]
-    {
-        use futures::task::SpawnExt;
-        use futures::StreamExt;
+    debug!("Entering FS event loop");
 
-        use crate::process::sighup_stream;
-
-        let mut sighup_stream = sighup_stream()?;
-        let tx = tx.clone();
-        runtime.spawn(async move {
-            while let Some(()) = sighup_stream.next().await {
-                info!("Received SIGHUP");
-                if tx.send(Event::SigHup).is_err() {
-                    warn!("Failed to reload configuration");
+    loop {
+        select_biased! {
+            event = sighup_stream.next().fuse() => {
+                let Some(()) = event else {
                     break;
-                }
-            }
-        })?;
-    }
+                };
 
-    let runtime = runtime.clone();
-    #[allow(clippy::cognitive_complexity)]
-    std::thread::spawn(move || {
-        // TODO: If someday we make this facility available outside of the
-        // `arti` application, we probably don't want to have this thread own
-        // the FileWatcher.
-        debug!("Entering FS event loop");
-        let mut iife = || -> Result<(), anyhow::Error> {
-            while let Ok(event) = rx.recv() {
-                // we are in a dedicated thread, it's safe to thread::sleep.
-                std::thread::sleep(DEBOUNCE_INTERVAL);
+                info!("Received SIGHUP");
 
-                while let Ok(_ignore) = rx.try_recv() {
+                watcher = reload_configuration(runtime.clone(), watcher, &sources, &modules, tx.clone()).await?;
+            },
+            event = rx.next().fuse() => {
+                runtime.sleep(DEBOUNCE_INTERVAL).await;
+
+                while let Some(_ignore) = rx.try_recv() {
                     // Discard other events, so that we only reload once.
                     //
                     // We can afford to treat both error cases from try_recv [Empty
@@ -108,62 +126,61 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                     // call recv() in the outer loop.
                 }
                 debug!("Config reload event {:?}: reloading configuration.", event);
-
-                let found_files = if watcher.is_some() {
-                    let mut new_watcher = FileWatcher::builder(runtime.clone());
-                    let found_files = prepare(&mut new_watcher, &sources)
-                        .context("FS watch: failed to rescan config and re-establish watch")?;
-                    let new_watcher = new_watcher
-                        .start_watching(tx.clone())
-                        .context("FS watch: failed to rescan config and re-establish watch")?;
-                    watcher = Some(new_watcher);
-                    found_files
-                } else {
-                    sources
-                        .scan()
-                        .context("FS watch: failed to rescan config")?
-                };
-
-                match reconfigure(found_files, &modules) {
-                    Ok(watch) => {
-                        info!("Successfully reloaded configuration.");
-                        if watch && watcher.is_none() {
-                            info!("Starting watching over configuration.");
-                            // If watching, we must reload the config once right away, because
-                            // we have set up the watcher *after* loading the config.
-                            // ignore send error, rx can't be disconnected if we are here
-                            let _ = tx.send(Event::Rescan);
-                            let mut new_watcher = FileWatcher::builder(runtime.clone());
-                            let _found_files = prepare(&mut new_watcher, &sources).context(
-                                "FS watch: failed to rescan config and re-establish watch: {}",
-                            )?;
-                            let new_watcher = new_watcher.start_watching(tx.clone()).context(
-                                "FS watch: failed to rescan config and re-establish watch: {}",
-                            )?;
-                            watcher = Some(new_watcher);
-                        } else if !watch && watcher.is_some() {
-                            info!("Stopped watching over configuration.");
-                            watcher = None;
-                        }
-                    }
-                    // TODO: warn_report does not work on anyhow::Error.
-                    Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
-                }
-            }
-            Ok(())
-        };
-        match iife() {
-            Ok(()) => debug!("Thread exiting"),
-            // TODO: warn_report does not work on anyhow::Error.
-            Err(e) => error!("Config reload thread exiting: {}", tor_error::Report(e)),
+                watcher = reload_configuration(runtime.clone(), watcher, &sources, &modules, tx.clone()).await?;
+            },
         }
-    });
-
-    // Dropping the thread handle here means that we don't get any special
-    // notification about a panic.  TODO: We should change that at some point in
-    // the future.
+    }
 
     Ok(())
+}
+
+/// Reload the configuration.
+async fn reload_configuration<R: Runtime>(
+    runtime: R,
+    mut watcher: Option<FileWatcher>,
+    sources: &ConfigurationSources,
+    modules: &[Weak<dyn ReconfigurableModule>],
+    tx: FileEventSender,
+) -> anyhow::Result<Option<FileWatcher>> {
+
+    let found_files = if watcher.is_some() {
+        let mut new_watcher = FileWatcher::builder(runtime.clone());
+        let found_files = prepare(&mut new_watcher, sources)
+            .context("FS watch: failed to rescan config and re-establish watch")?;
+        let new_watcher = new_watcher
+            .start_watching(tx.clone())
+            .context("FS watch: failed to start watching config")?;
+        watcher = Some(new_watcher);
+        found_files
+    } else {
+        sources
+            .scan()
+            .context("FS watch: failed to rescan config")?
+    };
+
+    match reconfigure(found_files, modules) {
+        Ok(watch) => {
+            info!("Successfully reloaded configuration.");
+            if watch && watcher.is_none() {
+                info!("Starting watching over configuration.");
+                let mut new_watcher = FileWatcher::builder(runtime.clone());
+                let _found_files = prepare(&mut new_watcher, sources).context(
+                    "FS watch: failed to rescan config and re-establish watch: {}",
+                )?;
+                let new_watcher = new_watcher.start_watching(tx.clone()).context(
+                    "FS watch: failed to rescan config and re-establish watch: {}",
+                )?;
+                watcher = Some(new_watcher);
+            } else if !watch && watcher.is_some() {
+                info!("Stopped watching over configuration.");
+                watcher = None;
+            }
+        }
+        // TODO: warn_report does not work on anyhow::Error.
+        Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
+    }
+
+    Ok(watcher)
 }
 
 impl<R: Runtime> ReconfigurableModule for TorClient<R> {

@@ -3,11 +3,17 @@
 use std::collections::HashSet;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use tor_rtcompat::Runtime;
 
+use futures::lock::Mutex;
 use notify::Watcher;
+use postage::watch;
+
+use futures::{SinkExt as _, Stream, StreamExt as _};
 
 /// `Result` whose `Err` is [`FileWatcherBuildError`].
 pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
@@ -42,7 +48,7 @@ impl FileWatcher {
 }
 
 /// Event possibly triggering a configuration reload
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
     /// SIGHUP has been received.
@@ -137,7 +143,8 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     }
 
     /// Build a `FileWatcher` and start sending events to `tx`.
-    pub fn start_watching(self, tx: mpsc::Sender<Event>) -> Result<FileWatcher> {
+    pub fn start_watching(self, tx: FileEventSender) -> Result<FileWatcher> {
+        let runtime = self.runtime;
         let event_sender = move |event: notify::Result<notify::Event>| {
             let watching = |f| self.watching_files.contains(f);
             // filter events we don't want and map to event code
@@ -160,8 +167,15 @@ impl<R: Runtime> FileWatcherBuilder<R> {
                 }
             };
             if let Some(event) = event {
-                let _ = tx.send(event);
-            };
+                // It *should* be alright to block_on():
+                //   * on all platforms, the `RecommendedWatcher`'s event_handler is called from a
+                //     separate thread
+                //   * notify's own async_monitor example uses block_on() to run async code in the
+                //     event handler
+                runtime.block_on(async {
+                    let _ = tx.0.lock().await.send(event).await;
+                });
+            }
         };
 
         let mut watcher = notify::RecommendedWatcher::new(event_sender, notify::Config::default())
@@ -175,6 +189,55 @@ impl<R: Runtime> FileWatcherBuilder<R> {
 
         Ok(FileWatcher { _watcher: watcher })
     }
+}
+
+/// The sender half of a watch channel used by a [`FileWatcher`] for sending [`Event`]s.
+///
+/// For use with [`FileWatcherBuilder::start_watching`].
+///
+/// **Important**: to avoid contention, avoid sharing clones of the same `FileEventSender`
+/// with multiple [`FileWatcherBuilder`]s. This type is [`Clone`] to support creating new
+/// [`FileWatcher`]s from an existing [`channel`], which enables existing receivers to receive
+/// events from new `FileWatcher`s (any old `FileWatcher`s are supposed to be discarded).
+#[derive(Clone)]
+pub struct FileEventSender(Arc<Mutex<watch::Sender<Event>>>);
+
+/// The receiver half of a watch channel used for receiving [`Event`]s sent by a [`FileWatcher`].
+#[derive(Clone)]
+pub struct FileEventReceiver(watch::Receiver<Event>);
+
+impl Stream for FileEventReceiver {
+    type Item = Event;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.0.poll_next_unpin(cx)
+    }
+}
+
+impl FileEventReceiver {
+    /// Try to read a message from the stream, without blocking.
+    ///
+    /// Returns `Some` if a message is ready.
+    /// Returns `None` if the stream is open, but no messages are available,
+    /// or if the stream is closed.
+    pub fn try_recv(&mut self) -> Option<Event> {
+        use postage::prelude::Stream;
+
+        self.0.try_recv().ok()
+    }
+}
+
+/// Create a new channel for use with a [`FileWatcher`].
+//
+// Note: the [`FileEventSender`] and [`FileEventReceiver`]  wrappers exist
+// so we don't expose the channel's underlying type
+// in our public API.
+pub fn channel() -> (FileEventSender, FileEventReceiver) {
+    let (tx, rx) = watch::channel_with(Event::Rescan);
+    (
+        FileEventSender(Arc::new(Mutex::new(tx))),
+        FileEventReceiver(rx),
+    )
 }
 
 /// An error coming from a [`FileWatcherBuilder`].
