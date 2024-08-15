@@ -303,7 +303,7 @@ pub trait ChannelSpec: Sealed /* see Correctness, above */ + Sized + 'static {
 ///
 /// Corresponds to the constructor [`futures::channel::mpsc::channel`].
 ///
-/// Call [`new_mq`](ChannelSpec::new_mq) on this unit type:
+/// Call [`new_mq`](ChannelSpec::new_mq) on a value of this type.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(clippy::exhaustive_structs)] // This is precisely the arguments to mpsc::channel
 pub struct MpscSpec {
@@ -315,7 +315,7 @@ pub struct MpscSpec {
 ///
 /// Corresponds to the constructor [`futures::channel::mpsc::unbounded`].
 ///
-/// Call [`new_mq`](ChannelSpec::new_mq) on a value of this type.
+/// Call [`new_mq`](ChannelSpec::new_mq) on a value of this unit type.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[allow(clippy::exhaustive_structs)] // This is precisely the arguments to mpsc::unbounded
 pub struct MpscUnboundedSpec;
