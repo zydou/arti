@@ -8,11 +8,12 @@ use crate::{Error, Result};
 use futures::task::noop_waker_ref;
 use futures::StreamExt;
 use pin_project::pin_project;
-use tor_async_utils::peekable_stream::PeekableStream;
+use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
 use futures::channel::mpsc;
+use tor_memquota::stream_peek::StreamUnobtrusivePeeker;
 use std::collections::hash_map;
 use std::collections::HashMap;
 use std::num::NonZeroU16;
@@ -49,7 +50,7 @@ pub(super) struct OpenStreamEnt {
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
     // only be used through `StreamPollSet`.
     #[pin]
-    rx: futures::stream::Peekable<mpsc::Receiver<AnyRelayMsg>>,
+    rx: tor_memquota::stream_peek::StreamUnobtrusivePeeker<mpsc::Receiver<AnyRelayMsg>>,
     /// Waker to be woken when more sending capacity becomes available (e.g.
     /// receiving a SENDME).
     flow_ctrl_waker: Option<Waker>,
@@ -261,7 +262,7 @@ impl StreamMap {
                 flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
                 dropped: 0,
                 cmd_checker,
-                rx: rx.peekable(),
+                rx: StreamUnobtrusivePeeker::new(rx),
                 flow_ctrl_waker: None,
             },
         };
@@ -302,7 +303,7 @@ impl StreamMap {
                 flow_ctrl: StreamSendFlowControl::new_window_based(send_window),
                 dropped: 0,
                 cmd_checker,
-                rx: rx.peekable(),
+                rx: StreamUnobtrusivePeeker::new(rx),
                 flow_ctrl_waker: None,
             },
         };
