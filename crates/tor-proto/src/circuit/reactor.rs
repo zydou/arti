@@ -19,7 +19,7 @@
 pub(super) mod syncview;
 
 use super::handshake::RelayCryptLayerProtocol;
-use super::streammap::{EndSentStreamEnt, OpenStreamEnt, ShouldSendEnd, StreamEntMut};
+use super::streammap::{EndSentStreamEnt, ShouldSendEnd, StreamEntMut};
 use super::MutableState;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
@@ -47,7 +47,7 @@ use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
-    RelayCmd, RelayMsg, StreamId, UnparsedRelayMsg,
+    RelayCmd, StreamId, UnparsedRelayMsg,
 };
 use tor_error::internal;
 #[cfg(feature = "hs-service")]
@@ -877,66 +877,59 @@ impl Reactor {
                 }
             }
 
-            // Process outgoing messages for each hop.
-
-            // (using this as a named block for early returns; not actually a loop)
-            #[allow(clippy::never_loop)]
-            'outer: loop {
-                // Let's look at our hops, and streams for each hop.
-                for i in 0..self.hops.len() {
-                    if !self.chan_sender.poll_ready_unpin_bool(cx)? {
-                        // Channel isn't ready to send; we can't act on anything else.
-                        // (Even processing an end-of-stream would end up having to buffer
-                        // an END message in the channel).
-                        break 'outer;
-                    }
-                    let hop_num = HopNum::from(i as u8);
-                    // Look at all of the ready streams on this hop,
-                    // until we find one that is ready to send a message or close.
-                    let hop_send_window = self.hops[i].sendwindow.window();
-                    let mut stream_iter = self.hops[i].map.poll_ready_streams_iter(cx);
-                    'hop_streams: while let Some((sid, msg, stream)) = stream_iter.next() {
-                        let Some(msg) = msg else {
-                            drop(stream_iter);
-                            // Sender was dropped, so close the stream, which
-                            // also removes this entry from the iterator.
-                            self.close_stream(
-                                cx,
-                                hop_num,
-                                sid,
-                                CloseStreamBehavior::default(),
-                                streammap::TerminateReason::StreamTargetClosed,
-                            )?;
-                            did_things = true;
-                            break 'hop_streams;
-                        };
-                        if sendme::cmd_counts_towards_windows(msg.cmd())
-                            && (stream.send_window.window() == 0 || hop_send_window == 0)
-                        {
-                            // The stream has a message ready to be sent, but we
-                            // can't due to (circuit-level) congestion-control
-                            // or (stream-level) flow-control.
-                            // TODO: Move such streams to a seperate list so that we don't
-                            // keep iterating over them, until sendwindow is available?
-                            continue 'hop_streams;
-                        }
-                        // Send the message.
-                        drop(stream_iter);
-                        let msg = self.hops[i]
-                            .map
-                            .take_ready_msg(sid)
-                            .expect("msg disappeared");
-                        self.send_relay_cell(
-                            cx,
-                            hop_num,
-                            false,
-                            AnyRelayMsgOuter::new(Some(sid), msg),
-                        )?;
-                        did_things = true;
-                        break 'hop_streams;
-                    }
+            // Check each hop for an outbound message pending.
+            for i in 0..self.hops.len() {
+                if !self.chan_sender.poll_ready_unpin_bool(cx)? {
+                    // Channel isn't ready to send; we can't act on anything else.
+                    // (Even processing an end-of-stream would end up having to buffer
+                    // an END message in the channel).
+                    break;
                 }
-                break 'outer;
+                if self.hops[i].sendwindow.window() == 0 {
+                    // We can't send anything on this hop that counts towards SENDME windows.
+                    // In theory we could send messages that don't count towards windows,
+                    // but it's probably not worth iterating over all of our streams to see
+                    // if that's the case.
+                    // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
+                    // congestion control has "bottomed out" might not be so bad, and the
+                    // alternatives have complexity and/or performance costs.
+                    continue;
+                }
+                let hop_num = HopNum::from(i as u8);
+                // Process an outbound message from the first ready stream on
+                // this hop. The stream map implements round robin scheduling to
+                // ensure fairness across streams.
+                // TODO: Consider looping here to process multiple ready
+                // streams. Need to be careful though to balance that with
+                // continuing to service incoming and control messages.
+                let Some((sid, msg, stream)) = self.hops[i].map.poll_ready_streams_iter(cx).next()
+                else {
+                    // No ready streams for this hop.
+                    continue;
+                };
+                let Some(msg) = msg else {
+                    // Sender was dropped, so close the stream, which
+                    // also removes this entry from the streams iterator.
+                    self.close_stream(
+                        cx,
+                        hop_num,
+                        sid,
+                        CloseStreamBehavior::default(),
+                        streammap::TerminateReason::StreamTargetClosed,
+                    )?;
+                    did_things = true;
+                    continue;
+                };
+                debug_assert!(
+                    stream.can_send(msg),
+                    "Stream {sid} produced a message it can't send: {msg:?}"
+                );
+                let msg = self.hops[i]
+                    .map
+                    .take_ready_msg(sid)
+                    .expect("msg disappeared");
+                self.send_relay_cell(cx, hop_num, false, AnyRelayMsgOuter::new(Some(sid), msg))?;
+                did_things = true;
             }
 
             let _ = Pin::new(&mut self.chan_sender)
@@ -1413,25 +1406,22 @@ impl Reactor {
     ) -> Result<()> {
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
-        // Check whether the hop send window is empty, if this cell counts towards windows.
-        // NOTE(eta): It is imperative this happens *before* calling encrypt() below, otherwise
-        //            we'll have cells rejected due to a protocol violation! (Cells have to be
-        //            sent out in the order they were passed to encrypt().)
+        let hop_num = Into::<usize>::into(hop);
+        let circhop = &mut self.hops[hop_num];
+        // We need to apply stream-level flow control *before* encoding the message.
         if c_t_w {
-            let hop_num = Into::<usize>::into(hop);
-            let circhop = &mut self.hops[hop_num];
-            if circhop.sendwindow.window() == 0 {
-                // Send window is empty! Push this cell onto the hop's outbound queue, and it'll
-                // get sent later.
-                trace!(
-                    "{}: having to use onto hop {} queue for cell: {:?}",
-                    self.unique_id,
-                    hop.display(),
-                    msg
-                );
-                return Err(Error::Bug(internal!(
-                    "Called send_relay_cell with insufficient circuit SendWindow",
-                )));
+            if let Some(stream_id) = stream_id {
+                let Some(StreamEntMut::Open(ent)) = circhop.map.get_mut(stream_id) else {
+                    warn!(
+                        "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
+                        self.unique_id, stream_id
+                    );
+                    return Err(Error::CircProto(format!(
+                        "tried to send a relay cell on non-open stream {}",
+                        sv(stream_id),
+                    )));
+                };
+                ent.take_capacity_to_send(msg.msg())?;
             }
         }
         let mut body: RelayCellBody = msg
@@ -1450,31 +1440,7 @@ impl Reactor {
         // If the cell counted towards our sendme window, decrement
         // that window, and maybe remember the authentication tag.
         if c_t_w {
-            let hop_num = Into::<usize>::into(hop);
-            let hop = &mut self.hops[hop_num];
-            // checked by earlier conditional, so this shouldn't fail
-            hop.sendwindow.take(tag)?;
-            if let Some(stream_id) = stream_id {
-                // We need to decrement the stream-level sendme window.
-                // Stream data cells should only be dequeued and fed into this function if
-                // the window is above zero, so we don't need to worry about
-                // enqueuing things.
-                match hop.map.get_mut(stream_id) {
-                    Some(StreamEntMut::Open(OpenStreamEnt { send_window, .. })) => {
-                        send_window.take(&())?;
-                    }
-                    _ => {
-                        warn!(
-                            "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
-                            self.unique_id, stream_id
-                        );
-                        return Err(Error::CircProto(format!(
-                            "tried to send a relay cell on non-open stream {}",
-                            sv(stream_id),
-                        )));
-                    }
-                }
-            }
+            circhop.sendwindow.take(tag)?;
         }
         self.send_msg_direct(cx, msg)
     }
@@ -1906,13 +1872,7 @@ impl Reactor {
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
         match hop.map.get_mut(streamid) {
-            Some(StreamEntMut::Open(OpenStreamEnt {
-                sink,
-                send_window,
-                dropped,
-                cmd_checker,
-                ..
-            })) => {
+            Some(StreamEntMut::Open(ent)) => {
                 // The stream for this message exists, and is open.
 
                 if msg.cmd() == RelayCmd::SENDME {
@@ -1923,13 +1883,14 @@ impl Reactor {
                     // We need to handle sendmes here, not in the stream's
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
-                    send_window.put(Some(()))?;
+                    ent.put_for_incoming_sendme()?;
                     return Ok(CellStatus::Continue);
                 }
 
-                let message_closes_stream = cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
+                let message_closes_stream =
+                    ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
-                if let Err(e) = sink.try_send(msg) {
+                if let Err(e) = ent.sink.try_send(msg) {
                     if e.is_full() {
                         // If we get here, we either have a logic bug (!), or an attacker
                         // is sending us more cells than we asked for via congestion control.
@@ -1943,7 +1904,7 @@ impl Reactor {
                         // that we received a cell that we couldn't queue for it.
                         //
                         // Later this value will be recorded in a half-stream.
-                        *dropped += 1;
+                        ent.dropped += 1;
                     }
                 }
                 if message_closes_stream {
