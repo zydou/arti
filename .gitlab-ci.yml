@@ -338,6 +338,8 @@ build-repro-windows:
       - arti-windows.exe
 
 build-repro-macos:
+  # Temporarily permitted to fail; see #1394
+  allow_failure: true
   extends: .build-repro-template
   variables:
     TARGET: macos
