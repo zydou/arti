@@ -5649,6 +5649,7 @@ dependencies = [
  "slotmap",
  "static_assertions",
  "thiserror",
+ "tor-async-utils",
  "tor-basic-utils",
  "tor-config",
  "tor-error",

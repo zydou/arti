@@ -55,6 +55,8 @@
 //! (This is significantly mitigated if the bulk of the memory use
 //! for each item is separately boxed.)
 
+use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
+
 use crate::internal_prelude::*;
 
 use std::task::{Context, Poll, Poll::*, Waker};
