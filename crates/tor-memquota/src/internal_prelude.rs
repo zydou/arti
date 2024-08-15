@@ -37,7 +37,7 @@ pub(crate) use futures::{
 pub(crate) use {
     derive_builder::Builder,
     derive_deftly::{define_derive_deftly, Deftly},
-    derive_more::{Deref, DerefMut, From, Into},
+    derive_more::{Constructor, Deref, DerefMut, From, Into},
     educe::Educe,
     pin_project::pin_project,
     serde::{Deserialize, Serialize},
