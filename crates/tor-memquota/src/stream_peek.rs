@@ -54,7 +54,7 @@ use std::task::{Context, Poll, Poll::*, Waker};
 // and certainly not more performant.
 #[derive(Debug)]
 #[pin_project(project = PeekerProj)]
-pub(crate) struct StreamUnobtrusivePeeker<S: Stream> {
+pub struct StreamUnobtrusivePeeker<S: Stream> {
     /// An item that we have peeked.
     ///
     /// (If we peeked EOF, that's represented by `None` in inner.)
@@ -77,7 +77,7 @@ pub(crate) struct StreamUnobtrusivePeeker<S: Stream> {
 
 impl<S: Stream> StreamUnobtrusivePeeker<S> {
     /// Create a new `StreamUnobtrusivePeeker` from a `Stream`
-    pub(crate) fn new(inner: S) -> Self {
+    pub fn new(inner: S) -> Self {
         StreamUnobtrusivePeeker {
             buffered: None,
             poll_waker: None,
@@ -233,10 +233,11 @@ impl<S: Stream> StreamUnobtrusivePeeker<S> {
     //
     // This ^ docs section is triplicated for poll_peek, poll_peek_mut, and peek
     //
-    // TODO this should be a trait method ?
+    // TODO this should be a method on the `PeekableStream` trait? Or a
+    // `PeekableStreamExt` trait?
     // TODO should there be peek_mut ?
     #[allow(dead_code)] // TODO remove this allow if and when we make this module public
-    pub(crate) fn peek(self: Pin<&mut Self>) -> PeekFuture<S> {
+    pub fn peek(self: Pin<&mut Self>) -> PeekFuture<Self> {
         PeekFuture { peeker: Some(self) }
     }
 
@@ -302,12 +303,22 @@ impl<S: Stream> FusedStream for StreamUnobtrusivePeeker<S> {
 #[derive(Educe)]
 #[educe(Debug(bound("S: Debug")))]
 #[must_use = "peek() return a Future, which does nothing unless awaited"]
-pub(crate) struct PeekFuture<'s, S: PeekableStream> {
+pub struct PeekFuture<'s, S> {
     /// The underlying stream.
     ///
     /// `Some` until we have returned `Ready`, then `None`.
     /// See comment in `poll`.
     peeker: Option<Pin<&'s mut S>>,
+}
+
+impl<'s, S: PeekableStream> PeekFuture<'s, S> {
+    /// Create a new `PeekFuture`.
+    // TODO: replace with a trait method.
+    pub fn new(stream: Pin<&'s mut S>) -> Self {
+        Self {
+            peeker: Some(stream),
+        }
+    }
 }
 
 impl<'s, S: PeekableStream> Future for PeekFuture<'s, S> {
