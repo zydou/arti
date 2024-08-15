@@ -51,9 +51,6 @@ impl FileWatcher {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
-    /// SIGHUP has been received.
-    #[cfg(target_family = "unix")]
-    SigHup,
     /// Some files may have been modified.
     FileChanged,
     /// Some filesystem events may have been missed.
