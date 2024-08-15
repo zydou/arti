@@ -56,7 +56,6 @@ NO_LICENSE=(
 # (See https://gitlab.torproject.org/tpo/core/arti/-/issues/845)
 MPL_20_OK=(
     option-ext
-    generational-arena
     dynasm
     dynasmrt
 )

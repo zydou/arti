@@ -11,15 +11,19 @@ use std::any;
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
 
-use generational_arena::Arena;
-// use generational_arena::Arena;
+use slotmap_careful::{Key as _, KeyData, SlotMap};
 use tor_rpcbase as rpc;
+
+slotmap_careful::new_key_type! {
+    pub(crate) struct WeakIdx;
+    pub(crate) struct StrongIdx;
+}
 
 /// A mechanism to look up RPC `Objects` by their `ObjectId`.
 #[derive(Default)]
 pub(crate) struct ObjMap {
     /// Generationally indexed arena of strong object references.
-    strong_arena: Arena<Arc<dyn rpc::Object>>,
+    strong_arena: SlotMap<StrongIdx, Arc<dyn rpc::Object>>,
     /// Generationally indexed arena of weak object references.
     ///
     /// Invariants:
@@ -27,7 +31,7 @@ pub(crate) struct ObjMap {
     /// * Every `entry` in this arena at position `idx` has a corresponding
     ///   entry in `reverse_map` entry such that
     ///   `reverse_map[entry.tagged_addr()] == idx`.
-    weak_arena: Arena<WeakArenaEntry>,
+    weak_arena: SlotMap<WeakIdx, WeakArenaEntry>,
     /// Backwards reference to look up weak arena references by the underlying
     /// object identity.
     ///
@@ -35,7 +39,7 @@ pub(crate) struct ObjMap {
     /// * For every weak `(addr,idx)` entry in this map, there is a
     ///   corresponding ArenaEntry in `arena` such that
     ///   `arena[idx].tagged_addr() == addr`
-    reverse_map: HashMap<TaggedAddr, generational_arena::Index>,
+    reverse_map: HashMap<TaggedAddr, WeakIdx>,
     /// Testing only: How many times have we tidied this map?
     #[cfg(test)]
     n_tidies: usize,
@@ -104,9 +108,9 @@ struct TaggedAddr {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) enum GenIdx {
     /// An index into the arena of weak references.
-    Weak(generational_arena::Index),
+    Weak(WeakIdx),
     /// An index into the arena of strong references
-    Strong(generational_arena::Index),
+    Strong(StrongIdx),
 }
 
 /// Return the [`RawAddr`] of an arbitrary `Arc<T>`.
@@ -182,7 +186,7 @@ impl TaggedAddr {
 /// us give you a better way to do whatever you want.
 impl GenIdx {
     /// The length of a byte-encoded (but not base-64 encoded) GenIdx.
-    pub(crate) const BYTE_LEN: usize = 24;
+    pub(crate) const BYTE_LEN: usize = 16;
 
     /// Return true if this is a strong (owning) reference.
     pub(crate) fn is_strong(&self) -> bool {
@@ -205,16 +209,14 @@ impl GenIdx {
     pub(crate) fn to_bytes<R: rand::RngCore>(self, rng: &mut R) -> [u8; Self::BYTE_LEN] {
         use rand::Rng;
         use tor_bytes::Writer;
-        let (weak_bit, idx) = match self {
-            GenIdx::Weak(idx) => (1, idx),
-            GenIdx::Strong(idx) => (0, idx),
+        let (weak_bit, ffi_idx) = match self {
+            GenIdx::Weak(idx) => (1, idx.data().as_ffi()),
+            GenIdx::Strong(idx) => (0, idx.data().as_ffi()),
         };
-        let (a, b) = idx.into_raw_parts();
         let x = rng.gen::<u64>() << 1;
         let mut bytes = Vec::with_capacity(Self::BYTE_LEN);
         bytes.write_u64(x | weak_bit);
-        bytes.write_u64((a as u64).wrapping_add(x));
-        bytes.write_u64(b.wrapping_sub(x));
+        bytes.write_u64(ffi_idx.wrapping_add(x));
 
         bytes.try_into().expect("Length was wrong!")
     }
@@ -235,18 +237,15 @@ impl GenIdx {
         let x = r.take_u64().ok()?;
         let is_weak = (x & 1) == 1;
         let x = x & !1;
-        let a = r.take_u64().ok()?;
-        let b = r.take_u64().ok()?;
+        let ffi_idx = r.take_u64().ok()?;
         r.should_be_exhausted().ok()?;
 
-        let a = a.wrapping_sub(x) as usize;
-        let b = b.wrapping_add(x);
+        let ffi_idx = ffi_idx.wrapping_sub(x);
 
-        let idx = generational_arena::Index::from_raw_parts(a, b);
         if is_weak {
-            Some(GenIdx::Weak(idx))
+            Some(GenIdx::Weak(WeakIdx::from(KeyData::from_ffi(ffi_idx))))
         } else {
-            Some(GenIdx::Strong(idx))
+            Some(GenIdx::Strong(StrongIdx::from(KeyData::from_ffi(ffi_idx))))
         }
     }
 }
@@ -671,12 +670,14 @@ mod test {
     #[test]
     fn objid_encoding() {
         use rand::Rng;
-        fn test_roundtrip(a: usize, b: u64, rng: &mut tor_basic_utils::test_rng::TestingRng) {
-            let idx = generational_arena::Index::from_raw_parts(a, b);
+        fn test_roundtrip(a: u32, b: u32, rng: &mut tor_basic_utils::test_rng::TestingRng) {
+            let a: u64 = a.into();
+            let b: u64 = b.into();
+            let data = KeyData::from_ffi((a << 33) | 1_u64 << 32 | b);
             let idx = if rng.gen_bool(0.5) {
-                GenIdx::Strong(idx)
+                GenIdx::Strong(StrongIdx::from(data))
             } else {
-                GenIdx::Weak(idx)
+                GenIdx::Weak(WeakIdx::from(data))
             };
             let s1 = idx.encode_with_rng(rng);
             let s2 = idx.encode_with_rng(rng);
@@ -686,10 +687,10 @@ mod test {
         }
         let mut rng = tor_basic_utils::test_rng::testing_rng();
 
-        test_roundtrip(0, 0, &mut rng);
         test_roundtrip(0, 1, &mut rng);
-        test_roundtrip(1, 0, &mut rng);
-        test_roundtrip(0xffffffff, 0xffffffffffffffff, &mut rng);
+        test_roundtrip(0, 2, &mut rng);
+        test_roundtrip(1, 1, &mut rng);
+        test_roundtrip(0xffffffff, 0xffffffff, &mut rng);
 
         for _ in 0..256 {
             test_roundtrip(rng.gen(), rng.gen(), &mut rng);
