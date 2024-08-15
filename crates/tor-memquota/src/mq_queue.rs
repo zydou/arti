@@ -321,7 +321,7 @@ pub struct MpscSpec {
 /// Call [`new_mq`](ChannelSpec::new_mq) on a value of this unit type.
 ///
 /// (The [`new`](MpscUnboundedSpec::new) method is provided for orthogonality.)
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Constructor)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Constructor, Default)]
 #[allow(clippy::exhaustive_structs)] // This is precisely the arguments to mpsc::unbounded
 pub struct MpscUnboundedSpec;
 
