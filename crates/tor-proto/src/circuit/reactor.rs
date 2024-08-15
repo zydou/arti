@@ -877,7 +877,7 @@ impl Reactor {
                 }
             }
 
-            // Process outgoing messages for each hop.
+            // Check each hop for an outbound message pending.
             for i in 0..self.hops.len() {
                 if !self.chan_sender.poll_ready_unpin_bool(cx)? {
                     // Channel isn't ready to send; we can't act on anything else.
@@ -896,8 +896,12 @@ impl Reactor {
                     continue;
                 }
                 let hop_num = HopNum::from(i as u8);
-                // Look at all of the ready streams on this hop,
-                // until we find one that is ready to send a message or close.
+                // Process an outbound message from the first ready stream on
+                // this hop. The stream map implements round robin scheduling to
+                // ensure fairness across streams.
+                // TODO: Consider looping here to process multiple ready
+                // streams. Need to be careful though to balance that with
+                // continuing to service incoming and control messages.
                 let Some((sid, msg, stream)) = self.hops[i].map.poll_ready_streams_iter(cx).next()
                 else {
                     // No ready streams for this hop.
