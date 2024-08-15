@@ -62,7 +62,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         let (path, final_spec, guard_status, guard_usable) = usage.build_path(
             &mut rng,
             dir,
-            Some(self.guardmgr()),
+            self.guardmgr(),
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             self.vanguardmgr(),
             self.path_config().as_ref(),

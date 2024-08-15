@@ -218,7 +218,7 @@ impl TargetCircUsage {
         &self,
         rng: &mut R,
         netdir: crate::DirInfo<'a>,
-        guards: Option<&GuardMgr<RT>>,
+        guards: &GuardMgr<RT>,
         #[cfg(all(feature = "vanguards", feature = "hs-common"))] vanguards: &VanguardMgr<RT>,
         config: &crate::PathConfig,
         now: SystemTime,
@@ -230,8 +230,8 @@ impl TargetCircUsage {
     )> {
         match self {
             TargetCircUsage::Dir => {
-                let (path, mon, usable) = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
-                Ok((path, SupportedCircUsage::Dir, mon, usable))
+                let (path, mon, usable) = DirPathBuilder::new().pick_path(guards)?;
+                Ok((path, SupportedCircUsage::Dir, Some(mon), Some(usable)))
             }
             TargetCircUsage::Preemptive {
                 port,
@@ -258,8 +258,8 @@ impl TargetCircUsage {
                         country_code,
                         all_relays_stable,
                     },
-                    mon,
-                    usable,
+                    Some(mon),
+                    Some(usable),
                 ))
             }
             TargetCircUsage::Exit {
@@ -306,8 +306,8 @@ impl TargetCircUsage {
                         country_code: resulting_cc,
                         all_relays_stable,
                     },
-                    mon,
-                    usable,
+                    Some(mon),
+                    Some(usable),
                 ))
             }
             TargetCircUsage::TimeoutTesting => {
@@ -329,7 +329,7 @@ impl TargetCircUsage {
                     _ => SupportedCircUsage::NoUsage,
                 };
 
-                Ok((path, usage, mon, usable))
+                Ok((path, usage, Some(mon), Some(usable)))
             }
             #[cfg(feature = "specific-relay")]
             TargetCircUsage::DirSpecificTarget(target) => {
@@ -353,7 +353,7 @@ impl TargetCircUsage {
                     }
                 };
                 let usage = SupportedCircUsage::HsOnly;
-                Ok((path, usage, mon, usable))
+                Ok((path, usage, Some(mon), Some(usable)))
             }
         }
     }
@@ -530,13 +530,11 @@ pub(crate) mod test {
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
     use crate::isolation::{IsolationToken, StreamIsolationBuilder};
     use crate::path::OwnedPath;
-    use crate::test::OptDummyGuardMgr;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_guardmgr::TestConfig;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
-    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use tor_persist::TestingStateMgr;
-    use tor_rtmock::MockRuntime;
 
     impl IsolationTokenEq for TargetCircUsage {
         fn isol_eq(&self, other: &Self) -> bool {
@@ -867,149 +865,152 @@ pub(crate) mod test {
     #[test]
     fn buildpath() {
         use crate::mgr::AbstractSpec;
-        let mut rng = testing_rng();
-        let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
-        let di = (&netdir).into();
-        let config = crate::PathConfig::default();
-        let guards: OptDummyGuardMgr<'_, MockRuntime> = None;
-        let now = SystemTime::now();
 
-        // Only doing basic tests for now.  We'll test the path
-        // building code a lot more closely in the tests for TorPath
-        // and friends.
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let mut rng = testing_rng();
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let di = (&netdir).into();
+            let config = crate::PathConfig::default();
+            let statemgr = TestingStateMgr::new();
+            let guards =
+                tor_guardmgr::GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default())
+                    .unwrap();
+            guards.install_test_netdir(&netdir);
+            let now = SystemTime::now();
 
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguards = VanguardMgr::new(
-            &Default::default(),
-            MockRuntime::new(),
-            TestingStateMgr::default(),
-            false,
-        )
-        .unwrap();
+            // Only doing basic tests for now.  We'll test the path
+            // building code a lot more closely in the tests for TorPath
+            // and friends.
 
-        // First, a one-hop directory circuit
-        let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
-            .build_path(
-                &mut rng,
-                di,
-                guards,
-                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-                &vanguards,
-                &config,
-                now,
-            )
-            .unwrap();
-        assert!(matches!(u_dir, SupportedCircUsage::Dir));
-        assert_eq!(p_dir.len(), 1);
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            let vanguards =
+                VanguardMgr::new(&Default::default(), rt.clone(), statemgr, false).unwrap();
 
-        // Now an exit circuit, to port 995.
-        let tok1 = IsolationToken::new();
-        let isolation = StreamIsolationBuilder::new()
-            .owner_token(tok1)
-            .build()
-            .unwrap();
+            // First, a one-hop directory circuit
+            let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
+                .build_path(
+                    &mut rng,
+                    di,
+                    &guards,
+                    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                    &vanguards,
+                    &config,
+                    now,
+                )
+                .unwrap();
+            assert!(matches!(u_dir, SupportedCircUsage::Dir));
+            assert_eq!(p_dir.len(), 1);
 
-        let exit_usage = TargetCircUsage::Exit {
-            ports: vec![TargetPort::ipv4(995)],
-            isolation: isolation.clone(),
-            country_code: None,
-            require_stability: false,
-        };
-        let (p_exit, u_exit, _, _) = exit_usage
-            .build_path(
-                &mut rng,
-                di,
-                guards,
-                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-                &vanguards,
-                &config,
-                now,
-            )
-            .unwrap();
-        assert!(matches!(
-            u_exit,
-            SupportedCircUsage::Exit {
-                isolation: ref iso,
-                ..
-            } if iso.isol_eq(&Some(isolation))
-        ));
-        assert!(u_exit.supports(&exit_usage));
-        assert_eq!(p_exit.len(), 3);
+            // Now an exit circuit, to port 995.
+            let tok1 = IsolationToken::new();
+            let isolation = StreamIsolationBuilder::new()
+                .owner_token(tok1)
+                .build()
+                .unwrap();
 
-        // Now try testing circuits.
-        let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(
-                &mut rng,
-                di,
-                guards,
-                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-                &vanguards,
-                &config,
-                now,
-            )
-            .unwrap();
-        let path = match OwnedPath::try_from(&path).unwrap() {
-            OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
-            OwnedPath::Normal(p) => p,
-        };
-        assert_eq!(path.len(), 3);
-
-        // Make sure that the usage is correct.
-        let last_relay = netdir.by_ids(&path[2]).unwrap();
-        let policy = ExitPolicy::from_relay(&last_relay);
-        // We'll always get exits for these, since we try to build
-        // paths with an exit if there are any exits.
-        assert!(policy.allows_some_port());
-        assert!(last_relay.low_level_details().policies_allow_some_port());
-        assert_isoleq!(
-            usage,
-            SupportedCircUsage::Exit {
-                policy,
-                isolation: None,
+            let exit_usage = TargetCircUsage::Exit {
+                ports: vec![TargetPort::ipv4(995)],
+                isolation: isolation.clone(),
                 country_code: None,
-                all_relays_stable: true
-            }
-        );
+                require_stability: false,
+            };
+            let (p_exit, u_exit, _, _) = exit_usage
+                .build_path(
+                    &mut rng,
+                    di,
+                    &guards,
+                    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                    &vanguards,
+                    &config,
+                    now,
+                )
+                .unwrap();
+            assert!(matches!(
+                u_exit,
+                SupportedCircUsage::Exit {
+                    isolation: ref iso,
+                    ..
+                } if iso.isol_eq(&Some(isolation))
+            ));
+            assert!(u_exit.supports(&exit_usage));
+            assert_eq!(p_exit.len(), 3);
+
+            // Now try testing circuits.
+            let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
+                .build_path(
+                    &mut rng,
+                    di,
+                    &guards,
+                    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                    &vanguards,
+                    &config,
+                    now,
+                )
+                .unwrap();
+            let path = match OwnedPath::try_from(&path).unwrap() {
+                OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
+                OwnedPath::Normal(p) => p,
+            };
+            assert_eq!(path.len(), 3);
+
+            // Make sure that the usage is correct.
+            let last_relay = netdir.by_ids(&path[2]).unwrap();
+            let policy = ExitPolicy::from_relay(&last_relay);
+            // We'll always get exits for these, since we try to build
+            // paths with an exit if there are any exits.
+            assert!(policy.allows_some_port());
+            assert!(last_relay.low_level_details().policies_allow_some_port());
+            assert_isoleq!(
+                usage,
+                SupportedCircUsage::Exit {
+                    policy,
+                    isolation: None,
+                    country_code: None,
+                    all_relays_stable: true
+                }
+            );
+        });
     }
 
     #[test]
     fn build_testing_noexit() {
         // Here we'll try to build paths for testing circuits on a network
         // with no exits.
-        let mut rng = testing_rng();
-        let netdir = testnet::construct_custom_netdir(|_idx, bld| {
-            bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
-        })
-        .unwrap()
-        .unwrap_if_sufficient()
-        .unwrap();
-        let di = (&netdir).into();
-        let config = crate::PathConfig::default();
-        let guards: OptDummyGuardMgr<'_, MockRuntime> = None;
-        let now = SystemTime::now();
-
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let vanguards = VanguardMgr::new(
-            &Default::default(),
-            MockRuntime::new(),
-            TestingStateMgr::default(),
-            false,
-        )
-        .unwrap();
-
-        let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(
-                &mut rng,
-                di,
-                guards,
-                #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-                &vanguards,
-                &config,
-                now,
-            )
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let mut rng = testing_rng();
+            let netdir = testnet::construct_custom_netdir(|_idx, bld| {
+                bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
+            })
+            .unwrap()
+            .unwrap_if_sufficient()
             .unwrap();
-        assert_eq!(path.len(), 3);
-        assert_isoleq!(usage, SupportedCircUsage::NoUsage);
+            let di = (&netdir).into();
+            let config = crate::PathConfig::default();
+            let statemgr = TestingStateMgr::new();
+            let guards =
+                tor_guardmgr::GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default())
+                    .unwrap();
+            guards.install_test_netdir(&netdir);
+            let now = SystemTime::now();
+
+            #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+            let vanguards =
+                VanguardMgr::new(&Default::default(), rt.clone(), statemgr, false).unwrap();
+
+            let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
+                .build_path(
+                    &mut rng,
+                    di,
+                    &guards,
+                    #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+                    &vanguards,
+                    &config,
+                    now,
+                )
+                .unwrap();
+            assert_eq!(path.len(), 3);
+            assert_isoleq!(usage, SupportedCircUsage::NoUsage);
+        });
     }
 
     #[test]
