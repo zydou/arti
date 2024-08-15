@@ -667,7 +667,7 @@ mod test {
             }
 
             // reclaim task hasn't had a chance to run
-            eprintln!("still existing items {}", s.itrk.lock().existing);
+            debug!("still existing items {}", s.itrk.lock().existing);
 
             rt.advance_until_stalled().await;
 
