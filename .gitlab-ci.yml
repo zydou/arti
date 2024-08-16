@@ -288,6 +288,24 @@ deb-source:
       - "*.dsc"
       - "*.tar.xz"
 
+deb-binary-amd64:
+  stage: test
+  image: $RECENT_RUST_IMAGE
+  script:
+    - mv arti*.tar.gz arti*.dsc arti*.tar.xz ..
+    - apt-get update && apt-get build-dep -y .
+    - dpkg-buildpackage
+    - mv ../arti*.deb ../*.changes ../*.buildinfo .
+  needs:
+    - deb-source
+  artifacts:
+    paths:
+      - "*.deb"
+      - "*.changes"
+      - "*.buildinfo"
+  tags:
+    - amd64
+
 coverage:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"

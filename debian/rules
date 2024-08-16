@@ -6,8 +6,9 @@ include /usr/share/rustc/architecture.mk
 export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
 export DEB_HOST_RUST_TYPE DEB_HOST_GNU_TYPE
 
-export PATH=/usr/bin:/usr/sbin
-export CARGO=/usr/bin/cargo
+# Honor user-provided PATH and cargo binary so as to avoid possibly
+# ancient system rust installations
+export CARGO=cargo
 export CARGO_HOME=$(CURDIR)/debian/cargo_home
 export CARGO_TARGET_DIR=$(CURDIR)/debian/target
 export RUSTFLAGS=-C debuginfo=2 -C strip=none
