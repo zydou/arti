@@ -88,7 +88,10 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
                     }
                     let auth_clients = authorized_clients
                         .iter()
-                        .map(|(_nickname, key)| (*key).clone().into())
+                        .map(|(nickname, key)| {
+                            trace!("encrypting descriptor for client {nickname}");
+                            (*key).clone().into()
+                        })
                         .collect_vec();
                     Ok(auth_clients)
                 })
