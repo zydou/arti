@@ -50,10 +50,14 @@
 //! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
 //! status for reporting fatal errors (crashes).
 
-use tor_config::file_watcher::{self, Event as FileEvent, FileEventReceiver, FileEventSender};
+use tor_config::file_watcher::{
+    self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
+};
 use tor_netdir::DirEvent;
 
-use crate::config::restricted_discovery::{RestrictedDiscoveryConfig, RestrictedDiscoveryKeys};
+use crate::config::restricted_discovery::{
+    DirectoryKeyProviderList, RestrictedDiscoveryConfig, RestrictedDiscoveryKeys,
+};
 use crate::config::OnionServiceConfigPublisherView;
 
 use super::*;
@@ -104,6 +108,8 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     /// A channel for receiving restricted discovery key_dirs change notifications.
     key_dirs_rx: FileEventReceiver,
     /// A channel for sending restricted discovery key_dirs change notifications.
+    ///
+    /// A copy of this sender is handed out to every `FileWatcher` created.
     key_dirs_tx: FileEventSender,
     /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
@@ -329,6 +335,12 @@ impl<R: Runtime> Mockable for Real<R> {
 struct Inner {
     /// The onion service config.
     config: Arc<OnionServiceConfigPublisherView>,
+    /// Watcher for key_dirs.
+    ///
+    /// Set to `None` if the reactor is not running, or if `watch_configuration` is false.
+    ///
+    /// The watcher is recreated whenever the `restricted_discovery.key_dirs` change.
+    file_watcher: Option<FileWatcher>,
     /// The relevant time periods.
     ///
     /// This includes the current time period, as well as any other time periods we need to be
@@ -519,6 +531,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let inner = Inner {
             time_periods: vec![],
             config: Arc::new(config.into()),
+            file_watcher: None,
             netdir: None,
             last_uploaded: None,
             reupload_timers: Default::default(),
@@ -557,6 +570,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             inner.netdir = Some(netdir);
             inner.time_periods = time_periods;
+
+            // Create the initial key_dirs watcher.
+            self.update_file_watcher(&mut inner);
         }
 
         loop {
@@ -928,6 +944,85 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         let _old: Arc<OnionServiceConfigPublisherView> = std::mem::replace(old_config, new_config);
 
         true
+    }
+
+    /// Replace the key_dirs file watcher, if the key_dirs from new_config are different
+    /// from the key_dirs we are currently watching.
+    fn update_file_watcher_if_changed(&self, new_config: &OnionServiceConfigPublisherView) {
+        let mut inner = self.inner.lock().expect("poisoned lock");
+
+        // NOTE: we need to compare the new key_dirs with the *watched* directories
+        // rather than the ones from old_config.
+        //
+        // This is because directories that don't exist at the time the watcher is created
+        // are *not* watched, so if, for example, you
+        //
+        //   * create a restricted_discovery config that is enabled, configured with some non-existent
+        //   key_dirs
+        //   * disable the restricted_discovery
+        //   * create the missing key_dirs
+        //   * re-enable restricted_discovery
+        //
+        // the key_dirs watcher won't be set unless we compare the configured key_dirs
+        // with the *watched* key_dirs.
+        let update_watcher = match &inner.file_watcher {
+            Some(watcher) => {
+                let new_dirs = new_config
+                    .restricted_discovery
+                    .key_dirs()
+                    .iter()
+                    .filter_map(|dir| {
+                        // Skip over any paths that can't be expanded
+                        maybe_expand_path(dir.path())
+                    })
+                    .collect::<HashSet<_>>();
+                let watching_dirs = watcher.watching_dirs();
+                // We need to be watching all the configured dirs and their parent dir.
+                // If we aren't, it means we need to reset the watcher.
+                let expected_watching_dirs = new_dirs
+                    .iter()
+                    .cloned()
+                    .flat_map(|dir| {
+                        let parent = dir
+                            .parent()
+                            .map(|path| path.into())
+                            .unwrap_or_else(|| dir.clone());
+                        [dir, parent]
+                    })
+                    .collect::<HashSet<_>>();
+                watching_dirs != &expected_watching_dirs
+            }
+            None => true,
+        };
+
+        if update_watcher {
+            self.update_file_watcher(&mut inner);
+        }
+    }
+
+    /// Recreate the FileWatcher for watching the restricted discovery key_dirs.
+    fn update_file_watcher(&self, inner: &mut Inner) {
+        if inner.config.restricted_discovery.watch_configuration() {
+            debug!("The restricted_discovery.key_dirs have changed, updating file watcher");
+            let mut watcher = FileWatcher::builder(self.imm.runtime.clone());
+
+            let dirs = inner.config.restricted_discovery.key_dirs().clone();
+
+            watch_dirs(&mut watcher, &dirs);
+
+            let watcher = watcher
+                .start_watching(self.key_dirs_tx.clone())
+                .map_err(|e| {
+                    error_report!(e, "Cannot set file watcher");
+                })
+                .ok();
+            inner.file_watcher = watcher;
+        } else {
+            if inner.file_watcher.is_some() {
+                debug!("removing key_dirs watcher");
+            }
+            inner.file_watcher = None;
+        }
     }
 
     /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
@@ -1602,6 +1697,46 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         self.update_publish_status(PublishStatus::UploadScheduled)
             .await?;
         Ok(())
+    }
+}
+
+/// Try to expand a path, logging a warning on failure.
+fn maybe_expand_path(p: &tor_config::CfgPath) -> Option<PathBuf> {
+    // map_err returns unit for clarity
+    #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
+    p.path()
+        .map_err(|e| {
+            tor_error::warn_report!(e, "invalid path");
+            ()
+        })
+        .ok()
+}
+
+/// Add the specified directories to the watcher.
+fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryKeyProviderList) {
+    let dirs = dirs.iter().filter_map(|cfg_path| {
+        // Skip over any directories whose path can't be expanded
+        let path = maybe_expand_path(cfg_path.path())?;
+
+        // If the path doesn't exist, the notify watcher will return an error,
+        // so we skip over any directories that don't exist at this time
+        // (this obviously suffers from a TOCTOU race, but most of the time,
+        // it is good enough at preventing the watcher from failing to watch.
+        // If the race *does* happen it is not disastrous, i.e. the reactor won't crash,
+        // but it will fail to set the watcher).
+        if matches!(path.try_exists(), Ok(true)) {
+            debug!("watching key_dir path {path:?}");
+            Some(path)
+        } else {
+            warn!("key_dirs path {path:?} does not exist or is not accessible, not watching");
+            None
+        }
+    });
+
+    for path in dirs {
+        if let Err(e) = watcher.watch_dir(path, "auth") {
+            warn_report!(e, "failed to watch key_dir");
+        }
     }
 }
 
