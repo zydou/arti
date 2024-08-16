@@ -270,6 +270,24 @@ rust-nightly:
     - cargo clippy --all-features --tests -- -D clippy::dbg_macro
     - RUSTDOCFLAGS="-Dwarnings --cfg docsrs" cargo doc --all-features --document-private-items --no-deps
 
+deb-source:
+  stage: test
+  image: $RECENT_RUST_IMAGE
+  rules:
+    # TODO: use $CI_COMMIT_TAG =~ /^arti-v/ so that only actual releases are packaged
+    - if: $CI_COMMIT_BRANCH =~ /^debian\//
+  script:
+    - export DEB_VERSION_UPSTREAM=$(dpkg-parsechangelog -SVersion | sed -E 's/-[^-]*$$//')
+    - git archive -o ../arti_${DEB_VERSION_UPSTREAM}.orig.tar.gz --prefix arti-${DEB_VERSION_UPSTREAM}/ HEAD
+    - dpkg-source -b .
+    - mv ../arti*.tar.gz ../arti*.dsc ../arti*.tar.xz .
+  needs: []
+  artifacts:
+    paths:
+      - "*.tar.gz"
+      - "*.dsc"
+      - "*.tar.xz"
+
 coverage:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
