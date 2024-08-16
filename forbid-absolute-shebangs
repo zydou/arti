@@ -17,7 +17,7 @@ common_dir=$(dirname "$common_dir")
 reject_all_arguments
 
 set +e
-git grep -rnI '^#\!/' :/ | grep -v '#\!/usr/bin/env'
+git grep -rnI '^#\!/' :/ ':(exclude)debian/*' | grep -v '#\!/usr/bin/env'
 st="${PIPESTATUS[*]}"
 set -e
 
