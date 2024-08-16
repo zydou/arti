@@ -307,6 +307,36 @@ deb-binary-amd64:
   tags:
     - amd64
 
+.deb-binary-cross-template:
+  stage: test
+  variables:
+    # To be overridden in template instantiations
+    CROSS_ARCH: UNDEFINED--BUG-IN-CI-YAML
+    RUST_CROSS_TARGET: UNDEFINED--BUG-IN-CI-YAML
+  image: $RECENT_RUST_IMAGE
+  script:
+    - mv arti*.tar.gz arti*.dsc arti*.tar.xz ..
+    - dpkg --add-architecture ${CROSS_ARCH}
+    - maint/common/apt-install build-essential crossbuild-essential-${CROSS_ARCH} && apt-get build-dep -y -a${CROSS_ARCH} .
+    - rustup target add ${RUST_CROSS_TARGET}
+    - CONFIG_SITE=/etc/dpkg-cross/cross-config.${CROSS_ARCH} dpkg-buildpackage -a${CROSS_ARCH} --build-profiles=cross,nocheck
+    - mv ../arti*.deb ../*.changes ../*.buildinfo .
+  needs:
+    - deb-source
+  artifacts:
+    paths:
+      - "*.deb"
+      - "*.changes"
+      - "*.buildinfo"
+  tags:
+    - amd64
+
+deb-binary-arm64:
+  extends: .deb-binary-cross-template
+  variables:
+    CROSS_ARCH: arm64
+    RUST_CROSS_TARGET: aarch64-unknown-linux-gnu
+
 coverage:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
