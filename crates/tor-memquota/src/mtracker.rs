@@ -40,7 +40,15 @@
 //!
 //! let runtime = PreferredRuntime::create().unwrap();
 //! let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();
-//! let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();
+#![cfg_attr(
+    feature = "memquota",
+    doc = "let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();"
+)]
+#![cfg_attr(
+    not(feature = "memquota"),
+    doc = "let trk = MemoryQuotaTracker::new_noop();"
+)]
+//!
 //! let account = trk.new_account(None).unwrap();
 //!
 //! let queue: Arc<TrackingQueue> = account.register_participant_with(
@@ -67,7 +75,7 @@ mod bookkeeping;
 mod reclaim;
 mod total_qty_notifier;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memquota"))]
 pub(crate) mod test;
 
 use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};
@@ -515,6 +523,7 @@ macro_rules! find_in_tracker_eh {
 
 impl MemoryQuotaTracker {
     /// Set up a new `MemoryDataTracker`
+    #[cfg(feature = "memquota")]
     pub fn new<R: Spawn>(runtime: &R, config: Config) -> Result<Arc<Self>, StartupError> {
         let enabled = EnabledToken::new();
 

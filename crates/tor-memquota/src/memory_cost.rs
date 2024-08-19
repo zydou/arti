@@ -192,7 +192,7 @@ impl<T> TypedMemoryCost<T> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memquota"))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

@@ -31,7 +31,14 @@
 //!
 //! let runtime = PreferredRuntime::create().unwrap();
 //! let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();
-//! let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();
+#![cfg_attr(
+    feature = "memquota",
+    doc = "let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();"
+)]
+#![cfg_attr(
+    not(feature = "memquota"),
+    doc = "let trk = MemoryQuotaTracker::new_noop();"
+)]
 //! let account = trk.new_account(None).unwrap();
 //!
 //! let (tx, rx) = MpscSpec { buffer: 10 }.new_mq::<Message, _>(&runtime, account)?;
@@ -550,7 +557,7 @@ impl From<CollapsedDueToReclaim> for CollapseReason {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memquota"))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

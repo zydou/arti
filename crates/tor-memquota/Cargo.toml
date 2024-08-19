@@ -39,3 +39,6 @@ tracing-test = "0.2.4"
 
 [features]
 full = ["tor-config/full", "tor-error/full", "tor-log-ratelim/full", "tor-rtcompat/full"]
+memquota = ["__is_experimental"]
+experimental = ["memquota"]
+__is_experimental = []

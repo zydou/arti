@@ -3,22 +3,41 @@
 use crate::internal_prelude::*;
 
 /// Token indicating that memory quota tracking is enabled, at both compile and runtime
+///
+/// If support is compiled in this is a unit.
+///
+/// If the `memquota` cargo feature is not enabled, this type is uninhabited.
+/// Scattering values of this type around in relevant data structures
+/// and parameters lists
+/// allows the compiler to eliminate the unwanted code.
 #[derive(Clone, Copy, Debug)]
 pub struct EnabledToken {
     /// Make non-exhaustive even within the crate
     _hidden: (),
+
+    /// Uninhabited if the feature isn't enabled.
+    #[cfg(not(feature = "memquota"))]
+    _forbid: Void,
 }
 
 impl EnabledToken {
     /// Obtain an `EnabledToken` (only available if tracking is compiled in)
+    #[allow(clippy::new_without_default)] // a conditional Default impl would be rather odd
+    #[cfg(feature = "memquota")]
     pub fn new() -> Self {
         EnabledToken { _hidden: () }
     }
 
     /// Obtain an `EnabledToken` if memory-tracking is compiled in, or `None` otherwise
     #[allow(clippy::unnecessary_wraps)] // Will be None if compiled out
+    #[allow(unreachable_code)]
     pub fn new_if_compiled_in() -> Option<Self> {
-        Some(EnabledToken { _hidden: () })
+        Some(EnabledToken {
+            _hidden: (),
+
+            #[cfg(not(feature = "memquota"))]
+            _forbid: return None,
+        })
     }
 }
 
