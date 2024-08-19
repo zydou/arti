@@ -1,6 +1,7 @@
 //! Code to watch configuration files for any changes.
 
-use std::collections::HashSet;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -62,9 +63,37 @@ pub struct FileWatcherBuilder<R: Runtime> {
     /// The runtime.
     runtime: R,
     /// The list of directories that we're currently watching.
-    watching_dirs: HashSet<PathBuf>,
-    /// The list of files we actually care about.
-    watching_files: HashSet<PathBuf>,
+    ///
+    /// Each directory has a set of filters that indicates whether a given notify::Event
+    /// is relevant or not.
+    watching_dirs: HashMap<PathBuf, HashSet<DirEventFilter>>,
+}
+
+/// A filter for deciding what to do with a notify::Event pertaining
+/// to files that are relative to one of the directories we are watching.
+///
+// Private, as this is an implementation detail.
+// If/when we decide to make this public, this might need revisiting.
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+enum DirEventFilter {
+    /// Notify the caller about the event, if the file has the specified extension.
+    MatchesExtension(String),
+    /// Notify the caller about the event, if the file has the specified path.
+    MatchesPath(PathBuf),
+}
+
+impl DirEventFilter {
+    /// Check whether this filter accepts `path`.
+    fn accepts_path(&self, path: &Path) -> bool {
+        match self {
+            DirEventFilter::MatchesExtension(ext) => path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|e| e == ext.as_str())
+                .unwrap_or_default(),
+            DirEventFilter::MatchesPath(p) => p == path,
+        }
+    }
 }
 
 impl<R: Runtime> FileWatcherBuilder<R> {
@@ -72,8 +101,7 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     pub fn new(runtime: R) -> Self {
         FileWatcherBuilder {
             runtime,
-            watching_dirs: HashSet::new(),
-            watching_files: HashSet::new(),
+            watching_dirs: HashMap::new(),
         }
     }
 
@@ -87,10 +115,13 @@ impl<R: Runtime> FileWatcherBuilder<R> {
 
     /// Add a directory (but not any subdirs) to the list of things to watch.
     ///
+    /// The event receiver will be notified whenever a file with the specified `extension`
+    /// from this directory is changed.
+    ///
     /// Idempotent.
-    pub fn watch_dir<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    pub fn watch_dir<P: AsRef<Path>, S: AsRef<str>>(&mut self, path: P, extension: S) -> Result<()> {
         let path = self.watch_just_parents(path.as_ref())?;
-        self.watch_just_abs_dir(&path);
+        self.watch_just_abs_dir(&path, DirEventFilter::MatchesExtension(extension.as_ref().into()));
         Ok(())
     }
 
@@ -121,11 +152,9 @@ impl<R: Runtime> FileWatcherBuilder<R> {
             None => path.as_ref(),
         };
 
-        self.watch_just_abs_dir(watch_target);
-
         // Note this file as one that we're watching, so that we can see changes
         // to it later on.
-        self.watching_files.insert(path.clone());
+        self.watch_just_abs_dir(watch_target, DirEventFilter::MatchesPath(path.clone()));
 
         Ok(path)
     }
@@ -135,16 +164,23 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     /// Does not watch any of the parents.
     ///
     /// Idempotent.
-    fn watch_just_abs_dir(&mut self, watch_target: &Path) {
-        self.watching_dirs.insert(watch_target.into());
+    fn watch_just_abs_dir(&mut self, watch_target: &Path, filter: DirEventFilter) {
+        match self.watching_dirs.entry(watch_target.to_path_buf()) {
+            Entry::Occupied(mut o) => {
+                let _: bool = o.get_mut().insert(filter);
+            }
+            Entry::Vacant(v) => {
+                let _ = v.insert(HashSet::from([filter]));
+            }
+        }
     }
 
     /// Build a `FileWatcher` and start sending events to `tx`.
     pub fn start_watching(self, tx: FileEventSender) -> Result<FileWatcher> {
         let runtime = self.runtime;
-        let watching_files = self.watching_files.clone();
+        let watching_dirs = self.watching_dirs.clone();
         let event_sender = move |event: notify::Result<notify::Event>| {
-            let event = handle_event(event, &watching_files);
+            let event = handle_event(event, &watching_dirs);
             if let Some(event) = event {
                 // It *should* be alright to block_on():
                 //   * on all platforms, the `RecommendedWatcher`'s event_handler is called from a
@@ -160,9 +196,10 @@ impl<R: Runtime> FileWatcherBuilder<R> {
         let mut watcher = notify::RecommendedWatcher::new(event_sender, notify::Config::default())
             .map_err(Arc::new)?;
 
-        for dir in self.watching_dirs {
+        let watching_dirs: HashSet<_> = self.watching_dirs.keys().cloned().collect();
+        for dir in &watching_dirs {
             watcher
-                .watch(&dir, notify::RecursiveMode::NonRecursive)
+                .watch(dir, notify::RecursiveMode::NonRecursive)
                 .map_err(Arc::new)?;
         }
 
@@ -173,9 +210,25 @@ impl<R: Runtime> FileWatcherBuilder<R> {
 /// Map a `notify` event to the [`Event`] type returned by [`FileWatcher`].
 fn handle_event(
     event: notify::Result<notify::Event>,
-    watching_files: &HashSet<PathBuf>,
+    watching_dirs: &HashMap<PathBuf, HashSet<DirEventFilter>>,
 ) -> Option<Event> {
-    let watching = |f: &PathBuf| watching_files.contains(f);
+    let watching = |f: &PathBuf| {
+        // For paths with no parent (i.e. root), the watcher is added for the path itself,
+        // so we do the same here.
+        let parent = f.parent().unwrap_or_else(|| f.as_ref());
+
+        // Find the filters that apply to this directory
+        match watching_dirs
+            .iter()
+            .find_map(|(dir, filters)| (dir == parent).then_some(filters))
+        {
+            Some(filters) => {
+                // This event is interesting, if any of the filters apply.
+                filters.iter().any(|filter| filter.accepts_path(f.as_ref()))
+            }
+            None => false,
+        }
+    };
 
     // filter events we don't want and map to event code
     match event {

@@ -245,7 +245,7 @@ fn prepare<'a, R: Runtime>(
     let sources = sources.scan()?;
     for source in sources.iter() {
         match source {
-            ConfigurationSource::Dir(dir) => watcher.watch_dir(dir)?,
+            ConfigurationSource::Dir(dir) => watcher.watch_dir(dir, "toml")?,
             ConfigurationSource::File(file) => watcher.watch_file(file)?,
             ConfigurationSource::Verbatim(_) => {}
         }
