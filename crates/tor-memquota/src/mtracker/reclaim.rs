@@ -327,7 +327,7 @@ async fn inner_loop(
     let mut reclaiming;
     let mut victims;
     {
-        let mut state_guard = GuardWithDeferredDrop::new(tracker.lock()?);
+        let mut state_guard = GuardWithDeferredDrop::new(tracker.lock()?.enabled_or_bug()?);
 
         let Some(r) = Reclaiming::maybe_start(&mut state_guard) else {
             return Ok(());
@@ -346,7 +346,7 @@ async fn inner_loop(
 
     loop {
         let responses = reclaiming.notify_victims(mem::take(&mut victims)).await;
-        let mut state_guard = tracker.lock()?;
+        let mut state_guard = tracker.lock()?.enabled_or_bug()?;
         reclaiming.handle_victim_responses(&mut state_guard, responses);
         let Some(v) = reclaiming.choose_victims(&mut state_guard)? else {
             return Ok(());
@@ -393,7 +393,7 @@ pub(super) async fn task(
         Err(bug) => {
             let _: Option<()> = (|| {
                 let tracker = tracker.upgrade()?;
-                let mut state = tracker.state.lock().ok()?;
+                let mut state = tracker.state.as_enabled()?.lock().ok()?;
                 state.total_used.set_poisoned();
                 Some(())
             })();
