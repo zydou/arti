@@ -1,6 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
-
 #![cfg_attr(not(feature = "memquota"), allow(unused))]
 
 //! ## Intended behavour

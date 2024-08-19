@@ -386,6 +386,10 @@ struct Global {
 
     /// Configuration
     config: Config,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    #[allow(dead_code)]
+    enabled: EnabledToken,
 }
 
 /// Account record, within `State.accounts`
@@ -400,6 +404,10 @@ struct ARecord {
 
     /// Participants linked to this Account
     ps: SlotMap<PId, PRecord>,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    #[allow(dead_code)]
+    enabled: EnabledToken,
 }
 
 /// Participant record, within `ARecord.ps`
@@ -416,6 +424,10 @@ struct PRecord {
 
     /// The hooks provided by the Participant
     particip: drop_reentrancy::ProtectedWeak<dyn IsParticipant>,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    #[allow(dead_code)]
+    enabled: EnabledToken,
 }
 
 //#################### IMPLEMENTATION ####################
@@ -533,6 +545,7 @@ impl MemoryQuotaTracker {
         let global = Global {
             total_used,
             config,
+            enabled,
         };
         let accounts = SlotMap::default();
         let state = Enabled(Mutex::new(State { global, accounts }), enabled);
@@ -542,7 +555,7 @@ impl MemoryQuotaTracker {
         // wake up periodically, or, indeed, do anything until the tracker is used.
 
         let for_task = Arc::downgrade(&tracker);
-        runtime.spawn(reclaim::task(for_task, reclaim_rx))?;
+        runtime.spawn(reclaim::task(for_task, reclaim_rx, enabled))?;
 
         Ok(tracker)
     }
@@ -631,6 +644,7 @@ impl MemoryQuotaTracker {
                 refcount,
                 children: vec![],
                 ps: SlotMap::default(),
+                enabled,
             });
 
             if let Some(parent_aid_good) = parent_aid_good {
@@ -692,6 +706,7 @@ impl Account {
                 refcount,
                 used: ParticipQty::ZERO,
                 particip: drop_reentrancy::ProtectedWeak::new(particip),
+                enabled: *enabled,
             };
             let cache =
                 state

@@ -115,6 +115,10 @@ fn analyse_particip(precord: &PRecord, defer_drop: &mut DeferredDrop) -> PStatus
 struct Reclaiming {
     /// The heap of candidates, oldest at top of heap
     heap: BinaryHeap<Reverse<(Age, AId)>>,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    #[allow(dead_code)] // XXXX
+    enabled: EnabledToken,
 }
 
 /// A victim we have selected for reclamation
@@ -176,6 +180,7 @@ impl Reclaiming {
 
         Some(Reclaiming {
             heap,
+            enabled: state.enabled,
         })
     }
 
@@ -323,6 +328,7 @@ struct TaskFinished;
 /// until we reach low water.
 async fn inner_loop(
     tracker: &Arc<MemoryQuotaTracker>,
+    _enabled: EnabledToken,
 ) -> Result<(), ReclaimCrashed> {
     let mut reclaiming;
     let mut victims;
@@ -361,6 +367,7 @@ async fn inner_loop(
 async fn task_loop(
     tracker: &Weak<MemoryQuotaTracker>,
     mut wakeup: mpsc::Receiver<()>,
+    enabled: EnabledToken,
 ) -> Result<TaskFinished, ReclaimCrashed> {
     loop {
         // We don't hold a strong reference while we loop around, so we detect
@@ -370,7 +377,7 @@ async fn task_loop(
                 return Ok(TaskFinished);
             };
 
-            inner_loop(&tracker).await?;
+            inner_loop(&tracker, enabled).await?;
         }
 
         let Some(()) = wakeup.next().await else {
@@ -387,8 +394,9 @@ async fn task_loop(
 pub(super) async fn task(
     tracker: Weak<MemoryQuotaTracker>,
     wakeup: mpsc::Receiver<()>,
+    enabled: EnabledToken,
 ) {
-    match task_loop(&tracker, wakeup).await {
+    match task_loop(&tracker, wakeup, enabled).await {
         Ok(TaskFinished) => {}
         Err(bug) => {
             let _: Option<()> = (|| {
