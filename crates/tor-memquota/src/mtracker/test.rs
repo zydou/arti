@@ -205,10 +205,10 @@ impl TestPartn {
 }
 
 impl IsParticipant for TestPartn {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         self.get_oldest()
     }
-    fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
         (*self.clone()).reclaim()
     }
 }
@@ -259,10 +259,10 @@ struct UnifiedP {
 type ReclaimedOrOk = Result<(), ()>;
 
 impl IsParticipant for UnifiedP {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         self.state.get_oldest()
     }
-    fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
         self.state.reclaim()
     }
 }
@@ -605,10 +605,10 @@ fn complex() {
 struct DummyParticipant;
 
 impl IsParticipant for DummyParticipant {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         None
     }
-    fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
         Box::pin(async { Reclaimed::Collapsing })
     }
 }

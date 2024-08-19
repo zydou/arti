@@ -215,6 +215,7 @@ mod private {
 
 pub use config::{Config, ConfigBuilder};
 pub use error::{Error, MemoryReclaimedError, StartupError};
+pub use if_enabled::EnabledToken;
 pub use memory_cost::HasMemoryCost;
 pub use mtracker::MemoryQuotaTracker;
 

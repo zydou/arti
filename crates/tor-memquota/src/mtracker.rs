@@ -5,7 +5,7 @@
 //! ```
 //! use std::{collections::VecDeque, sync::{Arc, Mutex}};
 //! use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, PreferredRuntime};
-//! use tor_memquota::{mtracker, MemoryQuotaTracker, MemoryReclaimedError};
+//! use tor_memquota::{mtracker, MemoryQuotaTracker, MemoryReclaimedError, EnabledToken};
 //! use void::{ResultVoidExt, Void};
 //!
 //! #[derive(Debug)]
@@ -27,11 +27,11 @@
 //! }
 //!
 //! impl mtracker::IsParticipant for TrackingQueue {
-//!     fn get_oldest(&self) -> Option<CoarseInstant> {
+//!     fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
 //!         let inner = self.0.lock().unwrap();
 //!         Some(inner.as_ref().ok()?.data.front()?.1)
 //!     }
-//!     fn reclaim(self: Arc<Self>) -> mtracker::ReclaimFuture {
+//!     fn reclaim(self: Arc<Self>, _: EnabledToken) -> mtracker::ReclaimFuture {
 //!         let mut inner = self.0.lock().unwrap();
 //!         *inner = Err(MemoryReclaimedError::new());
 //!         Box::pin(async { mtracker::Reclaimed::Collapsing })
@@ -234,7 +234,7 @@ pub trait IsParticipant: Debug + Send + Sync + 'static {
     ///  * it *must not* call back into methods from [`tracker`](crate::mtracker).
     ///  * It *must not* even `Clone` or `Drop` a [`MemoryQuotaTracker`],
     ///    [`Account`], or [`Participation`].
-    fn get_oldest(&self) -> Option<CoarseInstant>;
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant>;
 
     /// Start memory reclamation
     ///
@@ -250,6 +250,7 @@ pub trait IsParticipant: Debug + Send + Sync + 'static {
     // and might therefore only support Reclaimed::Collapsing
     fn reclaim(
         self: Arc<Self>,
+        _: EnabledToken,
         // Future:
         // discard_everything_as_old_as_this: RoughTime,
         // but_can_stop_discarding_after_freeing_this_much: Qty,
@@ -796,10 +797,10 @@ impl Account {
         }
 
         impl IsParticipant for TemporaryParticipant {
-            fn get_oldest(&self) -> Option<CoarseInstant> {
+            fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
                 Some(self.now)
             }
-            fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+            fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
                 self.collapsing.store(true, Ordering::Release);
                 Box::pin(async { Reclaimed::Collapsing })
             }

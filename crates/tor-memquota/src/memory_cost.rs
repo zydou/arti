@@ -219,10 +219,10 @@ mod test {
     #[derive(Debug)]
     struct DummyParticipant;
     impl IsParticipant for DummyParticipant {
-        fn get_oldest(&self) -> Option<CoarseInstant> {
+        fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
             None
         }
-        fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+        fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
             panic!()
         }
     }

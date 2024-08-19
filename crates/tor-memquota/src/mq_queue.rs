@@ -471,7 +471,7 @@ impl<T: Debug + Send + 'static, C: ChannelSpec> ReceiverInner<T, C> {
 impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
     for ReceiverInner<T, C>
 {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         let mut state = self.lock();
         let state = match &mut *state {
             Ok(y) => y,
@@ -483,7 +483,7 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
         peeked
     }
 
-    fn reclaim(self: Arc<Self>) -> mtracker::ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> mtracker::ReclaimFuture {
         Box::pin(async move {
             let reason = CollapsedDueToReclaim;
             let mut state_guard = self.lock();

@@ -64,7 +64,7 @@ fn analyse_particip(precord: &PRecord, defer_drop: &mut DeferredDrop) -> PStatus
         return PStatus::TearDown;
     };
 
-    let got_oldest = catch_unwind(AssertUnwindSafe(|| particip.get_oldest()));
+    let got_oldest = catch_unwind(AssertUnwindSafe(|| particip.get_oldest(precord.enabled)));
     defer_drop.push(particip);
 
     match got_oldest {
@@ -117,7 +117,6 @@ struct Reclaiming {
     heap: BinaryHeap<Reverse<(Age, AId)>>,
 
     /// Make this type uninhbaited if memory tracking is compiled out
-    #[allow(dead_code)] // XXXX
     enabled: EnabledToken,
 }
 
@@ -278,6 +277,8 @@ impl Reclaiming {
     /// This is the async part, and is done with the state unlocked.
     // Doesn't actually need `self`, only `victims`, but we take it for form's sake
     async fn notify_victims(&mut self, victims: Vec<Victim>) -> VictimResponses {
+        let enabled = self.enabled;
+
         futures::future::join_all(
             //
             victims.into_iter().map(|(aid, particip)| async move {
@@ -285,7 +286,7 @@ impl Reclaiming {
                 // We run the `.reclaim()` calls within the same task (since that's what
                 // `join_all` does).  So they all run on whatever executor thread is polling
                 // the reclamation task.
-                let reclaimed = AssertUnwindSafe(particip.reclaim())
+                let reclaimed = AssertUnwindSafe(particip.reclaim(enabled))
                     .catch_unwind()
                     .await
                     .map_err(|_panicked| VictimPanicked);
