@@ -479,13 +479,13 @@ every-crate:
 # and introduce a new matrix_test script that runs cargo test.
 # That way, we could use matrix_test to run the tests gated behind
 # specific feature combinations, such as the cli_tests.
-matrix-test:
+matrix-check:
   stage: test
   image: $RECENT_RUST_IMAGE
   needs: ["rust-checks", "rust-recent-async-std-rustls"]
   script:
     - maint/common/apt-install python3-toml python-is-python3
-    - ./maint/matrix_test
+    - ./maint/matrix-check
 
 matrix-test-cfg:
   stage: test
