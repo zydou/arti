@@ -61,6 +61,8 @@
 
 use crate::internal_prelude::*;
 
+use IfEnabled::*;
+
 mod bookkeeping;
 mod reclaim;
 mod total_qty_notifier;
@@ -618,9 +620,11 @@ impl Account {
         &self,
         particip: Weak<dyn IsParticipant>,
     ) -> Result<Participation, Error> {
-        let aid = *self.aid;
+        let self_ = self;
+
+        let aid = *self_.aid;
         find_in_tracker! {
-            self.tracker => state;
+            self_.tracker => state;
             aid => arecord;
             ?Error
         }
@@ -639,7 +643,7 @@ impl Account {
             Ok::<_, Error>((precord, cache))
         })?;
 
-        let tracker = Arc::downgrade(&self.tracker);
+        let tracker = Arc::downgrade(&self_.tracker);
         Ok(Participation {
             tracker,
             pid,
@@ -655,8 +659,9 @@ impl Account {
         pid: PId,
         particip: drop_reentrancy::ProtectedWeak<dyn IsParticipant>,
     ) -> Result<(), Error> {
+        let self_ = self;
         find_in_tracker! {
-            self.tracker => state;
+            self_.tracker => state;
             aid => arecord;
             pid => precord;
             ?Error
@@ -725,8 +730,9 @@ impl Account {
         });
 
         let partn = self.register_participant(Arc::downgrade(&temp_particip) as _)?;
-        let aid = partn.aid;
-        let pid_weak = *partn.pid;
+        let partn_ = &partn;
+        let aid = partn_.aid;
+        let pid_weak = *partn_.pid;
 
         // We don't hold the state lock here.  register_participant took it and released it.
         // This is important, because the constructor might call claim!
@@ -764,23 +770,26 @@ impl Account {
 
     /// Obtains a handle for the `MemoryQuotaTracker`
     pub fn tracker(&self) -> Arc<MemoryQuotaTracker> {
-        self.tracker.clone()
+        let self_ = self;
+        self_.tracker.clone()
     }
 
     /// Downgrade to a weak handle for the same Account
     pub fn downgrade(&self) -> WeakAccount {
+        let self_ = self;
         WeakAccount {
-            aid: *self.aid,
-            tracker: Arc::downgrade(&self.tracker),
+            aid: *self_.aid,
+            tracker: Arc::downgrade(&self_.tracker),
         }
     }
 }
 
 impl Clone for Account {
     fn clone(&self) -> Account {
-        let tracker = self.tracker.clone();
+        let self_ = self;
+        let tracker = self_.tracker.clone();
         let aid = (|| {
-            let aid = *self.aid;
+            let aid = *self_.aid;
             find_in_tracker! {
                 tracker => state;
                 aid => arecord;
@@ -807,14 +816,15 @@ impl Clone for Account {
 
 impl Drop for Account {
     fn drop(&mut self) {
+        let self_ = self;
         (|| {
             find_in_tracker! {
-                self.tracker => state;
-                *self.aid => arecord;
+                self_.tracker => state;
+                *self_.aid => arecord;
                 ?None
             }
             if let Some(refcount::Garbage(mut removed)) =
-                slotmap_dec_ref!(&mut state.accounts, self.aid.take(), &mut arecord.refcount)
+                slotmap_dec_ref!(&mut state.accounts, self_.aid.take(), &mut arecord.refcount)
             {
                 // This account is gone.  Automatically release everything.
                 removed.auto_release(state);
@@ -824,7 +834,7 @@ impl Drop for Account {
         .unwrap_or_else(|| {
             // Account has been torn down.  Dispose of the strong ref.
             // (This has no effect except in cfg(test), when it defuses the drop bombs)
-            self.aid.take().dispose_container_destroyed();
+            self_.aid.take().dispose_container_destroyed();
         });
     }
 }
@@ -834,9 +844,10 @@ impl Drop for Account {
 impl WeakAccount {
     /// Upgrade to an `Account`, if the account still exists
     pub fn upgrade(&self) -> crate::Result<Account> {
-        let aid = self.aid;
+        let self_ = self;
+        let aid = self_.aid;
         // (we must use a block, and can't use find_in_tracker's upgrade, because borrowck)
-        let tracker = self.tracker.upgrade().ok_or(Error::TrackerShutdown)?;
+        let tracker = self_.tracker.upgrade().ok_or(Error::TrackerShutdown)?;
         let aid = {
             find_in_tracker! {
                 tracker => state;
@@ -853,7 +864,8 @@ impl WeakAccount {
     ///
     /// The returned handle is itself weak, and needs to be upgraded before use.
     pub fn tracker(&self) -> Weak<MemoryQuotaTracker> {
-        self.tracker.clone()
+        let self_ = self;
+        self_.tracker.clone()
     }
 
     /// Creates a new dangling, dummy, `WeakAccount`
@@ -879,14 +891,16 @@ impl Participation {
 
     /// Record that some memory has been (or will be) allocated (using `Qty`)
     pub(crate) fn claim_qty(&mut self, want: Qty) -> crate::Result<()> {
-        if let Some(got) = self.cache.split_off(want) {
+        let self_ = self;
+
+        if let Some(got) = self_.cache.split_off(want) {
             return got.claim_return_to_participant();
         }
 
         find_in_tracker! {
-            self.tracker => + tracker, state;
-            self.aid => arecord;
-            *self.pid => precord;
+            self_.tracker => + tracker, state;
+            self_.aid => arecord;
+            *self_.pid => precord;
             ?Error
         };
 
@@ -902,11 +916,11 @@ impl Participation {
             // While we're here, fill the cache to TARGET_CACHE_CLAIMING.
             // Cannot underflow: cache < want (since we failed at `got` earlier
             // and we've just checked want <= TARGET_CACHE_CLAIMING.
-            let want_more_cache = Qty(*TARGET_CACHE_CLAIMING - *self.cache.as_raw());
+            let want_more_cache = Qty(*TARGET_CACHE_CLAIMING - *self_.cache.as_raw());
             if let Ok(add_cache) = claim(want_more_cache) {
                 // On error, just don't do this; presumably the error will show up later
                 // (we mustn't early exit here, because we've got the claim in our hand).
-                self.cache.merge_into(add_cache);
+                self_.cache.merge_into(add_cache);
             }
         }
         got.claim_return_to_participant()
@@ -921,18 +935,20 @@ impl Participation {
     /// Record that some memory has been (or will be) freed by a participant (using `Qty`)
     pub(crate) fn release_qty(&mut self, have: Qty) // infallible
     {
+        let self_ = self;
+
         let have = ClaimedQty::release_got_from_participant(have);
-        self.cache.merge_into(have);
-        if self.cache > MAX_CACHE {
+        self_.cache.merge_into(have);
+        if self_.cache > MAX_CACHE {
             match (|| {
                 find_in_tracker! {
-                    self.tracker => + tracker, state;
-                    self.aid => arecord;
-                    *self.pid => precord;
+                    self_.tracker => + tracker, state;
+                    self_.aid => arecord;
+                    *self_.pid => precord;
                     ?None
                 }
-                let return_from_cache = Qty(*self.cache.as_raw() - *TARGET_CACHE_RELEASING);
-                let from_cache = self.cache.split_off(return_from_cache).expect("impossible");
+                let return_from_cache = Qty(*self_.cache.as_raw() - *TARGET_CACHE_RELEASING);
+                let from_cache = self_.cache.split_off(return_from_cache).expect("impossible");
                 state.global.total_used.release(precord, from_cache);
                 Some(())
             })() {
@@ -940,7 +956,7 @@ impl Participation {
                 None => {
                     // account (or whole tracker!) is gone
                     // throw away the cache so that we don't take this path again for a bit
-                    self.cache.take().dispose_participant_destroyed();
+                    self_.cache.take().dispose_participant_destroyed();
                 }
             }
         }
@@ -954,9 +970,11 @@ impl Participation {
     /// The returned `WeakAccount` is equivalent to
     /// all the other account handles for the same account.
     pub fn account(&self) -> WeakAccount {
+        let self_ = self;
+
         WeakAccount {
-            aid: self.aid,
-            tracker: self.tracker.clone(),
+            aid: self_.aid,
+            tracker: self_.tracker.clone(),
         }
     }
 
@@ -973,14 +991,15 @@ impl Participation {
     /// to free its handle onto the `IsParticipant`,
     /// because the memory quota system holds only a [`Weak`] reference.)
     pub fn destroy_participant(mut self) {
+        let self_ = &mut self;
         (|| {
             find_in_tracker! {
-                self.tracker => + tracker, state;
-                self.aid => arecord;
+                self_.tracker => + tracker, state;
+                self_.aid => arecord;
                 ?None
             };
             if let Some(mut removed) =
-                refcount::slotmap_remove_early(&mut arecord.ps, self.pid.take())
+                refcount::slotmap_remove_early(&mut arecord.ps, self_.pid.take())
             {
                 removed.auto_release(&mut state.global);
             }
@@ -1006,13 +1025,14 @@ impl Participation {
 
 impl Clone for Participation {
     fn clone(&self) -> Participation {
-        let aid = self.aid;
+        let self_ = self;
+        let aid = self_.aid;
         let cache = ClaimedQty::ZERO;
-        let tracker: Weak<_> = self.tracker.clone();
+        let tracker: Weak<_> = self_.tracker.clone();
         let pid = (|| {
-            let pid = *self.pid;
+            let pid = *self_.pid;
             find_in_tracker! {
-                self.tracker => + tracker_strong, state;
+                self_.tracker => + tracker_strong, state;
                 aid => _arecord;
                 pid => precord;
                 ?None
@@ -1044,19 +1064,20 @@ impl Clone for Participation {
 
 impl Drop for Participation {
     fn drop(&mut self) {
+        let self_ = self;
         (|| {
             find_in_tracker! {
-                self.tracker => + tracker_strong, state;
-                self.aid => arecord;
-                *self.pid => precord;
+                self_.tracker => + tracker_strong, state;
+                self_.aid => arecord;
+                *self_.pid => precord;
                 ?None
             }
             // release the cached claim
-            let from_cache = self.cache.take();
+            let from_cache = self_.cache.take();
             state.global.total_used.release(precord, from_cache);
 
             if let Some(refcount::Garbage(mut removed)) =
-                slotmap_dec_ref!(&mut arecord.ps, self.pid.take(), &mut precord.refcount)
+                slotmap_dec_ref!(&mut arecord.ps, self_.pid.take(), &mut precord.refcount)
             {
                 // We might not have called `release` on everything, so we do that here.
                 removed.auto_release(&mut state.global);
@@ -1066,8 +1087,8 @@ impl Drop for Participation {
         .unwrap_or_else(|| {
             // Account or Participation or tracker destroyed.
             // (This has no effect except in cfg(test), when it defuses the drop bombs)
-            self.pid.take().dispose_container_destroyed();
-            self.cache.take().dispose_participant_destroyed();
+            self_.pid.take().dispose_container_destroyed();
+            self_.cache.take().dispose_participant_destroyed();
         });
     }
 }
