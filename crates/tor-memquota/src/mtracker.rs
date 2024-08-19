@@ -455,33 +455,33 @@ macro_rules! find_in_tracker { {
     let tracker = &$tracker_input;
   $(
     let $tracker: Arc<MemoryQuotaTracker> = find_in_tracker_eh!(
-        $eh TrackerShutdown:
+        $eh Error::TrackerShutdown;
         tracker.upgrade()
     );
     let tracker = &$tracker;
   )?
     let mut state: MutexGuard<State> = find_in_tracker_eh!(
-        $eh TrackerCorrupted:
+        $eh Error::TrackerCorrupted;
         tracker.state.lock().ok()
     );
     let $state: &mut State = &mut *state;
     let aid: AId = $aid;
     let $arecord: &mut ARecord = find_in_tracker_eh!(
-        $eh AccountClosed:
+        $eh Error::AccountClosed;
         $state.accounts.get_mut(aid)
     );
   $(
     let pid: PId = $pid;
     let $precord: &mut PRecord = find_in_tracker_eh!(
-        $eh ParticipantShutdown:
+        $eh Error::ParticipantShutdown;
         $arecord.ps.get_mut(pid)
     );
   )?
 } }
 /// Error handling helper for `find_in_tracker`
 macro_rules! find_in_tracker_eh {
-    { None $variant:ident: $result:expr } => { $result? };
-    { Error $variant:ident: $result:expr } => { $result.ok_or(Error::$variant)? };
+    { None $variant:expr; $result:expr } => { $result? };
+    { Error $variant:expr; $result:expr } => { $result.ok_or($variant)? };
 }
 
 //========== impls on public types, including public methods and trait impls ==========
