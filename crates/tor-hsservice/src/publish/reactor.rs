@@ -585,6 +585,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(());
                 }
                 Err(e) => {
+                    // TODO: update the publish status (see also the module-level TODO about this).
                     error_report!(
                         e,
                         "HS service {}: descriptor publisher crashed!",
