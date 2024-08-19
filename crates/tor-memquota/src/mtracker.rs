@@ -494,7 +494,10 @@ impl MemoryQuotaTracker {
         let (reclaim_tx, reclaim_rx) = mpsc::channel(0 /* plus num_senders, ie 1 */);
         let total_used = TotalQtyNotifier::new_zero(reclaim_tx);
 
-        let global = Global { total_used, config };
+        let global = Global {
+            total_used,
+            config,
+        };
         let accounts = SlotMap::default();
         let state = Mutex::new(State { global, accounts });
         let tracker = Arc::new(MemoryQuotaTracker { state });

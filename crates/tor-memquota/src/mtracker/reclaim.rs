@@ -174,7 +174,9 @@ impl Reclaiming {
             });
         }
 
-        Some(Reclaiming { heap })
+        Some(Reclaiming {
+            heap,
+        })
     }
 
     /// If we're reclaiming, choose the next victim(s) to reclaim
@@ -319,7 +321,9 @@ struct TaskFinished;
 /// Looks to see if we're above `config.max`.
 /// If so, constructs a list of victims, and starts reclaiming from them,
 /// until we reach low water.
-async fn inner_loop(tracker: &Arc<MemoryQuotaTracker>) -> Result<(), ReclaimCrashed> {
+async fn inner_loop(
+    tracker: &Arc<MemoryQuotaTracker>,
+) -> Result<(), ReclaimCrashed> {
     let mut reclaiming;
     let mut victims;
     {
@@ -380,7 +384,10 @@ async fn task_loop(
 ///
 /// This is the entrypoint used by the rest of the `tracker`.
 /// It handles logging of crashes.
-pub(super) async fn task(tracker: Weak<MemoryQuotaTracker>, wakeup: mpsc::Receiver<()>) {
+pub(super) async fn task(
+    tracker: Weak<MemoryQuotaTracker>,
+    wakeup: mpsc::Receiver<()>,
+) {
     match task_loop(&tracker, wakeup).await {
         Ok(TaskFinished) => {}
         Err(bug) => {
