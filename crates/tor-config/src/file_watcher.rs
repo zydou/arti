@@ -1,4 +1,7 @@
 //! Code to watch configuration files for any changes.
+//!
+// TODO: perhaps this shouldn't live in tor-config? But it doesn't seem substantial enough to have
+// its own crate, and it can't live in e.g. tor-basic-utils, because it depends on tor-rtcompat.
 
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
