@@ -8,8 +8,8 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 #[cfg(feature = "anon_home")]
 use crate::anon_home::PathExt as _;
 
-// Define a local-only version of anonymize_home so that we can define our errors
-// unconditionally.
+/// Define a local-only version of anonymize_home so that we can define our errors
+/// unconditionally.
 #[cfg(not(feature = "anon_home"))]
 trait PathExt {
     /// A do-nothing extension function.
