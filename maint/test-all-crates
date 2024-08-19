@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+# This differs from matrix-check in the following ways:
+#   - it only tests one combination of features, as specified on the command line
+#   - it doesn't have crate-specific hacks (or any knowledge of our workspace contents)
+#     (but it does read some ad-hoc parseable comments from Cargo.toml's).
+#   - it runs `cargo test`
+
+import subprocess
+import sys
+import list_crates
+
+def test_crate(c):
+    for l in open(c.subdir + '/Cargo.toml'):
+
+        # TODO do something more formal here
+        #
+        # We need this because some crates don't compile without a runtime selected.
+        #
+        # Ideally, if the crate doesn't compile without any features selected,
+        # the manifest should have a `minimal` feature we can use, or something.
+        if l.startswith('# @@ test-all-crates ignore'):
+            print('''(
+(((((((((( skipping %s ))))))))))
+)''' % c.name, file=sys.stderr)
+            return
+
+    command_sh = 'p=$1; shift; set -x; $CARGO test -p $p "$@"';
+
+    print(''':
+:::::::::: %s ::::::::::
+:''' % c.name, file=sys.stderr)
+
+    # We run a separate build command for each one, to defeat cargo feature unification.
+
+    command_l = [
+        'sh', '-ec', ': "${CARGO:=cargo --locked}"; ' + command_sh, 'x', c.name,
+    ] + sys.argv[1:];
+
+    child = subprocess.run(command_l)
+
+    if child.returncode != 0:
+        print('''failed command %s
+"return code" %s
+failed to test crate %s''' % (repr(command_l), child.returncode, c.name),
+              file=sys.stderr);
+        sys.exit(1)
+
+def main():
+    for crate in list_crates.list_crates():
+        test_crate(crate)
+
+
+main()

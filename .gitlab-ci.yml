@@ -475,10 +475,6 @@ every-crate:
     - maint/common/apt-install python3-toml python-is-python3
     - ./maint/every-crate
 
-# TODO: we should rename this to matrix_check for clarity,
-# and introduce a new matrix_test script that runs cargo test.
-# That way, we could use matrix_test to run the tests gated behind
-# specific feature combinations, such as the cli_tests.
 matrix-check:
   stage: test
   image: $RECENT_RUST_IMAGE
@@ -486,6 +482,13 @@ matrix-check:
   script:
     - maint/common/apt-install python3-toml python-is-python3
     - ./maint/matrix-check
+
+minimal-features-test:
+  stage: test
+  image: $RECENT_RUST_IMAGE
+  script:
+    - maint/common/apt-install python3-toml python-is-python3
+    - maint/test-all-crates --target x86_64-unknown-linux-gnu --no-default-features
 
 matrix-test-cfg:
   stage: test

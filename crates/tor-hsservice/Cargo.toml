@@ -10,6 +10,9 @@ description = "Arti's implementation of an onion service provider"
 keywords = ["tor", "arti", "cryptography"]
 categories = ["cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+#
+# We need a PreferredRuntime
+# @@ test-all-crates ignore
 
 [features]
 default = []

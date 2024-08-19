@@ -10,6 +10,9 @@ description = "A rust implementation of the Tor privacy tools."
 keywords = ["tor", "arti", "privacy", "anonymity"]
 categories = ["command-line-utilities", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+#
+# We need a runtime
+# @@ test-all-crates ignore
 
 [features]
 default = [
