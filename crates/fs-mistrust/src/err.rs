@@ -183,6 +183,7 @@ impl Error {
                 Error::CreatingDir(_) => return None,
                 Error::InvalidSubdirectory => return None,
                 Error::Content(e) => return e.path(),
+                #[cfg(feature = "walkdir")]
                 Error::Listing(e) => return e.path(),
                 Error::MissingField(_) => return None,
                 Error::NoSuchGroup(_) => return None,
@@ -207,13 +208,15 @@ impl Error {
             | Error::StepsExceeded
             | Error::CurrentDirectory(_)
             | Error::CreatingDir(_)
-            | Error::Listing(_)
             | Error::InvalidSubdirectory
             | Error::Io { .. }
             | Error::MissingField(_)
             | Error::NoSuchGroup(_)
             | Error::NoSuchUser(_)
             | Error::PasswdGroupIoError(_) => false,
+
+            #[cfg(feature = "walkdir")]
+            Error::Listing(_) => false,
 
             Error::Multiple(errs) => errs.iter().any(|e| e.is_bad_permission()),
             Error::Content(err) => err.is_bad_permission(),

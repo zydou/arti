@@ -137,6 +137,7 @@ sense only for one request at a time.
 
 ```rust,no_run
 # fn main() -> Result<(), fs_mistrust::Error> {
+# #[cfg(feature = "walkdir")] {
 use fs_mistrust::Mistrust;
 let mistrust = Mistrust::new();
 
@@ -157,6 +158,7 @@ mistrust
     .check_content()
     .all_errors()
     .make_directory("/home/trace/private_keys/");
+# }
 # Ok(())
 # }
 ```
