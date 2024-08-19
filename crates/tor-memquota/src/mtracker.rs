@@ -948,7 +948,10 @@ impl Participation {
                     ?None
                 }
                 let return_from_cache = Qty(*self_.cache.as_raw() - *TARGET_CACHE_RELEASING);
-                let from_cache = self_.cache.split_off(return_from_cache).expect("impossible");
+                let from_cache = self_
+                    .cache
+                    .split_off(return_from_cache)
+                    .expect("impossible");
                 state.global.total_used.release(precord, from_cache);
                 Some(())
             })() {
