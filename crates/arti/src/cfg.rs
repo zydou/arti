@@ -1101,12 +1101,13 @@ example config file {which:?}, uncommented={uncommented:?}
         file.strip_prefix("#    ");
 
         let result = file.resolve::<(TorClientConfig, ArtiConfig)>();
+        let cfg_got = result.unwrap();
+
         #[cfg(feature = "pt-client")]
         {
             use arti_client::config::{pt::TransportConfig, BridgesConfig};
             use tor_config::CfgPath;
 
-            let cfg_got = result.unwrap();
             let bridges_got: &BridgesConfig = cfg_got.0.as_ref();
 
             // Build the expected configuration.
