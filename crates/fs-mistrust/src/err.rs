@@ -13,12 +13,13 @@ use crate::anon_home::PathExt as _;
 #[cfg(not(feature = "anon_home"))]
 trait PathExt {
     /// A do-nothing extension function.
-    fn anonymize_home(&self) -> &Path;
+    fn anonymize_home(&self) -> impl std::fmt::Display + '_;
 }
 #[cfg(not(feature = "anon_home"))]
 impl PathExt for Path {
-    fn anonymize_home(&self) -> &Path {
-        self
+    #[allow(clippy::disallowed_methods)] // lossiness is expected
+    fn anonymize_home(&self) -> impl std::fmt::Display + '_ {
+        self.display()
     }
 }
 
