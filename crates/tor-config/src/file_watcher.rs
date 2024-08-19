@@ -36,9 +36,6 @@ pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
 /// For more background on the issues with `notify`, see
 /// <https://github.com/notify-rs/notify/issues/165> and
 /// <https://github.com/notify-rs/notify/pull/166>.
-///
-/// TODO: Someday we might want to make this code exported someplace.  If we do,
-/// we should test it, and improve its API a lot.
 #[derive(Getters)]
 pub struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
@@ -332,4 +329,146 @@ pub enum FileWatcherBuildError {
     /// Encountered a problem while creating a `Watcher`.
     #[error("Problem creating Watcher")]
     Notify(#[from] Arc<notify::Error>),
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use test_temp_dir::{test_temp_dir, TestTempDir};
+
+    /// Write `data` to file `name` within `dir`.
+    fn write_file(dir: TestTempDir, name: &str, data: &[u8]) -> PathBuf {
+        let path = dir.as_path_untracked().join(name);
+        std::fs::write(&path, data).unwrap();
+        path
+    }
+
+    /// Return an event that has the Rescan flag set
+    fn rescan_event() -> notify::Event {
+        let event = notify::Event::new(notify::EventKind::Any);
+        event.set_flag(notify::event::Flag::Rescan)
+    }
+
+    #[test]
+    fn notify_event_handler() {
+        // The EventKind doesn't matter, the handler doesn't use it.
+        let mut event = notify::Event::new(notify::EventKind::Any);
+
+        let mut watching_dirs = Default::default();
+        assert_eq!(handle_event(Ok(event.clone()), &watching_dirs), None);
+        assert_eq!(
+            handle_event(Ok(rescan_event()), &watching_dirs),
+            Some(Event::Rescan)
+        );
+
+        // Watch some directories
+        watching_dirs.insert(
+            "/foo/baz".into(),
+            HashSet::from([DirEventFilter::MatchesExtension("auth".into())]),
+        );
+        assert_eq!(handle_event(Ok(event.clone()), &watching_dirs), None);
+        assert_eq!(
+            handle_event(Ok(rescan_event()), &watching_dirs),
+            Some(Event::Rescan)
+        );
+
+        event = event.add_path("/foo/bar/alice.authh".into());
+        assert_eq!(handle_event(Ok(event.clone()), &watching_dirs), None);
+
+        event = event.add_path("/foo/bar/alice.auth".into());
+        assert_eq!(handle_event(Ok(event.clone()), &watching_dirs), None);
+
+        event = event.add_path("/foo/baz/bob.auth".into());
+        assert_eq!(
+            handle_event(Ok(event.clone()), &watching_dirs),
+            Some(Event::FileChanged)
+        );
+
+        // Watch some files within /foo/bar
+        watching_dirs.insert(
+            "/foo/bar".into(),
+            HashSet::from([DirEventFilter::MatchesPath("/foo/bar/abc".into())]),
+        );
+
+        assert_eq!(
+            handle_event(Ok(event), &watching_dirs),
+            Some(Event::FileChanged)
+        );
+        assert_eq!(
+            handle_event(Ok(rescan_event()), &watching_dirs),
+            Some(Event::Rescan)
+        );
+
+        // Watch some other files
+        let event = notify::Event::new(notify::EventKind::Any).add_path("/a/b/c/d".into());
+        let watching_dirs = [(
+            "/a/b/c/".into(),
+            HashSet::from([DirEventFilter::MatchesPath("/a/b/c/d".into())]),
+        )]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            handle_event(Ok(event), &watching_dirs),
+            Some(Event::FileChanged)
+        );
+        assert_eq!(
+            handle_event(Ok(rescan_event()), &watching_dirs),
+            Some(Event::Rescan)
+        );
+
+        // Errors can also trigger an event
+        let err = notify::Error::path_not_found();
+        assert_eq!(handle_event(Err(err), &watching_dirs), None);
+        let mut err = notify::Error::path_not_found();
+        err = err.add_path("/a/b/c/d".into());
+        assert_eq!(
+            handle_event(Err(err), &watching_dirs),
+            Some(Event::FileChanged)
+        );
+    }
+
+    #[test]
+    fn watch_dirs() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let temp_dir = test_temp_dir!();
+            let (tx, mut rx) = channel();
+            // Watch for changes in .foo files from temp_dir
+            let mut builder = FileWatcher::builder(rt.clone());
+            builder
+                .watch_dir(temp_dir.as_path_untracked(), "foo")
+                .unwrap();
+            let watcher = builder.start_watching(tx).unwrap();
+
+            // On startup, the watcher sends a Event::Rescan event.
+            // This is because the watcher is often set up after loading
+            // the files or directories it is watching.
+            assert_eq!(rx.try_recv(), Some(Event::Rescan));
+            assert_eq!(rx.try_recv(), None);
+
+            // Write a file with extension "foo".
+            write_file(temp_dir, "bar.foo", b"hello");
+
+            assert_eq!(rx.next().await, Some(Event::FileChanged));
+
+            drop(watcher);
+            // The write might trigger more than one event
+            while let Some(ev) = rx.next().await {
+                assert_eq!(ev, Event::FileChanged);
+            }
+        });
+    }
 }

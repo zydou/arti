@@ -60,6 +60,9 @@ dirs = "5.0.0"
 rmp-serde = "1"
 serde_json = "1.0.50"
 tempfile = "3"
+test-temp-dir = { version = "0.2.1", path = "../test-temp-dir" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.21.0" }
 tracing-test = "0.2.4"
 [package.metadata.docs.rs]
 all-features = true
