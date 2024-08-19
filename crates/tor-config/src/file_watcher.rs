@@ -10,6 +10,7 @@ use std::task::{Context, Poll};
 
 use tor_rtcompat::Runtime;
 
+use amplify::Getters;
 use futures::lock::Mutex;
 use notify::Watcher;
 use postage::watch;
@@ -35,10 +36,14 @@ pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
 ///
 /// TODO: Someday we might want to make this code exported someplace.  If we do,
 /// we should test it, and improve its API a lot.
+#[derive(Getters)]
 pub struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
     // this field is kept only so the watcher is not dropped
+    #[getter(skip)]
     _watcher: notify::RecommendedWatcher,
+    /// The list of directories that we're currently watching.
+    watching_dirs: HashSet<PathBuf>,
 }
 
 impl FileWatcher {
@@ -210,7 +215,10 @@ impl<R: Runtime> FileWatcherBuilder<R> {
                 .map_err(Arc::new)?;
         }
 
-        Ok(FileWatcher { _watcher: watcher })
+        Ok(FileWatcher {
+            _watcher: watcher,
+            watching_dirs,
+        })
     }
 }
 
