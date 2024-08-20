@@ -326,6 +326,19 @@ version = "0.17.0"
 [[package]]
 name = "arti-relay"
 version = "0.21.0"
+dependencies = [
+ "derive_builder_fork_arti",
+ "derive_more",
+ "fs-mistrust",
+ "serde",
+ "tor-chanmgr",
+ "tor-config",
+ "tor-keymgr",
+ "tor-netdir",
+ "tor-netdoc",
+ "tor-proto",
+ "tor-rtcompat",
+]
 
 [[package]]
 name = "arti-rpc-client-core"

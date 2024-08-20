@@ -12,10 +12,38 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = []
-full = []
+# Relay doesn't support native-tls at the moment.
+default = ["tokio", "rustls"]
+full = [
+    "async-std",
+    "tokio",
+    "rustls",
+    "fs-mistrust/full",
+    "tor-chanmgr/full",
+    "tor-config/full",
+    "tor-keymgr/full",
+    "tor-netdir/full",
+    "tor-netdoc/full",
+    "tor-proto/full",
+    "tor-rtcompat/full",
+]
+
+async-std = ["tor-rtcompat/async-std"]
+rustls = ["tor-rtcompat/rustls"]
+tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 
 [dependencies]
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
+derive_more = "0.99.3"
+fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde"] }
+serde = { version = "1.0.103", features = ["derive"] }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.21.0" }
+tor-config = { path = "../tor-config", version = "0.21.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.21.0", default-features = false }
+tor-netdir = { path = "../tor-netdir", version = "0.21.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.21.0" }
+tor-proto = { path = "../tor-proto", version = "0.21.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0" }
 
 [dev-dependencies]
 
