@@ -128,3 +128,67 @@ impl<'a> AsRef<dyn StdError + 'static> for Adaptor<'a> {
         self.0.as_ref()
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    #![allow(clippy::redundant_closure)]
+    use super::*;
+    use crate::Activity;
+    use std::time::Duration;
+    use thiserror::Error;
+
+    #[derive(Debug, Error)]
+    #[error("TestError is here!")]
+    struct TestError {
+        source: TestErrorBuddy,
+    }
+
+    #[derive(Debug, Error)]
+    #[error("TestErrorBuddy is here!")]
+    struct TestErrorBuddy;
+
+    #[test]
+    fn display_problem() {
+        let duration = Duration::from_millis(10);
+        let mut ls: LogState = LogState::new("test".to_string());
+        let mut activity: Activity = ls.activity();
+        assert_eq!(Activity::Dormant, activity);
+        assert_eq!(ls.n_fail, 0);
+        fn err_msg() -> (Option<String>, Option<DynError>) {
+            (
+                Some("test".to_string()),
+                Some(Box::new(TestError {
+                    source: TestErrorBuddy,
+                })),
+            )
+        }
+        ls.note_fail(|| err_msg());
+        assert_eq!(ls.n_fail, 1);
+        let problem = ls.display_problem(duration);
+        let expected_problem = String::from(
+            "test: error (problem occurred 1/1 times in the last 10ms): test: error: TestError is here!: TestErrorBuddy is here!"
+        );
+        let str_problem = format!("{problem}");
+        assert_eq!(expected_problem, str_problem);
+        activity = ls.activity();
+        assert_eq!(Activity::Active, activity);
+    }
+
+    #[test]
+    fn display_recovery() {
+        let duration = Duration::from_millis(10);
+        let mut ls = LogState::new("test".to_string());
+        ls.note_ok();
+        assert_eq!(ls.n_ok, 1);
+        {
+            let recovery = ls.display_recovery(duration);
+            let expected_recovery =
+                String::from("test: now working (problem occurred 0/1 times in the last 10ms)");
+            let str_recovery = format!("{recovery}");
+            assert_eq!(expected_recovery, str_recovery);
+        }
+        ls.reset();
+        assert_eq!(ls.n_ok, 0);
+    }
+}
