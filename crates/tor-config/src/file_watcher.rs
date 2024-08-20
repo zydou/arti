@@ -142,27 +142,9 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     /// Build a `FileWatcher` and start sending events to `tx`.
     pub fn start_watching(self, tx: FileEventSender) -> Result<FileWatcher> {
         let runtime = self.runtime;
+        let watching_files = self.watching_files.clone();
         let event_sender = move |event: notify::Result<notify::Event>| {
-            let watching = |f| self.watching_files.contains(f);
-            // filter events we don't want and map to event code
-            let event = match event {
-                Ok(event) => {
-                    if event.need_rescan() {
-                        Some(Event::Rescan)
-                    } else if event.paths.iter().any(watching) {
-                        Some(Event::FileChanged)
-                    } else {
-                        None
-                    }
-                }
-                Err(error) => {
-                    if error.paths.iter().any(watching) {
-                        Some(Event::FileChanged)
-                    } else {
-                        None
-                    }
-                }
-            };
+            let event = handle_event(event, &watching_files);
             if let Some(event) = event {
                 // It *should* be alright to block_on():
                 //   * on all platforms, the `RecommendedWatcher`'s event_handler is called from a
@@ -185,6 +167,34 @@ impl<R: Runtime> FileWatcherBuilder<R> {
         }
 
         Ok(FileWatcher { _watcher: watcher })
+    }
+}
+
+/// Map a `notify` event to the [`Event`] type returned by [`FileWatcher`].
+fn handle_event(
+    event: notify::Result<notify::Event>,
+    watching_files: &HashSet<PathBuf>,
+) -> Option<Event> {
+    let watching = |f: &PathBuf| watching_files.contains(f);
+
+    // filter events we don't want and map to event code
+    match event {
+        Ok(event) => {
+            if event.need_rescan() {
+                Some(Event::Rescan)
+            } else if event.paths.iter().any(watching) {
+                Some(Event::FileChanged)
+            } else {
+                None
+            }
+        }
+        Err(error) => {
+            if error.paths.iter().any(watching) {
+                Some(Event::FileChanged)
+            } else {
+                None
+            }
+        }
     }
 }
 
