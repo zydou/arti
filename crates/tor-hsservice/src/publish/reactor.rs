@@ -62,6 +62,17 @@ use crate::config::OnionServiceConfigPublisherView;
 
 use super::*;
 
+// TODO-CLIENT-AUTH: perhaps we should add a separate CONFIG_CHANGE_REPUBLISH_DEBOUNCE_INTERVAL
+// for rate-limiting the publish jobs triggered by a change in the config?
+//
+// Currently the descriptor publish tasks triggered by changes in the config
+// are rate-limited via the usual rate limiting mechanism
+// (which rate-limits the uploads for 1m).
+//
+// I think this is OK for now, but we might need to rethink this if it becomes problematic
+// (for example, we might want an even longer rate-limit, or to reset any existing rate-limits
+// each time the config is modified).
+
 /// The upload rate-limiting threshold.
 ///
 /// Before initiating an upload, the reactor checks if the last upload was at least
