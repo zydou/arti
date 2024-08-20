@@ -571,7 +571,7 @@ pub(crate) mod sealed {
                     error: Arc::new(e),
                 })?;
 
-            let identifier = crate::pt_identifier(binary_path)?;
+            let identifier = crate::managed::pt_identifier(binary_path)?;
             AsyncPtChild::new(child, identifier)
         }
 
