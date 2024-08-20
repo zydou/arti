@@ -292,3 +292,177 @@ fn reconfigure(
 
     Ok(has_modules && config.0.application().watch_configuration)
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use crate::ArtiConfigBuilder;
+
+    use super::*;
+    use futures::channel::mpsc;
+    use futures::SinkExt as _;
+    use tor_config::sources::MustRead;
+    use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
+    use test_temp_dir::{test_temp_dir, TestTempDir};
+
+    use std::sync::mpsc as std_mpsc;
+
+    /// Filename for config1
+    const CONFIG_NAME1: &str = "config1.toml";
+    /// Filename for config2
+    const CONFIG_NAME2: &str = "config2.toml";
+    /// Filename for config3
+    const CONFIG_NAME3: &str = "config3.toml";
+
+    struct TestModule {
+        // A sender for sending the new config to the test function
+        tx: Arc<Mutex<std_mpsc::Sender<ArtiCombinedConfig>>>,
+    }
+
+    impl ReconfigurableModule for TestModule {
+        fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+            self.tx.lock().unwrap().send(new.clone()).unwrap();
+            Ok(())
+        }
+    }
+
+    /// Create a test reconfigurable module.
+    ///
+    /// Returns the module and a channel on which the new configs received by the module are sent.
+    fn create_module(
+    ) -> (Arc<dyn ReconfigurableModule>, std_mpsc::Receiver<ArtiCombinedConfig>) {
+        let (tx, rx) = std_mpsc::channel();
+        (Arc::new(TestModule { tx: Arc::new(Mutex::new(tx)) }), rx)
+    }
+
+    /// Write `data` to file `name` within `dir`.
+    fn write_file(dir: &TestTempDir, name: &str, data: &[u8]) -> PathBuf {
+        let path = dir.as_path_untracked().join(name);
+        std::fs::write(&path, data).unwrap();
+        path
+    }
+
+    /// Write an `ArtiConfigBuilder` to a file within `dir`.
+    fn write_config(dir: &TestTempDir, name: &str, config: &ArtiConfigBuilder) -> PathBuf {
+        let s = toml::to_string(&config).unwrap();
+        write_file(dir, name, s.as_bytes())
+    }
+
+    #[test]
+    fn watch_single_file() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let temp_dir = test_temp_dir!();
+            let mut config_builder =  ArtiConfigBuilder::default();
+            config_builder.application().watch_configuration(true);
+
+            let cfg_file = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
+            let mut cfg_sources = ConfigurationSources::new_empty();
+            cfg_sources.push_source(ConfigurationSource::File(cfg_file), MustRead::MustRead);
+
+            let (module, rx) = create_module();
+            // Use a fake sighup stream to wait until run_watcher()'s select_biased!
+            // loop is entered
+            let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
+            let runtime = rt.clone();
+            let () = rt.spawn(async move {
+                run_watcher(
+                    runtime,
+                    cfg_sources,
+                    vec![Arc::downgrade(&module)],
+                    true,
+                    sighup_rx,
+                ).await.unwrap();
+            }).unwrap();
+
+            config_builder.logging().log_sensitive_information(true);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
+            sighup_tx.send(()).await.unwrap();
+            // The reconfigurable modules should've been reloaded in response to sighup
+            let config = rx.recv().unwrap();
+            assert_eq!(config.0, config_builder.build().unwrap());
+
+            // Overwrite the config
+            config_builder.logging().log_sensitive_information(false);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
+            // The reconfigurable modules should've been reloaded in response to the config change
+            let config = rx.recv().unwrap();
+            assert_eq!(config.0, config_builder.build().unwrap());
+
+        });
+    }
+
+    #[test]
+    fn watch_multiple() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let temp_dir = test_temp_dir!();
+            let mut config_builder1 =  ArtiConfigBuilder::default();
+            config_builder1.application().watch_configuration(true);
+
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder1);
+            let mut cfg_sources = ConfigurationSources::new_empty();
+            cfg_sources.push_source(
+                ConfigurationSource::Dir(temp_dir.as_path_untracked().to_path_buf()),
+                MustRead::MustRead
+            );
+
+            let (module, rx) = create_module();
+            // Use a fake sighup stream to wait until run_watcher()'s select_biased!
+            // loop is entered
+            let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
+            let runtime = rt.clone();
+            let () = rt.spawn(async move {
+                run_watcher(
+                    runtime,
+                    cfg_sources,
+                    vec![Arc::downgrade(&module)],
+                    true,
+                    sighup_rx,
+                ).await.unwrap();
+            }).unwrap();
+
+            config_builder1.logging().log_sensitive_information(true);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder1);
+            sighup_tx.send(()).await.unwrap();
+            // The reconfigurable modules should've been reloaded in response to sighup
+            let config = rx.recv().unwrap();
+            assert_eq!(config.0, config_builder1.build().unwrap());
+
+            let mut config_builder2 =  ArtiConfigBuilder::default();
+            config_builder2.application().watch_configuration(true);
+            // Write another config file...
+            config_builder2.system().max_files(0_u64);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME2, &config_builder2);
+            // Check that the 2 config files are merged
+            let mut config_builder_combined = config_builder1.clone();
+            config_builder_combined.system().max_files(0_u64);
+            let config = rx.recv().unwrap();
+            assert_eq!(config.0, config_builder_combined.build().unwrap());
+            // Now write a new config file to the watched dir
+            config_builder2.logging().console("foo".to_string());
+            let mut config_builder_combined2 = config_builder_combined.clone();
+            config_builder_combined2.logging().console("foo".to_string());
+            let config3: PathBuf = write_config(&temp_dir, CONFIG_NAME3, &config_builder2);
+            let config = rx.recv().unwrap();
+            assert_eq!(config.0, config_builder_combined2.build().unwrap());
+
+            // Removing the file should also trigger an event
+            std::fs::remove_file(config3).unwrap();
+            let config = rx.recv().unwrap();
+            assert_eq!(config.0, config_builder_combined.build().unwrap());
+        });
+    }
+}
