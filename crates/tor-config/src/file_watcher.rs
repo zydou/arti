@@ -119,9 +119,16 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     /// from this directory is changed.
     ///
     /// Idempotent.
-    pub fn watch_dir<P: AsRef<Path>, S: AsRef<str>>(&mut self, path: P, extension: S) -> Result<()> {
+    pub fn watch_dir<P: AsRef<Path>, S: AsRef<str>>(
+        &mut self,
+        path: P,
+        extension: S,
+    ) -> Result<()> {
         let path = self.watch_just_parents(path.as_ref())?;
-        self.watch_just_abs_dir(&path, DirEventFilter::MatchesExtension(extension.as_ref().into()));
+        self.watch_just_abs_dir(
+            &path,
+            DirEventFilter::MatchesExtension(extension.as_ref().into()),
+        );
         Ok(())
     }
 
