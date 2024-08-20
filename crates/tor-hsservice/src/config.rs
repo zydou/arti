@@ -229,22 +229,7 @@ impl OnionServiceConfig {
             // We extract this on every introduction request.
             max_concurrent_streams_per_circuit: simply_update,
 
-            // The IPT manager does not currently handle restricted discovery config changes.
-            //
-            // You must restart the service to change the restricted discovery settings.
-            //
-            // TODO: we should decide if we want to support hot-reloading.
-            //
-            // This will involve adding a watcher for each client key directory,
-            // and generating and publishing a new descriptor on change.
-            // We most likely don't want to republish the descriptor on *every* change though:
-            // consider a hidden service operator copying client keys individually
-            // to the key directory while the service is running.
-            // This would trigger a burst of descriptor uploads
-            // that could've been avoided by more careful client key management.
-            //
-            // We might also want to also rotate the IPTs as part of this process,
-            // to prevent any no-longer-authorized clients from reaching the service.
+            // The descriptor publisher responds by generating and publishing a new descriptor.
             restricted_discovery: simply_update,
         }
 
