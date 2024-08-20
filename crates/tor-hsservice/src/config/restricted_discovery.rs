@@ -24,6 +24,54 @@
 //! or that have more than [`MAX_RESTRICTED_DISCOVERY_CLIENTS`] users,
 //! should use other DoS resistance measures instead.
 //!
+//! # Live reloading
+//!
+//! The restricted discovery configuration is automatically reloaded
+//! if `watch_configuration` is `true`.
+//!
+//! This means that any changes to `static_keys` or to the `.auth` files
+//! from the configured `key_dirs` will be automatically detected,
+//! so you don't need to restart your service in order for them to take effect.
+//!
+//! ## Best practices
+//!
+//! Each change you make to the authorized clients can result in a new descriptor
+//! being published. If you make multiple changes to your restricted discovery configuration
+//! (or to the other parts of the onion service configuration
+//! that trigger the publishing of a new descriptor, such as `anonymity`),
+//! those changes may not take effect immediately due to the descriptor publishing rate limiting.
+//!
+//! To avoid generating unnecessary traffic, you should try to batch
+//! your changes as much as possible, or, alternatively, disable `watch_configuration`
+//! until you are satisfied with your configured authorized clients.
+//!
+//! ## Caveats
+//!
+//! ### Unauthorizing previously authorized clients
+//!
+//! Removing a previously authorized client from `static_keys` or `key_dirs`
+//! does **not** guarantee its access will be revoked.
+//! This is because the client might still be able to reach your service via
+//! its current introduction points (the introduction points are not rotated
+//! when the authorized clients change). Moreover, even if the introduction points
+//! are rotated by chance, your changes are not guaranteed to take effect immediately,
+//! so it is possible for the service to publish its new introduction points
+//! in a descriptor that is readable by the recently unauthorized client.
+//!
+//! **Restricted discovery mode is a DoS resistance mechanism,
+//! _not_ a substitute for conventional access control.**
+//!
+//! ### Moving `key_dir`s
+//!
+//! If you move a `key_dir` (i.e. rename it), all of the authorized clients contained
+//! within it are removed (the descriptor is rebuilt and republished,
+//! without being encrypted for those clients).
+//! Any further changes to the moved directory will be ignored,
+//! unless the directory is moved back or a `key_dir` entry for its new location is added.
+//!
+//! Moving the directory back to its original location (configured in `key_dirs`),
+//! will cause those clients to be added back and a new descriptor to be generated.
+//!
 //! # Key providers
 //!
 //! The [`RestrictedDiscoveryConfig`] supports two key providers:
