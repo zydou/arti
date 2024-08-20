@@ -45,7 +45,7 @@ pub mod config;
 pub mod err;
 pub mod ipc;
 
-use crate::config::TransportConfig;
+use crate::config::{ManagedTransportOptions, TransportConfig, TransportOptions};
 use crate::err::PtError;
 use crate::ipc::{
     sealed::PluggableTransportPrivate, PluggableClientTransport, PluggableTransport,
@@ -83,7 +83,7 @@ struct PtSharedState {
     /// Unmanaged pluggable transports are not included in this map.
     managed_cmethods: HashMap<PtTransportName, PtClientMethod>,
     /// Current configured set of pluggable transports.
-    configured: HashMap<PtTransportName, TransportConfig>,
+    configured: HashMap<PtTransportName, TransportOptions>,
 }
 
 /// A message to the `PtReactor`.
@@ -268,17 +268,17 @@ impl<R: Runtime> PtReactor<R> {
                             let state = self.state.read().expect("ptmgr state poisoned");
                             state.configured.get(&pt).cloned()
                         };
-                        let config = match config {
-                            Some(v) if v.is_managed() => v,
-                            Some(_) => {
-                                let _ = result.send(Err(internal!("Tried to spawn an unmanaged transport").into()));
-                                return Ok(false);
-                            }
-                            None => {
-                                let _ = result.send(Err(PtError::UnconfiguredTransportDueToConcurrentReconfiguration));
-                                return Ok(false);
-                            }
+
+                        let Some(config) = config else {
+                            let _ = result.send(Err(PtError::UnconfiguredTransportDueToConcurrentReconfiguration));
+                            return Ok(false);
                         };
+
+                        let TransportOptions::Managed(config) = config else {
+                            let _ = result.send(Err(internal!("Tried to spawn an unmanaged transport").into()));
+                            return Ok(false);
+                        };
+
                         // Keep track of the request, and also fill holes in other protocols so
                         // we don't try and run another spawn request for those.
                         self.requests.entry(pt).or_default().push(result);
@@ -317,7 +317,7 @@ impl<R: Runtime> PtMgr<R> {
     /// Transform the config into a more useful representation indexed by transport name.
     fn transform_config(
         binaries: Vec<TransportConfig>,
-    ) -> HashMap<PtTransportName, TransportConfig> {
+    ) -> Result<HashMap<PtTransportName, TransportOptions>, tor_error::Bug> {
         let mut ret = HashMap::new();
         // FIXME(eta): You can currently specify overlapping protocols, and it'll
         //             just use the last transport specified.
@@ -325,10 +325,10 @@ impl<R: Runtime> PtMgr<R> {
         //             builder macro void after trying it for 15 minutes.
         for thing in binaries {
             for tn in thing.protocols.iter() {
-                ret.insert(tn.clone(), thing.clone());
+                ret.insert(tn.clone(), thing.clone().try_into()?);
             }
         }
-        ret
+        Ok(ret)
     }
 
     /// Create a new PtMgr.
@@ -340,7 +340,7 @@ impl<R: Runtime> PtMgr<R> {
     ) -> Result<Self, PtError> {
         let state = PtSharedState {
             managed_cmethods: Default::default(),
-            configured: Self::transform_config(transports),
+            configured: Self::transform_config(transports)?,
         };
         let state = Arc::new(RwLock::new(state));
         let (tx, rx) = mpsc::unbounded();
@@ -373,7 +373,7 @@ impl<R: Runtime> PtMgr<R> {
         how: tor_config::Reconfigure,
         transports: Vec<TransportConfig>,
     ) -> Result<(), tor_config::ReconfigureError> {
-        let configured = Self::transform_config(transports);
+        let configured = Self::transform_config(transports)?;
         if how == tor_config::Reconfigure::CheckAllOrNothing {
             return Ok(());
         }
@@ -402,9 +402,9 @@ impl<R: Runtime> PtMgr<R> {
         let (cmethod, configured) = {
             let inner = self.state.read().expect("ptmgr poisoned");
             let cfg = inner.configured.get(transport);
-            if let Some(cmethod) = cfg.and_then(TransportConfig::cmethod_for_unmanaged_pt) {
+            if let Some(TransportOptions::Unmanaged(cfg)) = cfg {
                 // We have a unmanaged transport; that was easy.
-                (Some(cmethod), true)
+                (Some(cfg.cmethod()), true)
             } else {
                 let cmethod = inner.managed_cmethods.get(transport).cloned();
                 let configured = cmethod.is_some() || cfg.is_some();
@@ -489,20 +489,17 @@ impl<R: Runtime> PtMgr<R> {
     }
 }
 
-/// Spawn a managed `PluggableTransport` using a `TransportConfig`.
+/// Spawn a managed `PluggableTransport` using a `ManagedTransportOptions`.
 ///
 /// Requires that the transport is a managed transport.
 async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
-    cfg: TransportConfig,
+    cfg: ManagedTransportOptions,
 ) -> Result<PluggableClientTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
 
-    let cfg_path = cfg
-        .path
-        .as_ref()
-        .ok_or_else(|| internal!("spawn_from_config on an unmanaged transport."))?;
+    let cfg_path = cfg.path;
 
     let binary_path = cfg_path.path().map_err(|e| PtError::PathExpansionFailed {
         path: cfg_path.clone(),

@@ -66,24 +66,6 @@ pub struct TransportConfig {
 
 impl_standard_builder! { TransportConfig: !Default }
 
-impl TransportConfig {
-    /// Return true if this transport is managed.
-    pub(crate) fn is_managed(&self) -> bool {
-        self.path.is_some()
-    }
-
-    /// If this is an unmanaged transport, return a client method that can be
-    /// used to contact it.
-    pub(crate) fn cmethod_for_unmanaged_pt(&self) -> Option<PtClientMethod> {
-        self.proxy_addr.map(|a| PtClientMethod {
-            // TODO: Someday we might want to support other protocols;
-            // but for now, let's see if we can get away with just socks5.
-            kind: SocksVersion::V5,
-            endpoint: a,
-        })
-    }
-}
-
 impl TransportConfigBuilder {
     /// Inspect the list of protocols (ie, transport names)
     ///
@@ -119,6 +101,83 @@ impl TransportConfigBuilder {
                 }
             }
             (Some(_), None) => Ok(()),
+        }
+    }
+}
+
+/// The pluggable transport structure used internally. This is more type-safe than working with
+/// `TransportConfig` directly, since we can't change `TransportConfig` as it's part of the public
+/// API.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum TransportOptions {
+    /// Options for a managed PT transport.
+    Managed(ManagedTransportOptions),
+    /// Options for an unmanaged PT transport.
+    Unmanaged(UnmanagedTransportOptions),
+}
+
+impl TryFrom<TransportConfig> for TransportOptions {
+    type Error = tor_error::Bug;
+    fn try_from(config: TransportConfig) -> Result<Self, Self::Error> {
+        // We rely on the validation performed in `TransportConfigBuilder::validate` to ensure that
+        // mutually exclusive options were not set. We could do validation again here, but it would
+        // be error-prone to duplicate the validation logic. We also couldn't check things like if
+        // `run_on_startup` was `Some`/`None`, since that's only available to the builder.
+
+        if let Some(path) = config.path {
+            Ok(TransportOptions::Managed(ManagedTransportOptions {
+                protocols: config.protocols,
+                path,
+                arguments: config.arguments,
+                run_on_startup: config.run_on_startup,
+            }))
+        } else if let Some(proxy_addr) = config.proxy_addr {
+            Ok(TransportOptions::Unmanaged(UnmanagedTransportOptions {
+                protocols: config.protocols,
+                proxy_addr,
+            }))
+        } else {
+            Err(tor_error::internal!(
+                "Neither path nor proxy are set. How did this pass builder validation?"
+            ))
+        }
+    }
+}
+
+/// A pluggable transport that is run as an external process that we launch and monitor.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ManagedTransportOptions {
+    /// See [TransportConfig::protocols].
+    pub(crate) protocols: Vec<PtTransportName>,
+
+    /// See [TransportConfig::path].
+    pub(crate) path: CfgPath,
+
+    /// See [TransportConfig::arguments].
+    pub(crate) arguments: Vec<String>,
+
+    /// See [TransportConfig::run_on_startup].
+    pub(crate) run_on_startup: bool,
+}
+
+/// A pluggable transport running on a local port, not controlled by Arti.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct UnmanagedTransportOptions {
+    /// See [TransportConfig::protocols].
+    pub(crate) protocols: Vec<PtTransportName>,
+
+    /// See [TransportConfig::proxy_addr].
+    pub(crate) proxy_addr: SocketAddr,
+}
+
+impl UnmanagedTransportOptions {
+    /// A client method that can be used to contact this transport.
+    pub(crate) fn cmethod(&self) -> PtClientMethod {
+        PtClientMethod {
+            // TODO: Someday we might want to support other protocols;
+            // but for now, let's see if we can get away with just socks5.
+            kind: SocksVersion::V5,
+            endpoint: self.proxy_addr,
         }
     }
 }
