@@ -6,9 +6,9 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_config::{impl_standard_builder, CfgPath, ConfigBuildError};
 use tor_linkspec::PtTransportName;
-use tor_socksproto::SocksVersion;
 
-use crate::ipc::PtClientMethod;
+#[cfg(feature = "tor-channel-factory")]
+use {crate::PtClientMethod, tor_socksproto::SocksVersion};
 
 /// A single pluggable transport.
 ///
@@ -172,6 +172,7 @@ pub(crate) struct UnmanagedTransportOptions {
 
 impl UnmanagedTransportOptions {
     /// A client method that can be used to contact this transport.
+    #[cfg(feature = "tor-channel-factory")]
     pub(crate) fn cmethod(&self) -> PtClientMethod {
         PtClientMethod {
             // TODO: Someday we might want to support other protocols;

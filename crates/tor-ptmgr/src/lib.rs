@@ -64,7 +64,7 @@ use tor_async_utils::oneshot;
 use tor_error::{error_report, internal};
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, warn};
 #[cfg(feature = "tor-channel-factory")]
 use {
     async_trait::async_trait,
@@ -73,6 +73,7 @@ use {
         factory::{AbstractPtError, ChannelFactory},
         transport::ExternalProxyPlugin,
     },
+    tracing::{info, trace},
 };
 
 /// Shared mutable state between the `PtReactor` and `PtMgr`.
@@ -91,6 +92,7 @@ enum PtReactorMessage {
     /// Notify the reactor that the currently configured set of PTs has changed.
     Reconfigured,
     /// Ask the reactor to spawn a pluggable transport binary.
+    #[cfg_attr(not(feature = "tor-channel-factory"), allow(dead_code))]
     Spawn {
         /// Spawn a binary to provide this PT.
         pt: PtTransportName,
@@ -392,6 +394,7 @@ impl<R: Runtime> PtMgr<R> {
     /// May have to launch a managed transport as needed.
     ///
     /// Returns Ok(None) if no such transport exists.
+    #[cfg(feature = "tor-channel-factory")]
     async fn get_cmethod_for_transport(
         &self,
         transport: &PtTransportName,
