@@ -12,10 +12,12 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = ["tor-channel-factory"]
+default = ["managed-pts", "tor-channel-factory"]
 tor-channel-factory = []
+managed-pts = []
 full = [
     "tor-channel-factory",
+    "managed-pts",
     "fs-mistrust/full",
     "tor-chanmgr/full",
     "tor-config/full",
@@ -32,6 +34,7 @@ __is_experimental = []
 
 [dependencies]
 async-trait = "0.1.54"
+cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 fs-mistrust = { version = "0.7.9", path = "../fs-mistrust" }
 futures = "0.3.14"

@@ -76,6 +76,17 @@ impl TransportConfigBuilder {
 
     /// Make sure that this builder is internally consistent.
     fn validate(&self) -> Result<(), ConfigBuildError> {
+        // `path` can only be set if the `managed-pts` feature is enabled
+        #[cfg(not(feature = "managed-pts"))]
+        if self.path.is_some() {
+            return Err(ConfigBuildError::NoCompileTimeSupport {
+                field: "path".into(),
+                problem:
+                    "Indicates a managed transport, but support is not enabled by cargo features"
+                        .into(),
+            });
+        }
+
         match (&self.path, &self.proxy_addr) {
             (Some(_), Some(_)) => Err(ConfigBuildError::Inconsistent {
                 fields: vec!["path".into(), "proxy_addr".into()],
@@ -111,6 +122,7 @@ impl TransportConfigBuilder {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TransportOptions {
     /// Options for a managed PT transport.
+    #[cfg(feature = "managed-pts")]
     Managed(ManagedTransportOptions),
     /// Options for an unmanaged PT transport.
     Unmanaged(UnmanagedTransportOptions),
@@ -125,12 +137,21 @@ impl TryFrom<TransportConfig> for TransportOptions {
         // `run_on_startup` was `Some`/`None`, since that's only available to the builder.
 
         if let Some(path) = config.path {
-            Ok(TransportOptions::Managed(ManagedTransportOptions {
-                protocols: config.protocols,
-                path,
-                arguments: config.arguments,
-                run_on_startup: config.run_on_startup,
-            }))
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "managed-pts")] {
+                    Ok(TransportOptions::Managed(ManagedTransportOptions {
+                        protocols: config.protocols,
+                        path,
+                        arguments: config.arguments,
+                        run_on_startup: config.run_on_startup,
+                    }))
+                } else {
+                    let _ = path;
+                    Err(tor_error::internal!(
+                        "Path is set but 'managed-pts' feature is not enabled. How did this pass builder validation?"
+                    ))
+                }
+            }
         } else if let Some(proxy_addr) = config.proxy_addr {
             Ok(TransportOptions::Unmanaged(UnmanagedTransportOptions {
                 protocols: config.protocols,
@@ -145,6 +166,7 @@ impl TryFrom<TransportConfig> for TransportOptions {
 }
 
 /// A pluggable transport that is run as an external process that we launch and monitor.
+#[cfg(feature = "managed-pts")]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ManagedTransportOptions {
     /// See [TransportConfig::protocols].

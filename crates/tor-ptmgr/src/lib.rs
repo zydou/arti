@@ -43,35 +43,42 @@
 
 pub mod config;
 pub mod err;
+
+#[cfg(feature = "managed-pts")]
 pub mod ipc;
 
+#[cfg(feature = "managed-pts")]
 mod managed;
 
 use crate::config::{TransportConfig, TransportOptions};
 use crate::err::PtError;
-use crate::managed::{PtReactor, PtReactorMessage};
-use futures::channel::mpsc::{self, UnboundedSender};
-use futures::task::SpawnExt;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use tor_error::error_report;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
 use tor_socksproto::SocksVersion;
 use tracing::warn;
+#[cfg(feature = "managed-pts")]
+use {
+    crate::managed::{PtReactor, PtReactorMessage},
+    futures::channel::mpsc::{self, UnboundedSender},
+    futures::task::SpawnExt,
+    tor_error::error_report,
+};
 #[cfg(feature = "tor-channel-factory")]
 use {
     async_trait::async_trait,
-    tor_async_utils::oneshot,
     tor_chanmgr::{
         builder::ChanBuilder,
         factory::{AbstractPtError, ChannelFactory},
         transport::ExternalProxyPlugin,
     },
-    tracing::{info, trace},
+    tracing::trace,
 };
+#[cfg(any(feature = "tor-channel-factory", feature = "managed-pts"))]
+use {tor_async_utils::oneshot, tracing::info};
 
 /// Shared mutable state between the `PtReactor` and `PtMgr`.
 #[derive(Default, Debug)]
@@ -79,6 +86,7 @@ struct PtSharedState {
     /// Connection information for pluggable transports from currently running binaries.
     ///
     /// Unmanaged pluggable transports are not included in this map.
+    #[allow(dead_code)]
     managed_cmethods: HashMap<PtTransportName, PtClientMethod>,
     /// Current configured set of pluggable transports.
     configured: HashMap<PtTransportName, TransportOptions>,
@@ -90,9 +98,10 @@ pub struct PtMgr<R> {
     /// An underlying `Runtime`, used to spawn background tasks.
     #[allow(dead_code)]
     runtime: R,
-    /// State for this PtMgr.
+    /// State for this `PtMgr` that's shared with the `PtReactor`.
     state: Arc<RwLock<PtSharedState>>,
-    /// PtReactor channel.
+    /// PtReactor channel when the `managed-pts` feature is enabled.
+    #[cfg(feature = "managed-pts")]
     tx: UnboundedSender<PtReactorMessage>,
 }
 
@@ -118,7 +127,7 @@ impl<R: Runtime> PtMgr<R> {
     // TODO: maybe don't have the Vec directly exposed?
     pub fn new(
         transports: Vec<TransportConfig>,
-        state_dir: PathBuf,
+        #[allow(unused)] state_dir: PathBuf,
         rt: R,
     ) -> Result<Self, PtError> {
         let state = PtSharedState {
@@ -126,26 +135,34 @@ impl<R: Runtime> PtMgr<R> {
             configured: Self::transform_config(transports)?,
         };
         let state = Arc::new(RwLock::new(state));
-        let (tx, rx) = mpsc::unbounded();
 
-        let mut reactor = PtReactor::new(rt.clone(), state.clone(), rx, state_dir);
-        rt.spawn(async move {
-            loop {
-                match reactor.run_one_step().await {
-                    Ok(true) => return,
-                    Ok(false) => {}
-                    Err(e) => {
-                        error_report!(e, "PtReactor failed");
-                        return;
+        // reactor is only needed if we support managed pts
+        #[cfg(feature = "managed-pts")]
+        let tx = {
+            let (tx, rx) = mpsc::unbounded();
+
+            let mut reactor = PtReactor::new(rt.clone(), state.clone(), rx, state_dir);
+            rt.spawn(async move {
+                loop {
+                    match reactor.run_one_step().await {
+                        Ok(true) => return,
+                        Ok(false) => {}
+                        Err(e) => {
+                            error_report!(e, "PtReactor failed");
+                            return;
+                        }
                     }
                 }
-            }
-        })
-        .map_err(|e| PtError::Spawn { cause: Arc::new(e) })?;
+            })
+            .map_err(|e| PtError::Spawn { cause: Arc::new(e) })?;
+
+            tx
+        };
 
         Ok(Self {
             runtime: rt,
             state,
+            #[cfg(feature = "managed-pts")]
             tx,
         })
     }
@@ -166,6 +183,7 @@ impl<R: Runtime> PtMgr<R> {
         }
         // We don't have any way of propagating this sanely; the caller will find out the reactor
         // has died later on anyway.
+        #[cfg(feature = "managed-pts")]
         let _ = self.tx.unbounded_send(PtReactorMessage::Reconfigured);
         Ok(())
     }
@@ -180,68 +198,70 @@ impl<R: Runtime> PtMgr<R> {
         &self,
         transport: &PtTransportName,
     ) -> Result<Option<PtClientMethod>, PtError> {
-        // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
-        //            Arguably this is fine since it's just a small read, and nothing should ever
-        //            hold this lock for very long.
-        let (cmethod, configured) = {
+        #[allow(unused)]
+        let (cfg, managed_cmethod) = {
+            // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
+            //            Arguably this is fine since it's just a small read, and nothing should ever
+            //            hold this lock for very long.
             let inner = self.state.read().expect("ptmgr poisoned");
             let cfg = inner.configured.get(transport);
-            if let Some(TransportOptions::Unmanaged(cfg)) = cfg {
-                // We have a unmanaged transport; that was easy.
-                (Some(cfg.cmethod()), true)
-            } else {
-                let cmethod = inner.managed_cmethods.get(transport).cloned();
-                let configured = cmethod.is_some() || cfg.is_some();
-                (cmethod, configured)
-            }
+            let managed_cmethod = inner.managed_cmethods.get(transport);
+            (cfg.cloned(), managed_cmethod.cloned())
         };
 
-        match (cmethod, configured) {
-            // There is going to be a lot happening "under the hood" here.
-            //
-            // When we are asked to get a ChannelFactory for a given
-            // connection, we will need to:
-            //    - launch the binary for that transport if it is not already running*.
-            //    - If we launched the binary, talk to it and see which ports it
-            //      is listening on.
-            //    - Return a ChannelFactory that connects via one of those ports,
-            //      using the appropriate version of SOCKS, passing K=V parameters
-            //      encoded properly.
-            //
-            // * As in other managers, we'll need to avoid trying to launch the same
-            //   transport twice if we get two concurrent requests.
-            //
-            // Later if the binary crashes, we should detect that.  We should relaunch
-            // it on demand.
-            //
-            // On reconfigure, we should shut down any no-longer-used transports.
-            //
-            // Maybe, we should shut down transports that haven't been used
-            // for a long time.
-            (None, true) => {
-                // A configured-but-not-running cmethod.
-                Ok(Some(self.spawn_transport(transport).await?))
-            }
-            (None, false) => {
+        match cfg {
+            Some(TransportOptions::Unmanaged(cfg)) => {
+                let cmethod = cfg.cmethod();
                 trace!(
-                    "Got a request for transport {}, which is not configured.",
-                    transport
-                );
-                Ok(None)
-            }
-            (Some(cmethod), _) => {
-                trace!(
-                    "Found configured transport {} accessible via {:?}",
-                    transport,
-                    cmethod
+                    "Found configured unmanaged transport {transport} accessible via {cmethod:?}"
                 );
                 Ok(Some(cmethod))
+            }
+            #[cfg(feature = "managed-pts")]
+            Some(TransportOptions::Managed(_cfg)) => {
+                match managed_cmethod {
+                    // A configured-and-running cmethod.
+                    Some(cmethod) => {
+                        trace!("Found configured managed transport {transport} accessible via {cmethod:?}");
+                        Ok(Some(cmethod))
+                    }
+                    // A configured-but-not-running cmethod.
+                    None => {
+                        // There is going to be a lot happening "under the hood" here.
+                        //
+                        // When we are asked to get a ChannelFactory for a given
+                        // connection, we will need to:
+                        //    - launch the binary for that transport if it is not already running*.
+                        //    - If we launched the binary, talk to it and see which ports it
+                        //      is listening on.
+                        //    - Return a ChannelFactory that connects via one of those ports,
+                        //      using the appropriate version of SOCKS, passing K=V parameters
+                        //      encoded properly.
+                        //
+                        // * As in other managers, we'll need to avoid trying to launch the same
+                        //   transport twice if we get two concurrent requests.
+                        //
+                        // Later if the binary crashes, we should detect that.  We should relaunch
+                        // it on demand.
+                        //
+                        // On reconfigure, we should shut down any no-longer-used transports.
+                        //
+                        // Maybe, we should shut down transports that haven't been used
+                        // for a long time.
+                        Ok(Some(self.spawn_transport(transport).await?))
+                    }
+                }
+            }
+            // No configuration for this transport.
+            None => {
+                trace!("Got a request for transport {transport}, which is not configured.");
+                Ok(None)
             }
         }
     }
 
     /// Communicate with the PT reactor to launch a managed transport.
-    #[cfg(feature = "tor-channel-factory")]
+    #[cfg(all(feature = "tor-channel-factory", feature = "managed-pts"))]
     async fn spawn_transport(
         &self,
         transport: &PtTransportName,

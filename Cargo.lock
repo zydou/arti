@@ -5837,6 +5837,7 @@ version = "0.21.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "cfg-if",
  "derive_builder_fork_arti",
  "fs-mistrust",
  "futures",

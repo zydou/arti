@@ -27,7 +27,6 @@ pub(crate) enum PtReactorMessage {
     /// Notify the reactor that the currently configured set of PTs has changed.
     Reconfigured,
     /// Ask the reactor to spawn a pluggable transport binary.
-    #[cfg_attr(not(feature = "tor-channel-factory"), allow(dead_code))]
     Spawn {
         /// Spawn a binary to provide this PT.
         pt: PtTransportName,
@@ -239,8 +238,6 @@ impl<R: Runtime> PtReactor<R> {
 }
 
 /// Spawn a managed `PluggableTransport` using a `ManagedTransportOptions`.
-///
-/// Requires that the transport is a managed transport.
 async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
