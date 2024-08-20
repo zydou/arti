@@ -49,16 +49,17 @@ mod managed;
 
 use crate::config::{TransportConfig, TransportOptions};
 use crate::err::PtError;
-use crate::ipc::PtClientMethod;
 use crate::managed::{PtReactor, PtReactorMessage};
 use futures::channel::mpsc::{self, UnboundedSender};
 use futures::task::SpawnExt;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use tor_error::error_report;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
+use tor_socksproto::SocksVersion;
 use tracing::warn;
 #[cfg(feature = "tor-channel-factory")]
 use {
@@ -269,6 +270,27 @@ impl<R: Runtime> PtMgr<R> {
                 Ok(Some(cmethod))
             }
         }
+    }
+}
+
+/// A SOCKS endpoint to connect through a pluggable transport.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PtClientMethod {
+    /// The SOCKS protocol version to use.
+    pub(crate) kind: SocksVersion,
+    /// The socket address to connect to.
+    pub(crate) endpoint: SocketAddr,
+}
+
+impl PtClientMethod {
+    /// Get the SOCKS protocol version to use.
+    pub fn kind(&self) -> SocksVersion {
+        self.kind
+    }
+
+    /// Get the socket address to connect to.
+    pub fn endpoint(&self) -> SocketAddr {
+        self.endpoint
     }
 }
 
