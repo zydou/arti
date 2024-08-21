@@ -209,11 +209,8 @@ fn clamp_blinding_factor(h: [u8; 32]) -> Scalar {
 ///
 /// This function can fail if the input is not actually a valid
 /// Ed25519 public key.
-///
-/// # Availability
-///
-/// This function is only available when the `hsv3-client` feature is enabled.
 #[cfg(feature = "hsv3-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hsv3-client")))]
 pub fn blind_pubkey(pk: &VerifyingKey, h: [u8; 32]) -> Result<VerifyingKey, BlindingError> {
     use curve25519_dalek::edwards::CompressedEdwardsY;
 
@@ -245,11 +242,8 @@ pub fn blind_pubkey(pk: &VerifyingKey, h: [u8; 32]) -> Result<VerifyingKey, Blin
 ///
 /// This function can fail if the input is not actually a valid Ed25519 secret
 /// key.
-///
-/// # Availability
-///
-/// This function is only available when the `hsv3-service` feature is enabled.
 #[cfg(feature = "hsv3-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hsv3-service")))]
 pub fn blind_keypair(
     keypair: &ExpandedKeypair,
     h: [u8; 32],
