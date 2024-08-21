@@ -1,0 +1,10 @@
+[bridges]
+enabled = true
+bridges = [
+  "obfs4 100.0.0.3:9876 CA273F333586D2580B561349089EDE3BCB834D82 cert=dkK30PgriHMZJ3tl1cTQsz7D/p69g/Nn4+7FTCC8fPvuvHvfOKWJfOKegWikoygFkWnFdA iat-mode=0",
+]
+
+[[bridges.transports]]
+protocols = ["obfs4"]
+path = "/usr/bin/obfs4proxy"
+run_on_startup = true

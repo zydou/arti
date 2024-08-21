@@ -198,6 +198,15 @@ hosts:
             --defaults-torrc torrc-defaults -f torrc
       start_time: 60
       expected_final_state: running
+  bridge-obfs4:
+    ip_addr: 100.0.0.3
+    network_node_id: 0
+    processes:
+    - path: tor
+      args: --Address bridge-obfs4 --Nickname bridgeobfs4
+            --defaults-torrc torrc-defaults -f torrc
+      start_time: 60
+      expected_final_state: running
   articlient:
     network_node_id: 0
     host_options:
@@ -254,6 +263,32 @@ hosts:
       - proxy
       - -c=./arti.d/arti.common.toml
       - -c=./arti.d/arti.bridge.toml
+      - -o=proxy.socks_listen="127.0.0.1:9000"
+      - --disable-fs-permission-checks
+      - -l=debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 15m
+      expected_final_state: running
+    - path: tgen
+      environment:
+        OPENBLAS_NUM_THREADS: "1"
+      args: ../../../conf/tgen.torclient.graphml.xml
+      start_time: 25m
+      expected_final_state: {exited: 0}
+  articlient-bridge-obfs4:
+    network_node_id: 0
+    host_options:
+      # Enable pcap capture so we can check for leaks
+      pcap_enabled: true
+    processes:
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+      args:
+      - proxy
+      - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.bridge.toml
+      - -c=./arti.d/arti.obfs4-client.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace

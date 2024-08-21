@@ -393,7 +393,7 @@ integration-shadow:
     # We're going to install binaries to $HOME/.local/bin
     - 'export PATH=$HOME/.local/bin:$PATH'
 
-    - maint/common/apt-install git tor stow
+    - maint/common/apt-install git tor obfs4proxy stow
     - mkdir -p ~/src
     - mkdir -p ~/.local
 
