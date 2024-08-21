@@ -8,6 +8,8 @@
 
 #![allow(dead_code)] // TODO #351
 
+use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
+
 use crate::internal_prelude::*;
 
 use std::task::{Context, Poll, Poll::*, Waker};
@@ -52,7 +54,7 @@ use std::task::{Context, Poll, Poll::*, Waker};
 // and certainly not more performant.
 #[derive(Debug)]
 #[pin_project(project = PeekerProj)]
-pub(crate) struct StreamUnobtrusivePeeker<S: Stream> {
+pub struct StreamUnobtrusivePeeker<S: Stream> {
     /// An item that we have peeked.
     ///
     /// (If we peeked EOF, that's represented by `None` in inner.)
@@ -75,7 +77,7 @@ pub(crate) struct StreamUnobtrusivePeeker<S: Stream> {
 
 impl<S: Stream> StreamUnobtrusivePeeker<S> {
     /// Create a new `StreamUnobtrusivePeeker` from a `Stream`
-    pub(crate) fn new(inner: S) -> Self {
+    pub fn new(inner: S) -> Self {
         StreamUnobtrusivePeeker {
             buffered: None,
             poll_waker: None,
@@ -84,19 +86,8 @@ impl<S: Stream> StreamUnobtrusivePeeker<S> {
     }
 }
 
-impl<S: Stream> StreamUnobtrusivePeeker<S> {
-    /// See if there is an item ready to read, and inspect it if so
-    ///
-    /// # Tasks, waking, and calling context
-    ///
-    /// Avoid calling this function from the task that is reading from the stream:
-    /// This method is sync, and therefore when it returns `None` it
-    /// does **not** arrange for the calling task to be woken
-    /// when an item arrives (i.e. when `unobtrusive_peek` would start to return `Some`).
-    ///
-    /// Conversely, you *may* call this function in *other* tasks,
-    /// without disturbing the task which is waiting for input.
-    pub(crate) fn unobtrusive_peek<'s>(mut self: Pin<&'s mut Self>) -> Option<&'s S::Item> {
+impl<S: Stream> UnobtrusivePeekableStream for StreamUnobtrusivePeeker<S> {
+    fn unobtrusive_peek_mut<'s>(mut self: Pin<&'s mut Self>) -> Option<&'s mut S::Item> {
         #[allow(clippy::question_mark)] // We use explicit control flow here for clarity
         if self.as_mut().project().buffered.is_none() {
             // We don't have a buffered item, but the stream may have an item available.
@@ -155,44 +146,24 @@ impl<S: Stream> StreamUnobtrusivePeeker<S> {
             };
         }
 
-        self.project().buffered.as_ref()
+        self.project().buffered.as_mut()
     }
+}
 
-    /// Poll for an item to be ready, and then inspect it
-    ///
-    /// Equivalent to [`futures::stream::Peekable::poll_peek`].
-    ///
-    /// # Tasks, waking, and calling context
-    ///
-    /// This should be called by the task that is reading from the stream.
-    /// If it is called by another task, the reading task would miss notifications.
-    //
-    // This ^ docs section is triplicated for poll_peek, poll_peek_mut, and peek
-    pub(crate) fn poll_peek<'s>(
-        self: Pin<&'s mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<&'s S::Item>> {
+impl<S: Stream> PeekableStream for StreamUnobtrusivePeeker<S> {
+    fn poll_peek<'s>(self: Pin<&'s mut Self>, cx: &mut Context<'_>) -> Poll<Option<&'s S::Item>> {
         self.impl_poll_next_or_peek(cx, |buffered| buffered.as_ref())
     }
 
-    /// Poll for an item to be ready, and then inspect it mutably
-    ///
-    /// Equivalent to [`futures::stream::Peekable::poll_peek_mut`].
-    ///
-    /// # Tasks, waking, and calling context
-    ///
-    /// This should be called by the task that is reading from the stream.
-    /// If it is called by another task, the reading task would miss notifications.
-    //
-    // This ^ docs section is triplicated for poll_peek, poll_peek_mut, and peek
-    #[allow(dead_code)] // TODO remove this allow if and when we make this module public
-    pub(crate) fn poll_peek_mut<'s>(
+    fn poll_peek_mut<'s>(
         self: Pin<&'s mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<&'s mut S::Item>> {
         self.impl_poll_next_or_peek(cx, |buffered| buffered.as_mut())
     }
+}
 
+impl<S: Stream> StreamUnobtrusivePeeker<S> {
     /// Implementation of `poll_{peek,next}`
     ///
     /// This takes care of
@@ -262,10 +233,11 @@ impl<S: Stream> StreamUnobtrusivePeeker<S> {
     //
     // This ^ docs section is triplicated for poll_peek, poll_peek_mut, and peek
     //
-    // TODO this should be a trait method ?
+    // TODO this should be a method on the `PeekableStream` trait? Or a
+    // `PeekableStreamExt` trait?
     // TODO should there be peek_mut ?
     #[allow(dead_code)] // TODO remove this allow if and when we make this module public
-    pub(crate) fn peek(self: Pin<&mut Self>) -> PeekFuture<S> {
+    pub fn peek(self: Pin<&mut Self>) -> PeekFuture<Self> {
         PeekFuture { peeker: Some(self) }
     }
 
@@ -327,18 +299,29 @@ impl<S: Stream> FusedStream for StreamUnobtrusivePeeker<S> {
 }
 
 /// Future from [`StreamUnobtrusivePeeker::peek`]
+// TODO: Move to tor_async_utils::peekable_stream.
 #[derive(Educe)]
-#[educe(Debug(bound("StreamUnobtrusivePeeker<S>: Debug")))]
+#[educe(Debug(bound("S: Debug")))]
 #[must_use = "peek() return a Future, which does nothing unless awaited"]
-pub(crate) struct PeekFuture<'s, S: Stream> {
-    /// The underlying `StreamUnobtrusivePeeker`.
+pub struct PeekFuture<'s, S> {
+    /// The underlying stream.
     ///
     /// `Some` until we have returned `Ready`, then `None`.
     /// See comment in `poll`.
-    peeker: Option<Pin<&'s mut StreamUnobtrusivePeeker<S>>>,
+    peeker: Option<Pin<&'s mut S>>,
 }
 
-impl<'s, S: Stream> Future for PeekFuture<'s, S> {
+impl<'s, S: PeekableStream> PeekFuture<'s, S> {
+    /// Create a new `PeekFuture`.
+    // TODO: replace with a trait method.
+    pub fn new(stream: Pin<&'s mut S>) -> Self {
+        Self {
+            peeker: Some(stream),
+        }
+    }
+}
+
+impl<'s, S: PeekableStream> Future for PeekFuture<'s, S> {
     type Output = Option<&'s S::Item>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<&'s S::Item>> {
         let self_ = self.get_mut();
@@ -411,7 +394,7 @@ mod test {
                     loop {
                         rt.sleep(ms(50)).await;
                         eprintln!("rx peek... ");
-                        let peeked = rx.as_mut().unobtrusive_peek();
+                        let peeked = rx.as_mut().unobtrusive_peek_mut();
                         eprintln!("rx peeked {peeked:?}");
 
                         if let Some(peeked) = peeked {

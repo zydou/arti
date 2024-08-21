@@ -203,7 +203,8 @@ mod error;
 pub mod memory_cost;
 pub mod mq_queue;
 pub mod mtracker;
-mod stream_peek;
+// TODO: move to tor-async-utils
+pub mod stream_peek;
 
 /// For trait sealing
 mod private {
