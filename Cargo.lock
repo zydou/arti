@@ -5607,6 +5607,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-keys"
+version = "0.22.0"
+dependencies = [
+ "derive-deftly",
+ "derive_more",
+ "paste",
+ "rand",
+ "tor-basic-utils",
+ "tor-llcrypto",
+]
+
+[[package]]
 name = "tor-linkspec"
 version = "0.22.0"
 dependencies = [

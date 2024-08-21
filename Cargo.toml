@@ -54,6 +54,7 @@ members = [
     "crates/tor-circmgr",
     "crates/tor-dirclient",
     "crates/tor-dirmgr",
+    "crates/tor-keys",
     "crates/tor-keymgr",
     "crates/tor-hsclient",
     "crates/tor-hsservice",
