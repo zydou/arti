@@ -55,7 +55,9 @@ impl EnabledToken {
 pub(crate) enum IfEnabled<T> {
     /// We're enabled, and supposed to be tracking memory
     ///
-    /// The 2nd member
+    /// The 2nd member causes this variant to prove that tracking is enabled.
+    /// If tracking is disabled at compile time, this variant is uninhabited
+    /// and the whole `IfEnabled` becomes a unit.
     Enabled(T, EnabledToken),
 
     /// We're inenabled and everything should be a lightweight no-op
