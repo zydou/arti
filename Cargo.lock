@@ -5615,6 +5615,7 @@ dependencies = [
  "paste",
  "rand",
  "tor-basic-utils",
+ "tor-keymgr",
  "tor-llcrypto",
 ]
 

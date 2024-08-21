@@ -3,9 +3,10 @@
 pub(crate) mod arti;
 pub(crate) mod ephemeral;
 
-use rand::{CryptoRng, RngCore};
+use rand::RngCore;
 use ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair};
 use ssh_key::public::{Ed25519PublicKey, KeyData, OpaquePublicKey};
+use ssh_key::rand_core::CryptoRngCore;
 use ssh_key::{Algorithm, AlgorithmName, LineEnding, PrivateKey, PublicKey};
 use tor_error::{internal, into_internal};
 use tor_hscrypto::pk::{
@@ -24,9 +25,9 @@ use downcast_rs::{impl_downcast, Downcast};
 pub type ErasedKey = Box<dyn EncodableKey>;
 
 /// A random number generator for generating [`EncodableKey`]s.
-pub trait KeygenRng: RngCore + CryptoRng {}
+pub trait KeygenRng: RngCore + CryptoRngCore {}
 
-impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
+impl<T> KeygenRng for T where T: RngCore + CryptoRngCore {}
 
 /// A generic key store.
 pub trait Keystore: Send + Sync + 'static {
@@ -323,28 +324,14 @@ impl SshKeyData {
     }
 }
 
-/// Seal preventing external types from implementing `EncodableKey`.
-mod sealed {
-    /// Sealed
-    pub trait Sealed {}
-}
-
-// TODO: refactor the keymgr tests to not require a custom EncodableKey impl.
-#[cfg(test)]
-pub(crate) use sealed::Sealed;
-
-#[cfg(not(test))]
-use sealed::Sealed;
-
 /// A key that can be serialized to, and deserialized from, a format used by a
 /// [`Keystore`].
 //
-// Sealed, because the supported key types form a closed set.
 // When adding a new `EncodableKey` impl, you must also update
 // [`SshKeyData::into_erased`](crate::SshKeyData::into_erased) to
 // return the corresponding concrete type implementing `EncodableKey`
 // (as a `dyn EncodableKey`).
-pub trait EncodableKey: Downcast + Sealed {
+pub trait EncodableKey: Downcast {
     /// The type of the key.
     fn key_type() -> KeyType
     where
@@ -368,8 +355,6 @@ impl Keygen for curve25519::StaticKeypair {
     }
 }
 
-impl Sealed for curve25519::StaticKeypair {}
-
 impl EncodableKey for curve25519::StaticKeypair {
     fn key_type() -> KeyType
     where
@@ -391,8 +376,6 @@ impl EncodableKey for curve25519::StaticKeypair {
         SshKeyData::try_from_keypair_data(ssh_key::private::KeypairData::Other(keypair))
     }
 }
-
-impl Sealed for curve25519::PublicKey {}
 
 impl EncodableKey for curve25519::PublicKey {
     fn key_type() -> KeyType
@@ -422,8 +405,6 @@ impl Keygen for ed25519::Keypair {
     }
 }
 
-impl Sealed for ed25519::Keypair {}
-
 impl EncodableKey for ed25519::Keypair {
     fn key_type() -> KeyType
     where
@@ -441,8 +422,6 @@ impl EncodableKey for ed25519::Keypair {
         SshKeyData::try_from_keypair_data(KeypairData::Ed25519(keypair))
     }
 }
-
-impl Sealed for ed25519::PublicKey {}
 
 impl EncodableKey for ed25519::PublicKey {
     fn key_type() -> KeyType
@@ -469,8 +448,6 @@ impl Keygen for ed25519::ExpandedKeypair {
         Ok((&keypair).into())
     }
 }
-
-impl Sealed for ed25519::ExpandedKeypair {}
 
 impl EncodableKey for ed25519::ExpandedKeypair {
     fn key_type() -> KeyType

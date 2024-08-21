@@ -91,13 +91,6 @@ define_derive_deftly! {
         $tvis fn public(&self) -> $PK_NAME {
             $PK_NAME((&self.$KP_NAME).into())
         }
-        /// Generate the new keypair given a secure random number generator.
-        $tvis fn generate<R>(rng: &mut R) -> Self
-        where
-            R: rand::Rng + rand::CryptoRng,
-        {
-            Self { $KP_NAME: ed25519::Keypair::generate(rng) }
-        }
         /// Sign a given message.
         $tvis fn sign(&self, msg: &[u8]) -> ed25519::Signature {
             ed25519::ExpandedKeypair::from(&self.$KP_NAME).sign(msg)
@@ -114,49 +107,44 @@ define_derive_deftly! {
         }
     }
 
-    // NOTE: Ultimately, this could also implement the tor-keymgr traits so we
-    // could get all this for free with this macro. It would mean that automagically,
-    // this keypair could be used with the keystore. Only the KeySpecifier would remain
-    // for this type to be created which conviniently enough as a deftly macro already.
-    //
-    // We would need this whole macro into a new crate though specifically for
-    // key declaration.
-    //
-    // Something like:
-    //
-    //  impl EncodableKey for $ttype {
-    //      fn key_type() -> KeyType {
-    //          $KP_TYPE.into()
-    //      }
-    //      fn as_ssh_key_data(&self) -> Result<SshKeyData> {
-    //          self.$KP_NAME.as_ssh_key_data()
-    //      }
-    //  }
-    //
-    //  impl ToEncodableKey for $ttype {
-    //      type Key = $KP_TYPE;
-    //      fn to_encodable_key(self) -> Self::Key {
-    //          self.$KP_NAME
-    //      }
-    //      fn from_encodable_key(key: Self::Key) -> Self {
-    //          Self::new(key)
-    //      }
-    //  }
-    //
-    //  impl Keygen for $ttype {
-    //      fn generate(rng: &mut dyn KeygenRng) -> Result<Self>
-    //      where
-    //          Self: Sized
-    //      {
-    //          Ok(Self::generate(rng))
-    //      }
-    //  }
+    /// EncodableKey, ToEncodableKey and Keygen are traits from the keymgr crate and implementing
+    /// them allows this wrapper key to be stored in a keystore.
+
+    impl tor_keymgr::EncodableKey for $ttype {
+        fn key_type() -> tor_keymgr::KeyType {
+            tor_keymgr::KeyType::Ed25519Keypair
+        }
+        fn as_ssh_key_data(&self) -> tor_keymgr::Result<tor_keymgr::SshKeyData> {
+            self.$KP_NAME.as_ssh_key_data()
+        }
+    }
+
+    impl tor_keymgr::ToEncodableKey for $ttype {
+        type Key = ed25519::Keypair;
+
+        fn to_encodable_key(self) -> Self::Key {
+            self.$KP_NAME
+        }
+        fn from_encodable_key(key: Self::Key) -> Self {
+            Self(key)
+        }
+    }
+
+    impl tor_keymgr::Keygen for $ttype {
+        fn generate(rng: &mut dyn tor_keymgr::KeygenRng) -> tor_keymgr::Result<Self>
+        where
+            Self: Sized
+        {
+            Ok(Self { $KP_NAME: ed25519::Keypair::generate(rng) })
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
     use derive_deftly::Deftly;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_keymgr::Keygen;
     use tor_llcrypto::pk::{ed25519, ValidatableSignature};
 
     #[test]
@@ -164,7 +152,7 @@ mod test {
         define_ed25519_keypair!(SomeEd25519);
 
         let mut rng = testing_rng();
-        let kp = SomeEd25519Keypair::generate(&mut rng);
+        let kp = SomeEd25519Keypair::generate(&mut rng).expect("Failed to gen key");
 
         // Make sure the generated public key from our wrapper is the same as the
         // underlying keypair.
