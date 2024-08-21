@@ -124,12 +124,10 @@ impl<S: Stream> UnobtrusivePeekableStream for StreamUnobtrusivePeeker<S> {
                 return None;
             };
 
-            let waker_buf;
             let waker = if let Some(waker) = self_.poll_waker.as_ref() {
                 waker
             } else {
-                waker_buf = Waker::from(Arc::new(NoopWaker));
-                &waker_buf
+                noop_waker_ref()
             };
 
             match inner.poll_next(&mut Context::from_waker(waker)) {
