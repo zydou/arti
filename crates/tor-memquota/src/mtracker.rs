@@ -5,7 +5,7 @@
 //! ```
 //! use std::{collections::VecDeque, sync::{Arc, Mutex}};
 //! use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, PreferredRuntime};
-//! use tor_memquota::{mtracker, MemoryQuotaTracker, MemoryReclaimedError};
+//! use tor_memquota::{mtracker, MemoryQuotaTracker, MemoryReclaimedError, EnabledToken};
 //! use void::{ResultVoidExt, Void};
 //!
 //! #[derive(Debug)]
@@ -27,11 +27,11 @@
 //! }
 //!
 //! impl mtracker::IsParticipant for TrackingQueue {
-//!     fn get_oldest(&self) -> Option<CoarseInstant> {
+//!     fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
 //!         let inner = self.0.lock().unwrap();
 //!         Some(inner.as_ref().ok()?.data.front()?.1)
 //!     }
-//!     fn reclaim(self: Arc<Self>) -> mtracker::ReclaimFuture {
+//!     fn reclaim(self: Arc<Self>, _: EnabledToken) -> mtracker::ReclaimFuture {
 //!         let mut inner = self.0.lock().unwrap();
 //!         *inner = Err(MemoryReclaimedError::new());
 //!         Box::pin(async { mtracker::Reclaimed::Collapsing })
@@ -40,7 +40,15 @@
 //!
 //! let runtime = PreferredRuntime::create().unwrap();
 //! let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();
-//! let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();
+#![cfg_attr(
+    feature = "memquota",
+    doc = "let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();"
+)]
+#![cfg_attr(
+    not(feature = "memquota"),
+    doc = "let trk = MemoryQuotaTracker::new_noop();"
+)]
+//!
 //! let account = trk.new_account(None).unwrap();
 //!
 //! let queue: Arc<TrackingQueue> = account.register_participant_with(
@@ -61,11 +69,13 @@
 
 use crate::internal_prelude::*;
 
+use IfEnabled::*;
+
 mod bookkeeping;
 mod reclaim;
 mod total_qty_notifier;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memquota"))]
 pub(crate) mod test;
 
 use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};
@@ -94,7 +104,7 @@ const TARGET_CACHE_RELEASING: Qty = Qty(MAX_CACHE.as_usize() * 1 / 4);
 #[derive(Debug)]
 pub struct MemoryQuotaTracker {
     /// The actual tracker state etc.
-    state: Mutex<State>,
+    state: IfEnabled<Mutex<State>>,
 }
 
 /// Handle onto an Account
@@ -104,7 +114,12 @@ pub struct MemoryQuotaTracker {
 /// `Account`s are created using [`MemoryQuotaTracker::new_account`].
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct Account {
+pub struct Account(IfEnabled<AccountInner>);
+
+/// Contents of an enabled [`Account`]
+#[derive(Educe)]
+#[educe(Debug)]
+pub struct AccountInner {
     /// The account ID
     aid: refcount::Ref<AId>,
 
@@ -125,7 +140,12 @@ pub struct Account {
 // not Arc of something account-specific.
 #[derive(Clone, Educe)]
 #[educe(Debug)]
-pub struct WeakAccount {
+pub struct WeakAccount(IfEnabled<WeakAccountInner>);
+
+/// Contents of an enabled [`WeakAccount`]
+#[derive(Clone, Educe)]
+#[educe(Debug)]
+pub struct WeakAccountInner {
     /// The account ID
     aid: AId,
 
@@ -144,7 +164,11 @@ pub struct WeakAccount {
 ///
 /// Variables of this type are often named `partn`.
 #[derive(Debug)]
-pub struct Participation {
+pub struct Participation(IfEnabled<ParticipationInner>);
+
+/// Contents of an enabled [`Participation`]
+#[derive(Debug)]
+pub struct ParticipationInner {
     /// Participant id
     pid: refcount::Ref<PId>,
 
@@ -210,7 +234,7 @@ pub trait IsParticipant: Debug + Send + Sync + 'static {
     ///  * it *must not* call back into methods from [`tracker`](crate::mtracker).
     ///  * It *must not* even `Clone` or `Drop` a [`MemoryQuotaTracker`],
     ///    [`Account`], or [`Participation`].
-    fn get_oldest(&self) -> Option<CoarseInstant>;
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant>;
 
     /// Start memory reclamation
     ///
@@ -226,6 +250,7 @@ pub trait IsParticipant: Debug + Send + Sync + 'static {
     // and might therefore only support Reclaimed::Collapsing
     fn reclaim(
         self: Arc<Self>,
+        _: EnabledToken,
         // Future:
         // discard_everything_as_old_as_this: RoughTime,
         // but_can_stop_discarding_after_freeing_this_much: Qty,
@@ -362,6 +387,10 @@ struct Global {
 
     /// Configuration
     config: Config,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    #[allow(dead_code)]
+    enabled: EnabledToken,
 }
 
 /// Account record, within `State.accounts`
@@ -376,6 +405,10 @@ struct ARecord {
 
     /// Participants linked to this Account
     ps: SlotMap<PId, PRecord>,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    #[allow(dead_code)]
+    enabled: EnabledToken,
 }
 
 /// Participant record, within `ARecord.ps`
@@ -392,6 +425,10 @@ struct PRecord {
 
     /// The hooks provided by the Participant
     particip: drop_reentrancy::ProtectedWeak<dyn IsParticipant>,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    #[allow(dead_code)]
+    enabled: EnabledToken,
 }
 
 //#################### IMPLEMENTATION ####################
@@ -402,6 +439,7 @@ struct PRecord {
 ///
 /// ```rust,ignore
 /// find_in_tracker! {
+///     enabled;
 ///     weak_tracker => + tracker, state;
 ///     aid => arecord;
 ///   [ pid => precord; ]
@@ -409,6 +447,7 @@ struct PRecord {
 /// };
 ///
 /// find_in_tracker! {
+///     enabled;
 ///     strong_tracker => state;
 ///     .. // as above
 /// };
@@ -418,6 +457,7 @@ struct PRecord {
 ///
 ///  * `weak_tracker: &Weak<MemoryQuotaTracker>` (or equivalent)
 ///  * `strong_tracker: &MemoryQuotaTracker` (or equivalent)
+///  * `enabled: EnabledToken` (or equivalent)
 ///  * `aid: AId`
 ///  * `pid: PId`
 ///
@@ -444,6 +484,7 @@ struct PRecord {
 // For an internal macro with ~9 call sites it's not worth making a big parsing contraption.
 macro_rules! find_in_tracker { {
     // This `+` is needed because otherwise it's LL1-ambiguous and macro_rules can't cope
+    $enabled:expr;
     $tracker_input:expr => $( + $tracker:ident, )? $state:ident;
     $aid:expr => $arecord:ident;
  $( $pid:expr => $precord:ident; )?
@@ -455,33 +496,38 @@ macro_rules! find_in_tracker { {
     let tracker = &$tracker_input;
   $(
     let $tracker: Arc<MemoryQuotaTracker> = find_in_tracker_eh!(
-        $eh TrackerShutdown:
+        $eh Error::TrackerShutdown;
         tracker.upgrade()
     );
     let tracker = &$tracker;
   )?
+    let _: &EnabledToken = &$enabled;
+    let state = find_in_tracker_eh!(
+        $eh Error::Bug(internal!("noop MemoryQuotaTracker found via enabled datastructure"));
+        tracker.state.as_enabled()
+    );
     let mut state: MutexGuard<State> = find_in_tracker_eh!(
-        $eh TrackerCorrupted:
-        tracker.state.lock().ok()
+        $eh Error::TrackerCorrupted;
+        state.lock().ok()
     );
     let $state: &mut State = &mut *state;
     let aid: AId = $aid;
     let $arecord: &mut ARecord = find_in_tracker_eh!(
-        $eh AccountClosed:
+        $eh Error::AccountClosed;
         $state.accounts.get_mut(aid)
     );
   $(
     let pid: PId = $pid;
     let $precord: &mut PRecord = find_in_tracker_eh!(
-        $eh ParticipantShutdown:
+        $eh Error::ParticipantShutdown;
         $arecord.ps.get_mut(pid)
     );
   )?
 } }
 /// Error handling helper for `find_in_tracker`
 macro_rules! find_in_tracker_eh {
-    { None $variant:ident: $result:expr } => { $result? };
-    { Error $variant:ident: $result:expr } => { $result.ok_or(Error::$variant)? };
+    { None $variant:expr; $result:expr } => { $result? };
+    { Error $variant:expr; $result:expr } => { $result.ok_or_else(|| $variant)? };
 }
 
 //========== impls on public types, including public methods and trait impls ==========
@@ -490,20 +536,27 @@ macro_rules! find_in_tracker_eh {
 
 impl MemoryQuotaTracker {
     /// Set up a new `MemoryDataTracker`
+    #[cfg(feature = "memquota")]
     pub fn new<R: Spawn>(runtime: &R, config: Config) -> Result<Arc<Self>, StartupError> {
+        let enabled = EnabledToken::new();
+
         let (reclaim_tx, reclaim_rx) = mpsc::channel(0 /* plus num_senders, ie 1 */);
         let total_used = TotalQtyNotifier::new_zero(reclaim_tx);
 
-        let global = Global { total_used, config };
+        let global = Global {
+            total_used,
+            config,
+            enabled,
+        };
         let accounts = SlotMap::default();
-        let state = Mutex::new(State { global, accounts });
+        let state = Enabled(Mutex::new(State { global, accounts }), enabled);
         let tracker = Arc::new(MemoryQuotaTracker { state });
 
         // We don't provide a separate `launch_background_tasks`, because this task doesn't
         // wake up periodically, or, indeed, do anything until the tracker is used.
 
         let for_task = Arc::downgrade(&tracker);
-        runtime.spawn(reclaim::task(for_task, reclaim_rx))?;
+        runtime.spawn(reclaim::task(for_task, reclaim_rx, enabled))?;
 
         Ok(tracker)
     }
@@ -514,8 +567,12 @@ impl MemoryQuotaTracker {
     ///
     ///  * [Approximate.](../index.html#is-approximate)
     ///  * A snapshot as of the current moment (and there is no way to await changes)
+    ///  * Always `usize::MAX` for a no-op tracker
     pub fn used_current_approx(&self) -> Result<usize, TrackerCorrupted> {
-        Ok(*self.lock()?.total_used.as_raw())
+        let Enabled(state, _enabled) = self.lock()? else {
+            return Ok(usize::MAX);
+        };
+        Ok(*state.total_used.as_raw())
     }
 
     /// Make a new `Account`
@@ -530,11 +587,19 @@ impl MemoryQuotaTracker {
     // but aren't inherently unsupportable.
     #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reaons
     pub fn new_account(self: &Arc<Self>, parent: Option<&Account>) -> crate::Result<Account> {
-        let mut state = self.lock()?;
+        let Enabled(mut state, enabled) = self.lock()? else {
+            return Ok(Account(Noop));
+        };
 
         let parent_aid_good = parent
             .map(|parent| {
                 // Find and check the requested parent's Accountid
+
+                let Enabled(parent, _enabled) = &parent.0 else {
+                    return Err(
+                        internal!("used no-op Account as parent for enabled new_account").into(),
+                    );
+                };
 
                 let parent_aid = *parent.aid;
                 let parent_arecord = state
@@ -580,6 +645,7 @@ impl MemoryQuotaTracker {
                 refcount,
                 children: vec![],
                 ps: SlotMap::default(),
+                enabled,
             });
 
             if let Some(parent_aid_good) = parent_aid_good {
@@ -592,13 +658,22 @@ impl MemoryQuotaTracker {
             }
 
             let tracker = self.clone();
-            Account { aid, tracker } // don't make this fallible, see above.
+            let inner = AccountInner { aid, tracker };
+            Account(Enabled(inner, enabled)) // don't make this fallible, see above.
         })())
     }
 
+    /// Obtain a new `MemoryQuotaTracker` that doesn't track anything and never reclaims
+    pub fn new_noop() -> Arc<MemoryQuotaTracker> {
+        Arc::new(MemoryQuotaTracker { state: Noop })
+    }
+
     /// Obtain the lock on the state
-    fn lock(&self) -> Result<MutexGuard<State>, TrackerCorrupted> {
-        Ok(self.state.lock()?)
+    fn lock(&self) -> Result<IfEnabled<MutexGuard<State>>, TrackerCorrupted> {
+        let Enabled(state, enabled) = &self.state else {
+            return Ok(Noop);
+        };
+        Ok(Enabled(state.lock()?, *enabled))
     }
 }
 
@@ -615,9 +690,14 @@ impl Account {
         &self,
         particip: Weak<dyn IsParticipant>,
     ) -> Result<Participation, Error> {
-        let aid = *self.aid;
+        let Enabled(self_, enabled) = &self.0 else {
+            return Ok(Participation(Noop));
+        };
+
+        let aid = *self_.aid;
         find_in_tracker! {
-            self.tracker => state;
+            enabled;
+            self_.tracker => state;
             aid => arecord;
             ?Error
         }
@@ -627,6 +707,7 @@ impl Account {
                 refcount,
                 used: ParticipQty::ZERO,
                 particip: drop_reentrancy::ProtectedWeak::new(particip),
+                enabled: *enabled,
             };
             let cache =
                 state
@@ -636,13 +717,14 @@ impl Account {
             Ok::<_, Error>((precord, cache))
         })?;
 
-        let tracker = Arc::downgrade(&self.tracker);
-        Ok(Participation {
+        let tracker = Arc::downgrade(&self_.tracker);
+        let inner = ParticipationInner {
             tracker,
             pid,
             aid,
             cache,
-        })
+        };
+        Ok(Participation(Enabled(inner, *enabled)))
     }
 
     /// Set the callbacks for a Participant (identified by its weak ids)
@@ -652,8 +734,12 @@ impl Account {
         pid: PId,
         particip: drop_reentrancy::ProtectedWeak<dyn IsParticipant>,
     ) -> Result<(), Error> {
+        let Enabled(self_, enabled) = &self.0 else {
+            return Ok(());
+        };
         find_in_tracker! {
-            self.tracker => state;
+            enabled;
+            self_.tracker => state;
             aid => arecord;
             pid => precord;
             ?Error
@@ -695,6 +781,10 @@ impl Account {
         now: CoarseInstant,
         constructor: impl FnOnce(Participation) -> Result<(Arc<P>, X), E>,
     ) -> Result<Result<(Arc<P>, X), E>, Error> {
+        let Enabled(_self, _enabled) = &self.0 else {
+            return Ok(constructor(Participation(Noop)));
+        };
+
         use std::sync::atomic::{AtomicBool, Ordering};
 
         /// Temporary participant, which stands in during constructon
@@ -707,10 +797,10 @@ impl Account {
         }
 
         impl IsParticipant for TemporaryParticipant {
-            fn get_oldest(&self) -> Option<CoarseInstant> {
+            fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
                 Some(self.now)
             }
-            fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+            fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
                 self.collapsing.store(true, Ordering::Release);
                 Box::pin(async { Reclaimed::Collapsing })
             }
@@ -722,8 +812,12 @@ impl Account {
         });
 
         let partn = self.register_participant(Arc::downgrade(&temp_particip) as _)?;
-        let aid = partn.aid;
-        let pid_weak = *partn.pid;
+        let partn_ = partn
+            .0
+            .as_enabled()
+            .ok_or_else(|| internal!("Enabled Acccount gave Noop Participant"))?;
+        let aid = partn_.aid;
+        let pid_weak = *partn_.pid;
 
         // We don't hold the state lock here.  register_participant took it and released it.
         // This is important, because the constructor might call claim!
@@ -761,24 +855,35 @@ impl Account {
 
     /// Obtains a handle for the `MemoryQuotaTracker`
     pub fn tracker(&self) -> Arc<MemoryQuotaTracker> {
-        self.tracker.clone()
+        let Enabled(self_, _enabled) = &self.0 else {
+            return MemoryQuotaTracker::new_noop();
+        };
+        self_.tracker.clone()
     }
 
     /// Downgrade to a weak handle for the same Account
     pub fn downgrade(&self) -> WeakAccount {
-        WeakAccount {
-            aid: *self.aid,
-            tracker: Arc::downgrade(&self.tracker),
-        }
+        let Enabled(self_, enabled) = &self.0 else {
+            return WeakAccount(Noop);
+        };
+        let inner = WeakAccountInner {
+            aid: *self_.aid,
+            tracker: Arc::downgrade(&self_.tracker),
+        };
+        WeakAccount(Enabled(inner, *enabled))
     }
 }
 
 impl Clone for Account {
     fn clone(&self) -> Account {
-        let tracker = self.tracker.clone();
+        let Enabled(self_, enabled) = &self.0 else {
+            return Account(Noop);
+        };
+        let tracker = self_.tracker.clone();
         let aid = (|| {
-            let aid = *self.aid;
+            let aid = *self_.aid;
             find_in_tracker! {
+                enabled;
                 tracker => state;
                 aid => arecord;
                 ?None
@@ -798,20 +903,25 @@ impl Clone for Account {
             // behaviour for a very unlikely situation.
             refcount::Ref::null()
         });
-        Account { aid, tracker }
+        let inner = AccountInner { aid, tracker };
+        Account(Enabled(inner, *enabled))
     }
 }
 
 impl Drop for Account {
     fn drop(&mut self) {
+        let Enabled(self_, enabled) = &mut self.0 else {
+            return;
+        };
         (|| {
             find_in_tracker! {
-                self.tracker => state;
-                *self.aid => arecord;
+                enabled;
+                self_.tracker => state;
+                *self_.aid => arecord;
                 ?None
             }
             if let Some(refcount::Garbage(mut removed)) =
-                slotmap_dec_ref!(&mut state.accounts, self.aid.take(), &mut arecord.refcount)
+                slotmap_dec_ref!(&mut state.accounts, self_.aid.take(), &mut arecord.refcount)
             {
                 // This account is gone.  Automatically release everything.
                 removed.auto_release(state);
@@ -821,7 +931,7 @@ impl Drop for Account {
         .unwrap_or_else(|| {
             // Account has been torn down.  Dispose of the strong ref.
             // (This has no effect except in cfg(test), when it defuses the drop bombs)
-            self.aid.take().dispose_container_destroyed();
+            self_.aid.take().dispose_container_destroyed();
         });
     }
 }
@@ -830,12 +940,18 @@ impl Drop for Account {
 
 impl WeakAccount {
     /// Upgrade to an `Account`, if the account still exists
+    ///
+    /// No-op `WeakAccounts` can always be upgraded.
     pub fn upgrade(&self) -> crate::Result<Account> {
-        let aid = self.aid;
+        let Enabled(self_, enabled) = &self.0 else {
+            return Ok(Account(Noop));
+        };
+        let aid = self_.aid;
         // (we must use a block, and can't use find_in_tracker's upgrade, because borrowck)
-        let tracker = self.tracker.upgrade().ok_or(Error::TrackerShutdown)?;
+        let tracker = self_.tracker.upgrade().ok_or(Error::TrackerShutdown)?;
         let aid = {
             find_in_tracker! {
+                enabled;
                 tracker => state;
                 aid => arecord;
                 ?Error
@@ -843,14 +959,22 @@ impl WeakAccount {
             refcount::Ref::new(aid, &mut arecord.refcount)?
             // commitment point
         };
-        Ok(Account { aid, tracker })
+        let inner = AccountInner { aid, tracker };
+        Ok(Account(Enabled(inner, *enabled)))
     }
 
     /// Obtains a handle onto the `MemoryQuotaTracker`
     ///
     /// The returned handle is itself weak, and needs to be upgraded before use.
+    ///
+    /// If the `Account` was made a no-op `MemoryQuotaTracker`
+    /// (ie, one from [`MemoryQuotaTracker::new_noop`])
+    /// the returned value is always `Weak`.
     pub fn tracker(&self) -> Weak<MemoryQuotaTracker> {
-        self.tracker.clone()
+        let Enabled(self_, _enabled) = &self.0 else {
+            return Weak::default();
+        };
+        self_.tracker.clone()
     }
 
     /// Creates a new dangling, dummy, `WeakAccount`
@@ -858,11 +982,19 @@ impl WeakAccount {
     /// This can be used as a standin where a value of type `WeakAccount` is needed.
     /// The returned value cannot be upgraded to an `Account`,
     /// so cannot be used to claim memory or find a `MemoryQuotaTracker`.
+    ///
+    /// (If memory quota tracking is disabled at compile time,
+    /// the returned value *can* be upgraded, to a no-op `Account`.)
     pub fn new_dangling() -> Self {
-        WeakAccount {
+        let Some(enabled) = EnabledToken::new_if_compiled_in() else {
+            return WeakAccount(Noop);
+        };
+
+        let inner = WeakAccountInner {
             aid: AId::default(),
             tracker: Weak::default(),
-        }
+        };
+        WeakAccount(Enabled(inner, enabled))
     }
 }
 
@@ -876,14 +1008,19 @@ impl Participation {
 
     /// Record that some memory has been (or will be) allocated (using `Qty`)
     pub(crate) fn claim_qty(&mut self, want: Qty) -> crate::Result<()> {
-        if let Some(got) = self.cache.split_off(want) {
+        let Enabled(self_, enabled) = &mut self.0 else {
+            return Ok(());
+        };
+
+        if let Some(got) = self_.cache.split_off(want) {
             return got.claim_return_to_participant();
         }
 
         find_in_tracker! {
-            self.tracker => + tracker, state;
-            self.aid => arecord;
-            *self.pid => precord;
+            enabled;
+            self_.tracker => + tracker, state;
+            self_.aid => arecord;
+            *self_.pid => precord;
             ?Error
         };
 
@@ -899,11 +1036,11 @@ impl Participation {
             // While we're here, fill the cache to TARGET_CACHE_CLAIMING.
             // Cannot underflow: cache < want (since we failed at `got` earlier
             // and we've just checked want <= TARGET_CACHE_CLAIMING.
-            let want_more_cache = Qty(*TARGET_CACHE_CLAIMING - *self.cache.as_raw());
+            let want_more_cache = Qty(*TARGET_CACHE_CLAIMING - *self_.cache.as_raw());
             if let Ok(add_cache) = claim(want_more_cache) {
                 // On error, just don't do this; presumably the error will show up later
                 // (we mustn't early exit here, because we've got the claim in our hand).
-                self.cache.merge_into(add_cache);
+                self_.cache.merge_into(add_cache);
             }
         }
         got.claim_return_to_participant()
@@ -918,18 +1055,26 @@ impl Participation {
     /// Record that some memory has been (or will be) freed by a participant (using `Qty`)
     pub(crate) fn release_qty(&mut self, have: Qty) // infallible
     {
+        let Enabled(self_, enabled) = &mut self.0 else {
+            return;
+        };
+
         let have = ClaimedQty::release_got_from_participant(have);
-        self.cache.merge_into(have);
-        if self.cache > MAX_CACHE {
+        self_.cache.merge_into(have);
+        if self_.cache > MAX_CACHE {
             match (|| {
                 find_in_tracker! {
-                    self.tracker => + tracker, state;
-                    self.aid => arecord;
-                    *self.pid => precord;
+                    enabled;
+                    self_.tracker => + tracker, state;
+                    self_.aid => arecord;
+                    *self_.pid => precord;
                     ?None
                 }
-                let return_from_cache = Qty(*self.cache.as_raw() - *TARGET_CACHE_RELEASING);
-                let from_cache = self.cache.split_off(return_from_cache).expect("impossible");
+                let return_from_cache = Qty(*self_.cache.as_raw() - *TARGET_CACHE_RELEASING);
+                let from_cache = self_
+                    .cache
+                    .split_off(return_from_cache)
+                    .expect("impossible");
                 state.global.total_used.release(precord, from_cache);
                 Some(())
             })() {
@@ -937,7 +1082,7 @@ impl Participation {
                 None => {
                     // account (or whole tracker!) is gone
                     // throw away the cache so that we don't take this path again for a bit
-                    self.cache.take().dispose_participant_destroyed();
+                    self_.cache.take().dispose_participant_destroyed();
                 }
             }
         }
@@ -951,10 +1096,15 @@ impl Participation {
     /// The returned `WeakAccount` is equivalent to
     /// all the other account handles for the same account.
     pub fn account(&self) -> WeakAccount {
-        WeakAccount {
-            aid: self.aid,
-            tracker: self.tracker.clone(),
-        }
+        let Enabled(self_, enabled) = &self.0 else {
+            return WeakAccount(Noop);
+        };
+
+        let inner = WeakAccountInner {
+            aid: self_.aid,
+            tracker: self_.tracker.clone(),
+        };
+        WeakAccount(Enabled(inner, *enabled))
     }
 
     /// Destroy this participant
@@ -970,14 +1120,18 @@ impl Participation {
     /// to free its handle onto the `IsParticipant`,
     /// because the memory quota system holds only a [`Weak`] reference.)
     pub fn destroy_participant(mut self) {
+        let Enabled(self_, enabled) = &mut self.0 else {
+            return;
+        };
         (|| {
             find_in_tracker! {
-                self.tracker => + tracker, state;
-                self.aid => arecord;
+                enabled;
+                self_.tracker => + tracker, state;
+                self_.aid => arecord;
                 ?None
             };
             if let Some(mut removed) =
-                refcount::slotmap_remove_early(&mut arecord.ps, self.pid.take())
+                refcount::slotmap_remove_early(&mut arecord.ps, self_.pid.take())
             {
                 removed.auto_release(&mut state.global);
             }
@@ -992,24 +1146,33 @@ impl Participation {
     /// The returned value cannot be used to claim memory,
     /// or find an `Account` or `MemoryQuotaTracker`.
     pub fn new_dangling() -> Self {
-        Participation {
+        let Some(enabled) = EnabledToken::new_if_compiled_in() else {
+            return Participation(Noop);
+        };
+
+        let inner = ParticipationInner {
             pid: refcount::Ref::default(),
             aid: AId::default(),
             tracker: Weak::default(),
             cache: ClaimedQty::ZERO,
-        }
+        };
+        Participation(Enabled(inner, enabled))
     }
 }
 
 impl Clone for Participation {
     fn clone(&self) -> Participation {
-        let aid = self.aid;
+        let Enabled(self_, enabled) = &self.0 else {
+            return Participation(Noop);
+        };
+        let aid = self_.aid;
         let cache = ClaimedQty::ZERO;
-        let tracker: Weak<_> = self.tracker.clone();
+        let tracker: Weak<_> = self_.tracker.clone();
         let pid = (|| {
-            let pid = *self.pid;
+            let pid = *self_.pid;
             find_in_tracker! {
-                self.tracker => + tracker_strong, state;
+                enabled;
+                self_.tracker => + tracker_strong, state;
                 aid => _arecord;
                 pid => precord;
                 ?None
@@ -1030,30 +1193,35 @@ impl Clone for Participation {
             // documented behaviour.  This is OK; see comment in `<Account as Clone>::clone`.
             refcount::Ref::null()
         });
-        Participation {
+        let inner = ParticipationInner {
             aid,
             pid,
             cache,
             tracker,
-        }
+        };
+        Participation(Enabled(inner, *enabled))
     }
 }
 
 impl Drop for Participation {
     fn drop(&mut self) {
+        let Enabled(self_, enabled) = &mut self.0 else {
+            return;
+        };
         (|| {
             find_in_tracker! {
-                self.tracker => + tracker_strong, state;
-                self.aid => arecord;
-                *self.pid => precord;
+                enabled;
+                self_.tracker => + tracker_strong, state;
+                self_.aid => arecord;
+                *self_.pid => precord;
                 ?None
             }
             // release the cached claim
-            let from_cache = self.cache.take();
+            let from_cache = self_.cache.take();
             state.global.total_used.release(precord, from_cache);
 
             if let Some(refcount::Garbage(mut removed)) =
-                slotmap_dec_ref!(&mut arecord.ps, self.pid.take(), &mut precord.refcount)
+                slotmap_dec_ref!(&mut arecord.ps, self_.pid.take(), &mut precord.refcount)
             {
                 // We might not have called `release` on everything, so we do that here.
                 removed.auto_release(&mut state.global);
@@ -1063,8 +1231,8 @@ impl Drop for Participation {
         .unwrap_or_else(|| {
             // Account or Participation or tracker destroyed.
             // (This has no effect except in cfg(test), when it defuses the drop bombs)
-            self.pid.take().dispose_container_destroyed();
-            self.cache.take().dispose_participant_destroyed();
+            self_.pid.take().dispose_container_destroyed();
+            self_.cache.take().dispose_participant_destroyed();
         });
     }
 }

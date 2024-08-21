@@ -88,6 +88,7 @@ mod consistency {
 
     impl CallerInfoCollector {
         pub(super) fn note_account(&mut self, acct: &Account, reclaimed: ReclaimedOrOk) {
+            let acct = acct.0.as_enabled().unwrap();
             writeln!(self.debug_dump, "acct {acct:?} {reclaimed:?}").unwrap();
             if acct.aid.is_null() || reclaimed.is_err() {
                 return;
@@ -101,6 +102,7 @@ mod consistency {
             reclaimed: ReclaimedOrOk,
             used: usize,
         ) {
+            let p = p.0.as_enabled().unwrap();
             writeln!(self.debug_dump, "particip {p:?} {reclaimed:?} {used:?}").unwrap();
             if p.pid.is_null() || p.aid.is_null() || reclaimed.is_err() {
                 return;
@@ -108,13 +110,14 @@ mod consistency {
             self.note_partn_core(p, used);
         }
         pub(super) fn note_partn_clone(&mut self, p: &Participation) {
+            let p = p.0.as_enabled().unwrap();
             writeln!(self.debug_dump, "partn {p:?}").unwrap();
             if p.pid.is_null() {
                 return;
             }
             self.note_partn_core(p, 0);
         }
-        fn note_partn_core(&mut self, p: &Participation, x_used: usize) {
+        fn note_partn_core(&mut self, p: &ParticipationInner, x_used: usize) {
             let pc = self.pcs.entry((p.aid, *p.pid)).or_default();
             let used = *p.cache.as_raw() + x_used;
             pc.0 += 1;
@@ -127,7 +130,7 @@ mod consistency {
         trk: &Arc<MemoryQuotaTracker>,
         collect_caller_info: impl FnOnce(&mut CallerInfoCollector),
     ) {
-        let state = trk.lock().unwrap();
+        let state = trk.lock().unwrap().into_enabled().unwrap();
 
         let (expected, debug_dump) = {
             let mut c = CallerInfoCollector::default();
@@ -202,10 +205,10 @@ impl TestPartn {
 }
 
 impl IsParticipant for TestPartn {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         self.get_oldest()
     }
-    fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
         (*self.clone()).reclaim()
     }
 }
@@ -256,10 +259,10 @@ struct UnifiedP {
 type ReclaimedOrOk = Result<(), ()>;
 
 impl IsParticipant for UnifiedP {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         self.state.get_oldest()
     }
-    fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
         self.state.reclaim()
     }
 }
@@ -344,7 +347,7 @@ fn basic() {
         for p in &ps[20..] {
             // check that we are exercising a situation with nonzero cached
             // (this is set up by register_participant
-            assert_ne!(p.lock().partn.cache, Qty(0));
+            assert_ne!(p.lock().partn.0.as_enabled().unwrap().cache, Qty(0));
 
             p.lock()
                 .claim(mbytes(1))
@@ -602,10 +605,10 @@ fn complex() {
 struct DummyParticipant;
 
 impl IsParticipant for DummyParticipant {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         None
     }
-    fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
         Box::pin(async { Reclaimed::Collapsing })
     }
 }
@@ -689,14 +692,14 @@ fn errors() {
             assert_error!(AccountClosed, p.lock().claim(CLAIM));
 
             let cloned = ah.acct.clone();
-            assert!(cloned.aid.is_null());
+            assert!(cloned.0.as_enabled().unwrap().aid.is_null());
             assert_error!(
                 AccountClosed,
                 ah.acct.register_participant(dummy_dangling())
             );
 
             let mut cloned = p.lock().partn.clone();
-            assert!(cloned.pid.is_null());
+            assert!(cloned.0.as_enabled().unwrap().pid.is_null());
             assert_error!(AccountClosed, cloned.claim(CLAIM));
 
             // but we can still release

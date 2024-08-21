@@ -18,7 +18,7 @@
 //! # Example
 //!
 //! ```
-//! use tor_memquota::{MemoryQuotaTracker, HasMemoryCost};
+//! use tor_memquota::{MemoryQuotaTracker, HasMemoryCost, EnabledToken};
 //! use tor_rtcompat::PreferredRuntime;
 //! use tor_memquota::mq_queue::{MpscSpec, ChannelSpec as _};
 //! # fn m() -> tor_memquota::Result<()> {
@@ -26,12 +26,19 @@
 //! #[derive(Debug)]
 //! struct Message(String);
 //! impl HasMemoryCost for Message {
-//!     fn memory_cost(&self) -> usize { self.0.len() }
+//!     fn memory_cost(&self, _: EnabledToken) -> usize { self.0.len() }
 //! }
 //!
 //! let runtime = PreferredRuntime::create().unwrap();
 //! let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();
-//! let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();
+#![cfg_attr(
+    feature = "memquota",
+    doc = "let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();"
+)]
+#![cfg_attr(
+    not(feature = "memquota"),
+    doc = "let trk = MemoryQuotaTracker::new_noop();"
+)]
 //! let account = trk.new_account(None).unwrap();
 //!
 //! let (tx, rx) = MpscSpec { buffer: 10 }.new_mq::<Message, _>(&runtime, account)?;
@@ -412,8 +419,10 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> Stream for Recei
         };
         let ret = state.rx.poll_next_unpin(cx);
         if let Ready(Some(item)) = &ret {
-            let cost = item.typed_memory_cost();
-            state.mq.release(&cost);
+            if let Some(enabled) = EnabledToken::new_if_compiled_in() {
+                let cost = item.typed_memory_cost(enabled);
+                state.mq.release(&cost);
+            }
         }
         ret.map(|r| r.map(|e| e.t))
     }
@@ -464,7 +473,7 @@ impl<T: Debug + Send + 'static, C: ChannelSpec> ReceiverInner<T, C> {
 impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
     for ReceiverInner<T, C>
 {
-    fn get_oldest(&self) -> Option<CoarseInstant> {
+    fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
         let mut state = self.lock();
         let state = match &mut *state {
             Ok(y) => y,
@@ -476,7 +485,7 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
         peeked
     }
 
-    fn reclaim(self: Arc<Self>) -> mtracker::ReclaimFuture {
+    fn reclaim(self: Arc<Self>, _: EnabledToken) -> mtracker::ReclaimFuture {
         Box::pin(async move {
             let reason = CollapsedDueToReclaim;
             let mut state_guard = self.lock();
@@ -538,9 +547,9 @@ fn receiver_state_debug_collapse_notify(
 //---------- misc ----------
 
 impl<T: HasMemoryCost> HasMemoryCost for Entry<T> {
-    fn memory_cost(&self) -> usize {
+    fn memory_cost(&self, enabled: EnabledToken) -> usize {
         let time_size = std::alloc::Layout::new::<CoarseInstant>().size();
-        self.t.memory_cost().saturating_add(time_size)
+        self.t.memory_cost(enabled).saturating_add(time_size)
     }
 }
 
@@ -550,7 +559,7 @@ impl From<CollapsedDueToReclaim> for CollapseReason {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memquota"))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
@@ -618,7 +627,7 @@ mod test {
     }
 
     impl HasMemoryCost for Item {
-        fn memory_cost(&self) -> usize {
+        fn memory_cost(&self, _: EnabledToken) -> usize {
             mbytes(1)
         }
     }

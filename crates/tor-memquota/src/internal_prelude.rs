@@ -60,6 +60,7 @@ pub(crate) use crate::{
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
+    if_enabled::{EnabledToken, IfEnabled},
     memory_cost::{HasMemoryCost, HasTypedMemoryCost, TypedParticipation},
     mtracker::{self, Account, IsParticipant, Participation},
     private::Sealed,

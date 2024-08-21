@@ -1,5 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(feature = "memquota"), allow(unused))]
 
 //! ## Intended behavour
 //!
@@ -190,6 +191,7 @@
 #[macro_use]
 mod drop_bomb;
 mod drop_reentrancy;
+mod if_enabled;
 mod internal_prelude;
 #[macro_use]
 mod refcount;
@@ -213,6 +215,7 @@ mod private {
 
 pub use config::{Config, ConfigBuilder};
 pub use error::{Error, MemoryReclaimedError, StartupError};
+pub use if_enabled::EnabledToken;
 pub use memory_cost::HasMemoryCost;
 pub use mtracker::MemoryQuotaTracker;
 

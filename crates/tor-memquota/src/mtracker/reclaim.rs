@@ -64,7 +64,7 @@ fn analyse_particip(precord: &PRecord, defer_drop: &mut DeferredDrop) -> PStatus
         return PStatus::TearDown;
     };
 
-    let got_oldest = catch_unwind(AssertUnwindSafe(|| particip.get_oldest()));
+    let got_oldest = catch_unwind(AssertUnwindSafe(|| particip.get_oldest(precord.enabled)));
     defer_drop.push(particip);
 
     match got_oldest {
@@ -115,6 +115,9 @@ fn analyse_particip(precord: &PRecord, defer_drop: &mut DeferredDrop) -> PStatus
 struct Reclaiming {
     /// The heap of candidates, oldest at top of heap
     heap: BinaryHeap<Reverse<(Age, AId)>>,
+
+    /// Make this type uninhbaited if memory tracking is compiled out
+    enabled: EnabledToken,
 }
 
 /// A victim we have selected for reclamation
@@ -174,7 +177,10 @@ impl Reclaiming {
             });
         }
 
-        Some(Reclaiming { heap })
+        Some(Reclaiming {
+            heap,
+            enabled: state.enabled,
+        })
     }
 
     /// If we're reclaiming, choose the next victim(s) to reclaim
@@ -271,6 +277,8 @@ impl Reclaiming {
     /// This is the async part, and is done with the state unlocked.
     // Doesn't actually need `self`, only `victims`, but we take it for form's sake
     async fn notify_victims(&mut self, victims: Vec<Victim>) -> VictimResponses {
+        let enabled = self.enabled;
+
         futures::future::join_all(
             //
             victims.into_iter().map(|(aid, particip)| async move {
@@ -278,7 +286,7 @@ impl Reclaiming {
                 // We run the `.reclaim()` calls within the same task (since that's what
                 // `join_all` does).  So they all run on whatever executor thread is polling
                 // the reclamation task.
-                let reclaimed = AssertUnwindSafe(particip.reclaim())
+                let reclaimed = AssertUnwindSafe(particip.reclaim(enabled))
                     .catch_unwind()
                     .await
                     .map_err(|_panicked| VictimPanicked);
@@ -319,11 +327,14 @@ struct TaskFinished;
 /// Looks to see if we're above `config.max`.
 /// If so, constructs a list of victims, and starts reclaiming from them,
 /// until we reach low water.
-async fn inner_loop(tracker: &Arc<MemoryQuotaTracker>) -> Result<(), ReclaimCrashed> {
+async fn inner_loop(
+    tracker: &Arc<MemoryQuotaTracker>,
+    _enabled: EnabledToken,
+) -> Result<(), ReclaimCrashed> {
     let mut reclaiming;
     let mut victims;
     {
-        let mut state_guard = GuardWithDeferredDrop::new(tracker.lock()?);
+        let mut state_guard = GuardWithDeferredDrop::new(tracker.lock()?.enabled_or_bug()?);
 
         let Some(r) = Reclaiming::maybe_start(&mut state_guard) else {
             return Ok(());
@@ -342,7 +353,7 @@ async fn inner_loop(tracker: &Arc<MemoryQuotaTracker>) -> Result<(), ReclaimCras
 
     loop {
         let responses = reclaiming.notify_victims(mem::take(&mut victims)).await;
-        let mut state_guard = tracker.lock()?;
+        let mut state_guard = tracker.lock()?.enabled_or_bug()?;
         reclaiming.handle_victim_responses(&mut state_guard, responses);
         let Some(v) = reclaiming.choose_victims(&mut state_guard)? else {
             return Ok(());
@@ -357,6 +368,7 @@ async fn inner_loop(tracker: &Arc<MemoryQuotaTracker>) -> Result<(), ReclaimCras
 async fn task_loop(
     tracker: &Weak<MemoryQuotaTracker>,
     mut wakeup: mpsc::Receiver<()>,
+    enabled: EnabledToken,
 ) -> Result<TaskFinished, ReclaimCrashed> {
     loop {
         // We don't hold a strong reference while we loop around, so we detect
@@ -366,7 +378,7 @@ async fn task_loop(
                 return Ok(TaskFinished);
             };
 
-            inner_loop(&tracker).await?;
+            inner_loop(&tracker, enabled).await?;
         }
 
         let Some(()) = wakeup.next().await else {
@@ -380,13 +392,17 @@ async fn task_loop(
 ///
 /// This is the entrypoint used by the rest of the `tracker`.
 /// It handles logging of crashes.
-pub(super) async fn task(tracker: Weak<MemoryQuotaTracker>, wakeup: mpsc::Receiver<()>) {
-    match task_loop(&tracker, wakeup).await {
+pub(super) async fn task(
+    tracker: Weak<MemoryQuotaTracker>,
+    wakeup: mpsc::Receiver<()>,
+    enabled: EnabledToken,
+) {
+    match task_loop(&tracker, wakeup, enabled).await {
         Ok(TaskFinished) => {}
         Err(bug) => {
             let _: Option<()> = (|| {
                 let tracker = tracker.upgrade()?;
-                let mut state = tracker.state.lock().ok()?;
+                let mut state = tracker.state.as_enabled()?.lock().ok()?;
                 state.total_used.set_poisoned();
                 Some(())
             })();

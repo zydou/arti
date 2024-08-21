@@ -31,7 +31,7 @@ pub trait HasMemoryCost {
     ///
     /// This method must not panic.
     /// Otherwise, memory accounting may go awry.
-    fn memory_cost(&self) -> usize;
+    fn memory_cost(&self, _: EnabledToken) -> usize;
 }
 
 /// A [`Participation`] for use only for tracking the memory use of objects of type `T`
@@ -86,16 +86,16 @@ pub struct TypedMemoryCost<T> {
 // and we don't think there's a significant API stability hazard.
 pub trait HasTypedMemoryCost<T>: Sized {
     /// The cost, as a `TypedMemoryCost<T>` rather than a raw `usize`
-    fn typed_memory_cost(&self) -> TypedMemoryCost<T>;
+    fn typed_memory_cost(&self, _: EnabledToken) -> TypedMemoryCost<T>;
 }
 
 impl<T: HasMemoryCost> HasTypedMemoryCost<T> for T {
-    fn typed_memory_cost(&self) -> TypedMemoryCost<T> {
-        TypedMemoryCost::from_raw(self.memory_cost())
+    fn typed_memory_cost(&self, enabled: EnabledToken) -> TypedMemoryCost<T> {
+        TypedMemoryCost::from_raw(self.memory_cost(enabled))
     }
 }
 impl<T> HasTypedMemoryCost<T> for TypedMemoryCost<T> {
-    fn typed_memory_cost(&self) -> TypedMemoryCost<T> {
+    fn typed_memory_cost(&self, _: EnabledToken) -> TypedMemoryCost<T> {
         *self
     }
 }
@@ -111,11 +111,17 @@ impl<T> TypedParticipation<T> {
 
     /// Record increase in memory use, of a `T: HasMemoryCost` or a `TypedMemoryCost<T>`
     pub fn claim(&mut self, t: &impl HasTypedMemoryCost<T>) -> Result<(), Error> {
-        self.raw.claim(t.typed_memory_cost().raw)
+        let Some(enabled) = EnabledToken::new_if_compiled_in() else {
+            return Ok(());
+        };
+        self.raw.claim(t.typed_memory_cost(enabled).raw)
     }
     /// Record decrease in memory use, of a `T: HasMemoryCost` or a `TypedMemoryCost<T>`
     pub fn release(&mut self, t: &impl HasTypedMemoryCost<T>) {
-        self.raw.release(t.typed_memory_cost().raw);
+        let Some(enabled) = EnabledToken::new_if_compiled_in() else {
+            return;
+        };
+        self.raw.release(t.typed_memory_cost(enabled).raw);
     }
 
     /// Claiming wrapper for a closure
@@ -135,7 +141,11 @@ impl<T> TypedParticipation<T> {
         C: HasTypedMemoryCost<T>,
         F: FnOnce(C) -> Result<R, E>,
     {
-        let cost = item.typed_memory_cost();
+        let Some(enabled) = EnabledToken::new_if_compiled_in() else {
+            return Ok(call(item));
+        };
+
+        let cost = item.typed_memory_cost(enabled);
         self.claim(&cost)?;
         // Unwind safety:
         //  - "`F` may not be safely transferred across an unwind boundary"
@@ -192,7 +202,7 @@ impl<T> TypedMemoryCost<T> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memquota"))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
@@ -219,17 +229,17 @@ mod test {
     #[derive(Debug)]
     struct DummyParticipant;
     impl IsParticipant for DummyParticipant {
-        fn get_oldest(&self) -> Option<CoarseInstant> {
+        fn get_oldest(&self, _: EnabledToken) -> Option<CoarseInstant> {
             None
         }
-        fn reclaim(self: Arc<Self>) -> ReclaimFuture {
+        fn reclaim(self: Arc<Self>, _: EnabledToken) -> ReclaimFuture {
             panic!()
         }
     }
 
     struct Costed;
     impl HasMemoryCost for Costed {
-        fn memory_cost(&self) -> usize {
+        fn memory_cost(&self, _: EnabledToken) -> usize {
             // We nearly exceed the limit with one allocation.
             //
             // This proves that claim does claim, or we'd underflow on release,
@@ -252,7 +262,7 @@ mod test {
             partn.claim(&Costed).unwrap();
             partn.release(&Costed);
 
-            let cost = Costed.typed_memory_cost();
+            let cost = Costed.typed_memory_cost(EnabledToken::new());
             partn.claim(&cost).unwrap();
             partn.release(&cost);
 
