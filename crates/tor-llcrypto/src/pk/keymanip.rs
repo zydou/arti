@@ -209,12 +209,10 @@ fn clamp_blinding_factor(h: [u8; 32]) -> Scalar {
 ///
 /// This function can fail if the input is not actually a valid
 /// Ed25519 public key.
-///
-/// # Availability
-///
-/// This function is only available when the `hsv3-client` feature is enabled.
-#[cfg(feature = "hsv3-client")]
-pub fn blind_pubkey(pk: &VerifyingKey, h: [u8; 32]) -> Result<VerifyingKey, BlindingError> {
+#[cfg(any(feature = "hsv3-client", feature = "hsv3-service"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "hsv3-client")))]
+#[cfg_attr(feature = "hsv3-client", visibility::make(pub))]
+fn blind_pubkey(pk: &VerifyingKey, h: [u8; 32]) -> Result<VerifyingKey, BlindingError> {
     use curve25519_dalek::edwards::CompressedEdwardsY;
 
     let blinding_factor = clamp_blinding_factor(h);
@@ -245,11 +243,8 @@ pub fn blind_pubkey(pk: &VerifyingKey, h: [u8; 32]) -> Result<VerifyingKey, Blin
 ///
 /// This function can fail if the input is not actually a valid Ed25519 secret
 /// key.
-///
-/// # Availability
-///
-/// This function is only available when the `hsv3-client` feature is enabled.
 #[cfg(feature = "hsv3-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hsv3-service")))]
 pub fn blind_keypair(
     keypair: &ExpandedKeypair,
     h: [u8; 32],
@@ -280,13 +275,12 @@ pub fn blind_keypair(
     };
     let public = VerifyingKey::from(&secret);
 
-    #[cfg(debug_assertions)]
     {
         // Make sure that the public key that derives from our
         // blinded key is the same as the key that we get when we re-blind the
         // public key.
         let public2 = blind_pubkey(&keypair.public, h)?;
-        debug_assert_eq!(public, public2);
+        assert_eq!(public, public2);
     }
 
     Ok(ExpandedKeypair { secret, public })

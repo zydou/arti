@@ -5628,6 +5628,7 @@ dependencies = [
  "thiserror",
  "tor-basic-utils",
  "typenum",
+ "visibility",
  "x25519-dalek",
  "zeroize",
 ]
