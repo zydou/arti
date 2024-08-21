@@ -44,6 +44,13 @@ pub trait Object: DowncastSync + Send + Sync + 'static {
     fn get_cast_table(&self) -> &CastTable {
         &cast::EMPTY_CAST_TABLE
     }
+
+    /// Optionally, return a delegation target for this `Object``.
+    ///
+    /// If method lookup fails on this object, then the `delegate`
+    fn delegate(&self) -> Option<Arc<dyn Object>> {
+        None
+    }
 }
 downcast_rs::impl_downcast!(sync Object);
 
@@ -227,7 +234,7 @@ define_derive_deftly! {
 ///
 /// ## Making an object "exposed outside of the session"
 ///
-/// You flag any kind of Object so that its identifiers will be exported
+/// You can flag any kind of Object so that its identifiers will be exported
 /// outside of the local RPC session.  (Arti uses this for Objects whose
 /// ObjectId needs to be used as a SOCKS identifier.)  To do so,
 /// use the `expose_outside_session` attribute:
@@ -241,7 +248,35 @@ define_derive_deftly! {
 /// #[deftly(rpc(expose_outside_of_session))]
 /// struct Visible {}
 /// ```
+///
+/// ## Delegation
+///
+/// You can give an Object the ability to delegate
+/// method invocations to another object it contains.
+/// The inner object must be an `Arc`.
+/// To do so, use the `delegate_with` attribute.
+/// The attribute must contain an expression of type
+/// `FnOnce(&Self) -> Option(Arc<T>)`, where T implements Object.
+///
+/// ```
+/// use tor_rpcbase::{self as rpc, templates::*};
+/// use derive_deftly::Deftly;
+/// use std::sync::Arc;
+///
+/// #[derive(Deftly)]
+/// #[derive_deftly(Object)]
+/// struct Inner {}
+///
+/// #[derive(Deftly)]
+/// #[derive_deftly(Object)]
+/// #[deftly(rpc(delegate_with="|this: &Self| Some(this.inner.clone())"))]
+/// struct Outer {
+///     inner: Arc<Inner>,
+/// }
+/// ```
+///
     export Object expect items:
+
 
     impl<$tgens> $ttype where
         // We need this restriction in case there are generics
@@ -278,6 +313,12 @@ define_derive_deftly! {
         ${if tmeta(rpc(expose_outside_of_session)) {
             fn expose_outside_of_session(&self) -> bool {
                 true
+            }
+        }}
+
+        ${if tmeta(rpc(delegate_with)) {
+            fn delegate(&self) -> Option<Arc<dyn $crate::Object>> {
+                (${tmeta(rpc(delegate_with)) as expr})(self).map(|v| v as Arc<dyn $crate::Object>)
             }
         }}
 
@@ -418,5 +459,12 @@ mod test {
             erased_arc_bytes.clone().cast_to_arc_trait();
         let err_arc = arc_something_else.err().unwrap();
         assert!(Arc::ptr_eq(&err_arc, &erased_arc_bytes));
+    }
+
+    #[derive(Deftly)]
+    #[derive_deftly(Object)]
+    #[deftly(rpc(delegate_with = "|cage: &Self| Some(cage.possum.clone())"))]
+    struct PossumCage {
+        possum: Arc<Opossum>,
     }
 }
