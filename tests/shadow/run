@@ -26,7 +26,7 @@ shadow \
   > shadow.log
 
 # Check whether file transfers via arti inside the simulation succeeded
-for HOST in articlient articlient-extra articlient-bridge; do
+for HOST in articlient articlient-extra articlient-bridge articlient-bridge-obfs4; do
   successes="$(grep -c stream-success shadow.data/hosts/$HOST/tgen.*.stdout || true)"
   if [ "$successes" = 10 ]
   then

@@ -19,6 +19,10 @@ locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
 * Ensure [`tor`](https://gitlab.torproject.org/tpo/core/tor) is on your PATH.
   Typically you can install it using your host system's package manager.
 
+* Ensure [`obfs4proxy`](https://gitlab.com/yawning/obfs4) is located at
+  `/usr/bin/obfs4proxy`. Typically you can install it using your host system's
+  package manager.
+
 * Build an `arti` client with some extra features enabled such that the binary
   ends up at `../../target/x86_64-unknown-linux-gnu/debug/arti-extra`. In the CI
   this done in job `rust-latest-arti-extra-features` with the invocation:
