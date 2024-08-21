@@ -47,6 +47,7 @@ mod sinkext;
 mod watch;
 
 pub mod peekable_stream;
+pub mod stream_peek;
 
 pub use join_read_write::*;
 
