@@ -1351,6 +1351,7 @@ mod test {
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
     use hex_literal::hex;
+    use std::collections::{HashMap, VecDeque};
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
@@ -2228,6 +2229,133 @@ mod test {
             }
 
             // TODO: check that the circuit is shut down too
+        });
+    }
+
+    #[test]
+    fn test_busy_stream_fairness() {
+        // Number of streams to use.
+        const N_STREAMS: usize = 3;
+        // Number of cells (roughly) for each stream to send.
+        const N_CELLS: usize = 20;
+        // Number of bytes that *each* stream will send, and that we'll read
+        // from the channel.
+        const N_BYTES: usize = relaymsg::Data::MAXLEN * N_CELLS;
+        // Ignoring cell granularity, with perfect fairness we'd expect
+        // `N_BYTES/N_STREAMS` bytes from each stream.
+        //
+        // We currently allow for up to a full cell less than that.  This is
+        // somewhat arbitrary and can be changed as needed, since we don't
+        // provide any specific fairness guarantees.
+        const MIN_EXPECTED_BYTES_PER_STREAM: usize = N_BYTES / N_STREAMS - relaymsg::Data::MAXLEN;
+
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, mut rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut sink) = newcirc(&rt, chan).await;
+
+            // Run clients in a single task, doing our own round-robin
+            // scheduling of writes to the reactor. Conversely, if we were to
+            // put each client in its own task, we would be at the the mercy of
+            // how fairly the runtime schedules the client tasks, which is outside
+            // the scope of this test.
+            rt.spawn({
+                // Clone the circuit to keep it alive after writers have
+                // finished with it.
+                let circ = circ.clone();
+                async move {
+                    let mut clients = VecDeque::new();
+                    struct Client {
+                        stream: DataStream,
+                        to_write: &'static [u8],
+                    }
+                    for _ in 0..N_STREAMS {
+                        clients.push_back(Client {
+                            stream: circ
+                                .begin_stream("www.example.com", 80, None)
+                                .await
+                                .unwrap(),
+                            to_write: &[0_u8; N_BYTES][..],
+                        });
+                    }
+                    while let Some(mut client) = clients.pop_front() {
+                        if client.to_write.is_empty() {
+                            // Client is done. Don't put back in queue.
+                            continue;
+                        }
+                        let written = client.stream.write(client.to_write).await.unwrap();
+                        client.to_write = &client.to_write[written..];
+                        clients.push_back(client);
+                    }
+                }
+            })
+            .unwrap();
+
+            let channel_handler_fut = async {
+                let mut stream_bytes_received = HashMap::<StreamId, usize>::new();
+                let mut total_bytes_received = 0;
+
+                loop {
+                    let (_, msg) = rx.next().await.unwrap().into_circid_and_msg();
+                    let rmsg = match msg {
+                        AnyChanMsg::Relay(r) => AnyRelayMsgOuter::decode_singleton(
+                            RelayCellFormat::V0,
+                            r.into_relay_body(),
+                        )
+                        .unwrap(),
+                        other => panic!("Unexpected chanmsg: {other:?}"),
+                    };
+                    let (streamid, rmsg) = rmsg.into_streamid_and_msg();
+                    match rmsg.cmd() {
+                        RelayCmd::BEGIN => {
+                            // Add an entry for this stream.
+                            let prev = stream_bytes_received.insert(streamid.unwrap(), 0);
+                            assert_eq!(prev, None);
+                            // Reply with a CONNECTED.
+                            let connected = relaymsg::Connected::new_with_addr(
+                                "10.0.0.1".parse().unwrap(),
+                                1234,
+                            )
+                            .into();
+                            sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+                        }
+                        RelayCmd::DATA => {
+                            let data_msg = relaymsg::Data::try_from(rmsg).unwrap();
+                            let nbytes = data_msg.as_ref().len();
+                            total_bytes_received += nbytes;
+                            let streamid = streamid.unwrap();
+                            let stream_bytes = stream_bytes_received.get_mut(&streamid).unwrap();
+                            *stream_bytes += nbytes;
+                            if total_bytes_received >= N_BYTES {
+                                break;
+                            }
+                        }
+                        RelayCmd::END => {
+                            // Stream is done. If fair scheduling is working as
+                            // expected we *probably* shouldn't get here, but we
+                            // can ignore it and save the failure until we
+                            // actually have the final stats.
+                            continue;
+                        }
+                        other => {
+                            panic!("Unexpected command {other:?}");
+                        }
+                    }
+                }
+
+                // Return our stats, along with the `rx` and `sink` to keep the
+                // reactor alive (since clients could still be writing).
+                (total_bytes_received, stream_bytes_received, rx, sink)
+            };
+
+            let (total_bytes_received, stream_bytes_received, _rx, _sink) =
+                channel_handler_fut.await;
+            assert_eq!(stream_bytes_received.len(), N_STREAMS);
+            for (sid, stream_bytes) in stream_bytes_received {
+                assert!(
+                    stream_bytes >= MIN_EXPECTED_BYTES_PER_STREAM,
+                    "Only {stream_bytes} of {total_bytes_received} bytes received from {N_STREAMS} came from {sid:?}; expected at least {MIN_EXPECTED_BYTES_PER_STREAM}"
+                );
+            }
         });
     }
 
