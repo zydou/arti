@@ -5,7 +5,7 @@ use derive_deftly::define_derive_deftly;
 /// Create an ed25519 keypair wrapper given a visibility and a struct name.
 ///
 /// # Syntax:
-/// ```rust
+/// ```rust,ignore
 /// define_ed25519_keypair( visibility, prefix )
 /// ```
 ///
@@ -39,24 +39,24 @@ use derive_deftly::define_derive_deftly;
 /// define_ed25519_keypair!(MySigning);
 ///
 /// let mut rng = rand::thread_rng();
-/// let signing_kp = MySigningKeypair::generate(rng);
+/// let signing_kp = MySigningKeypair::generate(&mut rng).expect("Invalid keygen");
 /// let signing_pubkey = signing_kp.public();
 /// // Lets sign this wonderful message.
-/// let message = "Bonjour".as_bytes();
+/// let message = "Workers want rights, not your opinion".as_bytes();
 /// let sig = signing_kp.sign(&message);
 ///
 /// // You can then verify either directly with the keypair or the public key.
-/// assert!(signing_kp.verify(sig, &message))
-/// assert!(signing_pubkey.verify(sig, &message))
+/// assert!(signing_kp.verify(sig, &message));
+/// assert!(signing_pubkey.verify(sig, &message));
 /// ```
 #[macro_export]
 macro_rules! define_ed25519_keypair {
     ($vis:vis $base_name:ident) => {
         paste::paste! {
-            #[derive(Deftly)]
+            #[derive(derive_deftly::Deftly)]
             #[derive_deftly(Ed25519Keypair)]
             #[deftly(kp(pubkey = $base_name "PublicKey"))]
-            $vis struct [<$base_name "Keypair">](ed25519::Keypair);
+            $vis struct [<$base_name "Keypair">](tor_llcrypto::pk::ed25519::Keypair);
         }
     };
 }
@@ -76,13 +76,13 @@ define_derive_deftly! {
     /// Public key component of this keypair. Useful if we move the public key around,
     /// it then keeps it semantic with the name and less prone to errors.
     #[derive(Clone, Debug, derive_more::From, derive_more::Into, PartialEq, Eq)]
-    $tvis struct $PK_NAME (ed25519::PublicKey);
+    $tvis struct $PK_NAME (tor_llcrypto::pk::ed25519::PublicKey);
 
     impl $PK_NAME {
         /// Verify the signature of a given message.
         #[allow(unused)]
-        $tvis fn verify(&self, sig: ed25519::Signature, text: &[u8]) -> bool {
-            ed25519::ValidatableEd25519Signature::new(self.0, sig, text).is_valid()
+        $tvis fn verify(&self, sig: tor_llcrypto::pk::ed25519::Signature, text: &[u8]) -> bool {
+            tor_llcrypto::pk::ed25519::ValidatableEd25519Signature::new(self.0, sig, text).is_valid()
         }
     }
 
@@ -92,17 +92,17 @@ define_derive_deftly! {
             $PK_NAME((&self.$KP_NAME).into())
         }
         /// Sign a given message.
-        $tvis fn sign(&self, msg: &[u8]) -> ed25519::Signature {
-            ed25519::ExpandedKeypair::from(&self.$KP_NAME).sign(msg)
+        $tvis fn sign(&self, msg: &[u8]) -> tor_llcrypto::pk::ed25519::Signature {
+            tor_llcrypto::pk::ed25519::ExpandedKeypair::from(&self.$KP_NAME).sign(msg)
         }
         /// Verify the signature of a given message.
-        $tvis fn verify(&self, sig: ed25519::Signature, text: &[u8]) -> bool {
-            ed25519::ValidatableEd25519Signature::new(self.public().0, sig, text).is_valid()
+        $tvis fn verify(&self, sig: tor_llcrypto::pk::ed25519::Signature, text: &[u8]) -> bool {
+            tor_llcrypto::pk::ed25519::ValidatableEd25519Signature::new(self.public().0, sig, text).is_valid()
         }
     }
 
-    impl From<ed25519::Keypair> for $ttype {
-        fn from(kp: ed25519::Keypair) -> Self {
+    impl From<tor_llcrypto::pk::ed25519::Keypair> for $ttype {
+        fn from(kp: tor_llcrypto::pk::ed25519::Keypair) -> Self {
             Self(kp)
         }
     }
@@ -120,7 +120,7 @@ define_derive_deftly! {
     }
 
     impl tor_keymgr::ToEncodableKey for $ttype {
-        type Key = ed25519::Keypair;
+        type Key = tor_llcrypto::pk::ed25519::Keypair;
 
         fn to_encodable_key(self) -> Self::Key {
             self.$KP_NAME
@@ -135,17 +135,16 @@ define_derive_deftly! {
         where
             Self: Sized
         {
-            Ok(Self { $KP_NAME: ed25519::Keypair::generate(rng) })
+            Ok(Self { $KP_NAME: tor_llcrypto::pk::ed25519::Keypair::generate(rng) })
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use derive_deftly::Deftly;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_keymgr::Keygen;
-    use tor_llcrypto::pk::{ed25519, ValidatableSignature};
+    use tor_llcrypto::pk::ValidatableSignature;
 
     #[test]
     fn deftly_ed25519_keypair() {
