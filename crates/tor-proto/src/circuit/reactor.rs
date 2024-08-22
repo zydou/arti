@@ -887,9 +887,17 @@ impl Reactor {
                 }
                 if self.hops[i].sendwindow.window() == 0 {
                     // We can't send anything on this hop that counts towards SENDME windows.
-                    // In theory we could send messages that don't count towards windows,
-                    // but it's probably not worth iterating over all of our streams to see
-                    // if that's the case.
+                    //
+                    // In theory we could send messages that don't count towards
+                    // windows (like `RESOLVE`), and process end-of-stream
+                    // events (to send an `END`), but it's probably not worth
+                    // doing an O(N) iteration over flow-control-ready streams
+                    // to see if that's the case.
+                    //
+                    // This *doesn't* block outgoing flow-control messages (e.g.
+                    // SENDME), which are initiated via the control-message
+                    // channel, handled above.
+                    //
                     // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
                     // congestion control has "bottomed out" might not be so bad, and the
                     // alternatives have complexity and/or performance costs.

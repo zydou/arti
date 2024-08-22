@@ -43,6 +43,11 @@ impl StreamSendFlowControl {
 
     /// Take capacity to send `msg`. If there's insufficient capacity, returns
     /// an error.
+    // TODO: Consider having this method wrap the message in a type that
+    // "proves" we've applied flow control. This would make it easier to apply
+    // flow control earlier, e.g. in `OpenStreamEntStream`, without introducing
+    // ambiguity in the sending function as to whether flow control has already
+    // been applied or not.
     pub(crate) fn take_capacity_to_send<M: RelayMsg>(&mut self, msg: &M) -> Result<()> {
         match &mut self.e {
             StreamSendFlowControlEnum::WindowBased(w) => {

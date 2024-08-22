@@ -109,6 +109,12 @@ impl futures::Stream for OpenStreamEntStream {
         };
         let res = self.project().inner.project().rx.poll_next(cx);
         debug_assert!(res.is_ready());
+        // TODO: consider calling `inner.flow_ctrl.take_capacity_to_send` here;
+        // particularly if we change it to return a wrapper type that proves
+        // we've taken the capacity. Otherwise it'd make it tricky in the reactor
+        // to be sure we've correctly taken the capacity, since messages can originate
+        // in other parts of the code (currently none of those should be of types that
+        // count towards flow control, but that may change).
         res
     }
 }
