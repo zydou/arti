@@ -59,6 +59,10 @@ def get_dependencies(cratename):
     fname = os.path.join(CRATEDIR, cratename, "Cargo.toml")
     t = toml.decoder.load(fname)
     deps = set()
+    # We need to look at dev-dependencies too, and disallow false cyclic
+    # dependencies through dev-dependencies.  We might be able to relax this if
+    # crate publishing is updated to ignore dev-dependencies
+    # <https://github.com/rust-lang/cargo/issues/4242>.
     for secname in ['dependencies', 'dev-dependencies']:
         sec = t.get(secname)
         if not sec:
