@@ -307,6 +307,10 @@ deb-binary-amd64:
   tags:
     - amd64
 
+# Note: big-endian targets do not compile due to lack of support from the merlin
+# crate, needed by the 'batch' feature of ed25519-dalek. A fix seems available
+# (https://github.com/zkcrypto/merlin/pull/5) and forking merlin was discussed
+# by the developers of ed25519-dalek (https://github.com/dalek-cryptography/ed25519-dalek/issues/228).
 .deb-binary-cross-template:
   stage: test
   variables:
