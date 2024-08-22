@@ -5,6 +5,9 @@
 #
 # Please keep this list topologically sorted by dependency relation, so
 # that every crate appears _before_ any other crate that depends on it.
+# We depend on this for publishing to crates.io. e.g. 
+# see
+# https://blog.iany.me/2020/10/gotchas-to-publish-rust-crates-in-a-workspace/#cyclic-dependencies
 members = [
     "crates/slotmap-careful",
     "crates/test-temp-dir",

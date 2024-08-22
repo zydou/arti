@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 #
-# Helper script: makes sure that the crates as listed in Cargo.toml are
+# Helper script: makes sure that the crates as listed in the workspace Cargo.toml are
 # topologically sorted from lowest-level to highest level.
+#
+# We depend on this property for publishing to crates.io. e.g.
+# see
+# https://blog.iany.me/2020/10/gotchas-to-publish-rust-crates-in-a-workspace/#cyclic-dependencies
 
 import toml.decoder
 import sys
