@@ -5619,6 +5619,7 @@ dependencies = [
  "thiserror",
  "tor-basic-utils",
  "tor-error",
+ "tor-hscrypto",
  "tor-llcrypto",
 ]
 

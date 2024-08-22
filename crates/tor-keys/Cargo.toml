@@ -13,7 +13,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = []
+full = [
+    "tor-error/full",
+    "tor-hscrypto/full",
+    "tor-llcrypto/full",
+]
 
 __is_nonadditive = []
 __is_experimental = []
