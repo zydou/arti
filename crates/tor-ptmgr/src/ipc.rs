@@ -6,6 +6,7 @@
 
 use crate::err;
 use crate::err::PtError;
+use crate::PtClientMethod;
 use futures::channel::mpsc;
 use futures::channel::mpsc::Receiver;
 use futures::StreamExt;
@@ -571,7 +572,7 @@ pub(crate) mod sealed {
                     error: Arc::new(e),
                 })?;
 
-            let identifier = crate::pt_identifier(binary_path)?;
+            let identifier = crate::managed::pt_identifier(binary_path)?;
             AsyncPtChild::new(child, identifier)
         }
 
@@ -788,27 +789,6 @@ impl PtServerParameters {
             );
         }
         ret
-    }
-}
-
-/// A SOCKS endpoint to connect through a pluggable transport.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PtClientMethod {
-    /// The SOCKS protocol version to use.
-    pub(crate) kind: SocksVersion,
-    /// The socket address to connect to.
-    pub(crate) endpoint: SocketAddr,
-}
-
-impl PtClientMethod {
-    /// Get the SOCKS protocol version to use.
-    pub fn kind(&self) -> SocksVersion {
-        self.kind
-    }
-
-    /// Get the socket address to connect to.
-    pub fn endpoint(&self) -> SocketAddr {
-        self.endpoint
     }
 }
 
