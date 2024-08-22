@@ -138,6 +138,10 @@ define_derive_deftly! {
             Ok(Self { $KP_NAME: tor_llcrypto::pk::ed25519::Keypair::generate(rng) })
         }
     }
+
+    // NOTE: We will require a define_curve25519_keypair and define_rsa_keypair for the future so
+    // the relay legacy RSA keys can be declared and for the HS subsystem to replace its current
+    // define_pk_keypair macro.
 }
 
 #[cfg(test)]
