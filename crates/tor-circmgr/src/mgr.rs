@@ -37,13 +37,13 @@ use futures::channel::mpsc;
 use futures::future::{FutureExt, Shared};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::task::SpawnExt;
+use oneshot_fused_workaround as oneshot;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
-use tor_async_utils::oneshot;
 use tracing::{debug, warn};
 use weak_table::PtrWeakHashSet;
 

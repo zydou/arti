@@ -631,9 +631,9 @@ mod test {
 
     use super::*;
     use futures::poll;
+    use oneshot_fused_workaround as oneshot;
     use std::future::Future;
     use std::task::Poll;
-    use tor_async_utils::oneshot;
     use tor_rtcompat::BlockOn;
     use tor_rtmock::MockRuntime;
 

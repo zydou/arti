@@ -8,7 +8,7 @@ use crate::GuardMgrInner;
 
 use futures::{channel::mpsc, stream::StreamExt};
 #[cfg(test)]
-use tor_async_utils::oneshot;
+use oneshot_fused_workaround as oneshot;
 use tor_proto::ClockSkew;
 
 use std::sync::{Mutex, Weak};

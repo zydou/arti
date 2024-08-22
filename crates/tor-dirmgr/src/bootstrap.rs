@@ -20,7 +20,7 @@ use crate::{
 
 use futures::FutureExt;
 use futures::StreamExt;
-use tor_async_utils::oneshot;
+use oneshot_fused_workaround as oneshot;
 use tor_dirclient::DirResponse;
 use tor_error::{info_report, warn_report};
 use tor_rtcompat::scheduler::TaskSchedule;

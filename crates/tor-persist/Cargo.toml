@@ -32,6 +32,7 @@ fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["walkdir
 fslock-guard = { path = "../fslock-guard", version = "0.1.2", optional = true }
 futures = "0.3.14"
 itertools = "0.13.0"
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.21.0" }
 paste = "1"
 sanitize-filename = "0.5.0"
 serde = { version = "1.0.103", features = ["derive"] }

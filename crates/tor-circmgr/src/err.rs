@@ -6,7 +6,7 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
-use tor_async_utils::oneshot;
+use oneshot_fused_workaround as oneshot;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
 use tor_proto::circuit::UniqId;

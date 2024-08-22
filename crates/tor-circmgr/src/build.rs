@@ -6,12 +6,12 @@ use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::task::SpawnExt;
 use futures::Future;
+use oneshot_fused_workaround as oneshot;
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc,
 };
 use std::time::{Duration, Instant};
-use tor_async_utils::oneshot;
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_error::warn_report;
 use tor_guardmgr::GuardStatus;

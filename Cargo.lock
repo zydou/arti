@@ -378,6 +378,7 @@ dependencies = [
  "erased-serde",
  "futures",
  "futures-await-test",
+ "oneshot-fused-workaround",
  "pin-project",
  "rand",
  "serde",
@@ -3162,6 +3163,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
+name = "oneshot-fused-workaround"
+version = "0.21.0"
+dependencies = [
+ "futures",
+]
+
+[[package]]
 name = "openssl"
 version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5065,6 +5073,7 @@ dependencies = [
  "futures-await-test",
  "hex-literal",
  "itertools 0.13.0",
+ "oneshot-fused-workaround",
  "postage",
  "rand",
  "safelog",
@@ -5116,6 +5125,7 @@ dependencies = [
  "humantime-serde",
  "itertools 0.13.0",
  "once_cell",
+ "oneshot-fused-workaround",
  "pin-project",
  "rand",
  "retry-error",
@@ -5258,6 +5268,7 @@ dependencies = [
  "itertools 0.13.0",
  "memmap2 0.9.4",
  "once_cell",
+ "oneshot-fused-workaround",
  "paste",
  "postage",
  "rand",
@@ -5351,6 +5362,7 @@ dependencies = [
  "humantime-serde",
  "itertools 0.13.0",
  "num_enum",
+ "oneshot-fused-workaround",
  "pin-project",
  "postage",
  "rand",
@@ -5391,6 +5403,7 @@ dependencies = [
  "futures",
  "humantime",
  "itertools 0.13.0",
+ "oneshot-fused-workaround",
  "postage",
  "rand",
  "retry-error",
@@ -5471,6 +5484,7 @@ dependencies = [
  "derive-deftly",
  "derive_builder_fork_arti",
  "futures",
+ "oneshot-fused-workaround",
  "rangemap",
  "safelog",
  "serde",
@@ -5512,6 +5526,7 @@ dependencies = [
  "k12",
  "libc",
  "once_cell",
+ "oneshot-fused-workaround",
  "postage",
  "rand",
  "rand_core",
@@ -5786,6 +5801,7 @@ dependencies = [
  "fslock-guard",
  "futures",
  "itertools 0.13.0",
+ "oneshot-fused-workaround",
  "paste",
  "sanitize-filename",
  "serde",
@@ -5821,6 +5837,7 @@ dependencies = [
  "hmac",
  "humantime",
  "itertools 0.13.0",
+ "oneshot-fused-workaround",
  "pin-project",
  "rand",
  "rand_core",
@@ -5873,6 +5890,7 @@ dependencies = [
  "fs-mistrust",
  "futures",
  "itertools 0.13.0",
+ "oneshot-fused-workaround",
  "serde",
  "thiserror",
  "tokio",
@@ -5967,6 +5985,7 @@ dependencies = [
  "futures-await-test",
  "humantime",
  "itertools 0.13.0",
+ "oneshot-fused-workaround",
  "pin-project",
  "priority-queue",
  "rand",

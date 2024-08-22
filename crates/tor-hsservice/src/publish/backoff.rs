@@ -246,7 +246,7 @@ mod tests {
     use std::iter;
     use std::sync::RwLock;
 
-    use tor_async_utils::oneshot;
+    use oneshot_fused_workaround as oneshot;
     use tor_rtcompat::{BlockOn, SleepProvider};
     use tor_rtmock::MockRuntime;
 

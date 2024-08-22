@@ -95,7 +95,7 @@ pub mod bridge;
 pub use config::testing::TestConfig;
 
 #[cfg(test)]
-use tor_async_utils::oneshot;
+use oneshot_fused_workaround as oneshot;
 
 pub use config::GuardMgrConfig;
 pub use err::{GuardMgrConfigError, GuardMgrError, PickGuardError};
