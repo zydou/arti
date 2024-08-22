@@ -6,7 +6,10 @@
 //
 // There is also humansize, but that just does printing.
 
-use crate::internal_prelude::*;
+use derive_more::{Deref, DerefMut, From, Into};
+use serde::{Deserialize, Serialize};
+
+use std::fmt::{self, Display};
 
 /// Quantity of memory used, measured in bytes.
 ///
@@ -14,22 +17,23 @@ use crate::internal_prelude::*;
 #[derive(Debug, Clone, Copy, Hash, Default, Eq, PartialEq, Ord, PartialOrd)] //
 #[derive(From, Into, Deref, DerefMut, Serialize, Deserialize)]
 #[serde(transparent)]
-pub(crate) struct Qty(pub(crate) usize);
+#[allow(clippy::exhaustive_structs)] // this is a behavioural newtype wrapper
+pub struct ByteQty(pub usize);
 
-impl Qty {
+impl ByteQty {
     /// Maximum for the type
-    pub(crate) const MAX: Qty = Qty(usize::MAX);
+    pub const MAX: ByteQty = ByteQty(usize::MAX);
 
     /// Return the value as a plain number, a `usize`
     ///
     /// Provided so call sites don't need to write an opaque `.0` everywhere,
     /// even though that would be fine.
-    pub(crate) const fn as_usize(self) -> usize {
+    pub const fn as_usize(self) -> usize {
         self.0
     }
 }
 
-impl Display for Qty {
+impl Display for ByteQty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mb = self.0 as f32 / (1024. * 1024.);
         write!(f, "{:.2}MiB", mb)
@@ -56,7 +60,7 @@ mod test {
 
     #[test]
     fn display_qty() {
-        let chk = |by, s| assert_eq!(Qty(by).to_string(), s);
+        let chk = |by, s| assert_eq!(ByteQty(by).to_string(), s);
 
         chk(10 * 1024, "0.01MiB");
         chk(1024 * 1024, "1.00MiB");

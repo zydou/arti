@@ -56,7 +56,7 @@ pub(crate) use {
 };
 
 pub(crate) use crate::{
-    byte_qty::Qty,
+    byte_qty::ByteQty as Qty,
     config::Config,
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
