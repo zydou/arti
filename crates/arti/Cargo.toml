@@ -89,7 +89,7 @@ compression = ["arti-client/compression"]
 # This feature flag enables experimental features that are not supported. Turning it on may
 # void your API.
 experimental = ["arti-client/experimental", "tor-hsservice/experimental", "experimental-api", "rpc", "relay", "keymgr"]
-rpc = ["arti-rpcserver", "tor-rpcbase", "__is_experimental"]
+rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 __is_experimental = []
 
@@ -104,6 +104,7 @@ async-ctrlc = { version = "1.2.0", optional = true }
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
+derive-deftly = { version = "0.14", optional = true }
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9" }
 futures = "0.3.14"
 humantime = "2"

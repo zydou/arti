@@ -199,6 +199,7 @@ dependencies = [
  "async-ctrlc",
  "cfg-if",
  "clap",
+ "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
  "fs-mistrust",

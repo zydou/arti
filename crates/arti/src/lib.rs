@@ -250,10 +250,13 @@ async fn run<R: Runtime>(
         // TODO RPC This code doesn't really belong here; it's just an example.
         if let Some(listen_path) = rpc_path {
             // TODO Conceivably this listener belongs on a renamed "proxy" list.
+            let rpc_state = rpc::RpcVisibleArtiState::new();
+
             Some(rpc::launch_rpc_listener(
                 &runtime,
                 listen_path,
                 client.clone(),
+                rpc_state,
             )?)
         } else {
             None
