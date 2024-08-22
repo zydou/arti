@@ -246,10 +246,9 @@ impl AnyResponse {
 /// and deliver the error from Arti in `*response_out`, setting `*response_type_out` to
 /// `ARTI_RPC_RESPONSE_TYPE_ERROR`.
 ///
-/// # Correctness requirements
-///
-/// No other thread or code must be using `handle` while this function is running.
-/// Accessing `handle` from multiple functions at once may result in undefined behavior.
+/// It is safe to call this function on the same handle from multiple threads at once.
+/// If you do, each response will be sent to exactly one thread.
+/// It is unspecified which thread will receive which response or which error.
 ///
 /// # Ownership
 ///
@@ -259,14 +258,14 @@ impl AnyResponse {
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn arti_rpc_handle_wait(
-    handle: *mut ArtiRpcHandle,
+    handle: *const ArtiRpcHandle,
     response_out: *mut *mut ArtiRpcStr,
     response_type_out: *mut ArtiRpcResponseType,
     error_out: *mut *mut ArtiRpcError,
 ) -> ArtiRpcStatus {
     ffi_body_with_err! {
         {
-            let handle: Option<&mut ArtiRpcHandle> [in_mut_ptr_opt];
+            let handle: Option<&ArtiRpcHandle> [in_ptr_opt];
             let response_out: Option<OutPtr<ArtiRpcStr>> [out_ptr_opt];
             let response_type_out: Option<OutVal<ArtiRpcResponseType>> [out_val_opt];
             err error_out: Option<OutPtr<ArtiRpcError>>;

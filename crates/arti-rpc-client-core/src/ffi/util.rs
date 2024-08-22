@@ -533,6 +533,7 @@ pub(super) mod arg_conversion {
     /// # Safety
     ///
     /// As for [`<*const T>::as_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut).
+    #[allow(dead_code)] // TODO RPC: Remove this unless something calls it.
     pub(in crate::ffi) unsafe fn in_mut_ptr_opt<'a, T>(
         input: *mut T,
     ) -> Result<Option<&'a mut T>, Void> {
