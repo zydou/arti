@@ -3,9 +3,14 @@
 use arti_client::TorClient;
 use arti_rpcserver::RpcAuthentication;
 use derive_deftly::Deftly;
-use std::sync::Arc;
+use std::{
+    net::SocketAddr,
+    sync::{Arc, OnceLock},
+};
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::Runtime;
+
+use super::proxyinfo::{self, ProxyInfo};
 
 /// A top-level RPC session object.
 ///
@@ -18,8 +23,7 @@ use tor_rtcompat::Runtime;
 #[deftly(rpc(expose_outside_of_session))]
 pub(super) struct ArtiRpcSession {
     /// State about the `arti` server, as seen by the Rpc system.
-    #[allow(dead_code)] // XXXX this will become used.
-    arti_state: Arc<RpcVisibleArtiState>,
+    pub(super) arti_state: Arc<RpcVisibleArtiState>,
     /// The underlying RpcSession object that we delegate to.
     session: Arc<arti_rpcserver::RpcSession>,
 }
@@ -34,8 +38,12 @@ pub(super) struct ArtiRpcSession {
 // ArtiRpcSession.  Later on, we could split it into one type that
 // the rest of this crate constructs, and another type that the
 // ArtiRpcSession actually uses. We should do that if the needs seem to diverge.
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) struct RpcVisibleArtiState {
-    // XXXX Nothing here yet; that will change in upcoming commits.
+    /// A `ProxyInfo` that we hand out when asked to list our proxy ports.
+    ///
+    /// Right now it only lists Socks; in the future it may list more.
+    pub(super) proxy_info: OnceLock<ProxyInfo>,
 }
 
 impl ArtiRpcSession {
@@ -64,6 +72,25 @@ impl ArtiRpcSession {
 impl RpcVisibleArtiState {
     /// Construct a new `RpcVisibleArtiState`.
     pub(crate) fn new() -> Arc<Self> {
-        Arc::new(Self {})
+        Arc::new(Self {
+            proxy_info: OnceLock::new(),
+        })
+    }
+
+    /// Set the list of socks listener addresses on this state.
+    ///
+    /// This method may only be called once per state.
+    pub(crate) fn set_socks_listeners(&self, addrs: &[SocketAddr]) -> anyhow::Result<()> {
+        let info = ProxyInfo {
+            proxies: addrs
+                .iter()
+                .map(|a| proxyinfo::Proxy::Socks5 { address: *a })
+                .collect(),
+        };
+        self.proxy_info
+            .set(info)
+            .map_err(|_| anyhow::anyhow!("Tried to call set_socks_listeners twice"))?;
+
+        Ok(())
     }
 }

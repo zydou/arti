@@ -10,6 +10,7 @@ use arti_client::TorClient;
 use tor_rtcompat::Runtime;
 
 pub(crate) mod conntarget;
+mod proxyinfo;
 mod session;
 
 pub(crate) use session::RpcVisibleArtiState;
