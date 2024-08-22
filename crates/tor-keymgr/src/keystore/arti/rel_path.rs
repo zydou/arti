@@ -9,9 +9,10 @@ use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 
 use fs_mistrust::CheckedDir;
+use tor_keys::KeyType;
 
 use crate::keystore::arti::err::{ArtiNativeKeystoreError, FilesystemAction};
-use crate::{ArtiPathUnavailableError, KeySpecifier, KeyType, Result};
+use crate::{ArtiPathUnavailableError, KeySpecifier, Result};
 
 /// The path of a key, relative to a [`CheckedDir`].
 ///

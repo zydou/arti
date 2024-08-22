@@ -3,15 +3,15 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    BoxedKeystore, EncodableKey, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor,
-    KeyPathPattern, KeySpecifier, KeyType, Keygen, KeygenRng, KeystoreId, KeystoreSelector, Result,
-    ToEncodableKey,
+    BoxedKeystore, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor, KeyPathPattern,
+    KeySpecifier, KeystoreId, KeystoreSelector, Result,
 };
 
 use itertools::Itertools;
 use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
+use tor_keys::{EncodableKey, KeyType, Keygen, KeygenRng, ToEncodableKey};
 
 /// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -408,12 +408,13 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::{ArtiPath, ArtiPathUnavailableError, ErasedKey, KeyPath, KeyType, SshKeyData};
+    use crate::{ArtiPath, ArtiPathUnavailableError, KeyPath};
     use std::collections::HashMap;
     use std::result::Result as StdResult;
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_keys::{EncodableKey, ErasedKey, SshKeyData};
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.
@@ -446,7 +447,7 @@ mod tests {
     }
 
     impl Keygen for TestKey {
-        fn generate(mut rng: &mut dyn KeygenRng) -> Result<Self>
+        fn generate(mut rng: &mut dyn KeygenRng) -> tor_keys::Result<Self>
         where
             Self: Sized,
         {
@@ -466,7 +467,7 @@ mod tests {
             KeyType::Ed25519Keypair
         }
 
-        fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+        fn as_ssh_key_data(&self) -> tor_keys::Result<SshKeyData> {
             Ok(self.key.clone())
         }
     }
@@ -491,7 +492,7 @@ mod tests {
             KeyType::Ed25519PublicKey
         }
 
-        fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+        fn as_ssh_key_data(&self) -> tor_keys::Result<SshKeyData> {
             Ok(self.key.clone())
         }
     }

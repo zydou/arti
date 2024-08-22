@@ -54,6 +54,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
 tor-config = { path = "../tor-config", version = "0.22.0" }
 tor-error = { path = "../tor-error", version = "0.22.0" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.22.0" }
+tor-keys = { path = "../tor-keys", version = "0.22.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.22.0", features = ["keymgr"] }
 tor-persist = { path = "../tor-persist", version = "0.22.0" }
 walkdir = { version = "2" }

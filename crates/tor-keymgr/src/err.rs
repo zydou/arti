@@ -9,7 +9,6 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::ssh::SshKeyAlgorithm;
 use crate::KeyPathError;
 
 /// An Error type for this crate.
@@ -35,9 +34,9 @@ pub enum Error {
     #[error("Key already exists")]
     KeyAlreadyExists,
 
-    /// Attempted to use an unsupported key.
-    #[error("Unsupported key algorithm {0}")]
-    UnsupportedKeyAlgorithm(SshKeyAlgorithm),
+    /// Error coming from the tor-keys crate
+    #[error("{0}")]
+    Keys(#[from] tor_keys::Error),
 
     /// An internal error.
     #[error("Internal error")]
@@ -59,7 +58,7 @@ impl HasKind for Error {
             E::Keystore(e) => e.kind(),
             E::Corruption(_) => EK::KeystoreCorrupted,
             E::KeyAlreadyExists => EK::BadApiUsage, // TODO: not strictly right
-            E::UnsupportedKeyAlgorithm(_) => EK::BadApiUsage,
+            E::Keys(_) => EK::BadApiUsage,
             E::Bug(e) => e.kind(),
         }
     }
@@ -89,6 +88,14 @@ pub enum KeystoreCorruptionError {
     /// A keystore contains a key that has an invalid [`KeyPath`](crate::KeyPath).
     #[error("{0}")]
     KeyPath(#[from] KeyPathError),
+}
+
+/// An error that happens when we encounter an unknown key type.
+#[derive(thiserror::Error, PartialEq, Eq, Debug, Clone)]
+#[error("unknown key type: arti_extension={arti_extension}")]
+pub struct UnknownKeyTypeError {
+    /// The extension used for keys of this type in an Arti keystore.
+    pub(crate) arti_extension: String,
 }
 
 #[cfg(test)]

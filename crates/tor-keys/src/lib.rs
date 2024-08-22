@@ -49,7 +49,7 @@ mod traits;
 
 pub use err::Error;
 pub use key_type::KeyType;
-pub use ssh::SshKeyData;
+pub use ssh::{SshKeyAlgorithm, SshKeyData};
 pub use traits::{EncodableKey, Keygen, KeygenRng, ToEncodableKey};
 
 // Needed to export our derive_deftly macros.

@@ -209,7 +209,7 @@ impl SshKeyData {
     /// Try to covnert a [`KeyData`] to [`SshKeyData`].
     ///
     /// Returns an error if this type of [`KeyData`] is not supported.
-    pub(crate) fn try_from_key_data(key: KeyData) -> Result<Self> {
+    pub fn try_from_key_data(key: KeyData) -> Result<Self> {
         let algo = SshKeyAlgorithm::from(key.algorithm());
         let () = match key {
             KeyData::Ed25519(_) => Ok(()),
@@ -226,7 +226,7 @@ impl SshKeyData {
     /// Try to covnert a [`KeypairData`] to [`SshKeyData`].
     ///
     /// Returns an error if this type of [`KeypairData`] is not supported.
-    pub(crate) fn try_from_keypair_data(key: KeypairData) -> Result<Self> {
+    pub fn try_from_keypair_data(key: KeypairData) -> Result<Self> {
         let algo = SshKeyAlgorithm::from(
             key.algorithm()
                 .map_err(into_internal!("encrypted keys are not yet supported"))?,
