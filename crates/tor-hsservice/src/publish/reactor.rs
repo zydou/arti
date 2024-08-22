@@ -581,10 +581,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             inner.netdir = Some(netdir);
             inner.time_periods = time_periods;
-
-            // Create the initial key_dirs watcher.
-            self.update_file_watcher(&mut inner);
         }
+
+        // Create the initial key_dirs watcher.
+        self.update_file_watcher();
 
         loop {
             match self.run_once().await {
@@ -958,62 +958,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         true
     }
 
-    /// Replace the key_dirs file watcher, if the key_dirs from new_config are different
-    /// from the key_dirs we are currently watching.
-    fn update_file_watcher_if_changed(&self, new_config: &OnionServiceConfigPublisherView) {
-        let mut inner = self.inner.lock().expect("poisoned lock");
-
-        // NOTE: we need to compare the new key_dirs with the *watched* directories
-        // rather than the ones from old_config.
-        //
-        // This is because directories that don't exist at the time the watcher is created
-        // are *not* watched, so if, for example, you
-        //
-        //   * create a restricted_discovery config that is enabled, configured with some non-existent
-        //   key_dirs
-        //   * disable the restricted_discovery
-        //   * create the missing key_dirs
-        //   * re-enable restricted_discovery
-        //
-        // the key_dirs watcher won't be set unless we compare the configured key_dirs
-        // with the *watched* key_dirs.
-        let update_watcher = match &inner.file_watcher {
-            Some(watcher) => {
-                let new_dirs = new_config
-                    .restricted_discovery
-                    .key_dirs()
-                    .iter()
-                    .filter_map(|dir| {
-                        // Skip over any paths that can't be expanded
-                        maybe_expand_path(dir.path())
-                    })
-                    .collect::<HashSet<_>>();
-                let watching_dirs = watcher.watching_dirs();
-                // We need to be watching all the configured dirs and their parent dir.
-                // If we aren't, it means we need to reset the watcher.
-                let expected_watching_dirs = new_dirs
-                    .iter()
-                    .cloned()
-                    .flat_map(|dir| {
-                        let parent = dir
-                            .parent()
-                            .map(|path| path.into())
-                            .unwrap_or_else(|| dir.clone());
-                        [dir, parent]
-                    })
-                    .collect::<HashSet<_>>();
-                watching_dirs != &expected_watching_dirs
-            }
-            None => true,
-        };
-
-        if update_watcher {
-            self.update_file_watcher(&mut inner);
-        }
-    }
-
     /// Recreate the FileWatcher for watching the restricted discovery key_dirs.
-    fn update_file_watcher(&self, inner: &mut Inner) {
+    fn update_file_watcher(&self) {
+        let mut inner = self.inner.lock().expect("poisoned lock");
         if inner.config.restricted_discovery.watch_configuration() {
             debug!("The restricted_discovery.key_dirs have changed, updating file watcher");
             let mut watcher = FileWatcher::builder(self.imm.runtime.clone());
@@ -1130,7 +1077,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), FatalError> {
         let new_config = Arc::new(config.into());
         if self.replace_config_if_changed(Arc::clone(&new_config)) {
-            self.update_file_watcher_if_changed(&new_config);
+            self.update_file_watcher();
             self.update_authorized_clients_if_changed().await?;
 
             info!(nickname=%self.imm.nickname, "Config has changed, generating a new descriptor");
