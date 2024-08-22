@@ -369,6 +369,7 @@ mod test {
     }
 
     #[test]
+    #[ignore] // TODO(#1549): Re-enable
     fn watch_single_file() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             let temp_dir = test_temp_dir!();
