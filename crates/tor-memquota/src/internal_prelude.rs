@@ -56,6 +56,7 @@ pub(crate) use {
 };
 
 pub(crate) use crate::{
+    byte_qty::Qty,
     config::Config,
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
@@ -66,5 +67,5 @@ pub(crate) use crate::{
     private::Sealed,
     refcount,
     stream_peek::StreamUnobtrusivePeeker,
-    utils::{DefaultExtTake, NoopWaker, Qty},
+    utils::{DefaultExtTake, NoopWaker},
 };
