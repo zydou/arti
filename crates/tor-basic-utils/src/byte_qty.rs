@@ -7,6 +7,8 @@
 // There is also humansize, but that just does printing.
 
 use derive_more::{Deref, DerefMut, From, Into};
+
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use std::fmt::{self, Display};
@@ -16,8 +18,11 @@ use std::fmt::{self, Display};
 /// Like `usize` but `Display`s in a more friendly and less precise way
 #[derive(Debug, Clone, Copy, Hash, Default, Eq, PartialEq, Ord, PartialOrd)] //
 #[derive(From, Into, Deref, DerefMut)]
-#[derive(Serialize, Deserialize)]
-#[serde(transparent)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(transparent),
+)]
 #[allow(clippy::exhaustive_structs)] // this is a behavioural newtype wrapper
 pub struct ByteQty(pub usize);
 

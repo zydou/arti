@@ -23,7 +23,7 @@ slotmap = "1.0.6"
 static_assertions = "1"
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.21.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0", features = ["serde"] }
 tor-config = { path = "../tor-config", version = "0.21.0" }
 tor-error = { path = "../tor-error", version = "0.21.0", features = ["tracing"] }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.21.0" }
