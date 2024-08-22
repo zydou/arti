@@ -50,11 +50,28 @@
 //! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
 //! status for reporting fatal errors (crashes).
 
+use tor_config::file_watcher::{
+    self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
+};
 use tor_netdir::DirEvent;
 
-use crate::config::restricted_discovery::RestrictedDiscoveryKeys;
+use crate::config::restricted_discovery::{
+    DirectoryKeyProviderList, RestrictedDiscoveryConfig, RestrictedDiscoveryKeys,
+};
+use crate::config::OnionServiceConfigPublisherView;
 
 use super::*;
+
+// TODO-CLIENT-AUTH: perhaps we should add a separate CONFIG_CHANGE_REPUBLISH_DEBOUNCE_INTERVAL
+// for rate-limiting the publish jobs triggered by a change in the config?
+//
+// Currently the descriptor publish tasks triggered by changes in the config
+// are rate-limited via the usual rate limiting mechanism
+// (which rate-limits the uploads for 1m).
+//
+// I think this is OK for now, but we might need to rethink this if it becomes problematic
+// (for example, we might want an even longer rate-limit, or to reset any existing rate-limits
+// each time the config is modified).
 
 /// The upload rate-limiting threshold.
 ///
@@ -99,6 +116,12 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ipt_watcher: IptsPublisherView,
     /// A channel for receiving onion service config change notifications.
     config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
+    /// A channel for receiving restricted discovery key_dirs change notifications.
+    key_dirs_rx: FileEventReceiver,
+    /// A channel for sending restricted discovery key_dirs change notifications.
+    ///
+    /// A copy of this sender is handed out to every `FileWatcher` created.
+    key_dirs_tx: FileEventSender,
     /// A channel for receiving updates regarding our [`PublishStatus`].
     ///
     /// The main loop of the reactor watches for updates on this channel.
@@ -322,7 +345,13 @@ impl<R: Runtime> Mockable for Real<R> {
 /// The mutable state of a [`Reactor`].
 struct Inner {
     /// The onion service config.
-    config: Arc<OnionServiceConfig>,
+    config: Arc<OnionServiceConfigPublisherView>,
+    /// Watcher for key_dirs.
+    ///
+    /// Set to `None` if the reactor is not running, or if `watch_configuration` is false.
+    ///
+    /// The watcher is recreated whenever the `restricted_discovery.key_dirs` change.
+    file_watcher: Option<FileWatcher>,
     /// The relevant time periods.
     ///
     /// This includes the current time period, as well as any other time periods we need to be
@@ -474,7 +503,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         nickname: HsNickname,
         dir_provider: Arc<dyn NetDirProvider>,
         mockable: M,
-        config: Arc<OnionServiceConfig>,
+        config: &OnionServiceConfig,
         ipt_watcher: IptsPublisherView,
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         status_tx: PublisherStatusSender,
@@ -495,13 +524,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // since we never actually send anything on this channel.
         let (shutdown_tx, _shutdown_rx) = broadcast::channel(0);
 
-        let authorized_clients = config.restricted_discovery.read_keys();
+        let authorized_clients = Self::read_authorized_clients(&config.restricted_discovery);
 
-        if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
-            warn!(
-                "Running in restricted discovery mode, but we have no authorized clients. Service will be unreachable"
-            );
-        }
+        // Create a channel for watching for changes in the configured
+        // restricted_discovery.key_dirs.
+        let (key_dirs_tx, key_dirs_rx) = file_watcher::channel();
 
         let imm = Immutable {
             runtime,
@@ -514,7 +541,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let inner = Inner {
             time_periods: vec![],
-            config,
+            config: Arc::new(config.into()),
+            file_watcher: None,
             netdir: None,
             last_uploaded: None,
             reupload_timers: Default::default(),
@@ -526,6 +554,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             dir_provider,
             ipt_watcher,
             config_rx,
+            key_dirs_rx,
+            key_dirs_tx,
             publish_status_rx,
             publish_status_tx,
             upload_task_complete_rx,
@@ -551,6 +581,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             inner.netdir = Some(netdir);
             inner.time_periods = time_periods;
+
+            // Create the initial key_dirs watcher.
+            self.update_file_watcher(&mut inner);
         }
 
         loop {
@@ -563,6 +596,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(());
                 }
                 Err(e) => {
+                    // TODO: update the publish status (see also the module-level TODO about this).
                     error_report!(
                         e,
                         "HS service {}: descriptor publisher crashed!",
@@ -691,9 +725,19 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(ShutdownStatus::Terminate);
                 };
 
-                self.handle_svc_config_change(config).await?;
+                self.handle_svc_config_change(&config).await?;
             },
+            res = self.key_dirs_rx.next().fuse() => {
+                let Some(event) = res else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
 
+                while let Some(_ignore) = self.key_dirs_rx.try_recv() {
+                    // Discard other events, so that we only reload once.
+                }
+
+                self.handle_key_dirs_change(event).await?;
+            }
             should_upload = self.publish_status_rx.next().fuse() => {
                 let Some(should_upload) = should_upload else {
                     return Ok(ShutdownStatus::Terminate);
@@ -886,33 +930,111 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Replace our view of the service config with `new_config` if `new_config` contains changes
     /// that would cause us to generate a new descriptor.
-    fn replace_config_if_changed(&self, new_config: Arc<OnionServiceConfig>) -> bool {
+    fn replace_config_if_changed(&self, new_config: Arc<OnionServiceConfigPublisherView>) -> bool {
         let mut inner = self.inner.lock().expect("poisoned lock");
         let old_config = &mut inner.config;
 
         // The fields we're interested in haven't changed, so there's no need to update
         // `inner.config`.
-        //
-        // TODO: maybe `Inner` should only contain the fields we're interested in instead of
-        // the entire config.
-        //
-        // Alternatively, a less error-prone solution would be to introduce a separate
-        // `DescriptorConfigView` as described in
-        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1603#note_2944902
-
-        // TODO (#1206): Temporarily disabled while we figure out how we want the client auth config to
-        // work; see #1028
-        /*
-        if old_config.anonymity == new_config.anonymity
-            && old_config.encrypt_descriptor == new_config.encrypt_descriptor
-        {
+        if *old_config == new_config {
             return false;
         }
-        */
 
-        let _old: Arc<OnionServiceConfig> = std::mem::replace(old_config, new_config);
+        let log_change = match (
+            old_config.restricted_discovery.enabled,
+            new_config.restricted_discovery.enabled,
+        ) {
+            (true, false) => Some("Disabling restricted discovery mode"),
+            (false, true) => Some("Enabling restricted discovery mode"),
+            _ => None,
+        };
+
+        if let Some(msg) = log_change {
+            info!(nickname=%self.imm.nickname, "{}", msg);
+        }
+
+        let _old: Arc<OnionServiceConfigPublisherView> = std::mem::replace(old_config, new_config);
 
         true
+    }
+
+    /// Replace the key_dirs file watcher, if the key_dirs from new_config are different
+    /// from the key_dirs we are currently watching.
+    fn update_file_watcher_if_changed(&self, new_config: &OnionServiceConfigPublisherView) {
+        let mut inner = self.inner.lock().expect("poisoned lock");
+
+        // NOTE: we need to compare the new key_dirs with the *watched* directories
+        // rather than the ones from old_config.
+        //
+        // This is because directories that don't exist at the time the watcher is created
+        // are *not* watched, so if, for example, you
+        //
+        //   * create a restricted_discovery config that is enabled, configured with some non-existent
+        //   key_dirs
+        //   * disable the restricted_discovery
+        //   * create the missing key_dirs
+        //   * re-enable restricted_discovery
+        //
+        // the key_dirs watcher won't be set unless we compare the configured key_dirs
+        // with the *watched* key_dirs.
+        let update_watcher = match &inner.file_watcher {
+            Some(watcher) => {
+                let new_dirs = new_config
+                    .restricted_discovery
+                    .key_dirs()
+                    .iter()
+                    .filter_map(|dir| {
+                        // Skip over any paths that can't be expanded
+                        maybe_expand_path(dir.path())
+                    })
+                    .collect::<HashSet<_>>();
+                let watching_dirs = watcher.watching_dirs();
+                // We need to be watching all the configured dirs and their parent dir.
+                // If we aren't, it means we need to reset the watcher.
+                let expected_watching_dirs = new_dirs
+                    .iter()
+                    .cloned()
+                    .flat_map(|dir| {
+                        let parent = dir
+                            .parent()
+                            .map(|path| path.into())
+                            .unwrap_or_else(|| dir.clone());
+                        [dir, parent]
+                    })
+                    .collect::<HashSet<_>>();
+                watching_dirs != &expected_watching_dirs
+            }
+            None => true,
+        };
+
+        if update_watcher {
+            self.update_file_watcher(&mut inner);
+        }
+    }
+
+    /// Recreate the FileWatcher for watching the restricted discovery key_dirs.
+    fn update_file_watcher(&self, inner: &mut Inner) {
+        if inner.config.restricted_discovery.watch_configuration() {
+            debug!("The restricted_discovery.key_dirs have changed, updating file watcher");
+            let mut watcher = FileWatcher::builder(self.imm.runtime.clone());
+
+            let dirs = inner.config.restricted_discovery.key_dirs().clone();
+
+            watch_dirs(&mut watcher, &dirs);
+
+            let watcher = watcher
+                .start_watching(self.key_dirs_tx.clone())
+                .map_err(|e| {
+                    error_report!(e, "Cannot set file watcher");
+                })
+                .ok();
+            inner.file_watcher = watcher;
+        } else {
+            if inner.file_watcher.is_some() {
+                debug!("removing key_dirs watcher");
+            }
+            inner.file_watcher = None;
+        }
     }
 
     /// Read the intro points from `ipt_watcher`, and decide whether we're ready to start
@@ -1004,9 +1126,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Update the descriptors based on the config change.
     async fn handle_svc_config_change(
         &mut self,
-        config: Arc<OnionServiceConfig>,
+        config: &OnionServiceConfig,
     ) -> Result<(), FatalError> {
-        if self.replace_config_if_changed(config) {
+        let new_config = Arc::new(config.into());
+        if self.replace_config_if_changed(Arc::clone(&new_config)) {
+            self.update_file_watcher_if_changed(&new_config);
+            self.update_authorized_clients_if_changed().await?;
+
+            info!(nickname=%self.imm.nickname, "Config has changed, generating a new descriptor");
             self.mark_all_dirty();
 
             // Schedule an upload, unless we're still waiting for IPTs.
@@ -1015,6 +1142,67 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         }
 
         Ok(())
+    }
+
+    /// Update the descriptors based on a restricted discovery key_dirs change.
+    ///
+    /// If the authorized clients from the [`RestrictedDiscoveryConfig`] have changed,
+    /// this marks the descriptor as dirty for all time periods,
+    /// and schedules a reupload.
+    async fn handle_key_dirs_change(&mut self, event: FileEvent) -> Result<(), FatalError> {
+        debug!("The configured key_dirs have changed");
+        match event {
+            FileEvent::Rescan | FileEvent::FileChanged => {
+                // These events are handled in the same way, by re-reading the keys from disk
+                // and republishing the descriptor if necessary
+            }
+            _ => return Err(internal!("file watcher event {event:?}").into()),
+        };
+
+        if self.update_authorized_clients_if_changed().await? {
+            self.mark_all_dirty();
+
+            // Schedule an upload, unless we're still waiting for IPTs.
+            self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Recreate the authorized_clients based on the current config.
+    ///
+    /// Returns `true` if the authorized clients have changed.
+    async fn update_authorized_clients_if_changed(&mut self) -> Result<bool, FatalError> {
+        let authorized_clients = {
+            let inner = self.inner.lock().expect("poisoned lock");
+            Self::read_authorized_clients(&inner.config.restricted_discovery)
+        };
+
+        let mut clients_lock = self.imm.authorized_clients.lock().expect("poisoned lock");
+        let changed = clients_lock.as_ref() != authorized_clients.as_ref();
+
+        if changed {
+            info!("The restricted discovery mode authorized clients have changed");
+            *clients_lock = authorized_clients;
+        }
+
+        Ok(changed)
+    }
+
+    /// Read the authorized `RestrictedDiscoveryKeys` from `config`.
+    fn read_authorized_clients(
+        config: &RestrictedDiscoveryConfig,
+    ) -> Option<RestrictedDiscoveryKeys> {
+        let authorized_clients = config.read_keys();
+
+        if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
+            warn!(
+                "Running in restricted discovery mode, but we have no authorized clients. Service will be unreachable"
+            );
+        }
+
+        authorized_clients
     }
 
     /// Mark the descriptor dirty for all time periods.
@@ -1160,7 +1348,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn upload_for_time_period(
         hs_dirs: Vec<RelayIds>,
         netdir: &Arc<NetDir>,
-        config: Arc<OnionServiceConfig>,
+        config: Arc<OnionServiceConfigPublisherView>,
         params: HsDirParams,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
@@ -1525,6 +1713,46 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         self.update_publish_status(PublishStatus::UploadScheduled)
             .await?;
         Ok(())
+    }
+}
+
+/// Try to expand a path, logging a warning on failure.
+fn maybe_expand_path(p: &tor_config::CfgPath) -> Option<PathBuf> {
+    // map_err returns unit for clarity
+    #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
+    p.path()
+        .map_err(|e| {
+            tor_error::warn_report!(e, "invalid path");
+            ()
+        })
+        .ok()
+}
+
+/// Add the specified directories to the watcher.
+fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryKeyProviderList) {
+    let dirs = dirs.iter().filter_map(|cfg_path| {
+        // Skip over any directories whose path can't be expanded
+        let path = maybe_expand_path(cfg_path.path())?;
+
+        // If the path doesn't exist, the notify watcher will return an error,
+        // so we skip over any directories that don't exist at this time
+        // (this obviously suffers from a TOCTOU race, but most of the time,
+        // it is good enough at preventing the watcher from failing to watch.
+        // If the race *does* happen it is not disastrous, i.e. the reactor won't crash,
+        // but it will fail to set the watcher).
+        if matches!(path.try_exists(), Ok(true)) {
+            debug!("watching key_dir path {path:?}");
+            Some(path)
+        } else {
+            warn!("key_dirs path {path:?} does not exist or is not accessible, not watching");
+            None
+        }
+    });
+
+    for path in dirs {
+        if let Err(e) = watcher.watch_dir(path, "auth") {
+            warn_report!(e, "failed to watch key_dir");
+        }
     }
 }
 

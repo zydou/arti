@@ -1,6 +1,7 @@
 //! Helpers for building and representing hidden service descriptors.
 
 use super::*;
+use crate::config::OnionServiceConfigPublisherView;
 use tor_cell::chancell::msg::HandshakeType;
 
 /// Build the descriptor.
@@ -13,7 +14,7 @@ use tor_cell::chancell::msg::HandshakeType;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     keymgr: &Arc<KeyMgr>,
-    config: &Arc<OnionServiceConfig>,
+    config: &Arc<OnionServiceConfigPublisherView>,
     authorized_clients: &Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     ipt_set: &IptSet,
     period: TimePeriod,
@@ -88,7 +89,10 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
                     }
                     let auth_clients = authorized_clients
                         .iter()
-                        .map(|(_nickname, key)| (*key).clone().into())
+                        .map(|(nickname, key)| {
+                            trace!("encrypting descriptor for client {nickname}");
+                            (*key).clone().into()
+                        })
                         .collect_vec();
                     Ok(auth_clients)
                 })

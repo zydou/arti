@@ -138,9 +138,12 @@ visibility = { version = "0.1.0", optional = true }
 [dev-dependencies]
 derive_more = "0.99.3"
 itertools = "0.13.0"
+postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 regex = { version = "1", default-features = false, features = ["std"] }
 serde_json = "1.0.50"
 tempfile = "3"
+test-temp-dir = { version = "0.2.1", path = "../test-temp-dir" }
+tor-async-utils = { version = "0.21.0", path = "../tor-async-utils" }
 trycmd = "0.15.4"
 
 [target.'cfg(windows)'.dependencies]

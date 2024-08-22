@@ -2,6 +2,8 @@
 
 use crate::internal_prelude::*;
 
+use amplify::Getters;
+use derive_deftly::derive_deftly_adhoc;
 use tor_cell::relaycell::hs::est_intro;
 
 use crate::config::restricted_discovery::{
@@ -19,12 +21,14 @@ pub mod restricted_discovery;
 pub(crate) mod restricted_discovery;
 
 /// Configuration for one onion service.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Deftly, Getters)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 #[builder(derive(Serialize, Deserialize, Debug, Deftly))]
 #[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
+#[derive_deftly_adhoc]
 pub struct OnionServiceConfig {
     /// The nickname used to look up this service's keys, state, configuration, etc.
+    #[deftly(publisher_view)]
     pub(crate) nickname: HsNickname,
 
     // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
@@ -35,6 +39,7 @@ pub struct OnionServiceConfig {
     /// We could skip this in v1.  We should make sure that our state
     /// is built to make it hard to accidentally set this.
     #[builder(default)]
+    #[deftly(publisher_view)]
     pub(crate) anonymity: crate::Anonymity,
 
     /// Number of intro points; defaults to 3; max 20.
@@ -66,6 +71,8 @@ pub struct OnionServiceConfig {
     /// so that only clients holding one of the listed keys can decrypt it.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
+    #[deftly(publisher_view)]
+    #[getter(as_mut)]
     pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
@@ -84,15 +91,53 @@ pub struct OnionServiceConfig {
     // ...
 }
 
+derive_deftly_adhoc! {
+    OnionServiceConfig expect items:
+
+    ${defcond PUBLISHER_VIEW fmeta(publisher_view)}
+
+    #[doc = concat!("Descriptor publisher's view of [`", stringify!($tname), "`]")]
+    #[derive(PartialEq, Clone, Debug)]
+    pub(crate) struct $<$tname PublisherView><$tdefgens>
+    where $twheres
+    ${vdefbody $vname $(
+        ${when PUBLISHER_VIEW}
+        ${fattrs doc}
+        $fvis $fname: $ftype,
+    ) }
+
+    impl<$tgens> From<$tname> for $<$tname PublisherView><$tdefgens>
+    where $twheres
+    {
+        fn from(config: $tname) -> $<$tname PublisherView><$tdefgens> {
+            Self {
+                $(
+                    ${when PUBLISHER_VIEW}
+                    $fname: config.$fname,
+                )
+            }
+        }
+    }
+
+    impl<$tgens> From<&$tname> for $<$tname PublisherView><$tdefgens>
+    where $twheres
+    {
+        fn from(config: &$tname) -> $<$tname PublisherView><$tdefgens> {
+            Self {
+                $(
+                    ${when PUBLISHER_VIEW}
+                    #[allow(clippy::clone_on_copy)] // some fields are Copy
+                    $fname: config.$fname.clone(),
+                )
+            }
+        }
+    }
+}
+
 /// Default number of introduction points.
 const DEFAULT_NUM_INTRO_POINTS: u8 = 3;
 
 impl OnionServiceConfig {
-    /// Return a reference to this configuration's nickname.
-    pub fn nickname(&self) -> &HsNickname {
-        &self.nickname
-    }
-
     /// Check whether an onion service running with this configuration can
     /// switch over `other` according to the rules of `how`.
     ///
@@ -184,23 +229,8 @@ impl OnionServiceConfig {
             // We extract this on every introduction request.
             max_concurrent_streams_per_circuit: simply_update,
 
-            // The IPT manager does not currently handle restricted discovery config changes.
-            //
-            // You must restart the service to change the restricted discovery settings.
-            //
-            // TODO: we should decide if we want to support hot-reloading.
-            //
-            // This will involve adding a watcher for each client key directory,
-            // and generating and publishing a new descriptor on change.
-            // We most likely don't want to republish the descriptor on *every* change though:
-            // consider a hidden service operator copying client keys individually
-            // to the key directory while the service is running.
-            // This would trigger a burst of descriptor uploads
-            // that could've been avoided by more careful client key management.
-            //
-            // We might also want to also rotate the IPTs as part of this process,
-            // to prevent any no-longer-authorized clients from reaching the service.
-            restricted_discovery: unchangeable,
+            // The descriptor publisher responds by generating and publishing a new descriptor.
+            restricted_discovery: simply_update,
         }
 
         Ok(other)

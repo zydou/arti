@@ -43,6 +43,7 @@
 
 pub mod cmdline;
 mod err;
+pub mod file_watcher;
 mod flatten;
 pub mod list_builder;
 pub mod load;

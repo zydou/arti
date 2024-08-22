@@ -212,31 +212,31 @@ fn default_rpc_path() -> Option<CfgPath> {
 /// stability here.
 #[derive(Debug, Builder, Clone, Eq, PartialEq)]
 #[builder(derive(Serialize, Deserialize, Debug))]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
 pub struct ArtiConfig {
     /// Configuration for application behavior.
-    #[builder(sub_builder)]
+    #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     application: ApplicationConfig,
 
     /// Configuration for proxy listeners
-    #[builder(sub_builder)]
+    #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     proxy: ProxyConfig,
 
     /// Logging configuration
-    #[builder(sub_builder)]
+    #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     logging: LoggingConfig,
 
     /// Configuration for RPC subsystem
     #[cfg(feature = "rpc")]
-    #[builder(sub_builder)]
+    #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     rpc: RpcConfig,
 
     /// Information on system resources used by Arti.
-    #[builder(sub_builder)]
+    #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
 
@@ -248,12 +248,28 @@ pub struct ArtiConfig {
     /// The purpose of this stub type is to give an error if somebody tries to
     /// configure onion services when the `onion-service-service` feature is
     /// disabled.
-    #[builder(sub_builder, setter(custom))]
+    #[builder(sub_builder(fn_name = "build"), setter(custom))]
     #[builder_field_attr(serde(default))]
     pub(crate) onion_services: OnionServiceProxyConfigMap,
 }
 
 impl_standard_builder! { ArtiConfig }
+
+impl ArtiConfigBuilder {
+    /// Build the [`ArtiConfig`].
+    pub fn build(&self) -> Result<ArtiConfig, ConfigBuildError> {
+        let mut config = self.build_unvalidated()?;
+        #[cfg(feature = "onion-service-service")]
+        for svc in config.onion_services.values_mut() {
+            // Pass the application-level watch_configuration to each restricted discovery config.
+            *svc.svc_cfg
+                .restricted_discovery_mut()
+                .watch_configuration_mut() = config.application.watch_configuration;
+        }
+
+        Ok(config)
+    }
+}
 
 impl tor_config::load::TopLevel for ArtiConfig {
     type Builder = ArtiConfigBuilder;

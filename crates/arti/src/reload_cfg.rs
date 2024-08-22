@@ -1,35 +1,29 @@
 //! Code to watch configuration files for any changes.
 
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel as std_channel, Sender};
 use std::sync::Weak;
 use std::time::Duration;
 
 use anyhow::Context;
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
-use notify::Watcher;
+use futures::{select_biased, FutureExt as _, Stream};
+use tor_config::file_watcher::{self, FileWatcherBuilder, FileEventSender, FileWatcher};
 use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSources};
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
+use futures::task::SpawnExt;
+use futures::StreamExt;
+
+#[cfg(target_family = "unix")]
+use crate::process::sighup_stream;
+
+#[cfg(not(target_family = "unix"))]
+use futures::stream;
 
 use crate::{ArtiCombinedConfig, ArtiConfig};
 
 /// How long to wait after an event got received, before we try to process it.
 const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
-
-/// Event possibly triggering a configuration reload
-#[derive(Debug)]
-enum Event {
-    /// SIGHUP has been received.
-    #[cfg(target_family = "unix")]
-    SigHup,
-    /// Some files may have been modified.
-    FileChanged,
-    /// Some filesystem events may have been missed.
-    Rescan,
-}
 
 /// An object that can be reconfigured when our configuration changes.
 ///
@@ -60,7 +54,6 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 /// from keeping them alive.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
-    #[cfg_attr(not(target_family = "unix"), allow(unused_variables))]
     runtime: &R,
     sources: ConfigurationSources,
     config: &ArtiConfig,
@@ -68,51 +61,69 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 ) -> anyhow::Result<()> {
     let watch_file = config.application().watch_configuration;
 
-    let (tx, rx) = std_channel();
+    cfg_if::cfg_if! {
+        if #[cfg(target_family = "unix")] {
+            let sighup_stream = sighup_stream()?;
+        } else {
+            let sighup_stream = stream::pending();
+        }
+    }
+
+    let rt = runtime.clone();
+    let () = runtime.clone().spawn(async move {
+        let res: anyhow::Result<()> = run_watcher(rt, sources, modules, watch_file, sighup_stream).await;
+        match res {
+            Ok(()) => debug!("Config watcher task exiting"),
+            // TODO: warn_report does not work on anyhow::Error.
+            Err(e) => error!("Config watcher task exiting: {}", tor_error::Report(e)),
+        }
+    }).context("failed to spawn task")?;
+
+    Ok(())
+}
+
+/// Start watching for configuration changes.
+///
+/// Spawned from `watch_for_config_changes`.
+async fn run_watcher<R: Runtime>(
+    runtime: R,
+    sources: ConfigurationSources,
+    modules: Vec<Weak<dyn ReconfigurableModule>>,
+    watch_file: bool,
+    mut sighup_stream: impl Stream<Item = ()> + Unpin,
+) -> anyhow::Result<()> {
+    let (tx, mut rx) = file_watcher::channel();
     let mut watcher = if watch_file {
-        // If watching, we must reload the config once right away, because
-        // we have set up the watcher *after* loading the config.
-        // ignore send error, rx can't be disconnected if we are here
-        let _ = tx.send(Event::Rescan);
-        let mut watcher = FileWatcher::builder();
-        watcher.prepare(&sources)?;
+        let mut watcher = FileWatcher::builder(runtime.clone());
+        prepare(&mut watcher, &sources)?;
         Some(watcher.start_watching(tx.clone())?)
     } else {
         None
     };
 
-    #[cfg(target_family = "unix")]
-    {
-        use futures::task::SpawnExt;
-        use futures::StreamExt;
+    debug!("Entering FS event loop");
 
-        use crate::process::sighup_stream;
-
-        let mut sighup_stream = sighup_stream()?;
-        let tx = tx.clone();
-        runtime.spawn(async move {
-            while let Some(()) = sighup_stream.next().await {
-                info!("Received SIGHUP");
-                if tx.send(Event::SigHup).is_err() {
-                    warn!("Failed to reload configuration");
+    loop {
+        select_biased! {
+            event = sighup_stream.next().fuse() => {
+                let Some(()) = event else {
                     break;
-                }
-            }
-        })?;
-    }
+                };
 
-    #[allow(clippy::cognitive_complexity)]
-    std::thread::spawn(move || {
-        // TODO: If someday we make this facility available outside of the
-        // `arti` application, we probably don't want to have this thread own
-        // the FileWatcher.
-        debug!("Entering FS event loop");
-        let mut iife = || -> Result<(), anyhow::Error> {
-            while let Ok(event) = rx.recv() {
-                // we are in a dedicated thread, it's safe to thread::sleep.
-                std::thread::sleep(DEBOUNCE_INTERVAL);
+                info!("Received SIGHUP");
 
-                while let Ok(_ignore) = rx.try_recv() {
+                watcher = reload_configuration(
+                    runtime.clone(),
+                    watcher,
+                    &sources,
+                    &modules,
+                    tx.clone()
+                ).await?;
+            },
+            event = rx.next().fuse() => {
+                runtime.sleep(DEBOUNCE_INTERVAL).await;
+
+                while let Some(_ignore) = rx.try_recv() {
                     // Discard other events, so that we only reload once.
                     //
                     // We can afford to treat both error cases from try_recv [Empty
@@ -121,63 +132,67 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                     // call recv() in the outer loop.
                 }
                 debug!("Config reload event {:?}: reloading configuration.", event);
-
-                let found_files = if watcher.is_some() {
-                    let mut new_watcher = FileWatcher::builder();
-                    let found_files = new_watcher
-                        .prepare(&sources)
-                        .context("FS watch: failed to rescan config and re-establish watch")?;
-                    let new_watcher = new_watcher
-                        .start_watching(tx.clone())
-                        .context("FS watch: failed to rescan config and re-establish watch")?;
-                    watcher = Some(new_watcher);
-                    found_files
-                } else {
-                    sources
-                        .scan()
-                        .context("FS watch: failed to rescan config")?
-                };
-
-                match reconfigure(found_files, &modules) {
-                    Ok(watch) => {
-                        info!("Successfully reloaded configuration.");
-                        if watch && watcher.is_none() {
-                            info!("Starting watching over configuration.");
-                            // If watching, we must reload the config once right away, because
-                            // we have set up the watcher *after* loading the config.
-                            // ignore send error, rx can't be disconnected if we are here
-                            let _ = tx.send(Event::Rescan);
-                            let mut new_watcher = FileWatcher::builder();
-                            let _found_files = new_watcher.prepare(&sources).context(
-                                "FS watch: failed to rescan config and re-establish watch: {}",
-                            )?;
-                            let new_watcher = new_watcher.start_watching(tx.clone()).context(
-                                "FS watch: failed to rescan config and re-establish watch: {}",
-                            )?;
-                            watcher = Some(new_watcher);
-                        } else if !watch && watcher.is_some() {
-                            info!("Stopped watching over configuration.");
-                            watcher = None;
-                        }
-                    }
-                    // TODO: warn_report does not work on anyhow::Error.
-                    Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
-                }
-            }
-            Ok(())
-        };
-        match iife() {
-            Ok(()) => debug!("Thread exiting"),
-            // TODO: warn_report does not work on anyhow::Error.
-            Err(e) => error!("Config reload thread exiting: {}", tor_error::Report(e)),
+                watcher = reload_configuration(
+                    runtime.clone(),
+                    watcher,
+                    &sources,
+                    &modules,
+                    tx.clone()
+                ).await?;
+            },
         }
-    });
-
-    // Dropping the thread handle here means that we don't get any special
-    // notification about a panic.  TODO: We should change that at some point in
-    // the future.
+    }
 
     Ok(())
+}
+
+/// Reload the configuration.
+async fn reload_configuration<R: Runtime>(
+    runtime: R,
+    mut watcher: Option<FileWatcher>,
+    sources: &ConfigurationSources,
+    modules: &[Weak<dyn ReconfigurableModule>],
+    tx: FileEventSender,
+) -> anyhow::Result<Option<FileWatcher>> {
+
+    let found_files = if watcher.is_some() {
+        let mut new_watcher = FileWatcher::builder(runtime.clone());
+        let found_files = prepare(&mut new_watcher, sources)
+            .context("FS watch: failed to rescan config and re-establish watch")?;
+        let new_watcher = new_watcher
+            .start_watching(tx.clone())
+            .context("FS watch: failed to start watching config")?;
+        watcher = Some(new_watcher);
+        found_files
+    } else {
+        sources
+            .scan()
+            .context("FS watch: failed to rescan config")?
+    };
+
+    match reconfigure(found_files, modules) {
+        Ok(watch) => {
+            info!("Successfully reloaded configuration.");
+            if watch && watcher.is_none() {
+                info!("Starting watching over configuration.");
+                let mut new_watcher = FileWatcher::builder(runtime.clone());
+                let _found_files = prepare(&mut new_watcher, sources).context(
+                    "FS watch: failed to rescan config and re-establish watch: {}",
+                )?;
+                let new_watcher = new_watcher.start_watching(tx.clone()).context(
+                    "FS watch: failed to rescan config and re-establish watch: {}",
+                )?;
+                watcher = Some(new_watcher);
+            } else if !watch && watcher.is_some() {
+                info!("Stopped watching over configuration.");
+                watcher = None;
+            }
+        }
+        // TODO: warn_report does not work on anyhow::Error.
+        Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
+    }
+
+    Ok(watcher)
 }
 
 impl<R: Runtime> ReconfigurableModule for TorClient<R> {
@@ -234,6 +249,22 @@ impl ReconfigurableModule for Application {
     }
 }
 
+/// Find the configuration files and prepare the watcher
+fn prepare<'a, R: Runtime>(
+    watcher: &mut FileWatcherBuilder<R>,
+    sources: &'a ConfigurationSources,
+) -> anyhow::Result<FoundConfigFiles<'a>> {
+    let sources = sources.scan()?;
+    for source in sources.iter() {
+        match source {
+            ConfigurationSource::Dir(dir) => watcher.watch_dir(dir, "toml")?,
+            ConfigurationSource::File(file) => watcher.watch_file(file)?,
+            ConfigurationSource::Verbatim(_) => {}
+        }
+    }
+    Ok(sources)
+}
+
 /// Reload the configuration files, apply the runtime configuration, and
 /// reconfigure the client as much as we can.
 ///
@@ -262,170 +293,183 @@ fn reconfigure(
     Ok(has_modules && config.0.application().watch_configuration)
 }
 
-/// A wrapper around `notify::RecommendedWatcher` to watch a set of parent
-/// directories in order to learn about changes in some specific files that they
-/// contain.
-///
-/// The wrapper contains the `Watcher` and also the channel for receiving events.
-///
-/// The `Watcher` implementation in `notify` has a weakness: it gives sensible
-/// results when you're watching directories, but if you start watching
-/// non-directory files, it won't notice when those files get replaced.  That's
-/// a problem for users who want to change their configuration atomically by
-/// making new files and then moving them into place over the old ones.
-///
-/// For more background on the issues with `notify`, see
-/// <https://github.com/notify-rs/notify/issues/165> and
-/// <https://github.com/notify-rs/notify/pull/166>.
-///
-/// TODO: Someday we might want to make this code exported someplace.  If we do,
-/// we should test it, and improve its API a lot.  Right now, the caller needs
-/// to mess around with `std::sync::mpsc` and filter out the events they want
-/// using `FileWatcher::event_matched`.
-struct FileWatcher {
-    /// An underlying `notify` watcher that tells us about directory changes.
-    // this field is kept only so the watcher is not dropped
-    _watcher: notify::RecommendedWatcher,
-}
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-impl FileWatcher {
-    /// Create a `FileWatcherBuilder`
-    fn builder() -> FileWatcherBuilder {
-        FileWatcherBuilder::new()
+    use crate::ArtiConfigBuilder;
+
+    use super::*;
+    use futures::channel::mpsc;
+    use futures::SinkExt as _;
+    use tor_config::sources::MustRead;
+    use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
+    use test_temp_dir::{test_temp_dir, TestTempDir};
+    use postage::watch;
+    use tor_async_utils::PostageWatchSenderExt;
+
+    /// Filename for config1
+    const CONFIG_NAME1: &str = "config1.toml";
+    /// Filename for config2
+    const CONFIG_NAME2: &str = "config2.toml";
+    /// Filename for config3
+    const CONFIG_NAME3: &str = "config3.toml";
+
+    struct TestModule {
+        // A sender for sending the new config to the test function
+        tx: Arc<Mutex<watch::Sender<ArtiCombinedConfig>>>,
     }
-}
 
-/// Builder used to configure a [`FileWatcher`] before it starts watching for changes.
-struct FileWatcherBuilder {
-    /// The list of directories that we're currently watching.
-    watching_dirs: HashSet<PathBuf>,
-    /// The list of files we actually care about.
-    watching_files: HashSet<PathBuf>,
-}
+    impl ReconfigurableModule for TestModule {
+        fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
+            let config = new.clone();
+            self.tx.lock().unwrap().maybe_send(|_| config);
 
-impl FileWatcherBuilder {
-    /// Create a `FileWatcherBuilder`
-    fn new() -> Self {
-        FileWatcherBuilder {
-            watching_dirs: HashSet::new(),
-            watching_files: HashSet::new(),
+            Ok(())
         }
     }
 
-    /// Find the configuration files and prepare the watcher
-    fn prepare<'a>(
-        &mut self,
-        sources: &'a ConfigurationSources,
-    ) -> anyhow::Result<FoundConfigFiles<'a>> {
-        let sources = sources.scan()?;
-        for source in sources.iter() {
-            match source {
-                ConfigurationSource::Dir(dir) => self.watch_dir(dir)?,
-                ConfigurationSource::File(file) => self.watch_file(file)?,
-                ConfigurationSource::Verbatim(_) => {}
-            }
-        }
-        Ok(sources)
+    /// Create a test reconfigurable module.
+    ///
+    /// Returns the module and a channel on which the new configs received by the module are sent.
+    async fn create_module(
+    ) -> (Arc<dyn ReconfigurableModule>, watch::Receiver<ArtiCombinedConfig>) {
+        let (tx, mut rx) = watch::channel();
+        // Read the initial value from the postage::watch stream
+        // (the first observed value on this test stream is always the default config)
+        let _: ArtiCombinedConfig = rx.next().await.unwrap();
+
+        (Arc::new(TestModule { tx: Arc::new(Mutex::new(tx)) }), rx)
     }
 
-    /// Add a single file (not a directory) to the list of things to watch.
-    ///
-    /// Idempotent: does nothing if we're already watching that file.
-    fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
-        self.watch_just_parents(path.as_ref())?;
-        Ok(())
+    /// Write `data` to file `name` within `dir`.
+    fn write_file(dir: &TestTempDir, name: &str, data: &[u8]) -> PathBuf {
+        let path = dir.as_path_untracked().join(name);
+        std::fs::write(&path, data).unwrap();
+        path
     }
 
-    /// Add a directory (but not any subdirs) to the list of things to watch.
-    ///
-    /// Idempotent.
-    fn watch_dir<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
-        let path = self.watch_just_parents(path.as_ref())?;
-        self.watch_just_abs_dir(&path);
-        Ok(())
+    /// Write an `ArtiConfigBuilder` to a file within `dir`.
+    fn write_config(dir: &TestTempDir, name: &str, config: &ArtiConfigBuilder) -> PathBuf {
+        let s = toml::to_string(&config).unwrap();
+        write_file(dir, name, s.as_bytes())
     }
 
-    /// Add the parents of `path` to the list of things to watch.
-    ///
-    /// Returns the absolute path of `path`.
-    ///
-    /// Idempotent.
-    fn watch_just_parents(&mut self, path: &Path) -> anyhow::Result<PathBuf> {
-        // Make the path absolute (without necessarily making it canonical).
-        //
-        // We do this because `notify` reports all of its events in terms of
-        // absolute paths, so if we were to tell it to watch a directory by its
-        // relative path, we'd get reports about the absolute paths of the files
-        // in that directory.
-        let cwd = std::env::current_dir()?;
-        let path = cwd.join(path);
-        debug_assert!(path.is_absolute());
+    #[test]
+    fn watch_single_file() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let temp_dir = test_temp_dir!();
+            let mut config_builder =  ArtiConfigBuilder::default();
+            config_builder.application().watch_configuration(true);
 
-        // See what directory we should watch in order to watch this file.
-        let watch_target = match path.parent() {
-            // The file has a parent, so watch that.
-            Some(parent) => parent,
-            // The file has no parent.  Given that it's absolute, that means
-            // that we're looking at the root directory.  There's nowhere to go
-            // "up" from there.
-            None => path.as_ref(),
-        };
+            let cfg_file = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
+            let mut cfg_sources = ConfigurationSources::new_empty();
+            cfg_sources.push_source(ConfigurationSource::File(cfg_file), MustRead::MustRead);
 
-        self.watch_just_abs_dir(watch_target);
+            let (module, mut rx) = create_module().await;
 
-        // Note this file as one that we're watching, so that we can see changes
-        // to it later on.
-        self.watching_files.insert(path.clone());
+            // Use a fake sighup stream to wait until run_watcher()'s select_biased!
+            // loop is entered
+            let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
+            let runtime = rt.clone();
+            let () = rt.spawn(async move {
+                run_watcher(
+                    runtime,
+                    cfg_sources,
+                    vec![Arc::downgrade(&module)],
+                    true,
+                    sighup_rx,
+                ).await.unwrap();
+            }).unwrap();
 
-        Ok(path)
+            config_builder.logging().log_sensitive_information(true);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
+            sighup_tx.send(()).await.unwrap();
+            // The reconfigurable modules should've been reloaded in response to sighup
+            let config = rx.next().await.unwrap();
+            assert_eq!(config.0, config_builder.build().unwrap());
+
+            // Overwrite the config
+            config_builder.logging().log_sensitive_information(false);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
+            // The reconfigurable modules should've been reloaded in response to the config change
+            let config = rx.next().await.unwrap();
+            assert_eq!(config.0, config_builder.build().unwrap());
+
+        });
     }
 
-    /// Add just this (absolute) directory to the list of things to watch.
-    ///
-    /// Does not watch any of the parents.
-    ///
-    /// Idempotent.
-    fn watch_just_abs_dir(&mut self, watch_target: &Path) {
-        self.watching_dirs.insert(watch_target.into());
-    }
+    #[test]
+    fn watch_multiple() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let temp_dir = test_temp_dir!();
+            let mut config_builder1 =  ArtiConfigBuilder::default();
+            config_builder1.application().watch_configuration(true);
 
-    /// Build a `FileWatcher` and start sending events to `tx`.
-    ///
-    /// For the watching to be reliably effective (race-free), the config must be read
-    /// *after* this point, using the `FoundConfigFiles` returned by `prepare`.
-    fn start_watching(self, tx: Sender<Event>) -> anyhow::Result<FileWatcher> {
-        let event_sender = move |event: notify::Result<notify::Event>| {
-            let watching = |f| self.watching_files.contains(f);
-            // filter events we don't want and map to event code
-            let event = match event {
-                Ok(event) => {
-                    if event.need_rescan() {
-                        Some(Event::Rescan)
-                    } else if event.paths.iter().any(watching) {
-                        Some(Event::FileChanged)
-                    } else {
-                        None
-                    }
-                }
-                Err(error) => {
-                    if error.paths.iter().any(watching) {
-                        Some(Event::FileChanged)
-                    } else {
-                        None
-                    }
-                }
-            };
-            if let Some(event) = event {
-                let _ = tx.send(event);
-            };
-        };
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder1);
+            let mut cfg_sources = ConfigurationSources::new_empty();
+            cfg_sources.push_source(
+                ConfigurationSource::Dir(temp_dir.as_path_untracked().to_path_buf()),
+                MustRead::MustRead
+            );
 
-        let mut watcher = notify::RecommendedWatcher::new(event_sender, notify::Config::default())?;
+            let (module, mut rx) = create_module().await;
+            // Use a fake sighup stream to wait until run_watcher()'s select_biased!
+            // loop is entered
+            let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
+            let runtime = rt.clone();
+            let () = rt.spawn(async move {
+                run_watcher(
+                    runtime,
+                    cfg_sources,
+                    vec![Arc::downgrade(&module)],
+                    true,
+                    sighup_rx,
+                ).await.unwrap();
+            }).unwrap();
 
-        for dir in self.watching_dirs {
-            watcher.watch(&dir, notify::RecursiveMode::NonRecursive)?;
-        }
+            config_builder1.logging().log_sensitive_information(true);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder1);
+            sighup_tx.send(()).await.unwrap();
+            // The reconfigurable modules should've been reloaded in response to sighup
+            let config = rx.next().await.unwrap();
+            assert_eq!(config.0, config_builder1.build().unwrap());
 
-        Ok(FileWatcher { _watcher: watcher })
+            let mut config_builder2 =  ArtiConfigBuilder::default();
+            config_builder2.application().watch_configuration(true);
+            // Write another config file...
+            config_builder2.system().max_files(0_u64);
+            let _: PathBuf = write_config(&temp_dir, CONFIG_NAME2, &config_builder2);
+            // Check that the 2 config files are merged
+            let mut config_builder_combined = config_builder1.clone();
+            config_builder_combined.system().max_files(0_u64);
+            let config = rx.next().await.unwrap();
+            assert_eq!(config.0, config_builder_combined.build().unwrap());
+            // Now write a new config file to the watched dir
+            config_builder2.logging().console("foo".to_string());
+            let mut config_builder_combined2 = config_builder_combined.clone();
+            config_builder_combined2.logging().console("foo".to_string());
+            let config3: PathBuf = write_config(&temp_dir, CONFIG_NAME3, &config_builder2);
+            let config = rx.next().await.unwrap();
+            assert_eq!(config.0, config_builder_combined2.build().unwrap());
+
+            // Removing the file should also trigger an event
+            std::fs::remove_file(config3).unwrap();
+            let config = rx.next().await.unwrap();
+            assert_eq!(config.0, config_builder_combined.build().unwrap());
+        });
     }
 }

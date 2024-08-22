@@ -97,7 +97,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             nickname,
             dir_provider,
             mockable,
-            config,
+            &config,
             ipt_watcher,
             config_rx,
             status_tx,
