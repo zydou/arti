@@ -5612,10 +5612,13 @@ version = "0.22.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
+ "downcast-rs",
  "paste",
  "rand",
+ "ssh-key",
+ "thiserror",
  "tor-basic-utils",
- "tor-keymgr",
+ "tor-error",
  "tor-llcrypto",
 ]
 

@@ -110,16 +110,16 @@ define_derive_deftly! {
     /// EncodableKey, ToEncodableKey and Keygen are traits from the keymgr crate and implementing
     /// them allows this wrapper key to be stored in a keystore.
 
-    impl tor_keymgr::EncodableKey for $ttype {
-        fn key_type() -> tor_keymgr::KeyType {
-            tor_keymgr::KeyType::Ed25519Keypair
+    impl $crate::EncodableKey for $ttype {
+        fn key_type() -> $crate::KeyType {
+            $crate::KeyType::Ed25519Keypair
         }
-        fn as_ssh_key_data(&self) -> tor_keymgr::Result<tor_keymgr::SshKeyData> {
+        fn as_ssh_key_data(&self) -> $crate::Result<$crate::SshKeyData> {
             self.$KP_NAME.as_ssh_key_data()
         }
     }
 
-    impl tor_keymgr::ToEncodableKey for $ttype {
+    impl $crate::ToEncodableKey for $ttype {
         type Key = tor_llcrypto::pk::ed25519::Keypair;
 
         fn to_encodable_key(self) -> Self::Key {
@@ -130,8 +130,8 @@ define_derive_deftly! {
         }
     }
 
-    impl tor_keymgr::Keygen for $ttype {
-        fn generate(rng: &mut dyn tor_keymgr::KeygenRng) -> tor_keymgr::Result<Self>
+    impl $crate::Keygen for $ttype {
+        fn generate(rng: &mut dyn $crate::KeygenRng) -> $crate::Result<Self>
         where
             Self: Sized
         {
@@ -146,8 +146,8 @@ define_derive_deftly! {
 
 #[cfg(test)]
 mod test {
+    use crate::Keygen;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_keymgr::Keygen;
     use tor_llcrypto::pk::ValidatableSignature;
 
     #[test]

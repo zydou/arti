@@ -41,7 +41,23 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+mod err;
+mod key_type;
 mod macros;
+mod ssh;
+mod traits;
+
+pub use err::Error;
+pub use key_type::KeyType;
+pub use ssh::SshKeyData;
+pub use traits::{EncodableKey, Keygen, KeygenRng, ToEncodableKey};
 
 // Needed to export our derive_deftly macros.
+#[doc(hidden)]
 pub use derive_deftly;
+
+/// A Result type for this crate.
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// A type-erased key. Used by the tor-keymgr.
+pub type ErasedKey = Box<dyn traits::EncodableKey>;
