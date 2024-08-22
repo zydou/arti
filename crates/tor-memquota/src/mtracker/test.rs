@@ -18,7 +18,7 @@
 use super::*;
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
+use std::fmt::{Display, Write as _};
 use std::time::Duration;
 
 use itertools::Itertools;

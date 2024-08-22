@@ -17,7 +17,7 @@
 pub(crate) use std::{
     cmp::{Ordering, Reverse},
     collections::{BinaryHeap, HashSet},
-    fmt::{self, Debug, Display},
+    fmt::{self, Debug},
     future::Future,
     marker::PhantomData,
     mem,
@@ -37,7 +37,7 @@ pub(crate) use futures::{
 pub(crate) use {
     derive_builder::Builder,
     derive_deftly::{define_derive_deftly, Deftly},
-    derive_more::{Constructor, Deref, DerefMut, From, Into},
+    derive_more::{Constructor, Deref, DerefMut},
     educe::Educe,
     pin_project::pin_project,
     serde::{Deserialize, Serialize},
@@ -49,6 +49,7 @@ pub(crate) use {
 };
 
 pub(crate) use {
+    tor_basic_utils::ByteQty as Qty,
     tor_config::ConfigBuildError,
     tor_error::{error_report, internal, into_internal, Bug, ErrorKind, HasKind},
     tor_log_ratelim::log_ratelim,
@@ -56,7 +57,6 @@ pub(crate) use {
 };
 
 pub(crate) use crate::{
-    byte_qty::ByteQty as Qty,
     config::Config,
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,

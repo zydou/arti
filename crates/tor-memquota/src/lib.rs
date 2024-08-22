@@ -193,7 +193,6 @@ mod drop_bomb;
 #[macro_use]
 mod refcount;
 
-mod byte_qty;
 mod drop_reentrancy;
 mod if_enabled;
 mod internal_prelude;

@@ -196,6 +196,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use fmt::Display;
 
     #[test]
     fn error_display() {
