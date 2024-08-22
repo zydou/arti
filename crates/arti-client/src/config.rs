@@ -566,7 +566,7 @@ pub struct TorClientConfig {
         sub_builder,
         field(
             type = "HashMap<String, i32>",
-            build = "convert_override_net_params(&self.override_net_params)"
+            build = "default_extend(self.override_net_params.clone())"
         )
     )]
     #[builder_field_attr(serde(default))]
@@ -621,15 +621,11 @@ impl tor_config::load::TopLevel for TorClientConfig {
     type Builder = TorClientConfigBuilder;
 }
 
-/// Helper to convert convert_override_net_params
-fn convert_override_net_params(
-    builder: &HashMap<String, i32>,
-) -> tor_netdoc::doc::netstatus::NetParams<i32> {
-    let mut override_net_params = tor_netdoc::doc::netstatus::NetParams::new();
-    for (k, v) in builder {
-        override_net_params.set(k.clone(), *v);
-    }
-    override_net_params
+/// Helper to add overrides to a default collection.
+fn default_extend<T: Default + Extend<X>, X>(to_add: impl IntoIterator<Item = X>) -> T {
+    let mut collection = T::default();
+    collection.extend(to_add);
+    collection
 }
 
 impl tor_circmgr::CircMgrConfig for TorClientConfig {
