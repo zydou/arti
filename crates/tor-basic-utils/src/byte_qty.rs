@@ -15,7 +15,8 @@ use std::fmt::{self, Display};
 ///
 /// Like `usize` but `Display`s in a more friendly and less precise way
 #[derive(Debug, Clone, Copy, Hash, Default, Eq, PartialEq, Ord, PartialOrd)] //
-#[derive(From, Into, Deref, DerefMut, Serialize, Deserialize)]
+#[derive(From, Into, Deref, DerefMut)]
+#[derive(Serialize, Deserialize)]
 #[serde(transparent)]
 #[allow(clippy::exhaustive_structs)] // this is a behavioural newtype wrapper
 pub struct ByteQty(pub usize);
