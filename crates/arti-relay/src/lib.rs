@@ -4,6 +4,8 @@ mod config;
 use builder::TorRelayBuilder;
 use tor_rtcompat::Runtime;
 
+use crate::config::TorRelayConfig;
+
 // Only rustls is supported.
 #[cfg(all(feature = "rustls", any(feature = "async-std", feature = "tokio")))]
 use tor_rtcompat::PreferredRuntime;
@@ -47,7 +49,7 @@ impl<R: Runtime> TorRelay<R> {
     }
 
     /// Return a TorRelay object.
-    pub(crate) fn create_inner(runtime: R) -> Self {
+    pub(crate) fn create_inner(runtime: R, _config: &TorRelayConfig) -> Self {
         Self { runtime }
     }
 }

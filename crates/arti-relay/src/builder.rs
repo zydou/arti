@@ -13,7 +13,6 @@ pub struct TorRelayBuilder<R: Runtime> {
     /// The runtime for the client to use
     runtime: R,
     /// The configuration.
-    #[allow(unused)] // TODO RELAY remove
     config: TorRelayConfig,
 }
 
@@ -28,6 +27,6 @@ impl<R: Runtime> TorRelayBuilder<R> {
 
     /// Return a newly created TorRelay object.
     pub fn create(&self) -> TorRelay<R> {
-        TorRelay::create_inner(self.runtime.clone())
+        TorRelay::create_inner(self.runtime.clone(), &self.config)
     }
 }
