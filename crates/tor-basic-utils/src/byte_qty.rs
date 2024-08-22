@@ -38,7 +38,7 @@ use InvalidByteQty as IBQ;
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(transparent),
+    serde(into = "usize", try_from = "ByteQtySerde")
 )]
 #[allow(clippy::exhaustive_structs)] // this is a behavioural newtype wrapper
 pub struct ByteQty(pub usize);
@@ -75,6 +75,9 @@ pub enum InvalidByteQty {
     /// NaN
     #[error("size/quantity cannot be obtained from a floating point NaN")]
     NaN,
+    /// BadValue
+    #[error("bad type for size/quantity (only numbers, and strings to parse, are supported)")]
+    BadValue,
 }
 
 //---------- units (definitions) ----------
@@ -178,6 +181,33 @@ impl TryFrom<f64> for ByteQty {
             Ok(ByteQty(f as usize))
         } else {
             Err(IBQ::Negative)
+        }
+    }
+}
+
+/// Helper for deserializing [`ByteQty`]
+#[cfg(feature = "serde")]
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ByteQtySerde {
+    /// `String`
+    U(u64),
+    /// `String`
+    S(String),
+    /// `f64`
+    F(f64),
+    /// Other things
+    Bad(serde::de::IgnoredAny),
+}
+#[cfg(feature = "serde")]
+impl TryFrom<ByteQtySerde> for ByteQty {
+    type Error = InvalidByteQty;
+    fn try_from(qs: ByteQtySerde) -> Result<ByteQty, IBQ> {
+        match qs {
+            ByteQtySerde::S(s) => s.parse(),
+            ByteQtySerde::U(u) => u.try_into(),
+            ByteQtySerde::F(f) => f.try_into(),
+            ByteQtySerde::Bad(_) => Err(IBQ::BadValue),
         }
     }
 }
@@ -329,5 +359,50 @@ mod test {
         chk_y(0_u64, 0);
         chk_y(u64::from(u32::MAX), u32::MAX as usize);
         // we can't easily test the u64 overflow case without getting arch-specific
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_deser() {
+        // Use serde__value so we can try all the exciting things in the serde model
+        use serde_value::Value as SV;
+
+        let chk = |sv: SV, b: Result<ByteQty, IBQ>| {
+            assert_eq!(
+                sv.clone().deserialize_into().map_err(|e| e.to_string()),
+                b.map_err(|e| e.to_string()),
+                "{sv:?}",
+            );
+        };
+        let chk_y = |sv, v| chk(sv, Ok(ByteQty(v)));
+        let chk_bv = |sv| chk(sv, Err(IBQ::BadValue));
+
+        chk_y(SV::U8(1), 1);
+        chk_y(SV::String("1".to_owned()), 1);
+        chk_y(SV::String("1 KiB".to_owned()), 1024);
+        chk_y(SV::I32(i32::MAX), i32::MAX as usize);
+        chk_y(SV::F32(1.0), 1);
+        chk_y(SV::F64(f64::from(u32::MAX)), u32::MAX as usize);
+        chk_y(SV::Bytes("1".to_string().into()), 1);
+
+        chk_bv(SV::Bool(false));
+        chk_bv(SV::Char('1'));
+        chk_bv(SV::Unit);
+        chk_bv(SV::Option(None));
+        chk_bv(SV::Option(Some(Box::new(SV::String("1".to_owned())))));
+        chk_bv(SV::Newtype(Box::new(SV::String("1".to_owned()))));
+        chk_bv(SV::Seq(vec![]));
+        chk_bv(SV::Map(Default::default()));
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_ser() {
+        // Use serde_json so we don't have to worry about how precisely
+        // serde decides to encode a usize (eg is it u32 or u64 or what).
+        assert_eq!(
+            serde_json::to_value(ByteQty(1)).unwrap(),
+            serde_json::json!(1),
+        );
     }
 }
