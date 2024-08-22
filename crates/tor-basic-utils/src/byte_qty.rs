@@ -6,19 +6,33 @@
 //
 // There is also humansize, but that just does printing.
 
+#![allow(clippy::comparison_to_empty)] // unit == "" etc. is much clearer
+
 use derive_more::{Deref, DerefMut, From, Into};
+use itertools::Itertools;
 use thiserror::Error;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use std::fmt::{self, Display};
+use std::str::FromStr;
 
 use InvalidByteQty as IBQ;
 
 /// Quantity of memory used, measured in bytes.
 ///
-/// Like `usize` but `Display`s in a more friendly and less precise way
+/// Like `usize` but `FromStr` and `Display`s in a more friendly and less precise way
+///
+/// Parses from (with or without the internal space):
+///  * `<amount>` (implicitly, bytes)
+///  * `<amount> B`
+///  * `<amount> KiB`/`MiB`/`GiB`/`TiB` (binary, 1024-based units)
+///  * `<amount> KB`/`MB`/`GB`/`TB` (decimal, 1000-based units)
+///
+/// Displays to approximately 3 significant figures,
+/// preferring binary (1024-based) multipliers.
+/// (There is no facility for adjusting the format.)
 #[derive(Debug, Clone, Copy, Hash, Default, Eq, PartialEq, Ord, PartialOrd)] //
 #[derive(From, Into, Deref, DerefMut)]
 #[cfg_attr(
@@ -38,6 +52,23 @@ pub enum InvalidByteQty {
         usize::MAX
     )]
     Overflow,
+    /// Unknown unit
+    #[error(
+        "size/quantity specified unknown unit; supported are {}",
+        SupportedUnits
+    )]
+    UnknownUnit,
+    /// Unknown unit, probably because the B at the end was missing
+    ///
+    /// We insist on the `B` so that all our units end in `B` or `iB`.
+    #[error(
+        "size/quantity specified unknown unit - we require the `B`; supported units are {}",
+        SupportedUnits
+    )]
+    UnknownUnitMissingB,
+    /// Bad syntax
+    #[error("size/quantity specified string in bad syntax")]
+    BadSyntax,
     /// Negative value
     #[error("size/quantity cannot be negative")]
     Negative,
@@ -45,6 +76,33 @@ pub enum InvalidByteQty {
     #[error("size/quantity cannot be obtained from a floating point NaN")]
     NaN,
 }
+
+//---------- units (definitions) ----------
+
+/// Units that can be suffixed to a number, when displaying [`ByteQty`] (macro)
+const DISPLAY_UNITS: &[(&str, u64)] = &[
+    ("B", 1),
+    ("KiB", 1024),
+    ("MiB", 1024 * 1024),
+    ("GiB", 1024 * 1024 * 1024),
+    ("TiB", 1024 * 1024 * 1024 * 1024),
+];
+
+/// Units that are (only) recognised parsing a [`ByteQty`] from a string
+const PARSE_UNITS: &[(&str, u64)] = &[
+    ("", 1),
+    ("KB", 1000),
+    ("MB", 1000 * 1000),
+    ("GB", 1000 * 1000 * 1000),
+    ("TB", 1000 * 1000 * 1000 * 1000),
+];
+
+/// Units that are used when parsing *and* when printing
+const ALL_UNITS: &[&[(&str, u64)]] = &[
+    //
+    DISPLAY_UNITS,
+    PARSE_UNITS,
+];
 
 //---------- inherent methods ----------
 
@@ -65,8 +123,33 @@ impl ByteQty {
 
 impl Display for ByteQty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mb = self.0 as f32 / (1024. * 1024.);
-        write!(f, "{:.2}MiB", mb)
+        let v = self.0 as f64;
+
+        // Find the first entry which is big enough that the mantissa will be <999.5,
+        // ie where it won't print as 4 decimal digits after the point.
+        // Or, if that doesn't work, we'll use the last entry which is the largest.
+
+        let (unit, mantissa) = DISPLAY_UNITS
+            .iter()
+            .copied()
+            .filter(|(unit, _)| *unit != "")
+            .map(|(unit, multiplier)| (unit, v / multiplier as f64))
+            .find_or_last(|(_, mantissa)| *mantissa < 999.5)
+            .expect("DISPLAY_UNITS Is empty?!");
+
+        // Select a precision so that we'll print about 3 significant figures.
+        // We can't do this precisely, so we err on the side of slighlty
+        // fewer SF with mantissae starting with 9.
+
+        let after_decimal = if mantissa < 9. {
+            2
+        } else if mantissa < 99. {
+            1
+        } else {
+            0
+        };
+
+        write!(f, "{mantissa:.*} {unit}", after_decimal)
     }
 }
 
@@ -99,6 +182,81 @@ impl TryFrom<f64> for ByteQty {
     }
 }
 
+//---------- FromStr ----------
+
+impl FromStr for ByteQty {
+    type Err = InvalidByteQty;
+    fn from_str(s: &str) -> Result<Self, IBQ> {
+        let s = s.trim();
+
+        let last_digit = s
+            .rfind(|c: char| c.is_ascii_digit())
+            .ok_or(IBQ::BadSyntax)?;
+
+        // last_digit points to an ASCII digit so +1 is right to skip it
+        let (mantissa, unit) = s.split_at(last_digit + 1);
+
+        let unit = unit.trim_start(); // remove any whitespace in the middle
+
+        // defer unknown unit errors until we've done the rest of the parsing
+        let multiplier: Result<u64, _> = ALL_UNITS
+            .iter()
+            .copied()
+            .flatten()
+            .find(|(s, _)| *s == unit)
+            .map(|(_, m)| *m)
+            .ok_or_else(|| {
+                if unit.ends_with('B') {
+                    IBQ::UnknownUnit
+                } else {
+                    IBQ::UnknownUnitMissingB
+                }
+            });
+
+        // We try this via u64 (so we give byte-precise answers if possible)
+        // and via f64 (so we can support fractions).
+        //
+        // (Byte-precise amounts aren't important here in tor-memquota,
+        // but this code seems like it may end up elsewhere.)
+        if let Ok::<u64, _>(mantissa) = mantissa.parse() {
+            let multiplier = multiplier?;
+            (|| {
+                mantissa
+                    .checked_mul(multiplier)? //
+                    .try_into()
+                    .ok()
+            })()
+            .ok_or(IBQ::Overflow)
+        } else if let Ok::<f64, _>(mantissa) = mantissa.parse() {
+            let value = mantissa * (multiplier? as f64);
+            value.try_into()
+        } else {
+            Err(IBQ::BadSyntax)
+        }
+    }
+}
+
+/// Helper to format the list of supported units into `IBQ::UnknownUnit`
+struct SupportedUnits;
+
+impl Display for SupportedUnits {
+    #[allow(unstable_name_collisions)] // Itertools::intersperse vs std's;  rust-lang/rust#48919
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for s in ALL_UNITS
+            .iter()
+            .copied()
+            .flatten()
+            .copied()
+            .map(|(unit, _multiplier)| unit)
+            .filter(|unit| !unit.is_empty())
+            .intersperse("/")
+        {
+            Display::fmt(s, f)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -119,11 +277,35 @@ mod test {
 
     #[test]
     fn display_qty() {
-        let chk = |by, s| assert_eq!(ByteQty(by).to_string(), s);
+        let chk = |by, s: &str| {
+            assert_eq!(ByteQty(by).to_string(), s, "{s:?}");
+            assert_eq!(s.parse::<ByteQty>().expect(s).to_string(), s, "{s:?}");
+        };
 
-        chk(10 * 1024, "0.01MiB");
-        chk(1024 * 1024, "1.00MiB");
-        chk(1000 * 1024 * 1024, "1000.00MiB");
+        chk(10 * 1024, "10.0 KiB");
+        chk(1024 * 1024, "1.00 MiB");
+        chk(1000 * 1024 * 1024, "0.98 GiB");
+    }
+
+    #[test]
+    fn parse_qty() {
+        let chk = |s: &str, b| assert_eq!(s.parse::<ByteQty>(), b, "{s:?}");
+        let chk_y = |s, v| chk(s, Ok(ByteQty(v)));
+
+        chk_y("1", 1);
+        chk_y("1B", 1);
+        chk_y("1KB", 1000);
+        chk_y("1 KB", 1000);
+        chk_y("1 KiB", 1024);
+        chk_y("1.0 KiB", 1024);
+        chk_y(".00195312499909050529 TiB", 2147483647);
+
+        chk("1 2 K", Err(IBQ::BadSyntax));
+        chk("1.2 K", Err(IBQ::UnknownUnitMissingB));
+        chk("no digits", Err(IBQ::BadSyntax));
+        chk("1 2 KB", Err(IBQ::BadSyntax));
+        chk("1 mB", Err(IBQ::UnknownUnit));
+        chk("1.0e100 TiB", Err(IBQ::Overflow));
     }
 
     #[test]

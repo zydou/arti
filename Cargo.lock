@@ -4980,6 +4980,7 @@ dependencies = [
  "derive_more",
  "educe",
  "hex",
+ "itertools 0.13.0",
  "libc",
  "paste",
  "rand",
