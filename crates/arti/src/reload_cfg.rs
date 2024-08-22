@@ -318,8 +318,8 @@ mod test {
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
     use test_temp_dir::{test_temp_dir, TestTempDir};
-
-    use std::sync::mpsc as std_mpsc;
+    use postage::watch;
+    use tor_async_utils::PostageWatchSenderExt;
 
     /// Filename for config1
     const CONFIG_NAME1: &str = "config1.toml";
@@ -330,12 +330,14 @@ mod test {
 
     struct TestModule {
         // A sender for sending the new config to the test function
-        tx: Arc<Mutex<std_mpsc::Sender<ArtiCombinedConfig>>>,
+        tx: Arc<Mutex<watch::Sender<ArtiCombinedConfig>>>,
     }
 
     impl ReconfigurableModule for TestModule {
         fn reconfigure(&self, new: &ArtiCombinedConfig) -> anyhow::Result<()> {
-            self.tx.lock().unwrap().send(new.clone()).unwrap();
+            let config = new.clone();
+            self.tx.lock().unwrap().maybe_send(|_| config);
+
             Ok(())
         }
     }
@@ -343,9 +345,13 @@ mod test {
     /// Create a test reconfigurable module.
     ///
     /// Returns the module and a channel on which the new configs received by the module are sent.
-    fn create_module(
-    ) -> (Arc<dyn ReconfigurableModule>, std_mpsc::Receiver<ArtiCombinedConfig>) {
-        let (tx, rx) = std_mpsc::channel();
+    async fn create_module(
+    ) -> (Arc<dyn ReconfigurableModule>, watch::Receiver<ArtiCombinedConfig>) {
+        let (tx, mut rx) = watch::channel();
+        // Read the initial value from the postage::watch stream
+        // (the first observed value on this test stream is always the default config)
+        let _: ArtiCombinedConfig = rx.next().await.unwrap();
+
         (Arc::new(TestModule { tx: Arc::new(Mutex::new(tx)) }), rx)
     }
 
@@ -373,7 +379,8 @@ mod test {
             let mut cfg_sources = ConfigurationSources::new_empty();
             cfg_sources.push_source(ConfigurationSource::File(cfg_file), MustRead::MustRead);
 
-            let (module, rx) = create_module();
+            let (module, mut rx) = create_module().await;
+
             // Use a fake sighup stream to wait until run_watcher()'s select_biased!
             // loop is entered
             let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
@@ -392,14 +399,14 @@ mod test {
             let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
             sighup_tx.send(()).await.unwrap();
             // The reconfigurable modules should've been reloaded in response to sighup
-            let config = rx.recv().unwrap();
+            let config = rx.next().await.unwrap();
             assert_eq!(config.0, config_builder.build().unwrap());
 
             // Overwrite the config
             config_builder.logging().log_sensitive_information(false);
             let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
             // The reconfigurable modules should've been reloaded in response to the config change
-            let config = rx.recv().unwrap();
+            let config = rx.next().await.unwrap();
             assert_eq!(config.0, config_builder.build().unwrap());
 
         });
@@ -419,7 +426,7 @@ mod test {
                 MustRead::MustRead
             );
 
-            let (module, rx) = create_module();
+            let (module, mut rx) = create_module().await;
             // Use a fake sighup stream to wait until run_watcher()'s select_biased!
             // loop is entered
             let (mut sighup_tx, sighup_rx) = mpsc::unbounded();
@@ -438,7 +445,7 @@ mod test {
             let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder1);
             sighup_tx.send(()).await.unwrap();
             // The reconfigurable modules should've been reloaded in response to sighup
-            let config = rx.recv().unwrap();
+            let config = rx.next().await.unwrap();
             assert_eq!(config.0, config_builder1.build().unwrap());
 
             let mut config_builder2 =  ArtiConfigBuilder::default();
@@ -449,19 +456,19 @@ mod test {
             // Check that the 2 config files are merged
             let mut config_builder_combined = config_builder1.clone();
             config_builder_combined.system().max_files(0_u64);
-            let config = rx.recv().unwrap();
+            let config = rx.next().await.unwrap();
             assert_eq!(config.0, config_builder_combined.build().unwrap());
             // Now write a new config file to the watched dir
             config_builder2.logging().console("foo".to_string());
             let mut config_builder_combined2 = config_builder_combined.clone();
             config_builder_combined2.logging().console("foo".to_string());
             let config3: PathBuf = write_config(&temp_dir, CONFIG_NAME3, &config_builder2);
-            let config = rx.recv().unwrap();
+            let config = rx.next().await.unwrap();
             assert_eq!(config.0, config_builder_combined2.build().unwrap());
 
             // Removing the file should also trigger an event
             std::fs::remove_file(config3).unwrap();
-            let config = rx.recv().unwrap();
+            let config = rx.next().await.unwrap();
             assert_eq!(config.0, config_builder_combined.build().unwrap());
         });
     }
