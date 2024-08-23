@@ -20,6 +20,7 @@ use crate::{
 };
 
 mod auth;
+mod connect;
 mod connimpl;
 
 use crate::util::Utf8CString;
@@ -401,6 +402,11 @@ pub enum ProtoError {
     /// (This should be impossible.)
     #[error("Internal error while encoding request: {0}")]
     CouldNotEncode(#[source] Arc<serde_json::Error>),
+
+    /// We got a response to some internally generated request that we couldn't decode in the
+    /// expected format.
+    #[error("Unexpected response to request: {0}")]
+    CouldNotDecode(#[source] Arc<serde_json::Error>),
 }
 
 /// An error while trying to connect to the Arti process.

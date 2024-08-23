@@ -25,6 +25,9 @@ paste = { version = "1", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.104"
 thiserror = "1"
+tor-socksproto = { path = "../tor-socksproto", version = "0.22.0", default-features = false, features = [
+    "client-handshake",
+] }
 void = "1"
 
 [dev-dependencies]

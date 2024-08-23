@@ -62,7 +62,8 @@ pub use handshake::client::SocksClientHandshake;
 pub use SocksProxyHandshake as SocksHandshake;
 
 pub use msg::{
-    SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus, SocksVersion,
+    SocksAddr, SocksAuth, SocksCmd, SocksHostname, SocksReply, SocksRequest, SocksStatus,
+    SocksVersion,
 };
 pub use tor_error::Truncated;
 
