@@ -33,9 +33,6 @@
 //!
 //! This is client-only.
 //!
-//! There's one big mutex on the whole circuit: the reactor needs to hold
-//! it to process a cell, and streams need to hold it to send.
-//!
 //! There is no flow-control or rate-limiting or fairness.
 
 pub(crate) mod celltypes;
