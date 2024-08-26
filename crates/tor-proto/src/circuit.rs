@@ -32,8 +32,6 @@
 //! # Limitations
 //!
 //! This is client-only.
-//!
-//! There is no flow-control or rate-limiting or fairness.
 
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
