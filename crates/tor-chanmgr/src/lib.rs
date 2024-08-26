@@ -110,10 +110,14 @@ pub struct ChanMgr<R: Runtime> {
     ///     built using [`transport::proxied::ExternalProxyPlugin`], which implements
     ///     [`transport::TransportImplHelper`], which in turn is wrapped into a
     ///     `ChanBuilder` to implement `ChannelFactory`.
-    ///   * A `dyn` [`factory::ChannelFactory`] that it uses for everything else
+    ///   * A generic [`factory::ChannelFactory`] that it uses for everything else
     ///     We instantiate this with a
     ///     [`builder::ChanBuilder`] using a [`transport::default::DefaultTransport`].
-    mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
+    // This type is a bit long, but I think it's better to just state it here explicitly rather than
+    // hiding parts of it behind a type alias to make it look nicer.
+    mgr: mgr::AbstractChanMgr<
+        factory::CompoundFactory<builder::ChanBuilder<R, transport::DefaultTransport<R>>>,
+    >,
 
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,

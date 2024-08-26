@@ -60,28 +60,6 @@ pub trait ChannelFactory: Send + Sync {
 }
 
 #[async_trait]
-impl<'a> ChannelFactory for Arc<(dyn ChannelFactory + Send + Sync + 'a)> {
-    async fn connect_via_transport(
-        &self,
-        target: &OwnedChanTarget,
-        reporter: BootstrapReporter,
-    ) -> crate::Result<Arc<Channel>> {
-        self.as_ref().connect_via_transport(target, reporter).await
-    }
-}
-
-#[async_trait]
-impl<'a> ChannelFactory for Box<(dyn ChannelFactory + Send + Sync + 'a)> {
-    async fn connect_via_transport(
-        &self,
-        target: &OwnedChanTarget,
-        reporter: BootstrapReporter,
-    ) -> crate::Result<Arc<Channel>> {
-        self.as_ref().connect_via_transport(target, reporter).await
-    }
-}
-
-#[async_trait]
 impl<CF> crate::mgr::AbstractChannelFactory for CF
 where
     CF: ChannelFactory + Sync,
@@ -136,17 +114,26 @@ where
 
 /// A ChannelFactory built from an optional PtMgr to use for pluggable transports, and a
 /// ChannelFactory to use for everything else.
-#[derive(Clone)]
-pub(crate) struct CompoundFactory {
+pub(crate) struct CompoundFactory<CF> {
     #[cfg(feature = "pt-client")]
     /// The PtMgr to use for pluggable transports
     ptmgr: Option<Arc<dyn AbstractPtMgr + 'static>>,
     /// The factory to use for everything else
-    default_factory: Arc<dyn ChannelFactory + 'static>,
+    default_factory: Arc<CF>,
+}
+
+impl<CF> Clone for CompoundFactory<CF> {
+    fn clone(&self) -> Self {
+        Self {
+            #[cfg(feature = "pt-client")]
+            ptmgr: self.ptmgr.as_ref().map(Arc::clone),
+            default_factory: Arc::clone(&self.default_factory),
+        }
+    }
 }
 
 #[async_trait]
-impl ChannelFactory for CompoundFactory {
+impl<CF: ChannelFactory> ChannelFactory for CompoundFactory<CF> {
     async fn connect_via_transport(
         &self,
         target: &OwnedChanTarget,
@@ -176,11 +163,11 @@ impl ChannelFactory for CompoundFactory {
     }
 }
 
-impl CompoundFactory {
+impl<CF: ChannelFactory + 'static> CompoundFactory<CF> {
     /// Create a new `Factory` that will try to use `ptmgr` to handle pluggable
     /// transports requests, and `default_factory` to handle everything else.
     pub(crate) fn new(
-        default_factory: Arc<dyn ChannelFactory + 'static>,
+        default_factory: Arc<CF>,
         #[cfg(feature = "pt-client")] ptmgr: Option<Arc<dyn AbstractPtMgr + 'static>>,
     ) -> Self {
         Self {
