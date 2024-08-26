@@ -24,6 +24,7 @@ mod connect;
 mod connimpl;
 
 use crate::util::Utf8CString;
+pub use connect::StreamError;
 pub use connimpl::RpcConn;
 
 /// A handle to an open request.

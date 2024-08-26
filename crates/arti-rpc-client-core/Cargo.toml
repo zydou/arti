@@ -19,6 +19,7 @@ crate-type = ["cdylib", "lib"]
 
 c_str_macro = { version = "1", optional = true }
 caret = { path = "../caret", version = "0.4.5" }
+cfg-if = "1.0.0"
 derive_more = "0.99.3"
 educe = "0.4.6"
 paste = { version = "1", optional = true }

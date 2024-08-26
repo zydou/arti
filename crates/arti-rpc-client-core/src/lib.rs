@@ -51,5 +51,5 @@ mod msgs;
 #[macro_use]
 mod util;
 
-pub use conn::{BuilderError, ConnectError, ProtoError, RpcConn, RpcConnBuilder};
+pub use conn::{BuilderError, ConnectError, ProtoError, RpcConn, RpcConnBuilder, StreamError};
 pub use msgs::{request::InvalidRequestError, response::RpcError, AnyRequestId, ObjectId};

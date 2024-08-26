@@ -8,12 +8,15 @@ mod util;
 
 use err::{ArtiRpcError, InvalidInput};
 use std::ffi::{c_char, c_int};
-use util::{ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OptOutValExt, OutPtr, OutVal};
+use util::{
+    ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OptOutValExt, OutPtr, OutSocketOwned,
+    OutVal,
+};
 
 use crate::{
     conn::{AnyResponse, RequestHandle},
     util::Utf8CString,
-    RpcConnBuilder,
+    ObjectId, RpcConnBuilder,
 };
 
 /// A status code returned by an Arti RPC function.
@@ -46,6 +49,30 @@ pub type ArtiRpcHandle = RequestHandle;
 
 /// The type of a message returned by an RPC request.
 pub type ArtiRpcResponseType = c_int;
+
+/// The type of a data stream socket.
+/// (This is always `int` on Unix-like platforms,
+/// and SOCKET on Windows.)
+//
+// NOTE: We declare this as a separate type so that we can give it a default.
+#[repr(transparent)]
+pub struct ArtiRpcRawSocket(
+    #[cfg(windows)] std::os::windows::raw::SOCKET,
+    #[cfg(not(windows))] c_int,
+);
+
+impl Default for ArtiRpcRawSocket {
+    fn default() -> Self {
+        #[cfg(windows)]
+        {
+            Self(!0)
+        }
+        #[cfg(not(windows))]
+        {
+            Self(-1)
+        }
+    }
+}
 
 /// Try to open a new connection to an Arti instance.
 ///
@@ -355,4 +382,117 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
 
         }
     );
+}
+
+/// Try to open an anonymized data stream over Arti.
+///
+/// Use the proxy information associated with `rpc_conn` to make the connection,
+/// and store the resulting fd (or `SOCKET` on Windows) into `*socket_out`.
+///
+/// The stream will target the address `hostname`:`port`.
+///
+/// If `on_object` is provided, it is an `ObjectId` for client-like object
+/// (such as a Session or a Client)
+/// that should be used to make the connection.
+///
+/// If `isolation` is provided, the resulting stream will be configured
+/// not to share a circuit with any other stream
+/// having a different `isolation`.
+///
+/// If `stream_id_out` is provided,
+/// the resulting stream will have an identifier within the RPC system,
+/// so that you can run other RPC commands on it.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`.
+/// Otherwise return some other status code, set `*socket_out` to -1
+/// (or `INVALID_SOCKET` on Windows),
+/// and set `*error_out` (if provided) to a newly allocated error object.
+///
+/// # Caveats
+///
+/// When possible, use a hostname rather than an IP address.
+/// If you *must* use an IP address, make sure that you have not gotten it
+/// by a non-anonymous DNS lookup.
+/// (Calling `gethostname()` or `getaddrinfo()` directly
+/// would lose anonymity: they inform the user's DNS server,
+/// and possibly many other parties, about the target address
+/// you are trying to visit.)
+///
+/// The resulting socket will actually be a connection to Arti,
+/// not directly to your destination.
+/// Therefore, passing it to functions like `getpeername()`
+/// may give unexpected results.
+///
+/// If `stream_id_out` is provided
+/// (or if Arti is configured to return streams optimistically),
+/// the data stream may still be connecting
+/// when this request returns.
+/// (TODO RPC: Document how to wait for it)
+///
+/// If `stream_id_out` is provided,
+/// the caller is responsible for releasing the ObjectId;
+/// Arti will not deallocate it even when the stream is closed.
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that
+/// `*stream_id_out` and `*error_out`, if set,
+/// are eventually freed.
+///
+/// The caller is responsible for making sure that `*socket_out`, if set,
+/// is eventually closed.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_conn_connect(
+    rpc_conn: *const ArtiRpcConn,
+    hostname: *const c_char,
+    port: c_int,
+    on_object: *const c_char,
+    isolation: *const c_char,
+    socket_out: *mut ArtiRpcRawSocket,
+    stream_id_out: *mut *mut ArtiRpcStr,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err! {
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let on_object: Option<&str> [in_str_opt];
+            let hostname: Option<&str> [in_str_opt];
+            let isolation: Option<&str> [in_str_opt];
+            let socket_out: Option<OutSocketOwned<'_>> [out_socket_owned_opt];
+            let stream_id_out: Option<OutPtr<ArtiRpcStr>> [out_ptr_opt];
+            err error_out: Option<OutPtr<ArtiRpcError>>;
+        } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+            let hostname = hostname.ok_or(InvalidInput::NullPointer)?;
+            let socket_out = socket_out.ok_or(InvalidInput::NullPointer)?;
+
+            let port: u16 = port.try_into().map_err(|_| InvalidInput::BadPort)?;
+            if port == 0 {
+                return Err(InvalidInput::BadPort.into());
+            }
+
+            let on_object = on_object.map(|o| ObjectId::try_from(o.to_owned()))
+                .transpose()
+                .expect("C string somehow contained NUL.");
+
+            let stream = match stream_id_out {
+                Some(stream_id_out) => {
+                    let (stream_id, stream) = rpc_conn.connect_with_object(
+                        on_object.as_ref(),
+                        (hostname, port),
+                        isolation)?;
+                    stream_id_out.write_value_boxed(stream_id.into());
+                    stream
+                }
+                None => {
+                    rpc_conn.connect(on_object.as_ref(), (hostname, port), isolation)?
+                }
+            };
+
+            // We call this last so that the stream will definitely be converted to an fd, or
+            // dropped.
+            socket_out.write_socket(stream);
+        }
+    }
 }

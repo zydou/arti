@@ -141,6 +141,18 @@ pub(crate) enum FfiStatus {
     /// error!  Revisit after we have implemented real cancellation.
     ["Request was cancelled"]
     RequestCancelled = 9,
+
+    /// An IO error occurred while trying to negotiate a data stream
+    /// using Arti as a proxy.
+    ["IO error while connecting to Arti as a Proxy"]
+    ProxyIo = 10,
+
+    /// An attempt to negotiate a data stream through Arti failed,
+    /// with an error from the proxy protocol.
+    //
+    // TODO RPC: expose the actual error type; see #1580.
+    ["Data stream failed"]
+    ProxyStreamFailed = 11,
 }
 }
 
@@ -237,6 +249,10 @@ pub(super) enum InvalidInput {
     /// Tried to convert a non-UTF string.
     #[error("Provided string was not UTF-8")]
     BadUtf8,
+
+    /// Tried to use an invalid port.
+    #[error("Port was not in range 1..65535")]
+    BadPort,
 }
 
 impl From<void::Void> for InvalidInput {
@@ -274,6 +290,33 @@ impl IntoFfiError for crate::ConnectError {
             _ => None,
         }
     }
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(self)
+    }
+}
+
+impl IntoFfiError for crate::StreamError {
+    fn status(&self) -> FfiStatus {
+        use crate::StreamError as E;
+        use FfiStatus as F;
+        match self {
+            E::RpcMethods(e) => e.status(),
+            E::ProxyInfoRejected(_) => F::RequestFailed,
+            E::NewStreamRejected(_) => F::RequestFailed,
+            E::StreamReleaseRejected(_) => F::RequestFailed,
+            E::Internal(_) => F::Internal,
+            E::NoProxy => F::RequestFailed,
+            E::Io(_) => F::ProxyIo,
+            E::SocksRequest(_) => F::InvalidInput,
+            E::SocksProtocol(_) => F::PeerProtocolViolation,
+            E::SocksError(_status) => {
+                // TODO RPC: We should expose the actual failure type somehow,
+                // possibly with a different call.  See #1580.
+                F::ProxyStreamFailed
+            }
+        }
+    }
+
     fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
         Some(self)
     }

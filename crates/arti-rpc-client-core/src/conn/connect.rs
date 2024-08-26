@@ -13,6 +13,7 @@ use crate::{msgs::request::Request, ObjectId};
 
 /// An error encountered while trying to open a data stream.
 #[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum StreamError {
     /// One of the RPC methods that we invoked to create the stream failed.
     #[error("An error occurred while invoking RPC methods")]

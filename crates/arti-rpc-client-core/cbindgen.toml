@@ -148,15 +148,36 @@ cpp_compat = true
 # Consistency with Arti.
 tab_width = 8
 
+after_includes = """\
+/**
+ * Type of a socket returned by RPC functions.
+ *
+ * This a `SOCKET` on Windows, and an fd elsewhere.
+ **/
+#ifdef _WIN32
+typedef SOCKET ArtiRpcRawSocket;
+#else
+typedef int ArtiRpcRawSocket;
+#endif
+"""
+
 [defines]
 # This is where we would add mappings from `cfg()` to `#ifdef`.
 # But the only relevant cfg we have is `cfg(feature="ffi")`,
 # which we want to assume is always present if you're using the header.
 
+
 [export]
 # These structs are not ones we want to expose under their actual names,
 # or ones that we don't want to expose at all.
-exclude = ["FfiError", "RequestHandle", "RpcConn", "RpcErrorCode", "Utf8CString"]
+exclude = [
+        "FfiError",
+        "RequestHandle",
+        "RpcConn",
+        "RpcErrorCode",
+        "Utf8CString",
+        "ArtiRpcRawSocket",
+]
 
 [export.rename]
 # Having not declared these structs, we can give them new names in the

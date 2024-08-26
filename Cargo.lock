@@ -360,6 +360,7 @@ version = "0.22.0"
 dependencies = [
  "c_str_macro",
  "caret",
+ "cfg-if",
  "derive_more",
  "educe",
  "paste",
