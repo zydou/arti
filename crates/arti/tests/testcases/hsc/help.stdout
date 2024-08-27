@@ -9,8 +9,7 @@ Commands:
 
 Options:
   -c, --config <FILE>                 Specify which config file(s) to read. Defaults to
-                                      [File("[..]"),
-                                      Dir("[..]")]
+...
   -o <KEY=VALUE>                      Override config file parameters, using TOML-like syntax.
   -l, --log-level <LEVEL>             Override the log level (usually one of 'trace', 'debug',
                                       'info', 'warn', 'error').
