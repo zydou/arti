@@ -10,7 +10,7 @@ use crate::internal_prelude::*;
 /// Scattering values of this type around in relevant data structures
 /// and parameters lists
 /// allows the compiler to eliminate the unwanted code.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EnabledToken {
     /// Make non-exhaustive even within the crate
     _hidden: (),
@@ -19,6 +19,8 @@ pub struct EnabledToken {
     #[cfg(not(feature = "memquota"))]
     _forbid: Void,
 }
+
+impl Eq for EnabledToken {}
 
 impl EnabledToken {
     /// Obtain an `EnabledToken` (only available if tracking is compiled in)
@@ -51,7 +53,7 @@ impl EnabledToken {
 /// (trackers, `Account`s and so on)
 /// which have been torn down, or are "dummy" or "dangling",
 /// which are supposed to return errors rather than no-op successes.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum IfEnabled<T> {
     /// We're enabled, and supposed to be tracking memory
     ///
