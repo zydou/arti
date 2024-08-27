@@ -190,11 +190,12 @@
 // Internal supporting modules
 #[macro_use]
 mod drop_bomb;
+#[macro_use]
+mod refcount;
+
 mod drop_reentrancy;
 mod if_enabled;
 mod internal_prelude;
-#[macro_use]
-mod refcount;
 mod utils;
 
 // Modules with public items

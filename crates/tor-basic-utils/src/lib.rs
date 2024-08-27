@@ -54,6 +54,9 @@ pub mod rangebounds;
 pub mod retry;
 pub mod test_rng;
 
+mod byte_qty;
+pub use byte_qty::ByteQty;
+
 pub use paste::paste;
 
 use rand::Rng;
