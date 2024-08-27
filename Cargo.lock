@@ -5692,6 +5692,7 @@ dependencies = [
  "pin-project",
  "rand",
  "serde",
+ "serde_json",
  "slotmap",
  "static_assertions",
  "thiserror",

@@ -101,3 +101,59 @@ impl ConfigBuilder {
         Ok(config)
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn configs() {
+        let chk_ok_raw = |j, c| {
+            let b: ConfigBuilder = serde_json::from_value(j).unwrap();
+            assert_eq!(b.build().unwrap(), c);
+        };
+        let chk_ok = |j, max, low_water| {
+            const M: usize = 1024 * 1024;
+            chk_ok_raw(
+                j,
+                Config {
+                    max: Qty(max * M),
+                    low_water: Qty(low_water * M),
+                },
+            );
+        };
+        let chk_err = |j, exp| {
+            let b: ConfigBuilder = serde_json::from_value(j).unwrap();
+            let got = b.build().unwrap_err().to_string();
+            assert!(got.contains(exp), "in {exp:?} in {got:?}");
+        };
+
+        chk_ok(json! {{ "max": "8 MiB" }}, 8, 6);
+        chk_ok(json! {{ "max": "8 MiB", "low_water": "4 MiB" }}, 8, 4);
+
+        chk_err(json! {{ }}, "Field was not provided: max");
+        chk_err(
+            json! {{ "low_water": "4 MiB" }},
+            "Field was not provided: max",
+        );
+        chk_err(
+            json! {{ "max": "8 MiB", "low_water": "8 MiB" }},
+            "inconsistent: low_water / max",
+        );
+    }
+}
