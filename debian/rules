@@ -1,0 +1,98 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+include /usr/share/dpkg/buildflags.mk
+include /usr/share/rustc/architecture.mk
+export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
+export DEB_HOST_RUST_TYPE DEB_HOST_GNU_TYPE
+
+# Honor user-provided PATH and cargo binary so as to avoid possibly
+# ancient system rust installations
+export CARGO=cargo
+export CARGO_HOME=$(CURDIR)/debian/cargo_home
+export CARGO_TARGET_DIR=$(CURDIR)/debian/target
+export RUSTFLAGS=-C debuginfo=2 -C strip=none
+
+
+# Rust binaries to build and install, space separated
+CARGO_BUILD_BINS = arti
+# Extra target flags, passed to all cargo invocations
+CARGO_TARGET_FLAGS =
+# Crates to exclude from testing, space separated (by default the
+# entire workspace is tested)
+CARGO_TEST_EXCLUDED = arti-bench arti-config tor-congestion
+CARGO_TEST_EXCLUDED += tor-events tor-hspow
+
+
+# If the build profile contains 'debug', a debug build is triggered
+# (note: no separate dbgsym package is built in that case)
+ifeq ($(filter debug,$(DEB_BUILD_PROFILES)),)
+    RELEASE = 1
+    CARGO_TARGET_FLAGS += --release
+else
+    DEB_BUILD_OPTIONS += nostrip noautodbgsym
+endif
+
+# If the build profile contains 'full', a full build is triggered
+ifneq ($(filter full,$(DEB_BUILD_PROFILES)),)
+    CARGO_TARGET_FLAGS += --features full
+endif
+
+CARGO_BIN_DIR := $(CARGO_TARGET_DIR)
+
+ifneq ($(DEB_BUILD_GNU_TYPE),$(DEB_HOST_GNU_TYPE))
+    CROSS_BUILD = 1
+    CARGO_TARGET_FLAGS += --target $(DEB_HOST_RUST_TYPE)
+    CARGO_BIN_DIR := $(CARGO_BIN_DIR)/$(DEB_HOST_RUST_TYPE)
+    export PKG_CONFIG=$(DEB_HOST_GNU_TYPE)-pkgconf
+endif
+
+ifeq ($(RELEASE),1)
+    CARGO_BIN_DIR := $(CARGO_BIN_DIR)/release
+else
+    CARGO_BIN_DIR := $(CARGO_BIN_DIR)/debug
+endif
+
+ifneq ($(CARGO_TEST_EXCLUDED),)
+    CARGO_TEST_EXCLUDE_FLAGS = $(addprefix --exclude ,$(CARGO_TEST_EXCLUDED))
+endif
+
+CARGO_BUILD_FLAGS = $(CARGO_TARGET_FLAGS) --locked --verbose
+CARGO_BUILD_FLAGS += $(addprefix -p ,$(CARGO_BUILD_BINS))
+CARGO_TEST_FLAGS = $(CARGO_TARGET_FLAGS) --workspace --locked --no-fail-fast --verbose
+CARGO_TEST_FLAGS += --lib --bins $(CARGO_TEST_EXCLUDE_FLAGS)
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf $(CURDIR)/target $(CARGO_HOME) $(CARGO_TARGET_DIR)
+
+override_dh_auto_configure:
+	install -D -m 0644 $(CURDIR)/debian/config.toml $(CARGO_HOME)/config.toml
+ifeq ($(CROSS_BUILD),1)
+	printf "\n[target.$(DEB_HOST_RUST_TYPE)]\n" >> $(CARGO_HOME)/config.toml
+	printf "linker = \"$(DEB_HOST_GNU_TYPE)-gcc\"\n" >> $(CARGO_HOME)/config.toml
+endif
+	dh_auto_configure
+
+override_dh_auto_build-arch:
+	$(CARGO) build $(CARGO_BUILD_FLAGS)
+
+# TODO: `cargo test` triggers rebuilds which may or may not be necessary. Binaries
+# are not rebuilt though (same hashes, same creation/modification/etc. times)
+
+# TODO: tests must currently be disabled when cross compiling. However, one could
+# define a 'cross-test' build profile to optionally execute tests using qemu
+override_dh_auto_test-arch:
+	$(CARGO) test $(CARGO_TEST_FLAGS)
+
+override_dh_auto_install:
+	for bin in $(CARGO_BUILD_BINS); do \
+		install -D -m 0755 $(CARGO_BIN_DIR)/$$bin $(CURDIR)/debian/$(DEB_SOURCE)/usr/bin/$$bin; \
+	done
+	dh_auto_install
+
+override_dh_compress:
+	dh_compress -Xarti-example-config.toml
