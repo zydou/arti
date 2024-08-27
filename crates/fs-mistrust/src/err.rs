@@ -8,17 +8,18 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 #[cfg(feature = "anon_home")]
 use crate::anon_home::PathExt as _;
 
-// Define a local-only version of anonymize_home so that we can define our errors
-// unconditionally.
+/// Define a local-only version of anonymize_home so that we can define our errors
+/// unconditionally.
 #[cfg(not(feature = "anon_home"))]
 trait PathExt {
     /// A do-nothing extension function.
-    fn anonymize_home(&self) -> &Path;
+    fn anonymize_home(&self) -> impl std::fmt::Display + '_;
 }
 #[cfg(not(feature = "anon_home"))]
 impl PathExt for Path {
-    fn anonymize_home(&self) -> &Path {
-        self
+    #[allow(clippy::disallowed_methods)] // lossiness is expected
+    fn anonymize_home(&self) -> impl std::fmt::Display + '_ {
+        self.display()
     }
 }
 
@@ -183,6 +184,7 @@ impl Error {
                 Error::CreatingDir(_) => return None,
                 Error::InvalidSubdirectory => return None,
                 Error::Content(e) => return e.path(),
+                #[cfg(feature = "walkdir")]
                 Error::Listing(e) => return e.path(),
                 Error::MissingField(_) => return None,
                 Error::NoSuchGroup(_) => return None,
@@ -207,13 +209,15 @@ impl Error {
             | Error::StepsExceeded
             | Error::CurrentDirectory(_)
             | Error::CreatingDir(_)
-            | Error::Listing(_)
             | Error::InvalidSubdirectory
             | Error::Io { .. }
             | Error::MissingField(_)
             | Error::NoSuchGroup(_)
             | Error::NoSuchUser(_)
             | Error::PasswdGroupIoError(_) => false,
+
+            #[cfg(feature = "walkdir")]
+            Error::Listing(_) => false,
 
             Error::Multiple(errs) => errs.iter().any(|e| e.is_bad_permission()),
             Error::Content(err) => err.is_bad_permission(),

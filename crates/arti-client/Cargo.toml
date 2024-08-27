@@ -10,6 +10,9 @@ description = "Library for connecting to the Tor network as an anonymous client"
 keywords = ["tor", "arti", "privacy", "anonymity", "networking"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+#
+# examples call TorClient::create_bootstrapped which needs PreferredRuntime
+# @@ test-all-crates ignore
 
 [features]
 default = ["tokio", "native-tls", "compression"]

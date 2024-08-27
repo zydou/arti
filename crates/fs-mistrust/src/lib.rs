@@ -865,6 +865,7 @@ mod test {
     }
 
     #[cfg(target_family = "unix")]
+    #[cfg(feature = "walkdir")]
     #[test]
     fn check_contents() {
         let d = Dir::new();
