@@ -91,6 +91,11 @@
  * - If a function consumes (takes ownership of) one of its inputs,
  *   it does so regardless of whether the function succeeds or fails.
  *
+ * - Whenever one or more functions take an argument via a `const Type *`,
+ *   it is safe to pass the same object to multiple functions at once.
+ *   (This does not apply to functions that take an argument via a
+ *   non-const pointer.)
+ *
  * ## Correctness requirements
  *
  * If any correctness requirements stated here or elsewhere are violated,
@@ -410,10 +415,9 @@ ArtiRpcStatus arti_rpc_conn_execute_with_handle(const ArtiRpcConn *rpc_conn,
  * and deliver the error from Arti in `*response_out`, setting `*response_type_out` to
  * `ARTI_RPC_RESPONSE_TYPE_ERROR`.
  *
- * # Correctness requirements
- *
- * No other thread or code must be using `handle` while this function is running.
- * Accessing `handle` from multiple functions at once may result in undefined behavior.
+ * It is safe to call this function on the same handle from multiple threads at once.
+ * If you do, each response will be sent to exactly one thread.
+ * It is unspecified which thread will receive which response or which error.
  *
  * # Ownership
  *
@@ -421,7 +425,7 @@ ArtiRpcStatus arti_rpc_conn_execute_with_handle(const ArtiRpcConn *rpc_conn,
  *
  * The caller is responsible for making sure that `*response_out`, if set, is eventually freed.
  */
-ArtiRpcStatus arti_rpc_handle_wait(ArtiRpcHandle *handle,
+ArtiRpcStatus arti_rpc_handle_wait(const ArtiRpcHandle *handle,
                                    ArtiRpcStr **response_out,
                                    ArtiRpcResponseType *response_type_out,
                                    ArtiRpcError **error_out);
