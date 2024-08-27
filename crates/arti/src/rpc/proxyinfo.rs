@@ -47,15 +47,16 @@ impl rpc::RpcMethod for GetProxyInfo {
 /// An error encountered while asking for the proxy addresses.
 #[derive(Clone, Debug, thiserror::Error)]
 enum GetProxyInfoError {
-    /// The Sender was dropped without setting any proxy info.
-    #[error("Proxy information was never set")]
-    SenderDropped,
+    /// The Sender was dropped without setting any proxy info;
+    /// likely, Arti is shutting down.
+    #[error("Arti appears to be shutting down")]
+    Shutdown,
 }
 impl HasKind for GetProxyInfoError {
     fn kind(&self) -> ErrorKind {
         use GetProxyInfoError as E;
         match self {
-            E::SenderDropped => ErrorKind::ArtiShuttingDown,
+            E::Shutdown => ErrorKind::ArtiShuttingDown,
         }
     }
 }
@@ -70,7 +71,7 @@ async fn rpc_session_get_proxy_info(
 
     match proxy_info {
         Ok(info) => Ok((*info).clone()),
-        Err(()) => Err(GetProxyInfoError::SenderDropped),
+        Err(()) => Err(GetProxyInfoError::Shutdown),
     }
 }
 rpc::static_rpc_invoke_fn! {rpc_session_get_proxy_info;}
