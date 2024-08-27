@@ -356,6 +356,9 @@ mod test {
     use std::time::Duration;
     use tor_config::load::{ConfigResolveError, ResolutionResults};
 
+    #[allow(unused_imports)] // depends on features
+    use tor_error::ErrorReport as _;
+
     #[cfg(feature = "restricted-discovery")]
     use {
         arti_client::HsClientDescEncKey,
@@ -573,7 +576,7 @@ mod test {
             None, // it's there, but not formatted for auto-testing
             Recognized,
             &[
-                // Memory quota, not tested XXXX
+                // Memory quota, tested by fn memquota (below)
                 "system.memory",
                 "system.memory.max",
                 "system.memory.low_water",
@@ -1176,6 +1179,55 @@ example config file {which:?}, uncommented={uncommented:?}
     }
 
     #[test]
+    fn memquota() {
+        // Test that uncommenting the example generates a config
+        // with tracking enabled, iff support is compiled in.
+
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        file.narrow((r"^\[system\]", true), (r"^\[", false));
+        file.lines.retain(|line| {
+            [
+                //
+                "[",
+                "#    memory.",
+            ]
+            .iter()
+            .any(|t| line.starts_with(t))
+        });
+
+        file.strip_prefix("#    ");
+
+        let result = file.resolve_return_results::<(TorClientConfig, ArtiConfig)>();
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "memquota")] {
+                let result = result.unwrap();
+
+                // Test that the example config doesn't have any unrecognised keys
+                assert_eq!(result.unrecognized, []);
+                assert_eq!(result.deprecated, []);
+
+                let inner: &tor_memquota::testing::ConfigInner =
+                    result.value.0.system_memory().inner().unwrap();
+
+                // Test that the example low_water is the default
+                // value for the example max.
+                let defaulted_low = tor_memquota::Config::builder()
+                    .max(*inner.max)
+                    .build()
+                    .unwrap();
+                let inner_defaulted_low = defaulted_low.inner().unwrap();
+                assert_eq!(inner, inner_defaulted_low);
+            } else {
+                // Test that requesting memory quota tracking generates a config error
+                // if support is compiled out.
+                let m = result.unwrap_err().report().to_string();
+                assert!(m.contains("cargo feature `memquota` disabled"), "{m:?}");
+            }
+        }
+    }
+
+    #[test]
     fn onion_services() {
         // Here we require that the onion services configuration is between a
         // line labeled with `#     [onion_service."allium-cepa"]` and
@@ -1411,7 +1463,6 @@ example config file {which:?}, uncommented={uncommented:?}
         fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
             tor_config::load::resolve(self.parse())
         }
-        #[allow(dead_code)] // XXXX
         fn resolve_return_results<R: tor_config::load::Resolvable>(
             &self,
         ) -> Result<ResolutionResults<R>, ConfigResolveError> {

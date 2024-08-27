@@ -158,6 +158,9 @@ tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 visibility = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.22.0", default-features = false, features = [
+    "testing",
+] }
 derive_more = "0.99.3"
 itertools = "0.13.0"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
@@ -166,6 +169,7 @@ serde_json = "1.0.50"
 tempfile = "3"
 test-temp-dir = { version = "0.2.1", path = "../test-temp-dir" }
 tor-async-utils = { version = "0.22.0", path = "../tor-async-utils" }
+tor-memquota = { path = "../tor-memquota", version = "0.22.0", features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.22.0" }
 trycmd = "0.15.4"
 
