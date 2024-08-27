@@ -19,12 +19,8 @@ fn cli_tests() {
 
     cfg_if::cfg_if! {
         if #[cfg(all(feature = "onion-service-client", feature = "experimental-api", feature = "keymgr"))] {
-            // TODO: Skipped because running creating multiple TorClient at the same time
-            // is not supported.
-            //
-            // Re-enable these when #1497 is closed.
-            t.skip("tests/testcases/hsc/*.toml");
-            t.skip("tests/testcases/hsc/*.md");
+            t.case("tests/testcases/hsc/*.toml");
+            t.case("tests/testcases/hsc/*.md");
         } else {
             // This is not yet implemented, see #1487
             t.skip("tests/testcases/hsc-feature-missing/*.toml");
