@@ -9,8 +9,7 @@
 //! objects corresponding to directory requests.
 //!
 //! In general, you shouldn't try to manage channels on your own;
-//! however, there is no alternative in Arti today.  (A future
-//! channel-manager library will probably fix that.)
+//! use the `tor-chanmgr` crate instead.
 //!
 //! To launch a channel:
 //!
