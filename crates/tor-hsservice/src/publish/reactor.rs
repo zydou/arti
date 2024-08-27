@@ -1106,6 +1106,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             _ => return Err(internal!("file watcher event {event:?}").into()),
         };
 
+        // Update the file watcher, in case the change was triggered by a key_dir move.
+        self.update_file_watcher();
+
         if self.update_authorized_clients_if_changed().await? {
             self.mark_all_dirty();
 
