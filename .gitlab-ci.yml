@@ -292,7 +292,7 @@ deb-binary-amd64:
     - mv arti*.tar.gz arti*.dsc arti*.tar.xz ..
     - apt-get update && apt-get build-dep -y .
     # TODO: re-enable testing (tests are currently killed for some unidentified reason)
-    - dpkg-buildpackage --build-profiles=nocheck
+    - dpkg-buildpackage -uc --build-profiles=nocheck
     - mv ../arti*.deb ../*.changes ../*.buildinfo .
   needs:
     - deb-source
@@ -320,7 +320,7 @@ deb-binary-amd64:
     - dpkg --add-architecture ${CROSS_ARCH}
     - maint/common/apt-install build-essential crossbuild-essential-${CROSS_ARCH} && apt-get build-dep -y -a${CROSS_ARCH} .
     - rustup target add ${RUST_CROSS_TARGET}
-    - CONFIG_SITE=/etc/dpkg-cross/cross-config.${CROSS_ARCH} dpkg-buildpackage -a${CROSS_ARCH} --build-profiles=cross,nocheck
+    - CONFIG_SITE=/etc/dpkg-cross/cross-config.${CROSS_ARCH} dpkg-buildpackage -uc -a${CROSS_ARCH} --build-profiles=cross,nocheck
     - mv ../arti*.deb ../*.changes ../*.buildinfo .
   needs:
     - deb-source
