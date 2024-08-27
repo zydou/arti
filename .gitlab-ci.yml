@@ -279,7 +279,6 @@ deb-source:
     - git archive -o ../arti_${DEB_VERSION_UPSTREAM}.orig.tar.gz --prefix arti-${DEB_VERSION_UPSTREAM}/ HEAD
     - dpkg-source -b .
     - mv ../arti*.tar.gz ../arti*.dsc ../arti*.tar.xz .
-  needs: []
   artifacts:
     paths:
       - "*.tar.gz"
