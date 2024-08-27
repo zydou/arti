@@ -124,20 +124,10 @@ pub struct TorClient<R: Runtime> {
     /// Circuit pool for providing onion services with circuits.
     #[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
     hs_circ_pool: Arc<tor_circmgr::hspool::HsCircPool<R>>,
-    /// The key manager.
+    /// A handle to this client's [`InertTorClient`].
     ///
-    /// This is used for retrieving private keys, certificates, and other sensitive data (for
-    /// example, for retrieving the keys necessary for connecting to hidden services that require
-    /// client authentication).
-    ///
-    /// If this crate is compiled _with_ the `keymgr` feature, [`TorClient`] will use a functional
-    /// key manager implementation.
-    ///
-    /// If this crate is compiled _without_ the `keymgr` feature, then [`TorClient`] will use a
-    /// no-op key manager implementation instead.
-    ///
-    /// See the [`KeyMgr`] documentation for more details.
-    keymgr: Option<Arc<KeyMgr>>,
+    /// Used for accessing the key manager and other persistent state.
+    inert_client: InertTorClient,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
@@ -184,6 +174,151 @@ pub struct TorClient<R: Runtime> {
     // The sent value is `Option`, so that `None` is sent when the sender, here,
     // is dropped,.  That shuts down the monitoring task.
     dormant: Arc<Mutex<DropNotifyWatchSender<Option<DormantMode>>>>,
+}
+
+/// A Tor client that is not runnable.
+///
+/// Can be used to access the state that would be used by a running [`TorClient`].
+///
+/// An `InertTorClient` never connects to the network.
+#[derive(Clone)]
+pub struct InertTorClient {
+    /// The key manager.
+    ///
+    /// This is used for retrieving private keys, certificates, and other sensitive data (for
+    /// example, for retrieving the keys necessary for connecting to hidden services that require
+    /// client authentication).
+    ///
+    /// If this crate is compiled _with_ the `keymgr` feature, [`TorClient`] will use a functional
+    /// key manager implementation.
+    ///
+    /// If this crate is compiled _without_ the `keymgr` feature, then [`TorClient`] will use a
+    /// no-op key manager implementation instead.
+    ///
+    /// See the [`KeyMgr`] documentation for more details.
+    keymgr: Option<Arc<KeyMgr>>,
+}
+
+impl InertTorClient {
+    /// Create an `InertTorClient` from a `TorClientConfig`.
+    pub(crate) fn new(config: &TorClientConfig) -> StdResult<Self, ErrorDetail> {
+        let keymgr = Self::create_keymgr(config)?;
+
+        Ok(Self { keymgr })
+    }
+
+    /// Create a [`KeyMgr`] using the specified configuration.
+    ///
+    /// Returns `Ok(None)` if keystore use is disabled.
+    fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
+        let keystore = config.storage.keystore();
+        if keystore.is_enabled() {
+            let (state_dir, _mistrust) = config.state_dir()?;
+            let key_store_dir = state_dir.join("keystore");
+            let permissions = config.storage.permissions();
+
+            let arti_store =
+                ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
+            info!("Using keystore from {key_store_dir:?}");
+
+            // TODO #1106: make the default store configurable
+            let default_store = arti_store;
+
+            let keymgr = KeyMgrBuilder::default()
+                .default_store(Box::new(default_store))
+                .build()
+                .map_err(|_| internal!("failed to build keymgr"))?;
+
+            // TODO #858: add support for the C Tor key store
+            Ok(Some(Arc::new(keymgr)))
+        } else {
+            info!("Running without a keystore");
+            Ok(None)
+        }
+    }
+
+    /// Generate a service discovery keypair for connecting to a hidden service running in
+    /// "restricted discovery" mode.
+    ///
+    /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
+    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// have configured this `TorClient` with a non-default keystore and wish to generate the
+    /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
+    /// specifying the keystore ID of your keystore.
+    ///
+    // Note: the selector argument exists for future-proofing reasons. We don't currently support
+    // configuring custom or non-default keystores (see #1106).
+    ///
+    /// Returns an error if the key already exists in the specified key store.
+    ///
+    /// Important: the public part of the generated keypair must be shared with the service, and
+    /// the service needs to be configured to allow the owner of its private counterpart to
+    /// discover its introduction points. The caller is responsible for sharing the public part of
+    /// the key with the hidden service.
+    ///
+    /// This function does not require the `TorClient` to be running or bootstrapped.
+    //
+    // TODO: decide whether this should use get_or_generate before making it
+    // non-experimental
+    #[cfg(all(
+        feature = "onion-service-client",
+        feature = "experimental-api",
+        feature = "keymgr"
+    ))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(
+            feature = "onion-service-client",
+            feature = "experimental-api",
+            feature = "keymgr"
+        )))
+    )]
+    pub fn generate_service_discovery_key(
+        &self,
+        selector: KeystoreSelector,
+        hsid: HsId,
+    ) -> crate::Result<HsClientDescEncKey> {
+        let mut rng = rand::thread_rng();
+        let spec = HsClientDescEncKeypairSpecifier::new(hsid);
+        let key = self
+            .keymgr
+            .as_ref()
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "generate client service discovery key",
+            })?
+            .generate::<HsClientDescEncKeypair>(
+                &spec, selector, &mut rng, false, /* overwrite */
+            )?;
+
+        Ok(key.public().clone())
+    }
+
+    /// Return the service discovery public key for the service with the specified `hsid`.
+    ///
+    /// Returns `Ok(None)` if no such key exists.
+    ///
+    /// This function does not require the `TorClient` to be running or bootstrapped.
+    #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(feature = "onion-service-client", feature = "experimental-api")))
+    )]
+    pub fn get_service_discovery_key(
+        &self,
+        hsid: HsId,
+    ) -> crate::Result<Option<HsClientDescEncKey>> {
+        let spec = HsClientDescEncKeypairSpecifier::new(hsid);
+        let key = self
+            .keymgr
+            .as_ref()
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "get client service discovery key",
+            })?
+            .get::<HsClientDescEncKeypair>(&spec)?
+            .map(|key| key.public().clone());
+
+        Ok(key)
+    }
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
@@ -658,8 +793,6 @@ impl<R: Runtime> TorClient<R> {
             HsClientConnector::new(runtime.clone(), hs_circ_pool.clone(), config, housekeeping)?
         };
 
-        let keymgr = Self::create_keymgr(config)?;
-
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
@@ -684,6 +817,7 @@ impl<R: Runtime> TorClient<R> {
             .map_err(|e| ErrorDetail::from_spawn("top-level status reporter", e))?;
 
         let client_isolation = IsolationToken::new();
+        let inert_client = InertTorClient::new(config)?;
 
         Ok(TorClient {
             runtime,
@@ -701,7 +835,7 @@ impl<R: Runtime> TorClient<R> {
             hsclient,
             #[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
             hs_circ_pool,
-            keymgr,
+            inert_client,
             guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),
@@ -1073,7 +1207,7 @@ impl<R: Runtime> TorClient<R> {
 
                 let mut hs_client_secret_keys_builder = HsClientSecretKeysBuilder::default();
 
-                if let Some(keymgr) = &self.keymgr {
+                if let Some(keymgr) = &self.inert_client.keymgr {
                     let desc_enc_key_spec = HsClientDescEncKeypairSpecifier::new(hsid);
 
                     // TODO hs: refactor to reduce code duplication.
@@ -1370,6 +1504,7 @@ impl<R: Runtime> TorClient<R> {
         impl futures::Stream<Item = tor_hsservice::RendRequest>,
     )> {
         let keymgr = self
+            .inert_client
             .keymgr
             .as_ref()
             .ok_or(ErrorDetail::KeystoreRequired {
@@ -1438,19 +1573,8 @@ impl<R: Runtime> TorClient<R> {
         selector: KeystoreSelector,
         hsid: HsId,
     ) -> crate::Result<HsClientDescEncKey> {
-        let mut rng = rand::thread_rng();
-        let spec = HsClientDescEncKeypairSpecifier::new(hsid);
-        let key = self
-            .keymgr
-            .as_ref()
-            .ok_or(ErrorDetail::KeystoreRequired {
-                action: "generate client service discovery key",
-            })?
-            .generate::<HsClientDescEncKeypair>(
-                &spec, selector, &mut rng, false, /* overwrite */
-            )?;
-
-        Ok(key.public().clone())
+        self.inert_client
+            .generate_service_discovery_key(selector, hsid)
     }
 
     /// Return the service discovery public key for the service with the specified `hsid`.
@@ -1467,17 +1591,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         hsid: HsId,
     ) -> crate::Result<Option<HsClientDescEncKey>> {
-        let spec = HsClientDescEncKeypairSpecifier::new(hsid);
-        let key = self
-            .keymgr
-            .as_ref()
-            .ok_or(ErrorDetail::KeystoreRequired {
-                action: "get client service discovery key",
-            })?
-            .get::<HsClientDescEncKeypair>(&spec)?
-            .map(|key| key.public().clone());
-
-        Ok(key)
+        self.inert_client.get_service_discovery_key(hsid)
     }
 
     /// Create (but do not launch) a new
@@ -1491,7 +1605,8 @@ impl<R: Runtime> TorClient<R> {
         config: &TorClientConfig,
         svc_config: tor_hsservice::OnionServiceConfig,
     ) -> crate::Result<tor_hsservice::OnionService> {
-        let keymgr = Self::create_keymgr(config)?.ok_or(ErrorDetail::KeystoreRequired {
+        let inert_client = InertTorClient::new(config)?;
+        let keymgr = inert_client.keymgr.ok_or(ErrorDetail::KeystoreRequired {
             action: "create onion service",
         })?;
 
@@ -1538,36 +1653,6 @@ impl<R: Runtime> TorClient<R> {
             .lock()
             .expect("dormant lock poisoned")
             .borrow_mut() = Some(mode);
-    }
-
-    /// Create a [`KeyMgr`] using the specified configuration.
-    ///
-    /// Returns `Ok(None)` if keystore use is disabled.
-    fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
-        let keystore = config.storage.keystore();
-        if keystore.is_enabled() {
-            let (state_dir, _mistrust) = config.state_dir()?;
-            let key_store_dir = state_dir.join("keystore");
-            let permissions = config.storage.permissions();
-
-            let arti_store =
-                ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
-            info!("Using keystore from {key_store_dir:?}");
-
-            // TODO #1106: make the default store configurable
-            let default_store = arti_store;
-
-            let keymgr = KeyMgrBuilder::default()
-                .default_store(Box::new(default_store))
-                .build()
-                .map_err(|_| internal!("failed to build keymgr"))?;
-
-            // TODO #858: add support for the C Tor key store
-            Ok(Some(Arc::new(keymgr)))
-        } else {
-            info!("Running without a keystore");
-            Ok(None)
-        }
     }
 
     /// Return a [`Future`](futures::Future) which resolves

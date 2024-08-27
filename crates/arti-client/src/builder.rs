@@ -2,7 +2,7 @@
 
 #![allow(missing_docs, clippy::missing_docs_in_private_items)]
 
-use crate::{err::ErrorDetail, BootstrapBehavior, Result, TorClient, TorClientConfig};
+use crate::{err::ErrorDetail, BootstrapBehavior, InertTorClient, Result, TorClient, TorClientConfig};
 use std::{
     result::Result as StdResult,
     sync::Arc,
@@ -297,6 +297,13 @@ impl<R: Runtime> TorClientBuilder<R> {
             );
         }
         Ok(timeout)
+    }
+
+    /// Create an `InertTorClient` from this builder, without launching
+    /// the bootstrap process, or connecting to the network.
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn create_inert(&self) -> Result<InertTorClient> {
+        Ok(InertTorClient::new(&self.config)?)
     }
 }
 
