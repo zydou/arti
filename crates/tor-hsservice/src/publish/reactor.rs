@@ -1675,30 +1675,39 @@ fn maybe_expand_path(p: &tor_config::CfgPath) -> Option<PathBuf> {
         .ok()
 }
 
-/// Add the specified directories to the watcher.
-fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryKeyProviderList) {
-    let dirs = dirs.iter().filter_map(|cfg_path| {
-        // Skip over any directories whose path can't be expanded
-        let path = maybe_expand_path(cfg_path.path())?;
+/// Add `path` to the specified `watcher`.
+macro_rules! watch_path {
+    ($watcher:expr, $path:expr, $watch_fn:ident, $($watch_fn_args:expr,)*) => {{
+        if let Err(e) = $watcher.$watch_fn(&$path, $($watch_fn_args)*) {
+            warn_report!(e, "failed to watch path {:?}", $path);
+        } else {
+            debug!("watching path {:?}", $path);
+        }
+    }}
+}
 
-        // If the path doesn't exist, the notify watcher will return an error,
-        // so we skip over any directories that don't exist at this time
+/// Add the specified directories to the watcher.
+#[allow(clippy::cognitive_complexity)]
+fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryKeyProviderList) {
+    for path in dirs {
+        let path = path.path();
+        let Some(path) = maybe_expand_path(path) else {
+            warn!("failed to expand key_dir path {:?}", path);
+            continue;
+        };
+
+        // If the path doesn't exist, the notify watcher will return an error if we attempt to watch it,
+        // so we skip over paths that don't exist at this time
         // (this obviously suffers from a TOCTOU race, but most of the time,
         // it is good enough at preventing the watcher from failing to watch.
         // If the race *does* happen it is not disastrous, i.e. the reactor won't crash,
         // but it will fail to set the watcher).
         if matches!(path.try_exists(), Ok(true)) {
-            debug!("watching key_dir path {path:?}");
-            Some(path)
-        } else {
-            warn!("key_dirs path {path:?} does not exist or is not accessible, not watching");
-            None
+            watch_path!(watcher, &path, watch_dir, "auth",);
         }
-    });
-
-    for path in dirs {
-        if let Err(e) = watcher.watch_dir(path, "auth") {
-            warn_report!(e, "failed to watch key_dir");
+        // FileWatcher::watch_file causes the parent dir of the path to be watched.
+        if matches!(path.parent().map(|p| p.try_exists()), Some(Ok(true))) {
+            watch_path!(watcher, &path, watch_file,);
         }
     }
 }
