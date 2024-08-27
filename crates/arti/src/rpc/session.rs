@@ -108,22 +108,16 @@ impl RpcVisibleArtiState {
     /// Return an error if the sender has been closed.
     pub(super) async fn get_proxy_info(&self) -> Result<Arc<ProxyInfo>, ()> {
         let mut proxy_info = self.proxy_info.clone();
-        loop {
-            // create the future early, so that it will tell us about any changes that happen right
-            // after we borrow `v`.
-            let future = proxy_info.next();
-            {
-                let v = self.proxy_info.borrow(); // Can't use `proxy_info`; it's mutably borrowed.
-                match &*v {
-                    ProxyInfoState::Unset => {
-                        // not yet set, fall through and drop the borrow.
-                    }
-                    ProxyInfoState::Set(proxyinfo) => return Ok(Arc::clone(proxyinfo)),
-                    ProxyInfoState::Eof => return Err(()),
+        while let Some(v) = proxy_info.next().await {
+            match v {
+                ProxyInfoState::Unset => {
+                    // Not yet set, try again.
                 }
+                ProxyInfoState::Set(proxyinfo) => return Ok(Arc::clone(&proxyinfo)),
+                ProxyInfoState::Eof => return Err(()),
             }
-            future.await;
         }
+        Err(())
     }
 }
 
