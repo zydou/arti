@@ -8,6 +8,7 @@ use super::session::ArtiRpcSession;
 
 /// Representation of a single proxy, as delivered by the RPC API.
 #[derive(serde::Serialize, Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub(super) struct Proxy {
     /// Where the proxy is listening, and what protocol-specific options it expects.
     pub(super) listener: ProxyListener,
@@ -15,6 +16,7 @@ pub(super) struct Proxy {
 
 /// Representation of a single proxy's listener location, as delivered by the RPC API.
 #[derive(serde::Serialize, Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub(super) enum ProxyListener {
     /// A SOCKS5 proxy.
     Socks5 {
@@ -25,6 +27,7 @@ pub(super) enum ProxyListener {
 
 /// A representation of the set of proxy addresses available from the RPC API.
 #[derive(serde::Serialize, Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub(super) struct ProxyInfo {
     /// A list of the supported proxies.
     ///

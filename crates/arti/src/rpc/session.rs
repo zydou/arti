@@ -137,3 +137,43 @@ impl RpcStateSender {
         *self.proxy_info_sender.borrow_mut() = ProxyInfoState::Set(Arc::new(info));
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use futures::task::SpawnExt as _;
+    use tor_rtcompat::test_with_one_runtime;
+
+    use super::*;
+
+    #[test]
+    fn set_proxy_info() {
+        test_with_one_runtime!(|rt| async move {
+            let (state, mut sender) = RpcVisibleArtiState::new();
+            let _task = rt.clone().spawn_with_handle(async move {
+                sender.set_socks_listeners(&["8.8.4.4:99".parse().unwrap()]);
+                sender // keep sender alive
+            });
+
+            let value = state.get_proxy_info().await;
+
+            // At this point, we've returned once, so this will test that we get a fresh answer even
+            // if we already set the inner value.
+            let value_again = state.get_proxy_info().await;
+            assert_eq!(value.unwrap(), value_again.unwrap());
+        });
+    }
+}
