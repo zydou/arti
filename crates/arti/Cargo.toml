@@ -114,7 +114,11 @@ libc = "0.2"
 notify = { version = "6.0", default-features = false, features = ["macos_kqueue"] }
 paste = "1"
 rlimit = "0.10.1"
-rustls-crate = { package = "rustls", version = "0.23.5", optional = true, default-features = false, features = ["tls12", "logging", "ring"] }
+rustls-crate = { package = "rustls", version = "0.23.5", optional = true, default-features = false, features = [
+    "tls12",
+    "logging",
+    "ring",
+] }
 safelog = { path = "../safelog", version = "0.3.6" }
 secmem-proc = { version = "0.3.0", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
