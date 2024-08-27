@@ -113,6 +113,7 @@ itertools = "0.13.0"
 libc = "0.2"
 notify = { version = "6.0", default-features = false, features = ["macos_kqueue"] }
 paste = "1"
+postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rlimit = "0.10.1"
 rustls-crate = { package = "rustls", version = "0.23.5", optional = true, default-features = false, features = [
     "tls12",
@@ -129,6 +130,7 @@ time = "0.3.18"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 toml = "0.8.8"
+tor-async-utils = { path = "../tor-async-utils", version = "0.21.0" }
 tor-config = { path = "../tor-config", version = "0.21.0" }
 tor-error = { path = "../tor-error", version = "0.21.0", default-features = false, features = ["tracing"] }
 tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.21.0", optional = true }

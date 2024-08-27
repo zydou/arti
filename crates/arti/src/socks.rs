@@ -27,7 +27,7 @@ use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 use anyhow::{anyhow, Context, Result};
 
 #[cfg(feature = "rpc")]
-use crate::rpc::RpcVisibleArtiState;
+use crate::rpc::RpcStateSender;
 
 /// Payload to return when an HTTP connection arrive on a Socks port
 const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
@@ -614,12 +614,12 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     // TODO RPC: This is not a good way to make an API conditional. We MUST
     // refactor this before the RPC feature becomes non-experimental.
     #[cfg(feature = "rpc")] rpc_data: Option<(
-        Arc<arti_rpcserver::RpcMgr>,
-        Arc<RpcVisibleArtiState>,
+        Arc<arti_rpcserver::RpcMgr>, //
+        RpcStateSender,
     )>,
 ) -> Result<()> {
     #[cfg(feature = "rpc")]
-    let (rpc_mgr, rpc_state) = match rpc_data {
+    let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
         Some((m, s)) => (Some(m), Some(s)),
         None => (None, None),
     };
@@ -660,8 +660,8 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
 
     cfg_if::cfg_if! {
         if #[cfg(feature="rpc")] {
-            if let Some(rpc_state) = rpc_state {
-                rpc_state.set_socks_listeners(&listening_on_addrs[..])?;
+            if let Some(rpc_state_sender) = &mut rpc_state_sender {
+                rpc_state_sender.set_socks_listeners(&listening_on_addrs[..]);
             }
         } else {
             let _ = listening_on_addrs;

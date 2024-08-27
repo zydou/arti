@@ -249,11 +249,11 @@ async fn run<R: Runtime>(
     let rpc_data = {
         // TODO RPC This code doesn't really belong here; it's just an example.
         if let Some(listen_path) = rpc_path {
-            let rpc_state = rpc::RpcVisibleArtiState::new();
+            let (rpc_state, rpc_state_sender) = rpc::RpcVisibleArtiState::new();
             // TODO Conceivably this listener belongs on a renamed "proxy" list.
             let rpc_mgr =
-                rpc::launch_rpc_listener(&runtime, listen_path, client.clone(), rpc_state.clone())?;
-            Some((rpc_mgr, rpc_state))
+                rpc::launch_rpc_listener(&runtime, listen_path, client.clone(), rpc_state)?;
+            Some((rpc_mgr, rpc_state_sender))
         } else {
             None
         }

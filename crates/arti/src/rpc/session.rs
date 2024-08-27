@@ -3,10 +3,9 @@
 use arti_client::TorClient;
 use arti_rpcserver::RpcAuthentication;
 use derive_deftly::Deftly;
-use std::{
-    net::SocketAddr,
-    sync::{Arc, OnceLock},
-};
+use futures::stream::StreamExt as _;
+use std::{net::SocketAddr, sync::Arc};
+use tor_async_utils::{DropNotifyEofSignallable, DropNotifyWatchSender};
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::Runtime;
 
@@ -38,12 +37,19 @@ pub(super) struct ArtiRpcSession {
 // ArtiRpcSession.  Later on, we could split it into one type that
 // the rest of this crate constructs, and another type that the
 // ArtiRpcSession actually uses. We should do that if the needs seem to diverge.
-#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) struct RpcVisibleArtiState {
     /// A `ProxyInfo` that we hand out when asked to list our proxy ports.
     ///
     /// Right now it only lists Socks; in the future it may list more.
-    pub(super) proxy_info: OnceLock<ProxyInfo>,
+    proxy_info: postage::watch::Receiver<ProxyInfoState>,
+}
+
+/// Handle to set RPC state across RPC sessions.  (See `RpcVisibleArtiState`.)
+#[derive(Debug)]
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) struct RpcStateSender {
+    /// Sender for setting our list of proxy ports.
+    proxy_info_sender: DropNotifyWatchSender<ProxyInfoState>,
 }
 
 impl ArtiRpcSession {
@@ -69,28 +75,69 @@ impl ArtiRpcSession {
     }
 }
 
+/// Possible state for a watched proxy_info.
+#[derive(Debug, Clone)]
+enum ProxyInfoState {
+    /// We haven't set it yet.
+    Unset,
+    /// We've set it to a given value.
+    Set(Arc<ProxyInfo>),
+    /// The sender has been dropped.
+    Eof,
+}
+
+impl DropNotifyEofSignallable for ProxyInfoState {
+    fn eof() -> Self {
+        Self::Eof
+    }
+}
+
 impl RpcVisibleArtiState {
     /// Construct a new `RpcVisibleArtiState`.
-    pub(crate) fn new() -> Arc<Self> {
-        Arc::new(Self {
-            proxy_info: OnceLock::new(),
-        })
+    pub(crate) fn new() -> (Arc<Self>, RpcStateSender) {
+        let (proxy_info_sender, proxy_info) = postage::watch::channel_with(ProxyInfoState::Unset);
+        let proxy_info_sender = DropNotifyWatchSender::new(proxy_info_sender);
+        (
+            Arc::new(Self { proxy_info }),
+            RpcStateSender { proxy_info_sender },
+        )
     }
 
+    /// Return the latest proxy info, waiting until it is set.
+    ///
+    /// Return an error if the sender has been closed.
+    pub(super) async fn get_proxy_info(&self) -> Result<Arc<ProxyInfo>, ()> {
+        let mut proxy_info = self.proxy_info.clone();
+        loop {
+            // create the future early, so that it will tell us about any changes that happen right
+            // after we borrow `v`.
+            let future = proxy_info.next();
+            {
+                let v = self.proxy_info.borrow(); // Can't use `proxy_info`; it's mutably borrowed.
+                match &*v {
+                    ProxyInfoState::Unset => {
+                        // not yet set, fall through and drop the borrow.
+                    }
+                    ProxyInfoState::Set(proxyinfo) => return Ok(Arc::clone(proxyinfo)),
+                    ProxyInfoState::Eof => return Err(()),
+                }
+            }
+            future.await;
+        }
+    }
+}
+
+impl RpcStateSender {
     /// Set the list of socks listener addresses on this state.
     ///
     /// This method may only be called once per state.
-    pub(crate) fn set_socks_listeners(&self, addrs: &[SocketAddr]) -> anyhow::Result<()> {
+    pub(crate) fn set_socks_listeners(&mut self, addrs: &[SocketAddr]) {
         let info = ProxyInfo {
             proxies: addrs
                 .iter()
                 .map(|a| proxyinfo::Proxy::Socks5 { address: *a })
                 .collect(),
         };
-        self.proxy_info
-            .set(info)
-            .map_err(|_| anyhow::anyhow!("Tried to call set_socks_listeners twice"))?;
-
-        Ok(())
+        *self.proxy_info_sender.borrow_mut() = ProxyInfoState::Set(Arc::new(info));
     }
 }

@@ -13,7 +13,7 @@ pub(crate) mod conntarget;
 mod proxyinfo;
 mod session;
 
-pub(crate) use session::RpcVisibleArtiState;
+pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
 
 cfg_if::cfg_if! {
     if #[cfg(all(feature="tokio", not(target_os="windows")))] {

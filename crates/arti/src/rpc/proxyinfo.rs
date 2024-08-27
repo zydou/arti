@@ -40,17 +40,15 @@ impl rpc::RpcMethod for GetProxyInfo {
 /// An error encountered while asking for the proxy addresses.
 #[derive(Clone, Debug, thiserror::Error)]
 enum GetProxyInfoError {
-    /// The Proxy information has not yet been set.
-    #[error("Proxy information not ready")]
-    NotReady,
+    /// The Sender was dropped without setting any proxy info.
+    #[error("Proxy information was never set")]
+    SenderDropped,
 }
 impl HasKind for GetProxyInfoError {
     fn kind(&self) -> ErrorKind {
         use GetProxyInfoError as E;
         match self {
-            // This is transient because the Socks code should be setting as soon as it opens its
-            // listeners.
-            E::NotReady => ErrorKind::TransientFailure,
+            E::SenderDropped => ErrorKind::ArtiShuttingDown,
         }
     }
 }
@@ -61,11 +59,11 @@ async fn rpc_session_get_proxy_info(
     _method: Box<GetProxyInfo>,
     _ctx: Arc<dyn rpc::Context>,
 ) -> Result<ProxyInfo, GetProxyInfoError> {
-    let proxy_info = session.arti_state.proxy_info.get();
+    let proxy_info = session.arti_state.get_proxy_info().await;
 
     match proxy_info {
-        Some(info) => Ok(info.clone()),
-        None => Err(GetProxyInfoError::NotReady),
+        Ok(info) => Ok((*info).clone()),
+        Err(()) => Err(GetProxyInfoError::SenderDropped),
     }
 }
 rpc::static_rpc_invoke_fn! {rpc_session_get_proxy_info;}
