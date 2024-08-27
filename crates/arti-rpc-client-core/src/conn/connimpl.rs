@@ -253,7 +253,7 @@ impl RpcConn {
 
             Ok(()) => Ok(super::RequestHandle {
                 id,
-                conn: Arc::clone(&self.receiver),
+                conn: Mutex::new(Arc::clone(&self.receiver)),
             }),
         }
     }

@@ -6,7 +6,7 @@
 use std::{
     io::{self, BufReader},
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use crate::{
@@ -32,8 +32,16 @@ pub use connimpl::RpcConn;
 #[educe(Debug)]
 pub struct RequestHandle {
     /// The underlying `Receiver` that we'll use to get updates for this request
+    ///
+    /// It's wrapped in a `Mutex` to prevent concurrent calls to `Receiver::wait_on_message_for`.
+    //
+    // NOTE: As an alternative to using a Mutex here, we _could_ remove
+    // the restriction from `wait_on_message_for` that says that only one thread
+    // may be waiting on a given request ID at once.  But that would introduce
+    // complexity to the implementation,
+    // and it's not clear that the benefit would be worth it.
     #[educe(Debug(ignore))]
-    conn: Arc<connimpl::Receiver>,
+    conn: Mutex<Arc<connimpl::Receiver>>,
     /// The ID of this request.
     id: AnyRequestId,
 }
@@ -265,7 +273,7 @@ impl RpcConn {
     where
         F: FnMut(UpdateResponse) + Send + Sync,
     {
-        let mut hnd = self.execute_with_handle(cmd)?;
+        let hnd = self.execute_with_handle(cmd)?;
         loop {
             match hnd.wait_with_updates()? {
                 AnyResponse::Success(s) => return Ok(Ok(s)),
@@ -290,7 +298,7 @@ impl RequestHandle {
     /// Note that this function will return `Err(.)` only if sending the command or getting a
     /// response failed.  If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(Err(.))`.
-    pub fn wait(mut self) -> Result<FinalResponse, ProtoError> {
+    pub fn wait(self) -> Result<FinalResponse, ProtoError> {
         loop {
             match self.wait_with_updates()? {
                 AnyResponse::Success(s) => return Ok(Ok(s)),
@@ -305,11 +313,15 @@ impl RequestHandle {
     /// response failed.  If the command was sent successfully, and Arti reported an error in response,
     /// this function returns `Ok(AnyResponse::Error(.))`.
     ///
+    /// You may call this method on the same `RequestHandle` from multiple threads.
+    /// If you do so, those calls will receive responses (or errors) in an unspecified order.
+    ///
     /// If this function returns Success or Error, then you shouldn't call it again.
     /// All future calls to this function will fail with `CmdError::RequestCancelled`.
     /// (TODO RPC: Maybe rename that error.)
-    pub fn wait_with_updates(&mut self) -> Result<AnyResponse, ProtoError> {
-        let validated = self.conn.wait_on_message_for(&self.id)?;
+    pub fn wait_with_updates(&self) -> Result<AnyResponse, ProtoError> {
+        let conn = self.conn.lock().expect("Poisoned lock");
+        let validated = conn.wait_on_message_for(&self.id)?;
 
         Ok(AnyResponse::from_validated(validated))
     }

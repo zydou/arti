@@ -208,14 +208,20 @@ impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
 /// | method               | input type      | converted to       | can reject input? |
 /// |----------------------|-----------------|--------------------|-------------------|
 /// | `in_ptr_opt`         | `*const T`      | `Option<&T>`       | N                 |
-/// | `in_mut_ptr_opt`     | `*mut T`        | `Option<&mut T>`   | N                 |
 /// | `in_str_opt`         | `*const c_char` | `Option<&str>`     | Y                 |
 /// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>`   | N                 |
 /// | `out_ptr_opt`        | `*mut *mut T`   | `Option<OutPtr<T>>`| N                 |
 /// | `out_val_opt`        | `*mut T`        | `Option<OutVal<T>>`| N                 |
+/// | `in_mut_ptr_opt`     | (NO!)           | (Do not add!)      | (NO!)             |
 ///
 /// > (Note: Other conversion methods are logically possible, but have not been added yet,
 /// > since they would not yet be used in this crate.)
+/// >
+/// > (Note: There is **deliberately** no in_mut_ptr_opt, or anything similar:
+/// > while we're okay with returning objects via `OutPtr`/`OutVal`,
+/// > we do not want to expose APIs that take a non-sharable object via `&mut T``,
+/// > since other languages have no way to enforce Rust's requirement
+/// > that no other `&mut` references exits.)
 ///
 /// ## Safety
 ///
@@ -226,16 +232,6 @@ impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
 /// * If the pointer is not null, it must point
 ///   to a valid aligned dereferenceable instance of `T`.
 /// * The underlying `T` must not be freed or modified for so long as the function is running.
-///
-/// The `in_mut_ptr_opt` method
-/// has the safety requirements of
-/// [`<*const T>::as_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut).
-/// Informally, this means:
-/// * If the pointer is not null, it must point
-///   to a valid aligned dereferenceable instance of `T`.
-/// * The underlying `T` must not be freed or modified for so long as the function is running.
-/// * The underlying `T` must not be referenced any other rust function at the same time,
-///   or the aliasing rules otherwise violated.
 ///
 /// The `in_str_opt` method, when its input is non-NULL,
 /// has the safety requirements of [`CStr::from_ptr`](std::ffi::CStr::from_ptr).
@@ -524,19 +520,6 @@ pub(super) mod arg_conversion {
     /// As for [`<*const T>::as_ref`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_ref).
     pub(in crate::ffi) unsafe fn in_ptr_opt<'a, T>(input: *const T) -> Result<Option<&'a T>, Void> {
         Ok(unsafe { input.as_ref() })
-    }
-
-    /// Try to convert a mut pointer to an optional reference.
-    ///
-    /// A null pointer is allowed, and converted to `None`.
-    ///
-    /// # Safety
-    ///
-    /// As for [`<*const T>::as_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_mut).
-    pub(in crate::ffi) unsafe fn in_mut_ptr_opt<'a, T>(
-        input: *mut T,
-    ) -> Result<Option<&'a mut T>, Void> {
-        Ok(unsafe { input.as_mut() })
     }
 
     /// Try to convert a `const char *` to a `&str`.

@@ -100,6 +100,11 @@ header = """\
  * - If a function consumes (takes ownership of) one of its inputs,
  *   it does so regardless of whether the function succeeds or fails.
  *
+ * - Whenever one or more functions take an argument via a `const Type *`,
+ *   it is safe to pass the same object to multiple functions at once.
+ *   (This does not apply to functions that take an argument via a
+ *   non-const pointer.)
+ *
  * ## Correctness requirements
  *
  * If any correctness requirements stated here or elsewhere are violated,
@@ -151,13 +156,7 @@ tab_width = 8
 [export]
 # These structs are not ones we want to expose under their actual names,
 # or ones that we don't want to expose at all.
-exclude = [
-        "FfiError",
-        "RequestHandle",
-        "RpcConn",
-        "RpcErrorCode",
-        "Utf8CString"
-]
+exclude = ["FfiError", "RequestHandle", "RpcConn", "RpcErrorCode", "Utf8CString"]
 
 [export.rename]
 # Having not declared these structs, we can give them new names in the
