@@ -6,9 +6,16 @@ use tor_rpcbase::{self as rpc};
 
 use super::session::ArtiRpcSession;
 
-/// Representation of a single proxy address, as delivered by the RPC API.
+/// Representation of a single proxy, as delivered by the RPC API.
 #[derive(serde::Serialize, Clone, Debug)]
-pub(super) enum Proxy {
+pub(super) struct Proxy {
+    /// Where the proxy is listening, and what protocol-specific options it expects.
+    pub(super) listener: ProxyListener,
+}
+
+/// Representation of a single proxy's listener location, as delivered by the RPC API.
+#[derive(serde::Serialize, Clone, Debug)]
+pub(super) enum ProxyListener {
     /// A SOCKS5 proxy.
     Socks5 {
         /// The address at which we're listening for SOCKS connections.

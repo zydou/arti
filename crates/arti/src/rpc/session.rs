@@ -135,7 +135,9 @@ impl RpcStateSender {
         let info = ProxyInfo {
             proxies: addrs
                 .iter()
-                .map(|a| proxyinfo::Proxy::Socks5 { address: *a })
+                .map(|a| proxyinfo::Proxy {
+                    listener: proxyinfo::ProxyListener::Socks5 { address: *a },
+                })
                 .collect(),
         };
         *self.proxy_info_sender.borrow_mut() = ProxyInfoState::Set(Arc::new(info));
