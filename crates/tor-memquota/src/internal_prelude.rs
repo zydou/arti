@@ -30,7 +30,7 @@ pub(crate) use std::{
 pub(crate) use futures::{
     channel::mpsc,
     stream::FusedStream,
-    task::{Spawn, SpawnError, SpawnExt as _},
+    task::{noop_waker_ref, Spawn, SpawnError, SpawnExt as _},
     FutureExt as _, Sink, SinkExt as _, Stream, StreamExt as _,
 };
 
@@ -67,5 +67,5 @@ pub(crate) use crate::{
     private::Sealed,
     refcount,
     stream_peek::StreamUnobtrusivePeeker,
-    utils::{DefaultExtTake, NoopWaker},
+    utils::DefaultExtTake,
 };

@@ -66,7 +66,7 @@ use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 
 use crate::internal_prelude::*;
 
-use std::task::{Context, Poll, Poll::*, Waker};
+use std::task::{Context, Poll, Poll::*};
 
 //---------- Sender ----------
 
@@ -522,8 +522,7 @@ impl<T: Debug + Send + 'static, C: ChannelSpec> Drop for ReceiverState<T, C> {
 
         // try to free whatever is in the queue, in case the stream doesn't do that itself
         // No-one can poll us any more, so we are no longer interested in wakeups
-        let noop_waker = Waker::from(Arc::new(NoopWaker));
-        let mut noop_cx = Context::from_waker(&noop_waker);
+        let mut noop_cx = Context::from_waker(noop_waker_ref());
 
         // prevent further sends, so that our drain doesn't race indefinitely with the sender
         if let Some(mut rx_inner) =

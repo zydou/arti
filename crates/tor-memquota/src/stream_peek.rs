@@ -124,12 +124,10 @@ impl<S: Stream> UnobtrusivePeekableStream for StreamUnobtrusivePeeker<S> {
                 return None;
             };
 
-            let waker_buf;
             let waker = if let Some(waker) = self_.poll_waker.as_ref() {
                 waker
             } else {
-                waker_buf = Waker::from(Arc::new(NoopWaker));
-                &waker_buf
+                noop_waker_ref()
             };
 
             match inner.poll_next(&mut Context::from_waker(waker)) {
@@ -270,7 +268,7 @@ impl<S: Stream> StreamUnobtrusivePeeker<S> {
     /// This method must be used with care!
     /// Whatever you do mustn't interfere with polling and peeking.
     /// Careless use can result in wrong behaviour including deadlocks.
-    pub(crate) fn as_raw_inner_pin_mut<'s>(self: Pin<&'s mut Self>) -> Option<Pin<&'s mut S>> {
+    pub fn as_raw_inner_pin_mut<'s>(self: Pin<&'s mut Self>) -> Option<Pin<&'s mut S>> {
         self.project().inner.as_pin_mut()
     }
 }

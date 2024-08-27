@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 #
-# Helper script: makes sure that the crates as listed in Cargo.toml are
+# Helper script: makes sure that the crates as listed in the workspace Cargo.toml are
 # topologically sorted from lowest-level to highest level.
+#
+# We depend on this property for publishing to crates.io. e.g.
+# see
+# https://blog.iany.me/2020/10/gotchas-to-publish-rust-crates-in-a-workspace/#cyclic-dependencies
 
 import toml.decoder
 import sys
@@ -55,6 +59,10 @@ def get_dependencies(cratename):
     fname = os.path.join(CRATEDIR, cratename, "Cargo.toml")
     t = toml.decoder.load(fname)
     deps = set()
+    # We need to look at dev-dependencies too, and disallow false cyclic
+    # dependencies through dev-dependencies.  We might be able to relax this if
+    # crate publishing is updated to ignore dev-dependencies
+    # <https://github.com/rust-lang/cargo/issues/4242>.
     for secname in ['dependencies', 'dev-dependencies']:
         sec = t.get(secname)
         if not sec:
