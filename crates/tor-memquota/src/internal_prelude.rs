@@ -37,7 +37,6 @@ pub(crate) use futures::{
 };
 
 pub(crate) use {
-    derive_builder::Builder,
     derive_deftly::{define_derive_deftly, Deftly},
     derive_more::{Constructor, Deref, DerefMut},
     educe::Educe,
@@ -60,7 +59,7 @@ pub(crate) use {
 };
 
 pub(crate) use crate::{
-    config::Config,
+    config::{Config, ConfigInner},
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},

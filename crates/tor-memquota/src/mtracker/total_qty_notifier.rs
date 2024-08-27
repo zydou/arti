@@ -39,7 +39,7 @@ impl TotalQtyNotifier {
         &mut self,
         precord: &mut PRecord,
         want: Qty,
-        config: &Config,
+        config: &ConfigInner,
     ) -> crate::Result<ClaimedQty> {
         let got = self
             .total_used

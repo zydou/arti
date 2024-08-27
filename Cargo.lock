@@ -5684,7 +5684,6 @@ name = "tor-memquota"
 version = "0.22.0"
 dependencies = [
  "derive-deftly",
- "derive_builder_fork_arti",
  "derive_more",
  "educe",
  "futures",

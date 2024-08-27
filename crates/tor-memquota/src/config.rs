@@ -19,9 +19,9 @@ define_derive_deftly! {
     /// we use `approx_equal(...)`.
     QtySetters:
 
-    impl $< $ttype Builder > {
+    impl ConfigBuilder {
       $(
-        ${when approx_equal($ftype, Qty)}
+        ${when approx_equal($ftype, { Option::<Qty> })}
 
         ${fattrs doc}
         ///
@@ -37,25 +37,47 @@ define_derive_deftly! {
 /// Configuration for a memory data tracker
 ///
 /// This is where the quota is specified.
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Deftly)]
-#[derive_deftly(QtySetters)]
-#[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
-#[builder(derive(Serialize, Deserialize, Debug, Deftly, Eq, PartialEq))]
-#[builder_struct_attr(derive_deftly(tor_config::Flattenable))]
-pub struct Config {
+///
+/// This type can also represent
+/// "memory quota tracking is not supposed to be enabled".
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Config(pub(crate) IfEnabled<ConfigInner>);
+
+/// Configuration for a memory data tracker (builder)
+//
+// We could perhaps generate this with `#[derive(Builder)]` on `CnfigInner`,
+// but derive-builder would need a *lot* of overriding attributes;
+// and, doing it this way lets us write separate docs about
+// the invariants on our fields, which are not the same as those in the builder.
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Default, Deftly)]
+#[derive_deftly(tor_config::Flattenable, QtySetters)]
+pub struct ConfigBuilder {
     /// Maximum memory usage tolerated before reclamation starts
+    ///
+    /// Setting this to `usize::MAX` disables the memory quota
+    /// (and that's the default).
     ///
     /// Note that this is not a hard limit.
     /// See Approximate in [the overview](crate).
-    ///
-    ///
-    #[builder(setter(custom))]
-    pub(crate) max: Qty,
+    max: Option<Qty>,
 
     /// Reclamation will stop when memory use is reduced to below this value
     ///
     /// Default is 75% of the maximum.
-    #[builder(setter(custom))]
+    low_water: Option<Qty>,
+}
+
+/// Configuration, if enabled
+#[derive(Debug, Clone, Eq, PartialEq, Deftly)]
+pub(crate) struct ConfigInner {
+    /// Maximum memory usage
+    ///
+    /// Guaranteed not to be `MAX`, since we're anbled
+    pub(crate) max: Qty,
+
+    /// Low water
+    ///
+    /// Guaranteed to be enough lower than `max`
     pub(crate) low_water: Qty,
 }
 
@@ -74,11 +96,31 @@ impl ConfigBuilder {
     /// Returns an error unless at least `max` has been specified,
     /// or if the fields values are invalid or inconsistent.
     pub fn build(&self) -> Result<Config, ConfigBuildError> {
-        let mut builder = self.clone();
-        if let (Some(max), None) = (builder.max, builder.low_water) {
-            builder.low_water = Some(Qty((*max as f32 * 0.75) as _));
+        let max = self.max.unwrap_or(Qty::MAX);
+
+        if max == Qty::MAX {
+            if self.low_water.is_some() {
+                return Err(ConfigBuildError::Inconsistent {
+                    fields: vec!["max".into(), "low_water".into()],
+                    problem: "low_water supplied, but max omitted".into(),
+                });
+            };
+            return Ok(Config(IfEnabled::Noop));
         }
-        let config = builder.build_unvalidated()?;
+
+        let enabled = EnabledToken::new_if_compiled_in()
+            //
+            .ok_or_else(|| ConfigBuildError::NoCompileTimeSupport {
+                field: "max".into(),
+                problem: "cargo feature `memquota` disabled (in tor-memquota crate)".into(),
+            })?;
+
+        let low_water = self.low_water.unwrap_or_else(
+            //
+            || Qty((*max as f32 * 0.75) as _),
+        );
+
+        let config = ConfigInner { max, low_water };
 
         let min_low_water = crate::mtracker::MAX_CACHE.as_usize() * MIN_MAX_PARTICIPANTS;
         if *config.low_water < min_low_water {
@@ -98,7 +140,7 @@ impl ConfigBuilder {
             });
         }
 
-        Ok(config)
+        Ok(Config(IfEnabled::Enabled(config, enabled)))
     }
 }
 
@@ -127,29 +169,43 @@ mod test {
             let b: ConfigBuilder = serde_json::from_value(j).unwrap();
             assert_eq!(b.build().unwrap(), c);
         };
+        #[cfg(feature = "memquota")]
         let chk_ok = |j, max, low_water| {
             const M: usize = 1024 * 1024;
-            chk_ok_raw(
-                j,
-                Config {
+
+            let exp = IfEnabled::Enabled(
+                ConfigInner {
                     max: Qty(max * M),
                     low_water: Qty(low_water * M),
                 },
+                EnabledToken::new(),
             );
+
+            chk_ok_raw(j, Config(exp));
         };
         let chk_err = |j, exp| {
             let b: ConfigBuilder = serde_json::from_value(j).unwrap();
             let got = b.build().unwrap_err().to_string();
+
+            #[cfg(not(feature = "memquota"))]
+            if got.contains("cargo feature `memquota` disabled") {
+                return;
+            }
+
             assert!(got.contains(exp), "in {exp:?} in {got:?}");
+        };
+        #[cfg(not(feature = "memquota"))]
+        let chk_ok = |j, max, low_water| {
+            chk_err(j, "UNSUPPORTED");
         };
 
         chk_ok(json! {{ "max": "8 MiB" }}, 8, 6);
         chk_ok(json! {{ "max": "8 MiB", "low_water": "4 MiB" }}, 8, 4);
+        chk_ok_raw(json! {{ }}, Config(IfEnabled::Noop));
 
-        chk_err(json! {{ }}, "Field was not provided: max");
         chk_err(
             json! {{ "low_water": "4 MiB" }},
-            "Field was not provided: max",
+            "low_water supplied, but max omitted",
         );
         chk_err(
             json! {{ "max": "8 MiB", "low_water": "8 MiB" }},

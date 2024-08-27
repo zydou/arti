@@ -2,7 +2,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```cfg(feature = "memquota")
 //! use std::{collections::VecDeque, sync::{Arc, Mutex}};
 //! use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, PreferredRuntime};
 //! use tor_memquota::{mtracker, MemoryQuotaTracker, MemoryReclaimedError, EnabledToken};
@@ -386,7 +386,7 @@ struct Global {
     total_used: TotalQtyNotifier,
 
     /// Configuration
-    config: Config,
+    config: ConfigInner,
 
     /// Make this type uninhabited if memory tracking is compiled out
     #[allow(dead_code)]
@@ -536,9 +536,10 @@ macro_rules! find_in_tracker_eh {
 
 impl MemoryQuotaTracker {
     /// Set up a new `MemoryDataTracker`
-    #[cfg(feature = "memquota")]
     pub fn new<R: Spawn>(runtime: &R, config: Config) -> Result<Arc<Self>, StartupError> {
-        let enabled = EnabledToken::new();
+        let Enabled(config, enabled) = config.0 else {
+            return Ok(MemoryQuotaTracker::new_noop());
+        };
 
         let (reclaim_tx, reclaim_rx) = mpsc::channel(0 /* plus num_senders, ie 1 */);
         let total_used = TotalQtyNotifier::new_zero(reclaim_tx);
