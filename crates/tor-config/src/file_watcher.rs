@@ -110,10 +110,10 @@ impl<R: Runtime> FileWatcherBuilder<R> {
         }
     }
 
-    /// Add a single file (not a directory) to the list of things to watch.
+    /// Add a single path to the list of things to watch.
     ///
-    /// Idempotent: does nothing if we're already watching that file.
-    pub fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    /// Idempotent: does nothing if we're already watching that path.
+    pub fn watch_path<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.watch_just_parents(path.as_ref())?;
         Ok(())
     }

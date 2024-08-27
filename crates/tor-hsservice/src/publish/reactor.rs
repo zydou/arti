@@ -1705,9 +1705,9 @@ fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryK
         if matches!(path.try_exists(), Ok(true)) {
             watch_path!(watcher, &path, watch_dir, "auth",);
         }
-        // FileWatcher::watch_file causes the parent dir of the path to be watched.
+        // FileWatcher::watch_path causes the parent dir of the path to be watched.
         if matches!(path.parent().map(|p| p.try_exists()), Some(Ok(true))) {
-            watch_path!(watcher, &path, watch_file,);
+            watch_path!(watcher, &path, watch_path,);
         }
     }
 }
