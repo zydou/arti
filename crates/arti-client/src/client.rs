@@ -551,7 +551,7 @@ impl<R: Runtime> TorClient<R> {
             .into());
         }
 
-        let (state_dir, mistrust) = Self::state_dir(config)?;
+        let (state_dir, mistrust) = config.state_dir()?;
 
         let dormant = DormantMode::Normal;
         let dir_cfg = {
@@ -1495,7 +1495,7 @@ impl<R: Runtime> TorClient<R> {
             action: "create onion service",
         })?;
 
-        let (state_dir, mistrust) = Self::state_dir(config)?;
+        let (state_dir, mistrust) = config.state_dir()?;
         let state_dir =
             self::StateDirectory::new(state_dir, mistrust).map_err(ErrorDetail::StateAccess)?;
 
@@ -1546,7 +1546,7 @@ impl<R: Runtime> TorClient<R> {
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
         if keystore.is_enabled() {
-            let (state_dir, _mistrust) = Self::state_dir(config)?;
+            let (state_dir, _mistrust) = config.state_dir()?;
             let key_store_dir = state_dir.join("keystore");
             let permissions = config.storage.permissions();
 
@@ -1568,20 +1568,6 @@ impl<R: Runtime> TorClient<R> {
             info!("Running without a keystore");
             Ok(None)
         }
-    }
-
-    /// Get the state directory and its corresponding
-    /// [`Mistrust`](fs_mistrust::Mistrust) configuration.
-    fn state_dir(
-        config: &TorClientConfig,
-    ) -> StdResult<(PathBuf, &fs_mistrust::Mistrust), ErrorDetail> {
-        let state_dir = config
-            .storage
-            .expand_state_dir()
-            .map_err(ErrorDetail::Configuration)?;
-        let mistrust = config.storage.permissions();
-
-        Ok((state_dir, mistrust))
     }
 
     /// Return a [`Future`](futures::Future) which resolves

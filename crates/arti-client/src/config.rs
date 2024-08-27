@@ -2,6 +2,7 @@
 //!
 //! Some of these are re-exported from lower-level crates.
 
+use crate::err::ErrorDetail;
 use derive_builder::Builder;
 use derive_more::AsRef;
 use fs_mistrust::{Mistrust, MistrustBuilder};
@@ -9,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
+use std::result::Result as StdResult;
 use std::time::Duration;
 pub use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 pub use tor_config::convert_helper_via_multi_line_list_builder;
@@ -719,6 +721,18 @@ impl TorClientConfig {
     /// Return the keystore config
     pub fn keystore(&self) -> ArtiNativeKeystoreConfig {
         self.storage.keystore()
+    }
+
+    /// Get the state directory and its corresponding
+    /// [`Mistrust`](fs_mistrust::Mistrust) configuration.
+    pub(crate) fn state_dir(&self) -> StdResult<(PathBuf, &fs_mistrust::Mistrust), ErrorDetail> {
+        let state_dir = self
+            .storage
+            .expand_state_dir()
+            .map_err(ErrorDetail::Configuration)?;
+        let mistrust = self.storage.permissions();
+
+        Ok((state_dir, mistrust))
     }
 }
 
