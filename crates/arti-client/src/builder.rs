@@ -2,7 +2,9 @@
 
 #![allow(missing_docs, clippy::missing_docs_in_private_items)]
 
-use crate::{err::ErrorDetail, BootstrapBehavior, InertTorClient, Result, TorClient, TorClientConfig};
+use crate::{
+    err::ErrorDetail, BootstrapBehavior, InertTorClient, Result, TorClient, TorClientConfig,
+};
 use std::{
     result::Result as StdResult,
     sync::Arc,
