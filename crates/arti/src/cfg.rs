@@ -161,7 +161,6 @@ impl_standard_builder! { ProxyConfig }
 //
 //  1. Our doctrine is that configuration structs live with the code that uses the info.
 //  2. tor-memquota's configuration is used by the MemoryQuotaTracker in TorClient
-//     XXXX TorClient doesn't have a MemoryQuotaTracker yet
 //  3. File descriptor limits are enforced here in arti because it's done process-global
 //  4. Nevertheless, logically, these things want to be in the same section of the file.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]

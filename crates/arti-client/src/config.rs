@@ -587,8 +587,6 @@ pub struct TorClientConfig {
     /// Note that there are other settings in this section,
     /// in `arti::cfg::SystemConfig` -
     /// these two structs overlay here.
-    //
-    // XXXX We need to handle reconfiguration.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
