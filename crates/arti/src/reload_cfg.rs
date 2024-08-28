@@ -357,8 +357,11 @@ mod test {
 
     /// Write `data` to file `name` within `dir`.
     fn write_file(dir: &TestTempDir, name: &str, data: &[u8]) -> PathBuf {
+        let tmp = dir.as_path_untracked().join("tmp");
+        std::fs::write(&tmp, data).unwrap();
         let path = dir.as_path_untracked().join(name);
-        std::fs::write(&path, data).unwrap();
+        // Atomically write the config file
+        std::fs::rename(tmp, &path).unwrap();
         path
     }
 
