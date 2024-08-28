@@ -110,10 +110,15 @@ impl<R: Runtime> FileWatcherBuilder<R> {
         }
     }
 
-    /// Add a single file (not a directory) to the list of things to watch.
+    /// Add a single path to the list of things to watch.
     ///
-    /// Idempotent: does nothing if we're already watching that file.
-    pub fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    /// The event receiver will be notified if the path is created, modified, renamed, or removed.
+    ///
+    /// If the path is a directory, its contents will **not** be watched.
+    /// To watch the contents of a directory, use [`watch_dir`](FileWatcherBuilder::watch_dir).
+    ///
+    /// Idempotent: does nothing if we're already watching that path.
+    pub fn watch_path<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.watch_just_parents(path.as_ref())?;
         Ok(())
     }
@@ -121,7 +126,9 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     /// Add a directory (but not any subdirs) to the list of things to watch.
     ///
     /// The event receiver will be notified whenever a file with the specified `extension`
-    /// from this directory is changed.
+    /// is created within this directory, or if an existing file with this extension
+    /// is modified, renamed, or removed.
+    /// Changes to files that have a different extension are ignored.
     ///
     /// Idempotent.
     pub fn watch_dir<P: AsRef<Path>, S: AsRef<str>>(
@@ -188,6 +195,10 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     }
 
     /// Build a `FileWatcher` and start sending events to `tx`.
+    ///
+    /// On startup, the watcher sends a [`Rescan`](Event::Rescan) event.
+    /// This helps mitigate the event loss that occurs if the watched files are modified between
+    /// the time they are initially loaded and the time when the watcher is set up.
     pub fn start_watching(self, tx: FileEventSender) -> Result<FileWatcher> {
         let runtime = self.runtime;
         let watching_dirs = self.watching_dirs.clone();
@@ -351,7 +362,7 @@ mod test {
     use test_temp_dir::{test_temp_dir, TestTempDir};
 
     /// Write `data` to file `name` within `dir`.
-    fn write_file(dir: TestTempDir, name: &str, data: &[u8]) -> PathBuf {
+    fn write_file(dir: &TestTempDir, name: &str, data: &[u8]) -> PathBuf {
         let path = dir.as_path_untracked().join(name);
         std::fs::write(&path, data).unwrap();
         path
@@ -361,6 +372,16 @@ mod test {
     fn rescan_event() -> notify::Event {
         let event = notify::Event::new(notify::EventKind::Any);
         event.set_flag(notify::event::Flag::Rescan)
+    }
+
+    /// Assert that at least one FileChanged event is received.
+    async fn assert_file_changed(rx: &mut FileEventReceiver) {
+        assert_eq!(rx.next().await, Some(Event::FileChanged));
+
+        // The write might trigger more than one event
+        while let Some(ev) = rx.try_recv() {
+            assert_eq!(ev, Event::FileChanged);
+        }
     }
 
     #[test]
@@ -460,7 +481,7 @@ mod test {
             assert_eq!(rx.try_recv(), None);
 
             // Write a file with extension "foo".
-            write_file(temp_dir, "bar.foo", b"hello");
+            write_file(&temp_dir, "bar.foo", b"hello");
 
             assert_eq!(rx.next().await, Some(Event::FileChanged));
 
@@ -469,6 +490,69 @@ mod test {
             while let Some(ev) = rx.next().await {
                 assert_eq!(ev, Event::FileChanged);
             }
+        });
+    }
+
+    #[test]
+    fn watch_file_path() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let temp_dir = test_temp_dir!();
+            let (tx, mut rx) = channel();
+            // Watch for changes to hello.txt
+            let path = write_file(&temp_dir, "hello.txt", b"hello");
+            let mut builder = FileWatcher::builder(rt.clone());
+            builder.watch_path(&path).unwrap();
+            let _watcher = builder.start_watching(tx).unwrap();
+
+            // On startup, the watcher sends a Event::Rescan event.
+            assert_eq!(rx.try_recv(), Some(Event::Rescan));
+            assert_eq!(rx.try_recv(), None);
+
+            // Write to hello.txt
+            let _: PathBuf = write_file(&temp_dir, "hello.txt", b"good-bye");
+
+            assert_file_changed(&mut rx).await;
+
+            // Remove hello.txt
+            std::fs::remove_file(&path).unwrap();
+            assert_file_changed(&mut rx).await;
+
+            // Create a new file
+            let tmp_hello = write_file(&temp_dir, "hello.tmp", b"new hello");
+            // Copy it over to the watched hello.txt location
+            std::fs::rename(&tmp_hello, &path).unwrap();
+            assert_file_changed(&mut rx).await;
+        });
+    }
+
+    #[test]
+    fn watch_dir_path() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let temp_dir1 = tempfile::TempDir::new().unwrap();
+            let (tx, mut rx) = channel();
+            // Watch temp_dir for changes
+            let mut builder = FileWatcher::builder(rt.clone());
+            builder.watch_path(temp_dir1.path()).unwrap();
+
+            let _watcher = builder.start_watching(tx).unwrap();
+
+            // On startup, the watcher sends a Event::Rescan event.
+            assert_eq!(rx.try_recv(), Some(Event::Rescan));
+            assert_eq!(rx.try_recv(), None);
+
+            // Writing a file to this directory shouldn't trigger an event
+            std::fs::write(temp_dir1.path().join("hello.txt"), b"hello").unwrap();
+            assert_eq!(rx.try_recv(), None);
+
+            // Move temp_dir1 to temp_dir2
+            let temp_dir2 = tempfile::TempDir::new().unwrap();
+            std::fs::rename(&temp_dir1, &temp_dir2).unwrap();
+
+            // Moving the directory triggers an event...
+            assert_file_changed(&mut rx).await;
+            // ...and so does moving it back to its original location
+            std::fs::rename(&temp_dir2, &temp_dir1).unwrap();
+            assert_file_changed(&mut rx).await;
         });
     }
 }

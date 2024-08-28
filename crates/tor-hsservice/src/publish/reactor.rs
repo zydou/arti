@@ -581,10 +581,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             inner.netdir = Some(netdir);
             inner.time_periods = time_periods;
-
-            // Create the initial key_dirs watcher.
-            self.update_file_watcher(&mut inner);
         }
+
+        // Create the initial key_dirs watcher.
+        self.update_file_watcher();
 
         loop {
             match self.run_once().await {
@@ -958,62 +958,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         true
     }
 
-    /// Replace the key_dirs file watcher, if the key_dirs from new_config are different
-    /// from the key_dirs we are currently watching.
-    fn update_file_watcher_if_changed(&self, new_config: &OnionServiceConfigPublisherView) {
-        let mut inner = self.inner.lock().expect("poisoned lock");
-
-        // NOTE: we need to compare the new key_dirs with the *watched* directories
-        // rather than the ones from old_config.
-        //
-        // This is because directories that don't exist at the time the watcher is created
-        // are *not* watched, so if, for example, you
-        //
-        //   * create a restricted_discovery config that is enabled, configured with some non-existent
-        //   key_dirs
-        //   * disable the restricted_discovery
-        //   * create the missing key_dirs
-        //   * re-enable restricted_discovery
-        //
-        // the key_dirs watcher won't be set unless we compare the configured key_dirs
-        // with the *watched* key_dirs.
-        let update_watcher = match &inner.file_watcher {
-            Some(watcher) => {
-                let new_dirs = new_config
-                    .restricted_discovery
-                    .key_dirs()
-                    .iter()
-                    .filter_map(|dir| {
-                        // Skip over any paths that can't be expanded
-                        maybe_expand_path(dir.path())
-                    })
-                    .collect::<HashSet<_>>();
-                let watching_dirs = watcher.watching_dirs();
-                // We need to be watching all the configured dirs and their parent dir.
-                // If we aren't, it means we need to reset the watcher.
-                let expected_watching_dirs = new_dirs
-                    .iter()
-                    .cloned()
-                    .flat_map(|dir| {
-                        let parent = dir
-                            .parent()
-                            .map(|path| path.into())
-                            .unwrap_or_else(|| dir.clone());
-                        [dir, parent]
-                    })
-                    .collect::<HashSet<_>>();
-                watching_dirs != &expected_watching_dirs
-            }
-            None => true,
-        };
-
-        if update_watcher {
-            self.update_file_watcher(&mut inner);
-        }
-    }
-
     /// Recreate the FileWatcher for watching the restricted discovery key_dirs.
-    fn update_file_watcher(&self, inner: &mut Inner) {
+    fn update_file_watcher(&self) {
+        let mut inner = self.inner.lock().expect("poisoned lock");
         if inner.config.restricted_discovery.watch_configuration() {
             debug!("The restricted_discovery.key_dirs have changed, updating file watcher");
             let mut watcher = FileWatcher::builder(self.imm.runtime.clone());
@@ -1130,7 +1077,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ) -> Result<(), FatalError> {
         let new_config = Arc::new(config.into());
         if self.replace_config_if_changed(Arc::clone(&new_config)) {
-            self.update_file_watcher_if_changed(&new_config);
+            self.update_file_watcher();
             self.update_authorized_clients_if_changed().await?;
 
             info!(nickname=%self.imm.nickname, "Config has changed, generating a new descriptor");
@@ -1158,6 +1105,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             }
             _ => return Err(internal!("file watcher event {event:?}").into()),
         };
+
+        // Update the file watcher, in case the change was triggered by a key_dir move.
+        self.update_file_watcher();
 
         if self.update_authorized_clients_if_changed().await? {
             self.mark_all_dirty();
@@ -1728,30 +1678,39 @@ fn maybe_expand_path(p: &tor_config::CfgPath) -> Option<PathBuf> {
         .ok()
 }
 
-/// Add the specified directories to the watcher.
-fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryKeyProviderList) {
-    let dirs = dirs.iter().filter_map(|cfg_path| {
-        // Skip over any directories whose path can't be expanded
-        let path = maybe_expand_path(cfg_path.path())?;
+/// Add `path` to the specified `watcher`.
+macro_rules! watch_path {
+    ($watcher:expr, $path:expr, $watch_fn:ident, $($watch_fn_args:expr,)*) => {{
+        if let Err(e) = $watcher.$watch_fn(&$path, $($watch_fn_args)*) {
+            warn_report!(e, "failed to watch path {:?}", $path);
+        } else {
+            debug!("watching path {:?}", $path);
+        }
+    }}
+}
 
-        // If the path doesn't exist, the notify watcher will return an error,
-        // so we skip over any directories that don't exist at this time
+/// Add the specified directories to the watcher.
+#[allow(clippy::cognitive_complexity)]
+fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryKeyProviderList) {
+    for path in dirs {
+        let path = path.path();
+        let Some(path) = maybe_expand_path(path) else {
+            warn!("failed to expand key_dir path {:?}", path);
+            continue;
+        };
+
+        // If the path doesn't exist, the notify watcher will return an error if we attempt to watch it,
+        // so we skip over paths that don't exist at this time
         // (this obviously suffers from a TOCTOU race, but most of the time,
         // it is good enough at preventing the watcher from failing to watch.
         // If the race *does* happen it is not disastrous, i.e. the reactor won't crash,
         // but it will fail to set the watcher).
         if matches!(path.try_exists(), Ok(true)) {
-            debug!("watching key_dir path {path:?}");
-            Some(path)
-        } else {
-            warn!("key_dirs path {path:?} does not exist or is not accessible, not watching");
-            None
+            watch_path!(watcher, &path, watch_dir, "auth",);
         }
-    });
-
-    for path in dirs {
-        if let Err(e) = watcher.watch_dir(path, "auth") {
-            warn_report!(e, "failed to watch key_dir");
+        // FileWatcher::watch_path causes the parent dir of the path to be watched.
+        if matches!(path.parent().map(|p| p.try_exists()), Some(Ok(true))) {
+            watch_path!(watcher, &path, watch_path,);
         }
     }
 }
