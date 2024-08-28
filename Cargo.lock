@@ -1071,6 +1071,7 @@ dependencies = [
  "clap",
  "tokio",
  "tor-error",
+ "tor-proto",
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",

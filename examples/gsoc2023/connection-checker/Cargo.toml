@@ -8,10 +8,11 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.72"
-arti-client = { path = "../../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental" ] }
+arti-client = { path = "../../../crates/arti-client", features = [ "bridge-client", "pt-client", "experimental-api" ] }
 clap = { version = "4.3.21", features = ["derive", "wrap_help"] }
 tokio = { version = "1.7", features = ["full"] }
 tor-error = { path = "../../../crates/tor-error" }
+tor-proto = { path = "../../../crates/tor-proto", features = ["experimental-api"] }
 tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
 tracing = "0.1"
 tracing-subscriber = "0.3.17"
