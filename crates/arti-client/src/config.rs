@@ -724,7 +724,7 @@ impl TorClientConfig {
     }
 
     /// Get the state directory and its corresponding
-    /// [`Mistrust`](fs_mistrust::Mistrust) configuration.
+    /// [`Mistrust`] configuration.
     pub(crate) fn state_dir(&self) -> StdResult<(PathBuf, &fs_mistrust::Mistrust), ErrorDetail> {
         let state_dir = self
             .storage
