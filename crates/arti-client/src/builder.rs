@@ -303,6 +303,12 @@ impl<R: Runtime> TorClientBuilder<R> {
 
     /// Create an `InertTorClient` from this builder, without launching
     /// the bootstrap process, or connecting to the network.
+    ///
+    /// It is currently unspecified whether constructing an `InertTorClient`
+    /// will hold any locks that prevent opening a `TorClient` with the same
+    /// directories.
+    //
+    // TODO(#1576): reach a decision here.
     #[allow(clippy::unnecessary_wraps)]
     pub fn create_inert(&self) -> Result<InertTorClient> {
         Ok(InertTorClient::new(&self.config)?)
