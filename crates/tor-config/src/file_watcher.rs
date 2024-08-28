@@ -112,6 +112,11 @@ impl<R: Runtime> FileWatcherBuilder<R> {
 
     /// Add a single path to the list of things to watch.
     ///
+    /// The event receiver will be notified if the path is created, modified, renamed, or removed.
+    ///
+    /// If the path is a directory, its contents will **not** be watched.
+    /// To watch the contents of a directory, use [`watch_dir`](FileWatcherBuilder::watch_dir).
+    ///
     /// Idempotent: does nothing if we're already watching that path.
     pub fn watch_path<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.watch_just_parents(path.as_ref())?;
@@ -121,7 +126,9 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     /// Add a directory (but not any subdirs) to the list of things to watch.
     ///
     /// The event receiver will be notified whenever a file with the specified `extension`
-    /// from this directory is changed.
+    /// is created within this directory, or if an existing file with this extension
+    /// is modified, renamed, or removed.
+    /// Changes to files that have a different extension are ignored.
     ///
     /// Idempotent.
     pub fn watch_dir<P: AsRef<Path>, S: AsRef<str>>(
@@ -188,6 +195,10 @@ impl<R: Runtime> FileWatcherBuilder<R> {
     }
 
     /// Build a `FileWatcher` and start sending events to `tx`.
+    ///
+    /// On startup, the watcher sends a [`Rescan`](Event::Rescan) event.
+    /// This helps mitigate the event loss that occurs if the watched files are modified between
+    /// the time they are initially loaded and the time when the watcher is set up.
     pub fn start_watching(self, tx: FileEventSender) -> Result<FileWatcher> {
         let runtime = self.runtime;
         let watching_dirs = self.watching_dirs.clone();
