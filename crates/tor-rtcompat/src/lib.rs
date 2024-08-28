@@ -282,6 +282,14 @@ pub mod cond {
 
 /// Run a test closure, passing as argument every supported runtime.
 ///
+/// Usually, prefer `tor_rtmock::MockRuntime::test_with_various` to this.
+/// Use this macro only when you need to interact with things
+/// that `MockRuntime` can't handle,
+///
+/// If everything in your test case is supported by `MockRuntime`,
+/// you should use that instead:
+/// that will give superior test coverage *and* a (more) deterministic test.
+///
 /// (This is a macro so that it can repeat the closure as multiple separate
 /// expressions, so it can take on two different types, if needed.)
 //
@@ -316,6 +324,14 @@ macro_rules! test_with_all_runtimes {
 }
 
 /// Run a test closure, passing as argument one supported runtime.
+///
+/// Usually, prefer `tor_rtmock::MockRuntime::test_with_various` to this.
+/// Use this macro only when you need to interact with things
+/// that `MockRuntime` can't handle.
+///
+/// If everything in your test case is supported by `MockRuntime`,
+/// you should use that instead:
+/// that will give superior test coverage *and* a (more) deterministic test.
 ///
 /// (Always prefers tokio if present.)
 #[macro_export]
