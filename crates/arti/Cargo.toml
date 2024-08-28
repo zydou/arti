@@ -91,12 +91,12 @@ compression = ["arti-client/compression"]
 # void your API.
 experimental = [
     "arti-client/experimental",
-    "tor-hsservice/experimental",
     "experimental-api",
-    "rpc",
-    "relay",
     "keymgr",
+    "relay",
     "restricted-discovery",
+    "rpc",
+    "tor-hsservice/experimental",
 ]
 rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
 
