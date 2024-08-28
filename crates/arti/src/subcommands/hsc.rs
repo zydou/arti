@@ -103,7 +103,7 @@ fn prepare_service_discovery_key<R: Runtime>(
 ) -> Result<()> {
     let client = TorClient::with_runtime(runtime)
         .config(config.clone())
-        .create_unbootstrapped()?;
+        .create_inert()?;
     let key = match args.generate {
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
