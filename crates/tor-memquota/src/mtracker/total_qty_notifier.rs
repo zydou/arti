@@ -47,10 +47,11 @@ impl TotalQtyNotifier {
             .ok_or_else(|| internal!("integer overflow attempting to add claim {}", want))?;
         if self.total_used > config.max {
             match self.reclamation_task_wakeup.try_send(()) {
-                Ok(()) => Ok(()),
-                Err(e) if e.is_full() => Ok(()),
-                Err(e) => Err(into_internal!("could not notify reclamation task!")(e)),
-            }?;
+                Ok(()) => {}
+                Err(e) if e.is_full() => {}
+                // reactor shutting down, having dropped reclamation task?
+                Err(e) => debug!("could not notify reclamation task: {e}"),
+            };
         }
         Ok(got)
     }

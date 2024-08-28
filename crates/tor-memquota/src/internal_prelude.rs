@@ -45,7 +45,7 @@ pub(crate) use {
     slotmap::SlotMap,
     static_assertions::assert_not_impl_any,
     thiserror::Error,
-    tracing::{error, info},
+    tracing::{debug, error, info},
     void::{ResultVoidExt as _, Void},
 };
 
