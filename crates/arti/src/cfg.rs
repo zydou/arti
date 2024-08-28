@@ -1376,7 +1376,9 @@ example config file {which:?}, uncommented={uncommented:?}
             self.strip_prefix("#");
         }
 
-        /// Remove `prefix` from the start of every line that begins with it.
+        /// Remove `prefix` from the start of every line.
+        ///
+        /// If there are lines that *don't* start with `prefix`, crash.
         fn strip_prefix(&mut self, prefix: &str) {
             for l in &mut self.lines {
                 *l = l.strip_prefix(prefix).expect(l).to_string();
