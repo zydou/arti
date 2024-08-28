@@ -582,6 +582,17 @@ pub struct TorClientConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) channel: ChannelConfig,
 
+    /// Configuration for system resources used by Arti
+    ///
+    /// Note that there are other settings in this section,
+    /// in `arti::cfg::SystemConfig` -
+    /// these two structs overlay here.
+    //
+    // XXXX We need to handle reconfiguration.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) system: SystemConfig,
+
     /// Information about how to build paths through the network.
     #[as_ref]
     #[builder(sub_builder)]
@@ -627,6 +638,24 @@ fn default_extend<T: Default + Extend<X>, X>(to_add: impl IntoIterator<Item = X>
     collection.extend(to_add);
     collection
 }
+
+/// Configuration for system resources used by Tor.
+///
+/// You cannot change this section on a running Arti client.
+///
+/// Note that there are other settings in this section,
+/// in `arti_client::config::SystemConfig`.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct SystemConfig {
+    /// Memory limits (approximate)
+    #[builder(sub_builder(fn_name = "build"))]
+    #[builder_field_attr(serde(default))]
+    pub(crate) memory: tor_memquota::Config,
+}
+impl_standard_builder! { SystemConfig }
 
 impl tor_circmgr::CircMgrConfig for TorClientConfig {
     #[cfg(all(

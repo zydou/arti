@@ -152,7 +152,18 @@ impl_standard_builder! { ProxyConfig }
 
 /// Configuration for system resources used by Tor.
 ///
-/// You cannot change this section on a running Arti client.
+/// You cannot change *these variables* in this section on a running Arti client.
+///
+/// Note that there are other settings in this section,
+/// in [`arti_client::config::SystemConfig`].
+//
+// These two structs exist because:
+//
+//  1. Our doctrine is that configuration structs live with the code that uses the info.
+//  2. tor-memquota's configuration is used by the MemoryQuotaTracker in TorClient
+//     XXXX TorClient doesn't have a MemoryQuotaTracker yet
+//  3. File descriptor limits are enforced here in arti because it's done process-global
+//  4. Nevertheless, logically, these things want to be in the same section of the file.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
@@ -236,6 +247,10 @@ pub struct ArtiConfig {
     rpc: RpcConfig,
 
     /// Information on system resources used by Arti.
+    ///
+    /// Note that there are other settings in this section,
+    /// in [`arti_client::config::SystemConfig`] -
+    /// these two structs overlay here.
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
@@ -550,6 +565,18 @@ mod test {
             &[
                 // Settings only available with experimental-api support
                 "storage.keystore",
+            ],
+        );
+
+        declare_exceptions(
+            None,
+            None, // it's there, but not formatted for auto-testing
+            Recognized,
+            &[
+                // Memory quota, not tested XXXX
+                "system.memory",
+                "system.memory.max",
+                "system.memory.low_water",
             ],
         );
 
