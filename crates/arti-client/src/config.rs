@@ -759,6 +759,15 @@ impl TorClientConfig {
 
         Ok((state_dir, mistrust))
     }
+
+    /// Access the `tor_memquota` configuration
+    ///
+    /// Ad-hoc accessor for testing purposes.
+    /// (ideally we'd use `visibility` to make fields `pub`, but that doesn't work.)
+    #[cfg(feature = "testing")]
+    pub fn system_memory(&self) -> &tor_memquota::Config {
+        &self.system.memory
+    }
 }
 
 impl TorClientConfigBuilder {

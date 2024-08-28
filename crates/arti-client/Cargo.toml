@@ -66,6 +66,9 @@ tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
 
+# Expose interfaces useful for testing
+testing = ["__is_experimental", "visibility"]
+
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
 # which in turn introduces a GPL-incompatibility.
@@ -95,6 +98,7 @@ experimental = [
     "geoip",
     "memquota",
     "rpc",
+    "testing",
     "tor-proto/experimental",
     "tor-netdoc/experimental",
     "tor-dirmgr/experimental",
@@ -163,6 +167,7 @@ tor-ptmgr = { path = "../tor-ptmgr", version = "0.22.0", optional = true }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.22.0", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.22.0" }
 tracing = "0.1.36"
+visibility = { version = "0.1.0", optional = true }
 void = "1"
 
 [dev-dependencies]

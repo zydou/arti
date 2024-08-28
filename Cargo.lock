@@ -328,6 +328,7 @@ dependencies = [
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
+ "visibility",
  "void",
 ]
 
