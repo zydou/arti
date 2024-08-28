@@ -9,6 +9,7 @@
 # see
 # https://blog.iany.me/2020/10/gotchas-to-publish-rust-crates-in-a-workspace/#cyclic-dependencies
 members = [
+    "crates/oneshot-fused-workaround",
     "crates/slotmap-careful",
     "crates/test-temp-dir",
     "crates/fslock-guard",

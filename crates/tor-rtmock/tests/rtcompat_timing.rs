@@ -6,9 +6,9 @@ use tor_rtcompat::{SleepProvider, SleepProviderExt, Timeout, TimeoutError};
 use tor_rtmock::time::MockSleepProvider;
 
 use futures::FutureExt;
+use oneshot_fused_workaround as oneshot;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
-use tor_async_utils::oneshot;
 
 #[test]
 fn timeouts() {

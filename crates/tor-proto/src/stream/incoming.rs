@@ -6,7 +6,7 @@ use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::reactor::CloseStreamBehavior;
 use crate::circuit::{ClientCircSyncView, StreamTarget};
 use crate::{Error, Result};
-use tor_async_utils::oneshot;
+use oneshot_fused_workaround as oneshot;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;

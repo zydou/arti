@@ -82,7 +82,7 @@ use {
 };
 
 use futures::channel::mpsc;
-use tor_async_utils::oneshot;
+use oneshot_fused_workaround as oneshot;
 
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::{FutureExt as _, SinkExt as _};

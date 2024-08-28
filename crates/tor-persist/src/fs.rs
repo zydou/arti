@@ -8,11 +8,11 @@ use crate::{Error, LockStatus, Result, StateMgr};
 use fs_mistrust::anon_home::PathExt as _;
 use fs_mistrust::CheckedDir;
 use futures::FutureExt;
+use oneshot_fused_workaround as oneshot;
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
-use tor_async_utils::oneshot;
 use tor_error::warn_report;
 use tracing::info;
 

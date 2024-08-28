@@ -125,7 +125,7 @@ mod test {
 
     use super::*;
     use futures_await_test::async_test;
-    use tor_async_utils::oneshot;
+    use oneshot_fused_workaround as oneshot;
 
     #[async_test]
     async fn not_cancelled() {

@@ -59,7 +59,7 @@ use {
 use futures::channel::mpsc;
 use futures::Stream;
 use futures::{Sink, StreamExt};
-use tor_async_utils::oneshot;
+use oneshot_fused_workaround as oneshot;
 
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};

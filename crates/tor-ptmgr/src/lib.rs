@@ -52,6 +52,7 @@ mod managed;
 
 use crate::config::{TransportConfig, TransportOptions};
 use crate::err::PtError;
+use oneshot_fused_workaround as oneshot;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -59,6 +60,8 @@ use std::sync::{Arc, RwLock};
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
 use tor_socksproto::SocksVersion;
+#[cfg(any(feature = "tor-channel-factory", feature = "managed-pts"))]
+use tracing::info;
 use tracing::warn;
 #[cfg(feature = "managed-pts")]
 use {
@@ -77,8 +80,6 @@ use {
     },
     tracing::trace,
 };
-#[cfg(any(feature = "tor-channel-factory", feature = "managed-pts"))]
-use {tor_async_utils::oneshot, tracing::info};
 
 /// Shared mutable state between the `PtReactor` and `PtMgr`.
 #[derive(Default, Debug)]

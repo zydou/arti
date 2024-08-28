@@ -69,9 +69,10 @@ pub(crate) use {
 //---------- tor-* crates ----------
 
 pub(crate) use {
+    oneshot_fused_workaround as oneshot,
     retry_error::RetryError,
     safelog::{sensitive, Redactable as _},
-    tor_async_utils::{oneshot, DropNotifyWatchSender, PostageWatchSenderExt as _},
+    tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt as _},
     tor_basic_utils::{impl_debug_hex, retry::RetryDelay, PathExt as _, RngExt as _},
     tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg as _},
     tor_circmgr::build::circparameters_from_netparameters,

@@ -11,13 +11,13 @@ use crate::{daemon, FirstHopId};
 
 use educe::Educe;
 use futures::{channel::mpsc::UnboundedSender, Future};
+use oneshot_fused_workaround as oneshot;
 use pin_project::pin_project;
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::Instant;
-use tor_async_utils::oneshot;
 use tor_proto::ClockSkew;
 
 use tor_basic_utils::skip_fmt;

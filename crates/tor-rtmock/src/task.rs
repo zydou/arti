@@ -24,6 +24,7 @@ use std::backtrace::Backtrace;
 use strum::EnumIter;
 use tracing::trace;
 
+use oneshot_fused_workaround as oneshot;
 use tor_error::error_report;
 use tor_rtcompat::BlockOn;
 
@@ -299,7 +300,7 @@ impl MockExecutor {
         desc: impl Display,
         fut: impl Future<Output = T> + Send + 'static,
     ) -> impl Future<Output = T> {
-        let (tx, rx) = tor_async_utils::oneshot::channel();
+        let (tx, rx) = oneshot::channel();
         self.spawn_identified(desc, async move {
             let res = fut.await;
             tx.send(res)

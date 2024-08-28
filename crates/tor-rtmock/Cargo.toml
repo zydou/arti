@@ -20,12 +20,12 @@ educe = "0.4.6"
 futures = "0.3.14"
 humantime = "2"
 itertools = "0.13.0"
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.21.0" }
 pin-project = "1"
 priority-queue = "2.0.3"
 slotmap = "1.0.6"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
-tor-async-utils = { version = "0.21.0", path = "../tor-async-utils" }
 tor-error = { version = "0.21.0", path = "../tor-error", features = ["tracing"] }
 tor-rtcompat = { version = "0.21.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
@@ -39,6 +39,6 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.21.0", features = ["tokio", "native-tls"] }
 
 [features]
-full = ["tor-rtcompat/full", "tor-error/full", "tor-async-utils/full"]
+full = ["tor-rtcompat/full", "tor-error/full"]
 [package.metadata.docs.rs]
 all-features = true
