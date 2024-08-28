@@ -45,6 +45,12 @@ impl TotalQtyNotifier {
             .total_used
             .claim(&mut precord.used, want)
             .ok_or_else(|| internal!("integer overflow attempting to add claim {}", want))?;
+        self.maybe_wakeup(config);
+        Ok(got)
+    }
+
+    /// Check to see if we need to wake up the reclamation task, and if so, do so
+    pub(super) fn maybe_wakeup(&mut self, config: &ConfigInner) {
         if self.total_used > config.max {
             match self.reclamation_task_wakeup.try_send(()) {
                 Ok(()) => {}
@@ -53,7 +59,6 @@ impl TotalQtyNotifier {
                 Err(e) => debug!("could not notify reclamation task: {e}"),
             };
         }
-        Ok(got)
     }
 
     /// Declare this poisoned, and prevent further claims
