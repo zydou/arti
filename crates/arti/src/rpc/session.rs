@@ -155,13 +155,13 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use futures::task::SpawnExt as _;
-    use tor_rtcompat::test_with_one_runtime;
+    use tor_rtmock::MockRuntime;
 
     use super::*;
 
     #[test]
     fn set_proxy_info() {
-        test_with_one_runtime!(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let (state, mut sender) = RpcVisibleArtiState::new();
             let _task = rt.clone().spawn_with_handle(async move {
                 sender.set_socks_listeners(&["8.8.4.4:99".parse().unwrap()]);

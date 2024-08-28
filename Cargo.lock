@@ -235,6 +235,7 @@ dependencies = [
  "tor-hsservice",
  "tor-rpcbase",
  "tor-rtcompat",
+ "tor-rtmock",
  "tor-socksproto",
  "tracing",
  "tracing-appender",
