@@ -351,7 +351,7 @@ mod test {
     use test_temp_dir::{test_temp_dir, TestTempDir};
 
     /// Write `data` to file `name` within `dir`.
-    fn write_file(dir: TestTempDir, name: &str, data: &[u8]) -> PathBuf {
+    fn write_file(dir: &TestTempDir, name: &str, data: &[u8]) -> PathBuf {
         let path = dir.as_path_untracked().join(name);
         std::fs::write(&path, data).unwrap();
         path
@@ -460,7 +460,7 @@ mod test {
             assert_eq!(rx.try_recv(), None);
 
             // Write a file with extension "foo".
-            write_file(temp_dir, "bar.foo", b"hello");
+            write_file(&temp_dir, "bar.foo", b"hello");
 
             assert_eq!(rx.next().await, Some(Event::FileChanged));
 
