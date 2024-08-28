@@ -1379,9 +1379,14 @@ example config file {which:?}, uncommented={uncommented:?}
         /// Remove `prefix` from the start of every line.
         ///
         /// If there are lines that *don't* start with `prefix`, crash.
+        ///
+        /// But, lines starting with `[` are left unchanged, in any case.
+        /// (These are TOML section markers; changing them would change the TOML structure.)
         fn strip_prefix(&mut self, prefix: &str) {
             for l in &mut self.lines {
-                *l = l.strip_prefix(prefix).expect(l).to_string();
+                if !l.starts_with('[') {
+                    *l = l.strip_prefix(prefix).expect(l).to_string();
+                }
             }
         }
 
