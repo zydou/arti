@@ -28,6 +28,7 @@ tor-error = { path = "../tor-error", version = "0.22.0", features = ["tracing"] 
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.22.0" }
 tor-rtcompat = { version = "0.22.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
+visibility = { version = "0.1.0", optional = true }
 void = "1"
 
 [dev-dependencies]
@@ -49,5 +50,6 @@ full = [
     "tor-basic-utils/full",
 ]
 memquota = ["__is_experimental"]
-experimental = ["memquota"]
+testing = ["__is_experimental", "visibility"]
+experimental = ["memquota", "testing"]
 __is_experimental = []

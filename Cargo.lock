@@ -5706,6 +5706,7 @@ dependencies = [
  "tor-rtmock",
  "tracing",
  "tracing-test",
+ "visibility",
  "void",
 ]
 

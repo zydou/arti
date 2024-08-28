@@ -211,6 +211,13 @@ mod private {
     pub trait Sealed {}
 }
 
+/// Names exported for testing
+#[cfg(feature = "testing")]
+pub mod testing {
+    use super::*;
+    pub use config::ConfigInner;
+}
+
 //---------- re-exports at the crate root ----------
 
 pub use config::{Config, ConfigBuilder};

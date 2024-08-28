@@ -69,16 +69,21 @@ pub struct ConfigBuilder {
 
 /// Configuration, if enabled
 #[derive(Debug, Clone, Eq, PartialEq, Deftly)]
+#[cfg_attr(
+    feature = "testing",
+    visibility::make(pub),
+    allow(clippy::exhaustive_structs)
+)]
 pub(crate) struct ConfigInner {
     /// Maximum memory usage
     ///
     /// Guaranteed not to be `MAX`, since we're anbled
-    pub(crate) max: Qty,
+    pub max: Qty,
 
     /// Low water
     ///
     /// Guaranteed to be enough lower than `max`
-    pub(crate) low_water: Qty,
+    pub low_water: Qty,
 }
 
 impl Config {
@@ -87,6 +92,15 @@ impl Config {
     /// Returns a fresh default [`ConfigBuilder`].
     pub fn builder() -> ConfigBuilder {
         ConfigBuilder::default()
+    }
+
+    /// Obtain the actual configuration, if we're enabled, or `None` if not
+    ///
+    /// Ad-hoc accessor for testing purposes.
+    /// (ideally we'd use `visibility` to make fields `pub`, but that doesn't work.)
+    #[cfg(feature = "testing")]
+    pub fn inner(&self) -> Option<&ConfigInner> {
+        self.0.as_ref().into_enabled()
     }
 }
 
