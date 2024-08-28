@@ -1411,6 +1411,12 @@ example config file {which:?}, uncommented={uncommented:?}
         fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
             tor_config::load::resolve(self.parse())
         }
+        #[allow(dead_code)] // XXXX
+        fn resolve_return_results<R: tor_config::load::Resolvable>(
+            &self,
+        ) -> Result<ResolutionResults<R>, ConfigResolveError> {
+            tor_config::load::resolve_return_results(self.parse())
+        }
     }
 
     // More normal config tests
