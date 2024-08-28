@@ -1,10 +1,18 @@
 #![doc = include_str!("../README.md")]
 
+/// The value to set the `COLUMNS` environment variable to.
+///
+/// Set to a large value to suppress line wrapping.
+///
+/// See <https://github.com/assert-rs/snapbox/issues/361>
+const COLUMNS: usize = 1000;
+
 #[test]
 fn cli_tests() {
     let t = trycmd::TestCases::new();
     let dir = tempfile::TempDir::new().unwrap();
-    t.env("HOME", dir.path().to_str().unwrap());
+    t.env("HOME", dir.path().to_str().unwrap())
+        .env("COLUMNS", COLUMNS.to_string());
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
