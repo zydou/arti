@@ -1,14 +1,19 @@
 //! Experimental RPC support.
 
 use anyhow::Result;
-use arti_rpcserver::{RpcMgr, RpcSession};
+use arti_rpcserver::RpcMgr;
 use futures::task::SpawnExt;
+use session::ArtiRpcSession;
 use std::{path::Path, sync::Arc};
 
 use arti_client::TorClient;
 use tor_rtcompat::Runtime;
 
 pub(crate) mod conntarget;
+mod proxyinfo;
+mod session;
+
+pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
 
 cfg_if::cfg_if! {
     if #[cfg(all(feature="tokio", not(target_os="windows")))] {
@@ -31,6 +36,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     runtime: &R,
     path: impl AsRef<Path>,
     client: TorClient<R>,
+    rpc_state: Arc<RpcVisibleArtiState>,
 ) -> Result<Arc<RpcMgr>> {
     // TODO RPC: there should be an error return instead.
 
@@ -38,8 +44,7 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     // But I certainly don't want to make breaking changes there if we can help
     // it.
     let listener = UnixListener::bind(path)?;
-    let rpc_mgr =
-        RpcMgr::new(move |_auth| RpcSession::new_with_client(Arc::new(client.isolated_client())))?;
+    let rpc_mgr = RpcMgr::new(move |auth| ArtiRpcSession::new(auth, &client, &rpc_state))?;
     // Register methods. Needed since TorClient is generic.
     //
     // TODO: If we accumulate a large number of generics like this, we should do this elsewhere.

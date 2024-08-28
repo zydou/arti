@@ -26,6 +26,9 @@ use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
 use anyhow::{anyhow, Context, Result};
 
+#[cfg(feature = "rpc")]
+use crate::rpc::RpcStateSender;
+
 /// Payload to return when an HTTP connection arrive on a Socks port
 const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
 Content-Type: text/html; charset=utf-8
@@ -610,9 +613,19 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     listen: Listen,
     // TODO RPC: This is not a good way to make an API conditional. We MUST
     // refactor this before the RPC feature becomes non-experimental.
-    #[cfg(feature = "rpc")] rpc_mgr: Option<Arc<arti_rpcserver::RpcMgr>>,
+    #[cfg(feature = "rpc")] rpc_data: Option<(
+        Arc<arti_rpcserver::RpcMgr>, //
+        RpcStateSender,
+    )>,
 ) -> Result<()> {
+    #[cfg(feature = "rpc")]
+    let (rpc_mgr, mut rpc_state_sender) = match rpc_data {
+        Some((m, s)) => (Some(m), Some(s)),
+        None => (None, None),
+    };
+
     let mut listeners = Vec::new();
+    let mut listening_on_addrs = Vec::new();
 
     // Try to bind to the SOCKS ports.
     match listen.ip_addrs() {
@@ -623,6 +636,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                         Ok(listener) => {
                             info!("Listening on {:?}.", addr);
                             listeners.push(listener);
+                            listening_on_addrs.push(addr);
                         }
                         #[cfg(unix)]
                         Err(ref e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
@@ -642,6 +656,16 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     if listeners.is_empty() {
         error!("Couldn't open any SOCKS listeners.");
         return Err(anyhow!("Couldn't open SOCKS listeners"));
+    }
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature="rpc")] {
+            if let Some(rpc_state_sender) = &mut rpc_state_sender {
+                rpc_state_sender.set_socks_listeners(&listening_on_addrs[..]);
+            }
+        } else {
+            let _ = listening_on_addrs;
+        }
     }
 
     // Create a stream of (incoming socket, listener_id) pairs, selected

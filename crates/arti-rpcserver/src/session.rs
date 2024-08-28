@@ -34,7 +34,7 @@ pub struct RpcSession {
     client: Arc<dyn Client>,
 }
 
-/// Type-erased `TorClient``, as used within an RpcSession.
+/// Type-erased `TorClient`, as used within an RpcSession.
 trait Client: rpc::Object {
     /// Return a new isolated TorClient.
     fn isolated_client(&self) -> Arc<dyn rpc::Object>;

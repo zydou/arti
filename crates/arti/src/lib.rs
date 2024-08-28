@@ -246,15 +246,14 @@ async fn run<R: Runtime>(
     )?;
 
     #[cfg(all(feature = "rpc", feature = "tokio"))]
-    let rpc_mgr = {
+    let rpc_data = {
         // TODO RPC This code doesn't really belong here; it's just an example.
         if let Some(listen_path) = rpc_path {
+            let (rpc_state, rpc_state_sender) = rpc::RpcVisibleArtiState::new();
             // TODO Conceivably this listener belongs on a renamed "proxy" list.
-            Some(rpc::launch_rpc_listener(
-                &runtime,
-                listen_path,
-                client.clone(),
-            )?)
+            let rpc_mgr =
+                rpc::launch_rpc_listener(&runtime, listen_path, client.clone(), rpc_state)?;
+            Some((rpc_mgr, rpc_state_sender))
         } else {
             None
         }
@@ -270,7 +269,7 @@ async fn run<R: Runtime>(
                 client,
                 socks_listen,
                 #[cfg(all(feature = "rpc", feature = "tokio"))]
-                rpc_mgr,
+                rpc_data,
             )
             .await;
             (res, "SOCKS")
