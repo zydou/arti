@@ -274,6 +274,7 @@ deb-source:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
+    - git clean -xdff
     - export DEB_VERSION_UPSTREAM=$(dpkg-parsechangelog -SVersion | sed -E 's/-[^-]*$$//')
     - git archive -o ../arti_${DEB_VERSION_UPSTREAM}.orig.tar.gz --prefix arti-${DEB_VERSION_UPSTREAM}/ HEAD
     - dpkg-source -b .
