@@ -419,8 +419,6 @@ impl RunningOnionService {
             })
         })
 
-        // TODO: reconfigure the authorized_clients too
-
         // TODO (#1153, #1209): We need to make sure that the various tasks listening on
         // config_rx actually enforce the configuration, not only on new
         // connections, but existing ones.
