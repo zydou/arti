@@ -810,7 +810,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 continue;
             };
 
-            if upload_res.upload_res == UploadStatus::Success {
+            if upload_res.upload_res.is_ok() {
                 let update_last_successful = match period.last_successful {
                     None => true,
                     Some(counter) => counter <= upload_res.revision_counter,
@@ -1366,7 +1366,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                                 nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
                                 "tried to upload descriptor to relay not found in consensus?!"
                             );
-                            return UploadStatus::Failure;
+                            return Err(());
                         };
 
                         Self::upload_descriptor_with_retries(
@@ -1519,7 +1519,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let (succeeded, _failed): (Vec<_>, Vec<_>) = upload_results
             .iter()
-            .partition(|res| res.upload_res == UploadStatus::Success);
+            .partition(|res| res.upload_res.is_ok());
 
         debug!(
             nickname=%imm.nickname, time_period=?time_period,
@@ -1628,7 +1628,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     "successfully uploaded descriptor to HSDir",
                 );
 
-                UploadStatus::Success
+                Ok(())
             }
             Err(e) => {
                 warn_report!(
@@ -1639,7 +1639,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     rsa_id
                 );
 
-                UploadStatus::Failure
+                Err(())
             }
         }
     }
@@ -1851,22 +1851,4 @@ struct HsDirUploadStatus {
 }
 
 /// The outcome of uploading a descriptor.
-//
-// TODO: consider making this a type alias for Result<(), ()>
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum UploadStatus {
-    /// The descriptor upload succeeded.
-    Success,
-    /// The descriptor upload failed.
-    Failure,
-}
-
-impl<T, E> From<Result<T, E>> for UploadStatus {
-    fn from(res: Result<T, E>) -> Self {
-        if res.is_ok() {
-            Self::Success
-        } else {
-            Self::Failure
-        }
-    }
-}
+type UploadStatus = Result<(), ()>;
