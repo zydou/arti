@@ -170,10 +170,6 @@ struct Immutable<R: Runtime, M: Mockable> {
     nickname: HsNickname,
     /// The key manager,
     keymgr: Arc<KeyMgr>,
-    /// The restricted discovery authorized clients.
-    ///
-    /// `None`, unless the service is running in restricted discovery mode.
-    authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     /// A sender for updating the status of the onion service.
     status_tx: PublisherStatusSender,
 }
@@ -391,6 +387,10 @@ struct Inner {
     //
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1971#note_2994950
     reupload_timers: BinaryHeap<ReuploadTimer>,
+    /// The restricted discovery authorized clients.
+    ///
+    /// `None`, unless the service is running in restricted discovery mode.
+    authorized_clients: Option<Arc<RestrictedDiscoveryKeys>>,
 }
 
 /// The part of the reactor state that changes with every time period.
@@ -536,7 +536,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             nickname,
             keymgr,
             status_tx,
-            authorized_clients: Arc::new(Mutex::new(authorized_clients)),
         };
 
         let inner = Inner {
@@ -546,6 +545,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             netdir: None,
             last_uploaded: None,
             reupload_timers: Default::default(),
+            authorized_clients,
         };
 
         Self {
@@ -1124,17 +1124,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// Returns `true` if the authorized clients have changed.
     async fn update_authorized_clients_if_changed(&mut self) -> Result<bool, FatalError> {
-        let authorized_clients = {
-            let inner = self.inner.lock().expect("poisoned lock");
-            Self::read_authorized_clients(&inner.config.restricted_discovery)
-        };
+        let mut inner = self.inner.lock().expect("poisoned lock");
+        let authorized_clients = Self::read_authorized_clients(&inner.config.restricted_discovery);
 
-        let mut clients_lock = self.imm.authorized_clients.lock().expect("poisoned lock");
-        let changed = clients_lock.as_ref() != authorized_clients.as_ref();
+        let clients = &mut inner.authorized_clients;
+        let changed = clients.as_ref() != authorized_clients.as_ref();
 
         if changed {
             info!("The restricted discovery mode authorized clients have changed");
-            *clients_lock = authorized_clients;
+            *clients = authorized_clients;
         }
 
         Ok(changed)
@@ -1143,7 +1141,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Read the authorized `RestrictedDiscoveryKeys` from `config`.
     fn read_authorized_clients(
         config: &RestrictedDiscoveryConfig,
-    ) -> Option<RestrictedDiscoveryKeys> {
+    ) -> Option<Arc<RestrictedDiscoveryKeys>> {
         let authorized_clients = config.read_keys();
 
         if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
@@ -1152,7 +1150,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             );
         }
 
-        authorized_clients
+        authorized_clients.map(Arc::new)
     }
 
     /// Mark the descriptor dirty for all time periods.
@@ -1248,6 +1246,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let imm = Arc::clone(&self.imm);
             let ipt_upload_view = self.ipt_watcher.upload_view();
             let config = Arc::clone(&inner.config);
+            let authorized_clients = inner.authorized_clients.clone();
 
             trace!(nickname=%self.imm.nickname, time_period=?time_period,
                 "spawning upload task"
@@ -1271,6 +1270,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         params,
                         Arc::clone(&imm),
                         ipt_upload_view.clone(),
+                        authorized_clients.clone(),
                         upload_task_complete_tx,
                         shutdown_rx,
                     )
@@ -1302,6 +1302,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         params: HsDirParams,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
+        authorized_clients: Option<Arc<RestrictedDiscoveryKeys>>,
         mut upload_task_complete_tx: mpsc::Sender<TimePeriodUploadResult>,
         shutdown_rx: broadcast::Receiver<Void>,
     ) -> Result<(), FatalError> {
@@ -1343,6 +1344,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let config = Arc::clone(&config);
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
+                let authorized_clients = authorized_clients.clone();
                 let params = params.clone();
                 let mut shutdown_rx = shutdown_rx.clone();
 
@@ -1423,7 +1425,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             build_sign(
                                 &imm.keymgr,
                                 &config,
-                                &imm.authorized_clients,
+                                authorized_clients.as_deref(),
                                 ipts,
                                 time_period,
                                 revision_counter,

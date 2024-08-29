@@ -15,7 +15,7 @@ use tor_cell::chancell::msg::HandshakeType;
 pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     keymgr: &Arc<KeyMgr>,
     config: &Arc<OnionServiceConfigPublisherView>,
-    authorized_clients: &Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
+    authorized_clients: Option<&RestrictedDiscoveryKeys>,
     ipt_set: &IptSet,
     period: TimePeriod,
     revision_counter: RevisionCounter,
@@ -80,7 +80,6 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "restricted-discovery")] {
-            let authorized_clients = authorized_clients.lock().expect("lock poisoned");
             let auth_clients: Option<Vec<curve25519::PublicKey>> = authorized_clients
                 .as_ref()
                 .map(|authorized_clients| {
