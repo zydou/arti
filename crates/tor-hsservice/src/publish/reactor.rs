@@ -596,7 +596,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(());
                 }
                 Err(e) => {
-                    // TODO: update the publish status (see also the module-level TODO about this).
                     error_report!(
                         e,
                         "HS service {}: descriptor publisher crashed!",
@@ -972,6 +971,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let watcher = watcher
                 .start_watching(self.key_dirs_tx.clone())
                 .map_err(|e| {
+                    // TODO: update the publish status (see also the module-level TODO about this).
                     error_report!(e, "Cannot set file watcher");
                 })
                 .ok();
