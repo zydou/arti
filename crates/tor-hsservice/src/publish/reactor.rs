@@ -1223,6 +1223,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
+        // Abort the upload entirely if we have an empty list of authorized clients
+        let authorized_clients = match self.authorized_clients() {
+            Ok(authorized_clients) => authorized_clients,
+            Err(e) => {
+                error_report!(e, "aborting upload");
+                self.imm.status_tx.send_broken(e.clone());
+
+                // Returning an error would shut down the reactor, so we have to return Ok here.
+                return Ok(());
+            }
+        };
+
         let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
         let now = self.imm.runtime.now();
         // Check if we should rate-limit this upload.
@@ -1274,7 +1286,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let imm = Arc::clone(&self.imm);
             let ipt_upload_view = self.ipt_watcher.upload_view();
             let config = Arc::clone(&inner.config);
-            let authorized_clients = inner.authorized_clients.clone();
+            let authorized_clients = authorized_clients.clone();
 
             trace!(nickname=%self.imm.nickname, time_period=?time_period,
                 "spawning upload task"
@@ -1693,6 +1705,32 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         self.update_publish_status(PublishStatus::UploadScheduled)
             .await?;
         Ok(())
+    }
+
+    /// Return the authorized clients, if restricted mode is enabled.
+    ///
+    /// Returns `Ok(None)` if restricted discovery mode is disabled.
+    ///
+    /// Returns an error if restricted discovery mode is enabled, but the client list is empty.
+    fn authorized_clients(&self) -> Result<Option<Arc<RestrictedDiscoveryKeys>>, FatalError> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "restricted-discovery")] {
+                let authorized_clients = self
+                    .inner
+                    .lock()
+                    .expect("poisoned lock")
+                    .authorized_clients
+                    .clone();
+
+                if authorized_clients.as_ref().as_ref().map(|v| v.is_empty()).unwrap_or_default() {
+                    return Err(FatalError::RestrictedDiscoveryNoClients);
+                }
+
+                Ok(authorized_clients)
+            } else {
+                Ok(None)
+            }
+        }
     }
 }
 

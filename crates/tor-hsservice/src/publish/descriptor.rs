@@ -84,7 +84,7 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
                 .as_ref()
                 .map(|authorized_clients| {
                     if authorized_clients.is_empty() {
-                        return Err(FatalError::RestrictedDiscoveryNoClients);
+                        return Err(internal!("restricted discovery enabled, but no authorized clients?!"));
                     }
                     let auth_clients = authorized_clients
                         .iter()
