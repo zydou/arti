@@ -14,6 +14,8 @@
 //!    For example, individual cell and message names from `tor-cell`,
 //!    and the types from `tor_proto::stream` other than the high-level `DataStream`.
 
+#![allow(unused_imports)]
+
 pub(crate) use std::{
     cmp::{Ordering, Reverse},
     collections::{BinaryHeap, HashSet},
@@ -49,6 +51,7 @@ pub(crate) use {
 };
 
 pub(crate) use {
+    tor_async_utils::stream_peek::StreamUnobtrusivePeeker,
     tor_basic_utils::ByteQty as Qty,
     tor_config::ConfigBuildError,
     tor_error::{error_report, internal, into_internal, Bug, ErrorKind, HasKind},
@@ -66,6 +69,5 @@ pub(crate) use crate::{
     mtracker::{self, Account, IsParticipant, Participation},
     private::Sealed,
     refcount,
-    stream_peek::StreamUnobtrusivePeeker,
     utils::DefaultExtTake,
 };

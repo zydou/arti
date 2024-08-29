@@ -4975,11 +4975,14 @@ dependencies = [
 name = "tor-async-utils"
 version = "0.21.0"
 dependencies = [
+ "educe",
  "futures",
  "futures-await-test",
  "pin-project",
  "postage",
  "tokio",
+ "tor-rtcompat",
+ "tor-rtmock",
  "void",
 ]
 
@@ -5860,7 +5863,6 @@ dependencies = [
  "tor-linkspec",
  "tor-llcrypto",
  "tor-log-ratelim",
- "tor-memquota",
  "tor-rtcompat",
  "tor-rtmock",
  "tor-units",

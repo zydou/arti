@@ -8,10 +8,17 @@
 
 #![allow(dead_code)] // TODO #351
 
-use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
+use educe::Educe;
+use futures::stream::FusedStream;
+use futures::task::noop_waker_ref;
+use futures::Stream;
+use pin_project::pin_project;
 
-use crate::internal_prelude::*;
+use crate::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
 
+use std::fmt::Debug;
+use std::future::Future;
+use std::pin::Pin;
 use std::task::{Context, Poll, Poll::*, Waker};
 
 /// Wraps [`Stream`] and provides `\[poll_]peek` and `unobtrusive_peek`
@@ -365,7 +372,10 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use futures::channel::mpsc;
+    use futures::{SinkExt as _, StreamExt as _};
     use std::pin::pin;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tor_rtcompat::SleepProvider as _;
     use tor_rtmock::MockRuntime;

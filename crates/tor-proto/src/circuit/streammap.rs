@@ -7,6 +7,7 @@ use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
 use pin_project::pin_project;
 use tor_async_utils::peekable_stream::{PeekableStream, UnobtrusivePeekableStream};
+use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
@@ -17,7 +18,6 @@ use std::num::NonZeroU16;
 use std::pin::Pin;
 use std::task::{Poll, Waker};
 use tor_error::{bad_api_usage, internal};
-use tor_memquota::stream_peek::StreamUnobtrusivePeeker;
 
 use rand::Rng;
 
@@ -48,7 +48,7 @@ pub(super) struct OpenStreamEnt {
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
     // only be used through `StreamPollSet`.
     #[pin]
-    rx: tor_memquota::stream_peek::StreamUnobtrusivePeeker<mpsc::Receiver<AnyRelayMsg>>,
+    rx: StreamUnobtrusivePeeker<mpsc::Receiver<AnyRelayMsg>>,
     /// Waker to be woken when more sending capacity becomes available (e.g.
     /// receiving a SENDME).
     flow_ctrl_waker: Option<Waker>,
