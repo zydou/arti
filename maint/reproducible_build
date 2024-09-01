@@ -101,6 +101,7 @@ EOF
 	fi
 
 	PATH="/arti/osxcross/target/bin:$PATH" \
+		MACOSX_DEPLOYMENT_TARGET="10.7" \
 		CC=o64-clang \
 		CXX=o64-clang++ \
 		cargo_build_arti --target x86_64-apple-darwin
