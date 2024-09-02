@@ -406,6 +406,8 @@ struct TimePeriodContext {
     hs_dirs: Vec<(RelayIds, DescriptorStatus)>,
     /// The revision counter of the last successful upload, if any.
     last_successful: Option<RevisionCounter>,
+    /// The outcome of the last upload, if any.
+    upload_results: Vec<HsDirUploadStatus>,
 }
 
 impl TimePeriodContext {
@@ -418,12 +420,24 @@ impl TimePeriodContext {
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
+        old_upload_results: Vec<HsDirUploadStatus>,
     ) -> Result<Self, FatalError> {
         let period = params.time_period();
+        let hs_dirs = Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?;
+        let upload_results = old_upload_results
+            .into_iter()
+            .filter(|res|
+                // Check if the HsDir of this result still exists
+                hs_dirs
+                    .iter()
+                    .any(|(relay_ids, _status)| relay_ids == &res.relay_ids))
+            .collect();
+
         Ok(Self {
             params,
-            hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?,
+            hs_dirs,
             last_successful: None,
+            upload_results,
         })
     }
 
@@ -466,6 +480,11 @@ impl TimePeriodContext {
         self.hs_dirs
             .iter_mut()
             .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
+    }
+
+    /// Update the upload result for this time period.
+    fn set_upload_results(&mut self, upload_results: Vec<HsDirUploadStatus>) {
+        self.upload_results = upload_results;
     }
 }
 
@@ -798,6 +817,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             when: reupload_when,
         });
 
+        let mut upload_results = vec![];
         for upload_res in results.hsdir_result {
             let relay = period
                 .hs_dirs
@@ -832,7 +852,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     *status = DescriptorStatus::Clean;
                 }
             }
+
+            upload_results.push(upload_res);
         }
+
+        period.set_upload_results(upload_results);
     }
 
     /// Maybe update our list of HsDirs.
@@ -908,11 +932,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         blind_id.into(),
                         netdir,
                         ctx.hs_dirs.iter(),
+                        ctx.upload_results.clone(),
                     )
                 } else {
                     // Passing an empty iterator here means all HsDirs in this TimePeriodContext
                     // will be marked as dirty, meaning we will need to upload our descriptor to them.
-                    TimePeriodContext::new(params.clone(), blind_id.into(), netdir, iter::empty())
+                    TimePeriodContext::new(
+                        params.clone(),
+                        blind_id.into(),
+                        netdir,
+                        iter::empty(),
+                        vec![],
+                    )
                 }
             })
             .collect::<Result<Vec<TimePeriodContext>, FatalError>>()
