@@ -21,44 +21,18 @@
 //!                                               +--------+ run_once() returns an error
 //! ```
 //!
-//! Ideally, the publisher should also set the
-//! [`OnionServiceStatus`] to `Recovering` whenever a transient
-//! upload error occurs, but this is currently not possible:
-//!
-//!   * making the upload tasks set the status to `Recovering` (on failure) and `Running` (on
-//!     success) wouldn't work, because the upload tasks run in parallel (they would race with each
-//!     other, and the final status (`Recovering`/`Running`) would be the status of the last upload
-//!     task, rather than the real status of the publisher
-//!   * making the upload task set the status to `Recovering` on upload failure, and letting
-//!     `upload_publish_status` reset it back to `Running also would not work:
-//!     `upload_publish_status` sets the status back to `Running` when the publisher enters its
-//!     `Idle` state, regardless of the status of its upload tasks
-//!
-//! TODO: Indeed, setting the status to `Recovering` _anywhere_ would not work, because
-//! `upload_publish_status` will just overwrite it. We would need to introduce some new
-//! `PublishStatus` variant (currently, the publisher only has 3 states, `Idle`, `UploadScheduled`,
-//! `AwaitingIpts`), for the `Recovering` (retrying a failed upload) and `Broken` (the upload
-//! failed and we've given up) states. However, adding these 2 new states is non-trivial:
-//!
-//!   * how do we define "failure"? Is it the failure to upload to a single HsDir, or the failure
-//!     to upload to **any** HsDirs?
-//!   * what should make the publisher transition out of the `Broken`/`Recovering` states? While
-//!     `handle_upload_results` can see the upload results for a batch of HsDirs (corresponding to
-//!     a time period), the publisher doesn't do any sort of bookkeeping to know if a previously
-//!     failed HsDir upload succeeded in a later upload "batch"
-//!
-//! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
-//! status for reporting fatal errors (crashes).
+//! XXX update docs
 
 use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
-use tor_netdir::DirEvent;
+use tor_netdir::{DirEvent, NetDir};
 
 use crate::config::restricted_discovery::{
     DirectoryKeyProviderList, RestrictedDiscoveryConfig, RestrictedDiscoveryKeys,
 };
 use crate::config::OnionServiceConfigPublisherView;
+use crate::status::Problem;
 
 use super::*;
 
@@ -683,6 +657,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 };
 
                 self.handle_upload_results(upload_res);
+                self.upload_result_to_svc_status()?;
             },
             () = upload_rate_lim.wait_for_earliest(&self.imm.runtime).fuse() => {
                 self.expire_rate_limit().await?;
@@ -868,6 +843,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         self.recompute_hs_dirs()?;
         self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled)
             .await?;
+
+        // If the time period has changed, some of our upload results may now be irrelevant,
+        // so we might need to update our status (for example, if our uploads are
+        // for a no-longer-relevant time period, it means we might be able to update
+        // out status from "degraded" to "running")
+        self.upload_result_to_svc_status()?;
 
         Ok(())
     }
@@ -1099,6 +1080,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         self.publish_status_tx.send(new_state).await.map_err(
             |_: postage::sink::SendError<_>| internal!("failed to send upload notification?!"),
         )?;
+
+        Ok(())
+    }
+
+    /// Update the onion svc status based on the results of the last descriptor uploads.
+    fn upload_result_to_svc_status(&self) -> Result<(), FatalError> {
+        let inner = self.inner.lock().expect("poisoned lock");
+        let netdir = inner
+            .netdir
+            .as_ref()
+            .ok_or_else(|| internal!("handling upload results without netdir?!"))?;
+
+        let (state, err) = upload_result_state(netdir, &inner.time_periods);
+        self.imm.status_tx.send(state, err);
 
         Ok(())
     }
@@ -1798,6 +1793,88 @@ pub(super) fn read_blind_id_keypair(
             ))
         }
     }
+}
+
+/// Determine the [`State`] of the publisher based on the upload results
+/// from the current `time_periods`.
+fn upload_result_state(
+    netdir: &NetDir,
+    time_periods: &[TimePeriodContext],
+) -> (State, Option<Problem>) {
+    let current_period = netdir.hs_time_period();
+
+    let current_period_res = time_periods
+        .iter()
+        .find(|ctx| ctx.params.time_period() == current_period);
+
+    // TODO: include the error in the onion svc status report
+    let err = None;
+    let succeeded_current_tp = current_period_res
+        .iter()
+        .flat_map(|res| &res.upload_results)
+        .filter(|res| res.upload_res.is_ok())
+        .collect_vec();
+
+    let secondary_tp_res = time_periods
+        .iter()
+        .filter(|ctx| ctx.params.time_period() != current_period)
+        .collect_vec();
+
+    let succeeded_secondary_tp = secondary_tp_res
+        .iter()
+        .flat_map(|res| &res.upload_results)
+        .filter(|res| res.upload_res.is_ok())
+        .collect_vec();
+
+    // All of the failed uploads (for all TPs)
+    let failed = time_periods
+        .iter()
+        .flat_map(|res| &res.upload_results)
+        .filter(|res| res.upload_res.is_err())
+        .collect_vec();
+
+    if time_periods.len() < 2 {
+        // We need at least TP contexts (one for the primary TP,
+        // and another for the secondary one).
+        //
+        // If either is missing, we are unreachable for some or all clients.
+        return (State::DegradedUnreachable, err);
+    }
+
+    let state = match (
+        succeeded_current_tp.as_slice(),
+        succeeded_secondary_tp.as_slice(),
+    ) {
+        (&[], &[..]) | (&[..], &[]) if failed.is_empty() => {
+            // We don't have any upload results for one or both TPs.
+            // We are still bootstrapping.
+            State::Bootstrapping
+        }
+        (&[_, ..], &[_, ..]) if failed.is_empty() => {
+            // We have uploaded the descriptor to one or more HsDirs from both
+            // HsDir rings (primary and secondary), and none of the uploads failed.
+            // We are fully reachable.
+            State::Running
+        }
+        (&[_, ..], &[_, ..]) => {
+            // We have uploaded the descriptor to one or more HsDirs from both
+            // HsDir rings (primary and secondary), but some of the uploads failed.
+            // We are reachable, but we failed to upload the descriptor to all the HsDirs
+            // that were supposed to have it.
+            State::DegradedReachable
+        }
+        (&[..], &[]) | (&[], &[..]) => {
+            // We have either
+            //   * uploaded the descriptor to some of the HsDirs from one of the rings,
+            //   but haven't managed to upload it to any of the HsDirs on the other ring, or
+            //   * all of the uploads failed
+            //
+            // Either way, we are definitely not reachable by all clients.
+            State::DegradedUnreachable
+        }
+    };
+
+    (state, err)
 }
 
 /// Whether the reactor should initiate an upload.
