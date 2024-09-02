@@ -1049,13 +1049,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Unconditionally update the `PublishStatus` of the reactor with `new_state`.
     async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), FatalError> {
         let onion_status = match new_state {
-            PublishStatus::Idle => State::Running,
+            PublishStatus::Idle => None,
             PublishStatus::UploadScheduled
             | PublishStatus::AwaitingIpts
-            | PublishStatus::RateLimited(_) => State::Bootstrapping,
+            | PublishStatus::RateLimited(_) => Some(State::Bootstrapping),
         };
 
-        self.imm.status_tx.send(onion_status, None);
+        if let Some(onion_status) = onion_status {
+            self.imm.status_tx.send(onion_status, None);
+        }
 
         trace!(
             "publisher reactor status change: {:?} -> {:?}",
