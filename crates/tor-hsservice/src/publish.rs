@@ -454,6 +454,7 @@ mod test {
         poll_read_responses: I,
         expected_upload_count: usize,
         republish_count: usize,
+        expect_errors: bool,
     ) {
         runtime.clone().block_on(async move {
             let netdir_provider: Arc<dyn NetDirProvider> =
@@ -465,6 +466,7 @@ mod test {
                 responses_for_hsdir: Arc::new(Mutex::new(Default::default())),
             };
 
+            let mut status_rx = status_tx.subscribe();
             let publisher: Publisher<MockRuntime, MockReactorState<_>> = Publisher::new(
                 runtime.clone(),
                 nickname,
@@ -478,6 +480,9 @@ mod test {
 
             publisher.launch().unwrap();
             runtime.progress_until_stalled().await;
+            let status = status_rx.next().await.unwrap().publisher_status();
+            assert_eq!(State::Shutdown, status.state());
+            assert!(status.current_problem().is_none());
 
             // Check that we haven't published anything yet
             assert_eq!(publish_count.load(Ordering::SeqCst), 0);
@@ -485,6 +490,7 @@ mod test {
             reactor_event();
 
             runtime.progress_until_stalled().await;
+
             // We need to manually advance the time, because some of our tests check that the
             // failed uploads are retried, and there's a sleep() between the retries
             // (see BackoffSchedule::next_delay).
@@ -493,6 +499,17 @@ mod test {
 
             let initial_publish_count = publish_count.load(Ordering::SeqCst);
             assert_eq!(initial_publish_count, expected_upload_count);
+
+            let status = status_rx.next().await.unwrap().publisher_status();
+            if expect_errors {
+                // The upload results aren't ready yet.
+                assert_eq!(State::Bootstrapping, status.state());
+            } else {
+                // The test network doesn't have an SRV for the previous TP,
+                // so we are "unreachable".
+                assert_eq!(State::DegradedUnreachable, status.state());
+            }
+            assert!(status.current_problem().is_none());
 
             if republish_count > 0 {
                 /// The latest time the descriptor can be republished.
@@ -532,6 +549,7 @@ mod test {
         poll_read_responses: I,
         multiplier: usize,
         republish_count: usize,
+        expect_errors: bool,
     ) {
         let runtime = MockRuntime::new();
         let nickname = HsNickname::try_from(TEST_SVC_NICKNAME.to_string()).unwrap();
@@ -587,6 +605,7 @@ mod test {
             poll_read_responses,
             expected_upload_count,
             republish_count,
+            expect_errors,
         );
     }
 
@@ -595,7 +614,7 @@ mod test {
         // The HSDirs always respond with 200 OK, so we expect to publish hsdir_count times.
         let poll_reads = [Ok(OK_RESPONSE.into())].into_iter();
 
-        test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1, 0));
+        test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1, 0, false));
     }
 
     #[test]
@@ -619,7 +638,7 @@ mod test {
             ]
             .into_iter();
 
-            test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 2, 0));
+            test_temp_dir!().used_by(|dir| publish_after_ipt_change(dir, poll_reads, 2, 0, true));
         }
     }
 
@@ -630,7 +649,7 @@ mod test {
         const REUPLOAD_COUNT: usize = 4;
 
         test_temp_dir!()
-            .used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1, REUPLOAD_COUNT));
+            .used_by(|dir| publish_after_ipt_change(dir, poll_reads, 1, REUPLOAD_COUNT, false));
     }
 
     // TODO (#1120): test that the descriptor is republished when the config changes

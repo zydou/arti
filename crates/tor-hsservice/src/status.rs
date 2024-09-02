@@ -18,7 +18,7 @@ pub struct OnionServiceStatus {
 
 /// The current reported status of an onion service subsystem.
 #[derive(Debug, Clone)]
-struct ComponentStatus {
+pub(crate) struct ComponentStatus {
     /// The current high-level state.
     state: State,
 
@@ -323,5 +323,34 @@ impl StatusSender {
     /// Return a new OnionServiceStatusStream to return events from this StatusSender.
     pub(crate) fn subscribe(&self) -> OnionServiceStatusStream {
         OnionServiceStatusStream(self.0.lock().expect("Poisoned lock").subscribe())
+    }
+}
+
+#[cfg(test)]
+impl PublisherStatusSender {
+    /// Return a new OnionServiceStatusStream to return events from this StatusSender.
+    pub(crate) fn subscribe(&self) -> OnionServiceStatusStream {
+        self.0.subscribe()
+    }
+}
+
+#[cfg(test)]
+impl OnionServiceStatus {
+    /// Return the current high-level state of the publisher`.
+    pub(crate) fn publisher_status(&self) -> ComponentStatus {
+        self.publisher.clone()
+    }
+}
+
+#[cfg(test)]
+impl ComponentStatus {
+    /// The current `State` of this component.
+    pub(crate) fn state(&self) -> State {
+        self.state
+    }
+
+    /// The current error of this component.
+    pub(crate) fn current_problem(&self) -> Option<&Problem> {
+        self.latest_error.as_ref()
     }
 }
