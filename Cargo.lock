@@ -943,12 +943,13 @@ version = "0.4.6"
 
 [[package]]
 name = "cc"
-version = "1.0.93"
+version = "1.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a7e1056f2c248bb99dbb2e1100f26bf818fbfbcb6197377192fbb9575e5fc90"
+checksum = "57b6a275aa2903740dc87da01c62040406b8812552e97129a63ea8850a17c6e6"
 dependencies = [
  "jobserver",
  "libc",
+ "shlex",
 ]
 
 [[package]]
