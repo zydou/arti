@@ -95,7 +95,17 @@ pub enum State {
     ///
     // TODO: this variant is only used by the IptManager.
     // We should split this enum into IptManagerState and PublisherState.
-    Degraded,
+    DegradedReachable,
+    /// The service is running in a degraded state.
+    ///
+    /// Specifically, we have a number of working introduction points,
+    /// but we have failed to upload the descriptor to one or more HsDirs.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is unlikely to be reachable.
+    ///
+    DegradedUnreachable,
     /// The service is running.
     ///
     /// Specifically, we are satisfied with our introduction points, and our
@@ -175,7 +185,10 @@ impl OnionServiceStatus {
             (Running, Running) => Running,
             (Recovering, _) | (_, Recovering) => Recovering,
             (Broken, _) | (_, Broken) => Broken,
-            (Degraded, Running) | (Running, Degraded) | (Degraded, Degraded) => Degraded,
+            (DegradedUnreachable, _) | (_, DegradedUnreachable) => DegradedUnreachable,
+            (DegradedReachable, Running)
+            | (Running, DegradedReachable)
+            | (DegradedReachable, DegradedReachable) => DegradedReachable,
         }
     }
 

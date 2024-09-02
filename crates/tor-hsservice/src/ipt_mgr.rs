@@ -1189,7 +1189,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             self.imm
                 .status_tx
-                .send(IptMgrState::Degraded, errors.map(|e| e.into()));
+                .send(IptMgrState::DegradedReachable, errors.map(|e| e.into()));
 
             Some(IPT_PUBLISH_UNCERTAIN)
         };
