@@ -255,7 +255,6 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
             pub(crate) fn send_broken(&self, err: impl Into<Problem>) {
                 self.send(State::Broken, Some(err.into()));
             }
@@ -264,7 +263,7 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
+            #[allow(dead_code)] // NOTE: this is dead code in PublisherStatusSender
             pub(crate) fn send_recovering(&self, err: impl Into<Problem>) {
                 self.send(State::Recovering, Some(err.into()));
             }
@@ -273,7 +272,6 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
             pub(crate) fn send_shutdown(&self) {
                 self.send(State::Shutdown, None);
             }
@@ -282,7 +280,6 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
             pub(crate) fn send(&self, state: State, err: Option<Problem>) {
                 let sender = &self.0;
                 let mut tx = sender.0.lock().expect("Poisoned lock");
