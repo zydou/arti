@@ -1,6 +1,36 @@
 //! The onion service publisher reactor.
 //!
-//! TODO (#1216): write the docs
+//! Generates and publishes hidden service descriptors in response to various events.
+//!
+//! [`Reactor::run`] is the entry-point of the reactor. It starts the reactor,
+//! and runs until [`Reactor::run_once`] returns [`ShutdownStatus::Terminate`]
+//! or a fatal error occurs. `ShutdownStatus::Terminate` is returned if
+//! any of the channels the reactor is receiving events from is closed
+//! (i.e. when the senders are dropped).
+//!
+//! ## Publisher status
+//!
+//! The publisher has an internal [`PublishStatus`], distinct from its [`State`],
+//! which is used for onion service status reporting.
+//!
+//! The main loop of the reactor reads the current `PublishStatus` from `publish_status_rx`,
+//! and responds by generating and publishing a new descriptor if needed.
+//!
+//! See [`PublishStatus`] and [`Reactor::publish_status_rx`] for more details.
+//!
+//! ## When do we publish?
+//!
+//! We generate and publish a new descriptor if
+//!   * the introduction points have changed
+//!   * the onion service configuration has changed in a meaningful way (for example,
+//!     if the `restricted_discovery` configuration or its [`Anonymity`](crate::Anonymity)
+//!     has changed. See [`OnionServiceConfigPublisherView`]).
+//!   * there is a new consensus
+//!   * it is time to republish the descriptor (after we upload a descriptor,
+//!     we schedule it for republishing at a random time between 60 minutes and 120 minutes
+//!     in the future)
+//!
+//! ## Onion service status
 //!
 //! With respect to [`OnionServiceStatus`] reporting,
 //! the following state transitions are possible:
@@ -1238,8 +1268,26 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
     /// to happen after [`UPLOAD_RATE_LIM_THRESHOLD`].
     ///
-    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
-    /// implement it, as well as in what cases this will return an error).
+    /// Failed uploads are retried
+    /// (see [`upload_descriptor_with_retries`](Reactor::upload_descriptor_with_retries)).
+    ///
+    /// If restricted discovery mode is enabled and there are no authorized clients,
+    /// we abort the upload and set our status to [`State::Broken`].
+    //
+    // Note: a broken restricted discovery config won't prevent future uploads from being scheduled
+    // (for example if the IPTs change),
+    // which can can cause the publisher's status to oscillate between `Bootstrapping` and `Broken`.
+    // TODO: we might wish to refactor the publisher to be more sophisticated about this.
+    //
+    /// For each current time period, we spawn a task that uploads the descriptor to
+    /// all the HsDirs on the HsDir ring of that time period.
+    /// Each task shuts down on completion, or when the reactor is dropped.
+    ///
+    /// Each task reports its upload results (`TimePeriodUploadResult`)
+    /// via the `upload_task_complete_tx` channel.
+    /// The results are received and processed in the main loop of the reactor.
+    ///
+    /// Returns an error if it fails to spawn a task, or if an internal error occurs.
     async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
 
@@ -1350,10 +1398,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Upload the descriptor for the specified time period.
+    /// Upload the descriptor for the time period specified in `params`.
     ///
-    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
-    /// implement it, as well as in what cases this will return an error).
+    /// Failed uploads are retried
+    /// (see [`upload_descriptor_with_retries`](Reactor::upload_descriptor_with_retries)).
     #[allow(clippy::too_many_arguments)] // TODO: refactor
     async fn upload_for_time_period(
         hs_dirs: Vec<RelayIds>,
@@ -1655,7 +1703,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Upload a descriptor to the specified HSDir, retrying if appropriate.
     ///
-    /// TODO (#1216): document the retry logic when we implement it.
+    /// Any failed uploads are retried according to a [`PublisherBackoffSchedule`].
+    /// Each failed upload is retried until it succeeds, or until the overall timeout specified
+    /// by [`BackoffSchedule::overall_timeout`] elapses. Individual attempts are timed out
+    /// according to the [`BackoffSchedule::single_attempt_timeout`].
+    /// This function gives up after the overall timeout elapses,
+    /// declaring the upload a failure, and never retrying it again.
+    ///
+    /// See also [`BackoffSchedule`].
     async fn upload_descriptor_with_retries(
         hsdesc: String,
         netdir: &Arc<NetDir>,

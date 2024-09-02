@@ -1,4 +1,7 @@
 //! Publish and maintain onion service descriptors
+//!
+//! See the [`reactor`] module-level documentation for more details.
+
 mod backoff;
 mod descriptor;
 mod reactor;
@@ -120,7 +123,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     }
 }
 
-//
+// XXX outdated, remove
 // Our main loop has to look something like:
 
 // Whenever time period or keys or netdir changes: Check whether our list of
