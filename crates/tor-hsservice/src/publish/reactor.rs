@@ -8,20 +8,40 @@
 //!
 //! ```ignore
 //!
-//!                 update_publish_status(UploadScheduled|AwaitingIpts|RateLimited) +---------------+
-//!                +--------------------------------------------------------------->| Bootstrapping |
-//!                |                                                                +---------------+
-//! +----------+   | update_publish_status(Idle)        +---------+                         |
-//! | Shutdown |-- +----------------------------------->| Running |----+                    |
-//! +----------+   |                                    +---------+    |                    |
-//!                |                                                   |                    |
-//!                |                                                   |                    |
-//!                | run_once() returns an error  +--------+           |                    |
-//!                +----------------------------->| Broken |<----------+--------------------+
-//!                                               +--------+ run_once() returns an error
+//!                 update_publish_status(UploadScheduled|AwaitingIpts|RateLimited)
+//!                +---------------------------------------+
+//!                |                                       |
+//!                |                                       v
+//!                |                               +---------------+
+//!                |                               | Bootstrapping |
+//!                |                               +---------------+
+//!                |                                       |
+//!                |                                       |           uploaded to at least
+//!                |  not enough HsDir uploads succeeded   |        some HsDirs from each ring
+//!                |         +-----------------------------+-----------------------+
+//!                |         |                             |                       |
+//!                |         |              all HsDir uploads succeeded            |
+//!                |         |                             |                       |
+//!                |         v                             v                       v
+//!                |  +---------------------+         +---------+        +---------------------+
+//!                |  | DegradedUnreachable |         | Running |        |  DegradedReachable  |
+//! +----------+   |  +---------------------+         +---------+        +---------------------+
+//! | Shutdown |-- |         |                           |                        |
+//! +----------+   |         |                           |                        |
+//!                |         |                           |                        |
+//!                |         |                           |                        |
+//!                |         +---------------------------+------------------------+
+//!                |                                     |   invalid authorized_clients
+//!                |                                     |      after handling config change
+//!                |                                     |
+//!                |                                     v
+//!                |     run_once() returns an error +--------+
+//!                +-------------------------------->| Broken |
+//!                                                  +--------+
 //! ```
 //!
-//! XXX update docs
+//! We can also transition from `Broken`, `DegradedReachable`, or `DegradedUnreachable`
+//! back to `Bootstrapping` (those transitions were omitted for brevity).
 
 use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
