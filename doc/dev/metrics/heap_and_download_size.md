@@ -1,6 +1,6 @@
-# Sponsor-101 measurements: Heap usage, download size.
+# Project 101 measurements: Heap usage, download size.
 
-This describes the initial measurement strategy for certain Sponsor-101
+This describes the initial measurement strategy for certain Project 101
 metrics.  Namely, we are trying to find:
 
 > 1. Amount of non-mapped memory allocated when used for example workloads.
