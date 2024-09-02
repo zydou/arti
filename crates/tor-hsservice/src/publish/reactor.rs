@@ -1852,3 +1852,5 @@ struct HsDirUploadStatus {
 
 /// The outcome of uploading a descriptor.
 type UploadStatus = Result<(), ()>;
+
+// NOTE: the publisher tests live in publish.rs
