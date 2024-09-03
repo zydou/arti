@@ -828,6 +828,9 @@ Arti will return an error.
 
 ## Appendix
 
+> At present (Sep 2024), this section is outdated.
+> Once the API is more stable, we'll generate and include an updated trace.
+
 Experimenting with Arti
 
 We have a limited implementation of this protocol in Arti right now,
