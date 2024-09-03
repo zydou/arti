@@ -4976,6 +4976,7 @@ dependencies = [
  "educe",
  "futures",
  "futures-await-test",
+ "oneshot-fused-workaround",
  "pin-project",
  "postage",
  "tokio",

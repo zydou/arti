@@ -56,3 +56,5 @@ pub use prepare_send::{SinkPrepareExt, SinkPrepareSendFuture, SinkSendable};
 pub use sinkext::SinkExt;
 
 pub use watch::{DropNotifyEofSignallable, DropNotifyWatchSender, PostageWatchSenderExt};
+
+pub use oneshot_fused_workaround as oneshot;

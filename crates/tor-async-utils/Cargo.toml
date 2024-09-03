@@ -15,6 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 educe = "0.4.6"
 futures = "0.3.14"
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.21.0" }
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 void = "1"
