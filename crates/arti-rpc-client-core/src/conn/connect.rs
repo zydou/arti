@@ -31,6 +31,13 @@ pub enum StreamError {
     #[error("Request for new stream ID rejected")]
     StreamReleaseRejected(ErrorResponse),
 
+    /// Tried to open a stream on an unauthenticated RPC connection.
+    ///
+    /// (At present (Sep 2024) there is no way to get an unauthenticated connection from
+    /// `arti-rpc-client-core`, but that may change in the future.)
+    #[error("RPC connection not authenticated")]
+    NotAuthenticated,
+
     /// We encountered an internal error.
     /// (This should be impossible.)
     #[error("Internal error: {0}")]
@@ -221,8 +228,7 @@ impl RpcConn {
 
     /// Helper: Return the session ID, or an error.
     fn session_id_required(&self) -> Result<&ObjectId, StreamError> {
-        self.session()
-            .ok_or_else(|| StreamError::Internal("No RPC session".into()))
+        self.session().ok_or(StreamError::NotAuthenticated)
     }
 
     /// Helper: Return on_object if it's present, or the session ID otherwise.

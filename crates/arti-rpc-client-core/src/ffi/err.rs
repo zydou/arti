@@ -153,6 +153,13 @@ pub(crate) enum FfiStatus {
     // TODO RPC: expose the actual error type; see #1580.
     ["Data stream failed"]
     ProxyStreamFailed = 11,
+
+    /// Some operation failed because it was attempted on an unauthenticated channel.
+    ///
+    /// (At present (Sep 2024) there is no way to get an unauthenticated channel from this library,
+    /// but that may change in the future.)
+    ["Not authenticated"]
+    NotAuthenticated = 12,
 }
 }
 
@@ -304,6 +311,7 @@ impl IntoFfiError for crate::StreamError {
             E::ProxyInfoRejected(_) => F::RequestFailed,
             E::NewStreamRejected(_) => F::RequestFailed,
             E::StreamReleaseRejected(_) => F::RequestFailed,
+            E::NotAuthenticated => F::NotAuthenticated,
             E::Internal(_) => F::Internal,
             E::NoProxy => F::RequestFailed,
             E::Io(_) => F::ProxyIo,
