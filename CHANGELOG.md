@@ -9,8 +9,6 @@ Arti 1.2.7 continues development on onion service client authorization,
 the RPC subsystem, and relay infrastructure.
 
 ### Breaking changes in lower-level crates
-- Move `tor_async_utils::oneshot` into a new [`oneshot-fused-workaround`] crate.
-  ([!2371])
 - In [`tor-hsservice`],
   `OnionServiceProxyConfigBuilder` no longer derives `Eq` and `PartialEq`,
   and `DescEncryptionConfig`, `DescEncryptionConfig`,
@@ -84,6 +82,8 @@ the RPC subsystem, and relay infrastructure.
   ([#1334], [!2354])
 - Add an [`InertTorClient`] for accessing client state. ([#1496], [!2370],
   [!2314])
+- Move `tor_async_utils::oneshot` into a new [`oneshot-fused-workaround`] crate.
+  ([!2371], [!2383])
 
 ### Testing
 - Make the `hsc` subcommand documentation serve as a test case. ([!2304])
