@@ -644,13 +644,12 @@ auth:authenticate
 : Try to authenticate using one of the provided authentication
   methods.
 
+> At present (Sep 2024)
+> auth:get_rpc_protocol is deprecated.
+
 > TODO: Provide more information about these in greater detail.
 
 Three recognized authentication schemes are:
-
-inherent:peer_uid
-: Attempt to authenticate based on the application's
-  user-id.
 
 inherent:unix_path
 : Attempt to authenticate based on the fact that the application
@@ -664,6 +663,9 @@ fs:cookie
   which shouldn't be possible unless it is running on behalf
   of an authorized user.
 
+> At present (Sep 2024)
+> only `inherent:unix_path` is implemented.
+
 > TODO Maybe add a "this is a TLS session and I presented a good certificate"
 > type?
 
@@ -674,10 +676,13 @@ Arti closes the connection after any error.
 > we always want a correct authentication handshake to complete
 > before we allow any requests to be handled,
 > even if the stream itself is such
-> that no authentication should be requires.
+> that no authentication should be required.
 > This helps prevent cross-protocol attacks in cases
 > where things are misconfigured.
 
+> TODO-RPC: Make sure "close on any error" is implemented,
+> and test it.
+> It is essential for security.
 
 ### Specifying requests and replies.
 
