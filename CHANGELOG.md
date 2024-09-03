@@ -123,7 +123,7 @@ the RPC subsystem, and relay infrastructure.
   maintenance script. ([!2316])
 - Use the `via-cargo-install-in-ci` maintenance script to cache `grcov`
   in the `coverage-aggregated` job. ([!2325])
-- Add support for building an Arti deb package. ([!2323], [!2367])
+- Add initial support for building an Arti deb package. ([!2323], [!2367])
 - Add script for testing without any features enabled.
   ([7a9bf49870533cc052b12680336f067f77d87b34])
 - Run tests of every crate, with all features disabled. ([!2350])
