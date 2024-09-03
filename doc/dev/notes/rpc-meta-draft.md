@@ -1,4 +1,6 @@
-## Status
+# Arti RPC protocol design
+
+### Status
 
 This is a draft document.
 It does not reflect anything we've built,
@@ -28,9 +30,9 @@ that the system could support,
 to start exploring the design space, and
 to show what our specifications might look like going forward,
 
-# Intended semantics
+## Intended semantics
 
-## Sessions
+### Sessions
 
 The application begins by establishing a session with Arti.
 There may be multiple sessions at once,
@@ -73,7 +75,7 @@ and allow apps to re-connect to a session,
 but that will not be the default.
 
 
-## Messages
+### Messages
 
 Once a connection is established, the application and Arti
 communicate in a message-oriented format
@@ -116,7 +118,7 @@ we may define other encodings/framings in the future.
 > This is not an additional requirement;
 > it is a consequence of the JSON data format.
 
-## Requests, Objects, and Visibility
+### Requests, Objects, and Visibility
 
 Every request is directed to some Object.
 (For example, an object may be a session,
@@ -148,7 +150,7 @@ The format of an Object Identifier string is not stable,
 and clients must not rely on it.
 
 
-## Request and response types
+### Request and response types
 
 There are different kinds of requests,
 each identified by a unique method name.
@@ -172,7 +174,7 @@ and parameter values that do not match their specified types
 must be treated as an error,
 both by the server and by the client.
 
-## Data Streams
+### Data Streams
 
 We do not want to force users
 to mix application data streams and control connections
@@ -200,9 +202,9 @@ We can do this in two ways.
    and Arti uses it to identify which streams belong to the application.
 
 
-# Instantiating our semantics with JSON, Rust, and Serde
+## Instantiating our semantics with JSON, Rust, and Serde
 
-## Encoding with JSON
+### Encoding with JSON
 
 We use the following metaformat, based on JSON-RPC,
 for our requests:
@@ -310,7 +312,7 @@ Any given response will have exactly one of
 > or similar to, that used by JSON-RPC.
 
 
-#### Method namespacing
+##### Method namespacing
 
 Any method name containing a colon belongs to a namespace.
 The namespace of a method is everything up to the first colon.
@@ -336,7 +338,7 @@ experimental or unstable status:
 any code using them should expect to be unstable.
 
 
-### Errors
+#### Errors
 
 Errors are reported as responses with an `error` field (as above).
 The `error` field is itself an object, with the following fields:
@@ -398,7 +400,7 @@ We do not anticipate regularly extending this list of code values.
 
 [`tor_error::ErrorKind`]: https://docs.rs/tor-error/latest/tor_error/enum.ErrorKind.html
 
-#### Future extensions to the Error type.
+##### Future extensions to the Error type.
 
 We're aware that the Error type above
 does not expose a lot of useful details
@@ -408,7 +410,7 @@ If you find that you need more data,
 instead let us know, so we can extend the Error format.
 
 
-#### Unimplemented extension: "data"
+##### Unimplemented extension: "data"
 
 We **do not** currently implement this field in the Error type:
 It was originally part of our design, but we are leaving it out
@@ -438,7 +440,7 @@ data
   other than for non-critical functions such as reporting.
 
 
-#### Example error response JSON document
+##### Example error response JSON document
 
 Note: this is an expanded display for clarity!
 Arti will actually send an error response on a single line,
@@ -460,7 +462,7 @@ to conform to jsonlines framing.
 }
 ```
 
-#### JSON-RPC compatibility
+##### JSON-RPC compatibility
 
 This error format is compatible with JSON-RPC 2.0.
 The differences are:
@@ -474,7 +476,7 @@ The differences are:
 
  * The `message` field may be less concise than JSON-RPC envisages.
 
-### We use I-JSON
+#### We use I-JSON
 
 In this spec JSON means I-JSON (RFC7493).
 The client must not send JSON documents that are not valid I-JSON.
@@ -484,7 +486,7 @@ Arti will only send valid I-JSON
 
 We speak of `fields`, meaning the members of a JSON object.
 
-### A variant: JSON-RPC.
+#### A variant: JSON-RPC.
 
 > (This is not something we plan to build
 > unless it's actually needed.)
@@ -499,7 +501,7 @@ We speak of `fields`, meaning the members of a JSON object.
 > unless we add a regular "poll" request or something:
 > this is also left for future work.
 
-## Framing messages
+### Framing messages
 
 Arti's responses are formatted according to [jsonlines](jsonlines.org):
 every message appears as precisely one line, terminated with a single linefeed.
@@ -520,7 +522,7 @@ Therefore a client which sends more than one request at a time
 must be prepared to buffer requests at its end,
 while concurrently reading arti's replies.
 
-## Authentication
+### Authentication
 
 When a connection is first opened,
 only a single "connection" object is available.
@@ -575,7 +577,7 @@ Arti closes the connection after any error.
 > where things are misconfigured.
 
 
-## Specifying requests and replies.
+### Specifying requests and replies.
 
 When we are specifying a request, we list the following.
 
@@ -593,7 +595,7 @@ When we are specifying a request, we list the following.
   annotated for use with serde.
 
 
-# Differences from JSON-RPC
+## Differences from JSON-RPC
 
  * We use I-JSON (RFC7493).
 
@@ -616,12 +618,12 @@ When we are specifying a request, we list the following.
  * TODO re-check this spec against JSON-RPC.
 
 
-# A list of requests
+## A list of requests
 
 
 ...
 
-## Cancellation
+### Cancellation
 
 > TODO: take a request ID (as usual),
 > and the ID of the request-to-cancel as a parameter.
@@ -659,14 +661,14 @@ Options:
     cancellation is a framing operation.
 
 
-## Authentication
+### Authentication
 
 ...
 
 > Also authorization, "get instance"
 
 
-## Requests that apply to most Objects
+### Requests that apply to most Objects
 
 ...
 
@@ -676,13 +678,13 @@ Options:
 
 > set status / info
 
-## Checking bootstrap status
+### Checking bootstrap status
 
 ...
 
 > session.bootstrap Object, supports get status
 
-## Instance operations
+### Instance operations
 
 > Shut down
 
@@ -692,7 +694,7 @@ Options:
 
 
 
-## Opening data streams
+### Opening data streams
 
 ...
 
@@ -707,7 +709,7 @@ Options:
 
 
 
-## Working with onion services
+### Working with onion services
 
 ...
 
@@ -722,7 +724,7 @@ Options:
 >     getstatus
 
 
-# Appendix: Some example APIs to wrap this
+## Appendix: Some example APIs to wrap this
 
 Every library that wraps this API
 should probably follow a similar design
@@ -739,7 +741,7 @@ and for functionality like opening streams.
 [^schema]: and by the way, we should have some schemas[^plural]
 [^plural]: Or schemata if you prefer that for the plural.
 
-## Generic, low-level
+### Generic, low-level
 
 I'm imagining that the low level
 of any arti-RPC client library
@@ -773,15 +775,15 @@ fn poll_id(Session) -> Option<Fd>;
 ```
 
 
-## In rust
+### In rust
 
-## In C
+### In C
 
-## In Java
+### In Java
 
 
 
-# Appendix
+## Appendix
 
 Experimenting with Arti
 
