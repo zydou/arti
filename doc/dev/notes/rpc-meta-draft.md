@@ -727,6 +727,10 @@ When we are specifying a request, we list the following.
 
 ## A list of requests
 
+> At present (Sep 2024),
+> the request methods described in this section aren't implemented.
+> We'll probably remove this section (or most of it)
+> and replace it with better API documentation or plans.
 
 ...
 
