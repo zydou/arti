@@ -91,7 +91,6 @@ compression = ["arti-client/compression"]
 experimental = ["arti-client/experimental", "tor-hsservice/experimental", "experimental-api", "rpc", "relay", "keymgr", "restricted-discovery"]
 rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
 
-# XXXX Mark as full, experimental, or non-additive!
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 __is_experimental = []
 
