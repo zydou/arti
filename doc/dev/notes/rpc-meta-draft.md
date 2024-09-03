@@ -53,9 +53,13 @@ and aren't coming from a confused web browser or something.
 
 (This authentication can use unix domain sockets,
 proof of an ability to read some part of the filesystem,
+an in-process socketpair,
 or a pre-established shared secret.
 Sessions should not normally cross the network.
 If they do, they must use TLS.)
+
+> At present (Sep 2024)
+> only unix domain sockets are implemented.
 
 Different sessions cannot access one another's status:
 they cannot ordinarily list each other's circuits,
@@ -65,6 +69,9 @@ and so on.
 
 As an exception, a session may have administrative access.
 If it does, it can access information from any session.
+
+> At present (Sep 2024)
+> administrative access is not implemented.
 
 (This isolation is meant to resist
 programming mistakes and careless application design,
