@@ -732,15 +732,12 @@ When we are specifying a request, we list the following.
 
 ### Cancellation
 
-> TODO: take a request ID (as usual),
-> and the ID of the request-to-cancel as a parameter.
->
-> (Using the 'id' as the subject of the request is too cute IMO,
-> even if we change the request's meaning to
-> "cancel every request with the same id as this request".)
+> At present (Sep 2024)
+> a cancellation mechanism is not implemented.
 
 To try to cancel a request,
-there is a "cancel" method, taking arguments of the form:
+the RPC session object supports
+an `rpc:cancel` method, taking parameters of the form:
 
 ```
 { "request_id": id }
@@ -757,15 +754,8 @@ or if there is no such request,
 Arti will return an error.
 (It might not be possible to distinguish these two cases).
 
-
-TODO: Currently this violates our rule that every request has an `obj`.
-Options: 
- 1. Relax the rule
- 2. Specify a well-known `obj` value to be used;
-    we will need such a thing to bootstrap auth anyway.
- 3. Specify that the cancellation should be sent to the original object.
-    IMO this is improper:
-    cancellation is a framing operation.
+> Alternative: we might implement this on the connection
+> object, rather than on the session object?
 
 
 ### Authentication
