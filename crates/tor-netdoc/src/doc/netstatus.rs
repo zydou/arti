@@ -200,6 +200,12 @@ impl<K: Into<String>, T> FromIterator<(K, T)> for NetParams<T> {
     }
 }
 
+impl<T> std::iter::Extend<(String, T)> for NetParams<T> {
+    fn extend<I: IntoIterator<Item = (String, T)>>(&mut self, iter: I) {
+        self.params.extend(iter);
+    }
+}
+
 impl<'de, T> Deserialize<'de> for NetParams<T>
 where
     T: Deserialize<'de>,

@@ -1,8 +1,14 @@
 pub mod builder;
 mod config;
 
+use std::sync::Arc;
+
 use builder::TorRelayBuilder;
+use tor_chanmgr::Dormancy;
+use tor_netdir::params::NetParameters;
 use tor_rtcompat::Runtime;
+
+use crate::config::TorRelayConfig;
 
 // Only rustls is supported.
 #[cfg(all(feature = "rustls", any(feature = "async-std", feature = "tokio")))]
@@ -14,6 +20,9 @@ pub struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     #[allow(unused)] // TODO RELAY remove
     runtime: R,
+    /// Channel manager, used by circuits etc.,
+    #[allow(unused)] // TODO RELAY remove
+    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
 }
 
 /// TorRelay can't be used with native-tls due to the lack of RFC5705 (keying material exporter).
@@ -47,7 +56,13 @@ impl<R: Runtime> TorRelay<R> {
     }
 
     /// Return a TorRelay object.
-    pub(crate) fn create_inner(runtime: R) -> Self {
-        Self { runtime }
+    pub(crate) fn create_inner(runtime: R, config: &TorRelayConfig) -> Self {
+        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
+            runtime.clone(),
+            &config.channel,
+            Dormancy::Active,
+            &NetParameters::from_map(&config.override_net_params),
+        ));
+        Self { runtime, chanmgr }
     }
 }
