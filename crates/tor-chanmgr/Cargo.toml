@@ -28,7 +28,9 @@ full = [
     "tor-proto/full",
     "tor-rtcompat/full",
     "tor-socksproto/full",
-    "tor-units/full", "tor-async-utils/full", "oneshot-fused-workaround/full",
+    "tor-units/full",
+    "tor-async-utils/full",
+    "oneshot-fused-workaround/full",
 ]
 
 pt-client = ["tor-linkspec/pt-client"]

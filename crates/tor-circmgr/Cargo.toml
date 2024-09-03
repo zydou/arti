@@ -34,7 +34,9 @@ full = [
     "tor-rtcompat/full",
     "tor-geoip?/full",
     "tor-async-utils/full",
-    "tor-protover/full", "tor-relay-selection/full", "oneshot-fused-workaround/full",
+    "tor-protover/full",
+    "tor-relay-selection/full",
+    "oneshot-fused-workaround/full",
 ]
 specific-relay = []
 vanguards = ["tor-guardmgr/vanguards"]

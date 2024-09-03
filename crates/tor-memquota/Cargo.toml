@@ -40,7 +40,14 @@ tor-rtmock = { path = "../tor-rtmock", version = "0.21.0" }
 tracing-test = "0.2.4"
 
 [features]
-full = ["tor-config/full", "tor-error/full", "tor-log-ratelim/full", "tor-rtcompat/full", "tor-async-utils/full", "tor-basic-utils/full"]
+full = [
+    "tor-config/full",
+    "tor-error/full",
+    "tor-log-ratelim/full",
+    "tor-rtcompat/full",
+    "tor-async-utils/full",
+    "tor-basic-utils/full",
+]
 memquota = ["__is_experimental"]
 experimental = ["memquota"]
 __is_experimental = []

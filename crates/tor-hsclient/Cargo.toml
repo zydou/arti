@@ -29,7 +29,14 @@ full = [
     "tor-netdir/full",
     "tor-netdoc/full",
     "tor-proto/full",
-    "tor-rtcompat/full", "tor-basic-utils/full", "tor-bytes/full", "tor-cell/full", "tor-keymgr/full", "tor-async-utils/full", "tor-persist/full", "oneshot-fused-workaround/full",
+    "tor-rtcompat/full",
+    "tor-basic-utils/full",
+    "tor-bytes/full",
+    "tor-cell/full",
+    "tor-keymgr/full",
+    "tor-async-utils/full",
+    "tor-persist/full",
+    "oneshot-fused-workaround/full",
 ]
 __is_experimental = []
 experimental = ["keymgr"]
