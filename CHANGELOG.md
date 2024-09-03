@@ -3,6 +3,161 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.7 — 3 September 2024
+
+Arti 1.2.7 continues development on onion service client authorization,
+the RPC subsystem, and relay infrastructure.
+
+### Breaking changes in lower-level crates
+- Move `tor_async_utils::oneshot` into a new [`oneshot-fused-workaround`] crate.
+  ([!2371])
+- In [`tor-hsservice`],
+  `OnionServiceProxyConfigBuilder` no longer derives `Eq` and `PartialEq`,
+  and `DescEncryptionConfig`, `DescEncryptionConfig`,
+  `AuthorizedClientConfig,` and `AuthorizedClientParseError` are removed.
+  ([!2266])
+- In [`tor-memquota`], `MemoryQuotaTracker::new` is now gated behind
+  the `memquota` feature. ([d04d130f0155eae98bc6e9d532f09ae3bfd308c4])
+- In [`tor-ptmgr`], `PtClientMethod` is now exported from the top-level.
+  ([5774dd456265ef4cb8771342538a07ba76e5a5d9])
+
+### RPC development
+- Expose the OS errno of the FFI error types that have one. ([!2311])
+- Fix typos in an FFI comment. ([!2310])
+- Always re-encode requests and responses, and preserve unrecognized struct fields.
+  ([#1491], [!2312])
+- Expose the object ID for the session object. ([!2318])
+- Use `JsonValue` to re-encode responses and requests.
+  ([#1512], [#1511], [!2315])
+- Add support for request handles in our FFI code. ([!2317])
+- Add an unstable RPC method to list every RPC method. ([!2332])
+- Build arti-rpc-client-core as a C dynamic library. ([!2331])
+- Use more sophisticated handling for `ConnectionError`s in `arti-rpcserver`.
+  ([#1517], [!2335])
+- New `slotmap-careful` crate to use when we mustn't re-use keys. ([!2298])
+- Rename various identifiers in our FFI code. ([!2344])
+- Use the new `slotmap-careful` instead of `generational-arena` in
+  `arti-rpcserver`. ([#1282], [!2343])
+- Implement RPC method delegation support. ([#1523], [!2342])
+- Allow simultaneous calls to `arti_rpc_handle_wait()`.
+  ([#1532], [!2360])
+- Add experimental method to list SOCKS proxy addresses. ([#1523], [!2359])
+
+### Relay development
+- Add initial support for relay configuration. ([#1534], [!2352])
+
+### Internal cleanup and refactoring
+- Major refactoring to the `tor-proto` circuit reactor code,
+  which simplifies the implementation and will enable us to support
+  opportunistic packing for [proposal 340].
+  Introduce `StreamPollSet` for polling streams in priority order.
+  ([!2285], [#1513], [!2319], [!2334])
+- Refactoring in our key management code to prevent accidental misuse
+  of relative key paths. ([#1494], [!2291])
+- Refactor `KeyedFuturesUnordered` so that the underlying futures
+  are accessible. ([!2321])
+- Allow access to the inner streams of [`StreamPollSet`],
+  refactor [`StreamMap`] ([#1421], [!2326], [!2333]).
+- Make `GuardMgr` mandatory throughout our circuit management code.
+  ([#1465], [!2339], [!2347])
+- Encapsulate flow-control into a separate object,
+  abstracting away the difference between window-based (legacy) flow control and
+  xon-based ([proposal 324]) flow control. ([!2340], [!2358])
+- Introduce a `PeekableStream` trait to get rid of redundant buffering.
+  ([!2345])
+
+### Onion service development
+- Implement hidden service restricted discovery mode (previously known as
+  "client authorization"). ([#1292], [!2266], [!2336], [!2316])
+- Add support for live-reloading the restricted discovery configuration.
+  ([#1505], [!2329], [!2353], [!2369])
+- Design work for a new `InertTorClient` API for accessing keys
+  and persistent state. ([!2314])
+- Provide an MPSC queue with memory quota tracking. ([#351], [!2292])
+- Make arrangements in `tor-memquota` for memory tracking to be optional.
+  ([!2351])
+
+### Minor features
+- Stop requiring the TRANSPORT key in pluggable transport STATUS messages.
+  ([#1488], [!2307])
+- In [`fs-mistrust`], add a `CheckedDir::metadata()` function
+  for retrieving file metadata.
+  ([72c3a1a661284844806b34e9ca5e81a43b8d0913], [!2324])
+- In [`tor-ptmgr`], make managed pluggable transports optional.
+  ([#1334], [!2354])
+- Add an [`InertTorClient`] for accessing client state. ([#1496], [!2370])
+
+### Testing
+- Make the `hsc` subcommand documentation serve as a test case. ([!2304])
+- In the expected output of the CLI tests,
+  match any number of lines in the `-c` help.
+  ([#1509], [!2313])
+- Fix broken reference to `apt-install` script in the Shadow integration tests.
+  ([!2309]
+- Add a Shadow integration test for restricted discovery mode. ([#1292],
+  [!2272])
+- Don't explicitly set `storage.keystore.enabled` in the Shadow CI tests.
+  ([222b0eae48ae88d1a64cf5f0c11e662bf61dda4d])
+- Test `cbindgen` correctness in CI. ([#1502], [!2320], [!2322], [!2330])
+- Add `LogState` tests in `tor-log-ratelim`. ([!2349])
+- Fix `arti_socket_closed` RPC test, which was previously flakey on OSX.
+  ([#1510], [!2348])
+- Add an arti obfs4 managed pluggable transport client and a tor obfs4
+  server to the Shadow CI tests ([#1538], [!2355]).
+- Temporarily disable a flaky configuration watcher test. ([!2364])
+- Add circuit reactor test for stream handling fairness. ([!2365])
+- Rewrite the `hsc` tests using `InertTorClient`.
+  ([#1496], [1d3e59f2e9572a9710de2c2a9c925c5c38a6874c])
+- Set the `COLUMNS` env var in the CLI tests.
+  ([#1574], [f1779cfbb3e27b04ba3cca9206170f1e1ea904db])
+
+### Documentation
+- Remove obsolete documentation from [`tor-proto`]. ([!2366])
+- Discourage use of `tor_rtmock_test_with_*` macros. ([!2372])
+
+### Infrastructure
+- Add a few more Tor employees to exclude from our acknowledgments. ([!2306])
+- Remove the no-longer-necessary `--cfg docsrs` flag from our rustdoc invocation.
+  ([!2308])
+- Fix handling of items ending in `;` in `check_doc_features`
+  maintenance script. ([!2316])
+- Use the `via-cargo-install-in-ci` maintenance script to cache `grcov`
+  in the `coverage-aggregated` job. ([!2325])
+- Add support for building an Arti deb package. ([!2323], [!2367])
+- Add script for testing without any features enabled.
+  ([7a9bf49870533cc052b12680336f067f77d87b34])
+- Run tests of every crate, with all features disabled. ([!2350])
+- Explicitly specify the deployment target of macOS to 10.7
+  to fix the failing `build-repro-macos` job.
+  ([#1394], [#1507], [!2377], [!2346])
+- Rename "Sponsor 101" to "Project 101". ([!2379])
+
+### Cleanups, minor features, and bugfixes
+- Make `arti hss onion-name` return a non-zero status if the service doesn't
+  exist. ([!2305])
+- Use `std::backtrace` instead of the [`backtrace`] crate. ([!2301])
+- Add missing `docsrs` `cfg_attr` to fix a `cargo doc` warning. ([!2337])
+- Resolve `unreachable_patterns` warnings from nightly. ([!2338])
+- Make `blind_keypair` build without the `hsv3-client` feature.
+  ([#1504], [!2341])
+- Move `Qty` to [`tor-basic-utils`] as `ByteQty` and significantly improve it.
+  ([!2363])
+- Move `stream_peek` to [`tor-async-utils`]. ([!2362], [!2357])
+- Various typo fixes in comments and messages. ([!2380])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including Alexander
+Hansen Færøy, ambiso, Dimitris Apostolou, kn0sys, Kunal Mehta, NoisyCoil, opara,
+Robin Leander Schröder, and Steven Engler.
+Also, our welcome to Steven Engler as he joins the team!
+
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
 # Arti 1.2.6 — 1 August 2024
 
 Arti 1.2.6 continues development on onion service client authorization,
