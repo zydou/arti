@@ -6,7 +6,7 @@ plan to extend it to support managing other types of state as well.
 Like the other `arti` subcommands, it has an optional `--config` option for
 specifying the TOML configuration file. Using the correct configuration file is
 important, because the state and keys managed by `arti hsc` are relative to the
-state directory, which you might have overriden in the configuration.
+state directory, which you might have overridden in the configuration.
 
 ## `arti hsc get-key`
 

@@ -10,7 +10,7 @@ use tor_rtcompat::Runtime;
 use std::fs::OpenOptions;
 use std::io;
 
-/// The hsc subcommands the arti CLI will be augumented with.
+/// The hsc subcommands the arti CLI will be augmented with.
 #[derive(Parser, Debug)]
 pub(crate) enum HscSubcommands {
     /// Run state management commands for an Arti hidden service client.

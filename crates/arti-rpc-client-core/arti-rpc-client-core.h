@@ -66,7 +66,7 @@
  *   (For example, `ArtiRpcObject **out`).  In such cases, `* out` will be set to a resulting object,
  *   or to NULL if no such object is returned.   Any earlier value of `*out` will be replaced
  *   without freeing it.
- *   (If `out` is NULL, then any object the library would have returned will instead be discareded.)
+ *   (If `out` is NULL, then any object the library would have returned will instead be discarded.)
  *   discarded.
  *   While the function is running,
  *   `*out` and `**out` may not be read or written by any other part of the program,

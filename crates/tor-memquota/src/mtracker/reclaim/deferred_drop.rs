@@ -16,7 +16,7 @@
 
 use super::*;
 
-/// `MutexGuard<State>` but also a list of `Arc<dyn Partcipant>` to drop when we unlock
+/// `MutexGuard<State>` but also a list of `Arc<dyn Participant>` to drop when we unlock
 #[derive(Debug, Default)]
 pub(super) struct GuardWithDeferredDrop<'m> {
     /// The mutex guard

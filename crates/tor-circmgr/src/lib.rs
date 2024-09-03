@@ -643,7 +643,7 @@ impl<R: Runtime> CircMgr<R> {
         // TODO: I would prefer not to call this at every request, but
         // it should be fine for now.  (At some point we may no longer
         // need this, or might not need to call it so often, now that
-        // our circuit expiration runs on scheduld timers via
+        // our circuit expiration runs on scheduled timers via
         // spawn_expiration_task.)
         let now = self.mgr.peek_runtime().now();
         self.mgr.expire_circs(now);

@@ -271,7 +271,7 @@ impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
 /// It is the macro user's responsibility to ensure
 /// that it conforms to the published API.
 /// For example, if the return value is a raw pointer,
-/// the macro user must ensure it's suitably dereferencable,
+/// the macro user must ensure it's suitably dereferenceable,
 /// that its lifetime is documented,
 /// and only null when the API says that's allowed.
 //

@@ -109,7 +109,7 @@ LINT_LISTS = {
     'test lint' : TEST_LINTS,
     'example lint' : EXAMPLE_LINTS,
 }
-# The start delimeter is a regular comment.
+# The start delimiter is a regular comment.
 START_LINE = re.compile(r'^(\s*)// @@ begin (.*) list')
 
 # End delimiter is Rustdoc containing an HTML comment, because rustfmt

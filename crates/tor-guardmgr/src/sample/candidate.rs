@@ -67,7 +67,7 @@ pub(crate) enum CandidateStatus<T> {
 pub(crate) struct Candidate {
     /// True if the candidate is not currently disabled for use as a guard.
     ///
-    /// (To be enabled, it must be in the lastest directory, with the Fast,
+    /// (To be enabled, it must be in the last directory, with the Fast,
     /// Stable, and Guard flags.)
     pub(crate) listed_as_guard: bool,
     /// True if the candidate can be used as a directory cache.

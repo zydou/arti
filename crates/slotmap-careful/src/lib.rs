@@ -554,7 +554,7 @@ macro_rules! define_implementation {
             assert_eq!(
                 key_version(k1) + 1,
                 key_version(k2),
-                "Key version did not increment by 1 after slot re-use"
+                "Key version did not increment by 1 after slot reuse"
             );
             ver_lsb_check(k2);
 

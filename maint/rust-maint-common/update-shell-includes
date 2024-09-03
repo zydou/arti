@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Arrrange for all shell scripts to obtain the common libraries
+# Arrange for all shell scripts to obtain the common libraries
 # not via the current working directory, but rather realpath $0, by:
 #
 #  1. Checking that no shell scripts have ad hoc `.` or `source`'s

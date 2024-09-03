@@ -141,7 +141,7 @@ impl Display for ByteQty {
             .expect("DISPLAY_UNITS Is empty?!");
 
         // Select a precision so that we'll print about 3 significant figures.
-        // We can't do this precisely, so we err on the side of slighlty
+        // We can't do this precisely, so we err on the side of slightly
         // fewer SF with mantissae starting with 9.
 
         let after_decimal = if mantissa < 9. {

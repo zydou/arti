@@ -230,7 +230,7 @@ enum SshKeyDataInner {
 }
 
 impl SshKeyData {
-    /// Try to covnert a [`KeyData`] to [`SshKeyData`].
+    /// Try to convert a [`KeyData`] to [`SshKeyData`].
     ///
     /// Returns an error if this type of [`KeyData`] is not supported.
     pub(crate) fn try_from_key_data(key: KeyData) -> Result<Self> {
@@ -247,7 +247,7 @@ impl SshKeyData {
         Ok(Self(SshKeyDataInner::Public(key)))
     }
 
-    /// Try to covnert a [`KeypairData`] to [`SshKeyData`].
+    /// Try to convert a [`KeypairData`] to [`SshKeyData`].
     ///
     /// Returns an error if this type of [`KeypairData`] is not supported.
     pub(crate) fn try_from_keypair_data(key: KeypairData) -> Result<Self> {

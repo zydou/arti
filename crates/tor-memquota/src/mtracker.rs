@@ -382,13 +382,13 @@ struct State {
 struct Global {
     /// Total memory used
     ///
-    /// Wrapper type for ensuring we wake up the reclaimation task
+    /// Wrapper type for ensuring we wake up the reclamation task
     total_used: TotalQtyNotifier,
 
     /// Configuration
     config: Config,
 
-    /// Make this type uninhbaited if memory tracking is compiled out
+    /// Make this type uninhabited if memory tracking is compiled out
     #[allow(dead_code)]
     enabled: EnabledToken,
 }
@@ -426,7 +426,7 @@ struct PRecord {
     /// The hooks provided by the Participant
     particip: drop_reentrancy::ProtectedWeak<dyn IsParticipant>,
 
-    /// Make this type uninhbaited if memory tracking is compiled out
+    /// Make this type uninhabited if memory tracking is compiled out
     #[allow(dead_code)]
     enabled: EnabledToken,
 }
@@ -585,7 +585,7 @@ impl MemoryQuotaTracker {
     // Circular parent relationships might need just a little care
     // in the reclamation loop (to avoid infinitely looping),
     // but aren't inherently unsupportable.
-    #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reaons
+    #[allow(clippy::redundant_closure_call)] // We have IEFEs for good reasons
     pub fn new_account(self: &Arc<Self>, parent: Option<&Account>) -> crate::Result<Account> {
         let Enabled(mut state, enabled) = self.lock()? else {
             return Ok(Account(Noop));
@@ -787,7 +787,7 @@ impl Account {
 
         use std::sync::atomic::{AtomicBool, Ordering};
 
-        /// Temporary participant, which stands in during constructon
+        /// Temporary participant, which stands in during construction
         #[derive(Debug)]
         struct TemporaryParticipant {
             /// The age, which is right now.  We hope this is all fast!
@@ -815,7 +815,7 @@ impl Account {
         let partn_ = partn
             .0
             .as_enabled()
-            .ok_or_else(|| internal!("Enabled Acccount gave Noop Participant"))?;
+            .ok_or_else(|| internal!("Enabled Account gave Noop Participant"))?;
         let aid = partn_.aid;
         let pid_weak = *partn_.pid;
 
@@ -1110,7 +1110,7 @@ impl Participation {
     /// Destroy this participant
     ///
     /// Treat as freed all the memory allocated via this `Participation` and its clones.
-    /// After this, other clones of this `Participation` are no longer useable:
+    /// After this, other clones of this `Participation` are no longer usable:
     /// attempts to do so will give errors.
     /// (although they can still be used to get at the `Account`, if it still exists).
     ///
@@ -1245,7 +1245,7 @@ impl State {
     /// The returned `HashSet` includes `parent_aid`, its children,
     /// their children, and so on.
     ///
-    /// Used in the reclaimation algorithm in [`reclaim`].
+    /// Used in the reclamation algorithm in [`reclaim`].
     fn get_aid_and_children_recursively(&self, parent_aid: AId) -> HashSet<AId> {
         let mut out = HashSet::<AId>::new();
         let mut queue: Vec<AId> = vec![parent_aid];

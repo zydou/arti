@@ -15,7 +15,7 @@ use deferred_drop::{DeferredDrop, GuardWithDeferredDrop};
 /// On 64-bit systems, bigger than the refcounts, which are all `u32`
 type NumParticips = usize;
 
-//========== candiate victim analysis ==========
+//========== candidate victim analysis ==========
 
 /// The nominal data age of a participant
 #[derive(Ord, PartialOrd, Eq, PartialEq)]
@@ -109,14 +109,14 @@ fn analyse_particip(precord: &PRecord, defer_drop: &mut DeferredDrop) -> PStatus
     PStatus::NoData
 }
 
-//========== reclamation algorith, the main pieces ==========
+//========== reclamation algorithm, the main pieces ==========
 
 /// State while reclamation is active
 struct Reclaiming {
     /// The heap of candidates, oldest at top of heap
     heap: BinaryHeap<Reverse<(Age, AId)>>,
 
-    /// Make this type uninhbaited if memory tracking is compiled out
+    /// Make this type uninhabited if memory tracking is compiled out
     enabled: EnabledToken,
 }
 

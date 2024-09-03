@@ -176,7 +176,7 @@ macro_rules! impl_not_auto_value {
 /// value for the `foo` option.
 ///
 /// For example, f field `foo` defaults to `13` if feature `bar` is enabled,
-/// and `9000` otherise, a configuration with `foo` set to `"auto"` will
+/// and `9000` otherwise, a configuration with `foo` set to `"auto"` will
 /// behave in the "default" way regardless of which features are enabled.
 ///
 /// ```rust,ignore
