@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["expand-paths"]
 
-full = ["expand-paths", "fs-mistrust/full", "tor-basic-utils/full", "tor-error/full"]
+full = ["expand-paths", "fs-mistrust/full", "tor-basic-utils/full", "tor-error/full", "tor-rtcompat/full"]
 
 experimental = ["experimental-api"]
 # Enable experimental APIs that are not yet officially supported.

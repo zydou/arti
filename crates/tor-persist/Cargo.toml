@@ -18,7 +18,14 @@ state-dir = ["__is_experimental", "amplify", "fslock-guard"]
 # covered by semver.
 testing = ["__is_experimental"]
 
-full = ["fs-mistrust/full", "tor-error/full", "fslock-guard?/full", "tor-basic-utils/full", "tor-async-utils/full"]
+full = [
+    "fs-mistrust/full",
+    "tor-error/full",
+    "fslock-guard?/full",
+    "tor-basic-utils/full",
+    "tor-async-utils/full",
+    "oneshot-fused-workaround/full",
+]
 
 experimental = ["state-dir", "testing"]
 __is_experimental = []

@@ -30,7 +30,10 @@ full = [
     "tor-protover?/full",
     "tor-rtcompat/full",
     "tor-units/full",
-    "tor-async-utils/full", "tor-relay-selection/full", "tor-rtmock?/full",
+    "tor-async-utils/full",
+    "tor-relay-selection/full",
+    "tor-rtmock?/full",
+    "oneshot-fused-workaround/full",
 ]
 experimental = ["testing"]
 

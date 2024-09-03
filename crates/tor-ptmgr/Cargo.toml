@@ -25,7 +25,7 @@ full = [
     "tor-linkspec/full",
     "tor-rtcompat/full",
     "tor-socksproto/full",
-    "tor-async-utils/full", "tor-basic-utils/full",
+    "tor-async-utils/full", "tor-basic-utils/full", "oneshot-fused-workaround/full",
 ]
 
 experimental = ["experimental-api"]
