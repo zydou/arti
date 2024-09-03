@@ -432,7 +432,7 @@ pub enum ReadOnlyStorageError {
     NoDatabase,
 
     /// A schema version that is not current.
-    #[error("Incomaptible data storage schema v{schema}. (We expected v{supported})")]
+    #[error("Incompatible data storage schema v{schema}. (We expected v{supported})")]
     IncompatibleSchema {
         /// The schema version in the database
         schema: u32,

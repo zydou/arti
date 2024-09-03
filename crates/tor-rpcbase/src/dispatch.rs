@@ -101,7 +101,7 @@ type SpecialResultFuture = BoxFuture<'static, Box<dyn any::Any>>;
 // (This trait isn't sealed because there _are_ theoretical reasons
 // why you might want to provide a special implementation.)
 pub trait Invocable: Send + Sync + 'static {
-    /// Return the type of object that this Invokable will accept.
+    /// Return the type of object that this Invocable will accept.
     fn object_type(&self) -> any::TypeId;
     /// Return the type of method that this Invocable will accept.
     fn method_type(&self) -> any::TypeId;
@@ -568,7 +568,7 @@ impl_fn_type_of_fn_trait!(A B C D E F);
 
 /// Pretend to return a value of type `fn..` corresponding to an `impl Fn`
 ///
-/// Given a function implemneting `FnTypeOfFnTrait`, ie, any `Fn` closure,
+/// Given a function implementing `FnTypeOfFnTrait`, ie, any `Fn` closure,
 /// pretends that it would return a value of the corresponding `fn` type.
 ///
 /// Doesn't actually return a value (since that would be impossible):

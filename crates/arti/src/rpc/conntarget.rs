@@ -11,7 +11,7 @@ use tor_rtcompat::Runtime;
 /// Wrapper around an RPC object that can be used as a connection target,
 /// or around a TorClient if no RPC object is given.
 ///
-/// Provides an API similar to TorClient, for use when opening SOCKS connetions.
+/// Provides an API similar to TorClient, for use when opening SOCKS connections.
 pub(crate) enum ConnTarget<R: Runtime> {
     /// An RPC object with accompanying context.
     Rpc {

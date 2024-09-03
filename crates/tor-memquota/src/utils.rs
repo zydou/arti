@@ -1,4 +1,4 @@
-//! Miscellanous internal utilities
+//! Miscellaneous internal utilities
 
 use crate::internal_prelude::*;
 

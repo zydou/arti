@@ -39,7 +39,7 @@ async fn launch_one_hop_dir_circ<R: Runtime>(
             Ok(_) => println!("[+] Successful one-hop circuit to: {:?}", fp),
         };
     } else {
-        println!("Couldn not find a relay suitable for a directory request.");
+        println!("Could not find a relay suitable for a directory request.");
     }
     Ok(())
 }

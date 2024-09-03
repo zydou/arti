@@ -82,8 +82,8 @@ pub(crate) fn ipt_to_circtarget(
 #[non_exhaustive]
 pub enum InvalidTarget {
     /// The provided link specifiers included some that, when we tried to parse
-    /// them, proved to be misformed.
-    #[error("Misformed channel target information provided")]
+    /// them, proved to be malformed.
+    #[error("Malformed channel target information provided")]
     UnparseableChanTargetInfo(#[from] tor_bytes::Error),
 
     /// The provided link specifiers were inconsistent with one another, or missing

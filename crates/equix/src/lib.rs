@@ -113,7 +113,7 @@ impl EquiX {
     ///
     /// Returns a buffer with a variable number of solutions.
     ///
-    /// Allows re-use of solver memory. Preferred for callers which may perform
+    /// Allows reuse of solver memory. Preferred for callers which may perform
     /// several solve operations in rapid succession, such as in the common case
     /// of layering an effort adjustment protocol above Equi-X.
     pub fn solve_with_memory(&self, mem: &mut SolverMemory) -> SolutionArray {

@@ -19,7 +19,7 @@
 //!   * `deterministic` for an arbitrary seed that is the same on every run of
 //!     the program. (You can use this in cases where even a tiny chance of
 //!     stochastic behavior in your tests is unacceptable.)
-//!   * A hexadecimal string, to specify a given seed to re-use from a previous
+//!   * A hexadecimal string, to specify a given seed to reuse from a previous
 //!     test run.
 //!
 //! # WARNING

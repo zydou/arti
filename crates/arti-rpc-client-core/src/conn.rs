@@ -27,7 +27,7 @@ pub use connimpl::RpcConn;
 
 /// A handle to an open request.
 ///
-/// These handles are crated with [`RpcConn::execute_with_handle`].
+/// These handles are created with [`RpcConn::execute_with_handle`].
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub struct RequestHandle {

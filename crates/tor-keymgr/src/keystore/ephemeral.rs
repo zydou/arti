@@ -223,7 +223,7 @@ mod tests {
         assert!(key_store
             .insert(key().as_ref(), key_spec().as_ref(), key_type_bad())
             .is_err());
-        // further ensure theres is no sideffects
+        // further ensure there are no side effects
         assert!(!key_store
             .contains(key_spec().as_ref(), key_type_bad())
             .unwrap());
@@ -233,7 +233,7 @@ mod tests {
             .is_none());
         assert!(key_store.list().unwrap().is_empty());
 
-        // verify inserting a goood key succeeds
+        // verify inserting a good key succeeds
         assert!(key_store
             .insert(key().as_ref(), key_spec().as_ref(), key_type())
             .is_ok());

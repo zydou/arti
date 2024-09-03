@@ -42,14 +42,14 @@ done
 echo "Using toolchain +${RUST_FUZZ_TOOLCHAIN:=nightly}. (Override with \$RUST_FUZZ_TOOLCHAIN)"
 
 # Validate that "+${RUST_FUZZ_TOOLCHAIN}" is installed.  This will log a message to stderr
-# if it itsn't.
+# if it isn't.
 cargo "+${RUST_FUZZ_TOOLCHAIN}" -h >/dev/null
 
 # Validate that "cargo fuzz" is installed.
 cargo "+${RUST_FUZZ_TOOLCHAIN}" fuzz --help>/dev/null
 
 
-# Chdir to the source root diretory, and make sure we have the corpora checked out.
+# Chdir to the source root directory, and make sure we have the corpora checked out.
 cd "$(dirname "$0")/.."
 
 if ! test -d "./arti-corpora"; then

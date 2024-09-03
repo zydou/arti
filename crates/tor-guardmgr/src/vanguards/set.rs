@@ -375,7 +375,7 @@ impl From<&VanguardSet> for RelayIdSet {
     }
 }
 
-// Some acccessors we need in the VanguardMgr tests.
+// Some accessors we need in the VanguardMgr tests.
 #[cfg(test)]
 derive_deftly_adhoc! {
     VanguardSets expect items:

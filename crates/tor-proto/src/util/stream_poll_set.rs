@@ -120,7 +120,7 @@ where
     ///
     /// If the `key` is already in use, the parameters are returned without altering `self`.
     // To *replace* an existing key, we'd need to cancel any pending future and
-    // ensure that the cancelation is processed before inserting the new key, to
+    // ensure that the cancellation is processed before inserting the new key, to
     // ensure we don't assign a value from the previous key to the new key's
     // stream.
     pub fn try_insert(
@@ -345,7 +345,7 @@ where
         let Some(peekable) = self.ready_streams.get_mut(&(priority.clone(), key.clone())) else {
             return Some(Poll::Pending);
         };
-        // We don't have a waker registered here, so we can juse use the noop waker.
+        // We don't have a waker registered here, so we can just use the noop waker.
         // TODO: Create a mut future for `PeekableStream`.
         Some(Pin::new(peekable).poll_peek_mut(&mut Context::from_waker(noop_waker_ref())))
     }

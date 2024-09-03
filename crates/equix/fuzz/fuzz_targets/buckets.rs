@@ -150,7 +150,7 @@ fuzz_target!(|ex: Vec<Op>| {
     unsafe impl Uninit for MemLayout {}
     let mut ml = MemLayout::alloc();
 
-    // Re-use the MemLayout to run the same test inputs twice
+    // Reuse the MemLayout to run the same test inputs twice
     for _ in 0..2 {
         let mut shape1: Sim<'_, '_, 7, 12> = Sim::Pair {
             b: BucketArrayPair::new(&mut ml.mem1a, &mut ml.mem1b),

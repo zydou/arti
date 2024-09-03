@@ -78,7 +78,7 @@ struct Inner {
     /// If we later switch to "full" vanguards, those previous changes still
     /// won't be persisted to storage: we only flush to storage if the
     /// [`VanguardSets`] change *while* we are in "full" mode
-    /// (changing the [`VanguardMode`] does not consistute a change in the `VanguardSets`).
+    /// (changing the [`VanguardMode`] does not constitute a change in the `VanguardSets`).
     //
     // TODO HS-VANGUARDS: the correct behaviour here might be to never switch back to lite mode
     // after enabling full vanguards. If we do that, persisting the vanguard sets will be simpler,

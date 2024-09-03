@@ -52,7 +52,7 @@ enum ReclaimedErrorInner {
     #[default]
     Collapsed,
 
-    /// Othere error from tracker
+    /// Other error from tracker
     #[error("{0}")]
     TrackerError(#[from] Error),
 }

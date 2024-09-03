@@ -99,7 +99,7 @@ pub enum RequestError {
 
     /// Too much clock skew between us and the directory.
     ///
-    /// (We've givin up on this request early, since any directory that it
+    /// (We've giving up on this request early, since any directory that it
     /// believes in, we would reject as untimely.)
     #[error("Too much clock skew with directory cache")]
     TooMuchClockSkew,

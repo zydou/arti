@@ -77,7 +77,7 @@ that can function on a testing network.
     `Arc<dyn ExtendKeyProvider>` or `Arc<RwLock<ExtendKeys>>`
     may be in order. ([#1443])
 
-- A new `RelayCirc` type, crated by CREATE2 cells. ([#1445])
+- A new `RelayCirc` type, created by CREATE2 cells. ([#1445])
   - DESIGN: [How much code](#proto-objects) can this share internally
     with ClientCirc?
     The reactor logic is very similar,
@@ -102,7 +102,7 @@ that can function on a testing network.
     with publishing HS descriptors? 
   - Protocol changes may be needed to remove TAP keys from descriptors
     and microdescriptors ([torspec#264])
-     - Possible short-term workaround: Genearate RSA TAP key and then
+     - Possible short-term workaround: Generate RSA TAP key and then
        throw away the private half
 
 - Key management for relays. [#1449]
