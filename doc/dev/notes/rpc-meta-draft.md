@@ -90,6 +90,121 @@ We may eventually provide a way to make sessions persistent
 and allow apps to re-connect to a session,
 but that will not be the default.
 
+### Objects
+
+At any given time,
+a session has access to one or more "RPC Objects"
+(or just "Objects").
+For example, an Object may be a session,
+a circuit, a stream, an onion service,
+or the arti process itself.
+
+> In this document, Object means an RPC Object,
+> not a JSON document object.
+
+Each object is denoted by an opaque "Object ID".
+The format of an Object Identifier string is not stable,
+and clients must not rely on it.
+An Object ID is a sequence of printable non-space ASCII characters.
+
+Object IDs behave like capabilities:
+an application can use an object if and only if
+it has an ID for that object.
+
+Unless otherwise specified,
+an Object ID is session-local:
+an Object ID from one session can't be used in another session.
+(Either it refers to another object in that session,
+or it refers to no object at all.)
+
+(Some "externally visible" Object IDs
+_can_ be used outside of a session.
+These are used in order to integrate with SOCKS and similar protocols.)
+
+> TODO: In Arti, we call such IDs "exposed outside of session".
+> Should we rename them there or here?
+
+> At present (Sep 2024),
+> we guarantee that an externally visible object ID
+> will never contain a colon (`:`).
+> This may change if we change how we handle SOCKS request encoding.
+
+With a session,
+any given Object ID always refers to the same object,
+or to no object at all.
+(That is to say
+if an object ID `X` refers to some object within some session at time `T`,
+then at time `T+delta`,
+`X` will definitely not refer to any different object.)
+
+An Object ID can be "strong" or "weak".
+So long as a session holds a "strong" Object ID,
+Arti will not release the underlying object,
+or close it as unused.
+If a session holds a "weak" object ID,
+the underlying object may be released at any time.
+
+> TODO: "release" is a funny word here.
+> Many objects can be destroyed or enter a "closed" state
+> independent of what Arti wants:
+> for example, a circuit can be destroyed by any relay on the circuit,
+> or even by a network failure.
+
+> NOTE: Previously we referred to strong IDs as "handles"
+> and weak IDs as "references", but we did not do so consistently.
+>
+> At present (Sep 2024)
+> the RPC system supports weak IDs, but doesn't yet generate any.
+
+An Object ID never changes from strong to weak,
+or from weak to strong.
+Instead, functions that downgrade or upgrade Object IDs
+return a new Object ID.
+
+> At present (Sep 2024),
+> downgrade and upgrade aren't implemented.
+
+A strong Object ID can be "owning" or "non-owning".
+If an Object ID "owns" its object,
+then the relevant object will be destroyed
+(torn down, closed, etc)
+when the session closes.
+Otherwise, the object will continue to exist
+for the rest of its ordinary lifecycle.
+
+(For example, if a session owns a DataStream,
+and the session closes,
+then the DataStream will be closed even if it is still in use.)
+
+> TODO: "destroyed" is also a funny word here.
+> Can we come up with a better word that applies
+> to all of our things can be closed, torn down, destroyed,
+> deleted, expunged, etc?)
+>
+> Also TODO: "ordinary lifecycle" is a bit fuzzy.
+
+> At present (Sep 2024),
+> owning object IDs are not implemented.
+
+#### Objects and authentication
+
+When an application first connects to Arti,
+before it authenticates,
+it has access to only one object,
+which represents the RPC connection itself.
+The Object ID for this connection object is `connection`.
+The only operations available on an RPC connection
+are those necessary to authenticate.
+
+The application uses this connection object
+to authenticate with Arti.
+By doing so successfully,
+it receives an Object ID for a "session" object,
+which serves as a root capability
+for all other available functionality.
+
+(See discussion of authentication below.)
+
 
 ### Messages
 
@@ -100,6 +215,8 @@ Messages are sent one at a time in each direction,
 in an ordered stream.
 
 The application's messages are called "requests".
+Every request is directed to a single RPC Object.
+
 Arti's replies are called "responses".
 Every response will be in response to a single request.
 
@@ -133,38 +250,6 @@ we may define other encodings/framings in the future.
 > The message stream may not contain NUL (zero-valued) bytes.
 > This is not an additional requirement;
 > it is a consequence of the JSON data format.
-
-### Requests, Objects, and Visibility
-
-Every request is directed to some Object.
-(For example, an object may be a session,
-a circuit, a stream, an onion service,
-or the arti process itself.)
-In this document, Object means the target of a request;
-not a JSON document object.
-
-Only certain Objects are visible within a given session.
-When a session is first created,
-the session itself is the only Object visible.
-Other Objects may become visible
-in response to the application's requests.
-If an Object is not visible in a session,
-that session cannot access it.
-
-Clients identify each Object within a session
-by an opaque string, called an "Object Identifier".
-Each identifier may be a "handle" or a "reference".
-If a session has a _handle_ to an Object,
-Arti won't deliberately discard that Object
-until it the handle is "released",
-or the session is closed.
-If a session only has a _reference_ to an Object, however,
-that Object might be closed or discarded in the background,
-and there is no need to release it.
-
-The format of an Object Identifier string is not stable,
-and clients must not rely on it.
-
 
 ### Request and response types
 
