@@ -22,7 +22,7 @@ full = [
     "tor-bytes/full",
     "tor-llcrypto/full",
     "tor-proto/full",
-    "describe-methods",
+    "describe-methods", "oneshot-fused-workaround/full", "slotmap-careful/full",
 ]
 describe-methods = ["tor-rpcbase/describe-methods"]
 

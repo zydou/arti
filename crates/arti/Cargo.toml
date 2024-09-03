@@ -51,7 +51,7 @@ full = [
     "tor-rpcbase?/full",
     "tor-hsrproxy?/full",
     "tor-hsservice?/full",
-    "arti-relay?/full",
+    "arti-relay?/full", "tor-async-utils/full",
 ]
 
 async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "signal-hook", "signal-hook-async-std"]
@@ -88,8 +88,10 @@ compression = ["arti-client/compression"]
 
 # This feature flag enables experimental features that are not supported. Turning it on may
 # void your API.
-experimental = ["arti-client/experimental", "tor-hsservice/experimental", "experimental-api", "rpc", "relay", "keymgr"]
+experimental = ["arti-client/experimental", "tor-hsservice/experimental", "experimental-api", "rpc", "relay", "keymgr", "restricted-discovery"]
 rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
+
+# XXXX Mark as full, experimental, or non-additive!
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 __is_experimental = []
 

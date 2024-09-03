@@ -34,7 +34,7 @@ full = [
     "tor-rtcompat/full",
     "tor-geoip?/full",
     "tor-async-utils/full",
-    "tor-persist/full",
+    "tor-persist/full", "oneshot-fused-workaround/full",
 ]
 experimental = ["experimental-api", "dirfilter", "geoip"]
 bridge-client = ["tor-circmgr/specific-relay", "tor-guardmgr/bridge-client", "routerdesc"]

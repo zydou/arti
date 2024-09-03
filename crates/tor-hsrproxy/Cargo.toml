@@ -21,7 +21,7 @@ full = [
     "tor-hsservice/full",
     "tor-proto/full",
     "tor-rtcompat/full",
-    "tor-async-utils/full", "tor-log-ratelim/full",
+    "tor-async-utils/full", "tor-log-ratelim/full", "oneshot-fused-workaround/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
