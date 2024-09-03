@@ -91,7 +91,7 @@ the RPC subsystem, and relay infrastructure.
   match any number of lines in the `-c` help.
   ([#1509], [!2313])
 - Fix broken reference to `apt-install` script in the Shadow integration tests.
-  ([!2309]
+  ([!2309])
 - Add a Shadow integration test for restricted discovery mode. ([#1292],
   [!2272])
 - Don't explicitly set `storage.keystore.enabled` in the Shadow CI tests.
