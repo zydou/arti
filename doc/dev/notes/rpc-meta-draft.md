@@ -262,13 +262,13 @@ some are only suitable for one kind of Object.
 
 When we define a method,
 we state its name,
-and the names and types of the parameters `params`.
+and the names and types of its parameters `params`.
 and the expected contents of the successful `result`,
 and any `updates`s.
 
 Unrecognized parameters must be ignored.
-Indeed, any unrecognized fields in a JSON object must be ignored,
-both by the server and by the client.
+(Indeed, any unrecognized fields in a JSON object must be ignored,
+both by the server and by the client.)
 
 Invalid JSON
 and parameter values that do not match their specified types
