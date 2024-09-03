@@ -821,64 +821,6 @@ Arti will return an error.
 >     getstatus
 
 
-## Appendix: Some example APIs to wrap this
-
-Every library that wraps this API
-should probably follow a similar design
-(except when it makes sense to do so).
-
-There should probably be a low-level API
-that handles arbitrary raw JSON objects as requests and responses,
-along with a higher level library
-generated from our JSON schema[^schema].
-There should also be some even-higher-level functionality
-to navigate the authentication problem,
-and for functionality like opening streams.
-
-[^schema]: and by the way, we should have some schemas[^plural]
-[^plural]: Or schemata if you prefer that for the plural.
-
-### Generic, low-level
-
-I'm imagining that the low level
-of any arti-RPC client library
-will probably look a little like this:
-
-```
-type UrlLikeString = String;
-`/// Open the session, authenticate.
-fn open_session(UrlLikeString, prefs: ?) -> Result<Session>;
-
-type Request = JsonObj/String;
-type Response = JsonObj/String;
-enum ResponseType {Update, Error, Result};
-/// Run a request, block till it succeeds or fails
-fn do(Session, Request) -> Result<Response>;
-type Callback = fn(Response, VoidPtr);
-/// Launch a command, return immediately.  Invoke the callback whenever there
-/// is more info.
-fn launch(Session, Request, Callback, VoidPtr) -> Result<()>;
-
-// ---- These are even more low-level... not sure if they're
-//       a good idea.
-
-/// Send a request, and don't wait for a response.
-fn send(Session, RequestId, Request, Option<RequestMeta>) -> Result<()>;
-/// Read a response, if there is one to read.
-fn recv(Session, blocking: bool) -> Result<Response>;
-/// Return an fd that you can poll on to see if the session is ready
-/// to read bytes.
-fn poll_id(Session) -> Option<Fd>;
-```
-
-
-### In rust
-
-### In C
-
-### In Java
-
-
 
 ## Appendix
 
