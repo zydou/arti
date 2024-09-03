@@ -35,14 +35,35 @@ pub(super) struct ProxyInfo {
     pub(super) proxies: Vec<Proxy>,
 }
 
-/// RPC method: Get a list of the currently running proxies
-/// that are integrated with the RPC system.
+/// RPC method: Get a list of all the currently running proxies.
+///
+/// This method should not be used when deciding which proxy
+/// an RPC application should connect to.  Instead it should use
+/// [`arti:get_rpc_proxy_info`](GetRpcProxyInfo).
 #[derive(Debug, serde::Deserialize, derive_deftly::Deftly)]
 #[derive_deftly(rpc::DynMethod)]
-#[deftly(rpc(method_name = "arti:x_get_proxy_info"))]
+#[deftly(rpc(method_name = "arti:get_proxy_info"))]
 struct GetProxyInfo {}
 
+/// RPC method: Get a list of the currently running proxies
+/// that are integrated with the RPC system.
+///
+/// This method returns a list of proxies.
+/// The RPC application may be not be able to use all proxies from the list,
+/// and may prefer some proxies over other.
+/// When multiple proxies are equally preferred,
+/// the application SHOULD use whichever appears first in the list.
+#[derive(Debug, serde::Deserialize, derive_deftly::Deftly)]
+#[derive_deftly(rpc::DynMethod)]
+#[deftly(rpc(method_name = "arti:get_rpc_proxy_info"))]
+struct GetRpcProxyInfo {}
+
 impl rpc::RpcMethod for GetProxyInfo {
+    type Output = ProxyInfo;
+    type Update = rpc::NoUpdates;
+}
+
+impl rpc::RpcMethod for GetRpcProxyInfo {
     type Output = ProxyInfo;
     type Update = rpc::NoUpdates;
 }
@@ -78,3 +99,18 @@ async fn rpc_session_get_proxy_info(
     }
 }
 rpc::static_rpc_invoke_fn! {rpc_session_get_proxy_info;}
+
+/// Implementation for GetProxyInfo on ArtiRpcSession.
+async fn rpc_session_get_rpc_proxy_info(
+    session: Arc<ArtiRpcSession>,
+    _method: Box<GetProxyInfo>,
+    _ctx: Arc<dyn rpc::Context>,
+) -> Result<ProxyInfo, GetProxyInfoError> {
+    let proxy_info = session.arti_state.get_proxy_info().await;
+
+    match proxy_info {
+        Ok(info) => Ok((*info).clone()),
+        Err(()) => Err(GetProxyInfoError::Shutdown),
+    }
+}
+rpc::static_rpc_invoke_fn! {rpc_session_get_rpc_proxy_info;}
