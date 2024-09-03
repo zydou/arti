@@ -1,6 +1,6 @@
 [package]
 name = "tor-async-utils"
-version = "0.21.0"
+version = "0.22.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -23,8 +23,8 @@ void = "1"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 tokio = { version = "1.7", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
-tor-rtcompat = { version = "0.21.0", path = "../tor-rtcompat" }
-tor-rtmock = { path = "../tor-rtmock", version = "0.21.0" }
+tor-rtcompat = { version = "0.22.0", path = "../tor-rtcompat" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.22.0" }
 
 [features]
 full = []

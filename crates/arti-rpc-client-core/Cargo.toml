@@ -1,6 +1,6 @@
 [package]
 name = "arti-rpc-client-core"
-version = "0.21.0"
+version = "0.22.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -31,7 +31,7 @@ void = "1"
 rand = "0.8"
 rand_chacha = "0.3"
 socketpair = "0.19"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.21.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
 
 [features]
 full = ["ffi", "caret/full"]
