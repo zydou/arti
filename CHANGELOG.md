@@ -278,6 +278,8 @@ for funding the development of Arti!
 [proposal 324]: https://spec.torproject.org/proposals/324-rtt-congestion-control.html
 [proposal 340]: https://spec.torproject.org/proposals/340-packed-and-fragmented.html
 
+
+
 # Arti 1.2.6 — 1 August 2024
 
 Arti 1.2.6 continues development on onion service client authorization,
