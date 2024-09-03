@@ -415,26 +415,27 @@ Any given response will have exactly one of
 
 ##### Method namespacing
 
-Any method name containing a colon belongs to a namespace.
-The namespace of a method is everything up to the first colon.
+All methods names consist of a namespace and an identifier.
+Both should be valid C identifiers.
+The namespace and identifier are separated by a colon.
 (For example, the method name `arti:connect`
-is in the namespace `arti`.
-The method name `gettype` is not in any namespace.)
+is in the namespace `arti`, and has the identifier `connect`.)
 
-Only this spec MAY declare non-namespaced methods.
-All methods defined elsewhere SHOULD be in a namespace.
+> All methods appear in a namespace;
+> there are no un-namespaced methods.
 
 Right now, the following namespaces are reserved:
 
 * `arti` — For use by the Arti tor implementation project.
 * `auth` — Defined in this spec; for authenticating an initial session.
+* `rpc` — Defined in this spec.
 
 To reserve a namespace, open a merge request to change the list above.
 
-Namespaces starting with `x-` will never be allocated.
+Namespaces starting with `x_` will never be allocated.
 They are reserved for experimental use.
 
-Method names starting with `x-` indicate
+Method names starting with `x_` indicate
 experimental or unstable status:
 any code using them should expect to be unstable.
 
