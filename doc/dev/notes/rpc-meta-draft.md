@@ -1,34 +1,43 @@
 # Arti RPC protocol design
 
-### Status
+## Preliminaries
 
-This is a draft document.
-It does not reflect anything we've built,
-or anything we necessarily will build.
+### Document status
 
-It attempts to describe semantics for an RPC mechanism
-for use in Arti.
+This document is a work in progress.
+It describes our RPC system as we've designed it,
+but it includes some pieces that are not yet built,
+or not yet built correctly.
 
-By starting with our RPC mechanism
-and its semantics,
-we aim to define a set of operations
-that we can implement reasonably
-for both local and out-of-process use.
+Where possible,
+we'll try to describe what is implemented
+and what is not.
 
-This document will begin by focusing
-on the _semantics_ of our RPC system
-using an abstract stream of objects.
+### Goals and organization
 
-Once those are defined, we'll discuss
-a particular instantiation of the system
-using the `jsonlines` encoding:
-we intend that other encodings should also be possible,
-in case we need to change in the future.
+This document tries to sketch our RPC protocol.
+It is not a substitute for a more formal specification;
+nonetheless, it should give enough detail
+to help keep our planning in sync
+as we build our RPC implementation
+and its consumers.
 
-Finally, we will describe an initial series of methods
-that the system could support,
-to start exploring the design space, and
-to show what our specifications might look like going forward,
+This document does not discuss internal implementation details:
+Although there are some interesting challenges
+in implementing this protocol inside Arti,
+they are not part of the protocol itself.
+
+What we do cover are:
+
+* The semantics underlying the RPC system,
+  its objects, and its messages.
+* The protocol (based on `jsonlines`) that we
+  use to send the messages described above.
+* A few of the methods currently implemented
+  by the RPC system in Arti,
+  along with other methods we expect to implement in the future.
+* The protocol extension(s) we use to integrate the RPC system
+  with SOCKS5 (or later, HTTP CONNECT).
 
 ## Intended semantics
 
