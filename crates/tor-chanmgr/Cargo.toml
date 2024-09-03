@@ -44,7 +44,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 educe = "0.4.6"
 futures = "0.3.14"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.21.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.1.0" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 safelog = { path = "../safelog", version = "0.3.6" }

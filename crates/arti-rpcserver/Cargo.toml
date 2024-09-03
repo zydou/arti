@@ -36,7 +36,7 @@ derive-deftly = "0.14"
 derive_more = "0.99.3"
 erased-serde = "0.4.2"
 futures = "0.3.14"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.21.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.1.0" }
 pin-project = "1"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
