@@ -16,8 +16,6 @@ the RPC subsystem, and relay infrastructure.
   and `DescEncryptionConfig`, `DescEncryptionConfig`,
   `AuthorizedClientConfig,` and `AuthorizedClientParseError` are removed.
   ([!2266])
-- In [`tor-memquota`], `MemoryQuotaTracker::new` is now gated behind
-  the `memquota` feature. ([d04d130f0155eae98bc6e9d532f09ae3bfd308c4])
 - In [`tor-ptmgr`], `PtClientMethod` is now exported from the top-level.
   ([5774dd456265ef4cb8771342538a07ba76e5a5d9])
 
@@ -71,10 +69,9 @@ the RPC subsystem, and relay infrastructure.
   "client authorization"). ([#1292], [!2266], [!2336], [!2316])
 - Add support for live-reloading the restricted discovery configuration.
   ([#1505], [!2329], [!2353], [!2369])
-- Design work for a new `InertTorClient` API for accessing keys
-  and persistent state. ([!2314])
 - Provide an MPSC queue with memory quota tracking. ([#351], [!2292])
-- Make arrangements in `tor-memquota` for memory tracking to be optional.
+- Make arrangements in `tor-memquota` for memory tracking to be optional,
+  and gate `MemoryQuotaTracker::new` behind the `memquota` feature.
   ([!2351])
 
 ### Minor features
@@ -85,7 +82,8 @@ the RPC subsystem, and relay infrastructure.
   ([72c3a1a661284844806b34e9ca5e81a43b8d0913], [!2324])
 - In [`tor-ptmgr`], make managed pluggable transports optional.
   ([#1334], [!2354])
-- Add an [`InertTorClient`] for accessing client state. ([#1496], [!2370])
+- Add an [`InertTorClient`] for accessing client state. ([#1496], [!2370],
+  [!2314])
 
 ### Testing
 - Make the `hsc` subcommand documentation serve as a test case. ([!2304])
