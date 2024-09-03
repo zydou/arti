@@ -31,7 +31,7 @@ the RPC subsystem, and relay infrastructure.
   ([#1512], [#1511], [!2315])
 - Add support for request handles in our FFI code. ([!2317])
 - Add an unstable RPC method to list every RPC method. ([!2332])
-- Build arti-rpc-client-core as a C dynamic library. ([!2331])
+- Build [`arti-rpc-client-core`] as a C dynamic library. ([!2331])
 - Use more sophisticated handling for `ConnectionError`s in `arti-rpcserver`.
   ([#1517], [!2335])
 - New `slotmap-careful` crate to use when we mustn't re-use keys. ([!2298])
