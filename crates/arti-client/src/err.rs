@@ -121,7 +121,7 @@ pub_if_error_detail! {
 #[non_exhaustive]
 enum ErrorDetail {
     /// Error setting up the memory quota tracker
-    #[error("Error setting up the memory quota trackerr")]
+    #[error("Error setting up the memory quota tracker")]
     MemQuotaSetup(#[from] tor_memquota::StartupError),
 
     /// Error setting up the channel manager
