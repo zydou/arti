@@ -45,7 +45,7 @@ pub struct Config(pub(crate) IfEnabled<ConfigInner>);
 
 /// Configuration for a memory data tracker (builder)
 //
-// We could perhaps generate this with `#[derive(Builder)]` on `CnfigInner`,
+// We could perhaps generate this with `#[derive(Builder)]` on `ConfigInner`,
 // but derive-builder would need a *lot* of overriding attributes;
 // and, doing it this way lets us write separate docs about
 // the invariants on our fields, which are not the same as those in the builder.
