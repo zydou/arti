@@ -107,7 +107,7 @@ macro_rules! ssh_to_internal_erased {
     }};
 }
 
-/// Try to convert an [`Ed25519Keypair`] to an [`ed25519::Keypair`].
+/// Try to convert an [`Ed25519Keypair`](ssh_key::private::Ed25519Keypair) to an [`ed25519::Keypair`].
 // TODO remove this allow?
 // clippy wants this whole function to be infallible because
 // nowadays ed25519::Keypair can be made infallibly from bytes,
@@ -118,7 +118,7 @@ fn convert_ed25519_kp(key: &ssh_key::private::Ed25519Keypair) -> Result<ed25519:
         .map_err(|_| internal!("bad ed25519 keypair"))?)
 }
 
-/// Try to convert an [`OpaqueKeypair`] to a [`curve25519::StaticKeypair`].
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to a [`curve25519::StaticKeypair`].
 fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519::StaticKeypair> {
     let public: [u8; 32] = key
         .public
@@ -138,7 +138,7 @@ fn convert_x25519_kp(key: &ssh_key::private::OpaqueKeypair) -> Result<curve25519
     })
 }
 
-/// Try to convert an [`OpaqueKeypair`] to an [`ed25519::ExpandedKeypair`].
+/// Try to convert an [`OpaqueKeypair`](ssh_key::private::OpaqueKeypair) to an [`ed25519::ExpandedKeypair`].
 fn convert_expanded_ed25519_kp(
     key: &ssh_key::private::OpaqueKeypair,
 ) -> Result<ed25519::ExpandedKeypair> {
@@ -160,13 +160,13 @@ fn convert_expanded_ed25519_kp(
     Ok(keypair)
 }
 
-/// Try to convert an [`Ed25519PublicKey`] to an [`ed25519::PublicKey`].
+/// Try to convert an [`Ed25519PublicKey`](ssh_key::public::Ed25519PublicKey) to an [`ed25519::PublicKey`].
 fn convert_ed25519_pk(key: &ssh_key::public::Ed25519PublicKey) -> Result<ed25519::PublicKey> {
     Ok(ed25519::PublicKey::from_bytes(key.as_ref())
         .map_err(|_| internal!("bad ed25519 public key "))?)
 }
 
-/// Try to convert an [`OpaquePublicKey`] to an [`ed25519::PublicKey`].
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to an [`ed25519::PublicKey`].
 ///
 /// This function always returns an error because the custom `ed25519-expanded@spec.torproject.org`
 /// SSH algorithm should not be used for ed25519 public keys (only for expanded ed25519 key
@@ -180,7 +180,7 @@ fn convert_expanded_ed25519_pk(
     .into())
 }
 
-/// Try to convert an [`OpaquePublicKey`] to a [`curve25519::PublicKey`].
+/// Try to convert an [`OpaquePublicKey`](ssh_key::public::OpaquePublicKey) to a [`curve25519::PublicKey`].
 fn convert_x25519_pk(key: &ssh_key::public::OpaquePublicKey) -> Result<curve25519::PublicKey> {
     let public: [u8; 32] = key
         .as_ref()
