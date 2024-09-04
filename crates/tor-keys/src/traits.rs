@@ -5,7 +5,7 @@ use rand::RngCore;
 use ssh_key::{
     private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData, OpaqueKeypair},
     public::{Ed25519PublicKey, KeyData, OpaquePublicKey},
-    rand_core::CryptoRngCore,
+    rand_core::CryptoRng,
     Algorithm, AlgorithmName,
 };
 use tor_error::internal;
@@ -21,9 +21,9 @@ use crate::{
 };
 
 /// A random number generator for generating [`EncodableKey`]s.
-pub trait KeygenRng: RngCore + CryptoRngCore {}
+pub trait KeygenRng: RngCore + CryptoRng {}
 
-impl<T> KeygenRng for T where T: RngCore + CryptoRngCore {}
+impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
 
 /// A trait for generating fresh keys.
 pub trait Keygen {

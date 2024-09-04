@@ -131,11 +131,11 @@ define_derive_deftly! {
     }
 
     impl $crate::Keygen for $ttype {
-        fn generate(rng: &mut dyn $crate::KeygenRng) -> $crate::Result<Self>
+        fn generate(mut rng: &mut dyn $crate::KeygenRng) -> $crate::Result<Self>
         where
             Self: Sized
         {
-            Ok(Self { $KP_NAME: tor_llcrypto::pk::ed25519::Keypair::generate(rng) })
+            Ok(Self { $KP_NAME: tor_llcrypto::pk::ed25519::Keypair::generate(&mut rng) })
         }
     }
 
