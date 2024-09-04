@@ -23,4 +23,5 @@ $CARGO update \
       -p filetime \
       -p num-bigint:0.4.0 \
       -p tap:1.0.0 \
-      -p futures-lite:1.0.0
+      -p futures-lite:1.0.0 \
+      -p paste:1.0.0
