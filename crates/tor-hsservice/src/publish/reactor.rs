@@ -1079,7 +1079,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Unconditionally update the `PublishStatus` of the reactor with `new_state`.
-    async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), FatalError> {
+    async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), Bug> {
         let onion_status = match new_state {
             PublishStatus::Idle => None,
             PublishStatus::UploadScheduled
@@ -1262,7 +1262,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let duration_since_upload = now.duration_since(ts);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
-                return self.start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD).await;
+                return Ok(self.start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD).await?);
             }
         }
 
@@ -1705,7 +1705,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Stop publishing descriptors until the specified delay elapses.
-    async fn start_rate_limit(&mut self, delay: Duration) -> Result<(), FatalError> {
+    async fn start_rate_limit(&mut self, delay: Duration) -> Result<(), Bug> {
         if !matches!(self.status(), PublishStatus::RateLimited(_)) {
             debug!(
                 "We are rate-limited for {}; pausing descriptor publication",
@@ -1720,7 +1720,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Handle the upload rate-limit being lifted.
-    async fn expire_rate_limit(&mut self) -> Result<(), FatalError> {
+    async fn expire_rate_limit(&mut self) -> Result<(), Bug> {
         debug!("We are no longer rate-limited; resuming descriptor publication");
         self.update_publish_status(PublishStatus::UploadScheduled)
             .await?;
