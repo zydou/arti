@@ -61,9 +61,13 @@ full = [
 
 async-std = ["tor-rtcompat/async-std"]
 bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
+memquota = ["tor-memquota/memquota", "__is_experimental"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
+
+# Expose interfaces useful for testing
+testing = ["__is_experimental", "visibility"]
 
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),
@@ -92,7 +96,9 @@ experimental = [
     "experimental-api",
     "error_detail",
     "geoip",
+    "memquota",
     "rpc",
+    "testing",
     "tor-proto/experimental",
     "tor-netdoc/experimental",
     "tor-dirmgr/experimental",
@@ -151,6 +157,8 @@ tor-hsservice = { path = "../tor-hsservice", version = "0.22.0", optional = true
 tor-keymgr = { path = "../tor-keymgr", version = "0.22.0", default-features = false }
 tor-linkspec = { path = "../tor-linkspec", version = "0.22.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.22.0" }
+# tor-memquota dependency is unconditional, but most of the code is behind tor-memquota/memquota
+tor-memquota = { path = "../tor-memquota", version = "0.22.0" }
 tor-netdir = { path = "../tor-netdir", version = "0.22.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.22.0" }
 tor-persist = { path = "../tor-persist", version = "0.22.0" }
@@ -159,6 +167,7 @@ tor-ptmgr = { path = "../tor-ptmgr", version = "0.22.0", optional = true }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.22.0", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.22.0" }
 tracing = "0.1.36"
+visibility = { version = "0.1.0", optional = true }
 void = "1"
 
 [dev-dependencies]

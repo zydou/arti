@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.72"
-arti-client = { path = "../../../crates/arti-client", features = ["bridge-client", "pt-client", "experimental"] }
+arti-client = { path = "../../../crates/arti-client", features = ["bridge-client", "pt-client", "experimental-api"] }
 axum = "0.6.19"
 clap = { version = "4.3.21", features = ["derive", "wrap_help"] }
 futures = "0.3.28"
@@ -18,7 +18,7 @@ tokio = { version = "1.7", features = ["full"] }
 tor-chanmgr = { path = "../../../crates/tor-chanmgr", features = ["pt-client", "experimental-api"] }
 tor-error = { path = "../../../crates/tor-error" }
 tor-guardmgr = { path = "../../../crates/tor-guardmgr", features = ["full"] }
-tor-proto = { path = "../../../crates/tor-proto" }
+tor-proto = { path = "../../../crates/tor-proto", features = ["experimental"] }
 tor-rtcompat = { path = "../../../crates/tor-rtcompat" }
 tracing-subscriber = "0.3.17"
 

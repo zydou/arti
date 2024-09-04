@@ -2,7 +2,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```cfg(feature = "memquota")
 //! use std::{collections::VecDeque, sync::{Arc, Mutex}};
 //! use tor_rtcompat::{CoarseInstant, CoarseTimeProvider, PreferredRuntime};
 //! use tor_memquota::{mtracker, MemoryQuotaTracker, MemoryReclaimedError, EnabledToken};
@@ -386,7 +386,7 @@ struct Global {
     total_used: TotalQtyNotifier,
 
     /// Configuration
-    config: Config,
+    config: ConfigInner,
 
     /// Make this type uninhabited if memory tracking is compiled out
     #[allow(dead_code)]
@@ -536,9 +536,10 @@ macro_rules! find_in_tracker_eh {
 
 impl MemoryQuotaTracker {
     /// Set up a new `MemoryDataTracker`
-    #[cfg(feature = "memquota")]
     pub fn new<R: Spawn>(runtime: &R, config: Config) -> Result<Arc<Self>, StartupError> {
-        let enabled = EnabledToken::new();
+        let Enabled(config, enabled) = config.0 else {
+            return Ok(MemoryQuotaTracker::new_noop());
+        };
 
         let (reclaim_tx, reclaim_rx) = mpsc::channel(0 /* plus num_senders, ie 1 */);
         let total_used = TotalQtyNotifier::new_zero(reclaim_tx);
@@ -559,6 +560,61 @@ impl MemoryQuotaTracker {
         runtime.spawn(reclaim::task(for_task, reclaim_rx, enabled))?;
 
         Ok(tracker)
+    }
+
+    /// Reconfigure
+    pub fn reconfigure(
+        &self,
+        new_config: Config,
+        how: tor_config::Reconfigure,
+    ) -> Result<(), ReconfigureError> {
+        use tor_config::Reconfigure;
+
+        let state = self.lock().map_err(into_internal!(
+            "cannot reconfigure corrupted memquota tracker"
+        ))?;
+
+        let (state, new_config) = match (state, new_config.0) {
+            (Noop, Noop) => return Ok(()),
+            (Noop, Enabled(..)) => return how.cannot_change(
+                // TODO #1577 (3) this isn't the `field` wanted by `cannot_change`
+ "tor-memquota max (`system.memory.max`) cannot be set: cannot enable memory quota tracking, when disabled at program start"
+            ),
+            (Enabled(state, _enabled), new_config) => {
+                let new_config = new_config.into_enabled().unwrap_or(
+                    // If the new configuration is "Noop", set the limit values to MAX
+                    // so we will never think we want to reclaim.
+                    // We don't replace ourselves with a Noop or something,
+                    // in case the user wants to re-enable tracking.
+                    ConfigInner {
+                        max: Qty::MAX,
+                        low_water: Qty::MAX,
+                    },
+                );
+
+                (state, new_config)
+            },
+        };
+
+        // Bind state mutably only if we're supposed to actually be modifying anything
+        let mut state = match how {
+            Reconfigure::CheckAllOrNothing => return Ok(()),
+            Reconfigure::AllOrNothing | Reconfigure::WarnOnFailures => state,
+            _ => Err(internal!("Reconfigure variant unknown! {how:?}"))?, // TODO #1577 (1)
+        };
+
+        let global = &mut state.global;
+        global.config = new_config;
+
+        // If the new limit is lower, we might need to start reclaiming:
+        global.total_used.maybe_wakeup(&global.config);
+
+        // If the new low_water is higher, we might need to *stop* reclaiming.
+        // We don't have a way to abort an ongoing reclaim request,
+        // but the usage vs low_water will be rechecked before we reclaim
+        // from another Participant, which will be sufficient.
+
+        Ok(())
     }
 
     /// Returns an estimate of the total memory use

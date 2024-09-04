@@ -239,6 +239,7 @@ dependencies = [
  "tor-error",
  "tor-hsrproxy",
  "tor-hsservice",
+ "tor-memquota",
  "tor-rpcbase",
  "tor-rtcompat",
  "tor-rtmock",
@@ -317,6 +318,7 @@ dependencies = [
  "tor-keymgr",
  "tor-linkspec",
  "tor-llcrypto",
+ "tor-memquota",
  "tor-netdir",
  "tor-netdoc",
  "tor-persist",
@@ -327,6 +329,7 @@ dependencies = [
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
+ "visibility",
  "void",
 ]
 
@@ -1070,6 +1073,7 @@ dependencies = [
  "clap",
  "tokio",
  "tor-error",
+ "tor-proto",
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
@@ -5684,7 +5688,6 @@ name = "tor-memquota"
 version = "0.22.0"
 dependencies = [
  "derive-deftly",
- "derive_builder_fork_arti",
  "derive_more",
  "educe",
  "futures",
@@ -5692,6 +5695,7 @@ dependencies = [
  "pin-project",
  "rand",
  "serde",
+ "serde_json",
  "slotmap",
  "static_assertions",
  "thiserror",
@@ -5704,6 +5708,7 @@ dependencies = [
  "tor-rtmock",
  "tracing",
  "tracing-test",
+ "visibility",
  "void",
 ]
 

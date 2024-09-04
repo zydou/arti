@@ -39,20 +39,26 @@ impl TotalQtyNotifier {
         &mut self,
         precord: &mut PRecord,
         want: Qty,
-        config: &Config,
+        config: &ConfigInner,
     ) -> crate::Result<ClaimedQty> {
         let got = self
             .total_used
             .claim(&mut precord.used, want)
             .ok_or_else(|| internal!("integer overflow attempting to add claim {}", want))?;
+        self.maybe_wakeup(config);
+        Ok(got)
+    }
+
+    /// Check to see if we need to wake up the reclamation task, and if so, do so
+    pub(super) fn maybe_wakeup(&mut self, config: &ConfigInner) {
         if self.total_used > config.max {
             match self.reclamation_task_wakeup.try_send(()) {
-                Ok(()) => Ok(()),
-                Err(e) if e.is_full() => Ok(()),
-                Err(e) => Err(into_internal!("could not notify reclamation task!")(e)),
-            }?;
+                Ok(()) => {}
+                Err(e) if e.is_full() => {}
+                // reactor shutting down, having dropped reclamation task?
+                Err(e) => debug!("could not notify reclamation task: {e}"),
+            };
         }
-        Ok(got)
     }
 
     /// Declare this poisoned, and prevent further claims

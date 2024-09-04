@@ -30,9 +30,9 @@
 //! }
 //!
 //! let runtime = PreferredRuntime::create().unwrap();
-//! let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();
 #![cfg_attr(
     feature = "memquota",
+    doc = "let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();",
     doc = "let trk = MemoryQuotaTracker::new(&runtime, config).unwrap();"
 )]
 #![cfg_attr(

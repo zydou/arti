@@ -152,7 +152,17 @@ impl_standard_builder! { ProxyConfig }
 
 /// Configuration for system resources used by Tor.
 ///
-/// You cannot change this section on a running Arti client.
+/// You cannot change *these variables* in this section on a running Arti client.
+///
+/// Note that there are other settings in this section,
+/// in [`arti_client::config::SystemConfig`].
+//
+// These two structs exist because:
+//
+//  1. Our doctrine is that configuration structs live with the code that uses the info.
+//  2. tor-memquota's configuration is used by the MemoryQuotaTracker in TorClient
+//  3. File descriptor limits are enforced here in arti because it's done process-global
+//  4. Nevertheless, logically, these things want to be in the same section of the file.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
@@ -236,6 +246,10 @@ pub struct ArtiConfig {
     rpc: RpcConfig,
 
     /// Information on system resources used by Arti.
+    ///
+    /// Note that there are other settings in this section,
+    /// in [`arti_client::config::SystemConfig`] -
+    /// these two structs overlay here.
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
@@ -340,6 +354,9 @@ mod test {
     use std::iter;
     use std::time::Duration;
     use tor_config::load::{ConfigResolveError, ResolutionResults};
+
+    #[allow(unused_imports)] // depends on features
+    use tor_error::ErrorReport as _;
 
     #[cfg(feature = "restricted-discovery")]
     use {
@@ -550,6 +567,18 @@ mod test {
             &[
                 // Settings only available with experimental-api support
                 "storage.keystore",
+            ],
+        );
+
+        declare_exceptions(
+            None,
+            None, // it's there, but not formatted for auto-testing
+            Recognized,
+            &[
+                // Memory quota, tested by fn memquota (below)
+                "system.memory",
+                "system.memory.max",
+                "system.memory.low_water",
             ],
         );
 
@@ -1149,6 +1178,55 @@ example config file {which:?}, uncommented={uncommented:?}
     }
 
     #[test]
+    fn memquota() {
+        // Test that uncommenting the example generates a config
+        // with tracking enabled, iff support is compiled in.
+
+        let mut file = ExampleSectionLines::from_string(ARTI_EXAMPLE_CONFIG);
+        file.narrow((r"^\[system\]", true), (r"^\[", false));
+        file.lines.retain(|line| {
+            [
+                //
+                "[",
+                "#    memory.",
+            ]
+            .iter()
+            .any(|t| line.starts_with(t))
+        });
+
+        file.strip_prefix("#    ");
+
+        let result = file.resolve_return_results::<(TorClientConfig, ArtiConfig)>();
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "memquota")] {
+                let result = result.unwrap();
+
+                // Test that the example config doesn't have any unrecognised keys
+                assert_eq!(result.unrecognized, []);
+                assert_eq!(result.deprecated, []);
+
+                let inner: &tor_memquota::testing::ConfigInner =
+                    result.value.0.system_memory().inner().unwrap();
+
+                // Test that the example low_water is the default
+                // value for the example max.
+                let defaulted_low = tor_memquota::Config::builder()
+                    .max(*inner.max)
+                    .build()
+                    .unwrap();
+                let inner_defaulted_low = defaulted_low.inner().unwrap();
+                assert_eq!(inner, inner_defaulted_low);
+            } else {
+                // Test that requesting memory quota tracking generates a config error
+                // if support is compiled out.
+                let m = result.unwrap_err().report().to_string();
+                assert!(m.contains("cargo feature `memquota` disabled"), "{m:?}");
+            }
+        }
+    }
+
+    #[test]
     fn onion_services() {
         // Here we require that the onion services configuration is between a
         // line labeled with `#     [onion_service."allium-cepa"]` and
@@ -1349,10 +1427,17 @@ example config file {which:?}, uncommented={uncommented:?}
             self.strip_prefix("#");
         }
 
-        /// Remove `prefix` from the start of every line that begins with it.
+        /// Remove `prefix` from the start of every line.
+        ///
+        /// If there are lines that *don't* start with `prefix`, crash.
+        ///
+        /// But, lines starting with `[` are left unchanged, in any case.
+        /// (These are TOML section markers; changing them would change the TOML structure.)
         fn strip_prefix(&mut self, prefix: &str) {
             for l in &mut self.lines {
-                *l = l.strip_prefix(prefix).expect(l).to_string();
+                if !l.starts_with('[') {
+                    *l = l.strip_prefix(prefix).expect(l).to_string();
+                }
             }
         }
 
@@ -1376,6 +1461,11 @@ example config file {which:?}, uncommented={uncommented:?}
 
         fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
             tor_config::load::resolve(self.parse())
+        }
+        fn resolve_return_results<R: tor_config::load::Resolvable>(
+            &self,
+        ) -> Result<ResolutionResults<R>, ConfigResolveError> {
+            tor_config::load::resolve_return_results(self.parse())
         }
     }
 

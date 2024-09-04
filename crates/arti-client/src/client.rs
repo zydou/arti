@@ -21,6 +21,7 @@ use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{error_report, internal, Bug};
 use tor_guardmgr::{GuardMgr, RetireCircuits};
+use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 #[cfg(feature = "onion-service-service")]
 use tor_persist::state_dir::StateDirectory;
@@ -90,6 +91,8 @@ pub struct TorClient<R: Runtime> {
     client_isolation: IsolationToken,
     /// Connection preferences.  Starts out as `Default`,  Inherited by our clones.
     connect_prefs: StreamPrefs,
+    /// Memory quota tracker
+    memquota: Arc<MemoryQuotaTracker>,
     /// Channel manager, used by circuits etc.,
     ///
     /// Used directly by client only for reconfiguration.
@@ -686,6 +689,8 @@ impl<R: Runtime> TorClient<R> {
             .into());
         }
 
+        let memquota = MemoryQuotaTracker::new(&runtime, config.system.memory.clone())?;
+
         let (state_dir, mistrust) = config.state_dir()?;
 
         let dormant = DormantMode::Normal;
@@ -823,6 +828,7 @@ impl<R: Runtime> TorClient<R> {
             runtime,
             client_isolation,
             connect_prefs: Default::default(),
+            memquota,
             chanmgr,
             circmgr,
             dirmgr_store,
@@ -1037,6 +1043,10 @@ impl<R: Runtime> TorClient<R> {
         if state_cfg != self.statemgr.path() {
             how.cannot_change("storage.state_dir").map_err(wrap_err)?;
         }
+
+        self.memquota
+            .reconfigure(new_config.system.memory.clone(), how)
+            .map_err(wrap_err)?;
 
         let retire_circuits = self
             .circmgr

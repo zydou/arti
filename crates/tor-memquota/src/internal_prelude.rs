@@ -37,7 +37,6 @@ pub(crate) use futures::{
 };
 
 pub(crate) use {
-    derive_builder::Builder,
     derive_deftly::{define_derive_deftly, Deftly},
     derive_more::{Constructor, Deref, DerefMut},
     educe::Educe,
@@ -46,21 +45,21 @@ pub(crate) use {
     slotmap::SlotMap,
     static_assertions::assert_not_impl_any,
     thiserror::Error,
-    tracing::{error, info},
+    tracing::{debug, error, info},
     void::{ResultVoidExt as _, Void},
 };
 
 pub(crate) use {
     tor_async_utils::stream_peek::StreamUnobtrusivePeeker,
     tor_basic_utils::ByteQty as Qty,
-    tor_config::ConfigBuildError,
+    tor_config::{ConfigBuildError, ReconfigureError},
     tor_error::{error_report, internal, into_internal, Bug, ErrorKind, HasKind},
     tor_log_ratelim::log_ratelim,
     tor_rtcompat::{CoarseInstant, CoarseTimeProvider},
 };
 
 pub(crate) use crate::{
-    config::Config,
+    config::{Config, ConfigInner},
     drop_bomb::{DropBomb, DropBombCondition},
     drop_reentrancy,
     error::{Error, ReclaimCrashed, StartupError, TrackerCorrupted},
