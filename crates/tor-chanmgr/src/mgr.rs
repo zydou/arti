@@ -58,8 +58,10 @@ pub(crate) trait AbstractChannel: HasRelayIds {
 pub(crate) trait AbstractChannelFactory {
     /// The type of channel that this factory can build.
     type Channel: AbstractChannel;
-    /// Type that explains how to build a channel.
+    /// Type that explains how to build an outgoing channel.
     type BuildSpec: HasRelayIds;
+    /// The type of byte stream that's required to build channels for incoming connections.
+    type Stream;
 
     /// Construct a new channel to the destination described at `target`.
     ///
@@ -71,6 +73,14 @@ pub(crate) trait AbstractChannelFactory {
         &self,
         target: &Self::BuildSpec,
         reporter: BootstrapReporter,
+    ) -> Result<Arc<Self::Channel>>;
+
+    /// Construct a new channel for an incoming connection.
+    #[cfg(feature = "relay")]
+    async fn build_channel_using_incoming(
+        &self,
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
     ) -> Result<Arc<Self::Channel>>;
 }
 
@@ -140,6 +150,23 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
             state::ChannelState::Building(state::PendingEntry { ids, pending }),
             snd,
         )
+    }
+
+    /// Build a channel for an incoming stream. See
+    /// [`ChanMgr::handle_incoming`](crate::ChanMgr::handle_incoming).
+    #[cfg(feature = "relay")]
+    pub(crate) async fn handle_incoming(
+        &self,
+        src: std::net::SocketAddr,
+        stream: CF::Stream,
+    ) -> Result<Arc<CF::Channel>> {
+        let chan_builder = self.channels.builder();
+        let _outcome = chan_builder
+            .build_channel_using_incoming(src, stream)
+            .await?;
+
+        // TODO RELAY: we need to do something with the channel here now that we've created it
+        todo!();
     }
 
     /// Get a channel corresponding to the identities of `target`.
@@ -644,6 +671,7 @@ mod test {
     impl<RT: Runtime> AbstractChannelFactory for FakeChannelFactory<RT> {
         type Channel = FakeChannel;
         type BuildSpec = FakeBuildSpec;
+        type Stream = ();
 
         async fn build_channel(
             &self,
@@ -670,6 +698,15 @@ mod test {
                 detect_reuse: Default::default(),
                 // last_params: None,
             }))
+        }
+
+        #[cfg(feature = "relay")]
+        async fn build_channel_using_incoming(
+            &self,
+            _peer: std::net::SocketAddr,
+            _stream: Self::Stream,
+        ) -> Result<Arc<Self::Channel>> {
+            unimplemented!()
         }
     }
 

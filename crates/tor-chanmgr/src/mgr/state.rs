@@ -567,11 +567,22 @@ mod test {
 
         type BuildSpec = tor_linkspec::OwnedChanTarget;
 
+        type Stream = ();
+
         async fn build_channel(
             &self,
             _target: &Self::BuildSpec,
             _reporter: BootstrapReporter,
         ) -> Result<Arc<FakeChannel>> {
+            unimplemented!()
+        }
+
+        #[cfg(feature = "relay")]
+        async fn build_channel_using_incoming(
+            &self,
+            _peer: std::net::SocketAddr,
+            _stream: Self::Stream,
+        ) -> Result<Arc<Self::Channel>> {
             unimplemented!()
         }
     }

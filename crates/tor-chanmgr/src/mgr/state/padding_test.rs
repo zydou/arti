@@ -129,6 +129,7 @@ struct FakeChannelFactory {
 impl AbstractChannelFactory for FakeChannelFactory {
     type Channel = Channel;
     type BuildSpec = tor_linkspec::RelayIds;
+    type Stream = ();
 
     async fn build_channel(
         &self,
@@ -136,6 +137,15 @@ impl AbstractChannelFactory for FakeChannelFactory {
         _reporter: BootstrapReporter,
     ) -> Result<Arc<Self::Channel>> {
         Ok(self.channel.clone())
+    }
+
+    #[cfg(feature = "relay")]
+    async fn build_channel_using_incoming(
+        &self,
+        _peer: std::net::SocketAddr,
+        _stream: Self::Stream,
+    ) -> Result<Arc<Self::Channel>> {
+        unimplemented!()
     }
 }
 

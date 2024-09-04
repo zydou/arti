@@ -59,13 +59,33 @@ pub trait ChannelFactory: Send + Sync {
     ) -> crate::Result<Arc<Channel>>;
 }
 
+/// Similar to [`ChannelFactory`], but for building channels from incoming streams.
+// This is a separate trait since for some `ChannelFactory`s like the one returned from
+// `tor_ptmgr::PtMgr::factory_for_transport`, it doesn't make sense to deal with incoming streams
+// (all PT connections are outgoing).
+#[async_trait]
+pub trait IncomingChannelFactory: Send + Sync {
+    /// The type of byte stream that's required to build channels for incoming connections.
+    type Stream: Send + Sync + 'static;
+
+    /// Open a channel from `peer` with the given `stream`. The channel may or may not be
+    /// authenticated.
+    #[cfg(feature = "relay")]
+    async fn accept_from_transport(
+        &self,
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
+    ) -> crate::Result<Arc<Channel>>;
+}
+
 #[async_trait]
 impl<CF> crate::mgr::AbstractChannelFactory for CF
 where
-    CF: ChannelFactory + Sync,
+    CF: ChannelFactory + IncomingChannelFactory + Sync,
 {
     type Channel = tor_proto::channel::Channel;
     type BuildSpec = OwnedChanTarget;
+    type Stream = CF::Stream;
 
     async fn build_channel(
         &self,
@@ -74,6 +94,16 @@ where
     ) -> crate::Result<Arc<Self::Channel>> {
         debug!("Attempting to open a new channel to {target}");
         self.connect_via_transport(target, reporter).await
+    }
+
+    #[cfg(feature = "relay")]
+    async fn build_channel_using_incoming(
+        &self,
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
+    ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
+        debug!("Attempting to open a new channel from {peer}");
+        self.accept_from_transport(peer, stream).await
     }
 }
 
@@ -160,6 +190,22 @@ impl<CF: ChannelFactory> ChannelFactory for CompoundFactory<CF> {
         };
 
         factory.connect_via_transport(target, reporter).await
+    }
+}
+
+#[async_trait]
+impl<CF: IncomingChannelFactory> IncomingChannelFactory for CompoundFactory<CF> {
+    type Stream = CF::Stream;
+
+    #[cfg(feature = "relay")]
+    async fn accept_from_transport(
+        &self,
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
+    ) -> crate::Result<Arc<Channel>> {
+        self.default_factory
+            .accept_from_transport(peer, stream)
+            .await
     }
 }
 

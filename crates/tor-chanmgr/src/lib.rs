@@ -244,6 +244,19 @@ impl<R: Runtime> ChanMgr<R> {
         Ok(vec![handle])
     }
 
+    /// Build a channel for an incoming stream. The channel may or may not be authenticated. This
+    /// method will wait until the channel is usable, and may return an error if we already have an
+    /// existing channel to this peer, or if there are already too many open connections with this
+    /// peer or subnet (as a dos defence).
+    #[cfg(feature = "relay")]
+    pub async fn handle_incoming(
+        &self,
+        src: std::net::SocketAddr,
+        stream: <R as tor_rtcompat::TcpProvider>::TcpStream,
+    ) -> Result<Arc<Channel>> {
+        self.mgr.handle_incoming(src, stream).await
+    }
+
     /// Try to get a suitable channel to the provided `target`,
     /// launching one if one does not exist.
     ///
