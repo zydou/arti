@@ -123,23 +123,6 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
     }
 }
 
-// XXX outdated, remove
-// Our main loop has to look something like:
-
-// Whenever time period or keys or netdir changes: Check whether our list of
-// HsDirs has changed.  If it is, add and/or remove hsdirs as needed.
-
-// "when learning about new keys, new intro points, or new configurations,
-// or whenever the time period changes: Mark descriptors dirty."
-
-// Whenever descriptors are dirty, we have enough info to generate
-// descriptors, and we aren't upload-rate-limited: Generate new descriptors
-// and mark descriptors clean.  Mark all hsdirs as needing new versions of
-// this descriptor.
-
-// While any hsdir does not have the latest version of its any descriptor:
-// upload it.  Retry with usual timeouts on failure."
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
