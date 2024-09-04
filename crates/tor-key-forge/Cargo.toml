@@ -1,5 +1,5 @@
 [package]
-name = "tor-keys"
+name = "tor-key-forge"
 version = "0.22.0"
 authors = ["The Tor Project, Inc."]
 edition = "2021"

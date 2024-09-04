@@ -20,7 +20,7 @@ use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
-use tor_keys::KeyType;
+use tor_key_forge::KeyType;
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;

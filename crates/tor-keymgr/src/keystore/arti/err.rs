@@ -2,7 +2,7 @@
 
 use crate::{ArtiPathSyntaxError, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
-use tor_keys::{KeyType, SshKeyAlgorithm};
+use tor_key_forge::{KeyType, SshKeyAlgorithm};
 
 use std::io;
 use std::path::PathBuf;

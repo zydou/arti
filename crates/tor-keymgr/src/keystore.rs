@@ -3,7 +3,7 @@
 pub(crate) mod arti;
 pub(crate) mod ephemeral;
 
-use tor_keys::{EncodableKey, ErasedKey, KeyType};
+use tor_key_forge::{EncodableKey, ErasedKey, KeyType};
 
 use crate::{KeyPath, KeySpecifier, KeystoreId, Result};
 

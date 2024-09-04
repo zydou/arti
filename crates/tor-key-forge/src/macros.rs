@@ -18,7 +18,7 @@ use derive_deftly::define_derive_deftly;
 /// # Example:
 ///
 /// ```rust
-/// use tor_keys::{define_ed25519_keypair, derive_deftly_template_Ed25519Keypair, Keygen};
+/// use tor_key_forge::{define_ed25519_keypair, derive_deftly_template_Ed25519Keypair, Keygen};
 /// use tor_llcrypto::pk::ValidatableSignature;
 ///
 /// define_ed25519_keypair!(NonPublicSigning);
@@ -33,7 +33,7 @@ use derive_deftly::define_derive_deftly;
 ///
 /// ```rust
 /// use rand::Rng;
-/// use tor_keys::{define_ed25519_keypair, derive_deftly_template_Ed25519Keypair, Keygen};
+/// use tor_key_forge::{define_ed25519_keypair, derive_deftly_template_Ed25519Keypair, Keygen};
 /// use tor_llcrypto::pk::ValidatableSignature;
 ///
 /// define_ed25519_keypair!(MySigning);

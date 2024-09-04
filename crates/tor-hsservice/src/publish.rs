@@ -172,8 +172,8 @@ mod test {
     use tor_basic_utils::test_rng::{testing_rng, TestingRng};
     use tor_circmgr::hspool::HsCircKind;
     use tor_hscrypto::pk::{HsBlindId, HsDescSigningKeypair, HsId, HsIdKey, HsIdKeypair};
+    use tor_key_forge::ToEncodableKey;
     use tor_keymgr::{ArtiNativeKeystore, KeyMgrBuilder, KeySpecifier};
-    use tor_keys::ToEncodableKey;
     use tor_llcrypto::pk::{ed25519, rsa};
     use tor_netdir::testprovider::TestNetDirProvider;
     use tor_netdir::{testnet, NetDir};

@@ -11,7 +11,7 @@ use itertools::Itertools;
 use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
-use tor_keys::{EncodableKey, KeyType, Keygen, KeygenRng, ToEncodableKey};
+use tor_key_forge::{EncodableKey, KeyType, Keygen, KeygenRng, ToEncodableKey};
 
 /// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -414,7 +414,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_keys::{EncodableKey, ErasedKey, SshKeyData};
+    use tor_key_forge::{EncodableKey, ErasedKey, SshKeyData};
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.
@@ -447,7 +447,7 @@ mod tests {
     }
 
     impl Keygen for TestKey {
-        fn generate(mut rng: &mut dyn KeygenRng) -> tor_keys::Result<Self>
+        fn generate(mut rng: &mut dyn KeygenRng) -> tor_key_forge::Result<Self>
         where
             Self: Sized,
         {
@@ -467,7 +467,7 @@ mod tests {
             KeyType::Ed25519Keypair
         }
 
-        fn as_ssh_key_data(&self) -> tor_keys::Result<SshKeyData> {
+        fn as_ssh_key_data(&self) -> tor_key_forge::Result<SshKeyData> {
             Ok(self.key.clone())
         }
     }
@@ -492,7 +492,7 @@ mod tests {
             KeyType::Ed25519PublicKey
         }
 
-        fn as_ssh_key_data(&self) -> tor_keys::Result<SshKeyData> {
+        fn as_ssh_key_data(&self) -> tor_key_forge::Result<SshKeyData> {
             Ok(self.key.clone())
         }
     }

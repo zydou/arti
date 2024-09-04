@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tor_error::internal;
-use tor_keys::{EncodableKey, ErasedKey, KeyType, SshKeyData};
+use tor_key_forge::{EncodableKey, ErasedKey, KeyType, SshKeyData};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;

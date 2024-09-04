@@ -34,9 +34,9 @@ pub enum Error {
     #[error("Key already exists")]
     KeyAlreadyExists,
 
-    /// Error coming from the tor-keys crate
+    /// Error coming from the tor-key-forgecrate
     #[error("{0}")]
-    Keys(#[from] tor_keys::Error),
+    KeyForge(#[from] tor_key_forge::Error),
 
     /// An internal error.
     #[error("Internal error")]
@@ -58,7 +58,7 @@ impl HasKind for Error {
             E::Keystore(e) => e.kind(),
             E::Corruption(_) => EK::KeystoreCorrupted,
             E::KeyAlreadyExists => EK::BadApiUsage, // TODO: not strictly right
-            E::Keys(_) => EK::BadApiUsage,
+            E::KeyForge(_) => EK::BadApiUsage,
             E::Bug(e) => e.kind(),
         }
     }

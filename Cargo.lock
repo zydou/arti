@@ -5556,8 +5556,8 @@ dependencies = [
  "tor-dirclient",
  "tor-error",
  "tor-hscrypto",
+ "tor-key-forge",
  "tor-keymgr",
- "tor-keys",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-log-ratelim",
@@ -5573,6 +5573,23 @@ dependencies = [
  "tracing-test",
  "void",
  "walkdir",
+]
+
+[[package]]
+name = "tor-key-forge"
+version = "0.22.0"
+dependencies = [
+ "derive-deftly",
+ "derive_more",
+ "downcast-rs",
+ "paste",
+ "rand",
+ "ssh-key",
+ "thiserror",
+ "tor-basic-utils",
+ "tor-error",
+ "tor-hscrypto",
+ "tor-llcrypto",
 ]
 
 [[package]]
@@ -5601,28 +5618,11 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-hscrypto",
- "tor-keys",
+ "tor-key-forge",
  "tor-llcrypto",
  "tor-persist",
  "walkdir",
  "zeroize",
-]
-
-[[package]]
-name = "tor-keys"
-version = "0.22.0"
-dependencies = [
- "derive-deftly",
- "derive_more",
- "downcast-rs",
- "paste",
- "rand",
- "ssh-key",
- "thiserror",
- "tor-basic-utils",
- "tor-error",
- "tor-hscrypto",
- "tor-llcrypto",
 ]
 
 [[package]]

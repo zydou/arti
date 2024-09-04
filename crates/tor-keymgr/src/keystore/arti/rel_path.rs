@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 
 use fs_mistrust::CheckedDir;
-use tor_keys::KeyType;
+use tor_key_forge::KeyType;
 
 use crate::keystore::arti::err::{ArtiNativeKeystoreError, FilesystemAction};
 use crate::{ArtiPathUnavailableError, KeySpecifier, Result};

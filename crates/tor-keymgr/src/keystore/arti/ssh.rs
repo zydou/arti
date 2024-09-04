@@ -4,7 +4,7 @@
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
 use tor_error::internal;
-use tor_keys::{ErasedKey, KeyType, SshKeyAlgorithm, SshKeyData};
+use tor_key_forge::{ErasedKey, KeyType, SshKeyAlgorithm, SshKeyData};
 
 use crate::keystore::arti::err::ArtiNativeKeystoreError;
 use crate::Result;

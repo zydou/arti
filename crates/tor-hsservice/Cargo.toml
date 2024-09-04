@@ -32,6 +32,7 @@ full = [
     "tor-config/full",
     "tor-dirclient/full",
     "tor-error/full",
+    "tor-key-forge/full",
     "tor-keymgr/full",
     "tor-linkspec/full",
     "tor-netdoc/full",
@@ -116,8 +117,8 @@ serde_json = "1.0.104"
 slotmap = "1.0.6"
 tempfile = "3"
 test-temp-dir = { version = "0.2.1", path = "../test-temp-dir" }
+tor-key-forge = { version = "0.22.0", path = "../tor-key-forge" }
 tor-keymgr = { version = "0.22.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
-tor-keys = { version = "0.22.0", path = "../tor-keys" }
 tor-netdir = { version = "0.22.0", path = "../tor-netdir", features = ["hs-service", "testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.22.0", features = ["testing"] }
 tor-persist = { version = "0.22.0", path = "../tor-persist", features = ["testing"] }
