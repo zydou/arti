@@ -117,12 +117,20 @@ pub(super) enum ProxyListener {
 }
 
 impl Proxy {
-    /// If this is a SOCKS proxy, unwrap its address.
-    fn into_socks_addr(self) -> Option<SocketAddr> {
+    /// If this is a SOCKS proxy, return its address.
+    fn socks_addr(&self) -> Option<SocketAddr> {
         match self.listener {
             ProxyListener::Socks5 { tcp_address } => tcp_address,
             ProxyListener::Unrecognized {} => None,
         }
+    }
+}
+
+impl ProxyInfo {
+    /// Choose a SOCKS5 address to use from this list of proxies.
+    fn find_socks_addr(&self) -> Option<SocketAddr> {
+        // We choose the first usable Proxy.
+        self.proxies.iter().find_map(Proxy::socks_addr)
     }
 }
 
@@ -135,8 +143,6 @@ pub(super) struct ProxyInfo {
     /// (So far, only SOCKS proxies are listed, but other kinds may be listed in the future.)
     pub(super) proxies: Vec<Proxy>,
 }
-// XXXX validate that we can handle and discard unrecognized proxy types, or unrecognized Socks5
-// formats, in the list above.
 
 impl RpcConn {
     /// Open a new data stream, registering the stream with the RPC system.
@@ -219,11 +225,7 @@ impl RpcConn {
             .execute(&proxy_info_request.encode()?)?
             .map_err(StreamError::ProxyInfoRejected)?
             .deserialize_as::<ProxyInfo>()?;
-        let socks_proxy_addr = proxy_info
-            .proxies
-            .into_iter()
-            .find_map(Proxy::into_socks_addr)
-            .ok_or(StreamError::NoProxy)?;
+        let socks_proxy_addr = proxy_info.find_socks_addr().ok_or(StreamError::NoProxy)?;
 
         Ok(socks_proxy_addr)
     }
@@ -327,5 +329,59 @@ fn negotiate_socks(
         Ok(())
     } else {
         Err(StreamError::SocksError(status))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn unexpected_proxies() {
+        let p: ProxyInfo = serde_json::from_str(
+            r#"
+               { "proxies" : [ {"listener" : {"socks5" : {"tcp_address" : "127.0.0.1:9090" }}} ] }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(p.proxies.len(), 1);
+        match p.proxies[0].listener {
+            ProxyListener::Socks5 {
+                tcp_address: address,
+            } => {
+                assert_eq!(address.unwrap(), "127.0.0.1:9090".parse().unwrap());
+            }
+            _ => panic!(),
+        };
+
+        let p: ProxyInfo = serde_json::from_str(
+            r#"
+               { "proxies" : [
+                {"listener" : {"hypothetical" : {"tzitzel" : "buttered" }}},
+                {"listener" : {"socks5" : {"unix_path" : "/home/username/.local/PROXY"}}},
+                {"listener" : {"socks5" : {"tcp_address" : "127.0.0.1:9090" }}},
+                {"listener" : {"socks5" : {"tcp_address" : "127.0.0.1:9999" }}}
+               ] }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            p.find_socks_addr().unwrap(),
+            "127.0.0.1:9090".parse().unwrap()
+        );
     }
 }
