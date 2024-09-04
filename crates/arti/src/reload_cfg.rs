@@ -71,7 +71,15 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 
     let rt = runtime.clone();
     let () = runtime.clone().spawn(async move {
-        let res: anyhow::Result<()> = run_watcher(rt, sources, modules, watch_file, sighup_stream, Some(DEBOUNCE_INTERVAL)).await;
+        let res: anyhow::Result<()> = run_watcher(
+            rt,
+            sources,
+            modules,
+            watch_file,
+            sighup_stream,
+            Some(DEBOUNCE_INTERVAL)
+        ).await;
+
         match res {
             Ok(()) => debug!("Config watcher task exiting"),
             // TODO: warn_report does not work on anyhow::Error.
