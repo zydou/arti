@@ -176,7 +176,9 @@ struct AuthInterpretation {
 /// XXXX See the next section for how I propose to change it. -nickm
 ///
 /// 1. If SOCKS5 is not selected, or if SOCKS5 username/password authentication
-///    (Type `1`) is not selected, then the system does not integrate with RPC.
+///    (Type `1`) is not selected, then
+///    the request is interpreted as a plain Tor SOCKS proxy request
+///    and does not interact with the RPC system.
 ///
 /// 2. If SOCKS5 and username/password authentication is selected,
 ///    and if the username is `<arti-rpc-session>`,
