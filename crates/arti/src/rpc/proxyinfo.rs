@@ -19,6 +19,7 @@ pub(super) struct Proxy {
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(super) enum ProxyListener {
     /// A SOCKS5 proxy.
+    #[serde(rename = "socks5")]
     Socks5 {
         /// The address at which we're listening for SOCKS connections.
         address: SocketAddr,
