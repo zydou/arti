@@ -152,15 +152,6 @@ typedef int ArtiRpcRawSocket;
 
 
 /**
- * Possible reply status values from a SOCKS5 handshake.
- *
- * Note that the documentation for these values is kind of scant,
- * and is limited to what the RFC says.  Note also that SOCKS4
- * only represents success and failure.
- */
-typedef struct SocksStatus SocksStatus;
-
-/**
  * A status code returned by an Arti RPC function.
  *
  * On success, a function will return `ARTI_SUCCESS (0)`.
@@ -209,40 +200,6 @@ typedef struct ArtiRpcHandle ArtiRpcHandle;
  * The type of a message returned by an RPC request.
  */
 typedef int ArtiRpcResponseType;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /**
  * A constant indicating that a message is a final result.
@@ -351,6 +308,20 @@ typedef int ArtiRpcResponseType;
  * using Arti as a proxy.
  */
 #define ARTI_RPC_STATUS_PROXY_IO 10
+
+/**
+ * An attempt to negotiate a data stream through Arti failed,
+ * with an error from the proxy protocol.
+ */
+#define ARTI_RPC_STATUS_PROXY_STREAM_FAILED 11
+
+/**
+ * Some operation failed because it was attempted on an unauthenticated channel.
+ *
+ * (At present (Sep 2024) there is no way to get an unauthenticated channel from this library,
+ * but that may change in the future.)
+ */
+#define ARTI_RPC_STATUS_NOT_AUTHENTICATED 12
 
 
 
