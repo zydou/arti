@@ -157,6 +157,10 @@ struct AuthInterpretation {
 /// When created, it it not yet connected or trying to connect to anywhere:
 /// the act of using it as the target Object for a SOCKS connection causes
 /// it to begin connecting.
+/// (You can also think of this as a single-use client,
+/// which once used, becomes interchangeable with the DataStream it created.)
+/// (TODO: We may wish to change this vocabulary.
+/// We may wish to call this a "stream handle", for instance?)
 ///
 /// An application gets an RpcDataStream by calling `arti:new_stream_handle
 /// on any client-like object.  Currently, this always creates an RpcDataStream
@@ -172,8 +176,8 @@ struct AuthInterpretation {
 /// This protocol allows the application to provide an isolation string
 /// and/or an RPC target object ID.
 ///
-/// XXXX This documents what the handshake currently is.
-/// XXXX See the next section for how I propose to change it. -nickm
+/// TODO RPC: This documents what the handshake currently is.
+/// See the next sections for how I propose to change it. -nickm
 ///
 /// 1. If SOCKS5 is not selected, or if SOCKS5 username/password authentication
 ///    (Type `1`) is not selected, then
@@ -192,6 +196,12 @@ struct AuthInterpretation {
 ///    is interpreted as an isolation "string".
 ///    (Actually, as an isolation tuple.
 ///    "But the Idea is the important thing" —Tom Lehrer)
+///
+/// 4. The request is then interpreted by the specified RPC object,
+///    using the `ConnectWithPrefs` method.
+///    For both client-like and datastream objects,
+///    a connection is initiated through the Tor network
+///    to the host and port specified in the object.
 ///
 /// ### Proposed changes
 ///
@@ -233,6 +243,19 @@ struct AuthInterpretation {
 /// we have room to add more connection parameters in the future,
 /// and we can later have non-legacy socks ports that require this handshake format.
 ///
+/// ### Another proposed change
+///
+/// We could add a new method to clients, with a name like
+/// "open_stream" or "connect_stream".
+/// This method would include all target and isolation information in its parameters.
+/// It would actually create a DataStream immediately, tell it to begin connecting,
+/// and return an externally visible object ID.
+/// The RPC protocol could be used to watch the DataStream object,
+/// to see when it was connected.
+///
+/// The resulting DataStream object could also be used as the target of a SOCKS connection.
+/// We would require in such a case that no isolation be provided in the SOCKS handshake,
+/// and that the target address was (e.g.) INADDR_ANY.
 ///
 /// ## Intended use cases (examples)
 ///
