@@ -269,7 +269,7 @@ fn negotiate_socks(
 ) -> Result<(), StreamError> {
     use tor_socksproto::{
         SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksHostname, SocksRequest,
-        SocksStatus, SocksVersion,
+        SocksStatus, SocksVersion, SOCKS_BUF_LEN,
     };
     use StreamError as E;
 
@@ -285,7 +285,7 @@ fn negotiate_socks(
     )
     .map_err(E::SocksRequest)?;
 
-    let mut buf = [0_u8; 1024];
+    let mut buf = [0_u8; SOCKS_BUF_LEN];
     let mut n_in_buf = 0;
     let mut state = SocksClientHandshake::new(request);
     let reply = loop {

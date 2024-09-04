@@ -22,7 +22,7 @@ use tor_error::warn_report;
 #[cfg(feature = "rpc")]
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::{Runtime, TcpListener};
-use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
+use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SOCKS_BUF_LEN};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -744,7 +744,7 @@ where
 {
     use futures::{poll, task::Poll};
 
-    let mut buf = [0_u8; 1024];
+    let mut buf = [0_u8; SOCKS_BUF_LEN];
 
     // At this point we could just loop, calling read().await,
     // write_all().await, and flush().await.  But we want to be more
