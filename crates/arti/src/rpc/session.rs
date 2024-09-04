@@ -130,7 +130,9 @@ impl RpcStateSender {
             proxies: addrs
                 .iter()
                 .map(|a| proxyinfo::Proxy {
-                    listener: proxyinfo::ProxyListener::Socks5 { address: *a },
+                    listener: proxyinfo::ProxyListener::Socks5 {
+                        tcp_address: Some(*a),
+                    },
                 })
                 .collect(),
         };

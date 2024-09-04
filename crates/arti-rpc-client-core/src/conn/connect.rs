@@ -109,18 +109,19 @@ pub(super) enum ProxyListener {
     #[serde(rename = "socks5")]
     Socks5 {
         /// The address at which we're listening for SOCKS connections.
-        address: SocketAddr,
+        tcp_address: Option<SocketAddr>,
     },
+    /// Some other (unrecognized) listener type.
+    #[serde(untagged)]
+    Unrecognized {},
 }
 
 impl Proxy {
     /// If this is a SOCKS proxy, unwrap its address.
-    #[allow(clippy::unnecessary_wraps)]
     fn into_socks_addr(self) -> Option<SocketAddr> {
-        match self {
-            Proxy {
-                listener: ProxyListener::Socks5 { address },
-            } => Some(address),
+        match self.listener {
+            ProxyListener::Socks5 { tcp_address } => tcp_address,
+            ProxyListener::Unrecognized {} => None,
         }
     }
 }

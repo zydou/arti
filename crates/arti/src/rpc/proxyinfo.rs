@@ -22,7 +22,7 @@ pub(super) enum ProxyListener {
     #[serde(rename = "socks5")]
     Socks5 {
         /// The address at which we're listening for SOCKS connections.
-        address: SocketAddr,
+        tcp_address: Option<SocketAddr>,
     },
 }
 
