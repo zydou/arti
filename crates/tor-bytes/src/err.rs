@@ -1,6 +1,7 @@
 //! Internal: Declare an Error type for tor-bytes
 
 use std::borrow::Cow;
+use std::num::NonZeroUsize;
 
 use thiserror::Error;
 use tor_error::{into_internal, Bug};
@@ -56,6 +57,20 @@ impl PartialEq for Error {
             // notably, this means that an internal error is equal to nothing, not even itself.
             (_, _) => false,
         }
+    }
+}
+
+impl Error {
+    /// Make an [`Error::Truncated`] with a specified deficit
+    ///
+    /// Suitable for use in tests.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the specified `deficit` is zero.
+    pub fn new_truncated_for_test(deficit: usize) -> Self {
+        let _deficit = NonZeroUsize::new(deficit).expect("zero deficit in assert!");
+        Error::Truncated
     }
 }
 

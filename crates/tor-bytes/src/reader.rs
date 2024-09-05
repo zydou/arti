@@ -462,30 +462,30 @@ mod tests {
         assert_eq!(bc.remaining(), 7);
         assert_eq!(bc.total_len(), 7);
 
-        assert_eq!(bc.take_u64(), Err(Error::Truncated));
-        assert_eq!(bc.take(8), Err(Error::Truncated));
-        assert_eq!(bc.peek(8), Err(Error::Truncated));
+        assert_eq!(bc.take_u64(), Err(Error::new_truncated_for_test(1)));
+        assert_eq!(bc.take(8), Err(Error::new_truncated_for_test(1)));
+        assert_eq!(bc.peek(8), Err(Error::new_truncated_for_test(1)));
 
         assert_eq!(bc.consumed(), 0);
         assert_eq!(bc.remaining(), 7);
         assert_eq!(bc.total_len(), 7);
 
         assert_eq!(bc.take_u32().unwrap(), 0x31323334); // get 4 bytes. 3 left.
-        assert_eq!(bc.take_u32(), Err(Error::Truncated));
+        assert_eq!(bc.take_u32(), Err(Error::new_truncated_for_test(1)));
 
         assert_eq!(bc.consumed(), 4);
         assert_eq!(bc.remaining(), 3);
         assert_eq!(bc.total_len(), 7);
 
         assert_eq!(bc.take_u16().unwrap(), 0x3536); // get 2 bytes. 1 left.
-        assert_eq!(bc.take_u16(), Err(Error::Truncated));
+        assert_eq!(bc.take_u16(), Err(Error::new_truncated_for_test(1)));
 
         assert_eq!(bc.consumed(), 6);
         assert_eq!(bc.remaining(), 1);
         assert_eq!(bc.total_len(), 7);
 
         assert_eq!(bc.take_u8().unwrap(), 0x37); // get 1 byte. 0 left.
-        assert_eq!(bc.take_u8(), Err(Error::Truncated));
+        assert_eq!(bc.take_u8(), Err(Error::new_truncated_for_test(1)));
 
         assert_eq!(bc.consumed(), 7);
         assert_eq!(bc.remaining(), 0);
@@ -497,7 +497,7 @@ mod tests {
         let bytes = b"12345";
         let mut r = Reader::from_slice(&bytes[..]);
         assert_eq!(r.remaining(), 5);
-        assert_eq!(r.advance(6), Err(Error::Truncated));
+        assert_eq!(r.advance(16), Err(Error::new_truncated_for_test(11)));
         assert_eq!(r.remaining(), 5);
         assert_eq!(r.advance(5), Ok(()));
         assert_eq!(r.remaining(), 0);
@@ -544,7 +544,7 @@ mod tests {
         let mut r = Reader::from_slice(&b"si vales valeo"[..]);
         assert_eq!(r.take_until(b' ').unwrap(), &b"si"[..]);
         assert_eq!(r.take_until(b' ').unwrap(), &b"vales"[..]);
-        assert_eq!(r.take_until(b' '), Err(Error::Truncated));
+        assert_eq!(r.take_until(b' '), Err(Error::new_truncated_for_test(1)));
     }
 
     #[test]
@@ -589,7 +589,7 @@ mod tests {
         let mut r = Reader::from_slice(b"................");
         assert_eq!(
             r.read_nested_u32len::<_, ()>(|_| panic!()).err().unwrap(),
-            Error::Truncated
+            Error::new_truncated_for_test(774778414 - (16 - 4))
         );
     }
 
@@ -619,14 +619,14 @@ mod tests {
 
         // Make sure that we don't advance on a failing extract().
         let le: Result<LenEnc> = r.extract();
-        assert_eq!(le.unwrap_err(), Error::Truncated);
+        assert_eq!(le.unwrap_err(), Error::new_truncated_for_test(33));
         assert_eq!(r.remaining(), 1);
 
         // Make sure that we don't advance on a failing extract_n()
         let mut r = Reader::from_slice(&bytes[..]);
         assert_eq!(r.remaining(), 28);
         let les: Result<Vec<LenEnc>> = r.extract_n(10);
-        assert_eq!(les.unwrap_err(), Error::Truncated);
+        assert_eq!(les.unwrap_err(), Error::new_truncated_for_test(33));
         assert_eq!(r.remaining(), 28);
     }
 
