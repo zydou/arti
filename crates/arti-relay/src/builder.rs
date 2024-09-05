@@ -2,6 +2,7 @@
 
 use tor_rtcompat::Runtime;
 
+use crate::err::Error;
 use crate::{config::TorRelayConfig, TorRelay};
 
 /// An object for constructing a [`TorRelay`].
@@ -26,7 +27,7 @@ impl<R: Runtime> TorRelayBuilder<R> {
     }
 
     /// Return a newly created TorRelay object.
-    pub fn create(&self) -> TorRelay<R> {
-        TorRelay::create_inner(self.runtime.clone(), &self.config)
+    pub fn create(&self) -> Result<TorRelay<R>, Error> {
+        TorRelay::create_inner(self.runtime.clone(), &self.config).map_err(Into::into)
     }
 }
