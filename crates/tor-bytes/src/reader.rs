@@ -88,9 +88,7 @@ impl<'a> Reader<'a> {
     /// Returns Ok on success.  Returns Err(Error::Truncated) if there were
     /// not enough bytes to skip.
     pub fn advance(&mut self, n: usize) -> Result<()> {
-        if n > self.remaining() {
-            return Err(Error::Truncated);
-        }
+        self.peek(n)?;
         self.off += n;
         Ok(())
     }
