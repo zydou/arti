@@ -528,10 +528,6 @@ pub enum UploadError {
     #[error("failed to establish directory stream to HsDir")]
     Stream(#[source] tor_proto::Error),
 
-    /// A descriptor upload timed out before it could complete.
-    #[error("descriptor publication timed out")]
-    Timeout,
-
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -2046,8 +2042,7 @@ impl RetriableError for UploadError {
         match self {
             UploadError::Request(_)
             | UploadError::Circuit(_)
-            | UploadError::Stream(_)
-            | UploadError::Timeout => true,
+            | UploadError::Stream(_) => true,
             UploadError::Bug(_) => false,
         }
     }
