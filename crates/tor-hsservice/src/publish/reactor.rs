@@ -1466,11 +1466,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         let Some(hsdir) = netdir.by_ids(&relay_ids) else {
                             // This should never happen (all of our relay_ids are from the stored
                             // netdir).
+                            let err =
+                                "tried to upload descriptor to relay not found in consensus?!";
                             warn!(
                                 nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
-                                "tried to upload descriptor to relay not found in consensus?!"
+                                "{err}"
                             );
-                            return Err(());
+                            return Err(internal!("{err}").into());
                         };
 
                         Self::upload_descriptor_with_retries(
@@ -1565,7 +1567,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                     // (Actually launch the upload attempt. No timeout is needed
                     // here, since the backoff::Runner code will handle that for us.)
-                    let upload_res = select_biased! {
+                    let upload_res: UploadResult = select_biased! {
                         shutdown = shutdown_rx.next().fuse() => {
                             // This will always be None, since Void is uninhabited.
                             let _: Option<Void> = shutdown;
@@ -1750,7 +1752,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     rsa_id
                 );
 
-                Err(())
+                Err(e.into())
             }
         }
     }
@@ -1911,13 +1913,10 @@ fn upload_result_state(
     time_periods: &[TimePeriodContext],
 ) -> (State, Option<Problem>) {
     let current_period = netdir.hs_time_period();
-
     let current_period_res = time_periods
         .iter()
         .find(|ctx| ctx.params.time_period() == current_period);
 
-    // TODO: include the error in the onion svc status report
-    let err = None;
     let succeeded_current_tp = current_period_res
         .iter()
         .flat_map(|res| &res.upload_results)
@@ -1941,6 +1940,15 @@ fn upload_result_state(
         .flat_map(|res| &res.upload_results)
         .filter(|res| res.upload_res.is_err())
         .collect_vec();
+    let problems: Vec<DescUploadRetryError> = failed
+        .iter()
+        .flat_map(|e| e.upload_res.as_ref().map_err(|e| e.clone()).err())
+        .collect();
+
+    let err = match problems.as_slice() {
+        [_, ..] => Some(problems.into()),
+        [] => None,
+    };
 
     if time_periods.len() < 2 {
         // We need at least TP contexts (one for the primary TP,
@@ -2056,7 +2064,7 @@ struct TimePeriodUploadResult {
 }
 
 /// The outcome of uploading a descriptor to a particular HsDir.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct HsDirUploadStatus {
     /// The identity of the HsDir we attempted to upload the descriptor to.
     relay_ids: RelayIds,
@@ -2067,7 +2075,7 @@ struct HsDirUploadStatus {
 }
 
 /// The outcome of uploading a descriptor.
-type UploadResult = Result<(), ()>;
+type UploadResult = Result<(), DescUploadRetryError>;
 
 impl From<BackoffError<UploadError>> for DescUploadRetryError {
     fn from(e: BackoffError<UploadError>) -> Self {
