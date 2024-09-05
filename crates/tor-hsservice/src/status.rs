@@ -148,6 +148,27 @@ pub enum State {
     Broken,
 }
 
+/// An error type for descriptor upload failures with retries.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DescUploadRetryError {
+    /// A fatal (non-transient) error occurred.
+    #[error("A fatal (non-transient) error occurred")]
+    FatalError(RetryError<DescUploadError>),
+
+    /// Ran out of retries.
+    #[error("Ran out of retries")]
+    MaxRetryCountExceeded(RetryError<DescUploadError>),
+
+    /// Exceeded the maximum allowed time.
+    #[error("Timeout exceeded")]
+    Timeout(RetryError<DescUploadError>),
+
+    /// Encountered an internal error.
+    #[error("Internal error")]
+    Bug(#[from] Bug),
+}
+
 /// A problem encountered by an onion service.
 #[derive(Clone, Debug, derive_more::From)]
 #[non_exhaustive]
@@ -155,8 +176,8 @@ pub enum Problem {
     /// A fatal error occurred.
     Runtime(FatalError),
 
-    /// We failed to upload a descriptor.
-    DescriptorUpload(RetryError<DescUploadError>),
+    /// One or more descriptor uploads failed.
+    DescriptorUpload(Vec<DescUploadRetryError>),
 
     /// We failed to establish one or more introduction points.
     Ipt(Vec<IptError>),

@@ -82,7 +82,7 @@ use crate::config::restricted_discovery::{
     DirectoryKeyProviderList, RestrictedDiscoveryConfig, RestrictedDiscoveryKeys,
 };
 use crate::config::OnionServiceConfigPublisherView;
-use crate::status::Problem;
+use crate::status::{DescUploadRetryError, Problem};
 
 use super::*;
 
@@ -2068,5 +2068,21 @@ struct HsDirUploadStatus {
 
 /// The outcome of uploading a descriptor.
 type UploadResult = Result<(), ()>;
+
+impl From<BackoffError<UploadError>> for DescUploadRetryError {
+    fn from(e: BackoffError<UploadError>) -> Self {
+        use BackoffError as BE;
+        use DescUploadRetryError as DURE;
+
+        match e {
+            BE::FatalError(e) => DURE::FatalError(e),
+            BE::MaxRetryCountExceeded(e) => DURE::MaxRetryCountExceeded(e),
+            BE::Timeout(e) => DURE::Timeout(e),
+            BE::ExplicitStop(_) => {
+                DURE::Bug(internal!("explicit stop in publisher backoff schedule?!"))
+            }
+        }
+    }
+}
 
 // NOTE: the publisher tests live in publish.rs
