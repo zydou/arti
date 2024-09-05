@@ -71,7 +71,15 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 
     let rt = runtime.clone();
     let () = runtime.clone().spawn(async move {
-        let res: anyhow::Result<()> = run_watcher(rt, sources, modules, watch_file, sighup_stream).await;
+        let res: anyhow::Result<()> = run_watcher(
+            rt,
+            sources,
+            modules,
+            watch_file,
+            sighup_stream,
+            Some(DEBOUNCE_INTERVAL)
+        ).await;
+
         match res {
             Ok(()) => debug!("Config watcher task exiting"),
             // TODO: warn_report does not work on anyhow::Error.
@@ -91,6 +99,7 @@ async fn run_watcher<R: Runtime>(
     modules: Vec<Weak<dyn ReconfigurableModule>>,
     watch_file: bool,
     mut sighup_stream: impl Stream<Item = ()> + Unpin,
+    debounce_interval: Option<Duration>,
 ) -> anyhow::Result<()> {
     let (tx, mut rx) = file_watcher::channel();
     let mut watcher = if watch_file {
@@ -121,7 +130,9 @@ async fn run_watcher<R: Runtime>(
                 ).await?;
             },
             event = rx.next().fuse() => {
-                runtime.sleep(DEBOUNCE_INTERVAL).await;
+                if let Some(debounce_interval) = debounce_interval {
+                    runtime.sleep(debounce_interval).await;
+                }
 
                 while let Some(_ignore) = rx.try_recv() {
                     // Discard other events, so that we only reload once.
@@ -395,6 +406,7 @@ mod test {
                     vec![Arc::downgrade(&module)],
                     true,
                     sighup_rx,
+                    None,
                 ).await.unwrap();
             }).unwrap();
 
@@ -441,6 +453,7 @@ mod test {
                     vec![Arc::downgrade(&module)],
                     true,
                     sighup_rx,
+                    None,
                 ).await.unwrap();
             }).unwrap();
 
