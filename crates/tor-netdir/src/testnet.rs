@@ -47,7 +47,12 @@ pub struct NodeBuilders {
 }
 
 /// Helper: a customization function that does nothing.
-pub fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders, _bld: &mut ConsensusBuilder<MdConsensusRouterStatus>) {}
+pub fn simple_net_func(
+    _idx: usize,
+    _nb: &mut NodeBuilders,
+    _bld: &mut ConsensusBuilder<MdConsensusRouterStatus>,
+) {
+}
 
 /// As [`construct_network()`], but return a [`PartialNetDir`].
 pub fn construct_netdir() -> PartialNetDir {
