@@ -1588,7 +1588,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         res = run_upload(desc.clone()).fuse() => res,
                     };
 
-                    // Note: UploadStatus::Failure is only returned when
+                    // Note: UploadResult::Failure is only returned when
                     // upload_descriptor_with_retries fails, i.e. if all our retry
                     // attempts have failed
                     Ok(HsDirUploadStatus {
@@ -1718,7 +1718,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         ed_id: &str,
         rsa_id: &str,
         imm: Arc<Immutable<R, M>>,
-    ) -> UploadStatus {
+    ) -> UploadResult {
         /// The base delay to use for the backoff schedule.
         const BASE_DELAY_MSEC: u32 = 1000;
         let schedule = PublisherBackoffSchedule {
@@ -2068,12 +2068,12 @@ struct HsDirUploadStatus {
     /// The identity of the HsDir we attempted to upload the descriptor to.
     relay_ids: RelayIds,
     /// The outcome of this attempt.
-    upload_res: UploadStatus,
+    upload_res: UploadResult,
     /// The revision counter of the descriptor we tried to upload.
     revision_counter: RevisionCounter,
 }
 
 /// The outcome of uploading a descriptor.
-type UploadStatus = Result<(), ()>;
+type UploadResult = Result<(), ()>;
 
 // NOTE: the publisher tests live in publish.rs
