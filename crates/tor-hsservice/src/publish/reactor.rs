@@ -2040,9 +2040,7 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
 impl RetriableError for UploadError {
     fn should_retry(&self) -> bool {
         match self {
-            UploadError::Request(_)
-            | UploadError::Circuit(_)
-            | UploadError::Stream(_) => true,
+            UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
             UploadError::Bug(_) => false,
         }
     }
