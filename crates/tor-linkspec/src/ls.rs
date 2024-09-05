@@ -305,9 +305,9 @@ mod test {
             got.err().unwrap()
         }
 
-        assert!(matches!(t(&hex!("00 03")), Error::Truncated));
-        assert!(matches!(t(&hex!("00 06 01020304")), Error::Truncated));
-        assert!(matches!(t(&hex!("99 07 010203")), Error::Truncated));
+        assert_eq!(t(&hex!("00 03")), Error::Truncated);
+        assert_eq!(t(&hex!("00 06 01020304")), Error::Truncated);
+        assert_eq!(t(&hex!("99 07 010203")), Error::Truncated);
     }
 
     #[test]
@@ -356,8 +356,8 @@ mod test {
             got.err().unwrap()
         }
 
-        assert!(matches!(t(&hex!("00")), Error::Truncated));
-        assert!(matches!(t(&hex!("00 04 010203")), Error::Truncated));
-        assert!(matches!(t(&hex!("00 05 01020304")), Error::Truncated));
+        assert_eq!(t(&hex!("00")), Error::Truncated);
+        assert_eq!(t(&hex!("00 04 010203")), Error::Truncated);
+        assert_eq!(t(&hex!("00 05 01020304")), Error::Truncated);
     }
 }
