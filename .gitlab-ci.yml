@@ -274,11 +274,11 @@ deb-source:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
+    - git clean -xdff
     - export DEB_VERSION_UPSTREAM=$(dpkg-parsechangelog -SVersion | sed -E 's/-[^-]*$$//')
     - git archive -o ../arti_${DEB_VERSION_UPSTREAM}.orig.tar.gz --prefix arti-${DEB_VERSION_UPSTREAM}/ HEAD
     - dpkg-source -b .
     - mv ../arti*.tar.gz ../arti*.dsc ../arti*.tar.xz .
-  needs: []
   artifacts:
     paths:
       - "*.tar.gz"
@@ -289,13 +289,10 @@ deb-binary-amd64:
   stage: test
   image: $RECENT_RUST_IMAGE
   script:
-    - mv arti*.tar.gz arti*.dsc arti*.tar.xz ..
     - apt-get update && apt-get build-dep -y .
     # TODO: re-enable testing (tests are currently killed for some unidentified reason)
-    - dpkg-buildpackage --build-profiles=nocheck
+    - dpkg-buildpackage -uc -b --build-profiles=nocheck
     - mv ../arti*.deb ../*.changes ../*.buildinfo .
-  needs:
-    - deb-source
   artifacts:
     paths:
       - "*.deb"
@@ -316,14 +313,11 @@ deb-binary-amd64:
     RUST_CROSS_TARGET: UNDEFINED--BUG-IN-CI-YAML
   image: $RECENT_RUST_IMAGE
   script:
-    - mv arti*.tar.gz arti*.dsc arti*.tar.xz ..
     - dpkg --add-architecture ${CROSS_ARCH}
     - maint/common/apt-install build-essential crossbuild-essential-${CROSS_ARCH} && apt-get build-dep -y -a${CROSS_ARCH} .
     - rustup target add ${RUST_CROSS_TARGET}
-    - CONFIG_SITE=/etc/dpkg-cross/cross-config.${CROSS_ARCH} dpkg-buildpackage -a${CROSS_ARCH} --build-profiles=cross,nocheck
+    - CONFIG_SITE=/etc/dpkg-cross/cross-config.${CROSS_ARCH} dpkg-buildpackage -uc -b -a${CROSS_ARCH} --build-profiles=cross,nocheck
     - mv ../arti*.deb ../*.changes ../*.buildinfo .
-  needs:
-    - deb-source
   artifacts:
     paths:
       - "*.deb"
