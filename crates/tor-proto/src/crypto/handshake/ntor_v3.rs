@@ -512,7 +512,9 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     let client_msg = if let Some(msg_len) = r.remaining().checked_sub(MAC_LEN) {
         r.take(msg_len)?
     } else {
-        let deficit = (MAC_LEN - r.remaining()).try_into().expect("miscalculated!");
+        let deficit = (MAC_LEN - r.remaining())
+            .try_into()
+            .expect("miscalculated!");
         return Err(tor_bytes::Error::Truncated { deficit }.into());
     };
     let msg_mac: MacVal = r.extract()?;

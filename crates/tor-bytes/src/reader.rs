@@ -227,7 +227,9 @@ impl<'a> Reader<'a> {
         let pos = self.b[self.off..]
             .iter()
             .position(|b| *b == term)
-            .ok_or(Error::Truncated { deficit: 1.try_into().expect("1 == 0") })?;
+            .ok_or(Error::Truncated {
+                deficit: 1.try_into().expect("1 == 0"),
+            })?;
         let result = self.take(pos)?;
         self.advance(1)?;
         Ok(result)
