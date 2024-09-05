@@ -563,7 +563,11 @@ fn test_connect_udp() {
     assert!(decode(cmd, &body[..]).is_ok());
 
     // Truncated as in hostname length way to big for amount of bytes.
-    msg_error(cmd, "00000000 01 56 7269", BytesError::new_truncated_for_test(0x56 - 2));
+    msg_error(
+        cmd,
+        "00000000 01 56 7269",
+        BytesError::new_truncated_for_test(0x56 - 2),
+    );
 
     // Unknown address type.
     msg_error(
