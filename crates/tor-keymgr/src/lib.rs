@@ -48,12 +48,9 @@ mod arti_path;
 pub mod config;
 mod err;
 mod key_specifier;
-pub(crate) mod ssh;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
-#[cfg(feature = "keymgr")]
-mod key_type;
 #[cfg(feature = "keymgr")]
 mod keystore;
 #[cfg(feature = "keymgr")]
@@ -63,28 +60,33 @@ mod mgr;
 mod dummy;
 
 pub use arti_path::{ArtiPath, DENOTATOR_SEP};
-pub use err::{ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError};
+pub use err::{
+    ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError, UnknownKeyTypeError,
+};
 pub use key_specifier::{
     ArtiPathUnavailableError, CTorPath, InvalidKeyPathComponentValue, KeyPath, KeyPathError,
     KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeyPathRange,
     KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
     KeySpecifierPattern,
 };
-pub use ssh::SshKeyAlgorithm;
 
 #[cfg(feature = "keymgr")]
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
 pub use {
-    key_type::{KeyType, UnknownKeyTypeError},
     keystore::arti::ArtiNativeKeystore,
     keystore::ephemeral::ArtiEphemeralKeystore,
-    keystore::{EncodableKey, ErasedKey, Keygen, KeygenRng, Keystore, SshKeyData, ToEncodableKey},
+    keystore::Keystore,
     mgr::{KeyMgr, KeyMgrBuilder, KeyMgrBuilderError, KeystoreEntry},
     ssh_key,
 };
 
 #[doc(hidden)]
 pub use key_specifier::derive as key_specifier_derive;
+
+pub use tor_key_forge::{
+    EncodableKey, ErasedKey, KeyType, Keygen, KeygenRng, SshKeyAlgorithm, SshKeyData,
+    ToEncodableKey,
+};
 
 derive_deftly::template_export_semver_check! { "0.12.1" }
 

@@ -3,13 +3,14 @@
 // TODO #902: OpenSSH keys can have passphrases. While the current implementation isn't able to
 // handle such keys, we will eventually need to support them (this will be a breaking API change).
 
-use crate::keystore::arti::err::ArtiNativeKeystoreError;
-use crate::ssh::SshKeyAlgorithm;
-use crate::{ErasedKey, KeyType, Result, SshKeyData};
+use tor_error::internal;
+use tor_key_forge::{ErasedKey, KeyType, SshKeyAlgorithm, SshKeyData};
 
-use zeroize::Zeroizing;
+use crate::keystore::arti::err::ArtiNativeKeystoreError;
+use crate::Result;
 
 use std::path::PathBuf;
+use zeroize::Zeroizing;
 
 use crate::UnknownKeyTypeError;
 
@@ -82,6 +83,9 @@ fn ssh_algorithm(key_type: &KeyType) -> Result<SshKeyAlgorithm> {
             },
         )
         .into()),
+        &_ => {
+            Err(ArtiNativeKeystoreError::Bug(internal!("Unknown SSH key type {key_type:?}")).into())
+        }
     }
 }
 
@@ -105,10 +109,10 @@ impl UnparsedOpenSshKey {
             KeyType::Ed25519Keypair
             | KeyType::X25519StaticKeypair
             | KeyType::Ed25519ExpandedKeypair => {
-                parse_openssh!(PRIVATE self, key_type).into_erased()
+                Ok(parse_openssh!(PRIVATE self, key_type).into_erased()?)
             }
             KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
-                parse_openssh!(PUBLIC self, key_type).into_erased()
+                Ok(parse_openssh!(PUBLIC self, key_type).into_erased()?)
             }
             KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
                 UnknownKeyTypeError {
@@ -116,6 +120,7 @@ impl UnparsedOpenSshKey {
                 },
             )
             .into()),
+            &_ => Err(ArtiNativeKeystoreError::Bug(internal!("Unknown SSH key type")).into()),
         }
     }
 }

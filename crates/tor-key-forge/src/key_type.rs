@@ -1,4 +1,4 @@
-//! This module defines the key types that can be written to a [`Keystore`](crate::Keystore).
+//! This module defines the key types that can be written to a [`Keystore`](tor-keymgr::Keystore).
 
 // @Diziet's notes regarding why we shouldn't be storing public keys in the key store:
 //
@@ -39,7 +39,6 @@
 use ssh_key::private::KeypairData;
 use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
-use thiserror::Error;
 use tor_error::internal;
 
 use crate::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
@@ -170,14 +169,6 @@ declare_key_type! {
         /// An expanded Ed25519 keypair.
         Ed25519ExpandedKeypair => "ed25519_expanded_private",
     }
-}
-
-/// An error that happens when we encounter an unknown key type.
-#[derive(Error, PartialEq, Eq, Debug, Clone)]
-#[error("unknown key type: arti_extension={arti_extension}")]
-pub struct UnknownKeyTypeError {
-    /// The extension used for keys of this type in an Arti keystore.
-    pub(crate) arti_extension: String,
 }
 
 #[cfg(test)]

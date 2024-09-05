@@ -13,13 +13,14 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeyType, KeystoreId, Result};
+use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
 use rel_path::RelKeyPath;
 use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
+use tor_key_forge::KeyType;
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;

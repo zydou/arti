@@ -1,0 +1,38 @@
+[package]
+name = "tor-key-forge"
+version = "0.22.0"
+authors = ["The Tor Project, Inc."]
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Low level cryptography wrappers used by Tor"
+keywords = ["tor", "arti", "cryptography"]
+categories = ["cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = []
+full = [
+    "tor-error/full",
+    "tor-hscrypto/full",
+    "tor-llcrypto/full",
+]
+
+__is_nonadditive = []
+__is_experimental = []
+
+[dependencies]
+derive-deftly = "0.14"
+derive_more = "0.99.3"
+downcast-rs = "1.2.0"
+paste = "1"
+rand = "0.8"
+ssh-key = { version = "0.6.1", features = ["std"] }
+thiserror = "1"
+tor-error = { version = "0.22.0", path = "../tor-error" }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.22.0" }
+tor-llcrypto = { version = "0.22.0", path = "../tor-llcrypto" }
+
+[dev-dependencies]
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
