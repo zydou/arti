@@ -19,7 +19,7 @@ use std::time::{Duration, SystemTime};
 #[cfg(feature = "geoip")]
 use tor_geoip::GeoipDb;
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
-use tor_netdoc::doc::netstatus::MdConsensus;
+use tor_netdoc::doc::netstatus::{ConsensusBuilder, MdConsensus, MdConsensusRouterStatus};
 use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RelayWeight, RouterStatusBuilder};
 
 pub use tor_netdoc::{BuildError, BuildResult};
@@ -47,7 +47,7 @@ pub struct NodeBuilders {
 }
 
 /// Helper: a customization function that does nothing.
-pub fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders) {}
+pub fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders, _bld: &mut ConsensusBuilder<MdConsensusRouterStatus>) {}
 
 /// As [`construct_network()`], but return a [`PartialNetDir`].
 pub fn construct_netdir() -> PartialNetDir {
@@ -62,7 +62,7 @@ pub fn construct_custom_netdir_with_params<F, P, PK>(
     lifetime: Option<Lifetime>,
 ) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders),
+    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
@@ -84,7 +84,7 @@ fn construct_custom_netdir_with_params_inner<F, P, PK>(
     #[cfg(feature = "geoip")] geoip_db: Option<&GeoipDb>,
 ) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders),
+    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
     P: IntoIterator<Item = (PK, i32)>,
     PK: Into<String>,
 {
@@ -107,7 +107,7 @@ where
 /// As [`construct_custom_network()`], but return a [`PartialNetDir`].
 pub fn construct_custom_netdir<F>(func: F) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders),
+    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
 {
     construct_custom_netdir_with_params(func, iter::empty::<(&str, _)>(), None)
 }
@@ -116,7 +116,7 @@ where
 /// As [`construct_custom_netdir()`], but with a `GeoipDb`.
 pub fn construct_custom_netdir_with_geoip<F>(func: F, db: &GeoipDb) -> BuildResult<PartialNetDir>
 where
-    F: FnMut(usize, &mut NodeBuilders),
+    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
 {
     construct_custom_netdir_with_params_inner(func, iter::empty::<(&str, _)>(), None, Some(db))
 }
@@ -185,7 +185,7 @@ pub fn construct_custom_network<F>(
     lifetime: Option<Lifetime>,
 ) -> BuildResult<(MdConsensus, Vec<Microdesc>)>
 where
-    F: FnMut(usize, &mut NodeBuilders),
+    F: FnMut(usize, &mut NodeBuilders, &mut ConsensusBuilder<MdConsensusRouterStatus>),
 {
     let f = RelayFlags::RUNNING
         | RelayFlags::VALID
@@ -261,7 +261,7 @@ where
             omit_md: false,
         };
 
-        func(idx as usize, &mut node_builders);
+        func(idx as usize, &mut node_builders, &mut bld);
 
         let md = node_builders.md.testing_md()?;
         let md_digest = *md.digest();
@@ -301,7 +301,7 @@ mod test {
     #[test]
     fn try_with_function() {
         let mut val = 0_u32;
-        let _net = construct_custom_netdir(|_idx, _nb| {
+        let _net = construct_custom_netdir(|_idx, _nb, _bld| {
             val += 1;
         });
         assert_eq!(val, 40);

@@ -46,7 +46,7 @@ fn some_interesting_netdir<'v, V>(values: V) -> Arc<NetDir>
 where
     V: IntoIterator<Item = (&'v str, i32)>,
 {
-    tor_netdir::testnet::construct_custom_netdir_with_params(|_, _| {}, values, None)
+    tor_netdir::testnet::construct_custom_netdir_with_params(|_, _, _| {}, values, None)
         .unwrap()
         .unwrap_if_sufficient()
         .unwrap()
@@ -101,7 +101,7 @@ fn padding_parameters_calculation() {
     let make_bogus_netdir = |values: &[(&str, i32)]| {
         NetParamsExtract::from(
             tor_netdir::testnet::construct_custom_netdir_with_params(
-                |_, _| {},
+                |_, _, _| {},
                 values.iter().cloned(),
                 None,
             )

@@ -603,7 +603,7 @@ pub(crate) mod test {
         use tor_netdir::testnet::construct_custom_netdir;
         use tor_netdoc::doc::netstatus::RelayFlags;
 
-        let network = construct_custom_netdir(|idx, nb| {
+        let network = construct_custom_netdir(|idx, nb, _| {
             if (0x21..0x27).contains(&idx) {
                 nb.rs.add_flags(RelayFlags::BAD_EXIT);
             }
@@ -978,7 +978,7 @@ pub(crate) mod test {
         // with no exits.
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let mut rng = testing_rng();
-            let netdir = testnet::construct_custom_netdir(|_idx, bld| {
+            let netdir = testnet::construct_custom_netdir(|_idx, bld, _| {
                 bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
             })
             .unwrap()
