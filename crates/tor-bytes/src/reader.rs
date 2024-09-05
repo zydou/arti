@@ -117,8 +117,11 @@ impl<'a> Reader<'a> {
     /// On success, returns Ok(slice).  If there are fewer than n
     /// bytes, returns Err(Error::Truncated).
     pub fn peek(&self, n: usize) -> Result<&'a [u8]> {
-        if self.remaining() < n {
-            return Err(Error::Truncated);
+        if let Some(deficit) = n
+            .checked_sub(self.remaining())
+            .and_then(|d| d.try_into().ok())
+        {
+            return Err(Error::Truncated { deficit });
         }
 
         Ok(&self.b[self.off..(n + self.off)])
@@ -224,7 +227,7 @@ impl<'a> Reader<'a> {
         let pos = self.b[self.off..]
             .iter()
             .position(|b| *b == term)
-            .ok_or(Error::Truncated)?;
+            .ok_or(Error::Truncated { deficit: 1.try_into().expect("1 == 0") })?;
         let result = self.take(pos)?;
         self.advance(1)?;
         Ok(result)

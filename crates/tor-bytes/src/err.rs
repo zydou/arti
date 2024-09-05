@@ -19,8 +19,11 @@ pub enum Error {
     /// This can mean that the object is truncated, or that we need to
     /// read more and try again, depending on the context in which it
     /// was received.
-    #[error("Object truncated (or not fully present)")]
-    Truncated,
+    #[error("Object truncated (or not fully present), at least {deficit} more bytes needed")]
+    Truncated {
+        /// Lower bound on number of additional bytes needed
+        deficit: NonZeroUsize,
+    },
     /// Called Reader::should_be_exhausted(), but found bytes anyway.
     #[error("Extra bytes at end of object")]
     ExtraneousBytes,
@@ -48,7 +51,7 @@ impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         use Error::*;
         match (self, other) {
-            (Truncated, Truncated) => true,
+            (Truncated { deficit: a }, Truncated { deficit: b }) => a == b,
             (ExtraneousBytes, ExtraneousBytes) => true,
             #[allow(deprecated)]
             (BadMessage(a), BadMessage(b)) => a == b,
@@ -69,8 +72,8 @@ impl Error {
     ///
     /// Panics if the specified `deficit` is zero.
     pub fn new_truncated_for_test(deficit: usize) -> Self {
-        let _deficit = NonZeroUsize::new(deficit).expect("zero deficit in assert!");
-        Error::Truncated
+        let deficit = NonZeroUsize::new(deficit).expect("zero deficit in assert!");
+        Error::Truncated { deficit }
     }
 }
 
