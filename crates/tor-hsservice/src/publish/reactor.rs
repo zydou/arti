@@ -2093,4 +2093,188 @@ impl From<BackoffError<UploadError>> for DescUploadRetryError {
     }
 }
 
-// NOTE: the publisher tests live in publish.rs
+// NOTE: the rest of the publisher tests live in publish.rs
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use tor_netdir::testnet;
+
+    /// Create a `TimePeriodContext` from the specified upload results.
+    fn create_time_period_ctx(
+        params: &HsDirParams,
+        upload_results: Vec<HsDirUploadStatus>,
+    ) -> TimePeriodContext {
+        TimePeriodContext {
+            params: params.clone(),
+            hs_dirs: vec![],
+            last_successful: None,
+            upload_results,
+        }
+    }
+
+    /// Create a single `HsDirUploadStatus`
+    fn create_upload_status(upload_res: UploadResult) -> HsDirUploadStatus {
+        HsDirUploadStatus {
+            relay_ids: RelayIds::empty(),
+            upload_res,
+            revision_counter: RevisionCounter::from(13),
+        }
+    }
+
+    /// Create a bunch of results, all with the specified `upload_res`.
+    fn create_upload_results(upload_res: UploadResult) -> Vec<HsDirUploadStatus> {
+        std::iter::repeat_with(|| create_upload_status(upload_res.clone()))
+            .take(10)
+            .collect()
+    }
+
+    fn construct_netdir() -> NetDir {
+        const SRV1: [u8; 32] = *b"The door refused to open.       ";
+        const SRV2: [u8; 32] = *b"It said, 'Five cents, please.'  ";
+
+        let dir = testnet::construct_custom_netdir(|_, _, bld| {
+            bld.shared_rand_prev(7, SRV1.into(), None)
+                .shared_rand_prev(7, SRV2.into(), None);
+        })
+        .unwrap();
+
+        dir.unwrap_if_sufficient().unwrap()
+    }
+
+    #[test]
+    fn upload_result_status_bootstrapping() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+        let results = [
+            (vec![], vec![]),
+            (vec![], create_upload_results(Ok(()))),
+            (create_upload_results(Ok(())), vec![]),
+        ];
+
+        for (primary_result, secondary_result) in results {
+            let primary_ctx = create_time_period_ctx(primary_params, primary_result);
+
+            let secondary_params = all_params
+                .iter()
+                .find(|param| param.time_period() != current_period)
+                .unwrap();
+            let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result.clone());
+
+            let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+            assert_eq!(status, State::Bootstrapping);
+            assert!(err.is_none());
+        }
+    }
+
+    #[test]
+    fn upload_result_status_running() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+
+        let secondary_result = create_upload_results(Ok(()));
+        let secondary_params = all_params
+            .iter()
+            .find(|param| param.time_period() != current_period)
+            .unwrap();
+        let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result.clone());
+
+        let primary_result = create_upload_results(Ok(()));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result);
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+        assert_eq!(status, State::Running);
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn upload_result_status_reachable() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+
+        let primary_result = create_upload_results(Ok(()));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        let failed_res = create_upload_results(Err(DescUploadRetryError::Bug(internal!("test"))));
+        let secondary_result = create_upload_results(Ok(()))
+            .into_iter()
+            .chain(failed_res.iter().cloned())
+            .collect();
+        let secondary_params = all_params
+            .iter()
+            .find(|param| param.time_period() != current_period)
+            .unwrap();
+        let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result);
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+
+        // Degraded but reachable (because some of the secondary HsDir uploads failed).
+        assert_eq!(status, State::DegradedReachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
+    }
+
+    #[test]
+    fn upload_result_status_unreachable() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+        let mut primary_result =
+            create_upload_results(Err(DescUploadRetryError::Bug(internal!("test"))));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        // No secondary TP (we are unreachable).
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx]);
+        assert_eq!(status, State::DegradedUnreachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
+
+        // Add a successful result
+        primary_result.push(create_upload_status(Ok(())));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx]);
+        // Still degraded, and unreachable (because we don't have a TimePeriodContext
+        // for the secondary TP)
+        assert_eq!(status, State::DegradedUnreachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
+
+        // If we add another time period where none of the uploads were successful,
+        // we're *still* unreachable
+        let secondary_result =
+            create_upload_results(Err(DescUploadRetryError::Bug(internal!("test"))));
+        let secondary_params = all_params
+            .iter()
+            .find(|param| param.time_period() != current_period)
+            .unwrap();
+        let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result.clone());
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+        assert_eq!(status, State::DegradedUnreachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
+    }
+}
