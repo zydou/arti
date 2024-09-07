@@ -5671,6 +5671,7 @@ dependencies = [
  "tor-key-forge",
  "tor-llcrypto",
  "tor-persist",
+ "tracing",
  "walkdir",
  "zeroize",
 ]
