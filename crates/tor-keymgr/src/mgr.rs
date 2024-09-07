@@ -480,6 +480,7 @@ mod tests {
 
     impl ToEncodableKey for TestKey {
         type Key = Self;
+        type KeyPair = Self;
 
         fn to_encodable_key(self) -> Self::Key {
             self
@@ -505,6 +506,7 @@ mod tests {
 
     impl ToEncodableKey for TestPublicKey {
         type Key = Self;
+        type KeyPair = TestKey;
 
         fn to_encodable_key(self) -> Self::Key {
             self
