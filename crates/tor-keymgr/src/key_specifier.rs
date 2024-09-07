@@ -318,6 +318,10 @@ pub trait KeySpecifier {
     /// This function should return `None` for keys that are recognized by Arti's key stores, but
     /// not by C Tor's key store (such as `HsClientIntroAuthKeypair`).
     fn ctor_path(&self) -> Option<CTorPath>;
+
+    /// If this is the specifier for a public key, the specifier for
+    /// the corresponding (secret) keypair from which it can be derived
+    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>>;
 }
 
 /// A trait for serializing and deserializing specific types of [`Slug`]s.
@@ -372,6 +376,10 @@ impl KeySpecifier for ArtiPath {
     fn ctor_path(&self) -> Option<CTorPath> {
         None
     }
+
+    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+        None
+    }
 }
 
 impl KeySpecifier for CTorPath {
@@ -381,6 +389,10 @@ impl KeySpecifier for CTorPath {
 
     fn ctor_path(&self) -> Option<CTorPath> {
         Some(self.clone())
+    }
+
+    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+        None
     }
 }
 
@@ -397,6 +409,10 @@ impl KeySpecifier for KeyPath {
             KeyPath::Arti(p) => p.ctor_path(),
             KeyPath::CTor(p) => p.ctor_path(),
         }
+    }
+
+    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+        None
     }
 }
 

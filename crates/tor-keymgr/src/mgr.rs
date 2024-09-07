@@ -629,6 +629,10 @@ mod tests {
                 fn ctor_path(&self) -> Option<crate::CTorPath> {
                     None
                 }
+
+                fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+                    None
+                }
             }
         };
     }
