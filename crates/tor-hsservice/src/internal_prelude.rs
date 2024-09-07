@@ -149,7 +149,10 @@ pub(crate) use {
         ClientError,
     },
     crate::{req::RendRequestContext, HsNickname, LinkSpecs, NtorPublicKey},
-    crate::{BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier},
+    crate::{
+        BlindIdKeypairSpecifier, DescSigningKeypairSpecifier, HsIdKeypairSpecifier,
+        HsIdPublicKeySpecifier,
+    },
     crate::{DescUploadError, IptError},
     crate::{FatalError, RendRequest},
     ipt_establish::{IptEstablisher, IptParameters, IptStatus, IptStatusStatus, IptWantsToRetire},

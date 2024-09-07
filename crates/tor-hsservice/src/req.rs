@@ -89,15 +89,12 @@ impl RendRequestContext {
     /// Obtain the all current `Subcredential`s of `nickname`
     /// from the `K_hs_blind_id` read from the keystore.
     pub(crate) fn compute_subcredentials(&self) -> Result<Vec<Subcredential>, FatalError> {
-        let hsid_key_spec = HsIdKeypairSpecifier::new(self.nickname.clone());
+        let hsid_key_spec = HsIdPublicKeySpecifier::new(self.nickname.clone());
 
-        // TODO (#1194): Revisit when we add support for offline hsid mode
-        let keypair = self
+        let hsid = self
             .keymgr
-            .get::<HsIdKeypair>(&hsid_key_spec)?
+            .get::<HsIdKey>(&hsid_key_spec)?
             .ok_or_else(|| FatalError::MissingHsIdKeypair(self.nickname.clone()))?;
-
-        let hsid = HsIdKey::from(&keypair);
 
         let pattern = BlindIdKeypairSpecifierPattern {
             nickname: Some(self.nickname.clone()),

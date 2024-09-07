@@ -45,11 +45,10 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
 
     let nickname = &config.nickname;
 
-    let svc_key_spec = HsIdKeypairSpecifier::new(nickname.clone());
-    let hsid_kp = keymgr
-        .get::<HsIdKeypair>(&svc_key_spec)?
+    let svc_key_spec = HsIdPublicKeySpecifier::new(nickname.clone());
+    let hsid = keymgr
+        .get::<HsIdKey>(&svc_key_spec)?
         .ok_or_else(|| FatalError::MissingHsIdKeypair(nickname.clone()))?;
-    let hsid = HsIdKey::from(&hsid_kp);
 
     // TODO: make the keystore selector configurable
     let keystore_selector = Default::default();
