@@ -60,6 +60,12 @@ pub struct HsIdKeypairSpecifier {
     pub(crate) nickname: HsNickname,
 }
 
+impl From<&HsIdPublicKeySpecifier> for HsIdKeypairSpecifier {
+    fn from(hs_id_public_key_specifier: &HsIdPublicKeySpecifier) -> HsIdKeypairSpecifier {
+        HsIdKeypairSpecifier::new(hs_id_public_key_specifier.nickname.clone())
+    }
+}
+
 #[derive(Deftly, PartialEq, Debug, Constructor)]
 #[derive_deftly(KeySpecifier, HsTimePeriodKeySpecifier)]
 #[deftly(prefix = "hss")]
@@ -86,6 +92,17 @@ pub struct BlindIdPublicKeySpecifier {
     #[deftly(denotator)]
     /// The time period associated with this key.
     pub(crate) period: TimePeriod,
+}
+
+impl From<&BlindIdPublicKeySpecifier> for BlindIdKeypairSpecifier {
+    fn from(
+        hs_blind_id_public_key_specifier: &BlindIdPublicKeySpecifier,
+    ) -> BlindIdKeypairSpecifier {
+        BlindIdKeypairSpecifier::new(
+            hs_blind_id_public_key_specifier.nickname.clone(),
+            hs_blind_id_public_key_specifier.period,
+        )
+    }
 }
 
 #[derive(Deftly, PartialEq, Debug, Constructor)]

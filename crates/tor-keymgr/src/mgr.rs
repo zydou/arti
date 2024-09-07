@@ -433,6 +433,12 @@ mod tests {
         key: SshKeyData,
     }
 
+    impl From<TestKey> for TestPublicKey {
+        fn from(tk: TestKey) -> TestPublicKey {
+            TestPublicKey { key: tk.key }
+        }
+    }
+
     impl TestKey {
         /// Create a new test key with the specified metadata.
         fn new(meta: &str) -> Self {
