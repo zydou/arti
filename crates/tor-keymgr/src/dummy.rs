@@ -116,6 +116,20 @@ impl ArtiNativeKeystore {
 
 impl Keystore for ArtiNativeKeystore {}
 
+/// A dummy `ArtiEphemeralKeystore`.
+#[non_exhaustive]
+pub struct ArtiEphemeralKeystore;
+
+impl Keystore for ArtiEphemeralKeystore {}
+
+impl ArtiEphemeralKeystore {
+    /// Create a new [`ArtiEphemeralKeystore`]
+    #[allow(clippy::unnecessary_wraps)]
+    pub fn new(_: String) -> Self {
+        Self
+    }
+}
+
 impl KeyMgr {
     /// A dummy `get` implementation that always behaves like the requested key is not found.
     ///
