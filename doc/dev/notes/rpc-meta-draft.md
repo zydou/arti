@@ -95,18 +95,19 @@ but that will not be the default.
 At any given time,
 a session has access to one or more "RPC Objects"
 (or just "Objects").
-For example, an Object may be a session,
-a circuit, a stream, an onion service,
-or the arti process itself.
 
-> In this document, Object means an RPC Object,
-> not a JSON document object.
+> For example, an Object may be a session,
+> a circuit, a stream, an onion service,
+>or the arti process itself.
+
+In this document, Object means an RPC Object,
+not a JSON document object.
 
 Each object is denoted by an opaque "Object ID",
 which is serialised in JSON as a string.
-The format of an Object Identifier string is not stable,
-and clients must not rely on it.
 An Object ID is a sequence of printable non-space ASCII characters.
+The format of an Object Identifier string is not otherwise stable,
+and clients must not rely on it.
 
 Object IDs behave like capabilities:
 an application can use an object if and only if
@@ -144,15 +145,16 @@ Arti will not release the underlying object,
 or close it as unused.
 If a session holds a "weak" object ID,
 the underlying object may be released at any time.
+
 There can be multiple IDs for the same Object.
 (So performing string comparisons on Object IDs
 does not yield reliable information about
 whether two IDs refer to the same Object.)
 
-However, the same Objectd ID string will never be reused within a session
+However, the same Object ID string will never be reused within a session
 for a different underlying object,
 even after the underlying object is disposed of.
-Even the id string for a Handle which has been explicitly released
+Even the ID string for a Handle which has been explicitly released
 will not be reused.
 
 > TODO: "release" is a funny word here.
@@ -751,7 +753,7 @@ When we are specifying a request, we list the following.
 > a cancellation mechanism is not implemented.
 
 To try to cancel a request,
-the RPC session object supports
+the RPC session object implements
 an `rpc:cancel` method, taking parameters of the form:
 
 ```
