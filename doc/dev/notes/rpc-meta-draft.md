@@ -15,13 +15,13 @@ and what is not.
 
 ### Goals and organization
 
-This document tries to sketch our RPC protocol.
-It is not a substitute for a more formal specification;
-nonetheless, it should give enough detail
-to help keep our planning in sync
-as we build our RPC implementation
+This document tries to specify our RPC protocol.
+Ultimately we hope it will be sufficient
+for a (perhaps hypothetical) reimplementation.
+Right now, though, its primary role
+is to support our own implementation work,
+on both the RPC RPC implementation
 and its consumers.
-
 This document does not discuss internal implementation details:
 Although there are some interesting challenges
 in implementing this protocol inside Arti,
@@ -102,7 +102,8 @@ or the arti process itself.
 > In this document, Object means an RPC Object,
 > not a JSON document object.
 
-Each object is denoted by an opaque "Object ID".
+Each object is denoted by an opaque "Object ID",
+which is serialised in JSON as a string.
 The format of an Object Identifier string is not stable,
 and clients must not rely on it.
 An Object ID is a sequence of printable non-space ASCII characters.
@@ -113,9 +114,9 @@ it has an ID for that object.
 
 Unless otherwise specified,
 an Object ID is session-local:
-an Object ID from one session can't be used in another session.
-(Either it refers to another object in that session,
-or it refers to no object at all.)
+an Object ID from one session must not be used in another session.
+(It might refer to a totally different object in that other session,
+or to no object at all.)
 
 (Some "externally visible" Object IDs
 _can_ be used outside of a session.
@@ -143,6 +144,16 @@ Arti will not release the underlying object,
 or close it as unused.
 If a session holds a "weak" object ID,
 the underlying object may be released at any time.
+There can be multiple IDs for the same Object.
+(So performing string comparisons on Object IDs
+does not yield reliable information about
+whether two IDs refer to the same Object.)
+
+However, the same Objectd ID string will never be reused within a session
+for a different underlying object,
+even after the underlying object is disposed of.
+Even the id string for a Handle which has been explicitly released
+will not be reused.
 
 > TODO: "release" is a funny word here.
 > Many objects can be destroyed or enter a "closed" state
@@ -416,7 +427,7 @@ Any given response will have exactly one of
 ##### Method namespacing
 
 All methods names consist of a namespace and an identifier.
-Both should be valid C identifiers.
+Both must be valid C identifiers.
 The namespace and identifier are separated by a colon.
 (For example, the method name `arti:connect`
 is in the namespace `arti`, and has the identifier `connect`.)
