@@ -226,6 +226,9 @@ impl KeyMgr {
 
     /// Insert `key` into the [`Keystore`](crate::Keystore) specified by `selector`.
     ///
+    /// If the key already exists in the specified key store, the `overwrite` flag is used to
+    /// decide whether to overwrite it with the provided key.
+    ///
     /// If this key is not already in the keystore, `None` is returned.
     ///
     /// If this key already exists in the keystore, its value is updated
@@ -238,14 +241,19 @@ impl KeyMgr {
         key: K,
         key_spec: &dyn KeySpecifier,
         selector: KeystoreSelector,
+        overwrite: bool,
     ) -> Result<Option<K>> {
         let key = key.to_encodable_key();
         let store = self.select_keystore(&selector)?;
         let key_type = K::Key::key_type();
         let old_key: Option<K> = self.get_from_store(key_spec, &key_type, [store].into_iter())?;
-        let () = store.insert(&key, key_spec, &key_type)?;
 
-        Ok(old_key)
+        if old_key.is_some() && !overwrite {
+            Err(crate::Error::KeyAlreadyExists)
+        } else {
+            let () = store.insert(&key, key_spec, &key_type)?;
+            Ok(old_key)
+        }
     }
 
     /// Remove the key identified by `key_spec` from the [`Keystore`](crate::Keystore)
@@ -654,6 +662,7 @@ mod tests {
     impl_specifier!(TestKeySpecifier1, "spec1");
     impl_specifier!(TestKeySpecifier2, "spec2");
     impl_specifier!(TestKeySpecifier3, "spec3");
+    impl_specifier!(TestKeySpecifier4, "spec4");
 
     impl_specifier!(TestPublicKeySpecifier1, "pub-spec1");
 
@@ -682,6 +691,7 @@ mod tests {
                 TestKey::new("coot"),
                 &TestKeySpecifier1,
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+                true,
             )
             .unwrap();
 
@@ -699,6 +709,7 @@ mod tests {
                 TestKey::new("gull"),
                 &TestKeySpecifier1,
                 KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+                true,
             )
             .unwrap()
             .unwrap()
@@ -711,24 +722,48 @@ mod tests {
                 .map(|k| k.meta),
             Some("keystore2_gull".to_string()),
         );
+
+        // Insert a different key using the _same_ key specifier (overwrite = false)
+        let err = mgr
+            .insert(
+                TestKey::new("gull"),
+                &TestKeySpecifier1,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+                false,
+            )
+            .unwrap_err();
+        assert!(matches!(err, crate::Error::KeyAlreadyExists));
+
+        // Insert a new key into Keystore2 (overwrite = false)
+        let old_key = mgr
+            .insert(
+                TestKey::new("penguin"),
+                &TestKeySpecifier2,
+                KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+                false,
+            )
+            .unwrap();
+        assert!(old_key.is_none());
+
         // Insert a key into the default keystore
         let old_key = mgr
             .insert(
                 TestKey::new("moorhen"),
-                &TestKeySpecifier2,
+                &TestKeySpecifier3,
                 KeystoreSelector::Default,
+                true,
             )
             .unwrap();
         assert!(old_key.is_none());
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier2)
+            mgr.get::<TestKey>(&TestKeySpecifier3)
                 .unwrap()
                 .map(|k| k.meta),
             Some("keystore1_moorhen".to_string())
         );
 
         // The key doesn't exist in any of the stores yet.
-        assert!(mgr.get::<TestKey>(&TestKeySpecifier3).unwrap().is_none());
+        assert!(mgr.get::<TestKey>(&TestKeySpecifier4).unwrap().is_none());
 
         // Insert the same key into all 3 key stores, in reverse order of keystore priority
         // (otherwise KeyMgr::get will return the key from the default store for each iteration and
@@ -737,15 +772,16 @@ mod tests {
             let old_key = mgr
                 .insert(
                     TestKey::new("cormorant"),
-                    &TestKeySpecifier3,
+                    &TestKeySpecifier4,
                     KeystoreSelector::Id(&KeystoreId::from_str(store).unwrap()),
+                    true,
                 )
                 .unwrap();
             assert!(old_key.is_none());
 
             // Ensure the key now exists in `store`.
             assert_eq!(
-                mgr.get::<TestKey>(&TestKeySpecifier3)
+                mgr.get::<TestKey>(&TestKeySpecifier4)
                     .unwrap()
                     .map(|k| k.meta),
                 Some(format!("{store}_cormorant"))
@@ -755,7 +791,7 @@ mod tests {
         // The key exists in all key stores, but if no keystore_id is specified, we return the
         // value from the first key store it is found in (in this case, Keystore1)
         assert_eq!(
-            mgr.get::<TestKey>(&TestKeySpecifier3)
+            mgr.get::<TestKey>(&TestKeySpecifier4)
                 .unwrap()
                 .map(|k| k.meta),
             Some("keystore1_cormorant".to_string())
@@ -781,6 +817,7 @@ mod tests {
             TestKey::new("coot"),
             &TestKeySpecifier1,
             KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+            true,
         )
         .unwrap();
         assert_eq!(
@@ -841,6 +878,7 @@ mod tests {
             TestKey::new("coot"),
             &TestKeySpecifier1,
             KeystoreSelector::Default,
+            true,
         )
         .unwrap();
 
@@ -920,6 +958,7 @@ mod tests {
             TestKey::new("coot"),
             &TestKeySpecifier1,
             KeystoreSelector::Id(&keystore2),
+            true,
         )
         .unwrap();
 

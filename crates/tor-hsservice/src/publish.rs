@@ -366,7 +366,12 @@ mod test {
         K: ToEncodableKey,
     {
         keymgr
-            .insert(key, svc_key_spec, tor_keymgr::KeystoreSelector::Default)
+            .insert(
+                key,
+                svc_key_spec,
+                tor_keymgr::KeystoreSelector::Default,
+                true,
+            )
             .unwrap();
     }
 
