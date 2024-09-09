@@ -167,80 +167,9 @@ struct AuthInterpretation {
 ///
 /// ## The SOCKS protocol
 ///
-/// To interpret a SOCKS request and look for an RPC target object,
-/// an application behaves as follows.
-/// (For completeness, we document _all_ variants of our SOCKS handshake,
-/// including those which RPC applications do not use.)
-///
-/// This protocol allows the application to provide an isolation string
-/// and/or an RPC target object ID.
-///
-/// TODO RPC: This documents what the handshake currently is.
-/// See the next sections for how I propose to change it. -nickm
-///
-/// 1. If SOCKS5 is not selected, or if SOCKS5 username/password authentication
-///    (Type `1`) is not selected, then
-///    the request is interpreted as a plain Tor SOCKS proxy request
-///    and does not interact with the RPC system.
-///
-/// 2. If SOCKS5 and username/password authentication is selected,
-///    and if the username is `<arti-rpc-session>`,
-///    then the password is interpreted as follows:
-///     - If the password contains a colon,
-///       then everything before the first colon is the Object ID
-///       and everything after is an isolation string.
-///     - Otherwise, the entire password is interpreted as the ObjectID.
-///
-/// 3. Otherwise, the entire username/password pair
-///    is interpreted as an isolation "string".
-///    (Actually, as an isolation tuple.
-///    "But the Idea is the important thing" —Tom Lehrer)
-///
-/// 4. The request is then interpreted by the specified RPC object,
-///    using the `ConnectWithPrefs` method.
-///    For both client-like and datastream objects,
-///    a connection is initiated through the Tor network
-///    to the host and port specified in the object.
-///
-/// ### Proposed changes
-///
-/// In discussions Diziet suggested that this system should have
-/// some kind of forward-compatibility mechanism so that, if we choose,
-/// we could later add support for encoding things other than the isolation string
-/// in the SOCKS request.
-///
-/// Earlier Diziet also suggested
-/// that using "anything else is isolation" as a fallback behavior
-/// could lead to unwanted silent failures if  programmers make mistakes.
-/// (For legacy purposes, however we do need to have a mode
-/// where all username/password pairs are allowable isolation.)
-///
-/// Here's a way to solve both issues.
-///
-/// 1. If the username is `<arti-isolation>` then the password is an isolation string.
-///
-/// 2. Otherwise if the username matches the regex `<arti-rpc-session:[0-9]+>.*`,
-///    then digits encode a protocol version number, defining the interpretation
-///    of the remainder of the username and password.
-///    In v1, the password is behaves as in the current design
-///    (with an Object ID and an optional colon-separated isolation string,
-///    and with the remainder of the username required to be empty.)
-///
-///    If the protocol version number is unrecognized,
-///    the SOCKS connection is rejected.
-///
-/// 3. Otherwise, we look at the SOCKS configuration.
-///    If the SOCKS port is configured in "legacy mode",
-///    then we interpret the username/password pair as an isolation tuple.
-///    If not, we reject the SOCKS connection.
-///
-/// Additionally, we extend the `get_rpc_proxy_info` command
-/// so that, for each RPC-enabled SOCKS port,
-/// it describes the supported protocol versions.
-///
-/// With this scheme,
-/// we have room to add more connection parameters in the future,
-/// and we can later have non-legacy socks ports that require this handshake format.
+/// See [proposal 351](https://spec.torproject.org/proposals/351-socks-auth-extensions.html) for now.
+/// Once it is merged, see the
+/// [SOCKS extensions spec](https://spec.torproject.org/socks-extensions.html).
 ///
 /// ### Another proposed change
 ///
@@ -278,8 +207,8 @@ struct AuthInterpretation {
 ///
 /// To do this, they make a SOCKS connection to arti,
 /// with target address www.example.com.
-/// They set the username to `<arti-rpc-session>`,
-/// and the password to `SESSION-1`.
+/// They set the username to `<torS0X>0SESSION-1`,
+/// and the password to the empty string.
 ///
 /// Arti looks up the Session object via the `SESSION-1` object ID
 /// and tells it (via the ConnectWithPrefs special method)
@@ -307,9 +236,11 @@ struct AuthInterpretation {
 /// Now the application has an object called `STREAM-1` that is not yet a connected
 /// stream, but which may become one.
 ///
+/// This time, it wants to set its isolation string to "xyzzy".
+///
 /// The application opens a socks connection as before.
-/// For the username it sends `<arti-rpc-session>`,
-/// and for the password it sends `STREAM-1`.
+/// For the username it sends `<torS0X>0STREAM-1`,
+/// and for the password it sends `xyzzy`.
 ///
 /// Now Arti looks up the `RpcDataStream` object via `STREAM-1`,
 /// and tells it (via the ConnectWithPrefs special method)
