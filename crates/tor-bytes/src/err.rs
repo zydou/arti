@@ -20,8 +20,10 @@ pub enum Error {
     /// This can mean that the object is truncated, or that we need to
     /// read more and try again, depending on the context in which it
     /// was received.
-    #[error("Object truncated (or not fully present), at least {} more bytes needed",
-            Sensitive::new(deficit))]
+    #[error(
+        "Object truncated (or not fully present), at least {} more bytes needed",
+        Sensitive::new(deficit)
+    )]
     Truncated {
         /// Lower bound on number of additional bytes needed
         //
