@@ -1,0 +1,30 @@
+[package]
+name = "tor-relay-crypto"
+version = "0.22.0"
+authors = ["The Tor Project, Inc."]
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Cryptography types and helpers for a Tor relay"
+keywords = ["tor", "arti", "cryptography"]
+categories = ["cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = []
+full = [
+    "tor-llcrypto/full",
+]
+
+[dependencies]
+derive-deftly = "0.14"
+derive_more = "0.99.3"
+paste = "1"
+signature = "2"
+tor-cert = { path = "../tor-cert", version = "0.22.0", features = ["encode"] }
+tor-key-forge = { path = "../tor-key-forge", version = "0.22.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.22.0" }
+tor-llcrypto = { version = "0.22.0", path = "../tor-llcrypto" }
+
+[dev-dependencies]

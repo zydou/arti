@@ -5941,6 +5941,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-relay-crypto"
+version = "0.22.0"
+dependencies = [
+ "derive-deftly",
+ "derive_more",
+ "paste",
+ "signature",
+ "tor-cert",
+ "tor-key-forge",
+ "tor-keymgr",
+ "tor-llcrypto",
+]
+
+[[package]]
 name = "tor-relay-selection"
 version = "0.22.0"
 dependencies = [
