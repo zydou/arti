@@ -119,7 +119,7 @@ mod specifier {
             None
         }
 
-        fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+        fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
             None
         }
     }

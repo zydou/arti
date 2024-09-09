@@ -133,7 +133,7 @@ impl KeyMgr {
         if result.is_none() {
             // If the key_spec is the specifier for the public part of a keypair,
             // try getting the pair and extracting the public portion from it.
-            if let Some(key_pair_spec) = key_spec.get_keypair_specifier() {
+            if let Some(key_pair_spec) = key_spec.keypair_specifier() {
                 return Ok(self.get::<K::KeyPair>(&*key_pair_spec)?.map(|k| k.into()));
             }
         }
@@ -640,7 +640,7 @@ mod tests {
                     None
                 }
 
-                fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+                fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
                     None
                 }
             }

@@ -321,7 +321,7 @@ pub trait KeySpecifier {
 
     /// If this is the specifier for a public key, the specifier for
     /// the corresponding (secret) keypair from which it can be derived
-    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>>;
+    fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>>;
 }
 
 /// A trait for serializing and deserializing specific types of [`Slug`]s.
@@ -377,7 +377,7 @@ impl KeySpecifier for ArtiPath {
         None
     }
 
-    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+    fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
         None
     }
 }
@@ -391,7 +391,7 @@ impl KeySpecifier for CTorPath {
         Some(self.clone())
     }
 
-    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+    fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
         None
     }
 }
@@ -411,7 +411,7 @@ impl KeySpecifier for KeyPath {
         }
     }
 
-    fn get_keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+    fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
         None
     }
 }
