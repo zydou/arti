@@ -301,6 +301,20 @@ and parameter values that do not match their specified types
 must be treated as an error,
 both by the server and by the client.
 
+### Concurrent requests and pipelining {#pipelining}
+
+A client may send multiple requests,
+without waiting for responses to earlier requests.
+
+When multiple requests are outstanding,
+the ordering of responses from the server
+is not necessarily the same as the ordering of the requests.
+
+The server may impose limits on the amount of concurrency
+and may stop reading from the client when server buffers are full.
+It is the client's responsibility
+to avoid concurrent-writing-induced deadlocks.
+
 ### Data Streams
 
 We do not want to force users
@@ -777,8 +791,7 @@ When we are specifying a request, we list the following.
 
  * We have connection-oriented session state.
 
- * We support overlapping and pipelined responses,
-   rather than batched multi-requests.
+ * We support [overlapping and pipelined responses](#pipeing).
 
  * TODO our errors are likely to be a superset of JSON-RPC's.  TBD.
 
