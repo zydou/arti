@@ -425,8 +425,53 @@ Any given response will have exactly one of
 > TODO: Specify our error format to be the same as,
 > or similar to, that used by JSON-RPC.
 
+#### Handling invalid JSON
 
-##### Method namespacing
+Upon receiving any syntactically incorrect JSON,
+the server MUST close the connection.
+
+(This applies only to strings that are not valid JSON;
+not to strings that are valid JSON
+but which do not match the expected objects.)
+
+> **This is a security feature.**
+>
+> If the server tolerated syntax errors,
+> it would be open to more protocol-in-protocol attacks.
+> For example,
+> an attacker might be able to trick a web browser
+> into making an HTTP request a TCP port serving RPC,
+> and then embed its payload as the HTTP request body.
+> If our protocol were to tolerate incorrect JSON,
+> it would ignore the HTTP headers,
+> and then process the attackers payload.
+>
+> Alternatively, we could have said that syntax errors
+> are only permitted _after_ authentication.
+> But if we did that,
+> an attacker could more easily exploit string injection opportunities
+> in a badly programmed client.
+> (Also, "never allowed" is easier to implement than "sometimes allowed".)
+
+> **Example**
+>
+> Upon receiving `{ a: 3 }\n`, the server will close the connection,
+> since `{ a : 3 }` is not valid JSON.
+>
+> Upon receiving `{ 'a' : 3 }\n`, the server will not close the connection,
+> even though `{ 'a': 3 }` is not a valid request,
+> since `{ 'a' : 3 }` _is_ valid JSON.
+>
+> Upon receiving `{ 'a' : 3\n` (with no closing brace),
+> the server will still not close the connection:
+> The closing brace may appear on a later line,
+> and the server does not enforce
+> one-request-per-line encoding for its inputs.
+
+
+
+
+#### Method namespacing
 
 All methods names consist of a namespace and an identifier.
 Both must be valid C identifiers.
@@ -684,18 +729,6 @@ fs:cookie
 
 Until authentication is successful on a connection,
 Arti closes the connection after any error.
-
-> Taking a lesson from Tor's control port:
-> we always want a correct authentication handshake to complete
-> before we allow any requests to be handled,
-> even if the stream itself is such
-> that no authentication should be required.
-> This helps prevent cross-protocol attacks in cases
-> where things are misconfigured.
-
-> TODO-RPC: Make sure "close on any error" is implemented,
-> and test it.
-> It is essential for security.
 
 ### Specifying requests and replies.
 
