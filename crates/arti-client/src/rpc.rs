@@ -207,6 +207,12 @@ pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
 ///
 /// Note 2: This has to be a special method, because
 /// it needs to return a DataStream, which can't be serialized.
+///
+/// > TODO RPC: The above documentation still isn't quite specific enough,
+/// > and a lot of it belongs in socks.rs where it could explain how a SOCKS request
+/// > is interpreted and converted into a ConnectWithPrefs call.
+/// > See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2373#note_3071833>
+/// > for discussion.
 #[derive(Deftly, Debug)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(no_method_name))]
