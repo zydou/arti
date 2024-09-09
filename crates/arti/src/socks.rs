@@ -87,10 +87,9 @@ struct SocksIsolationKey(ConnIsolation, ProvidedIsolation);
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProvidedIsolation {
     /// The socks isolation itself.
-    Auth(SocksAuth),
-    /// A string provided as isolation with an RPC connection
-    #[cfg(feature = "rpc")]
-    RpcString(Option<String>),
+    Legacy(SocksAuth),
+    /// A bytestring provided as isolation with the extended Socks5 username/password protocol.
+    IsolationString(Box<[u8]>),
 }
 
 impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
@@ -109,10 +108,10 @@ impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
 
 /// The meaning of a SOCKS authentication field, according to our conventions.
 struct AuthInterpretation {
-    /// Assign this stream to a client determined by given RPC session, and
-    /// register its existence with that session.
+    /// Associate this stream with a DataStream created by using a particular RPC object
+    /// as a Tor client.
     #[cfg(feature = "rpc")]
-    assign_to_session: Option<rpc::ObjectId>,
+    rpc_object: Option<rpc::ObjectId>,
 
     /// Isolate this stream from other streams that do not have the same
     /// value.
@@ -331,44 +330,55 @@ mod socks_and_rpc {}
 /// (In no case is it actually SOCKS authentication: it can either be a message
 /// to the stream isolation system or the RPC system.)
 fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
-    // TODO RPC: This whole function and the way that it parses SOCKS
-    // authentication is a placeholder (because we need to put _something_ here
-    // for now).  We could probably come up with a much better design, and
-    // should.
-    //
-    // TODO RPC: In our final design we should probably figure out way to
-    // migrate away from the current "anything goes" approach to stream
-    // isolation without breaking all the existing apps that think they can use
-    // an arbitrary byte-string as their isolation token.
+    /// A constant which, when it appears at the start of a username,
+    /// indicates that the username/password are to be interpreted as
+    /// as encoding SOCKS5 extended parameters,
+    /// and that the version is the one we recognize.
+    ///
+    /// (Note that the version here is ascii 0, not binary zero.)
+    const SOCKS_EXT_CONST_RECOGNIZED: &[u8] = b"<torS0X>0";
 
-    /// A constant which, when it appears as a username, indicates that the
-    /// stream is to be assigned to an Arti RPC session.
-    const RPC_SESSION_CONST: &[u8] = b"<arti-rpc-session>";
+    /// A constant which, when it appears at the start of a username,
+    /// indicates that the username/password are to be interpreted as
+    /// as encoding SOCKS5 extended parameters,
+    /// but the version might not be one we recognize.
+    const SOCKS_EXT_CONST_ANY: &[u8] = b"<torS0X>";
 
-    #[allow(unused_variables)] // TODO RPC remove
+    debug_assert!(SOCKS_EXT_CONST_RECOGNIZED.starts_with(SOCKS_EXT_CONST_ANY));
+
     match auth {
-        SocksAuth::Username(user, pass) if user == RPC_SESSION_CONST => {
-            cfg_if::cfg_if! {
-                if #[cfg(feature="rpc")] {
-                    let pass =
-                        std::str::from_utf8(pass).context("rpc-session info must be utf-8")?;
-                    let (session, isolation) = match pass.split_once(':') {
-                        Some((s,i)) => (s.to_owned().into(), Some(i.to_owned())),
-                        None => (pass.to_owned().into(), None),
-                    };
-                    Ok(AuthInterpretation {
-                        assign_to_session: Some(session),
-                        isolation: ProvidedIsolation::RpcString(isolation)
-                    })
-                } else {
-                    Err(anyhow!("Not built with support for RPC"))
-                }
-            }
+        SocksAuth::Username(user, pass) if user.starts_with(SOCKS_EXT_CONST_RECOGNIZED) => {
+            let user = user
+                .strip_prefix(SOCKS_EXT_CONST_RECOGNIZED)
+                .expect("Prefix disappeared");
+
+            let rpc_obj_id = std::str::from_utf8(user).context("RPC object ID must be utf-8")?;
+            let isolation = pass;
+
+            let rpc_obj_id: Option<&str> = if rpc_obj_id.is_empty() {
+                None
+            } else {
+                #[cfg(not(feature = "rpc"))]
+                return Err(anyhow!(
+                    "Received RPC object ID, but not built with support for RPC"
+                ));
+                #[cfg(feature = "rpc")]
+                Some(rpc_obj_id)
+            };
+
+            Ok(AuthInterpretation {
+                #[cfg(feature = "rpc")]
+                rpc_object: rpc_obj_id.map(rpc::ObjectId::from),
+                isolation: ProvidedIsolation::IsolationString(isolation.clone().into()),
+            })
+        }
+        SocksAuth::Username(user, _) if user.starts_with(SOCKS_EXT_CONST_ANY) => {
+            Err(anyhow!("Unrecognized Tor SOCKS5 extension version."))
         }
         other_auth => Ok(AuthInterpretation {
             #[cfg(feature = "rpc")]
-            assign_to_session: None,
-            isolation: ProvidedIsolation::Auth(other_auth.clone()),
+            rpc_object: None,
+            isolation: ProvidedIsolation::Legacy(other_auth.clone()),
         }),
     }
 }
@@ -422,7 +432,7 @@ impl<R: Runtime> SocksConnContext<R> {
         prefs.set_isolation(SocksIsolationKey(conn_isolation, interp.isolation));
 
         #[cfg(feature = "rpc")]
-        if let Some(session) = interp.assign_to_session {
+        if let Some(session) = interp.rpc_object {
             if let Some(mgr) = &self.rpc_mgr {
                 let (context, object) = mgr
                     .lookup_object(&session)
