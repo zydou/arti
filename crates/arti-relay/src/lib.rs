@@ -1,5 +1,8 @@
 pub mod builder;
 mod config;
+mod err;
+
+pub use err::Error;
 
 use std::sync::Arc;
 
@@ -9,6 +12,7 @@ use tor_netdir::params::NetParameters;
 use tor_rtcompat::Runtime;
 
 use crate::config::TorRelayConfig;
+use crate::err::ErrorDetail;
 
 // Only rustls is supported.
 #[cfg(all(feature = "rustls", any(feature = "async-std", feature = "tokio")))]
@@ -56,13 +60,13 @@ impl<R: Runtime> TorRelay<R> {
     }
 
     /// Return a TorRelay object.
-    pub(crate) fn create_inner(runtime: R, config: &TorRelayConfig) -> Self {
+    pub(crate) fn create_inner(runtime: R, config: &TorRelayConfig) -> Result<Self, ErrorDetail> {
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &config.channel,
             Dormancy::Active,
             &NetParameters::from_map(&config.override_net_params),
         ));
-        Self { runtime, chanmgr }
+        Ok(Self { runtime, chanmgr })
     }
 }

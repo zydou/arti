@@ -110,7 +110,7 @@ pub_if_error_detail! {
 /// The details of this enumeration are not stable: using the `error_detail`
 /// feature will void your semver guarantee.
 ///
-/// Instead of looking at the type, you try to should use the
+/// Instead of looking at the type, you should try to use the
 /// [`kind`](`tor_error::HasKind::kind`) trait method to distinguish among
 /// different kinds of [`Error`](struct@crate::Error).  If that doesn't provide enough information
 /// for your use case, please let us know.
