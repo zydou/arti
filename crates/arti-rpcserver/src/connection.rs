@@ -295,12 +295,10 @@ impl Connection {
                         }
                         Some(Err(e)) => {
                             // We got a non-recoverable error from the JSON codec.
-                            match ConnectionError::classify_read_error(e) {
-                                // No actionable read error; just close the connection "cleanly."
-                                Ok(()) => break 'outer,
-                                // There was a read error.
-                                Err(e) => return Err(e),
-                            };
+                            let () = ConnectionError::classify_read_error(e)?;
+                            // This is a clean close; we don't need to treat it as an error,
+                            // but we _do_ need to exit.
+                            break 'outer;
                         }
                         Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
                             response_sink
