@@ -1,16 +1,12 @@
 //!  Error types used in by `arti-rpcserver`].
 
-/// An error encountered while parsing an RPC request.
+/// An error encountered while parsing an RPC request,
+/// that we will report to the client.
+///
+/// Note that this does not include fatal parsing errors
+/// that result in closing the connection entirely.
 #[derive(Clone, Debug, thiserror::Error, serde::Serialize)]
 pub(crate) enum RequestParseError {
-    /// The provided object was not well-formed json.
-    #[error("Error in json syntax.")]
-    InvalidJson,
-
-    /// Received something that was json, but not a json object.
-    #[error("Received something other than a json object.")]
-    NotAnObject,
-
     /// The `id` field was missing.
     #[error("Request did not have any `id` field.")]
     IdMissing,
@@ -59,9 +55,7 @@ impl tor_error::HasKind for RequestParseError {
         use tor_error::ErrorKind as EK;
 
         match self {
-            Self::InvalidJson
-            | Self::NotAnObject
-            | Self::IdMissing
+            Self::IdMissing
             | Self::IdType
             | Self::ObjMissing
             | Self::ObjType

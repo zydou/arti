@@ -72,6 +72,15 @@ pub(crate) enum FlexibleRequest {
     Valid(Request),
     /// An invalid request.
     Invalid(invalid::InvalidRequest),
+    // TODO RPC: Right now `InvalidRequest` should handle any Json Object,
+    // but we might additionally want to parse any Json _Value_
+    // (and reject it without killing the connection).
+    // If we do, we ought to add a third variant here.
+    //
+    // Without this change, our implementation will be slightly more willing to close connections
+    // than the spec requires:
+    // The spec says we need to kill a connection on anything that can't be parsed as Json;
+    // we kill a connection on anything that can't be parsed as a Json _Object_.
 }
 
 /// A Response to send to an RPC client.

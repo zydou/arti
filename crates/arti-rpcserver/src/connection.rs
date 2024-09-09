@@ -22,7 +22,6 @@ use tor_async_utils::SinkExt as _;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
-    err::RequestParseError,
     globalid::{GlobalId, MacKey},
     msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
     objmap::{GenIdx, ObjMap},
@@ -296,24 +295,12 @@ impl Connection {
                         }
                         Some(Err(e)) => {
                             // We got a non-recoverable error from the JSON codec.
-
-                            let (reply_with_error, return_error) = match ConnectionError::classify_read_error(e) {
+                            match ConnectionError::classify_read_error(e) {
+                                // No actionable read error; just close the connection "cleanly."
                                 Ok(()) => break 'outer,
-                                Err(e) => if let Some(r) = e.as_request_parse_err() {
-                                    (r, e)
-                                } else {
-                                    return Err(e);
-                                },
+                                // There was a read error.
+                                Err(e) => return Err(e),
                             };
-
-                            response_sink
-                                .send(
-                                    BoxedResponse::from_error(None, reply_with_error)
-                                ).await.map_err(ConnectionError::writing)?;
-
-                            // TODO RPC: Perhaps we should keep going on the NotAnObject case?
-                            //      (InvalidJson is not recoverable!)
-                            return Err(return_error);
                         }
                         Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
                             response_sink
@@ -463,23 +450,16 @@ impl ConnectionError {
         }
     }
 
-    /// If this error is the result of a Json decode failure, return an appropriate
-    /// `RequestParseError`.
-    fn as_request_parse_err(&self) -> Option<RequestParseError> {
-        match self {
-            ConnectionError::DecodeFailed(d) => match d.classify() {
-                JsonErrorCategory::Syntax => Some(RequestParseError::InvalidJson),
-                JsonErrorCategory::Data => Some(RequestParseError::NotAnObject),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
     /// Decide what to do with an error that has occurred while reading from a Json codec.
     ///
-    /// Return Ok(()) if the error should silently be ignored, and treated as closing the session.
-    /// Otherwise return the error object.
+    /// Return Ok(()) if the error should silently be ignored,
+    /// and treated as "cleanly" closing the session.
+    /// Otherwise return the error object, which should be logged, and treated as "messily"
+    /// closing the session.
+    ///
+    /// NOTE: It's critical that we close the session on syntax errors.
+    /// if we tolerated and recovered from Json syntax errors,
+    /// we would be opening ourselves to some framing and protocol-in-protocol attacks.
     fn classify_read_error(error: JsonCodecError) -> Result<(), Self> {
         use std::io::ErrorKind as IK;
         use JsonCodecError as E;
@@ -491,6 +471,12 @@ impl ConnectionError {
             },
             E::Json(e) => match e.classify() {
                 JK::Eof => Ok(()),
+                // Note: the JK::Syntax case is the one that we absolutely must not tolerate.
+                // In theory, we could handle JK::Data, but our use of FlexibleRequest
+                // prevents most of those errors from reaching this point.
+                //
+                // (Rather than accepting JK::Data,
+                // we should make FlexibleRequest more tolerant.)
                 _ => Err(ConnectionError::DecodeFailed(Arc::new(e))),
             },
         }
