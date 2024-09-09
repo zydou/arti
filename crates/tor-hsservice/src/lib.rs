@@ -513,10 +513,10 @@ fn maybe_generate_hsid(
         unimplemented!("offline hsid mode");
     }
 
-    let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+    let hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
     let kp = keymgr
-        .get::<HsIdKeypair>(&hsid_spec)
+        .get::<HsIdKey>(&hsid_spec)
         .map_err(|cause| StartupError::Keystore {
             action: "read",
             cause,
@@ -525,12 +525,13 @@ fn maybe_generate_hsid(
     // TODO (#1106): make this configurable
     let selector = KeystoreSelector::Default;
     let mut rng = rand::thread_rng();
-    let (keypair, generated) = match kp {
-        Some(kp) => (kp, false),
+    let (hsid, generated) = match kp {
+        Some(kp) => (kp.id(), false),
         None => {
             // Note: there is a race here. If the HsId is generated through some other means
             // (e.g. via the CLI) at some point between the time we looked up the keypair and
             // now, we will return an error.
+            let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
             let kp = keymgr
                 .generate::<HsIdKeypair>(&hsid_spec, selector, &mut rng, false /* overwrite */)
                 .map_err(|cause| StartupError::Keystore {
@@ -538,11 +539,10 @@ fn maybe_generate_hsid(
                     cause,
                 })?;
 
-            (kp, true)
+            (HsIdKey::from(&kp).id(), true)
         }
     };
 
-    let hsid: HsId = HsIdKey::from(&keypair).id();
     if generated {
         info!(
             "Generated a new identity for service {nickname}: {}",
@@ -572,14 +572,12 @@ fn maybe_generate_hsid(
 // method on an ArtiHss type, and make both OnionService and RunningOnionService deref to
 // ArtiHss.
 fn onion_name(keymgr: &KeyMgr, nickname: &HsNickname) -> Option<HsId> {
-    let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+    let hsid_spec = HsIdPublicKeySpecifier::new(nickname.clone());
 
-    // TODO (#1194): This will need to be revisited when we implement offline hsid mode,
-    // (the HsId keypair won't be in the keystore)
     keymgr
-        .get::<HsIdKeypair>(&hsid_spec)
+        .get::<HsIdKey>(&hsid_spec)
         .ok()?
-        .map(|hsid| HsIdKey::from(&hsid).id())
+        .map(|hsid| hsid.id())
 }
 
 #[cfg(test)]

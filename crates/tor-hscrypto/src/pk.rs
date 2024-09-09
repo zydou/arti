@@ -113,6 +113,12 @@ impl From<&HsIdKeypair> for HsIdKey {
     }
 }
 
+impl From<HsIdKeypair> for HsIdKey {
+    fn from(value: HsIdKeypair) -> Self {
+        Self(*value.0.public())
+    }
+}
+
 /// VERSION from rend-spec-v3 s.6 \[ONIONADDRESS]
 const HSID_ONION_VERSION: u8 = 0x03;
 
@@ -383,6 +389,12 @@ define_pk_keypair! {
 /// Note: This is a separate type from [`HsBlindId`] because it is about 6x
 /// larger.  It is an expanded form, used for doing actual cryptography.
 pub struct HsBlindIdKey(ed25519::PublicKey) / HsBlindIdKeypair(ed25519::ExpandedKeypair);
+}
+
+impl From<HsBlindIdKeypair> for HsBlindIdKey {
+    fn from(kp: HsBlindIdKeypair) -> HsBlindIdKey {
+        HsBlindIdKey(kp.0.into())
+    }
 }
 
 define_bytes! {

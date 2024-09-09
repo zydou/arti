@@ -499,6 +499,14 @@ define_derive_deftly! {
                 None
             }}
         }
+
+        fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+            ${if tmeta(keypair_specifier) {
+                Some(Box::new(std::convert::Into::<${tmeta(keypair_specifier) as token_stream}>::into(self)))
+            } else {
+                None
+            }}
+        }
     }
 
     impl<$tgens> $crate::KeySpecifierPattern for $<$tname Pattern><$tdefgens>

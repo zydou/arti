@@ -65,9 +65,22 @@ impl_downcast!(EncodableKey);
 // `ToEncodableKey` is used in the `KeyMgr` impl, where the associated type isn't an issue because
 // the `KeyMgr` implementation is generic over `K: ToEncodableKey`. The `Keystore`s themselves only
 // receive `&dyn EncodableKey`s.
-pub trait ToEncodableKey {
+
+pub trait ToEncodableKey: From<Self::KeyPair>
+where
+    Self::Key: From<<Self::KeyPair as ToEncodableKey>::Key>,
+{
     /// The key type this can be converted to/from.
     type Key: EncodableKey + 'static;
+
+    /// The KeyPair (secret+public) of which this key is a subset.  For secret
+    /// keys, this type is Self.  For public keys, this type is the
+    /// corresponding (secret) keypair.
+    ///
+    /// The associated type constraint (`where`) expresses the fact that a
+    /// public key is always derivable from its corresponding secret key.
+    ///
+    type KeyPair: ToEncodableKey;
 
     /// Convert this key to a type that implements [`EncodableKey`].
     fn to_encodable_key(self) -> Self::Key;
@@ -211,6 +224,7 @@ impl EncodableKey for ed25519::ExpandedKeypair {
 
 impl ToEncodableKey for HsClientDescEncKeypair {
     type Key = curve25519::StaticKeypair;
+    type KeyPair = HsClientDescEncKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
@@ -223,6 +237,7 @@ impl ToEncodableKey for HsClientDescEncKeypair {
 
 impl ToEncodableKey for HsBlindIdKeypair {
     type Key = ed25519::ExpandedKeypair;
+    type KeyPair = HsBlindIdKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
@@ -235,6 +250,7 @@ impl ToEncodableKey for HsBlindIdKeypair {
 
 impl ToEncodableKey for HsBlindIdKey {
     type Key = ed25519::PublicKey;
+    type KeyPair = HsBlindIdKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
@@ -247,6 +263,7 @@ impl ToEncodableKey for HsBlindIdKey {
 
 impl ToEncodableKey for HsIdKeypair {
     type Key = ed25519::ExpandedKeypair;
+    type KeyPair = HsIdKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
@@ -259,6 +276,7 @@ impl ToEncodableKey for HsIdKeypair {
 
 impl ToEncodableKey for HsIdKey {
     type Key = ed25519::PublicKey;
+    type KeyPair = HsIdKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
@@ -271,6 +289,7 @@ impl ToEncodableKey for HsIdKey {
 
 impl ToEncodableKey for HsDescSigningKeypair {
     type Key = ed25519::Keypair;
+    type KeyPair = HsDescSigningKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
@@ -283,6 +302,7 @@ impl ToEncodableKey for HsDescSigningKeypair {
 
 impl ToEncodableKey for HsIntroPtSessionIdKeypair {
     type Key = ed25519::Keypair;
+    type KeyPair = HsIntroPtSessionIdKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()
@@ -295,6 +315,7 @@ impl ToEncodableKey for HsIntroPtSessionIdKeypair {
 
 impl ToEncodableKey for HsSvcNtorKeypair {
     type Key = curve25519::StaticKeypair;
+    type KeyPair = HsSvcNtorKeypair;
 
     fn to_encodable_key(self) -> Self::Key {
         self.into()

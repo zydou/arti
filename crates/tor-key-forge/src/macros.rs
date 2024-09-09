@@ -121,6 +121,7 @@ define_derive_deftly! {
 
     impl $crate::ToEncodableKey for $ttype {
         type Key = tor_llcrypto::pk::ed25519::Keypair;
+        type KeyPair = $ttype;
 
         fn to_encodable_key(self) -> Self::Key {
             self.$KP_NAME

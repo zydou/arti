@@ -129,7 +129,15 @@ impl KeyMgr {
     ///
     /// Returns `Ok(None)` if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
-        self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())
+        let result = self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())?;
+        if result.is_none() {
+            // If the key_spec is the specifier for the public part of a keypair,
+            // try getting the pair and extracting the public portion from it.
+            if let Some(key_pair_spec) = key_spec.keypair_specifier() {
+                return Ok(self.get::<K::KeyPair>(&*key_pair_spec)?.map(|k| k.into()));
+            }
+        }
+        Ok(result)
     }
 
     /// Retrieve the specified keystore entry, and try to deserialize it as `K::Key`.
@@ -433,6 +441,12 @@ mod tests {
         key: SshKeyData,
     }
 
+    impl From<TestKey> for TestPublicKey {
+        fn from(tk: TestKey) -> TestPublicKey {
+            TestPublicKey { key: tk.key }
+        }
+    }
+
     impl TestKey {
         /// Create a new test key with the specified metadata.
         fn new(meta: &str) -> Self {
@@ -474,6 +488,7 @@ mod tests {
 
     impl ToEncodableKey for TestKey {
         type Key = Self;
+        type KeyPair = Self;
 
         fn to_encodable_key(self) -> Self::Key {
             self
@@ -499,6 +514,7 @@ mod tests {
 
     impl ToEncodableKey for TestPublicKey {
         type Key = Self;
+        type KeyPair = TestKey;
 
         fn to_encodable_key(self) -> Self::Key {
             self
@@ -621,6 +637,10 @@ mod tests {
                 }
 
                 fn ctor_path(&self) -> Option<crate::CTorPath> {
+                    None
+                }
+
+                fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
                     None
                 }
             }

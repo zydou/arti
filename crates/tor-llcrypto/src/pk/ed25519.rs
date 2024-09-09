@@ -111,6 +111,12 @@ impl<'a> From<&'a Keypair> for ExpandedKeypair {
     }
 }
 
+impl From<ExpandedKeypair> for PublicKey {
+    fn from(ekp: ExpandedKeypair) -> PublicKey {
+        ekp.public
+    }
+}
+
 /// An unchecked, unvalidated Ed25519 key.
 ///
 /// This key is an "identity" in the sense that it identifies (up to) one

@@ -43,6 +43,7 @@ define_derive_deftly! {
 #[deftly(prefix = "hss")]
 #[deftly(role = "KP_hs_id")]
 #[deftly(summary = "Public part of the identity key")]
+#[deftly(keypair_specifier = "HsIdKeypairSpecifier")]
 /// The public part of the identity key of the service.
 pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
@@ -58,6 +59,12 @@ pub struct HsIdPublicKeySpecifier {
 pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
     pub(crate) nickname: HsNickname,
+}
+
+impl From<&HsIdPublicKeySpecifier> for HsIdKeypairSpecifier {
+    fn from(hs_id_public_key_specifier: &HsIdPublicKeySpecifier) -> HsIdKeypairSpecifier {
+        HsIdKeypairSpecifier::new(hs_id_public_key_specifier.nickname.clone())
+    }
 }
 
 #[derive(Deftly, PartialEq, Debug, Constructor)]
@@ -78,6 +85,7 @@ pub struct BlindIdKeypairSpecifier {
 #[derive_deftly(KeySpecifier, HsTimePeriodKeySpecifier)]
 #[deftly(prefix = "hss")]
 #[deftly(role = "KP_hs_blind_id")]
+#[deftly(keypair_specifier = "BlindIdKeypairSpecifier")]
 #[deftly(summary = "Blinded public key")]
 /// The blinded public key.
 pub struct BlindIdPublicKeySpecifier {
@@ -86,6 +94,17 @@ pub struct BlindIdPublicKeySpecifier {
     #[deftly(denotator)]
     /// The time period associated with this key.
     pub(crate) period: TimePeriod,
+}
+
+impl From<&BlindIdPublicKeySpecifier> for BlindIdKeypairSpecifier {
+    fn from(
+        hs_blind_id_public_key_specifier: &BlindIdPublicKeySpecifier,
+    ) -> BlindIdKeypairSpecifier {
+        BlindIdKeypairSpecifier::new(
+            hs_blind_id_public_key_specifier.nickname.clone(),
+            hs_blind_id_public_key_specifier.period,
+        )
+    }
 }
 
 #[derive(Deftly, PartialEq, Debug, Constructor)]

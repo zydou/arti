@@ -118,6 +118,10 @@ mod specifier {
         fn ctor_path(&self) -> Option<CTorPath> {
             None
         }
+
+        fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+            None
+        }
     }
 }
 

@@ -16,6 +16,7 @@ use tor_keymgr::derive_deftly_template_KeySpecifier;
 
 use derive_deftly::Deftly;
 use derive_more::Constructor;
+use tor_keymgr::KeySpecifier;
 
 /// Keys (if any) to use when connecting to a specific onion service.
 ///
