@@ -3,13 +3,16 @@ mod config;
 mod err;
 
 pub use err::Error;
+use tor_error::internal;
 
 use std::sync::Arc;
 
 use builder::TorRelayBuilder;
 use tor_chanmgr::Dormancy;
+use tor_keymgr::{ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 use tor_netdir::params::NetParameters;
 use tor_rtcompat::Runtime;
+use tracing::info;
 
 use crate::config::TorRelayConfig;
 use crate::err::ErrorDetail;
@@ -27,6 +30,9 @@ pub struct TorRelay<R: Runtime> {
     /// Channel manager, used by circuits etc.,
     #[allow(unused)] // TODO RELAY remove
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
+    /// Key manager holding all relay keys and certificates.
+    #[allow(unused)] // TODO RELAY remove
+    keymgr: Arc<KeyMgr>,
 }
 
 /// TorRelay can't be used with native-tls due to the lack of RFC5705 (keying material exporter).
@@ -61,12 +67,42 @@ impl<R: Runtime> TorRelay<R> {
 
     /// Return a TorRelay object.
     pub(crate) fn create_inner(runtime: R, config: &TorRelayConfig) -> Result<Self, ErrorDetail> {
+        let keymgr = Self::create_keymgr(config)?;
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &config.channel,
             Dormancy::Active,
             &NetParameters::from_map(&config.override_net_params),
         ));
-        Ok(Self { runtime, chanmgr })
+        Ok(Self {
+            runtime,
+            chanmgr,
+            keymgr,
+        })
+    }
+
+    fn create_keymgr(config: &TorRelayConfig) -> Result<Arc<KeyMgr>, ErrorDetail> {
+        let key_store_dir = config.storage.keystore_dir()?;
+        let permissions = config.storage.permissions();
+
+        // Store for the short-term keys that we don't need to keep on disk. The store identifier
+        // is relay explicit because it can be used in other crates for channel and circuit.
+        let ephemeral_store = ArtiEphemeralKeystore::new("relay-ephemeral".into());
+        let persistent_store =
+            ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
+        info!("Using relay keystore from {key_store_dir:?}");
+
+        let keymgr = Arc::new(
+            KeyMgrBuilder::default()
+                .default_store(Box::new(persistent_store))
+                .set_secondary_stores(vec![Box::new(ephemeral_store)])
+                .build()
+                .map_err(|e| internal!("Failed to build KeyMgr: {e}"))?,
+        );
+
+        // Attempt to generate any missing keys/cert from the KeyMgr.
+        Self::try_generate_keys(&keymgr)?;
+
+        Ok(keymgr)
     }
 }

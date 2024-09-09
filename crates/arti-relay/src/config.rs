@@ -3,8 +3,8 @@
 //! NOTE: At the moment, only StorageConfig is implemented but as we ramp up arti relay
 //! implementation, more configurations will show up.
 
-use std::collections::HashMap;
 use std::path::Path;
+use std::{collections::HashMap, path::PathBuf};
 
 use derive_builder::Builder;
 use derive_more::AsRef;
@@ -140,6 +140,25 @@ pub struct StorageConfig {
     permissions: Mistrust,
 }
 impl_standard_builder! { StorageConfig }
+
+impl StorageConfig {
+    /// Return the FS permissions to use for state and cache directories.
+    pub(crate) fn permissions(&self) -> &Mistrust {
+        &self.permissions
+    }
+
+    /// Return the fully expanded path of the keystore directory.
+    pub(crate) fn keystore_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+        Ok(self
+            .state_dir
+            .path()
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: "state_dir".to_owned(),
+                problem: e.to_string(),
+            })?
+            .join("keystore"))
+    }
+}
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {

@@ -47,6 +47,7 @@ tor-netdir = { path = "../tor-netdir", version = "0.22.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.22.0" }
 tor-proto = { path = "../tor-proto", version = "0.22.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.22.0" }
+tracing = "0.1.36"
 
 [dev-dependencies]
 

@@ -355,6 +355,7 @@ dependencies = [
  "tor-netdoc",
  "tor-proto",
  "tor-rtcompat",
+ "tracing",
 ]
 
 [[package]]
