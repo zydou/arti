@@ -568,6 +568,7 @@ code 	message 	meaning
 1	Object error		Some requested object was not valid
 2	Request error		Some other error occurred.
 3   No method impl      This method isn't available on this object.
+4   Request cancelled   The request was cancelled before it could finish.
 ```
 We do not anticipate regularly extending this list of code values.
 
