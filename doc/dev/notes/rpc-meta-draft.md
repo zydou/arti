@@ -139,12 +139,25 @@ if an object ID `X` refers to some object within some session at time `T`,
 then at time `T+delta`,
 `X` will definitely not refer to any different object.)
 
-An Object ID can be "strong" or "weak".
-So long as a session holds a "strong" Object ID,
-Arti will not release the underlying object,
+An Object ID can be a
+Handle (a strong ID) or a
+Reference (a weak ID).
+Each method that returns an Object ID
+states whether the returned ID is a Handle or a Reference.
+
+A Handle is valid until
+it is explicitly released with the `rpc:release` method
+(or, the session is closed).
+So long as a Handle exists,
+Arti will not dispose of the underlying object,
 or close it as unused.
-If a session holds a "weak" object ID,
-the underlying object may be released at any time.
+Therefore, clients which make long-running RPC connections
+must explicitly release no-longer-needed Handles,
+to avoid leaks.
+
+A mere Reference is valid until
+the underlying object is freed,
+but doesn't influence the lifecycle of that object.
 
 There can be multiple IDs for the same Object.
 (So performing string comparisons on Object IDs
