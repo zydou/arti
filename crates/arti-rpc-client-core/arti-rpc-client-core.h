@@ -139,6 +139,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+/**
+ * Type of a socket returned by RPC functions.
+ *
+ * This a `SOCKET` on Windows, and an fd elsewhere.
+ **/
+#ifdef _WIN32
+typedef SOCKET ArtiRpcRawSocket;
+#else
+typedef int ArtiRpcRawSocket;
+#endif
+
 
 /**
  * A status code returned by an Arti RPC function.
@@ -291,6 +302,26 @@ typedef int ArtiRpcResponseType;
  * error!  Revisit after we have implemented real cancellation.
  */
 #define ARTI_RPC_STATUS_REQUEST_CANCELLED 9
+
+/**
+ * An IO error occurred while trying to negotiate a data stream
+ * using Arti as a proxy.
+ */
+#define ARTI_RPC_STATUS_PROXY_IO 10
+
+/**
+ * An attempt to negotiate a data stream through Arti failed,
+ * with an error from the proxy protocol.
+ */
+#define ARTI_RPC_STATUS_PROXY_STREAM_FAILED 11
+
+/**
+ * Some operation failed because it was attempted on an unauthenticated channel.
+ *
+ * (At present (Sep 2024) there is no way to get an unauthenticated channel from this library,
+ * but that may change in the future.)
+ */
+#define ARTI_RPC_STATUS_NOT_AUTHENTICATED 12
 
 
 
@@ -460,6 +491,74 @@ const char *arti_rpc_str_get(const ArtiRpcStr *string);
  * Close and free an open Arti RPC connection.
  */
 void arti_rpc_conn_free(ArtiRpcConn *rpc_conn);
+
+/**
+ * Try to open an anonymized data stream over Arti.
+ *
+ * Use the proxy information associated with `rpc_conn` to make the connection,
+ * and store the resulting fd (or `SOCKET` on Windows) into `*socket_out`.
+ *
+ * The stream will target the address `hostname`:`port`.
+ *
+ * If `on_object` is provided, it is an `ObjectId` for client-like object
+ * (such as a Session or a Client)
+ * that should be used to make the connection.
+ *
+ * If `isolation` is provided, the resulting stream will be configured
+ * not to share a circuit with any other stream
+ * having a different `isolation`.
+ *
+ * If `stream_id_out` is provided,
+ * the resulting stream will have an identifier within the RPC system,
+ * so that you can run other RPC commands on it.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`.
+ * Otherwise return some other status code, set `*socket_out` to -1
+ * (or `INVALID_SOCKET` on Windows),
+ * and set `*error_out` (if provided) to a newly allocated error object.
+ *
+ * # Caveats
+ *
+ * When possible, use a hostname rather than an IP address.
+ * If you *must* use an IP address, make sure that you have not gotten it
+ * by a non-anonymous DNS lookup.
+ * (Calling `gethostname()` or `getaddrinfo()` directly
+ * would lose anonymity: they inform the user's DNS server,
+ * and possibly many other parties, about the target address
+ * you are trying to visit.)
+ *
+ * The resulting socket will actually be a connection to Arti,
+ * not directly to your destination.
+ * Therefore, passing it to functions like `getpeername()`
+ * may give unexpected results.
+ *
+ * If `stream_id_out` is provided
+ * (or if Arti is configured to return streams optimistically),
+ * the data stream may still be connecting
+ * when this request returns.
+ * (TODO RPC: Document how to wait for it)
+ *
+ * If `stream_id_out` is provided,
+ * the caller is responsible for releasing the ObjectId;
+ * Arti will not deallocate it even when the stream is closed.
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that
+ * `*stream_id_out` and `*error_out`, if set,
+ * are eventually freed.
+ *
+ * The caller is responsible for making sure that `*socket_out`, if set,
+ * is eventually closed.
+ */
+ArtiRpcStatus arti_rpc_conn_connect(const ArtiRpcConn *rpc_conn,
+                                    const char *hostname,
+                                    int port,
+                                    const char *on_object,
+                                    const char *isolation,
+                                    ArtiRpcRawSocket *socket_out,
+                                    ArtiRpcStr **stream_id_out,
+                                    ArtiRpcError **error_out);
 
 /**
  * Return a string representing the meaning of a given `ArtiRpcStatus`.

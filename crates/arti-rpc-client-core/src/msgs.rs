@@ -50,7 +50,9 @@ impl AnyRequestId {
 /// A single object may have multiple underlying identifiers.
 /// These identifiers should always be treated as opaque
 /// from the application's perspective.
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq, derive_more::From, derive_more::Into,
+)]
 #[serde(transparent)]
 pub struct ObjectId(Utf8CString);
 

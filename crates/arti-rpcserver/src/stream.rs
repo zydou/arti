@@ -21,8 +21,15 @@ use crate::RpcSession;
 ///
 /// This object is single-use: once a SOCKS request has referred to it,
 /// it cannot be used for any other SOCKS request.
+///
+/// (Alternatively, you can think of this as a single-use Client object
+/// which, because it is single use,
+/// can be treated interchangeably with the stream that it is used to construct.)
 //
-// TODO RPC: This object's name is questionable.
+// TODO RPC: This object's name is questionable.  Perhaps RpcDataStreamHandle?
+// Or maybe StreamCapturingClient, OneshotClient, StreamSlot...?
+// More importantly we should make sure that we like `arti:new_stream_handle`
+// as a method name.
 #[derive(Deftly)]
 #[derive_deftly(Object)]
 #[deftly(rpc(expose_outside_of_session))]

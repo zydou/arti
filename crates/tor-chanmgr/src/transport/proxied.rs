@@ -25,6 +25,7 @@ use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::TcpProvider;
 use tor_socksproto::{
     SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
+    SOCKS_BUF_LEN,
 };
 use tracing::trace;
 
@@ -112,7 +113,7 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     // TODO: This code is largely copied from the socks server wrapper code in
     // arti::proxy. Perhaps we should condense them into a single thing, if we
     // don't just revise the SOCKS code completely.
-    let mut inbuf = [0_u8; 1024];
+    let mut inbuf = [0_u8; SOCKS_BUF_LEN];
     let mut n_read = 0;
     let reply = loop {
         // try to advance the handshake to the next state.

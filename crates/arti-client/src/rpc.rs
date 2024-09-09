@@ -182,9 +182,37 @@ pub type ClientConnectionResult<T> = Result<T, Box<dyn ClientConnectionError>>;
 ///
 /// This method has no method name, and is not invoked by an RPC session
 /// directly.  Instead, it is invoked in response to a SOCKS request.
+/// It receives its target from the SOCKS `DEST` field.
+/// The isolation information in its `SrreamPrefs`, if any, is taken from
+/// the SOCKS username/password.
+/// Other information in the `StreamPrefs` is inferred
+/// from the SOCKS port configuration in the usual way.
 ///
-/// (It can't be invoked in response to an RPC session's method call, because
-/// it needs to return a DataStream, which can't be serialized.)
+/// When this method returns successfully,
+/// the proxy code sends a SOCKS reply indicating success,
+/// and links the returned `DataStream` with the application's incoming socket,
+/// copying data back and forth.
+/// (The `DataStream`` need not actually be connected at this point;
+/// an in-progress connection will work fine.
+/// Tor calls such streams, which report readiness before receiving a CONNECTED,
+/// "optimistic".)
+///
+/// If instead this method returns an error,
+/// the error is either used to generate a SOCKS error code,
+///
+/// Note 1: in the future, this method will likely be used to integrate RPC data streams
+/// with other proxy types other than SOCKS.
+/// When this happens, we will specify how those proxy types
+/// will provide `target` and `prefs`.
+///
+/// Note 2: This has to be a special method, because
+/// it needs to return a DataStream, which can't be serialized.
+///
+/// > TODO RPC: The above documentation still isn't quite specific enough,
+/// > and a lot of it belongs in socks.rs where it could explain how a SOCKS request
+/// > is interpreted and converted into a ConnectWithPrefs call.
+/// > See <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2373#note_3071833>
+/// > for discussion.
 #[derive(Deftly, Debug)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(no_method_name))]

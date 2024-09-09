@@ -104,6 +104,32 @@ impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
     }
 }
 
+/// Helper for output parameters represented as `*mut ArtiRpcRawSocket`.
+///
+/// Implements the case where these parameters take ownership the associated socket.
+#[derive(derive_more::From)]
+pub(super) struct OutSocketOwned<'a>(OutVal<'a, ArtiRpcRawSocket>);
+
+#[cfg(not(windows))]
+use std::os::fd::IntoRawFd as IntoRawSocketTrait;
+#[cfg(windows)]
+use std::os::windows::io::IntoRawSocket as IntoRawSocketTrait;
+
+impl<'a> OutSocketOwned<'a> {
+    /// Take ownership of the provided socket,
+    /// consume it,
+    /// and store its associated `ArtiRpcRawSocket` into `self`.
+    pub(super) fn write_socket<T: IntoRawSocketTrait>(self, socket: T) {
+        #[cfg(windows)]
+        let sock = socket.into_raw_socket();
+
+        #[cfg(not(windows))]
+        let sock = socket.into_raw_fd();
+
+        self.0.write_value(ArtiRpcRawSocket(sock));
+    }
+}
+
 /// Implement the body of an FFI function.
 ///
 /// This macro handles the calling convention of an FFI function.
@@ -212,6 +238,7 @@ impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
 /// | `in_ptr_consume_opt` | `*mut T`        | `Option<Box<T>>`   | N                 |
 /// | `out_ptr_opt`        | `*mut *mut T`   | `Option<OutPtr<T>>`| N                 |
 /// | `out_val_opt`        | `*mut T`        | `Option<OutVal<T>>`| N                 |
+/// | `out_socket_owned_opt` | *mut ArtiRpcRawSocket` | `Option<OutSocketOwned>`| N   |
 /// | `in_mut_ptr_opt`     | (NO!)           | (Do not add!)      | (NO!)             |
 ///
 /// > (Note: Other conversion methods are logically possible, but have not been added yet,
@@ -506,8 +533,8 @@ macro_rules! ffi_initialize {
 /// Nothing outside of the `ffi_initialize!` macro should actually invoke these functions!
 #[allow(clippy::unnecessary_wraps)]
 pub(super) mod arg_conversion {
-    use super::{OutPtr, OutVal};
-    use crate::ffi::err::InvalidInput;
+    use super::{OutPtr, OutSocketOwned, OutVal};
+    use crate::ffi::{err::InvalidInput, ArtiRpcRawSocket};
     use std::ffi::{c_char, CStr};
     use void::Void;
 
@@ -601,9 +628,37 @@ pub(super) mod arg_conversion {
     {
         Ok(unsafe { crate::ffi::util::OutVal::from_opt_ptr(input, T::default()) })
     }
+
+    /// Try to convert a mutable pointer-to-socket into an `Option<OutSocketOwned>`.
+    ///
+    /// A null pointer is allowed, and converted into None.
+    ///
+    /// Whatever the target of the original pointer, if `input` is non-null,
+    /// then `*input` is initialized to -1 or `INVALID_SOCKET`.
+    ///
+    /// It is safe for `*input` to be uninitialized.
+    ///
+    /// # Safety
+    ///
+    /// As for
+    /// [`<* mut ArtiRpcRawSocket>::as_uninit_mut`](https://doc.rust-lang.org/std/primitive.pointer.html#method.as_uninit_mut).
+    ///
+    /// Additionally, if the resulting `ArtiRpcRawSocket` is used to send an fd/`SOCKET` to the
+    /// application, then the application becomes the owner of that socket, and is responsible for
+    /// making sure it is eventually closed.
+    pub(in crate::ffi) unsafe fn out_socket_owned_opt<'a>(
+        input: *mut ArtiRpcRawSocket,
+    ) -> Result<Option<OutSocketOwned<'a>>, Void> {
+        let optval: Option<OutVal<'a, ArtiRpcRawSocket>> =
+            unsafe { crate::ffi::util::OutVal::from_opt_ptr(input, ArtiRpcRawSocket::default()) };
+
+        Ok(optval.map(OutSocketOwned::from))
+    }
 }
 
 pub(super) use ffi_initialize;
+
+use super::ArtiRpcRawSocket;
 
 #[cfg(test)]
 mod test {

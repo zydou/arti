@@ -62,7 +62,8 @@ pub use handshake::client::SocksClientHandshake;
 pub use SocksProxyHandshake as SocksHandshake;
 
 pub use msg::{
-    SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus, SocksVersion,
+    SocksAddr, SocksAuth, SocksCmd, SocksHostname, SocksReply, SocksRequest, SocksStatus,
+    SocksVersion,
 };
 pub use tor_error::Truncated;
 
@@ -75,3 +76,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// This is a separate type from Result because a truncated message is not a
 /// true error: it just means that you need to read more bytes and try again.
 pub type TResult<T> = std::result::Result<Result<T>, Truncated>;
+
+/// Suggested buffer length for socks handshakes.
+//
+// Note: This is chosen somewhat arbitrarily,
+// to be large enough for any SOCKS handshake Tor will ever want to consume.
+pub const SOCKS_BUF_LEN: usize = 1024;

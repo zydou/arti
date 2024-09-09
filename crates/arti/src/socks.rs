@@ -22,7 +22,7 @@ use tor_error::warn_report;
 #[cfg(feature = "rpc")]
 use tor_rpcbase::{self as rpc};
 use tor_rtcompat::{Runtime, TcpListener};
-use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
+use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SOCKS_BUF_LEN};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -118,6 +118,212 @@ struct AuthInterpretation {
     /// value.
     isolation: ProvidedIsolation,
 }
+
+/// NOTE: The following documentation belongs in a spec.
+/// But for now, it's our best attempt to document the design and protocol
+/// implemented here
+/// for integrating SOCKS with our RPC system. --nickm
+///
+/// Roughly speaking:
+///
+/// ## Key concepts
+///
+/// A data stream is "RPC-visible" if, when it is created via SOCKS,
+/// the RPC system is told about it.
+///
+/// Every RPC-visible stream is associated with a given RPC object when it is created.
+/// (Since the RPC object is being specified in the SOCKS protocol,
+/// it must be one with an externally visible Object ID.
+/// Such Object IDs are cryptographically unguessable and unforgeable,
+/// and are qualified with a unique identifier for their associated RPC session.)
+/// Call this RPC Object the "target" object for now.
+/// This target RPC object must implement
+/// the [`ConnectWithPrefs`](arti_client::rpc::ConnectWithPrefs) special method.
+///
+/// Right now, there are two general kinds of objects that implement this method:
+/// client-like objects, and stream-like objects.
+///
+/// A client-like object is either a `TorClient` or an RPC `Session`.
+/// It knows about and it is capable of opening multiple data streams.
+/// Using it as the target object for a SOCKS connection tells Arti
+/// that the resulting data stream (if any)
+/// should be built by it, and associated with its RPC session.
+///
+/// An application gets a TorClient by asking the session for one,
+/// or for asking a TorClient to give you a new variant clone of itself.
+///
+/// A stream-like object is an `arti_rpcserver::stream::RpcDataStream`.
+/// It is created from a client-like object, but represents a single data stream.
+/// When created, it it not yet connected or trying to connect to anywhere:
+/// the act of using it as the target Object for a SOCKS connection causes
+/// it to begin connecting.
+/// (You can also think of this as a single-use client,
+/// which once used, becomes interchangeable with the DataStream it created.)
+/// (TODO: We may wish to change this vocabulary.
+/// We may wish to call this a "stream handle", for instance?)
+///
+/// An application gets an RpcDataStream by calling `arti:new_stream_handle
+/// on any client-like object.  Currently, this always creates an RpcDataStream
+/// that makes optimistic connections; See #1583.
+///
+/// ## The SOCKS protocol
+///
+/// To interpret a SOCKS request and look for an RPC target object,
+/// an application behaves as follows.
+/// (For completeness, we document _all_ variants of our SOCKS handshake,
+/// including those which RPC applications do not use.)
+///
+/// This protocol allows the application to provide an isolation string
+/// and/or an RPC target object ID.
+///
+/// TODO RPC: This documents what the handshake currently is.
+/// See the next sections for how I propose to change it. -nickm
+///
+/// 1. If SOCKS5 is not selected, or if SOCKS5 username/password authentication
+///    (Type `1`) is not selected, then
+///    the request is interpreted as a plain Tor SOCKS proxy request
+///    and does not interact with the RPC system.
+///
+/// 2. If SOCKS5 and username/password authentication is selected,
+///    and if the username is `<arti-rpc-session>`,
+///    then the password is interpreted as follows:
+///     - If the password contains a colon,
+///       then everything before the first colon is the Object ID
+///       and everything after is an isolation string.
+///     - Otherwise, the entire password is interpreted as the ObjectID.
+///
+/// 3. Otherwise, the entire username/password pair
+///    is interpreted as an isolation "string".
+///    (Actually, as an isolation tuple.
+///    "But the Idea is the important thing" —Tom Lehrer)
+///
+/// 4. The request is then interpreted by the specified RPC object,
+///    using the `ConnectWithPrefs` method.
+///    For both client-like and datastream objects,
+///    a connection is initiated through the Tor network
+///    to the host and port specified in the object.
+///
+/// ### Proposed changes
+///
+/// In discussions Diziet suggested that this system should have
+/// some kind of forward-compatibility mechanism so that, if we choose,
+/// we could later add support for encoding things other than the isolation string
+/// in the SOCKS request.
+///
+/// Earlier Diziet also suggested
+/// that using "anything else is isolation" as a fallback behavior
+/// could lead to unwanted silent failures if  programmers make mistakes.
+/// (For legacy purposes, however we do need to have a mode
+/// where all username/password pairs are allowable isolation.)
+///
+/// Here's a way to solve both issues.
+///
+/// 1. If the username is `<arti-isolation>` then the password is an isolation string.
+///
+/// 2. Otherwise if the username matches the regex `<arti-rpc-session:[0-9]+>.*`,
+///    then digits encode a protocol version number, defining the interpretation
+///    of the remainder of the username and password.
+///    In v1, the password is behaves as in the current design
+///    (with an Object ID and an optional colon-separated isolation string,
+///    and with the remainder of the username required to be empty.)
+///
+///    If the protocol version number is unrecognized,
+///    the SOCKS connection is rejected.
+///
+/// 3. Otherwise, we look at the SOCKS configuration.
+///    If the SOCKS port is configured in "legacy mode",
+///    then we interpret the username/password pair as an isolation tuple.
+///    If not, we reject the SOCKS connection.
+///
+/// Additionally, we extend the `get_rpc_proxy_info` command
+/// so that, for each RPC-enabled SOCKS port,
+/// it describes the supported protocol versions.
+///
+/// With this scheme,
+/// we have room to add more connection parameters in the future,
+/// and we can later have non-legacy socks ports that require this handshake format.
+///
+/// ### Another proposed change
+///
+/// We could add a new method to clients, with a name like
+/// "open_stream" or "connect_stream".
+/// This method would include all target and isolation information in its parameters.
+/// It would actually create a DataStream immediately, tell it to begin connecting,
+/// and return an externally visible object ID.
+/// The RPC protocol could be used to watch the DataStream object,
+/// to see when it was connected.
+///
+/// The resulting DataStream object could also be used as the target of a SOCKS connection.
+/// We would require in such a case that no isolation be provided in the SOCKS handshake,
+/// and that the target address was (e.g.) INADDR_ANY.
+///
+/// ## Intended use cases (examples)
+///
+/// (These examples assume that the application
+/// already knows the SOCKS port it should use.
+/// I'm leaving out the isolation strings as orthogonal.)
+///
+/// These are **NOT** the only possible use cases;
+/// they're just the two that help understand this system best (I hope).
+///
+/// ### Case 1: Using a client-like object directly.
+///
+/// Here the application has authenticated to RPC
+/// and gotten the session ID `SESSION-1`.
+/// (In reality, this would be a longer ID, and full of crypto).
+///
+/// The application wants to open a new stream to www.example.com.
+/// They don't particularly care about isolation,
+/// but they do want their stream to use their RPC session.
+/// They don't want an Object ID for the stream.
+///
+/// To do this, they make a SOCKS connection to arti,
+/// with target address www.example.com.
+/// They set the username to `<arti-rpc-session>`,
+/// and the password to `SESSION-1`.
+///
+/// Arti looks up the Session object via the `SESSION-1` object ID
+/// and tells it (via the ConnectWithPrefs special method)
+/// to connect to www.example.com.
+/// The session creates a new DataStream using its internal TorClient,
+/// but does not register the stream with an RPC Object ID.
+/// Arti proxies the application's SOCKS connection through this DataStream.
+///
+///
+/// ### Case 2: Creating an identifiable stream.
+///
+/// Here the application wants to be able to refer to its DataStream
+/// after the stream is created.
+/// As before, we assume that it's on an RPC session
+/// where the Session ID is `SESSION-1`.
+///
+/// The application sends an RPC request of the form:
+/// `{"id": 123, "obj": "SESSION-1", "method": "arti:new_stream_handle", "params": {}}`
+///
+/// It receives a reply like:
+/// `{"id": 123, "result": {"id": "STREAM-1"} }`
+///
+/// (In reality, `STREAM-1` would also be longer and full of crypto.)
+///
+/// Now the application has an object called `STREAM-1` that is not yet a connected
+/// stream, but which may become one.
+///
+/// The application opens a socks connection as before.
+/// For the username it sends `<arti-rpc-session>`,
+/// and for the password it sends `STREAM-1`.
+///
+/// Now Arti looks up the `RpcDataStream` object via `STREAM-1`,
+/// and tells it (via the ConnectWithPrefs special method)
+/// to connect to www.example.com.
+/// This causes the `RpcDataStream` internally to create a new `DataStream`,
+/// and to store that `DataStream` in itself.
+/// The `RpcDataStream` with Object ID `STREAM-1`
+/// is now an alias for the newly created `DataStream`.
+/// Arti proxies the application's SOCKS connection through that `DataStream`.
+///
+#[cfg(feature = "rpc")]
+#[allow(dead_code)]
+mod socks_and_rpc {}
 
 /// Given the authentication object from a socks connection, determine what it's telling
 /// us to do.
@@ -538,7 +744,7 @@ where
 {
     use futures::{poll, task::Poll};
 
-    let mut buf = [0_u8; 1024];
+    let mut buf = [0_u8; SOCKS_BUF_LEN];
 
     // At this point we could just loop, calling read().await,
     // write_all().await, and flush().await.  But we want to be more
