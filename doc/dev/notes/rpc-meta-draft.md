@@ -708,7 +708,10 @@ until arti has dealt with and replied to some of them.
 There is no minimum must-be-supported number or size of concurrent requests.
 Therefore a client which sends more than one request at a time
 must be prepared to buffer requests at its end,
-while concurrently reading arti's replies.
+while concurrently reading arti's replies;
+otherwise deadlock may occur.
+
+(See note on implementation strategies in the appendix.)
 
 ### Authentication
 
@@ -934,3 +937,23 @@ Note that the server will currently close your connection
 at the first sign of invalid JSON.
 
 Please don't expect the final implementation to work this way!
+
+### Client implementation strategies
+
+We hope that most clients will choose to use
+the `arti-rpc-client-core` library
+(or a wrapper around it)
+in order to interact with Arti RPC.
+It is fairly small, efficient, and well audited.
+
+If you choose to write your own client implementation,
+you will need to consider how to prevent deadlock
+when multiple requests are waiting for a reply at once.
+One simple strategy is to have only one thread
+responsible for reading replies from Arti,
+and dispatching those replies to the appropriate requesting code.
+This thread must never block on anything besides reading—which implies
+that its mechanism for dispatching replies must not block.
+(One example mechanism is having a nonblocking queue for each request.)
+
+More aggressive strategies are possible.
