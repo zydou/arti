@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
+use safelog::Sensitive;
 use thiserror::Error;
 use tor_error::{into_internal, Bug};
 
@@ -19,9 +20,13 @@ pub enum Error {
     /// This can mean that the object is truncated, or that we need to
     /// read more and try again, depending on the context in which it
     /// was received.
-    #[error("Object truncated (or not fully present), at least {deficit} more bytes needed")]
+    #[error("Object truncated (or not fully present), at least {} more bytes needed",
+            Sensitive::new(deficit))]
     Truncated {
         /// Lower bound on number of additional bytes needed
+        //
+        // We don't make this field type Sensitive because that makes constructing this
+        // error even more tedious.
         deficit: NonZeroUsize,
     },
     /// Called Reader::should_be_exhausted(), but found bytes anyway.
