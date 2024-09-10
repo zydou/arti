@@ -18,19 +18,19 @@ use crate::{Error, Readable, Result};
 /// ```
 /// use tor_bytes::{Reader,Result};
 /// let msg = [ 0x00, 0x01, 0x23, 0x45, 0x22, 0x00, 0x00, 0x00 ];
-/// let mut r = Reader::from_slice(&msg[..]);
+/// let mut b = Reader::from_slice(&msg[..]);
 /// // Multi-byte values are always big-endian.
-/// assert_eq!(r.take_u32()?, 0x12345);
-/// assert_eq!(r.take_u8()?, 0x22);
+/// assert_eq!(b.take_u32()?, 0x12345);
+/// assert_eq!(b.take_u8()?, 0x22);
 ///
 /// // You can check on the length of the message...
-/// assert_eq!(r.total_len(), 8);
-/// assert_eq!(r.consumed(), 5);
-/// assert_eq!(r.remaining(), 3);
+/// assert_eq!(b.total_len(), 8);
+/// assert_eq!(b.consumed(), 5);
+/// assert_eq!(b.remaining(), 3);
 /// // then skip over a some bytes...
-/// r.advance(3)?;
+/// b.advance(3)?;
 /// // ... and check that the message is really exhausted.
-/// r.should_be_exhausted()?;
+/// b.should_be_exhausted()?;
 /// # Result::Ok(())
 /// ```
 ///
@@ -39,10 +39,10 @@ use crate::{Error, Readable, Result};
 /// use tor_bytes::{Reader,Result,Readable};
 /// use std::net::Ipv4Addr;
 /// let msg = [ 0x00, 0x04, 0x7f, 0x00, 0x00, 0x01];
-/// let mut r = Reader::from_slice(&msg[..]);
+/// let mut b = Reader::from_slice(&msg[..]);
 ///
-/// let tp: u16 = r.extract()?;
-/// let ip: Ipv4Addr = r.extract()?;
+/// let tp: u16 = b.extract()?;
+/// let ip: Ipv4Addr = b.extract()?;
 /// assert_eq!(tp, 4);
 /// assert_eq!(ip, Ipv4Addr::LOCALHOST);
 /// # Result::Ok(())
@@ -135,11 +135,11 @@ impl<'a> Reader<'a> {
     /// ```
     /// use tor_bytes::{Reader,Result};
     /// let m = b"Hello World";
-    /// let mut r = Reader::from_slice(m);
-    /// assert_eq!(r.take(5)?, b"Hello");
-    /// assert_eq!(r.take_u8()?, 0x20);
-    /// assert_eq!(r.take(5)?, b"World");
-    /// r.should_be_exhausted()?;
+    /// let mut b = Reader::from_slice(m);
+    /// assert_eq!(b.take(5)?, b"Hello");
+    /// assert_eq!(b.take_u8()?, 0x20);
+    /// assert_eq!(b.take(5)?, b"World");
+    /// b.should_be_exhausted()?;
     /// # Result::Ok(())
     /// ```
     pub fn take(&mut self, n: usize) -> Result<&'a [u8]> {
@@ -160,13 +160,13 @@ impl<'a> Reader<'a> {
     /// let m = b"Hello world";
     /// let mut v1 = vec![0; 5];
     /// let mut v2 = vec![0; 5];
-    /// let mut r = Reader::from_slice(m);
-    /// r.take_into(&mut v1[..])?;
-    /// assert_eq!(r.take_u8()?, b' ');
-    /// r.take_into(&mut v2[..])?;
+    /// let mut b = Reader::from_slice(m);
+    /// b.take_into(&mut v1[..])?;
+    /// assert_eq!(b.take_u8()?, b' ');
+    /// b.take_into(&mut v2[..])?;
     /// assert_eq!(&v1[..], b"Hello");
     /// assert_eq!(&v2[..], b"world");
-    /// r.should_be_exhausted()?;
+    /// b.should_be_exhausted()?;
     /// # tor_bytes::Result::Ok(())
     /// ```
     pub fn take_into(&mut self, buf: &mut [u8]) -> Result<()> {
@@ -218,9 +218,9 @@ impl<'a> Reader<'a> {
     /// ```
     /// use tor_bytes::{Reader,Result};
     /// let m = b"Hello\0wrld";
-    /// let mut r = Reader::from_slice(m);
-    /// assert_eq!(r.take_until(0)?, b"Hello");
-    /// assert_eq!(r.into_rest(), b"wrld");
+    /// let mut b = Reader::from_slice(m);
+    /// assert_eq!(b.take_until(0)?, b"Hello");
+    /// assert_eq!(b.into_rest(), b"wrld");
     /// # Result::Ok(())
     /// ```
     pub fn take_until(&mut self, term: u8) -> Result<&'a [u8]> {
@@ -381,14 +381,14 @@ pub struct Cursor<'a> {
 }
 
 /// Implementation of `read_nested_*` -- generic
-fn read_nested_generic<L, F, T>(r: &mut Reader, f: F) -> Result<T>
+fn read_nested_generic<L, F, T>(b: &mut Reader, f: F) -> Result<T>
 where
     F: FnOnce(&mut Reader) -> Result<T>,
     L: Readable + Copy + Sized + TryInto<usize>,
 {
-    let length: L = r.extract()?;
+    let length: L = b.extract()?;
     let length: usize = length.try_into().map_err(|_| Error::BadLengthValue)?;
-    let slice = r.take(length)?;
+    let slice = b.take(length)?;
     let mut inner = Reader::from_slice(slice);
     let out = f(&mut inner)?;
     inner.should_be_exhausted()?;
@@ -451,11 +451,11 @@ mod tests {
     #[test]
     fn read_u128() {
         let bytes = bytes::Bytes::from(&b"irreproducibility?"[..]); // 18 bytes
-        let mut r = Reader::from_bytes(&bytes);
+        let mut b = Reader::from_bytes(&bytes);
 
-        assert_eq!(r.take_u8().unwrap(), b'i');
-        assert_eq!(r.take_u128().unwrap(), 0x72726570726f6475636962696c697479);
-        assert_eq!(r.remaining(), 1);
+        assert_eq!(b.take_u8().unwrap(), b'i');
+        assert_eq!(b.take_u128().unwrap(), 0x72726570726f6475636962696c697479);
+        assert_eq!(b.remaining(), 1);
     }
 
     #[test]
@@ -500,100 +500,100 @@ mod tests {
     #[test]
     fn advance_too_far() {
         let bytes = b"12345";
-        let mut r = Reader::from_slice(&bytes[..]);
-        assert_eq!(r.remaining(), 5);
-        assert_eq!(r.advance(16), Err(Error::new_truncated_for_test(11)));
-        assert_eq!(r.remaining(), 5);
-        assert_eq!(r.advance(5), Ok(()));
-        assert_eq!(r.remaining(), 0);
+        let mut b = Reader::from_slice(&bytes[..]);
+        assert_eq!(b.remaining(), 5);
+        assert_eq!(b.advance(16), Err(Error::new_truncated_for_test(11)));
+        assert_eq!(b.remaining(), 5);
+        assert_eq!(b.advance(5), Ok(()));
+        assert_eq!(b.remaining(), 0);
     }
 
     #[test]
     fn truncate() {
         let bytes = b"Hello universe!!!1!";
-        let mut r = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice(&bytes[..]);
 
-        assert_eq!(r.take(5).unwrap(), &b"Hello"[..]);
-        assert_eq!(r.remaining(), 14);
-        assert_eq!(r.consumed(), 5);
-        r.truncate(9);
-        assert_eq!(r.remaining(), 9);
-        assert_eq!(r.consumed(), 5);
-        assert_eq!(r.take_u8().unwrap(), 0x20);
-        assert_eq!(r.into_rest(), &b"universe"[..]);
+        assert_eq!(b.take(5).unwrap(), &b"Hello"[..]);
+        assert_eq!(b.remaining(), 14);
+        assert_eq!(b.consumed(), 5);
+        b.truncate(9);
+        assert_eq!(b.remaining(), 9);
+        assert_eq!(b.consumed(), 5);
+        assert_eq!(b.take_u8().unwrap(), 0x20);
+        assert_eq!(b.into_rest(), &b"universe"[..]);
     }
 
     #[test]
     fn exhaust() {
-        let r = Reader::from_slice(&b""[..]);
-        assert_eq!(r.should_be_exhausted(), Ok(()));
+        let b = Reader::from_slice(&b""[..]);
+        assert_eq!(b.should_be_exhausted(), Ok(()));
 
-        let mut r = Reader::from_slice(&b"outis"[..]);
-        assert_eq!(r.should_be_exhausted(), Err(Error::ExtraneousBytes));
-        r.take(4).unwrap();
-        assert_eq!(r.should_be_exhausted(), Err(Error::ExtraneousBytes));
-        r.take(1).unwrap();
-        assert_eq!(r.should_be_exhausted(), Ok(()));
+        let mut b = Reader::from_slice(&b"outis"[..]);
+        assert_eq!(b.should_be_exhausted(), Err(Error::ExtraneousBytes));
+        b.take(4).unwrap();
+        assert_eq!(b.should_be_exhausted(), Err(Error::ExtraneousBytes));
+        b.take(1).unwrap();
+        assert_eq!(b.should_be_exhausted(), Ok(()));
     }
 
     #[test]
     fn take_rest() {
-        let mut r = Reader::from_slice(b"si vales valeo");
-        assert_eq!(r.take(3).unwrap(), b"si ");
-        assert_eq!(r.take_rest(), b"vales valeo");
-        assert_eq!(r.take_rest(), b"");
+        let mut b = Reader::from_slice(b"si vales valeo");
+        assert_eq!(b.take(3).unwrap(), b"si ");
+        assert_eq!(b.take_rest(), b"vales valeo");
+        assert_eq!(b.take_rest(), b"");
     }
 
     #[test]
     fn take_until() {
-        let mut r = Reader::from_slice(&b"si vales valeo"[..]);
-        assert_eq!(r.take_until(b' ').unwrap(), &b"si"[..]);
-        assert_eq!(r.take_until(b' ').unwrap(), &b"vales"[..]);
-        assert_eq!(r.take_until(b' '), Err(Error::new_truncated_for_test(1)));
+        let mut b = Reader::from_slice(&b"si vales valeo"[..]);
+        assert_eq!(b.take_until(b' ').unwrap(), &b"si"[..]);
+        assert_eq!(b.take_until(b' ').unwrap(), &b"vales"[..]);
+        assert_eq!(b.take_until(b' '), Err(Error::new_truncated_for_test(1)));
     }
 
     #[test]
     fn truncate_badly() {
-        let mut r = Reader::from_slice(&b"abcdefg"[..]);
-        r.truncate(1000);
-        assert_eq!(r.total_len(), 7);
-        assert_eq!(r.remaining(), 7);
+        let mut b = Reader::from_slice(&b"abcdefg"[..]);
+        b.truncate(1000);
+        assert_eq!(b.total_len(), 7);
+        assert_eq!(b.remaining(), 7);
     }
 
     #[test]
     fn nested_good() {
-        let mut r = Reader::from_slice(b"abc\0\0\x04defghijkl");
-        assert_eq!(r.take(3).unwrap(), b"abc");
+        let mut b = Reader::from_slice(b"abc\0\0\x04defghijkl");
+        assert_eq!(b.take(3).unwrap(), b"abc");
 
-        r.read_nested_u16len(|s| {
+        b.read_nested_u16len(|s| {
             assert!(s.should_be_exhausted().is_ok());
             Ok(())
         })
         .unwrap();
 
-        r.read_nested_u8len(|s| {
+        b.read_nested_u8len(|s| {
             assert_eq!(s.take(4).unwrap(), b"defg");
             assert!(s.should_be_exhausted().is_ok());
             Ok(())
         })
         .unwrap();
 
-        assert_eq!(r.take(2).unwrap(), b"hi");
+        assert_eq!(b.take(2).unwrap(), b"hi");
     }
 
     #[test]
     fn nested_bad() {
-        let mut r = Reader::from_slice(b"................");
+        let mut b = Reader::from_slice(b"................");
         assert_eq!(
-            read_nested_generic::<u128, _, ()>(&mut r, |_| panic!())
+            read_nested_generic::<u128, _, ()>(&mut b, |_| panic!())
                 .err()
                 .unwrap(),
             Error::BadLengthValue
         );
 
-        let mut r = Reader::from_slice(b"................");
+        let mut b = Reader::from_slice(b"................");
         assert_eq!(
-            r.read_nested_u32len::<_, ()>(|_| panic!()).err().unwrap(),
+            b.read_nested_u32len::<_, ()>(|_| panic!()).err().unwrap(),
             Error::new_truncated_for_test(774778414 - (16 - 4))
         );
     }
@@ -612,46 +612,46 @@ mod tests {
         }
 
         let bytes = b"\x04this\x02is\x09sometimes\x01a\x06string!";
-        let mut r = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice(&bytes[..]);
 
-        let le: LenEnc = r.extract().unwrap();
+        let le: LenEnc = b.extract().unwrap();
         assert_eq!(&le.0[..], &b"this"[..]);
 
-        let les: Vec<LenEnc> = r.extract_n(4).unwrap();
+        let les: Vec<LenEnc> = b.extract_n(4).unwrap();
         assert_eq!(&les[3].0[..], &b"string"[..]);
 
-        assert_eq!(r.remaining(), 1);
+        assert_eq!(b.remaining(), 1);
 
         // Make sure that we don't advance on a failing extract().
-        let le: Result<LenEnc> = r.extract();
+        let le: Result<LenEnc> = b.extract();
         assert_eq!(le.unwrap_err(), Error::new_truncated_for_test(33));
-        assert_eq!(r.remaining(), 1);
+        assert_eq!(b.remaining(), 1);
 
         // Make sure that we don't advance on a failing extract_n()
-        let mut r = Reader::from_slice(&bytes[..]);
-        assert_eq!(r.remaining(), 28);
-        let les: Result<Vec<LenEnc>> = r.extract_n(10);
+        let mut b = Reader::from_slice(&bytes[..]);
+        assert_eq!(b.remaining(), 28);
+        let les: Result<Vec<LenEnc>> = b.extract_n(10);
         assert_eq!(les.unwrap_err(), Error::new_truncated_for_test(33));
-        assert_eq!(r.remaining(), 28);
+        assert_eq!(b.remaining(), 28);
     }
 
     #[test]
     fn cursor() -> Result<()> {
         let alphabet = b"abcdefghijklmnopqrstuvwxyz";
-        let mut r = Reader::from_slice(&alphabet[..]);
+        let mut b = Reader::from_slice(&alphabet[..]);
 
-        let c1 = r.cursor();
-        let _ = r.take_u16()?;
-        let c2 = r.cursor();
-        let c2b = r.cursor();
-        r.advance(7)?;
-        let c3 = r.cursor();
+        let c1 = b.cursor();
+        let _ = b.take_u16()?;
+        let c2 = b.cursor();
+        let c2b = b.cursor();
+        b.advance(7)?;
+        let c3 = b.cursor();
 
-        assert_eq!(r.range(c1, c2), &b"ab"[..]);
-        assert_eq!(r.range(c2, c3), &b"cdefghi"[..]);
-        assert_eq!(r.range(c1, c3), &b"abcdefghi"[..]);
-        assert_eq!(r.range(c1, c1), &b""[..]);
-        assert_eq!(r.range(c3, c1), &b""[..]);
+        assert_eq!(b.range(c1, c2), &b"ab"[..]);
+        assert_eq!(b.range(c2, c3), &b"cdefghi"[..]);
+        assert_eq!(b.range(c1, c3), &b"abcdefghi"[..]);
+        assert_eq!(b.range(c1, c1), &b""[..]);
+        assert_eq!(b.range(c3, c1), &b""[..]);
         assert_eq!(c2, c2b);
         assert!(c1 < c2);
         assert!(c2 < c3);

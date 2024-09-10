@@ -41,9 +41,9 @@ caret_int! {
 }
 
 impl Readable for LinkSpec {
-    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        let lstype = r.take_u8()?.into();
-        r.read_nested_u8len(|r| Self::from_type_and_body(lstype, r))
+    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+        let lstype = b.take_u8()?.into();
+        b.read_nested_u8len(|r| Self::from_type_and_body(lstype, r))
     }
 }
 impl Writeable for LinkSpec {
