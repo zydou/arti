@@ -15,37 +15,6 @@ but also its bugs
 <https://github.com/rust-lang/rust-clippy/issues/11145>
 <https://github.com/rust-lang/rust-clippy/issues/10209>.
 
-## Low level
-
-Key types:
-
- * `pub struct MemoryQuotaTracker`.
-   One of these per quota.
-   Contains the quota configuration and a list of participants,
-   (and how much each participant is using).
-
- * `pub trait Participant`.
-   Implemented by things that relevantly allocate memory.
-   Provides the callback methods used during reclamation.
-   Each `Account` has, somewhere, one or more Participants.
-
- * `pub struct Account`.
-   Obtained by a participant from a `MemoryQuotaTracker`,
-   during enrolment of the participant.
-   The participant supplies a `Participant` implementation
-   (to `MemoryQuotaTracker::new_account`)
-   and gets a (cloneable) `Account`.
-   A `Account` has methods
-   for accounting the allocation and freeing of memory.
-
-
-The `usize`'s handled by methods are in bytes, but they are nominal
-and need not be completely precise.
-
-```
-mod memquota::raw {
-```
-
 ## Plan for caches
 
 We may or may not use this "shared quota, delete oldest thing" notion.
