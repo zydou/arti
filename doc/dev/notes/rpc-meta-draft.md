@@ -816,7 +816,7 @@ When we are specifying a request, we list the following.
 > a cancellation mechanism is not implemented.
 
 To try to cancel a request,
-the RPC session object implements
+the RPC connection object implements
 an `rpc:cancel` method, taking parameters of the form:
 
 ```
