@@ -89,7 +89,7 @@ impl SocksProxyHandshake {
             (_, _) => Err(Error::Syntax),
         };
         match rv {
-            Err(Error::Decode(tor_bytes::Error::Truncated)) => Err(Truncated::new()),
+            Err(Error::Decode(tor_bytes::Error::Truncated { .. })) => Err(Truncated::new()),
             Err(e) => {
                 self.state = State::Failed;
                 Ok(Err(e))

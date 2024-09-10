@@ -527,7 +527,7 @@ fn test_connect_udp() {
         msg_error(
             cmd,
             &format!("00000000 {} 00 {:04x}", ty, port),
-            BytesError::Truncated,
+            BytesError::new_truncated_for_test(h_len),
         );
 
         // Address one byte too short
@@ -540,7 +540,7 @@ fn test_connect_udp() {
                 &h[2..], /* kludge */
                 port
             ),
-            BytesError::Truncated,
+            BytesError::new_truncated_for_test(1),
         );
 
         // Address one byte too long
@@ -563,7 +563,11 @@ fn test_connect_udp() {
     assert!(decode(cmd, &body[..]).is_ok());
 
     // Truncated as in hostname length way to big for amount of bytes.
-    msg_error(cmd, "00000000 01 56 7269", BytesError::Truncated);
+    msg_error(
+        cmd,
+        "00000000 01 56 7269",
+        BytesError::new_truncated_for_test(0x56 - 2),
+    );
 
     // Unknown address type.
     msg_error(
@@ -656,7 +660,7 @@ fn test_establish_rendezvous() {
     let body = "01010101010101010101010101010101010101";
     assert_eq!(
         decode(cmd, &unhex(body)[..]).unwrap_err(),
-        BytesError::Truncated,
+        BytesError::new_truncated_for_test(1),
     );
 }
 

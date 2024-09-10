@@ -50,7 +50,7 @@ impl HasKind for Error {
         use ErrorKind as EK;
         match self {
             E::BytesErr {
-                err: ByE::Truncated,
+                err: ByE::Truncated { .. },
                 ..
             } => EK::Internal,
             E::EncodeErr(..) => EK::BadApiUsage,

@@ -5022,6 +5022,7 @@ dependencies = [
  "educe",
  "getrandom",
  "hex-literal",
+ "safelog",
  "thiserror",
  "tor-error",
  "tor-llcrypto",
