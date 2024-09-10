@@ -1,8 +1,4 @@
 //! Support for RPC-visible connections through Arti.
-// TODO RPC: Rename this file to streams.rs
-//           Rename every "connection" to "stream", including at least:
-//            ClientStreamError instead of ClientConnectionError, methods from connect to
-//            new_stream or "open_stream", etc.
 
 use std::{
     io::{Error as IoError, Read as _, Write as _},
