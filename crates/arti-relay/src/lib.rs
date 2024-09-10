@@ -3,19 +3,20 @@ mod config;
 mod err;
 
 pub use err::Error;
-use tor_error::internal;
 
 use std::sync::Arc;
 
-use builder::TorRelayBuilder;
 use tor_chanmgr::Dormancy;
-use tor_keymgr::{ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
+use tor_error::internal;
+use tor_keymgr::{
+    ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
+};
 use tor_netdir::params::NetParameters;
+use tor_relay_crypto::pk::{RelayIdentityKeySpecifier, RelayIdentityKeypair};
 use tor_rtcompat::Runtime;
 use tracing::info;
 
-use crate::config::TorRelayConfig;
-use crate::err::ErrorDetail;
+use crate::{builder::TorRelayBuilder, config::TorRelayConfig, err::ErrorDetail};
 
 // Only rustls is supported.
 #[cfg(all(feature = "rustls", any(feature = "async-std", feature = "tokio")))]
@@ -104,5 +105,28 @@ impl<R: Runtime> TorRelay<R> {
         Self::try_generate_keys(&keymgr)?;
 
         Ok(keymgr)
+    }
+
+    fn try_generate_keys(keymgr: &KeyMgr) -> Result<(), ErrorDetail> {
+        let mut rng = rand::thread_rng();
+
+        // Attempt to get the relay long-term identity key from the key manager. If not present,
+        // generate it. We need this key to sign the signing certificates.
+        let _kp_relay_id = keymgr.get_or_generate::<RelayIdentityKeypair>(
+            &RelayIdentityKeySpecifier::new(),
+            KeystoreSelector::default(),
+            &mut rng,
+        )?;
+
+        // TODO: Once certificate supports is added to the KeyMgr, we need to get/gen the
+        // RelaySigning (KP_relaysign_ed) certs from the native persistent store.
+        //
+        // If present, rotate it if expired. Else, generate it. Rotation or creation require the
+        // relay identity keypair (above) in order to sign the RelaySigning.
+        //
+        // We then need to generate the RelayLink (KP_link_ed) certificate which is in turn signed
+        // by the RelaySigning cert.
+
+        Ok(())
     }
 }
