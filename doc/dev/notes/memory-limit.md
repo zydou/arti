@@ -1,15 +1,11 @@
 # Memory limiting and reclamation
 
-This is a design document.
-
-It omits some important considerations.  Notably:
-
- * All arithmetic needs to be panic-free with appropriate out-of-course handling.
- * In general, error handing isn't shown.
- * What is called `RoughTime` here doesn't exist yet.
- * Pseudocode (and impls generally) are handwavy sketches.
+`tor-memquota` has the implemented facility for tracking memory use
+and reclaiming queued data, when under memory pressure.
 
 ## Plan for caches
+
+Possible plans for evicrting cached data when under memory pressure.
 
 We may or may not use this "shared quota, delete oldest thing" notion.
 We may or may not want caches to share quota with queues, or to be independent.
