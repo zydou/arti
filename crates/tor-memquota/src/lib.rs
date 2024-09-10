@@ -203,8 +203,10 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
-#![allow(clippy::blocks_in_conditions)] // TODO #1176
 
+// TODO #1176
+#![allow(clippy::blocks_in_conditions)]
+//
 // See `Panics` in the crate-level docs, above.
 //
 // This lint sometimes has bugs, but it seems to DTRT for me as of 1.81.0-beta.6.
