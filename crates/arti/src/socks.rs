@@ -261,57 +261,67 @@ mod socks_and_rpc {}
 /// (In no case is it actually SOCKS authentication: it can either be a message
 /// to the stream isolation system or the RPC system.)
 fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
-    /// A constant which, when it appears at the start of a username,
-    /// indicates that the username/password are to be interpreted as
-    /// as encoding SOCKS5 extended parameters,
-    /// and that the version is the one we recognize.
+    /// Helper: Try to interpret a SOCKS5 username field as indicating the start of a set of
+    /// extended socks authentication information.
     ///
-    /// (Note that the version here is ascii 0, not binary zero.)
-    const SOCKS_EXT_CONST_RECOGNIZED: &[u8] = b"<torS0X>0";
+    /// If it does indicate that extensions are in use,
+    /// return a tuple containing the extension format type and the remaining information from the username.
+    ///
+    /// If it indicates that no extensions are in use,
+    /// return a tuple containing None and the username.
+    ///
+    /// If it is badly formatted, return an error.
+    fn interpret_socks5_username(username: &[u8]) -> Result<(Option<u8>, &[u8])> {
+        /// A constant which, when it appears at the start of a username,
+        /// indicates that the username/password are to be interpreted as
+        /// as encoding SOCKS5 extended parameters,
+        /// but the format might not be one we recognize.
+        const SOCKS_EXT_CONST_ANY: &[u8] = b"<torS0X>";
+        let Some(remainder) = username.strip_prefix(SOCKS_EXT_CONST_ANY) else {
+            return Ok((None, username));
+        };
+        if remainder.is_empty() {
+            return Err(anyhow!("Exteneded SOCKS information without format code."));
+        }
+        // TODO MSRV 1.80: use split_at_checked instead.
+        // This won't panic since we checked for an empty string above.
+        let (format_code, remainder) = remainder.split_at(1);
+        Ok((Some(format_code[0]), remainder))
+    }
 
-    /// A constant which, when it appears at the start of a username,
-    /// indicates that the username/password are to be interpreted as
-    /// as encoding SOCKS5 extended parameters,
-    /// but the version might not be one we recognize.
-    const SOCKS_EXT_CONST_ANY: &[u8] = b"<torS0X>";
-
-    debug_assert!(SOCKS_EXT_CONST_RECOGNIZED.starts_with(SOCKS_EXT_CONST_ANY));
-
-    match auth {
-        SocksAuth::Username(user, pass) if user.starts_with(SOCKS_EXT_CONST_RECOGNIZED) => {
-            let user = user
-                .strip_prefix(SOCKS_EXT_CONST_RECOGNIZED)
-                .expect("Prefix disappeared");
-
-            let rpc_obj_id = std::str::from_utf8(user).context("RPC object ID must be utf-8")?;
-            let isolation = pass;
-
-            let rpc_obj_id: Option<&str> = if rpc_obj_id.is_empty() {
-                None
-            } else {
+    let isolation = match auth {
+        SocksAuth::Username(user, pass) => match interpret_socks5_username(user)? {
+            (None, _) => ProvidedIsolation::Legacy(auth.clone()),
+            (Some(b'1'), b"") => {
+                return Err(anyhow!("Received empty RPC object ID"));
+            }
+            (Some(b'1'), remainder) => {
                 #[cfg(not(feature = "rpc"))]
                 return Err(anyhow!(
                     "Received RPC object ID, but not built with support for RPC"
                 ));
                 #[cfg(feature = "rpc")]
-                Some(rpc_obj_id)
-            };
+                return Ok(AuthInterpretation {
+                    rpc_object: Some(rpc::ObjectId::from(
+                        std::str::from_utf8(remainder).context("Rpc object ID was not utf-8")?,
+                    )),
+                    isolation: ProvidedIsolation::IsolationString(pass.clone().into()),
+                });
+            }
+            (Some(b'0'), b"") => ProvidedIsolation::IsolationString(pass.clone().into()),
+            (Some(b'0'), _) => {
+                return Err(anyhow!("Extraneous information in SOCKS username field."))
+            }
+            _ => return Err(anyhow!("Unrecognized SOCKS format code")),
+        },
+        _ => ProvidedIsolation::Legacy(auth.clone()),
+    };
 
-            Ok(AuthInterpretation {
-                #[cfg(feature = "rpc")]
-                rpc_object: rpc_obj_id.map(rpc::ObjectId::from),
-                isolation: ProvidedIsolation::IsolationString(isolation.clone().into()),
-            })
-        }
-        SocksAuth::Username(user, _) if user.starts_with(SOCKS_EXT_CONST_ANY) => {
-            Err(anyhow!("Unrecognized Tor SOCKS5 extension version."))
-        }
-        other_auth => Ok(AuthInterpretation {
-            #[cfg(feature = "rpc")]
-            rpc_object: None,
-            isolation: ProvidedIsolation::Legacy(other_auth.clone()),
-        }),
-    }
+    Ok(AuthInterpretation {
+        #[cfg(feature = "rpc")]
+        rpc_object: None,
+        isolation,
+    })
 }
 
 /// Information used to implement a SOCKS connection.
