@@ -220,7 +220,9 @@ impl Reclaiming {
                 })
                 .sum::<NumParticips>();
 
-            if state.total_used.as_raw().as_usize() / n_particips < usize::from(MAX_CACHE) {
+            if state.total_used.as_raw().as_usize().checked_div(n_particips)
+                .is_some_and(|total_used| total_used < usize::from(MAX_CACHE))
+            {
                 // On 32-bit, this could happen due to the cache, if we have
                 // 2^32 / MAX_CACHE participants.
                 return stop(state, Outcome::GoodEnough { n_particips });
