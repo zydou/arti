@@ -61,38 +61,30 @@
 //! then the memory tracking can be based on an underestimate.
 //! (This is significantly mitigated if the bulk of the memory use
 //! for each item is separately boxed.)
-//
-// Use in Arti:
-//
-// C&P from https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1997#note_2999468
-//
-// > I think you're saying that we need to have multiple queues, all of which collapse at once. Ie, each Tor stream has a queue (what you're calling a "channel" but I'm avoiding that terminology as much as I can since they're not Tor channels). And when we run out of memory, we're to find the stream (queue) with the oldest data, and kill all of its queues and probably the circuit too.
-// 
-// (Watch out! "Streams" are also a thing distinct from mpsc::channels and Tor channels.  Also, we may someday have other kinds of queue that are _not_ implemented using an mpsc that also need to participate in this dance.)
-// 
-// So to make your text above more pedantic..
-// 
-// Here are some things that have queued data:
-//   * Each Tor stream has a queue or two.
-//   * Each circuit also has one or more queues _not_ associated with a single stream. 
-//   * Tor channels themselves also can have one or more queues.
-//   * Each TLS connection can itself have internal buffers.  We can also consider these queues.
-//   * Each TCP socket can also be buffered.  We can also consider these buffers to be queues.
-// 
-// When we run out of memory, we want to find the queues above that have the oldest data.  When we find one, we will kill it.  If we kill a stream, we will also kill the circuit that it is on. Killing a circuit queue kills every queue associated with that circuit, and every queue assocated with every one of its Tor streams.  Killing a channel kills every queue associated with that channel, as well as every circuit associated with that channel, and every Tor stream associated with one of those circuits.
-// 
-// Thus, killing a single queue will reclaim the memory associated with several other queues.
-// 
-// Did that answer your question?
-// 
-// > I think there are two ways to do this:
-// > 1. Have the queue API directly allow multiple queues which are regarded as the same participant. (Probably this would mean teaching the lower-level API to be able to handle sharded participants or something.)
-// > 2. Have the memory-collapse of one stream trigger the memory-collapse of the whole circuit. Ie, do this entirely at the stream/circuit layer.
-// 
-// I think that there is an option 1.5: have queues treated as independent participants, but be able to set them up so that killing a single participant can be set up to cascade and kill several other things. 
-// 
-// (The difficulty with doing everything in the `tor-proto` layer is that the OOM handler wants to know _how much_ memory it has just freed up.  So if killing Q1 will trigger killing Q2 and Q3, the OOM handler needs some way to find out that it has just freed up more memory than is held in Q1.)
-
+//!
+//! # Use in Arti
+//!
+//! Here are some things that have queued data:
+//!
+//!   * Each Tor stream has a queue or two.
+//!   * Each circuit also has one or more queues _not_ associated with a single stream.
+//!   * Tor channels themselves also can have one or more queues.
+//!   * Each TLS connection can itself have internal buffers.  We can also consider these queues.
+//!   * Each TCP socket can also be buffered.  We can also consider these buffers to be queues.
+//!
+//! When we run out of memory, we find the queues above that have the oldest data.
+//! When we find one, we will kill it.
+//!
+//! If we kill a stream, we will also kill the circuit that it is on.
+//! Killing a circuit queue kills every queue associated with that circuit,
+//! and every queue associated with every one of its Tor streams.
+//! Killing a channel kills every queue associated with that channel,
+//! as well as every circuit associated with that channel,
+//! and every Tor stream associated with one of those circuits.
+//!
+//! Thus, killing a single queue will reclaim the memory associated with several other queues.
+//!
+//! **TODO - this is not yet actually implemented**
 
 use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 
