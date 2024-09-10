@@ -152,6 +152,16 @@
 //!             `-------------------------------------------------*   Participation
 //!
 //! ```
+//!
+//! ## Panics and state corruption
+//!
+//! This library is intended to be entirely panic-free,
+//! even in the case of accounting errors, arithmetic overflow, etc.
+//!
+//! In the case of sufficiently bad account errors,
+//! a Participant, or a whole Account, or the whole MemoryQuotaTracker,
+//! may become unuseable,
+//! in which case methods will return errors with kind [`tor_error::ErrorKind::Internal`].
 
 // @@ begin lint list maintained by maint/add_warning @@
 #![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
