@@ -20,7 +20,7 @@ but also its bugs
 We may or may not use this "shared quota, delete oldest thing" notion.
 We may or may not want caches to share quota with queues, or to be independent.
 
-## If we want to purge oldest cache data, with same age scale as queues
+### If we want to purge oldest cache data, with same age scale as queues
 
 A cache knows its oldest data and will need to know how old each thing it has, is.
 
@@ -28,7 +28,7 @@ On reclaim, it discards the oldest things until it reaches roughly (at least) ne
 or has freed the amount requested.
 If that's not enough, tracker will call reclaim again.
 
-## If we want a single quota, but a different reclamation strategy for caches
+### If we want a single quota, but a different reclamation strategy for caches
 
 I.e. we want to balance caches with queues "somehow" (TBD).
 
@@ -47,11 +47,11 @@ and give instructions via the `Participant`/`CacheParticipant` trait method(s).
 
 Policy and algorithms TBD.
 
-## If we want caches to reclaim oldest data, but with a separate quota
+### If we want caches to reclaim oldest data, but with a separate quota
 
 We could make a separate `MemoryQuotaTracker` for each cache.
 That cache will then end up using an LRU policy.
 
-## If we want caches to be totally independent with a different policy
+### If we want caches to be totally independent with a different policy
 
 We may or may not reuse some of the code here, but the API will be different.
