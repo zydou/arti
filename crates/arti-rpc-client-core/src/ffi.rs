@@ -386,14 +386,14 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
 
 /// Try to open an anonymized data stream over Arti.
 ///
-/// Use the proxy information associated with `rpc_conn` to make the connection,
+/// Use the proxy information associated with `rpc_conn` to make the stream,
 /// and store the resulting fd (or `SOCKET` on Windows) into `*socket_out`.
 ///
 /// The stream will target the address `hostname`:`port`.
 ///
 /// If `on_object` is provided, it is an `ObjectId` for client-like object
 /// (such as a Session or a Client)
-/// that should be used to make the connection.
+/// that should be used to make the stream.
 ///
 /// If `isolation` is provided, the resulting stream will be configured
 /// not to share a circuit with any other stream
@@ -418,7 +418,7 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
 /// and possibly many other parties, about the target address
 /// you are trying to visit.)
 ///
-/// The resulting socket will actually be a connection to Arti,
+/// The resulting socket will actually be a TCP connection to Arti,
 /// not directly to your destination.
 /// Therefore, passing it to functions like `getpeername()`
 /// may give unexpected results.
@@ -443,7 +443,7 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
 /// is eventually closed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_rpc_conn_connect(
+pub unsafe extern "C" fn arti_rpc_conn_open_stream(
     rpc_conn: *const ArtiRpcConn,
     hostname: *const c_char,
     port: c_int,
@@ -478,7 +478,7 @@ pub unsafe extern "C" fn arti_rpc_conn_connect(
 
             let stream = match stream_id_out {
                 Some(stream_id_out) => {
-                    let (stream_id, stream) = rpc_conn.connect_with_object(
+                    let (stream_id, stream) = rpc_conn.open_stream_as_object(
                         on_object.as_ref(),
                         (hostname, port),
                         isolation)?;
@@ -486,7 +486,7 @@ pub unsafe extern "C" fn arti_rpc_conn_connect(
                     stream
                 }
                 None => {
-                    rpc_conn.connect(on_object.as_ref(), (hostname, port), isolation)?
+                    rpc_conn.open_stream(on_object.as_ref(), (hostname, port), isolation)?
                 }
             };
 

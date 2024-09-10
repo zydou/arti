@@ -495,14 +495,14 @@ void arti_rpc_conn_free(ArtiRpcConn *rpc_conn);
 /**
  * Try to open an anonymized data stream over Arti.
  *
- * Use the proxy information associated with `rpc_conn` to make the connection,
+ * Use the proxy information associated with `rpc_conn` to make the stream,
  * and store the resulting fd (or `SOCKET` on Windows) into `*socket_out`.
  *
  * The stream will target the address `hostname`:`port`.
  *
  * If `on_object` is provided, it is an `ObjectId` for client-like object
  * (such as a Session or a Client)
- * that should be used to make the connection.
+ * that should be used to make the stream.
  *
  * If `isolation` is provided, the resulting stream will be configured
  * not to share a circuit with any other stream
@@ -527,7 +527,7 @@ void arti_rpc_conn_free(ArtiRpcConn *rpc_conn);
  * and possibly many other parties, about the target address
  * you are trying to visit.)
  *
- * The resulting socket will actually be a connection to Arti,
+ * The resulting socket will actually be a TCP connection to Arti,
  * not directly to your destination.
  * Therefore, passing it to functions like `getpeername()`
  * may give unexpected results.
@@ -551,14 +551,14 @@ void arti_rpc_conn_free(ArtiRpcConn *rpc_conn);
  * The caller is responsible for making sure that `*socket_out`, if set,
  * is eventually closed.
  */
-ArtiRpcStatus arti_rpc_conn_connect(const ArtiRpcConn *rpc_conn,
-                                    const char *hostname,
-                                    int port,
-                                    const char *on_object,
-                                    const char *isolation,
-                                    ArtiRpcRawSocket *socket_out,
-                                    ArtiRpcStr **stream_id_out,
-                                    ArtiRpcError **error_out);
+ArtiRpcStatus arti_rpc_conn_open_stream(const ArtiRpcConn *rpc_conn,
+                                        const char *hostname,
+                                        int port,
+                                        const char *on_object,
+                                        const char *isolation,
+                                        ArtiRpcRawSocket *socket_out,
+                                        ArtiRpcStr **stream_id_out,
+                                        ArtiRpcError **error_out);
 
 /**
  * Return a string representing the meaning of a given `ArtiRpcStatus`.

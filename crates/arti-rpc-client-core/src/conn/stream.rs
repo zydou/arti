@@ -151,7 +151,7 @@ pub(super) struct ProxyInfo {
 impl RpcConn {
     /// Open a new data stream, registering the stream with the RPC system.
     ///
-    /// Behaves the same as [`connect()`](RpcConn::connect),
+    /// Behaves the same as [`open_stream()`](RpcConn::open_stream),
     /// with the following exceptions:
     ///
     /// - Returns a `ObjectId` that can be used to identify the `DataStream`
@@ -161,7 +161,7 @@ impl RpcConn {
     ///   (To wait for the stream to succeed or fail, use the appropriate method.)
     ///
     ///  (TODO RPC: Implement such a method!)
-    pub fn connect_with_object(
+    pub fn open_stream_as_object(
         &self,
         on_object: Option<&ObjectId>,
         target: (&str, u16),
@@ -176,7 +176,7 @@ impl RpcConn {
             .deserialize_as::<SingletonId>()?
             .id;
 
-        match self.connect(Some(&stream_id), target, isolation) {
+        match self.open_stream(Some(&stream_id), target, isolation) {
             Ok(tcp_stream) => Ok((stream_id, tcp_stream)),
             Err(e) => {
                 if let Err(_inner) = self.release_obj(stream_id) {
@@ -196,7 +196,7 @@ impl RpcConn {
     ///
     /// If `isolation` is provided, we tell Arti that the stream must not share
     /// a circuit with any other stream with a different value for `isolation`.
-    pub fn connect(
+    pub fn open_stream(
         &self,
         on_object: Option<&ObjectId>,
         (hostname, port): (&str, u16),
