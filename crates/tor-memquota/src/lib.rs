@@ -35,6 +35,14 @@
 //!    in turn, the memory system provides the Participant with a `Participation` -
 //!    a handle for tracking memory alloc/free.
 //!
+//!    Actual memory allocation is handled by the participant itself,
+//!    using the global heap:
+//!    for each allocation, the Participant *both*
+//!    calls [`claim`](mtracker::Participation::claim)
+//!    *and* allocates the actual object,
+//!    and later, *both* frees the actual object *and*
+//!    calls [`release`](mtracker::Participation::release).
+//!
 //!  * **Child Account**/**Parent Account**:
 //!    An Account may have a Parent.
 //!    When a tracker requests memory reclamation from a Parent,

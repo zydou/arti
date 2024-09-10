@@ -38,8 +38,6 @@ Key types:
    A `Account` has methods
    for accounting the allocation and freeing of memory.
 
-Actual memory allocation is handled by the participant itself,
-using the global heap.
 
 The `usize`'s handled by methods are in bytes, but they are nominal
 and need not be completely precise.
