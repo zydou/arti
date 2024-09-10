@@ -575,6 +575,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::arithmetic_side_effects)] // don't mind potential panicking ops in tests
 
     use super::*;
     use crate::mtracker::test::*;

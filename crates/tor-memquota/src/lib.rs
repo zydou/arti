@@ -205,6 +205,15 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 #![allow(clippy::blocks_in_conditions)] // TODO #1176
 
+// See `Panics` in the crate-level docs, above.
+//
+// This lint sometimes has bugs, but it seems to DTRT for me as of 1.81.0-beta.6.
+// If it breaks, these bug(s) may be relevant:
+// https://github.com/rust-lang/rust-clippy/issues/11220
+// https://github.com/rust-lang/rust-clippy/issues/11145
+// https://github.com/rust-lang/rust-clippy/issues/10209
+#![warn(clippy::arithmetic_side_effects)]
+
 // Internal supporting modules
 #[macro_use]
 mod drop_bomb;
