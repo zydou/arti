@@ -39,11 +39,12 @@ Content-Type: text/html; charset=utf-8
 <title>This is a SOCKS Proxy, Not An HTTP Proxy</title>
 </head>
 <body>
-<h1>This is a SOCKs proxy, not an HTTP proxy.</h1>
+<h1>This is a SOCKS proxy, not an HTTP proxy.</h1>
 <p>
 It appears you have configured your web browser to use this Tor port as
 an HTTP proxy.
-</p><p>
+</p>
+<p>
 This is not correct: This port is configured as a SOCKS proxy, not
 an HTTP proxy. If you need an HTTP proxy tunnel, wait for Arti to
 add support for it in place of, or in addition to, socks_port.
