@@ -27,6 +27,9 @@
 //!    and reclamation also happens on an account-by-account basis.
 //!    (Each Account is with one Tracker.)
 //!
+//!    See [the `mq_queue` docs](mq_queue/index.html#use-in-arti)
+//!    for we use Accounts in Arti to track memory for the various queues.
+//!
 //!  * **Participant**:
 //!    one data structure that uses memory.
 //!    Each Participant is linked to *one* Account.  An account has *one or more* Participants.
