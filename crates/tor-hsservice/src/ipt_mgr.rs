@@ -1146,8 +1146,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             // "Unknown" - we have no idea which IPTs to publish.
             debug!("HS service {}: no good IPTs", &self.imm.nick);
 
-            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
-            // and include it in the onion svc status.
             self.imm
                 .status_tx
                 .send_recovering(self.ipt_errors().cloned().collect_vec());
@@ -1167,8 +1165,6 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
                 wait_for
             );
 
-            // TODO: we should obtain the list of IPT errors, if any, from IptEstablisher,
-            // and include it in the onion svc status.
             self.imm
                 .status_tx
                 .send_recovering(self.ipt_errors().cloned().collect_vec());
@@ -1193,7 +1189,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
             self.imm
                 .status_tx
-                .send(IptMgrState::Degraded, errors.map(|e| e.into()));
+                .send(IptMgrState::DegradedReachable, errors.map(|e| e.into()));
 
             Some(IPT_PUBLISH_UNCERTAIN)
         };

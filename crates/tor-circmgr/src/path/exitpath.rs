@@ -351,7 +351,7 @@ mod test {
     fn no_exits() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             // Construct a netdir with no exits.
-            let netdir = testnet::construct_custom_netdir(|_idx, bld| {
+            let netdir = testnet::construct_custom_netdir(|_idx, bld, _| {
                 bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
             })
             .unwrap()

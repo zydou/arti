@@ -18,7 +18,7 @@ pub struct OnionServiceStatus {
 
 /// The current reported status of an onion service subsystem.
 #[derive(Debug, Clone)]
-struct ComponentStatus {
+pub(crate) struct ComponentStatus {
     /// The current high-level state.
     state: State,
 
@@ -95,7 +95,17 @@ pub enum State {
     ///
     // TODO: this variant is only used by the IptManager.
     // We should split this enum into IptManagerState and PublisherState.
-    Degraded,
+    DegradedReachable,
+    /// The service is running in a degraded state.
+    ///
+    /// Specifically, we have a number of working introduction points,
+    /// but we have failed to upload the descriptor to one or more HsDirs.
+    ///
+    /// ## Reachability
+    ///
+    /// The service is unlikely to be reachable.
+    ///
+    DegradedUnreachable,
     /// The service is running.
     ///
     /// Specifically, we are satisfied with our introduction points, and our
@@ -138,6 +148,27 @@ pub enum State {
     Broken,
 }
 
+/// An error type for descriptor upload failures with retries.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DescUploadRetryError {
+    /// A fatal (non-transient) error occurred.
+    #[error("A fatal (non-transient) error occurred")]
+    FatalError(RetryError<DescUploadError>),
+
+    /// Ran out of retries.
+    #[error("Ran out of retries")]
+    MaxRetryCountExceeded(RetryError<DescUploadError>),
+
+    /// Exceeded the maximum allowed time.
+    #[error("Timeout exceeded")]
+    Timeout(RetryError<DescUploadError>),
+
+    /// Encountered an internal error.
+    #[error("Internal error")]
+    Bug(#[from] Bug),
+}
+
 /// A problem encountered by an onion service.
 #[derive(Clone, Debug, derive_more::From)]
 #[non_exhaustive]
@@ -145,8 +176,8 @@ pub enum Problem {
     /// A fatal error occurred.
     Runtime(FatalError),
 
-    /// We failed to upload a descriptor.
-    DescriptorUpload(RetryError<DescUploadError>),
+    /// One or more descriptor uploads failed.
+    DescriptorUpload(Vec<DescUploadRetryError>),
 
     /// We failed to establish one or more introduction points.
     Ipt(Vec<IptError>),
@@ -175,7 +206,10 @@ impl OnionServiceStatus {
             (Running, Running) => Running,
             (Recovering, _) | (_, Recovering) => Recovering,
             (Broken, _) | (_, Broken) => Broken,
-            (Degraded, Running) | (Running, Degraded) | (Degraded, Degraded) => Degraded,
+            (DegradedUnreachable, _) | (_, DegradedUnreachable) => DegradedUnreachable,
+            (DegradedReachable, Running)
+            | (Running, DegradedReachable)
+            | (DegradedReachable, DegradedReachable) => DegradedReachable,
         }
     }
 
@@ -255,7 +289,6 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
             pub(crate) fn send_broken(&self, err: impl Into<Problem>) {
                 self.send(State::Broken, Some(err.into()));
             }
@@ -264,7 +297,7 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
+            #[allow(dead_code)] // NOTE: this is dead code in PublisherStatusSender
             pub(crate) fn send_recovering(&self, err: impl Into<Problem>) {
                 self.send(State::Recovering, Some(err.into()));
             }
@@ -273,7 +306,6 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
             pub(crate) fn send_shutdown(&self) {
                 self.send(State::Shutdown, None);
             }
@@ -282,7 +314,6 @@ macro_rules! impl_status_sender {
             ///
             /// If the new state is different, this updates the current status
             /// and notifies all listeners.
-            #[allow(dead_code)]
             pub(crate) fn send(&self, state: State, err: Option<Problem>) {
                 let sender = &self.0;
                 let mut tx = sender.0.lock().expect("Poisoned lock");
@@ -313,5 +344,34 @@ impl StatusSender {
     /// Return a new OnionServiceStatusStream to return events from this StatusSender.
     pub(crate) fn subscribe(&self) -> OnionServiceStatusStream {
         OnionServiceStatusStream(self.0.lock().expect("Poisoned lock").subscribe())
+    }
+}
+
+#[cfg(test)]
+impl PublisherStatusSender {
+    /// Return a new OnionServiceStatusStream to return events from this StatusSender.
+    pub(crate) fn subscribe(&self) -> OnionServiceStatusStream {
+        self.0.subscribe()
+    }
+}
+
+#[cfg(test)]
+impl OnionServiceStatus {
+    /// Return the current high-level state of the publisher`.
+    pub(crate) fn publisher_status(&self) -> ComponentStatus {
+        self.publisher.clone()
+    }
+}
+
+#[cfg(test)]
+impl ComponentStatus {
+    /// The current `State` of this component.
+    pub(crate) fn state(&self) -> State {
+        self.state
+    }
+
+    /// The current error of this component.
+    pub(crate) fn current_problem(&self) -> Option<&Problem> {
+        self.latest_error.as_ref()
     }
 }

@@ -1,6 +1,36 @@
 //! The onion service publisher reactor.
 //!
-//! TODO (#1216): write the docs
+//! Generates and publishes hidden service descriptors in response to various events.
+//!
+//! [`Reactor::run`] is the entry-point of the reactor. It starts the reactor,
+//! and runs until [`Reactor::run_once`] returns [`ShutdownStatus::Terminate`]
+//! or a fatal error occurs. `ShutdownStatus::Terminate` is returned if
+//! any of the channels the reactor is receiving events from is closed
+//! (i.e. when the senders are dropped).
+//!
+//! ## Publisher status
+//!
+//! The publisher has an internal [`PublishStatus`], distinct from its [`State`],
+//! which is used for onion service status reporting.
+//!
+//! The main loop of the reactor reads the current `PublishStatus` from `publish_status_rx`,
+//! and responds by generating and publishing a new descriptor if needed.
+//!
+//! See [`PublishStatus`] and [`Reactor::publish_status_rx`] for more details.
+//!
+//! ## When do we publish?
+//!
+//! We generate and publish a new descriptor if
+//!   * the introduction points have changed
+//!   * the onion service configuration has changed in a meaningful way (for example,
+//!     if the `restricted_discovery` configuration or its [`Anonymity`](crate::Anonymity)
+//!     has changed. See [`OnionServiceConfigPublisherView`]).
+//!   * there is a new consensus
+//!   * it is time to republish the descriptor (after we upload a descriptor,
+//!     we schedule it for republishing at a random time between 60 minutes and 120 minutes
+//!     in the future)
+//!
+//! ## Onion service status
 //!
 //! With respect to [`OnionServiceStatus`] reporting,
 //! the following state transitions are possible:
@@ -8,57 +38,51 @@
 //!
 //! ```ignore
 //!
-//!                 update_publish_status(UploadScheduled|AwaitingIpts|RateLimited) +---------------+
-//!                +--------------------------------------------------------------->| Bootstrapping |
-//!                |                                                                +---------------+
-//! +----------+   | update_publish_status(Idle)        +---------+                         |
-//! | Shutdown |-- +----------------------------------->| Running |----+                    |
-//! +----------+   |                                    +---------+    |                    |
-//!                |                                                   |                    |
-//!                |                                                   |                    |
-//!                | run_once() returns an error  +--------+           |                    |
-//!                +----------------------------->| Broken |<----------+--------------------+
-//!                                               +--------+ run_once() returns an error
+//!                 update_publish_status(UploadScheduled|AwaitingIpts|RateLimited)
+//!                +---------------------------------------+
+//!                |                                       |
+//!                |                                       v
+//!                |                               +---------------+
+//!                |                               | Bootstrapping |
+//!                |                               +---------------+
+//!                |                                       |
+//!                |                                       |           uploaded to at least
+//!                |  not enough HsDir uploads succeeded   |        some HsDirs from each ring
+//!                |         +-----------------------------+-----------------------+
+//!                |         |                             |                       |
+//!                |         |              all HsDir uploads succeeded            |
+//!                |         |                             |                       |
+//!                |         v                             v                       v
+//!                |  +---------------------+         +---------+        +---------------------+
+//!                |  | DegradedUnreachable |         | Running |        |  DegradedReachable  |
+//! +----------+   |  +---------------------+         +---------+        +---------------------+
+//! | Shutdown |-- |         |                           |                        |
+//! +----------+   |         |                           |                        |
+//!                |         |                           |                        |
+//!                |         |                           |                        |
+//!                |         +---------------------------+------------------------+
+//!                |                                     |   invalid authorized_clients
+//!                |                                     |      after handling config change
+//!                |                                     |
+//!                |                                     v
+//!                |     run_once() returns an error +--------+
+//!                +-------------------------------->| Broken |
+//!                                                  +--------+
 //! ```
 //!
-//! Ideally, the publisher should also set the
-//! [`OnionServiceStatus`] to `Recovering` whenever a transient
-//! upload error occurs, but this is currently not possible:
-//!
-//!   * making the upload tasks set the status to `Recovering` (on failure) and `Running` (on
-//!     success) wouldn't work, because the upload tasks run in parallel (they would race with each
-//!     other, and the final status (`Recovering`/`Running`) would be the status of the last upload
-//!     task, rather than the real status of the publisher
-//!   * making the upload task set the status to `Recovering` on upload failure, and letting
-//!     `upload_publish_status` reset it back to `Running also would not work:
-//!     `upload_publish_status` sets the status back to `Running` when the publisher enters its
-//!     `Idle` state, regardless of the status of its upload tasks
-//!
-//! TODO: Indeed, setting the status to `Recovering` _anywhere_ would not work, because
-//! `upload_publish_status` will just overwrite it. We would need to introduce some new
-//! `PublishStatus` variant (currently, the publisher only has 3 states, `Idle`, `UploadScheduled`,
-//! `AwaitingIpts`), for the `Recovering` (retrying a failed upload) and `Broken` (the upload
-//! failed and we've given up) states. However, adding these 2 new states is non-trivial:
-//!
-//!   * how do we define "failure"? Is it the failure to upload to a single HsDir, or the failure
-//!     to upload to **any** HsDirs?
-//!   * what should make the publisher transition out of the `Broken`/`Recovering` states? While
-//!     `handle_upload_results` can see the upload results for a batch of HsDirs (corresponding to
-//!     a time period), the publisher doesn't do any sort of bookkeeping to know if a previously
-//!     failed HsDir upload succeeded in a later upload "batch"
-//!
-//! For the time being, the publisher never sets the status to `Recovering`, and uses the `Broken`
-//! status for reporting fatal errors (crashes).
+//! We can also transition from `Broken`, `DegradedReachable`, or `DegradedUnreachable`
+//! back to `Bootstrapping` (those transitions were omitted for brevity).
 
 use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
-use tor_netdir::DirEvent;
+use tor_netdir::{DirEvent, NetDir};
 
 use crate::config::restricted_discovery::{
     DirectoryKeyProviderList, RestrictedDiscoveryConfig, RestrictedDiscoveryKeys,
 };
 use crate::config::OnionServiceConfigPublisherView;
+use crate::status::{DescUploadRetryError, Problem};
 
 use super::*;
 
@@ -170,10 +194,6 @@ struct Immutable<R: Runtime, M: Mockable> {
     nickname: HsNickname,
     /// The key manager,
     keymgr: Arc<KeyMgr>,
-    /// The restricted discovery authorized clients.
-    ///
-    /// `None`, unless the service is running in restricted discovery mode.
-    authorized_clients: Arc<Mutex<Option<RestrictedDiscoveryKeys>>>,
     /// A sender for updating the status of the onion service.
     status_tx: PublisherStatusSender,
 }
@@ -391,6 +411,10 @@ struct Inner {
     //
     // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/1971#note_2994950
     reupload_timers: BinaryHeap<ReuploadTimer>,
+    /// The restricted discovery authorized clients.
+    ///
+    /// `None`, unless the service is running in restricted discovery mode.
+    authorized_clients: Option<Arc<RestrictedDiscoveryKeys>>,
 }
 
 /// The part of the reactor state that changes with every time period.
@@ -406,6 +430,8 @@ struct TimePeriodContext {
     hs_dirs: Vec<(RelayIds, DescriptorStatus)>,
     /// The revision counter of the last successful upload, if any.
     last_successful: Option<RevisionCounter>,
+    /// The outcome of the last upload, if any.
+    upload_results: Vec<HsDirUploadStatus>,
 }
 
 impl TimePeriodContext {
@@ -418,12 +444,24 @@ impl TimePeriodContext {
         blind_id: HsBlindId,
         netdir: &Arc<NetDir>,
         old_hsdirs: impl Iterator<Item = &'r (RelayIds, DescriptorStatus)>,
+        old_upload_results: Vec<HsDirUploadStatus>,
     ) -> Result<Self, FatalError> {
         let period = params.time_period();
+        let hs_dirs = Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?;
+        let upload_results = old_upload_results
+            .into_iter()
+            .filter(|res|
+                // Check if the HsDir of this result still exists
+                hs_dirs
+                    .iter()
+                    .any(|(relay_ids, _status)| relay_ids == &res.relay_ids))
+            .collect();
+
         Ok(Self {
             params,
-            hs_dirs: Self::compute_hsdirs(period, blind_id, netdir, old_hsdirs)?,
+            hs_dirs,
             last_successful: None,
+            upload_results,
         })
     }
 
@@ -467,6 +505,11 @@ impl TimePeriodContext {
             .iter_mut()
             .for_each(|(_relay_id, status)| *status = DescriptorStatus::Dirty);
     }
+
+    /// Update the upload result for this time period.
+    fn set_upload_results(&mut self, upload_results: Vec<HsDirUploadStatus>) {
+        self.upload_results = upload_results;
+    }
 }
 
 /// An error that occurs while trying to upload a descriptor.
@@ -484,10 +527,6 @@ pub enum UploadError {
     /// Failed to establish stream to hidden service directory
     #[error("failed to establish directory stream to HsDir")]
     Stream(#[source] tor_proto::Error),
-
-    /// A descriptor upload timed out before it could complete.
-    #[error("descriptor publication timed out")]
-    Timeout,
 
     /// An internal error.
     #[error("Internal error")]
@@ -536,7 +575,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             nickname,
             keymgr,
             status_tx,
-            authorized_clients: Arc::new(Mutex::new(authorized_clients)),
         };
 
         let inner = Inner {
@@ -546,6 +584,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             netdir: None,
             last_uploaded: None,
             reupload_timers: Default::default(),
+            authorized_clients,
         };
 
         Self {
@@ -596,7 +635,6 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     return Ok(());
                 }
                 Err(e) => {
-                    // TODO: update the publish status (see also the module-level TODO about this).
                     error_report!(
                         e,
                         "HS service {}: descriptor publisher crashed!",
@@ -665,6 +703,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 };
 
                 self.handle_upload_results(upload_res);
+                self.upload_result_to_svc_status()?;
             },
             () = upload_rate_lim.wait_for_earliest(&self.imm.runtime).fuse() => {
                 self.expire_rate_limit().await?;
@@ -799,6 +838,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             when: reupload_when,
         });
 
+        let mut upload_results = vec![];
         for upload_res in results.hsdir_result {
             let relay = period
                 .hs_dirs
@@ -811,7 +851,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 continue;
             };
 
-            if upload_res.upload_res == UploadStatus::Success {
+            if upload_res.upload_res.is_ok() {
                 let update_last_successful = match period.last_successful {
                     None => true,
                     Some(counter) => counter <= upload_res.revision_counter,
@@ -833,7 +873,11 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     *status = DescriptorStatus::Clean;
                 }
             }
+
+            upload_results.push(upload_res);
         }
+
+        period.set_upload_results(upload_results);
     }
 
     /// Maybe update our list of HsDirs.
@@ -845,6 +889,12 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         self.recompute_hs_dirs()?;
         self.update_publish_status_unless_waiting(PublishStatus::UploadScheduled)
             .await?;
+
+        // If the time period has changed, some of our upload results may now be irrelevant,
+        // so we might need to update our status (for example, if our uploads are
+        // for a no-longer-relevant time period, it means we might be able to update
+        // out status from "degraded" to "running")
+        self.upload_result_to_svc_status()?;
 
         Ok(())
     }
@@ -909,11 +959,18 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         blind_id.into(),
                         netdir,
                         ctx.hs_dirs.iter(),
+                        ctx.upload_results.clone(),
                     )
                 } else {
                     // Passing an empty iterator here means all HsDirs in this TimePeriodContext
                     // will be marked as dirty, meaning we will need to upload our descriptor to them.
-                    TimePeriodContext::new(params.clone(), blind_id.into(), netdir, iter::empty())
+                    TimePeriodContext::new(
+                        params.clone(),
+                        blind_id.into(),
+                        netdir,
+                        iter::empty(),
+                        vec![],
+                    )
                 }
             })
             .collect::<Result<Vec<TimePeriodContext>, FatalError>>()
@@ -972,6 +1029,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let watcher = watcher
                 .start_watching(self.key_dirs_tx.clone())
                 .map_err(|e| {
+                    // TODO: update the publish status (see also the module-level TODO about this).
                     error_report!(e, "Cannot set file watcher");
                 })
                 .ok();
@@ -1047,15 +1105,17 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Unconditionally update the `PublishStatus` of the reactor with `new_state`.
-    async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), FatalError> {
+    async fn update_publish_status(&mut self, new_state: PublishStatus) -> Result<(), Bug> {
         let onion_status = match new_state {
-            PublishStatus::Idle => State::Running,
+            PublishStatus::Idle => None,
             PublishStatus::UploadScheduled
             | PublishStatus::AwaitingIpts
-            | PublishStatus::RateLimited(_) => State::Bootstrapping,
+            | PublishStatus::RateLimited(_) => Some(State::Bootstrapping),
         };
 
-        self.imm.status_tx.send(onion_status, None);
+        if let Some(onion_status) = onion_status {
+            self.imm.status_tx.send(onion_status, None);
+        }
 
         trace!(
             "publisher reactor status change: {:?} -> {:?}",
@@ -1066,6 +1126,20 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         self.publish_status_tx.send(new_state).await.map_err(
             |_: postage::sink::SendError<_>| internal!("failed to send upload notification?!"),
         )?;
+
+        Ok(())
+    }
+
+    /// Update the onion svc status based on the results of the last descriptor uploads.
+    fn upload_result_to_svc_status(&self) -> Result<(), FatalError> {
+        let inner = self.inner.lock().expect("poisoned lock");
+        let netdir = inner
+            .netdir
+            .as_ref()
+            .ok_or_else(|| internal!("handling upload results without netdir?!"))?;
+
+        let (state, err) = upload_result_state(netdir, &inner.time_periods);
+        self.imm.status_tx.send(state, err);
 
         Ok(())
     }
@@ -1124,17 +1198,15 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     ///
     /// Returns `true` if the authorized clients have changed.
     async fn update_authorized_clients_if_changed(&mut self) -> Result<bool, FatalError> {
-        let authorized_clients = {
-            let inner = self.inner.lock().expect("poisoned lock");
-            Self::read_authorized_clients(&inner.config.restricted_discovery)
-        };
+        let mut inner = self.inner.lock().expect("poisoned lock");
+        let authorized_clients = Self::read_authorized_clients(&inner.config.restricted_discovery);
 
-        let mut clients_lock = self.imm.authorized_clients.lock().expect("poisoned lock");
-        let changed = clients_lock.as_ref() != authorized_clients.as_ref();
+        let clients = &mut inner.authorized_clients;
+        let changed = clients.as_ref() != authorized_clients.as_ref();
 
         if changed {
             info!("The restricted discovery mode authorized clients have changed");
-            *clients_lock = authorized_clients;
+            *clients = authorized_clients;
         }
 
         Ok(changed)
@@ -1143,7 +1215,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Read the authorized `RestrictedDiscoveryKeys` from `config`.
     fn read_authorized_clients(
         config: &RestrictedDiscoveryConfig,
-    ) -> Option<RestrictedDiscoveryKeys> {
+    ) -> Option<Arc<RestrictedDiscoveryKeys>> {
         let authorized_clients = config.read_keys();
 
         if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
@@ -1152,7 +1224,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             );
         }
 
-        authorized_clients
+        authorized_clients.map(Arc::new)
     }
 
     /// Mark the descriptor dirty for all time periods.
@@ -1192,10 +1264,40 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// If we've recently uploaded some descriptors, we return immediately and schedule the upload
     /// to happen after [`UPLOAD_RATE_LIM_THRESHOLD`].
     ///
-    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
-    /// implement it, as well as in what cases this will return an error).
+    /// Failed uploads are retried
+    /// (see [`upload_descriptor_with_retries`](Reactor::upload_descriptor_with_retries)).
+    ///
+    /// If restricted discovery mode is enabled and there are no authorized clients,
+    /// we abort the upload and set our status to [`State::Broken`].
+    //
+    // Note: a broken restricted discovery config won't prevent future uploads from being scheduled
+    // (for example if the IPTs change),
+    // which can can cause the publisher's status to oscillate between `Bootstrapping` and `Broken`.
+    // TODO: we might wish to refactor the publisher to be more sophisticated about this.
+    //
+    /// For each current time period, we spawn a task that uploads the descriptor to
+    /// all the HsDirs on the HsDir ring of that time period.
+    /// Each task shuts down on completion, or when the reactor is dropped.
+    ///
+    /// Each task reports its upload results (`TimePeriodUploadResult`)
+    /// via the `upload_task_complete_tx` channel.
+    /// The results are received and processed in the main loop of the reactor.
+    ///
+    /// Returns an error if it fails to spawn a task, or if an internal error occurs.
     async fn upload_all(&mut self) -> Result<(), FatalError> {
         trace!("starting descriptor upload task...");
+
+        // Abort the upload entirely if we have an empty list of authorized clients
+        let authorized_clients = match self.authorized_clients() {
+            Ok(authorized_clients) => authorized_clients,
+            Err(e) => {
+                error_report!(e, "aborting upload");
+                self.imm.status_tx.send_broken(e.clone());
+
+                // Returning an error would shut down the reactor, so we have to return Ok here.
+                return Ok(());
+            }
+        };
 
         let last_uploaded = self.inner.lock().expect("poisoned lock").last_uploaded;
         let now = self.imm.runtime.now();
@@ -1204,7 +1306,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let duration_since_upload = now.duration_since(ts);
 
             if duration_since_upload < UPLOAD_RATE_LIM_THRESHOLD {
-                return self.start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD).await;
+                return Ok(self.start_rate_limit(UPLOAD_RATE_LIM_THRESHOLD).await?);
             }
         }
 
@@ -1248,6 +1350,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             let imm = Arc::clone(&self.imm);
             let ipt_upload_view = self.ipt_watcher.upload_view();
             let config = Arc::clone(&inner.config);
+            let authorized_clients = authorized_clients.clone();
 
             trace!(nickname=%self.imm.nickname, time_period=?time_period,
                 "spawning upload task"
@@ -1271,6 +1374,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         params,
                         Arc::clone(&imm),
                         ipt_upload_view.clone(),
+                        authorized_clients.clone(),
                         upload_task_complete_tx,
                         shutdown_rx,
                     )
@@ -1290,10 +1394,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         Ok(())
     }
 
-    /// Upload the descriptor for the specified time period.
+    /// Upload the descriptor for the time period specified in `params`.
     ///
-    /// Any failed uploads are retried (TODO (#1216, #1098): document the retry logic when we
-    /// implement it, as well as in what cases this will return an error).
+    /// Failed uploads are retried
+    /// (see [`upload_descriptor_with_retries`](Reactor::upload_descriptor_with_retries)).
     #[allow(clippy::too_many_arguments)] // TODO: refactor
     async fn upload_for_time_period(
         hs_dirs: Vec<RelayIds>,
@@ -1302,6 +1406,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         params: HsDirParams,
         imm: Arc<Immutable<R, M>>,
         ipt_upload_view: IptsPublisherUploadView,
+        authorized_clients: Option<Arc<RestrictedDiscoveryKeys>>,
         mut upload_task_complete_tx: mpsc::Sender<TimePeriodUploadResult>,
         shutdown_rx: broadcast::Receiver<Void>,
     ) -> Result<(), FatalError> {
@@ -1343,6 +1448,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                 let config = Arc::clone(&config);
                 let imm = Arc::clone(&imm);
                 let ipt_upload_view = ipt_upload_view.clone();
+                let authorized_clients = authorized_clients.clone();
                 let params = params.clone();
                 let mut shutdown_rx = shutdown_rx.clone();
 
@@ -1360,11 +1466,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         let Some(hsdir) = netdir.by_ids(&relay_ids) else {
                             // This should never happen (all of our relay_ids are from the stored
                             // netdir).
+                            let err =
+                                "tried to upload descriptor to relay not found in consensus?!";
                             warn!(
                                 nickname=%imm.nickname, hsdir_id=%ed_id, hsdir_rsa_id=%rsa_id,
-                                "tried to upload descriptor to relay not found in consensus?!"
+                                "{err}"
                             );
-                            return UploadStatus::Failure;
+                            return Err(internal!("{err}").into());
                         };
 
                         Self::upload_descriptor_with_retries(
@@ -1423,7 +1531,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                             build_sign(
                                 &imm.keymgr,
                                 &config,
-                                &imm.authorized_clients,
+                                authorized_clients.as_deref(),
                                 ipts,
                                 time_period,
                                 revision_counter,
@@ -1459,7 +1567,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                     // (Actually launch the upload attempt. No timeout is needed
                     // here, since the backoff::Runner code will handle that for us.)
-                    let upload_res = select_biased! {
+                    let upload_res: UploadResult = select_biased! {
                         shutdown = shutdown_rx.next().fuse() => {
                             // This will always be None, since Void is uninhabited.
                             let _: Option<Void> = shutdown;
@@ -1478,7 +1586,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         res = run_upload(desc.clone()).fuse() => res,
                     };
 
-                    // Note: UploadStatus::Failure is only returned when
+                    // Note: UploadResult::Failure is only returned when
                     // upload_descriptor_with_retries fails, i.e. if all our retry
                     // attempts have failed
                     Ok(HsDirUploadStatus {
@@ -1517,7 +1625,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
         let (succeeded, _failed): (Vec<_>, Vec<_>) = upload_results
             .iter()
-            .partition(|res| res.upload_res == UploadStatus::Success);
+            .partition(|res| res.upload_res.is_ok());
 
         debug!(
             nickname=%imm.nickname, time_period=?time_period,
@@ -1593,7 +1701,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
     /// Upload a descriptor to the specified HSDir, retrying if appropriate.
     ///
-    /// TODO (#1216): document the retry logic when we implement it.
+    /// Any failed uploads are retried according to a [`PublisherBackoffSchedule`].
+    /// Each failed upload is retried until it succeeds, or until the overall timeout specified
+    /// by [`BackoffSchedule::overall_timeout`] elapses. Individual attempts are timed out
+    /// according to the [`BackoffSchedule::single_attempt_timeout`].
+    /// This function gives up after the overall timeout elapses,
+    /// declaring the upload a failure, and never retrying it again.
+    ///
+    /// See also [`BackoffSchedule`].
     async fn upload_descriptor_with_retries(
         hsdesc: String,
         netdir: &Arc<NetDir>,
@@ -1601,7 +1716,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         ed_id: &str,
         rsa_id: &str,
         imm: Arc<Immutable<R, M>>,
-    ) -> UploadStatus {
+    ) -> UploadResult {
         /// The base delay to use for the backoff schedule.
         const BASE_DELAY_MSEC: u32 = 1000;
         let schedule = PublisherBackoffSchedule {
@@ -1626,7 +1741,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     "successfully uploaded descriptor to HSDir",
                 );
 
-                UploadStatus::Success
+                Ok(())
             }
             Err(e) => {
                 warn_report!(
@@ -1637,13 +1752,13 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     rsa_id
                 );
 
-                UploadStatus::Failure
+                Err(e.into())
             }
         }
     }
 
     /// Stop publishing descriptors until the specified delay elapses.
-    async fn start_rate_limit(&mut self, delay: Duration) -> Result<(), FatalError> {
+    async fn start_rate_limit(&mut self, delay: Duration) -> Result<(), Bug> {
         if !matches!(self.status(), PublishStatus::RateLimited(_)) {
             debug!(
                 "We are rate-limited for {}; pausing descriptor publication",
@@ -1658,11 +1773,37 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     }
 
     /// Handle the upload rate-limit being lifted.
-    async fn expire_rate_limit(&mut self) -> Result<(), FatalError> {
+    async fn expire_rate_limit(&mut self) -> Result<(), Bug> {
         debug!("We are no longer rate-limited; resuming descriptor publication");
         self.update_publish_status(PublishStatus::UploadScheduled)
             .await?;
         Ok(())
+    }
+
+    /// Return the authorized clients, if restricted mode is enabled.
+    ///
+    /// Returns `Ok(None)` if restricted discovery mode is disabled.
+    ///
+    /// Returns an error if restricted discovery mode is enabled, but the client list is empty.
+    fn authorized_clients(&self) -> Result<Option<Arc<RestrictedDiscoveryKeys>>, FatalError> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "restricted-discovery")] {
+                let authorized_clients = self
+                    .inner
+                    .lock()
+                    .expect("poisoned lock")
+                    .authorized_clients
+                    .clone();
+
+                if authorized_clients.as_ref().as_ref().map(|v| v.is_empty()).unwrap_or_default() {
+                    return Err(FatalError::RestrictedDiscoveryNoClients);
+                }
+
+                Ok(authorized_clients)
+            } else {
+                Ok(None)
+            }
+        }
     }
 }
 
@@ -1765,6 +1906,94 @@ pub(super) fn read_blind_id_keypair(
     }
 }
 
+/// Determine the [`State`] of the publisher based on the upload results
+/// from the current `time_periods`.
+fn upload_result_state(
+    netdir: &NetDir,
+    time_periods: &[TimePeriodContext],
+) -> (State, Option<Problem>) {
+    let current_period = netdir.hs_time_period();
+    let current_period_res = time_periods
+        .iter()
+        .find(|ctx| ctx.params.time_period() == current_period);
+
+    let succeeded_current_tp = current_period_res
+        .iter()
+        .flat_map(|res| &res.upload_results)
+        .filter(|res| res.upload_res.is_ok())
+        .collect_vec();
+
+    let secondary_tp_res = time_periods
+        .iter()
+        .filter(|ctx| ctx.params.time_period() != current_period)
+        .collect_vec();
+
+    let succeeded_secondary_tp = secondary_tp_res
+        .iter()
+        .flat_map(|res| &res.upload_results)
+        .filter(|res| res.upload_res.is_ok())
+        .collect_vec();
+
+    // All of the failed uploads (for all TPs)
+    let failed = time_periods
+        .iter()
+        .flat_map(|res| &res.upload_results)
+        .filter(|res| res.upload_res.is_err())
+        .collect_vec();
+    let problems: Vec<DescUploadRetryError> = failed
+        .iter()
+        .flat_map(|e| e.upload_res.as_ref().map_err(|e| e.clone()).err())
+        .collect();
+
+    let err = match problems.as_slice() {
+        [_, ..] => Some(problems.into()),
+        [] => None,
+    };
+
+    if time_periods.len() < 2 {
+        // We need at least TP contexts (one for the primary TP,
+        // and another for the secondary one).
+        //
+        // If either is missing, we are unreachable for some or all clients.
+        return (State::DegradedUnreachable, err);
+    }
+
+    let state = match (
+        succeeded_current_tp.as_slice(),
+        succeeded_secondary_tp.as_slice(),
+    ) {
+        (&[], &[..]) | (&[..], &[]) if failed.is_empty() => {
+            // We don't have any upload results for one or both TPs.
+            // We are still bootstrapping.
+            State::Bootstrapping
+        }
+        (&[_, ..], &[_, ..]) if failed.is_empty() => {
+            // We have uploaded the descriptor to one or more HsDirs from both
+            // HsDir rings (primary and secondary), and none of the uploads failed.
+            // We are fully reachable.
+            State::Running
+        }
+        (&[_, ..], &[_, ..]) => {
+            // We have uploaded the descriptor to one or more HsDirs from both
+            // HsDir rings (primary and secondary), but some of the uploads failed.
+            // We are reachable, but we failed to upload the descriptor to all the HsDirs
+            // that were supposed to have it.
+            State::DegradedReachable
+        }
+        (&[..], &[]) | (&[], &[..]) => {
+            // We have either
+            //   * uploaded the descriptor to some of the HsDirs from one of the rings,
+            //   but haven't managed to upload it to any of the HsDirs on the other ring, or
+            //   * all of the uploads failed
+            //
+            // Either way, we are definitely not reachable by all clients.
+            State::DegradedUnreachable
+        }
+    };
+
+    (state, err)
+}
+
 /// Whether the reactor should initiate an upload.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 enum PublishStatus {
@@ -1819,10 +2048,7 @@ impl<M: Mockable> BackoffSchedule for PublisherBackoffSchedule<M> {
 impl RetriableError for UploadError {
     fn should_retry(&self) -> bool {
         match self {
-            UploadError::Request(_)
-            | UploadError::Circuit(_)
-            | UploadError::Stream(_)
-            | UploadError::Timeout => true,
+            UploadError::Request(_) | UploadError::Circuit(_) | UploadError::Stream(_) => true,
             UploadError::Bug(_) => false,
         }
     }
@@ -1838,33 +2064,217 @@ struct TimePeriodUploadResult {
 }
 
 /// The outcome of uploading a descriptor to a particular HsDir.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct HsDirUploadStatus {
     /// The identity of the HsDir we attempted to upload the descriptor to.
     relay_ids: RelayIds,
     /// The outcome of this attempt.
-    upload_res: UploadStatus,
+    upload_res: UploadResult,
     /// The revision counter of the descriptor we tried to upload.
     revision_counter: RevisionCounter,
 }
 
 /// The outcome of uploading a descriptor.
-//
-// TODO: consider making this a type alias for Result<(), ()>
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum UploadStatus {
-    /// The descriptor upload succeeded.
-    Success,
-    /// The descriptor upload failed.
-    Failure,
+type UploadResult = Result<(), DescUploadRetryError>;
+
+impl From<BackoffError<UploadError>> for DescUploadRetryError {
+    fn from(e: BackoffError<UploadError>) -> Self {
+        use BackoffError as BE;
+        use DescUploadRetryError as DURE;
+
+        match e {
+            BE::FatalError(e) => DURE::FatalError(e),
+            BE::MaxRetryCountExceeded(e) => DURE::MaxRetryCountExceeded(e),
+            BE::Timeout(e) => DURE::Timeout(e),
+            BE::ExplicitStop(_) => {
+                DURE::Bug(internal!("explicit stop in publisher backoff schedule?!"))
+            }
+        }
+    }
 }
 
-impl<T, E> From<Result<T, E>> for UploadStatus {
-    fn from(res: Result<T, E>) -> Self {
-        if res.is_ok() {
-            Self::Success
-        } else {
-            Self::Failure
+// NOTE: the rest of the publisher tests live in publish.rs
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use tor_netdir::testnet;
+
+    /// Create a `TimePeriodContext` from the specified upload results.
+    fn create_time_period_ctx(
+        params: &HsDirParams,
+        upload_results: Vec<HsDirUploadStatus>,
+    ) -> TimePeriodContext {
+        TimePeriodContext {
+            params: params.clone(),
+            hs_dirs: vec![],
+            last_successful: None,
+            upload_results,
         }
+    }
+
+    /// Create a single `HsDirUploadStatus`
+    fn create_upload_status(upload_res: UploadResult) -> HsDirUploadStatus {
+        HsDirUploadStatus {
+            relay_ids: RelayIds::empty(),
+            upload_res,
+            revision_counter: RevisionCounter::from(13),
+        }
+    }
+
+    /// Create a bunch of results, all with the specified `upload_res`.
+    fn create_upload_results(upload_res: UploadResult) -> Vec<HsDirUploadStatus> {
+        std::iter::repeat_with(|| create_upload_status(upload_res.clone()))
+            .take(10)
+            .collect()
+    }
+
+    fn construct_netdir() -> NetDir {
+        const SRV1: [u8; 32] = *b"The door refused to open.       ";
+        const SRV2: [u8; 32] = *b"It said, 'Five cents, please.'  ";
+
+        let dir = testnet::construct_custom_netdir(|_, _, bld| {
+            bld.shared_rand_prev(7, SRV1.into(), None)
+                .shared_rand_prev(7, SRV2.into(), None);
+        })
+        .unwrap();
+
+        dir.unwrap_if_sufficient().unwrap()
+    }
+
+    #[test]
+    fn upload_result_status_bootstrapping() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+        let results = [
+            (vec![], vec![]),
+            (vec![], create_upload_results(Ok(()))),
+            (create_upload_results(Ok(())), vec![]),
+        ];
+
+        for (primary_result, secondary_result) in results {
+            let primary_ctx = create_time_period_ctx(primary_params, primary_result);
+
+            let secondary_params = all_params
+                .iter()
+                .find(|param| param.time_period() != current_period)
+                .unwrap();
+            let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result.clone());
+
+            let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+            assert_eq!(status, State::Bootstrapping);
+            assert!(err.is_none());
+        }
+    }
+
+    #[test]
+    fn upload_result_status_running() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+
+        let secondary_result = create_upload_results(Ok(()));
+        let secondary_params = all_params
+            .iter()
+            .find(|param| param.time_period() != current_period)
+            .unwrap();
+        let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result.clone());
+
+        let primary_result = create_upload_results(Ok(()));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result);
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+        assert_eq!(status, State::Running);
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn upload_result_status_reachable() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+
+        let primary_result = create_upload_results(Ok(()));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        let failed_res = create_upload_results(Err(DescUploadRetryError::Bug(internal!("test"))));
+        let secondary_result = create_upload_results(Ok(()))
+            .into_iter()
+            .chain(failed_res.iter().cloned())
+            .collect();
+        let secondary_params = all_params
+            .iter()
+            .find(|param| param.time_period() != current_period)
+            .unwrap();
+        let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result);
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+
+        // Degraded but reachable (because some of the secondary HsDir uploads failed).
+        assert_eq!(status, State::DegradedReachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
+    }
+
+    #[test]
+    fn upload_result_status_unreachable() {
+        let netdir = construct_netdir();
+        let all_params = netdir.hs_all_time_periods();
+        let current_period = netdir.hs_time_period();
+        let primary_params = all_params
+            .iter()
+            .find(|param| param.time_period() == current_period)
+            .unwrap();
+        let mut primary_result =
+            create_upload_results(Err(DescUploadRetryError::Bug(internal!("test"))));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        // No secondary TP (we are unreachable).
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx]);
+        assert_eq!(status, State::DegradedUnreachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
+
+        // Add a successful result
+        primary_result.push(create_upload_status(Ok(())));
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx]);
+        // Still degraded, and unreachable (because we don't have a TimePeriodContext
+        // for the secondary TP)
+        assert_eq!(status, State::DegradedUnreachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
+
+        // If we add another time period where none of the uploads were successful,
+        // we're *still* unreachable
+        let secondary_result =
+            create_upload_results(Err(DescUploadRetryError::Bug(internal!("test"))));
+        let secondary_params = all_params
+            .iter()
+            .find(|param| param.time_period() != current_period)
+            .unwrap();
+        let secondary_ctx = create_time_period_ctx(secondary_params, secondary_result.clone());
+        let primary_ctx = create_time_period_ctx(primary_params, primary_result.clone());
+        let (status, err) = upload_result_state(&netdir, &[primary_ctx, secondary_ctx]);
+        assert_eq!(status, State::DegradedUnreachable);
+        assert!(matches!(err, Some(Problem::DescriptorUpload(_))));
     }
 }

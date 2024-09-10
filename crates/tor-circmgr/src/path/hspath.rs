@@ -354,7 +354,7 @@ mod test {
             size <= MAX_NET_SIZE,
             "the test network supports at most {MAX_NET_SIZE} relays"
         );
-        let netdir = construct_custom_netdir(|pos, nb| {
+        let netdir = construct_custom_netdir(|pos, nb, _| {
             nb.omit_rs = pos >= size;
             if !nb.omit_rs {
                 let f = RelayFlags::RUNNING

@@ -334,7 +334,7 @@ impl GuardSet {
     }
 
     /// Return `Ok(true)` if `id` is definitely a member of this set, and
-    /// `Ok(false)` if it is definitely not a member.  
+    /// `Ok(false)` if it is definitely not a member.
     ///
     /// If we cannot tell, it's because there is a guard in this sample that has
     /// a _subset_ of the IDs in `id`. In that case, we return
@@ -1048,7 +1048,7 @@ mod test {
         // has 20 viable (Guard + V2Dir + DirCache=2) candidates.  Otherwise the
         // calculation of collision probability at the end of this function is
         // too tricky.
-        let netdir = tor_netdir::testnet::construct_custom_netdir(|idx, builder| {
+        let netdir = tor_netdir::testnet::construct_custom_netdir(|idx, builder, _| {
             // Give every node equal bandwidth.
             builder.rs.weight(RelayWeight::Measured(1000));
             // The default network has 40 relays, and the first 10 are
@@ -1478,7 +1478,7 @@ mod test {
         assert_eq!(guards.n_primary_without_id_info_in(&netdir), 0);
 
         use tor_netdir::testnet;
-        let netdir2 = testnet::construct_custom_netdir(|_idx, bld| {
+        let netdir2 = testnet::construct_custom_netdir(|_idx, bld, _| {
             let md_so_far = bld.md.testing_md().expect("Couldn't build md?");
             if &p_id1.0.identity(RelayIdType::Ed25519).unwrap() == md_so_far.ed25519_id() {
                 bld.omit_md = true;

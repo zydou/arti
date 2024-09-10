@@ -2275,7 +2275,7 @@ mod test {
     #[test]
     fn relay_funcs() {
         let (consensus, microdescs) = construct_custom_network(
-            |pos, nb| {
+            |pos, nb, _| {
                 if pos == 15 {
                     nb.rs.add_or_port("[f0f0::30]:9001".parse().unwrap());
                 } else if pos == 20 {
@@ -2372,7 +2372,7 @@ mod test {
         // make a netdir where relays 10-19 are badexit, and everybody
         // exits to 443 on IPv6.
         use tor_netdoc::doc::netstatus::RelayFlags;
-        let netdir = construct_custom_netdir(|pos, nb| {
+        let netdir = construct_custom_netdir(|pos, nb, _| {
             if (10..20).contains(&pos) {
                 nb.rs.add_flags(RelayFlags::BAD_EXIT);
             }
@@ -2428,7 +2428,7 @@ mod test {
     #[test]
     fn test_by_id() {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
-        let netdir = construct_custom_netdir(|pos, nb| {
+        let netdir = construct_custom_netdir(|pos, nb, _| {
             nb.omit_md = pos == 13;
         })
         .unwrap();
@@ -2498,7 +2498,7 @@ mod test {
     #[cfg(feature = "hs-common")]
     fn test_by_ids_detailed() {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
-        let netdir = construct_custom_netdir(|pos, nb| {
+        let netdir = construct_custom_netdir(|pos, nb, _| {
             nb.omit_md = pos == 13;
         })
         .unwrap();
@@ -2596,7 +2596,7 @@ mod test {
 
     #[test]
     fn family_list() {
-        let netdir = construct_custom_netdir(|pos, n| {
+        let netdir = construct_custom_netdir(|pos, n, _| {
             if pos == 0x0a {
                 n.md.family(
                     "$0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B \
@@ -2639,7 +2639,7 @@ mod test {
         let db = GeoipDb::new_from_legacy_format("", src_v6).unwrap();
 
         let netdir = construct_custom_netdir_with_geoip(
-            |pos, n| {
+            |pos, n, _| {
                 if pos == 0x01 {
                     n.rs.add_or_port("[fe80:dead:beef::1]:42".parse().unwrap());
                 }
@@ -2689,7 +2689,7 @@ mod test {
         ];
 
         let netdir: Arc<NetDir> =
-            crate::testnet::construct_custom_netdir_with_params(|_, _| {}, PARAMS, None)
+            crate::testnet::construct_custom_netdir_with_params(|_, _, _| {}, PARAMS, None)
                 .unwrap()
                 .unwrap_if_sufficient()
                 .unwrap()

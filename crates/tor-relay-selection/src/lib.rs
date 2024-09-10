@@ -116,7 +116,7 @@ pub(crate) mod testing {
 
     // Construct a test network to exercise the various cases in this crate.
     pub(crate) fn testnet() -> NetDir {
-        tor_netdir::testnet::construct_custom_netdir(|idx, node| {
+        tor_netdir::testnet::construct_custom_netdir(|idx, node, _| {
             if idx % 7 == 0 {
                 node.rs.clear_flags(RelayFlags::FAST);
             }

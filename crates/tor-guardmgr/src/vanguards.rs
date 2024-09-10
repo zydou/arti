@@ -884,7 +884,7 @@ mod test {
         netdir_provider: &TestNetDirProvider,
         params: impl IntoIterator<Item = (&str, i32)>,
     ) -> VanguardParams {
-        let new_netdir = testnet::construct_custom_netdir_with_params(|_, _| {}, params, None)
+        let new_netdir = testnet::construct_custom_netdir_with_params(|_, _, _| {}, params, None)
             .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
@@ -940,7 +940,7 @@ mod test {
         netdir_provider: &TestNetDirProvider,
     ) -> NetDir {
         let new_netdir = construct_custom_netdir_with_params(
-            |_idx, bld| {
+            |_idx, bld, _| {
                 let md_so_far = bld.md.testing_md().unwrap();
                 if md_so_far.ed25519_id() == vanguard.relay().id() {
                     bld.omit_rs = true;
@@ -1099,7 +1099,7 @@ mod test {
             let vanguardmgr = VanguardMgr::new_testing(&rt, VanguardMode::Lite).unwrap();
 
             let netdir =
-                construct_custom_netdir_with_params(|_, _| {}, ENABLE_LITE_VANGUARDS, None)
+                construct_custom_netdir_with_params(|_, _, _| {}, ENABLE_LITE_VANGUARDS, None)
                     .unwrap()
                     .unwrap_if_sufficient()
                     .unwrap();

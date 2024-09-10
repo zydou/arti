@@ -6,7 +6,7 @@ use std::{
 };
 
 use arti_client::config::onion_service::{OnionServiceConfig, OnionServiceConfigBuilder};
-use futures::task::SpawnExt;
+use futures::{task::SpawnExt, StreamExt as _};
 use tor_config::{
     define_list_builder_helper, impl_standard_builder, ConfigBuildError, Flatten, Reconfigure,
     ReconfigureError,
@@ -190,6 +190,7 @@ impl Proxy {
         {
             let proxy = proxy.clone();
             let runtime_clone = client.runtime().clone();
+            let nickname_clone = nickname.clone();
             client.runtime().spawn(async move {
                 match proxy
                     .handle_requests(runtime_clone, nickname.clone(), request_stream)
@@ -203,6 +204,19 @@ impl Proxy {
                     }
                 }
             })?;
+
+            let mut status_stream = svc.status_events();
+            client.runtime().spawn(async move {
+                while let Some(status) = status_stream.next().await {
+                    debug!(
+                        nickname=%nickname_clone,
+                        status=?status.state(),
+                        problem=?status.current_problem(),
+                        "Onion service status change",
+                    );
+                }
+            })?;
+
         }
 
         Ok(Proxy { svc, proxy })
