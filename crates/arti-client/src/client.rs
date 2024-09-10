@@ -43,7 +43,10 @@ use {
 };
 
 #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
-use {tor_hscrypto::pk::HsId, tor_keymgr::KeystoreSelector};
+use {
+    tor_hscrypto::pk::HsId, tor_hscrypto::pk::HsIdKeypair, tor_hsservice::HsIdKeypairSpecifier,
+    tor_keymgr::KeystoreSelector,
+};
 
 use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 
@@ -1594,6 +1597,47 @@ impl<R: Runtime> TorClient<R> {
             .map_err(ErrorDetail::LaunchOnionService)?;
 
         Ok((service, stream))
+    }
+
+    /// Try to launch an onion service with a given configuration and provided
+    /// [`HsIdKeypair`]. If an onion service with the given nickname already has an
+    /// associated `HsIdKeypair`  in this `TorClient`'s `KeyMgr`, then this operation
+    /// fails rather than overwriting the existing key.
+    ///
+    /// This onion service will not actually handle any requests on its own: you
+    /// will need to
+    /// pull [`RendRequest`](tor_hsservice::RendRequest) objects from the returned stream,
+    /// [`accept`](tor_hsservice::RendRequest::accept) the ones that you want to
+    /// answer, and then wait for them to give you [`StreamRequest`](tor_hsservice::StreamRequest)s.
+    ///
+    /// You may find the [`tor_hsservice::handle_rend_requests`] API helpful for
+    /// translating `RendRequest`s into `StreamRequest`s.
+    ///
+    /// If you want to forward all the requests from an onion service to a set
+    /// of local ports, you may want to use the `tor-hsrproxy` crate.
+    #[cfg(all(feature = "onion-service-service", feature = "experimental-api"))]
+    pub fn launch_onion_service_with_hsid(
+        &self,
+        config: tor_hsservice::OnionServiceConfig,
+        id_keypair: HsIdKeypair,
+    ) -> crate::Result<(
+        Arc<tor_hsservice::RunningOnionService>,
+        impl futures::Stream<Item = tor_hsservice::RendRequest>,
+    )> {
+        let nickname = config.nickname();
+        let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
+        let selector = KeystoreSelector::Default;
+
+        let _kp = self
+            .inert_client
+            .keymgr
+            .as_ref()
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "launch onion service ex",
+            })?
+            .insert::<HsIdKeypair>(id_keypair, &hsid_spec, selector, false)?;
+
+        self.launch_onion_service(config)
     }
 
     /// Generate a service discovery keypair for connecting to a hidden service running in
