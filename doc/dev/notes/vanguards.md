@@ -14,37 +14,40 @@ This change applies to HS circuits only.
 This includes circuits to connect to introduction points,
 rendezvous points, and hsdirs.)
 
-The vanguard design will apply to the "stub" circuits
+We call "circuit stem" the portion of a hidden service circuit
+that is built differently when vanguards are in use.
+
+The vanguard design will apply to the "stem" circuits
 that we build in HsCircPool.  These circuits correspond to
 everything in an HS circuit _before_ we add an introduction point,
 rendezvous point, or hsdir.  For client rendezvous connections,
-we use the stub circuits unmodified, and use the
+we use the circuits stems unmodified, and use the
 final hop as our rendezvous point.
 
 Here's our schema:
 ```
-     Client hsdir:  STUB+ -> HsDir
-     Client intro:  STUB+ -> Ipt
-     Client rend:   STUB+
-     Service hsdir: STUB  -> HsDir      (*)
-     Service intro: STUB  -> Ipt
-     Service rend:  STUB+ -> Rpt
+     Client hsdir:  GUARDED -> HsDir
+     Client intro:  GUARDED -> Ipt
+     Client rend:   GUARDED
+     Service hsdir: NAIVE   -> HsDir      (*)
+     Service intro: NAIVE   -> Ipt
+     Service rend:  GUARDED -> Rpt
 ```
 
-Note that in some of these cases (marked above with `STUB+`),
+Note that in some of these cases (marked above with `GUARDED`),
 we are building a circuit to a final hop
 that an adversary can easily control.
 Right now, we don't distinguish these cases,
 but with vanguards we will.
 
 > (I've marked "service hsdir" with a *,
-> since maybe we want to call that one "stub+" as well.)
+> since maybe we want to call that one "guarded" as well.)
 
-Currently, stub circuits are built by taking a guard node,
+Currently, circuit stems are built by taking a guard node,
 then two arbitrarily chosen middle nodes:
 ```
-   STUB  = G -> M -> M
-   STUB+ = G -> M -> M
+   NAIVE   = G -> M -> M
+   GUARDED = G -> M -> M
 ```
 
 There two variants of vanguards: "lite" and "full".
@@ -53,20 +56,20 @@ called "vanguards".
 The "lite" variant adds a single "L2" pool.
 The "full" variant adds an "L2" pool and an "L3" pool.
 
-With "lite", we build stub circuits by taking a guard node,
+With "lite", we build circuit stems by taking a guard node,
 then a vanguard from the "L2" pool, then an arbitrary middle node:
 ```
-   STUB  = G -> L2 -> M
-   STUB+ = G -> L2 -> M
+   NAIVE   = G -> L2 -> M
+   GUARDED = G -> L2 -> M
 ```
 
-With "full", we build stub circuits by taking a guard node,
+With "full", we build circuit stems by taking a guard node,
 a vanguard from the L2 pool,
 and a vanguard from the L3 pool.
-For "stub+" circuits, we also add a middle node:
+For "guarded" circuits, we also add a middle node:
 ```
-   STUB  = G -> L2 -> L3
-   STUB+ = G -> L2 -> L3 -> M
+   NAIVE   = G -> L2 -> L3
+   GUARDED = G -> L2 -> L3 -> M
 ```
 
 ### Pool management
@@ -98,7 +101,7 @@ In vanguards-lite, these pools are not persistent.
 
 ### Loosened path restirctions
 
-When building a stub circuit,
+When building a circuit stem,
 we no longer apply certain restrictions to the circuits we build.
 In particular:
 
@@ -108,10 +111,10 @@ In particular:
 
 ### Which variant to apply
 
-By default, "vanguards-lite" applies to every stub circuit.
+By default, "vanguards-lite" applies to every circuit stem.
 
 We will implement a global option that applies "vanguards-full"
-to every stub circuit.
+to every circuit stem.
 
 For now, we will share a single L2 pool,
 no matter which variant is in use:
@@ -182,9 +185,9 @@ telling it whether a "lite" or "full" circuit is needed.
  * [ ] Implement a global "full-vanguards" configuration option;
        have it get fed to the vanguardmgr, to tor-hsclient, and to tor-hsservice.
  * [ ] Give HsCircPool additional arguments to declare whether its
-       circuits are Stub or Stub+
+       circuits are Naive or Guarded
        (probably not so named in the code!)
        and whether they are "lite" or "full".
- * [ ] Implement path selection for (stub, stub+) x (lite, full)
+ * [ ] Implement path selection for (Naive, Guarded) x (lite, full)
        circuits in CircMgr::launch_hs_unmanaged.
 
