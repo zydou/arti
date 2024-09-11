@@ -56,8 +56,20 @@ pub struct Reader<'a> {
 
 impl<'a> Reader<'a> {
     /// Construct a new Reader from a slice of bytes.
+    ///
+    /// In tests, prefer [`Reader::from_slice_for_test`].
     pub fn from_slice(slice: &'a [u8]) -> Self {
         Reader { b: slice, off: 0 }
+    }
+    /// Construct a new Reader from a slice of bytes, in tests
+    ///
+    /// XXXX this documentation references a not-yet-existing method
+    ///
+    /// This is equivalent to [`Reader::from_possibly_incomplete_slice`].
+    /// It should be used in test cases, because that gives more precise
+    /// testing of the generation of incomplete data errors.
+    pub fn from_slice_for_test(slice: &'a [u8]) -> Self {
+        Self::from_slice(slice)
     }
     /// Construct a new Reader from a 'Bytes' object.
     pub fn from_bytes(b: &'a bytes::Bytes) -> Self {
@@ -461,7 +473,7 @@ mod tests {
     #[test]
     fn bytecursor_read_missing() {
         let bytes = b"1234567";
-        let mut bc = Reader::from_slice(&bytes[..]);
+        let mut bc = Reader::from_slice_for_test(&bytes[..]);
 
         assert_eq!(bc.consumed(), 0);
         assert_eq!(bc.remaining(), 7);
@@ -500,7 +512,7 @@ mod tests {
     #[test]
     fn advance_too_far() {
         let bytes = b"12345";
-        let mut b = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
         assert_eq!(b.remaining(), 5);
         assert_eq!(b.advance(16), Err(Error::new_truncated_for_test(11)));
         assert_eq!(b.remaining(), 5);
@@ -511,7 +523,7 @@ mod tests {
     #[test]
     fn truncate() {
         let bytes = b"Hello universe!!!1!";
-        let mut b = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
 
         assert_eq!(b.take(5).unwrap(), &b"Hello"[..]);
         assert_eq!(b.remaining(), 14);
@@ -525,10 +537,10 @@ mod tests {
 
     #[test]
     fn exhaust() {
-        let b = Reader::from_slice(&b""[..]);
+        let b = Reader::from_slice_for_test(&b""[..]);
         assert_eq!(b.should_be_exhausted(), Ok(()));
 
-        let mut b = Reader::from_slice(&b"outis"[..]);
+        let mut b = Reader::from_slice_for_test(&b"outis"[..]);
         assert_eq!(b.should_be_exhausted(), Err(Error::ExtraneousBytes));
         b.take(4).unwrap();
         assert_eq!(b.should_be_exhausted(), Err(Error::ExtraneousBytes));
@@ -538,7 +550,7 @@ mod tests {
 
     #[test]
     fn take_rest() {
-        let mut b = Reader::from_slice(b"si vales valeo");
+        let mut b = Reader::from_slice_for_test(b"si vales valeo");
         assert_eq!(b.take(3).unwrap(), b"si ");
         assert_eq!(b.take_rest(), b"vales valeo");
         assert_eq!(b.take_rest(), b"");
@@ -546,7 +558,7 @@ mod tests {
 
     #[test]
     fn take_until() {
-        let mut b = Reader::from_slice(&b"si vales valeo"[..]);
+        let mut b = Reader::from_slice_for_test(&b"si vales valeo"[..]);
         assert_eq!(b.take_until(b' ').unwrap(), &b"si"[..]);
         assert_eq!(b.take_until(b' ').unwrap(), &b"vales"[..]);
         assert_eq!(b.take_until(b' '), Err(Error::new_truncated_for_test(1)));
@@ -554,7 +566,7 @@ mod tests {
 
     #[test]
     fn truncate_badly() {
-        let mut b = Reader::from_slice(&b"abcdefg"[..]);
+        let mut b = Reader::from_slice_for_test(&b"abcdefg"[..]);
         b.truncate(1000);
         assert_eq!(b.total_len(), 7);
         assert_eq!(b.remaining(), 7);
@@ -562,7 +574,7 @@ mod tests {
 
     #[test]
     fn nested_good() {
-        let mut b = Reader::from_slice(b"abc\0\0\x04defghijkl");
+        let mut b = Reader::from_slice_for_test(b"abc\0\0\x04defghijkl");
         assert_eq!(b.take(3).unwrap(), b"abc");
 
         b.read_nested_u16len(|s| {
@@ -583,7 +595,7 @@ mod tests {
 
     #[test]
     fn nested_bad() {
-        let mut b = Reader::from_slice(b"................");
+        let mut b = Reader::from_slice_for_test(b"................");
         assert_eq!(
             read_nested_generic::<u128, _, ()>(&mut b, |_| panic!())
                 .err()
@@ -591,7 +603,7 @@ mod tests {
             Error::BadLengthValue
         );
 
-        let mut b = Reader::from_slice(b"................");
+        let mut b = Reader::from_slice_for_test(b"................");
         assert_eq!(
             b.read_nested_u32len::<_, ()>(|_| panic!()).err().unwrap(),
             Error::new_truncated_for_test(774778414 - (16 - 4))
@@ -612,7 +624,7 @@ mod tests {
         }
 
         let bytes = b"\x04this\x02is\x09sometimes\x01a\x06string!";
-        let mut b = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
 
         let le: LenEnc = b.extract().unwrap();
         assert_eq!(&le.0[..], &b"this"[..]);
@@ -628,7 +640,7 @@ mod tests {
         assert_eq!(b.remaining(), 1);
 
         // Make sure that we don't advance on a failing extract_n()
-        let mut b = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
         assert_eq!(b.remaining(), 28);
         let les: Result<Vec<LenEnc>> = b.extract_n(10);
         assert_eq!(les.unwrap_err(), Error::new_truncated_for_test(33));
@@ -638,7 +650,7 @@ mod tests {
     #[test]
     fn cursor() -> Result<()> {
         let alphabet = b"abcdefghijklmnopqrstuvwxyz";
-        let mut b = Reader::from_slice(&alphabet[..]);
+        let mut b = Reader::from_slice_for_test(&alphabet[..]);
 
         let c1 = b.cursor();
         let _ = b.take_u16()?;

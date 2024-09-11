@@ -255,7 +255,7 @@ mod test {
     #[test]
     fn test_parse_enc() {
         fn t(b: &[u8], val: &LinkSpec) {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: LinkSpec = r.extract().unwrap();
             assert_eq!(r.remaining(), 0);
             assert_eq!(&got, val);
@@ -300,7 +300,7 @@ mod test {
         use tor_bytes::Error;
 
         fn t(b: &[u8]) -> Error {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: Result<LinkSpec> = r.extract();
             got.err().unwrap()
         }
@@ -313,7 +313,7 @@ mod test {
     #[test]
     fn test_unparsed() {
         fn t(b: &[u8], val: &EncodedLinkSpec) {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: EncodedLinkSpec = r.extract().unwrap();
             assert_eq!(r.remaining(), 0);
             assert_eq!(&got, val);
@@ -351,7 +351,7 @@ mod test {
     fn test_unparsed_bad() {
         use tor_bytes::Error;
         fn t(b: &[u8]) -> Error {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: Result<EncodedLinkSpec> = r.extract();
             got.err().unwrap()
         }

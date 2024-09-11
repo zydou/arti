@@ -31,7 +31,7 @@ fn unhex(s: &str) -> Vec<u8> {
 }
 
 fn decode(cmd: RelayCmd, body: &[u8]) -> Result<msg::AnyRelayMsg, BytesError> {
-    let mut r = tor_bytes::Reader::from_slice(body);
+    let mut r = tor_bytes::Reader::from_slice_for_test(body);
     msg::AnyRelayMsg::decode_from_reader(cmd, &mut r)
 }
 
@@ -740,7 +740,7 @@ fn establish_intro_roundtrip() {
         .sign_and_encode(&keypair, &mac_key[..])
         .unwrap();
 
-    let mut r = Reader::from_slice(&signed[..]);
+    let mut r = Reader::from_slice_for_test(&signed[..]);
     let parsed = EstablishIntro::decode_from_reader(RelayCmd::ESTABLISH_INTRO, &mut r).unwrap();
     let parsed_body = parsed.clone().check_and_unwrap(&mac_key[..]).unwrap();
     assert_eq!(format!("{:?}", parsed_body), format!("{:?}", body));
@@ -766,7 +766,7 @@ fn establish_intro_canned() {
          53EAECADC0844472AA7BEC3BDCBA0A65F1FCDEF397B399F534F46E535B0E6301",
     );
     let mac_key = unhex("250CCAF964B17B621A58CD82DF5DAFD060BA5F28");
-    let mut r = Reader::from_slice(&message[..]);
+    let mut r = Reader::from_slice_for_test(&message[..]);
     let parsed = EstablishIntro::decode_from_reader(RelayCmd::ESTABLISH_INTRO, &mut r).unwrap();
     let _parsed_body = parsed.check_and_unwrap(&mac_key[..]).unwrap();
 }
@@ -903,7 +903,7 @@ fn testvec_intro_payload() {
     );
 
     let padding_len = {
-        let mut r = Reader::from_slice(&encoded[..]);
+        let mut r = Reader::from_slice_for_test(&encoded[..]);
         let got: IntroduceHandshakePayload = r.extract().unwrap();
         assert_eq!(format!("{got:?}"), format!("{expected:?}"));
         r.remaining()

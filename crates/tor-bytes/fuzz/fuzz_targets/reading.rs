@@ -37,7 +37,7 @@ struct Example {
 #[cfg(not(tarpaulin_include))]
 impl Example {
     fn run(self) {
-        let mut b = Reader::from_slice(&self.input[..]);
+        let mut b = Reader::from_slice_for_test(&self.input[..]);
         for op in self.ops {
             op.run(&mut b);
         }

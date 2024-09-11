@@ -322,7 +322,7 @@ mod tests {
     }
     macro_rules! check_decode {
         ($t:ty, $e:expr, $e2:expr) => {
-            let mut b = Reader::from_slice(&$e[..]);
+            let mut b = Reader::from_slice_for_test(&$e[..]);
             let obj: $t = b.extract().unwrap();
             assert_eq!(obj, $e2);
             assert!(b.should_be_exhausted().is_ok());
@@ -336,7 +336,7 @@ mod tests {
     }
     macro_rules! check_bad {
         ($t:ty, $e:expr) => {
-            let mut b = Reader::from_slice(&$e[..]);
+            let mut b = Reader::from_slice_for_test(&$e[..]);
             let len_orig = b.remaining();
             let res: Result<$t, _> = b.extract();
             assert!(res.is_err());
