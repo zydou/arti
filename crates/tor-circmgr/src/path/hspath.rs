@@ -275,8 +275,8 @@ impl VanguardHsPathBuilder {
         // we do *not* exclude the target from occurring as the second hop
         // (circuits of the form G - L2 - L3 - M - L2 are valid)
         let l2_target_exclusion = match self.kind {
-            HsCircStemKind::Extended => RelayExclusion::no_relays_excluded(),
-            HsCircStemKind::Short => target_exclusion.clone(),
+            HsCircStemKind::Guarded => RelayExclusion::no_relays_excluded(),
+            HsCircStemKind::Naive => target_exclusion.clone(),
         };
 
         let path = vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard);
@@ -286,13 +286,13 @@ impl VanguardHsPathBuilder {
             .add_vanguard(target_exclusion, Layer::Layer3)?;
 
         match self.kind {
-            HsCircStemKind::Extended => {
+            HsCircStemKind::Guarded => {
                 // If full vanguards are enabled, we need an extra hop for the GUARDED stem:
                 //     NAIVE   = G -> L2 -> L3
                 //     GUARDED = G -> L2 -> L3 -> M
                 path.add_middle(target_exclusion)?.build()
             }
-            HsCircStemKind::Short => path.build(),
+            HsCircStemKind::Naive => path.build(),
         }
     }
 
@@ -533,7 +533,7 @@ mod test {
         netdir_provider.set_netdir(netdir.clone());
         let netdir_provider: Arc<dyn NetDirProvider> = netdir_provider;
         guards.install_netdir_provider(&netdir_provider).unwrap();
-        HsPathBuilder::new(target.cloned(), HsCircStemKind::Short)
+        HsPathBuilder::new(target.cloned(), HsCircStemKind::Naive)
             .pick_path(&mut rng, dirinfo, &guards, &config, now)
             .map(|res| res.0)
     }
@@ -641,7 +641,7 @@ mod test {
     fn lite_vanguard_path_insufficient_relays() {
         MockRuntime::test_with_various(|runtime| async move {
             let netdir = same_family_test_network(2);
-            for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+            for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
                 let err =
                     pick_vanguard_path(&runtime, &netdir, stem_kind, VanguardMode::Lite, None)
                         .await
@@ -677,7 +677,7 @@ mod test {
             let mode = VanguardMode::Lite;
 
             for target in [None, Some(target)] {
-                for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+                for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
                     let path =
                         pick_vanguard_path(&runtime, &netdir, stem_kind, mode, target.as_ref())
                             .await
@@ -702,7 +702,7 @@ mod test {
                 .unwrap();
 
             for target in [None, Some(target)] {
-                for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+                for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
                     let path =
                         pick_vanguard_path(&runtime, &netdir, stem_kind, mode, target.as_ref())
                             .await
@@ -719,7 +719,7 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let netdir = same_family_test_network(2);
 
-            for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+            for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
                 let err =
                     pick_vanguard_path(&runtime, &netdir, stem_kind, VanguardMode::Full, None)
                         .await
@@ -739,13 +739,13 @@ mod test {
             let netdir = same_family_test_network(3);
             let mode = VanguardMode::Full;
 
-            for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+            for stem_kind in [HsCircStemKind::Naive, HsCircStemKind::Guarded] {
                 let path = pick_vanguard_path(&runtime, &netdir, stem_kind, mode, None)
                     .await
                     .unwrap();
                 assert_vanguard_path_ok(&path, stem_kind, mode, None);
                 match stem_kind {
-                    HsCircStemKind::Short => {
+                    HsCircStemKind::Naive => {
                         // A 3-hop circuit can't contain duplicates,
                         // because that would mean it has one of the following
                         // configurations
@@ -763,7 +763,7 @@ mod test {
                         // to itself or its predecessor.
                         assert_duplicate_hops(&path, false);
                     }
-                    HsCircStemKind::Extended => {
+                    HsCircStemKind::Guarded => {
                         // There are only 3 relats in the network,
                         // so a 4-hop circuit must contain the same hop twice.
                         assert_duplicate_hops(&path, true);

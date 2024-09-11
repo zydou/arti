@@ -1182,7 +1182,7 @@ mod test {
                             .launch_hs_unmanaged::<OwnedChanTarget>(
                                 None,
                                 &netdir,
-                                HsCircStemKind::Short,
+                                HsCircStemKind::Naive,
                             )
                             .await,
                     )

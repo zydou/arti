@@ -86,13 +86,13 @@ impl CircsToLaunch {
         // We start by launching NAIVE circuits.
         if self.stem_target > 0 {
             ForLaunch {
-                kind: HsCircStemKind::Short,
+                kind: HsCircStemKind::Naive,
                 count: &mut self.stem_target,
             }
         } else {
             // If we have enough NAIVE circuits, we can start launching GUARDED ones too.
             ForLaunch {
-                kind: HsCircStemKind::Extended,
+                kind: HsCircStemKind::Guarded,
                 count: &mut self.guarded_stem_target,
             }
         }
@@ -159,7 +159,7 @@ impl<C: AbstractCirc> Pool<C> {
         let circ_count = self
             .circuits
             .iter()
-            .filter(|c| c.kind == HsCircStemKind::Short)
+            .filter(|c| c.kind == HsCircStemKind::Naive)
             .count();
 
         self.stem_target.saturating_sub(circ_count)
@@ -170,7 +170,7 @@ impl<C: AbstractCirc> Pool<C> {
         let circ_count = self
             .circuits
             .iter()
-            .filter(|c| c.kind == HsCircStemKind::Extended)
+            .filter(|c| c.kind == HsCircStemKind::Guarded)
             .count();
 
         self.guarded_stem_target.saturating_sub(circ_count)

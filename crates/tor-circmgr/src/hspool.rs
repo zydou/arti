@@ -67,13 +67,13 @@ impl HsCircKind {
     /// Return the [`HsCircStemKind`] needed to build this type of circuit.
     fn stem_kind(&self) -> HsCircStemKind {
         match self {
-            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStemKind::Short,
+            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStemKind::Naive,
             HsCircKind::SvcHsDir => {
                 // TODO: we might want this to be GUARDED
-                HsCircStemKind::Short
+                HsCircStemKind::Naive
             }
             HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
-                HsCircStemKind::Extended
+                HsCircStemKind::Guarded
             }
         }
     }
@@ -118,14 +118,14 @@ impl<C: AbstractCirc> HsCircStem<C> {
     /// or can be extended to become that kind.
     ///
     /// Returns `true` if this `HsCircStem`'s kind is equal to `other`,
-    /// or if its kind is [`Short`](HsCircStemKind::Short)
-    /// and `other` is [`Extended`](HsCircStemKind::Extended).
+    /// or if its kind is [`Naive`](HsCircStemKind::Naive)
+    /// and `other` is [`Guarded`](HsCircStemKind::Guarded).
     pub(crate) fn can_become(&self, other: HsCircStemKind) -> bool {
         use HsCircStemKind::*;
 
         match (self.kind, other) {
-            (Short, Short) | (Extended, Extended) | (Short, Extended) => true,
-            (Extended, Short) => false,
+            (Naive, Naive) | (Guarded, Guarded) | (Naive, Guarded) => true,
+            (Guarded, Naive) => false,
         }
     }
 }
@@ -162,13 +162,13 @@ pub(crate) enum HsCircStemKind {
     /// Used for building circuits to a final hop that an adversary cannot easily control,
     /// for example if the final hop is is randomly chosen by us.
     #[display("NAIVE")]
-    Short,
+    Naive,
     /// An guarded circuit stem.
     ///
     /// Used for building circuits to a final hop that an adversary can easily control,
     /// for example if the final hop is not chosen by us.
     #[display("GUARDED")]
-    Extended,
+    Guarded,
 }
 
 impl HsCircStemKind {
@@ -182,9 +182,9 @@ impl HsCircStemKind {
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             (Lite, _) => 3,
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-            (Full, Short) => 3,
+            (Full, Naive) => 3,
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-            (Full, Extended) => 4,
+            (Full, Guarded) => 4,
             (Disabled, _) => 3,
             (_, _) => {
                 return Err(internal!("Unsupported vanguard mode {mode}"));
@@ -355,14 +355,14 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stem_circuit::<OwnedCircTarget>(netdir, None, HsCircStemKind::Extended)
+            .take_or_launch_stem_circuit::<OwnedCircTarget>(netdir, None, HsCircStemKind::Guarded)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         if matches!(
             self.vanguard_mode(),
             VanguardMode::Full | VanguardMode::Lite
-        ) && circ.kind != HsCircStemKind::Extended
+        ) && circ.kind != HsCircStemKind::Guarded
         {
             return Err(internal!("wanted a GUARDED circuit, but got NAIVE?!").into());
         }
@@ -636,7 +636,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         T: CircTarget + std::marker::Sync,
     {
         match (circuit.kind, kind) {
-            (HsCircStemKind::Short, HsCircStemKind::Extended) => {
+            (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = CircParameters::default();
                 let circ_path = circuit.circ.path_ref();
@@ -669,7 +669,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
                 Ok(HsCircStem { circ, kind })
             }
-            (HsCircStemKind::Extended, HsCircStemKind::Short) => {
+            (HsCircStemKind::Guarded, HsCircStemKind::Naive) => {
                 Err(internal!("wanted a NAIVE circuit, but got GUARDED?!").into())
             }
             _ => {
