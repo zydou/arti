@@ -61,7 +61,7 @@ pub enum Error {
     ///
     /// In tests using
     /// [`Reader::from_slice_for_test`](crate::Reader::from_slice_for_test),
-    /// use [`Error::new_truncated_for_test`].
+    /// use [`Error::new_incomplete_for_test`].
     #[error("Object truncated (or not fully present), at least {deficit} more bytes needed")]
     Incomplete {
         /// Lower bound on number of additional bytes needed
@@ -121,7 +121,7 @@ impl Error {
     /// # Panics
     ///
     /// Panics if the specified `deficit` is zero.
-    pub fn new_truncated_for_test(deficit: usize) -> Self {
+    pub fn new_incomplete_for_test(deficit: usize) -> Self {
         let deficit = NonZeroUsize::new(deficit)
             .expect("zero deficit in assert!")
             .into();

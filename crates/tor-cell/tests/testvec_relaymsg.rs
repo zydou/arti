@@ -566,7 +566,7 @@ fn test_connect_udp() {
     msg_error(
         cmd,
         "00000000 01 56 7269",
-        BytesError::new_truncated_for_test(0x56 - 2),
+        BytesError::new_incomplete_for_test(0x56 - 2),
     );
 
     // Unknown address type.
@@ -660,7 +660,7 @@ fn test_establish_rendezvous() {
     let body = "01010101010101010101010101010101010101";
     assert_eq!(
         decode(cmd, &unhex(body)[..]).unwrap_err(),
-        BytesError::new_truncated_for_test(1),
+        BytesError::new_incomplete_for_test(1),
     );
 }
 
