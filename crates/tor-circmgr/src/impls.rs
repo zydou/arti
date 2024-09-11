@@ -1,6 +1,6 @@
 //! Implement traits from [`crate::mgr`] for the circuit types we use.
 
-use crate::mgr::{self, AbstractSpec, MockablePlan};
+use crate::mgr::{self, MockablePlan};
 use crate::path::OwnedPath;
 use crate::usage::{SupportedCircUsage, TargetCircUsage};
 use crate::{DirInfo, Error, Result};
@@ -50,7 +50,6 @@ impl MockablePlan for Plan {}
 #[async_trait]
 impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilder<R> {
     type Circ = ClientCirc;
-    type Spec = SupportedCircUsage;
     type Plan = Plan;
 
     fn plan_circuit(
