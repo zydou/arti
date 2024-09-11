@@ -146,7 +146,7 @@ impl SocksClientHandshake {
 
     /// Handle a SOCKSv4 response.
     fn handle_v4(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
         let ver = r.take_u8()?;
         if ver != 0 {
             return Err(Error::Syntax);
@@ -197,7 +197,7 @@ impl SocksClientHandshake {
     /// Try to handle a socks5 reply telling us what authentication method to
     /// use, and reply as appropriate.
     fn handle_v5_auth(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
         let ver = r.take_u8()?;
         if ver != 5 {
             return Err(Error::Syntax);
@@ -245,7 +245,7 @@ impl SocksClientHandshake {
     /// Try to handle a reply from the socks5 proxy to acknowledge our
     /// username/password authentication, and reply as appropriate.
     fn handle_v5_username_ack(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
         let ver = r.take_u8()?;
         if ver != 1 {
             return Err(Error::Syntax);
@@ -282,7 +282,7 @@ impl SocksClientHandshake {
 
     /// Handle a final socks5 reply.
     fn handle_v5_final(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
         let ver = r.take_u8()?;
         if ver != 5 {
             return Err(Error::Syntax);

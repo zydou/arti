@@ -61,15 +61,35 @@ impl<'a> Reader<'a> {
     pub fn from_slice(slice: &'a [u8]) -> Self {
         Reader { b: slice, off: 0 }
     }
-    /// Construct a new Reader from a slice of bytes, in tests
+    /// Construct a new Reader from a slice of bytes which may not be complete.
     ///
-    /// XXXX this documentation references a not-yet-existing method
+    /// XXXX the behaviour described here has not yet been implemented
+    ///
+    /// This can be used to try to deserialise a message received from a protocol stream,
+    /// if we don't know how much data we needed to buffer.
+    ///
+    /// [`Readable`] methods, [`extract`](Reader::extract), and so on,
+    /// will return [`Error::Truncated`] if the message is incomplete,
+    /// and reading more would help.
+    ///
+    /// (This is achieved via [`incomplete_error`](Reader::incomplete_error.)
+    ///
+    /// # Warning about denial of service through excessive memory use
+    ///
+    /// It is hazardous to use this approach unless the buffer size is limited,
+    /// since the sender could send an apparently-very-large message.
+    //
+    // TODO this name is quite clumsy!
+    pub fn from_possibly_incomplete_slice(slice: &'a [u8]) -> Self {
+        Reader { b: slice, off: 0 }
+    }
+    /// Construct a new Reader from a slice of bytes, in tests
     ///
     /// This is equivalent to [`Reader::from_possibly_incomplete_slice`].
     /// It should be used in test cases, because that gives more precise
     /// testing of the generation of incomplete data errors.
     pub fn from_slice_for_test(slice: &'a [u8]) -> Self {
-        Self::from_slice(slice)
+        Self::from_possibly_incomplete_slice(slice)
     }
     /// Construct a new Reader from a 'Bytes' object.
     pub fn from_bytes(b: &'a bytes::Bytes) -> Self {

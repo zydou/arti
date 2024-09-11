@@ -100,7 +100,7 @@ impl SocksProxyHandshake {
 
     /// Complete a socks4 or socks4a handshake.
     fn s4(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
         let version = r.take_u8()?.try_into()?;
         if version != SocksVersion::V4 {
             return Err(internal!("called s4 on wrong type {:?}", version).into());
@@ -146,7 +146,7 @@ impl SocksProxyHandshake {
     /// Socks5: initial handshake to negotiate authentication method.
     fn s5_initial(&mut self, input: &[u8]) -> Result<Action> {
         use super::{NO_AUTHENTICATION, USERNAME_PASSWORD};
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
             return Err(internal!("called on wrong handshake type {:?}", version).into());
@@ -176,7 +176,7 @@ impl SocksProxyHandshake {
 
     /// Socks5: second step for username/password authentication.
     fn s5_uname(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
 
         let ver = r.take_u8()?;
         if ver != 1 {
@@ -201,7 +201,7 @@ impl SocksProxyHandshake {
 
     /// Socks5: final step, to receive client's request.
     fn s5(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
 
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
