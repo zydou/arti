@@ -54,16 +54,25 @@ pub struct Reader<'a> {
     /// The next position in the slice that we intend to read from.
     off: usize,
     /// What to do if we run out of data - IOW are we reading a possibly incomplete message
-    on_incomplete: OnIncomplete,
+    completeness: Completeness,
 }
 
-/// What to do if we run out of data - IOW are we reading a possibly incomplete message
+/// Whether we're supposed to have the complete message, or not
+///
+/// IOW are we reading a possibly incomplete message?
+///
+/// Affects the error return if we run out of data
+/// ([`Reader::incomplete_error`]).
 #[derive(Copy, Clone, Debug)]
-enum OnIncomplete {
+enum Completeness {
+    /// We might not have the whole message, and that is expected
+    ///
     /// Throw [`Error::Incomplete`]
-    Incomplete,
+    PossiblyIncomplete,
+    /// We ought to have the whole message
+    ///
     /// Throw [`Error::MissingData']
-    MissingData,
+    SupposedlyComplete,
 }
 
 impl<'a> Reader<'a> {
@@ -74,7 +83,7 @@ impl<'a> Reader<'a> {
         Reader {
             b: slice,
             off: 0,
-            on_incomplete: OnIncomplete::MissingData,
+            completeness: Completeness::SupposedlyComplete,
         }
     }
     /// Construct a new Reader from a slice of bytes which may not be complete.
@@ -107,7 +116,7 @@ impl<'a> Reader<'a> {
         Reader {
             b: slice,
             off: 0,
-            on_incomplete: OnIncomplete::Incomplete,
+            completeness: Completeness::PossiblyIncomplete,
         }
     }
     /// Construct a new Reader from a slice of bytes, in tests
@@ -438,12 +447,12 @@ impl<'a> Reader<'a> {
     /// it's [`Error::Incomplete`].
     pub fn incomplete_error(&self, deficit: NonZeroUsize) -> Error {
         use Error as E;
-        use OnIncomplete as OI;
-        match self.on_incomplete {
-            OI::Incomplete => E::Incomplete {
+        use Completeness as C;
+        match self.completeness {
+            C::PossiblyIncomplete => E::Incomplete {
                 deficit: deficit.into(),
             },
-            OI::MissingData => E::MissingData,
+            C::SupposedlyComplete => E::MissingData,
         }
     }
 }
