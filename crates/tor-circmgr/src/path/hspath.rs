@@ -17,11 +17,24 @@
 //! ```text
 //!  Client hsdir:  GUARDED -> HsDir
 //!  Client intro:  GUARDED -> Ipt
-//!  Client rend:   NAIVE
+//!  Client rend:   GUARDED
 //!  Service hsdir: NAIVE   -> HsDir
 //!  Service intro: NAIVE   -> Ipt
 //!  Service rend:  GUARDED -> Rpt
 //! ```
+//!
+//! > Note: the client rendezvous case is an exception to this rule:
+//! > the rendezvous point is selected by the client, so it cannot easily be
+//! > controlled by an attacker.
+//! >
+//! > This type of circuit would more accurately be described as a NAIVE circuit
+//! > that gets extended by an extra hop if Full-Vanguards are in use
+//! > (this is necessary to avoid using the L3 guard as a rendezvous point).
+//! > However, for the sake of simplicity, we define these circuits in terms of
+//! > GUARDED.
+//! >
+//! > Note: in the client rendezvous case, the last node from the GUARDED
+//! > circuit stem is the rendezvous point.
 //!
 //! If vanguards are disabled, naive circuit stems (NAIVE),
 //! and guarded circuit stems (GUARDED) are the same,
