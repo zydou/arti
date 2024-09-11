@@ -69,7 +69,7 @@ impl HsCircKind {
         match self {
             HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStubKind::Short,
             HsCircKind::SvcHsDir => {
-                // TODO: we might want this to be EXTENDED
+                // TODO: we might want this to be GUARDED
                 HsCircStubKind::Short
             }
             HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
@@ -87,7 +87,7 @@ impl HsCircKind {
 pub(crate) struct HsCircStub<C: AbstractCirc> {
     /// The circuit.
     pub(crate) circ: Arc<C>,
-    /// Whether the circuit is SHORT or EXTENDED
+    /// Whether the circuit is NAIVE  or GUARDED.
     pub(crate) kind: HsCircStubKind,
 }
 
@@ -139,20 +139,20 @@ impl<C: AbstractCirc> HsCircStub<C> {
 ///
 ///   * with vanguards disabled:
 ///      ```text
-///         SHORT    = G -> M -> M
-///         EXTENDED = G -> M -> M
+///         NAIVE   = G -> M -> M
+///         GUARDED = G -> M -> M
 ///      ```
 ///
 ///   * with lite vanguards enabled:
 ///      ```text
-///         SHORT    = G -> L2 -> M
-///         EXTENDED = G -> L2 -> M
+///         NAIVE   = G -> L2 -> M
+///         GUARDED = G -> L2 -> M
 ///      ```
 ///
 ///   * with full vanguards enabled:
 ///      ```text
-///         SHORT    = G -> L2 -> L3
-///         EXTENDED = G -> L2 -> L3 -> M
+///         NAIVE    = G -> L2 -> L3
+///         GUARDED = G -> L2 -> L3 -> M
 ///      ```
 #[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
 #[non_exhaustive]
@@ -161,13 +161,13 @@ pub(crate) enum HsCircStubKind {
     ///
     /// Used for building circuits to a final hop that an adversary cannot easily control,
     /// for example if the final hop is is randomly chosen by us.
-    #[display("SHORT")]
+    #[display("NAIVE")]
     Short,
     /// An extended stub circuit.
     ///
     /// Used for building circuits to a final hop that an adversary can easily control,
     /// for example if the final hop is not chosen by us.
-    #[display("EXTENDED")]
+    #[display("GUARDED")]
     Extended,
 }
 
@@ -364,7 +364,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             VanguardMode::Full | VanguardMode::Lite
         ) && circ.kind != HsCircStubKind::Extended
         {
-            return Err(internal!("wanted a EXTENDED circuit, but got SHORT?!").into());
+            return Err(internal!("wanted a GUARDED circuit, but got NAIVE?!").into());
         }
 
         let path = circ.path_ref();
@@ -610,7 +610,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         match self.vanguard_mode() {
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             VanguardMode::Full => {
-                // SHORT circuit stubs need to be extended by one hop to become EXTENDED stubs
+                // NAIVE circuit stubs need to be extended by one hop to become GUARDED stubs
                 // if we're using full vanguards.
                 self.extend_full_vanguards_circuit(netdir, circuit, avoid_target, kind)
                     .await
@@ -637,11 +637,11 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     {
         match (circuit.kind, kind) {
             (HsCircStubKind::Short, HsCircStubKind::Extended) => {
-                debug!("Wanted EXTENDED circuit, but got SHORT; extending by 1 hop...");
+                debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = CircParameters::default();
                 let circ_path = circuit.circ.path_ref();
 
-                // A SHORT circuit is a 3-hop circuit.
+                // A NAIVE circuit is a 3-hop circuit.
                 debug_assert_eq!(circ_path.hops().len(), 3);
 
                 let target_exclusion = if let Some(target) = &avoid_target {
@@ -663,14 +663,14 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                     &mut rand::thread_rng(),
                 )?;
 
-                // Since full vanguards are enabled and the circuit we got is SHORT,
-                // we need to extend it by another hop to make it EXTENDED before returning it
+                // Since full vanguards are enabled and the circuit we got is NAIVE,
+                // we need to extend it by another hop to make it GUARDED before returning it
                 let circ = self.extend_circ(circuit, params, extra_hop).await?;
 
                 Ok(HsCircStub { circ, kind })
             }
             (HsCircStubKind::Extended, HsCircStubKind::Short) => {
-                Err(internal!("wanted a SHORT circuit, but got EXTENDED?!").into())
+                Err(internal!("wanted a NAIVE circuit, but got GUARDED?!").into())
             }
             _ => {
                 trace!("Wanted {kind} circuit, got {}", circuit.kind);
@@ -914,9 +914,9 @@ async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Ru
 
         if n_to_launch > 0 {
             debug!(
-                "launching {} SHORT and {} EXTENDED circuits",
+                "launching {} NAIVE  and {} GUARDED circuits",
                 circs_to_launch.stub(),
-                circs_to_launch.ext_stub()
+                circs_to_launch.guarded_stub()
             );
         }
 

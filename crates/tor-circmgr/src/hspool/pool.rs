@@ -14,11 +14,11 @@ pub(super) struct Pool<C: AbstractCirc> {
     /// The collection of circuits themselves, in no particular order.
     circuits: Vec<HsCircStub<C>>,
 
-    /// The number of SHORT elements that we would like to have in our pool.
+    /// The number of NAIVE elements that we would like to have in our pool.
     stub_target: usize,
 
-    /// The number of EXTENDED elements that we would like to have in our pool.
-    ext_stub_target: usize,
+    /// The number of GUARDED elements that we would like to have in our pool.
+    guarded_stub_target: usize,
 
     /// True if we have exhausted our pool since the last time we decided
     /// whether to change our target level.
@@ -32,19 +32,19 @@ pub(super) struct Pool<C: AbstractCirc> {
     last_changed_target: Option<Instant>,
 }
 
-/// Our default (and minimum) target SHORT pool size.
-const DEFAULT_SHORT_STUB_TARGET: usize = 3;
+/// Our default (and minimum) target NAIVE pool size.
+const DEFAULT_NAIVE_STUB_TARGET: usize = 3;
 
-/// Our default (and minimum) target EXTENDED pool size.
-const DEFAULT_EXT_STUB_TARGET: usize = 1;
+/// Our default (and minimum) target GUARDED pool size.
+const DEFAULT_GUARDED_STUB_TARGET: usize = 1;
 
-/// Our maximum target SHORT pool size.  We will never let our SHORT target grow above this
+/// Our maximum target NAIVE pool size.  We will never let our NAIVE target grow above this
 /// value.
-const MAX_SHORT_STUB_TARGET: usize = 384;
+const MAX_NAIVE_STUB_TARGET: usize = 384;
 
-/// Our maximum target EXTENDED pool size.  We will never let our EXTENDED target grow above this
+/// Our maximum target GUARDED pool size.  We will never let our GUARDED target grow above this
 /// value.
-const MAX_EXT_STUB_TARGET: usize = 128;
+const MAX_GUARDED_STUB_TARGET: usize = 128;
 
 /// A type of circuit we would like to launch.
 ///
@@ -74,43 +74,43 @@ impl<'a> ForLaunch<'a> {
 
 /// The circuits we need to launch.
 pub(super) struct CircsToLaunch {
-    /// The number of SHORT circuits we want to launch.
+    /// The number of NAIVE circuits we want to launch.
     stub_target: usize,
-    /// The number of EXTENDED circuits we want to launch.
-    ext_stub_target: usize,
+    /// The number of GUARDED circuits we want to launch.
+    guarded_stub_target: usize,
 }
 
 impl CircsToLaunch {
     /// Return a [`ForLaunch`] representing a circuit we would like to launch.
     pub(super) fn for_launch(&mut self) -> ForLaunch {
-        // We start by launching SHORT circuits.
+        // We start by launching NAIVE circuits.
         if self.stub_target > 0 {
             ForLaunch {
                 kind: HsCircStubKind::Short,
                 count: &mut self.stub_target,
             }
         } else {
-            // If we have enough SHORT circuits, we can start launching EXTENDED ones too.
+            // If we have enough NAIVE circuits, we can start launching GUARDED ones too.
             ForLaunch {
                 kind: HsCircStubKind::Extended,
-                count: &mut self.ext_stub_target,
+                count: &mut self.guarded_stub_target,
             }
         }
     }
 
-    /// Return the number of SHORT circuits we would like to launch.
+    /// Return the number of NAIVE circuits we would like to launch.
     pub(super) fn stub(&self) -> usize {
         self.stub_target
     }
 
-    /// Return the number of EXTENDED circuits we would like to launch.
-    pub(super) fn ext_stub(&self) -> usize {
-        self.ext_stub_target
+    /// Return the number of GUARDED circuits we would like to launch.
+    pub(super) fn guarded_stub(&self) -> usize {
+        self.guarded_stub_target
     }
 
     /// Return the total number of circuits we would currently like to launch.
     pub(super) fn n_to_launch(&self) -> usize {
-        self.stub_target + self.ext_stub_target
+        self.stub_target + self.guarded_stub_target
     }
 }
 
@@ -118,8 +118,8 @@ impl<C: AbstractCirc> Default for Pool<C> {
     fn default() -> Self {
         Self {
             circuits: Vec::new(),
-            stub_target: DEFAULT_SHORT_STUB_TARGET,
-            ext_stub_target: DEFAULT_EXT_STUB_TARGET,
+            stub_target: DEFAULT_NAIVE_STUB_TARGET,
+            guarded_stub_target: DEFAULT_GUARDED_STUB_TARGET,
             have_been_exhausted: false,
             have_been_under_highwater: false,
             last_changed_target: None,
@@ -150,11 +150,11 @@ impl<C: AbstractCirc> Pool<C> {
     pub(super) fn circs_to_launch(&self) -> CircsToLaunch {
         CircsToLaunch {
             stub_target: self.stubs_to_launch(),
-            ext_stub_target: self.ext_stubs_to_launch(),
+            guarded_stub_target: self.guarded_stubs_to_launch(),
         }
     }
 
-    /// Return the number of SHORT circuits we would currently like to launch.
+    /// Return the number of NAIVE circuits we would currently like to launch.
     fn stubs_to_launch(&self) -> usize {
         let circ_count = self
             .circuits
@@ -165,15 +165,15 @@ impl<C: AbstractCirc> Pool<C> {
         self.stub_target.saturating_sub(circ_count)
     }
 
-    /// Return the number of EXTENDED circuits we would currently like to launch.
-    fn ext_stubs_to_launch(&self) -> usize {
+    /// Return the number of GUARDED circuits we would currently like to launch.
+    fn guarded_stubs_to_launch(&self) -> usize {
         let circ_count = self
             .circuits
             .iter()
             .filter(|c| c.kind == HsCircStubKind::Extended)
             .count();
 
-        self.ext_stub_target.saturating_sub(circ_count)
+        self.guarded_stub_target.saturating_sub(circ_count)
     }
 
     /// Return the total number of circuits we would like to launch.
@@ -181,7 +181,7 @@ impl<C: AbstractCirc> Pool<C> {
     /// We do not discard when we are _above_ this threshold, but we do
     /// try to build when we are low.
     fn target(&self) -> usize {
-        self.stub_target + self.ext_stub_target
+        self.stub_target + self.guarded_stub_target
     }
 
     /// If there is any circuit in this pool for which `f`  returns true and that satisfies
@@ -224,7 +224,7 @@ impl<C: AbstractCirc> Pool<C> {
 
     /// Update the target sizes for our pool.
     ///
-    /// This updates our target numbers of SHORT and EXTENDED circuits.
+    /// This updates our target numbers of NAIVE and GUARDED circuits.
     pub(super) fn update_target_size(&mut self, now: Instant) {
         /// Minimum amount of time that must elapse between a change and a
         /// decision to grow our pool.  We use this to control the rate of
@@ -241,34 +241,34 @@ impl<C: AbstractCirc> Pool<C> {
         let time_since_last_change = now.saturating_duration_since(*last_changed);
 
         // TODO: we may want to have separate have_been_exhausted/have_been_under_highwater
-        // flags for SHORT and EXTENDED circuits.
+        // flags for NAIVE and GUARDED circuits.
         //
-        // TODO: stub_target and ext_stub_target currently grow/shrink at the same rate,
+        // TODO: stub_target and guarded_stub_target currently grow/shrink at the same rate,
         // which is not ideal.
         //
         // Instead, we should switch to an adaptive strategy, where the two targets are updated
-        // based on how many SHORT/EXTENDED circuit requests we got.
+        // based on how many NAIVE/GUARDED circuit requests we got.
         if self.have_been_exhausted {
             if time_since_last_change < MIN_TIME_TO_GROW {
                 return;
             }
             self.stub_target *= 2;
-            self.ext_stub_target *= 2;
+            self.guarded_stub_target *= 2;
         } else if !self.have_been_under_highwater {
             if time_since_last_change < MIN_TIME_TO_SHRINK {
                 return;
             }
 
             self.stub_target /= 2;
-            self.ext_stub_target /= 2;
+            self.guarded_stub_target /= 2;
         }
         self.last_changed_target = Some(now);
         self.stub_target = self
             .stub_target
-            .clamp(DEFAULT_SHORT_STUB_TARGET, MAX_SHORT_STUB_TARGET);
-        self.ext_stub_target = self
-            .ext_stub_target
-            .clamp(DEFAULT_EXT_STUB_TARGET, MAX_EXT_STUB_TARGET);
+            .clamp(DEFAULT_NAIVE_STUB_TARGET, MAX_NAIVE_STUB_TARGET);
+        self.guarded_stub_target = self
+            .guarded_stub_target
+            .clamp(DEFAULT_GUARDED_STUB_TARGET, MAX_GUARDED_STUB_TARGET);
         self.have_been_exhausted = false;
         self.have_been_under_highwater = false;
     }

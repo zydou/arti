@@ -14,16 +14,16 @@
 //! extended by an extra hop:
 //!
 //! ```text
-//!  Client hsdir:  EXTENDED -> HsDir
-//!  Client intro:  EXTENDED -> Ipt
-//!  Client rend:   SHORT
-//!  Service hsdir: SHORT    -> HsDir
-//!  Service intro: SHORT    -> Ipt
-//!  Service rend:  EXTENDED -> Rpt
+//!  Client hsdir:  GUARDED -> HsDir
+//!  Client intro:  GUARDED -> Ipt
+//!  Client rend:   NAIVE
+//!  Service hsdir: NAIVE   -> HsDir
+//!  Service intro: NAIVE   -> Ipt
+//!  Service rend:  GUARDED -> Rpt
 //! ```
 //!
-//! If vanguards are disabled, short stub circuits (SHORT),
-//! and extended stub circuits (EXTENDED) are the same,
+//! If vanguards are disabled, short stub circuits (NAIVE),
+//! and extended stub circuits (GUARDED) are the same,
 //! and are built using
 //! [`ExitPathBuilder`](crate::path::exitpath::ExitPathBuilder)'s
 //! path selection rules.
@@ -36,14 +36,14 @@
 //!
 //!   * with lite vanguards enabled:
 //!      ```text
-//!         SHORT    = G -> L2 -> M
-//!         EXTENDED = G -> L2 -> M
+//!         NAIVE   = G -> L2 -> M
+//!         GUARDED = G -> L2 -> M
 //!      ```
 //!
 //!   * with full vanguards enabled:
 //!      ```text
-//!         SHORT    = G -> L2 -> L3
-//!         EXTENDED = G -> L2 -> L3 -> M
+//!         NAIVE   = G -> L2 -> L3
+//!         GUARDED = G -> L2 -> L3 -> M
 //!      ```
 
 #[cfg(feature = "vanguards")]
@@ -270,7 +270,7 @@ impl VanguardHsPathBuilder {
         l1_guard: MaybeOwnedRelay<'n>,
         target_exclusion: &RelayExclusion<'n>,
     ) -> Result<TorPath<'n>> {
-        // NOTE: if the we are using full vanguards and building an EXTENDED circuit stub,
+        // NOTE: if the we are using full vanguards and building an GUARDED circuit stub,
         // we do *not* exclude the target from occurring as the second hop
         // (circuits of the form G - L2 - L3 - M - L2 are valid)
         let l2_target_exclusion = match self.kind {
@@ -286,9 +286,9 @@ impl VanguardHsPathBuilder {
 
         match self.kind {
             HsCircStubKind::Extended => {
-                // If full vanguards are enabled, we need an extra hop for the EXTENDED stub:
-                //     SHORT    = G -> L2 -> L3
-                //     EXTENDED = G -> L2 -> L3 -> M
+                // If full vanguards are enabled, we need an extra hop for the GUARDED stub:
+                //     NAIVE   = G -> L2 -> L3
+                //     GUARDED = G -> L2 -> L3 -> M
                 path.add_middle(target_exclusion)?.build()
             }
             HsCircStubKind::Short => path.build(),
