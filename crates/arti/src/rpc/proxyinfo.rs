@@ -104,7 +104,7 @@ rpc::static_rpc_invoke_fn! {rpc_session_get_proxy_info;}
 /// Implementation for GetProxyInfo on ArtiRpcSession.
 async fn rpc_session_get_rpc_proxy_info(
     session: Arc<ArtiRpcSession>,
-    _method: Box<GetProxyInfo>,
+    _method: Box<GetRpcProxyInfo>,
     _ctx: Arc<dyn rpc::Context>,
 ) -> Result<ProxyInfo, GetProxyInfoError> {
     let proxy_info = session.arti_state.get_proxy_info().await;
