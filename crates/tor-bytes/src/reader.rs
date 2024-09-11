@@ -611,6 +611,15 @@ mod tests {
     }
 
     #[test]
+    fn nested_inner_bad() {
+        let mut b = Reader::from_slice_for_test(&[1, 66]);
+        assert_eq!(
+            b.read_nested_u8len(|b| b.take_u32()),
+            Err(Error::new_truncated_for_test(3)),
+        );
+    }
+
+    #[test]
     fn extract() {
         // For example purposes, declare a length-then-bytes string type.
         #[derive(Debug)]
