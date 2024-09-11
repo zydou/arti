@@ -432,7 +432,7 @@ impl<'a> Reader<'a> {
 
     /// Returns the error that should be returned if we ran out of data
     ///
-    /// For a usual `Reader` this is [`Error::InvalidMessage`].
+    /// For a usual `Reader` this is [`Error::MissingData`].
     /// But it's [`Error::Incomplete`] with a reader from
     /// [`Reader::from_possibly_incomplete_slice`].
     pub fn incomplete_error(&self, deficit: NonZeroUsize) -> Error {
