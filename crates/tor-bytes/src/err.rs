@@ -51,10 +51,7 @@ pub enum Error {
     )]
     Truncated {
         /// Lower bound on number of additional bytes needed
-        //
-        // We don't make this field type Sensitive because that makes constructing this
-        // error even more tedious.
-        deficit: NonZeroUsize,
+        deficit: Sensitive<NonZeroUsize>,
     },
     /// Called Reader::should_be_exhausted(), but found bytes anyway.
     #[error("Extra bytes at end of object")]
@@ -89,7 +86,7 @@ impl Error {
     ///
     /// Panics if the specified `deficit` is zero.
     pub fn new_truncated_for_test(deficit: usize) -> Self {
-        let deficit = NonZeroUsize::new(deficit).expect("zero deficit in assert!");
+        let deficit = NonZeroUsize::new(deficit).expect("zero deficit in assert!").into();
         Error::Truncated { deficit }
     }
 }

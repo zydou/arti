@@ -1,6 +1,7 @@
 //! Internal: Declare the Reader type for tor-bytes
 
 use crate::{Error, Readable, Result};
+use std::num::NonZeroUsize;
 
 /// A type for reading messages from a slice of bytes.
 ///
@@ -153,7 +154,7 @@ impl<'a> Reader<'a> {
             .checked_sub(self.remaining())
             .and_then(|d| d.try_into().ok())
         {
-            return Err(Error::Truncated { deficit });
+            return Err(self.incomplete_error(deficit));
         }
 
         Ok(&self.b[self.off..(n + self.off)])
@@ -259,9 +260,10 @@ impl<'a> Reader<'a> {
         let pos = self.b[self.off..]
             .iter()
             .position(|b| *b == term)
-            .ok_or(Error::Truncated {
-                deficit: 1.try_into().expect("1 == 0"),
-            })?;
+            .ok_or(self.incomplete_error(
+                //
+                1.try_into().expect("1 == 0"),
+            ))?;
         let result = self.take(pos)?;
         self.advance(1)?;
         Ok(result)
@@ -398,6 +400,19 @@ impl<'a> Reader<'a> {
             &self.b[start.pos..end.pos]
         } else {
             &self.b[..0]
+        }
+    }
+
+    /// Returns the error that should be returned if we ran out of data
+    ///
+    /// XXXX this is not yet implemented
+    ///
+    /// For a usual `Reader` this is [`Error::InvalidMessage`].
+    /// But it's [`Error::Truncated`] with a reader from
+    /// [`Reader::from_possibly_incomplete_slice`].
+    pub fn incomplete_error(&self, deficit: NonZeroUsize) -> Error {
+        Error::Truncated {
+            deficit: deficit.into(),
         }
     }
 }
