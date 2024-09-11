@@ -86,7 +86,9 @@ impl Error {
     ///
     /// Panics if the specified `deficit` is zero.
     pub fn new_truncated_for_test(deficit: usize) -> Self {
-        let deficit = NonZeroUsize::new(deficit).expect("zero deficit in assert!").into();
+        let deficit = NonZeroUsize::new(deficit)
+            .expect("zero deficit in assert!")
+            .into();
         Error::Truncated { deficit }
     }
 }

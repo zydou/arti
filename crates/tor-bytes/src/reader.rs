@@ -257,13 +257,14 @@ impl<'a> Reader<'a> {
     /// # Result::Ok(())
     /// ```
     pub fn take_until(&mut self, term: u8) -> Result<&'a [u8]> {
-        let pos = self.b[self.off..]
-            .iter()
-            .position(|b| *b == term)
-            .ok_or(self.incomplete_error(
-                //
-                1.try_into().expect("1 == 0"),
-            ))?;
+        let pos =
+            self.b[self.off..]
+                .iter()
+                .position(|b| *b == term)
+                .ok_or(self.incomplete_error(
+                    //
+                    1.try_into().expect("1 == 0"),
+                ))?;
         let result = self.take(pos)?;
         self.advance(1)?;
         Ok(result)
