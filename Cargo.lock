@@ -5591,6 +5591,7 @@ dependencies = [
  "downcast-rs",
  "paste",
  "rand",
+ "signature",
  "ssh-key",
  "thiserror",
  "tor-basic-utils",

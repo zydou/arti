@@ -61,3 +61,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// A type-erased key. Used by the tor-keymgr.
 pub type ErasedKey = Box<dyn traits::EncodableKey>;
+
+/// Must have imports in order to use this crate.
+///
+/// Using define_ed25519_keypair!() macro requires the following.
+pub mod prelude {
+    pub use crate::{
+        define_ed25519_keypair, macros::derive_deftly_template_Ed25519Keypair, Keygen,
+    };
+    pub use tor_llcrypto::pk::{ed25519::Signer, ValidatableSignature};
+}
