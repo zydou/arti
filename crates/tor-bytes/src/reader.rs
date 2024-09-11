@@ -446,8 +446,8 @@ impl<'a> Reader<'a> {
     /// [`Reader::from_possibly_incomplete_slice`]
     /// it's [`Error::Incomplete`].
     pub fn incomplete_error(&self, deficit: NonZeroUsize) -> Error {
-        use Error as E;
         use Completeness as C;
+        use Error as E;
         match self.completeness {
             C::PossiblyIncomplete => E::Incomplete {
                 deficit: deficit.into(),
