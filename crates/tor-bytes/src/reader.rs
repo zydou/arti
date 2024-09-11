@@ -72,7 +72,11 @@ impl<'a> Reader<'a> {
     ///
     /// In tests, prefer [`Reader::from_slice_for_test`].
     pub fn from_slice(slice: &'a [u8]) -> Self {
-        Reader { b: slice, off: 0, on_incomplete: OnIncomplete::MissingData }
+        Reader {
+            b: slice,
+            off: 0,
+            on_incomplete: OnIncomplete::MissingData,
+        }
     }
     /// Construct a new Reader from a slice of bytes which may not be complete.
     ///
@@ -92,7 +96,11 @@ impl<'a> Reader<'a> {
     //
     // TODO this name is quite clumsy!
     pub fn from_possibly_incomplete_slice(slice: &'a [u8]) -> Self {
-        Reader { b: slice, off: 0, on_incomplete: OnIncomplete::Incomplete }
+        Reader {
+            b: slice,
+            off: 0,
+            on_incomplete: OnIncomplete::Incomplete,
+        }
     }
     /// Construct a new Reader from a slice of bytes, in tests
     ///
