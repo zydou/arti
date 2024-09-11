@@ -40,6 +40,12 @@ define_derive_deftly! {
 #[derive_deftly(PartialEqForError)]
 #[non_exhaustive]
 pub enum Error {
+    /// Something was truncated
+    ///
+    /// It might be an inner data structure, or the outer message being parsed.
+    #[deprecated(since = "0.22.0", note = "Use Reader::incomplete_error instead.")]
+    #[error("")]
+    Truncated,
     /// Tried to read something, but we didn't find enough bytes.
     ///
     /// This can means that the outer object is truncated.
@@ -48,7 +54,7 @@ pub enum Error {
     /// This error is only returned by [`Reader`](crate::Reader)s created with
     /// [`from_possibly_incomplete_slice`](crate::Reader::from_possibly_incomplete_slice).
     #[error("Object truncated (or not fully present), at least {deficit} more bytes needed")]
-    Truncated {
+    Incomplete {
         /// Lower bound on number of additional bytes needed
         deficit: Sensitive<NonZeroUsize>,
     },
@@ -91,7 +97,7 @@ impl Error {
         let deficit = NonZeroUsize::new(deficit)
             .expect("zero deficit in assert!")
             .into();
-        Error::Truncated { deficit }
+        Error::Incomplete { deficit }
     }
 }
 

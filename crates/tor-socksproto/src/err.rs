@@ -54,7 +54,7 @@ impl HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::Decode(tor_bytes::Error::Truncated { .. }) => {
+            E::Decode(tor_bytes::Error::Incomplete { .. }) => {
                 // This variant should always get converted before a user can
                 // see it.
                 EK::Internal

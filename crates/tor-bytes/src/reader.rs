@@ -60,8 +60,7 @@ pub struct Reader<'a> {
 /// What to do if we run out of data - IOW are we reading a possibly incomplete message
 #[derive(Copy, Clone, Debug)]
 enum OnIncomplete {
-    /// Throw [`Error::Truncated`]
-    // TODO rename Error::Truncated to ::Incomplete
+    /// Throw [`Error::Incomplete`]
     Incomplete,
     /// Throw [`Error::MissingData']
     MissingData,
@@ -431,7 +430,7 @@ impl<'a> Reader<'a> {
         use Error as E;
         use OnIncomplete as OI;
         match self.on_incomplete {
-            OI::Incomplete => E::Truncated {
+            OI::Incomplete => E::Incomplete {
                 deficit: deficit.into(),
             },
             OI::MissingData => E::MissingData,
