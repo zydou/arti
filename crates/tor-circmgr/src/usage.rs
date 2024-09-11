@@ -187,7 +187,7 @@ pub(crate) enum TargetCircUsage {
         /// circuit with this target (without, for example, violating any
         /// family restrictions).
         compatible_with_target: Option<OwnedChanTarget>,
-        /// The kind of stem circuit to build.
+        /// The kind of circuit stem to build.
         kind: HsCircStemKind,
     },
 }

@@ -1,15 +1,15 @@
 //! Code for building paths for HS circuits.
 //!
-//! The path builders defined here are used for creating hidden service stem circuits,
+//! The path builders defined here are used for creating hidden service circuit stems,
 //! which are three- or four-hop circuits that have not yet been extended to a target.
 //!
-//! There are two types of stem circuits:
-//!   * short stem circuits, used for building circuits to a final hop that an adversary
+//! There are two types of circuit stems:
+//!   * naive circuit stems, used for building circuits to a final hop that an adversary
 //!     cannot easily control (for example if the target is randomly chosen by us)
-//!   * extended stem circuits, used for building circuits to a final hop that an adversary
+//!   * guarded circuit stems, used for building circuits to a final hop that an adversary
 //!     can easily control (for example if the target was not chosen by us)
 //!
-//! stem circuits eventually become introduction, rendezvous, and HsDir circuits.
+//! Circuit stems eventually become introduction, rendezvous, and HsDir circuits.
 //! For all circuit types except client rendezvous, the stems must first be
 //! extended by an extra hop:
 //!
@@ -22,8 +22,8 @@
 //!  Service rend:  GUARDED -> Rpt
 //! ```
 //!
-//! If vanguards are disabled, short stem circuits (NAIVE),
-//! and extended stem circuits (GUARDED) are the same,
+//! If vanguards are disabled, naive circuit stems (NAIVE),
+//! and guarded circuit stems (GUARDED) are the same,
 //! and are built using
 //! [`ExitPathBuilder`](crate::path::exitpath::ExitPathBuilder)'s
 //! path selection rules.
@@ -733,7 +733,7 @@ mod test {
                 );
             }
 
-            // We *can* build stem circuits in a 3-relay network,
+            // We *can* build circuit stems in a 3-relay network,
             // as long as they don't have a specified target
             let netdir = same_family_test_network(3);
             let mode = VanguardMode::Full;

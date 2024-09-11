@@ -135,7 +135,7 @@ impl<C: AbstractCirc> HsCircStem<C> {
 ///
 /// See [hspath](crate::path::hspath) docs for more information.
 ///
-/// The structure of a stem circuit depends on whether vanguards are enabled:
+/// The structure of a circuit stem depends on whether vanguards are enabled:
 ///
 ///   * with vanguards disabled:
 ///      ```text
@@ -157,13 +157,13 @@ impl<C: AbstractCirc> HsCircStem<C> {
 #[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
 #[non_exhaustive]
 pub(crate) enum HsCircStemKind {
-    /// A short stem circuit.
+    /// A naive circuit stem.
     ///
     /// Used for building circuits to a final hop that an adversary cannot easily control,
     /// for example if the final hop is is randomly chosen by us.
     #[display("NAIVE")]
     Short,
-    /// An extended stem circuit.
+    /// An guarded circuit stem.
     ///
     /// Used for building circuits to a final hop that an adversary can easily control,
     /// for example if the final hop is not chosen by us.
@@ -350,7 +350,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // For rendezvous points, clients use 3-hop circuits.
         // Note that we aren't using any special rules for the last hop here; we
         // are relying on the fact that:
-        //   * all suitable middle relays that we use in these stem circuits are
+        //   * all suitable middle relays that we use in these circuit stems are
         //     suitable renedezvous points, and
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
