@@ -55,7 +55,7 @@ use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay};
 use tor_relay_selection::{RelayExclusion, RelaySelectionConfig, RelaySelector, RelayUsage};
 
-use crate::{hspool::HsCircStubKind, Error, Result};
+use crate::{hspool::HsCircStemKind, Error, Result};
 
 use super::AnonymousPathBuilder;
 
@@ -91,7 +91,7 @@ pub(crate) struct HsPathBuilder {
     ///
     /// This is only used if `vanguards` are enabled.
     #[cfg_attr(not(feature = "vanguards"), allow(dead_code))]
-    kind: HsCircStubKind,
+    kind: HsCircStemKind,
 }
 
 impl HsPathBuilder {
@@ -102,7 +102,7 @@ impl HsPathBuilder {
     /// (The provided relay is _not_ included in the built path: we only ensure
     /// that the path we build does not have any features that would stop us
     /// extending it to that relay as a fourth hop.)
-    pub(crate) fn new(compatible_with: Option<OwnedChanTarget>, kind: HsCircStubKind) -> Self {
+    pub(crate) fn new(compatible_with: Option<OwnedChanTarget>, kind: HsCircStemKind) -> Self {
         Self {
             compatible_with,
             kind,
@@ -190,7 +190,7 @@ impl AnonymousPathBuilder for HsPathBuilder {
 #[cfg(feature = "vanguards")]
 struct VanguardHsPathBuilder {
     /// The kind of circuit stub we are building
-    kind: HsCircStubKind,
+    kind: HsCircStemKind,
     /// The target we are about to extend the circuit to.
     compatible_with: Option<OwnedChanTarget>,
 }
@@ -274,8 +274,8 @@ impl VanguardHsPathBuilder {
         // we do *not* exclude the target from occurring as the second hop
         // (circuits of the form G - L2 - L3 - M - L2 are valid)
         let l2_target_exclusion = match self.kind {
-            HsCircStubKind::Extended => RelayExclusion::no_relays_excluded(),
-            HsCircStubKind::Short => target_exclusion.clone(),
+            HsCircStemKind::Extended => RelayExclusion::no_relays_excluded(),
+            HsCircStemKind::Short => target_exclusion.clone(),
         };
 
         let path = vanguards::PathBuilder::new(rng, netdir, vanguards, l1_guard);
@@ -285,13 +285,13 @@ impl VanguardHsPathBuilder {
             .add_vanguard(target_exclusion, Layer::Layer3)?;
 
         match self.kind {
-            HsCircStubKind::Extended => {
+            HsCircStemKind::Extended => {
                 // If full vanguards are enabled, we need an extra hop for the GUARDED stub:
                 //     NAIVE   = G -> L2 -> L3
                 //     GUARDED = G -> L2 -> L3 -> M
                 path.add_middle(target_exclusion)?.build()
             }
-            HsCircStubKind::Short => path.build(),
+            HsCircStemKind::Short => path.build(),
         }
     }
 
@@ -425,7 +425,7 @@ mod test {
     #[cfg(feature = "vanguards")]
     fn assert_vanguard_path_ok(
         path: &TorPath,
-        stub_kind: HsCircStubKind,
+        stub_kind: HsCircStemKind,
         mode: VanguardMode,
         target: Option<&OwnedChanTarget>,
     ) {
@@ -487,7 +487,7 @@ mod test {
     async fn pick_vanguard_path<'a>(
         runtime: &MockRuntime,
         netdir: &'a NetDir,
-        stub_kind: HsCircStubKind,
+        stub_kind: HsCircStemKind,
         mode: VanguardMode,
         target: Option<&OwnedChanTarget>,
     ) -> Result<TorPath<'a>> {
@@ -532,7 +532,7 @@ mod test {
         netdir_provider.set_netdir(netdir.clone());
         let netdir_provider: Arc<dyn NetDirProvider> = netdir_provider;
         guards.install_netdir_provider(&netdir_provider).unwrap();
-        HsPathBuilder::new(target.cloned(), HsCircStubKind::Short)
+        HsPathBuilder::new(target.cloned(), HsCircStemKind::Short)
             .pick_path(&mut rng, dirinfo, &guards, &config, now)
             .map(|res| res.0)
     }
@@ -640,7 +640,7 @@ mod test {
     fn lite_vanguard_path_insufficient_relays() {
         MockRuntime::test_with_various(|runtime| async move {
             let netdir = same_family_test_network(2);
-            for stub_kind in [HsCircStubKind::Short, HsCircStubKind::Extended] {
+            for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                 let err =
                     pick_vanguard_path(&runtime, &netdir, stub_kind, VanguardMode::Lite, None)
                         .await
@@ -676,7 +676,7 @@ mod test {
             let mode = VanguardMode::Lite;
 
             for target in [None, Some(target)] {
-                for stub_kind in [HsCircStubKind::Short, HsCircStubKind::Extended] {
+                for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                     let path =
                         pick_vanguard_path(&runtime, &netdir, stub_kind, mode, target.as_ref())
                             .await
@@ -701,7 +701,7 @@ mod test {
                 .unwrap();
 
             for target in [None, Some(target)] {
-                for stub_kind in [HsCircStubKind::Short, HsCircStubKind::Extended] {
+                for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                     let path =
                         pick_vanguard_path(&runtime, &netdir, stub_kind, mode, target.as_ref())
                             .await
@@ -718,7 +718,7 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let netdir = same_family_test_network(2);
 
-            for stub_kind in [HsCircStubKind::Short, HsCircStubKind::Extended] {
+            for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                 let err =
                     pick_vanguard_path(&runtime, &netdir, stub_kind, VanguardMode::Full, None)
                         .await
@@ -738,13 +738,13 @@ mod test {
             let netdir = same_family_test_network(3);
             let mode = VanguardMode::Full;
 
-            for stub_kind in [HsCircStubKind::Short, HsCircStubKind::Extended] {
+            for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                 let path = pick_vanguard_path(&runtime, &netdir, stub_kind, mode, None)
                     .await
                     .unwrap();
                 assert_vanguard_path_ok(&path, stub_kind, mode, None);
                 match stub_kind {
-                    HsCircStubKind::Short => {
+                    HsCircStemKind::Short => {
                         // A 3-hop circuit can't contain duplicates,
                         // because that would mean it has one of the following
                         // configurations
@@ -762,7 +762,7 @@ mod test {
                         // to itself or its predecessor.
                         assert_duplicate_hops(&path, false);
                     }
-                    HsCircStubKind::Extended => {
+                    HsCircStemKind::Extended => {
                         // There are only 3 relats in the network,
                         // so a 4-hop circuit must contain the same hop twice.
                         assert_duplicate_hops(&path, true);

@@ -64,16 +64,16 @@ pub enum HsCircKind {
 }
 
 impl HsCircKind {
-    /// Return the [`HsCircStubKind`] needed to build this type of circuit.
-    fn stub_kind(&self) -> HsCircStubKind {
+    /// Return the [`HsCircStemKind`] needed to build this type of circuit.
+    fn stub_kind(&self) -> HsCircStemKind {
         match self {
-            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStubKind::Short,
+            HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStemKind::Short,
             HsCircKind::SvcHsDir => {
                 // TODO: we might want this to be GUARDED
-                HsCircStubKind::Short
+                HsCircStemKind::Short
             }
             HsCircKind::SvcRend | HsCircKind::ClientHsDir | HsCircKind::ClientIntro => {
-                HsCircStubKind::Extended
+                HsCircStemKind::Extended
             }
         }
     }
@@ -83,12 +83,12 @@ impl HsCircKind {
 ///
 /// This represents a hidden service circuit that has not yet been extended to a target.
 ///
-/// See [HsCircStubKind].
+/// See [HsCircStemKind].
 pub(crate) struct HsCircStub<C: AbstractCirc> {
     /// The circuit.
     pub(crate) circ: Arc<C>,
     /// Whether the circuit is NAIVE  or GUARDED.
-    pub(crate) kind: HsCircStubKind,
+    pub(crate) kind: HsCircStemKind,
 }
 
 impl<C: AbstractCirc> HsCircStub<C> {
@@ -118,10 +118,10 @@ impl<C: AbstractCirc> HsCircStub<C> {
     /// or can be extended to become that kind.
     ///
     /// Returns `true` if this `HsCircStub`'s kind is equal to `other`,
-    /// or if its kind is [`Short`](HsCircStubKind::Short)
-    /// and `other` is [`Extended`](HsCircStubKind::Extended).
-    pub(crate) fn can_become(&self, other: HsCircStubKind) -> bool {
-        use HsCircStubKind::*;
+    /// or if its kind is [`Short`](HsCircStemKind::Short)
+    /// and `other` is [`Extended`](HsCircStemKind::Extended).
+    pub(crate) fn can_become(&self, other: HsCircStemKind) -> bool {
+        use HsCircStemKind::*;
 
         match (self.kind, other) {
             (Short, Short) | (Extended, Extended) | (Short, Extended) => true,
@@ -156,7 +156,7 @@ impl<C: AbstractCirc> HsCircStub<C> {
 ///      ```
 #[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
 #[non_exhaustive]
-pub(crate) enum HsCircStubKind {
+pub(crate) enum HsCircStemKind {
     /// A short stub circuit.
     ///
     /// Used for building circuits to a final hop that an adversary cannot easily control,
@@ -171,11 +171,11 @@ pub(crate) enum HsCircStubKind {
     Extended,
 }
 
-impl HsCircStubKind {
+impl HsCircStemKind {
     /// Return the number of hops this `HsCircKind` ought to have when using the specified
     /// [`VanguardMode`].
     pub(crate) fn num_hops(&self, mode: VanguardMode) -> StdResult<usize, Bug> {
-        use HsCircStubKind::*;
+        use HsCircStemKind::*;
         use VanguardMode::*;
 
         let len = match (mode, self) {
@@ -355,14 +355,14 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStubKind::Extended)
+            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStemKind::Extended)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
         if matches!(
             self.vanguard_mode(),
             VanguardMode::Full | VanguardMode::Lite
-        ) && circ.kind != HsCircStubKind::Extended
+        ) && circ.kind != HsCircStemKind::Extended
         {
             return Err(internal!("wanted a GUARDED circuit, but got NAIVE?!").into());
         }
@@ -491,7 +491,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
     ///
     /// If vanguards are enabled, this will try to build a circuit stub of the specified
-    /// [`HsCircStubKind`].
+    /// [`HsCircStemKind`].
     ///
     /// If vanguards are disabled, `kind` is unused.
     ///
@@ -500,7 +500,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         &self,
         netdir: &NetDir,
         avoid_target: Option<&T>,
-        kind: HsCircStubKind,
+        kind: HsCircStemKind,
     ) -> Result<HsCircStub<B::Circ>>
     where
         // TODO #504: It would be better if this were a type that had to include
@@ -602,7 +602,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         circuit: HsCircStub<B::Circ>,
         avoid_target: Option<&T>,
-        kind: HsCircStubKind,
+        kind: HsCircStemKind,
     ) -> Result<HsCircStub<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
@@ -630,13 +630,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         circuit: HsCircStub<B::Circ>,
         avoid_target: Option<&T>,
-        kind: HsCircStubKind,
+        kind: HsCircStemKind,
     ) -> Result<HsCircStub<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
     {
         match (circuit.kind, kind) {
-            (HsCircStubKind::Short, HsCircStubKind::Extended) => {
+            (HsCircStemKind::Short, HsCircStemKind::Extended) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
                 let params = CircParameters::default();
                 let circ_path = circuit.circ.path_ref();
@@ -669,7 +669,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
                 Ok(HsCircStub { circ, kind })
             }
-            (HsCircStubKind::Extended, HsCircStubKind::Short) => {
+            (HsCircStemKind::Extended, HsCircStemKind::Short) => {
                 Err(internal!("wanted a NAIVE circuit, but got GUARDED?!").into())
             }
             _ => {
@@ -685,7 +685,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         &self,
         circ: &Arc<B::Circ>,
         target: Option<&T>,
-        kind: HsCircStubKind,
+        kind: HsCircStemKind,
     ) -> StdResult<(), Bug>
     where
         T: CircTarget + std::marker::Sync,
@@ -700,7 +700,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     fn ensure_circuit_length_valid(
         &self,
         circ: &Arc<B::Circ>,
-        kind: HsCircStubKind,
+        kind: HsCircStemKind,
     ) -> StdResult<(), Bug> {
         let circ_path_len = circ.path_ref().n_hops();
         let mode = self.vanguard_mode();
@@ -826,7 +826,7 @@ fn circuit_compatible_with_target<C: AbstractCirc>(
 fn vanguards_circuit_compatible_with_target<C: AbstractCirc, T>(
     netdir: &NetDir,
     circ: &HsCircStub<C>,
-    kind: HsCircStubKind,
+    kind: HsCircStemKind,
     avoid_target: Option<&T>,
 ) -> bool
 where

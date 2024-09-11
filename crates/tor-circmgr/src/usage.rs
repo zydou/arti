@@ -17,7 +17,7 @@ use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 #[cfg(feature = "hs-common")]
-use {crate::path::hspath::HsPathBuilder, crate::HsCircStubKind};
+use {crate::path::hspath::HsPathBuilder, crate::HsCircStemKind};
 
 #[cfg(feature = "specific-relay")]
 use tor_linkspec::{HasChanMethod, HasRelayIds};
@@ -188,7 +188,7 @@ pub(crate) enum TargetCircUsage {
         /// family restrictions).
         compatible_with_target: Option<OwnedChanTarget>,
         /// The kind of stub circuit to build.
-        kind: HsCircStubKind,
+        kind: HsCircStemKind,
     },
 }
 

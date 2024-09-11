@@ -106,7 +106,7 @@ use tor_persist::StateMgr;
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
 #[cfg(feature = "hs-common")]
-use crate::hspool::HsCircStubKind;
+use crate::hspool::HsCircStemKind;
 #[cfg(all(feature = "vanguards", feature = "hs-common"))]
 use tor_guardmgr::vanguards::VanguardMgr;
 
@@ -953,7 +953,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         &self,
         planned_target: Option<T>,
         dir: &NetDir,
-        kind: HsCircStubKind,
+        kind: HsCircStemKind,
     ) -> Result<Arc<B::Circ>>
     where
         T: IntoOwnedChanTarget,
@@ -1182,7 +1182,7 @@ mod test {
                             .launch_hs_unmanaged::<OwnedChanTarget>(
                                 None,
                                 &netdir,
-                                HsCircStubKind::Short,
+                                HsCircStemKind::Short,
                             )
                             .await,
                     )

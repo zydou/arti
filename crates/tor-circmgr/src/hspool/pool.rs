@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    hspool::{HsCircStub, HsCircStubKind},
+    hspool::{HsCircStub, HsCircStemKind},
     AbstractCirc,
 };
 use rand::Rng;
@@ -49,10 +49,10 @@ const MAX_GUARDED_STUB_TARGET: usize = 128;
 /// A type of circuit we would like to launch.
 ///
 /// [`ForLaunch::note_circ_launched`] should be called whenever a circuit
-/// of this [`HsCircStubKind`] is launched, to decrement the internal target `count`.
+/// of this [`HsCircStemKind`] is launched, to decrement the internal target `count`.
 pub(super) struct ForLaunch<'a> {
     /// The kind of circuit we want to launch.
-    kind: HsCircStubKind,
+    kind: HsCircStemKind,
     /// How many circuits of this kind do we need?
     ///
     /// This is a mutable reference to one of the target values from [`CircsToLaunch`];
@@ -67,7 +67,7 @@ impl<'a> ForLaunch<'a> {
     }
 
     /// The kind of circuit we want to launch.
-    pub(super) fn kind(&self) -> HsCircStubKind {
+    pub(super) fn kind(&self) -> HsCircStemKind {
         self.kind
     }
 }
@@ -86,13 +86,13 @@ impl CircsToLaunch {
         // We start by launching NAIVE circuits.
         if self.stub_target > 0 {
             ForLaunch {
-                kind: HsCircStubKind::Short,
+                kind: HsCircStemKind::Short,
                 count: &mut self.stub_target,
             }
         } else {
             // If we have enough NAIVE circuits, we can start launching GUARDED ones too.
             ForLaunch {
-                kind: HsCircStubKind::Extended,
+                kind: HsCircStemKind::Extended,
                 count: &mut self.guarded_stub_target,
             }
         }
@@ -159,7 +159,7 @@ impl<C: AbstractCirc> Pool<C> {
         let circ_count = self
             .circuits
             .iter()
-            .filter(|c| c.kind == HsCircStubKind::Short)
+            .filter(|c| c.kind == HsCircStemKind::Short)
             .count();
 
         self.stub_target.saturating_sub(circ_count)
@@ -170,7 +170,7 @@ impl<C: AbstractCirc> Pool<C> {
         let circ_count = self
             .circuits
             .iter()
-            .filter(|c| c.kind == HsCircStubKind::Extended)
+            .filter(|c| c.kind == HsCircStemKind::Extended)
             .count();
 
         self.guarded_stub_target.saturating_sub(circ_count)
@@ -288,13 +288,13 @@ impl<C: AbstractCirc> Pool<C> {
 /// Preferences for what kind of circuit to select from the pool.
 #[derive(Default, Debug, Clone)]
 pub(super) struct HsCircPrefs {
-    /// If `Some`, specifies the [`HsCircStubKind`] we would like.
-    pub(super) kind_prefs: Option<HsCircStubKind>,
+    /// If `Some`, specifies the [`HsCircStemKind`] we would like.
+    pub(super) kind_prefs: Option<HsCircStemKind>,
 }
 
 impl HsCircPrefs {
-    /// Set the preferred [`HsCircStubKind`].
-    pub(super) fn preferred_stub_kind(&mut self, kind: HsCircStubKind) -> &mut Self {
+    /// Set the preferred [`HsCircStemKind`].
+    pub(super) fn preferred_stub_kind(&mut self, kind: HsCircStemKind) -> &mut Self {
         self.kind_prefs = Some(kind);
         self
     }
