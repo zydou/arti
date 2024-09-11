@@ -80,6 +80,17 @@ pub enum Error {
     BadMessage(&'static str),
     /// An attempt to parse an object failed for some reason related to its
     /// contents.
+    ///
+    /// # General case, more specific variants also exist
+    ///
+    /// This variant is used when encountering parsing trouble
+    /// for which there is no more specific variant.
+    ///
+    /// Other variants can occur when deserialising malformed messages.
+    /// for example (but not necessarily only):
+    /// [`ExtraneousBytes`](Error::ExtraneousBytes),
+    /// [`MissingData`](Error::MissingData), and
+    /// [`BadLengthValue`](Error::BadLengthValue).
     #[error("Bad object: {0}")]
     InvalidMessage(Cow<'static, str>),
     /// The message contains data which is too short (perhaps in an inner counted section)
