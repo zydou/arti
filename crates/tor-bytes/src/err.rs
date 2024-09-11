@@ -53,6 +53,15 @@ pub enum Error {
     ///
     /// This error is only returned by [`Reader`](crate::Reader)s created with
     /// [`from_possibly_incomplete_slice`](crate::Reader::from_possibly_incomplete_slice).
+    ///
+    /// # Do not directly construct this variant
+    ///
+    /// It is usually a bug to explicitly construct this variant.
+    /// Use [`Reader::incomplete_error`](crate::Reader::incomplete_error) instead.
+    ///
+    /// In tests using
+    /// [`Reader::from_slice_for_test`](crate::Reader::from_slice_for_test),
+    /// use [`Error::new_truncated_for_test`].
     #[error("Object truncated (or not fully present), at least {deficit} more bytes needed")]
     Incomplete {
         /// Lower bound on number of additional bytes needed
@@ -74,6 +83,14 @@ pub enum Error {
     #[error("Bad object: {0}")]
     InvalidMessage(Cow<'static, str>),
     /// The message contains data which is too short (perhaps in an inner counted section)
+    ///
+    /// # Usually, do not directly construct this variant
+    ///
+    /// It is often a bug to explicitly construct this variant.
+    /// Consider [`Reader::incomplete_error`](crate::Reader::incomplete_error) instead.
+    ///
+    /// (It can be appropriate in test cases,
+    /// or during bespoke parsing of an inner substructure.)
     #[error("message (or inner portion) too short")]
     MissingData,
     /// A parsing error that should never happen.
