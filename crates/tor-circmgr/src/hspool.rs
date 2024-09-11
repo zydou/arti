@@ -84,14 +84,14 @@ impl HsCircKind {
 /// This represents a hidden service circuit that has not yet been extended to a target.
 ///
 /// See [HsCircStemKind].
-pub(crate) struct HsCircStub<C: AbstractCirc> {
+pub(crate) struct HsCircStem<C: AbstractCirc> {
     /// The circuit.
     pub(crate) circ: Arc<C>,
     /// Whether the circuit is NAIVE  or GUARDED.
     pub(crate) kind: HsCircStemKind,
 }
 
-impl<C: AbstractCirc> HsCircStub<C> {
+impl<C: AbstractCirc> HsCircStem<C> {
     /// Whether this circuit satisfies _all_ the [`HsCircPrefs`].
     ///
     /// Returns `false` if any of the `prefs` are not satisfied.
@@ -105,7 +105,7 @@ impl<C: AbstractCirc> HsCircStub<C> {
     }
 }
 
-impl<C: AbstractCirc> Deref for HsCircStub<C> {
+impl<C: AbstractCirc> Deref for HsCircStem<C> {
     type Target = Arc<C>;
 
     fn deref(&self) -> &Self::Target {
@@ -113,11 +113,11 @@ impl<C: AbstractCirc> Deref for HsCircStub<C> {
     }
 }
 
-impl<C: AbstractCirc> HsCircStub<C> {
+impl<C: AbstractCirc> HsCircStem<C> {
     /// Check if this circuit stub is of the specified `kind`
     /// or can be extended to become that kind.
     ///
-    /// Returns `true` if this `HsCircStub`'s kind is equal to `other`,
+    /// Returns `true` if this `HsCircStem`'s kind is equal to `other`,
     /// or if its kind is [`Short`](HsCircStemKind::Short)
     /// and `other` is [`Extended`](HsCircStemKind::Extended).
     pub(crate) fn can_become(&self, other: HsCircStemKind) -> bool {
@@ -438,7 +438,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     /// Try to extend a circuit to the specified target hop.
     async fn extend_circ<T>(
         &self,
-        circ: HsCircStub<B::Circ>,
+        circ: HsCircStem<B::Circ>,
         params: CircParameters,
         target: T,
     ) -> Result<Arc<B::Circ>>
@@ -501,7 +501,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         netdir: &NetDir,
         avoid_target: Option<&T>,
         kind: HsCircStemKind,
-    ) -> Result<HsCircStub<B::Circ>>
+    ) -> Result<HsCircStem<B::Circ>>
     where
         // TODO #504: It would be better if this were a type that had to include
         // family info.
@@ -530,7 +530,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
 
-            let restrictions = |circ: &HsCircStub<B::Circ>| {
+            let restrictions = |circ: &HsCircStem<B::Circ>| {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
@@ -593,17 +593,17 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
         self.ensure_suitable_circuit(&circ, avoid_target, kind)?;
 
-        Ok(HsCircStub { circ, kind })
+        Ok(HsCircStem { circ, kind })
     }
 
     /// Return a circuit of the specified `kind`, built from `circuit`.
     async fn maybe_extend_stub_circuit<T>(
         &self,
         netdir: &NetDir,
-        circuit: HsCircStub<B::Circ>,
+        circuit: HsCircStem<B::Circ>,
         avoid_target: Option<&T>,
         kind: HsCircStemKind,
-    ) -> Result<HsCircStub<B::Circ>>
+    ) -> Result<HsCircStem<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -616,9 +616,9 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                     .await
             }
             _ => {
-                let HsCircStub { circ, kind: _ } = circuit;
+                let HsCircStem { circ, kind: _ } = circuit;
 
-                Ok(HsCircStub { circ, kind })
+                Ok(HsCircStem { circ, kind })
             }
         }
     }
@@ -628,10 +628,10 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     async fn extend_full_vanguards_circuit<T>(
         &self,
         netdir: &NetDir,
-        circuit: HsCircStub<B::Circ>,
+        circuit: HsCircStem<B::Circ>,
         avoid_target: Option<&T>,
         kind: HsCircStemKind,
-    ) -> Result<HsCircStub<B::Circ>>
+    ) -> Result<HsCircStem<B::Circ>>
     where
         T: CircTarget + std::marker::Sync,
     {
@@ -667,7 +667,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                 // we need to extend it by another hop to make it GUARDED before returning it
                 let circ = self.extend_circ(circuit, params, extra_hop).await?;
 
-                Ok(HsCircStub { circ, kind })
+                Ok(HsCircStem { circ, kind })
             }
             (HsCircStemKind::Extended, HsCircStemKind::Short) => {
                 Err(internal!("wanted a NAIVE circuit, but got GUARDED?!").into())
@@ -802,7 +802,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 /// `target`.
 fn circuit_compatible_with_target<C: AbstractCirc>(
     netdir: &NetDir,
-    circ: &HsCircStub<C>,
+    circ: &HsCircStem<C>,
     exclude_target: &RelayExclusion,
 ) -> bool {
     // NOTE, TODO #504:
@@ -821,11 +821,11 @@ fn circuit_compatible_with_target<C: AbstractCirc>(
 /// Return true if we can extend a pre-built vanguards circuit `circ` to `target`.
 ///
 /// We require that the circuit is open, that it can become the specified
-/// kind of [`HsCircStub`], that every hop in the circuit is listed in `netdir`,
+/// kind of [`HsCircStem`], that every hop in the circuit is listed in `netdir`,
 /// and that the last two hops are different from the specified target.
 fn vanguards_circuit_compatible_with_target<C: AbstractCirc, T>(
     netdir: &NetDir,
-    circ: &HsCircStub<C>,
+    circ: &HsCircStem<C>,
     kind: HsCircStemKind,
     avoid_target: Option<&T>,
 ) -> bool
@@ -858,7 +858,7 @@ where
 /// We require that the circuit is open, that every hop  in the circuit is
 /// listed in `netdir`, and that `relay_okay` returns true for every hop on the
 /// circuit.
-fn circuit_still_useable<C, F>(netdir: &NetDir, circ: &HsCircStub<C>, relay_okay: F) -> bool
+fn circuit_still_useable<C, F>(netdir: &NetDir, circ: &HsCircStem<C>, relay_okay: F) -> bool
 where
     C: AbstractCirc,
     F: Fn(&Relay<'_>) -> bool,
@@ -947,7 +947,7 @@ async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Ru
                 {
                     Ok(circ) => {
                         let kind = for_launch.kind();
-                        let circ = HsCircStub { circ, kind };
+                        let circ = HsCircStem { circ, kind };
                         pool.inner.lock().expect("poisoned lock").pool.insert(circ);
                         trace!("successfully launched {kind} circuit");
                         for_launch.note_circ_launched();
