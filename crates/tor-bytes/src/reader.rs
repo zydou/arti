@@ -92,6 +92,15 @@ impl<'a> Reader<'a> {
     ///
     /// It is hazardous to use this approach unless the buffer size is limited,
     /// since the sender could send an apparently-very-large message.
+    ///
+    /// # Warning about sub-readers
+    ///
+    /// If you are constructing other readers from data extracted from this one,
+    /// make sure to use [`Reader::from_slice`] instead of this method!
+    /// This method is only for the outermost reader.
+    ///
+    /// Failure to follow this warning may result in misformed messages
+    /// being incorrectly reported as `Truncated`.
     //
     // TODO this name is quite clumsy!
     pub fn from_possibly_incomplete_slice(slice: &'a [u8]) -> Self {
