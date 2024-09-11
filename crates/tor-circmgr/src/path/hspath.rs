@@ -1,7 +1,8 @@
 //! Code for building paths for HS circuits.
 //!
-//! The path builders defined here are used for creating hidden service circuit stems,
-//! which are three- or four-hop circuits that have not yet been extended to a target.
+//! The path builders defined here are used for creating hidden service circuit stems.
+//! A circuit stem is the beginning portion of a hidden service circuit,
+//! the structure of which depends on the types of vanguards, if any, that are in use.
 //!
 //! There are two types of circuit stems:
 //!   * naive circuit stems, used for building circuits to a final hop that an adversary
