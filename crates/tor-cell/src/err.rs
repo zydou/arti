@@ -45,14 +45,9 @@ pub enum Error {
 
 impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
-        use tor_bytes::Error as ByE;
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::BytesErr {
-                err: ByE::Truncated { .. },
-                ..
-            } => EK::Internal,
             E::EncodeErr(..) => EK::BadApiUsage,
             E::BytesErr { .. } => EK::TorProtocolViolation,
             E::Internal(_) => EK::Internal,
