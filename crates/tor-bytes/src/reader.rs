@@ -83,7 +83,7 @@ impl<'a> Reader<'a> {
     /// if we don't know how much data we needed to buffer.
     ///
     /// [`Readable`] methods, [`extract`](Reader::extract), and so on,
-    /// will return [`Error::Truncated`] if the message is incomplete,
+    /// will return [`Error::Incomplete`] if the message is incomplete,
     /// and reading more would help.
     ///
     /// (This is achieved via [`incomplete_error`](Reader::incomplete_error.)
@@ -144,7 +144,7 @@ impl<'a> Reader<'a> {
     }
     /// Skip `n` bytes from the reader.
     ///
-    /// Returns Ok on success.  Returns Err(Error::Truncated) if there were
+    /// Returns Ok on success.  Returns Err(Error::Truncated) XXXX if there were
     /// not enough bytes to skip.
     pub fn advance(&mut self, n: usize) -> Result<()> {
         self.peek(n)?;
@@ -174,7 +174,7 @@ impl<'a> Reader<'a> {
     /// consuming them.
     ///
     /// On success, returns Ok(slice).  If there are fewer than n
-    /// bytes, returns Err(Error::Truncated).
+    /// bytes, returns Err(Error::Truncated). XXXX
     pub fn peek(&self, n: usize) -> Result<&'a [u8]> {
         if let Some(deficit) = n
             .checked_sub(self.remaining())
@@ -188,7 +188,7 @@ impl<'a> Reader<'a> {
     /// Try to consume and return a slice of `n` bytes from this reader.
     ///
     /// On success, returns Ok(Slice).  If there are fewer than n
-    /// bytes, returns Err(Error::Truncated).
+    /// bytes, returns Err(Error::Truncated). XXXX
     ///
     /// # Example
     /// ```
@@ -267,7 +267,7 @@ impl<'a> Reader<'a> {
     /// encounter a terminating byte equal to `term`.
     ///
     /// On success, returns Ok(Slice), where the slice does not
-    /// include the terminating byte.  Returns Err(Error::Truncated)
+    /// include the terminating byte.  Returns Err(Error::Truncated) XXXX
     /// if we do not find the terminating bytes.
     ///
     /// Advances the reader to the point immediately after the terminating
@@ -433,7 +433,7 @@ impl<'a> Reader<'a> {
     /// Returns the error that should be returned if we ran out of data
     ///
     /// For a usual `Reader` this is [`Error::InvalidMessage`].
-    /// But it's [`Error::Truncated`] with a reader from
+    /// But it's [`Error::Incomplete`] with a reader from
     /// [`Reader::from_possibly_incomplete_slice`].
     pub fn incomplete_error(&self, deficit: NonZeroUsize) -> Error {
         use Error as E;

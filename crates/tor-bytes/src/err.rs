@@ -86,7 +86,7 @@ pub enum Error {
 }
 
 impl Error {
-    /// Make an [`Error::Truncated`] with a specified deficit
+    /// Make an [`Error::Incomplete`] with a specified deficit
     ///
     /// Suitable for use in tests.
     ///
