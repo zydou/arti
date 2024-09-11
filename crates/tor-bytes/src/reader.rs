@@ -100,7 +100,7 @@ impl<'a> Reader<'a> {
     /// This method is only for the outermost reader.
     ///
     /// Failure to follow this warning may result in misformed messages
-    /// being incorrectly reported as `Truncated`.
+    /// being incorrectly reported as `Incomplete`.
     //
     // TODO this name is quite clumsy!
     pub fn from_possibly_incomplete_slice(slice: &'a [u8]) -> Self {
