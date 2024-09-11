@@ -242,7 +242,8 @@ impl VanguardSets {
 /// See
 /// <https://spec.torproject.org/vanguards-spec/vanguards-stats.html>
 //
-// TODO(#1352): we may not want the same bias for the L2 vanguards
+// Note: the lifetimes of the vanguards (both L2 and L3) are selected
+// from the max(X,X) distribution.
 fn select_lifetime<Rng: RngCore>(
     rng: &mut Rng,
     min_lifetime: Duration,
