@@ -42,9 +42,11 @@ define_derive_deftly! {
 pub enum Error {
     /// Tried to read something, but we didn't find enough bytes.
     ///
-    /// This can mean that the object is truncated, or that we need to
-    /// read more and try again, depending on the context in which it
-    /// was received.
+    /// This can means that the outer object is truncated.
+    /// Possibly we need to read more and try again,
+    ///
+    /// This error is only returned by [`Reader`](crate::Reader)s created with
+    /// [`from_possibly_incomplete_slice`](crate::Reader::from_possibly_incomplete_slice).
     #[error("Object truncated (or not fully present), at least {deficit} more bytes needed")]
     Truncated {
         /// Lower bound on number of additional bytes needed
@@ -65,6 +67,9 @@ pub enum Error {
     /// contents.
     #[error("Bad object: {0}")]
     InvalidMessage(Cow<'static, str>),
+    /// The message contains data which is too short (perhaps in an inner counted section)
+    #[error("message (or inner portion) too short")]
+    MissingData,
     /// A parsing error that should never happen.
     ///
     /// We use this one in lieu of calling assert() and expect() and

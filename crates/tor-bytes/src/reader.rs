@@ -53,6 +53,18 @@ pub struct Reader<'a> {
     b: &'a [u8],
     /// The next position in the slice that we intend to read from.
     off: usize,
+    /// What to do if we run out of data - IOW are we reading a possibly incomplete message
+    on_incomplete: OnIncomplete,
+}
+
+/// What to do if we run out of data - IOW are we reading a possibly incomplete message
+#[derive(Copy, Clone, Debug)]
+enum OnIncomplete {
+    /// Throw [`Error::Truncated`]
+    // TODO rename Error::Truncated to ::Incomplete
+    Incomplete,
+    /// Throw [`Error::MissingData']
+    MissingData,
 }
 
 impl<'a> Reader<'a> {
@@ -60,11 +72,9 @@ impl<'a> Reader<'a> {
     ///
     /// In tests, prefer [`Reader::from_slice_for_test`].
     pub fn from_slice(slice: &'a [u8]) -> Self {
-        Reader { b: slice, off: 0 }
+        Reader { b: slice, off: 0, on_incomplete: OnIncomplete::MissingData }
     }
     /// Construct a new Reader from a slice of bytes which may not be complete.
-    ///
-    /// XXXX the behaviour described here has not yet been implemented
     ///
     /// This can be used to try to deserialise a message received from a protocol stream,
     /// if we don't know how much data we needed to buffer.
@@ -82,7 +92,7 @@ impl<'a> Reader<'a> {
     //
     // TODO this name is quite clumsy!
     pub fn from_possibly_incomplete_slice(slice: &'a [u8]) -> Self {
-        Reader { b: slice, off: 0 }
+        Reader { b: slice, off: 0, on_incomplete: OnIncomplete::Incomplete }
     }
     /// Construct a new Reader from a slice of bytes, in tests
     ///
@@ -406,14 +416,17 @@ impl<'a> Reader<'a> {
 
     /// Returns the error that should be returned if we ran out of data
     ///
-    /// XXXX this is not yet implemented
-    ///
     /// For a usual `Reader` this is [`Error::InvalidMessage`].
     /// But it's [`Error::Truncated`] with a reader from
     /// [`Reader::from_possibly_incomplete_slice`].
     pub fn incomplete_error(&self, deficit: NonZeroUsize) -> Error {
-        Error::Truncated {
-            deficit: deficit.into(),
+        use Error as E;
+        use OnIncomplete as OI;
+        match self.on_incomplete {
+            OI::Incomplete => E::Truncated {
+                deficit: deficit.into(),
+            },
+            OI::MissingData => E::MissingData,
         }
     }
 }
@@ -651,7 +664,7 @@ mod tests {
         let mut b = Reader::from_slice_for_test(&[1, 66]);
         assert_eq!(
             b.read_nested_u8len(|b| b.take_u32()),
-            Err(Error::new_truncated_for_test(3)),
+            Err(Error::MissingData),
         );
     }
 

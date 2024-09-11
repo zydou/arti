@@ -527,7 +527,7 @@ fn test_connect_udp() {
         msg_error(
             cmd,
             &format!("00000000 {} 00 {:04x}", ty, port),
-            BytesError::new_truncated_for_test(h_len),
+            BytesError::MissingData,
         );
 
         // Address one byte too short
@@ -540,7 +540,7 @@ fn test_connect_udp() {
                 &h[2..], /* kludge */
                 port
             ),
-            BytesError::new_truncated_for_test(1),
+            BytesError::MissingData,
         );
 
         // Address one byte too long
