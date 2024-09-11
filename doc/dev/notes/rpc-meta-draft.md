@@ -1,36 +1,47 @@
-## Status
+# Arti RPC protocol design
 
-This is a draft document.
-It does not reflect anything we've built,
-or anything we necessarily will build.
+## Preliminaries
 
-It attempts to describe semantics for an RPC mechanism
-for use in Arti.
+### Document status
 
-By starting with our RPC mechanism
-and its semantics,
-we aim to define a set of operations
-that we can implement reasonably
-for both local and out-of-process use.
+This document is a work in progress.
+It describes our RPC system as we've designed it,
+but it includes some pieces that are not yet built,
+or not yet built correctly.
 
-This document will begin by focusing
-on the _semantics_ of our RPC system
-using an abstract stream of objects.
+Where possible,
+we'll try to describe what is implemented
+and what is not.
 
-Once those are defined, we'll discuss
-a particular instantiation of the system
-using the `jsonlines` encoding:
-we intend that other encodings should also be possible,
-in case we need to change in the future.
+### Goals and organization
 
-Finally, we will describe an initial series of methods
-that the system could support,
-to start exploring the design space, and
-to show what our specifications might look like going forward,
+This document tries to specify our RPC protocol.
+Ultimately we hope it will be sufficient
+for a (perhaps hypothetical) reimplementation.
+Right now, though, its primary role
+is to support our own implementation work,
+on both the RPC RPC implementation
+and its consumers.
+This document does not discuss internal implementation details:
+Although there are some interesting challenges
+in implementing this protocol inside Arti,
+they are not part of the protocol itself.
 
-# Intended semantics
+What we do cover are:
 
-## Sessions
+* The semantics underlying the RPC system,
+  its objects, and its messages.
+* The protocol (based on `jsonlines`) that we
+  use to send the messages described above.
+* A few of the methods currently implemented
+  by the RPC system in Arti,
+  along with other methods we expect to implement in the future.
+* The protocol extension(s) we use to integrate the RPC system
+  with SOCKS5 (or later, HTTP CONNECT).
+
+## Intended semantics
+
+### Sessions
 
 The application begins by establishing a session with Arti.
 There may be multiple sessions at once,
@@ -42,9 +53,13 @@ and aren't coming from a confused web browser or something.
 
 (This authentication can use unix domain sockets,
 proof of an ability to read some part of the filesystem,
+an in-process socketpair,
 or a pre-established shared secret.
 Sessions should not normally cross the network.
 If they do, they must use TLS.)
+
+> At present (Sep 2024)
+> only unix domain sockets are implemented.
 
 Different sessions cannot access one another's status:
 they cannot ordinarily list each other's circuits,
@@ -54,6 +69,9 @@ and so on.
 
 As an exception, a session may have administrative access.
 If it does, it can access information from any session.
+
+> At present (Sep 2024)
+> administrative access is not implemented.
 
 (This isolation is meant to resist
 programming mistakes and careless application design,
@@ -72,8 +90,149 @@ We may eventually provide a way to make sessions persistent
 and allow apps to re-connect to a session,
 but that will not be the default.
 
+### Objects
 
-## Messages
+At any given time,
+a session has access to one or more "RPC Objects"
+(or just "Objects").
+
+> For example, an Object may be a session,
+> a circuit, a stream, an onion service,
+>or the arti process itself.
+
+In this document, Object means an RPC Object,
+not a JSON document object.
+
+Each object is denoted by an opaque "Object ID",
+which is serialised in JSON as a string.
+An Object ID is a sequence of printable non-space ASCII characters.
+The format of an Object Identifier string is not otherwise stable,
+and clients must not rely on it.
+
+Object IDs behave like capabilities:
+an application can use an object if and only if
+it has an ID for that object.
+
+Unless otherwise specified,
+an Object ID is session-local:
+an Object ID from one session must not be used in another session.
+(It might refer to a totally different object in that other session,
+or to no object at all.)
+
+(Some "externally visible" Object IDs
+_can_ be used outside of a session.
+These are used in order to integrate with SOCKS and similar protocols.)
+
+> TODO: In Arti, we call such IDs "exposed outside of session".
+> Should we rename them there or here?
+
+> At present (Sep 2024),
+> we guarantee that an externally visible object ID
+> will never contain a colon (`:`).
+> This may change if we change how we handle SOCKS request encoding.
+
+With a session,
+any given Object ID always refers to the same object,
+or to no object at all.
+(That is to say
+if an object ID `X` refers to some object within some session at time `T`,
+then at time `T+delta`,
+`X` will definitely not refer to any different object.)
+
+An Object ID can be a
+Handle (a strong ID) or a
+Reference (a weak ID).
+Each method that returns an Object ID
+states whether the returned ID is a Handle or a Reference.
+
+A Handle is valid until
+it is explicitly released with the `rpc:release` method
+(or, the session is closed).
+So long as a Handle exists,
+Arti will not dispose of the underlying object,
+or close it as unused.
+Therefore, clients which make long-running RPC connections
+must explicitly release no-longer-needed Handles,
+to avoid leaks.
+
+A mere Reference is valid until
+the underlying object is freed,
+but doesn't influence the lifecycle of that object.
+
+There can be multiple IDs for the same Object.
+(So performing string comparisons on Object IDs
+does not yield reliable information about
+whether two IDs refer to the same Object.)
+
+However, the same Object ID string will never be reused within a session
+for a different underlying object,
+even after the underlying object is disposed of.
+Even the ID string for a Handle which has been explicitly released
+will not be reused.
+
+> TODO: "release" is a funny word here.
+> Many objects can be destroyed or enter a "closed" state
+> independent of what Arti wants:
+> for example, a circuit can be destroyed by any relay on the circuit,
+> or even by a network failure.
+
+> NOTE: Previously we referred to strong IDs as "handles"
+> and weak IDs as "references", but we did not do so consistently.
+>
+> At present (Sep 2024)
+> the RPC system supports weak IDs, but doesn't yet generate any.
+
+An Object ID never changes from strong to weak,
+or from weak to strong.
+Instead, functions that downgrade or upgrade Object IDs
+return a new Object ID.
+
+> At present (Sep 2024),
+> downgrade and upgrade aren't implemented.
+
+A strong Object ID can be "owning" or "non-owning".
+If an Object ID "owns" its object,
+then the relevant object will be destroyed
+(torn down, closed, etc)
+when the session closes.
+Otherwise, the object will continue to exist
+for the rest of its ordinary lifecycle.
+
+(For example, if a session owns a DataStream,
+and the session closes,
+then the DataStream will be closed even if it is still in use.)
+
+> TODO: "destroyed" is also a funny word here.
+> Can we come up with a better word that applies
+> to all of our things can be closed, torn down, destroyed,
+> deleted, expunged, etc?)
+>
+> Also TODO: "ordinary lifecycle" is a bit fuzzy.
+
+> At present (Sep 2024),
+> owning object IDs are not implemented.
+
+#### Objects and authentication
+
+When an application first connects to Arti,
+before it authenticates,
+it has access to only one object,
+which represents the RPC connection itself.
+The Object ID for this connection object is `connection`.
+The only operations available on an RPC connection
+are those necessary to authenticate.
+
+The application uses this connection object
+to authenticate with Arti.
+By doing so successfully,
+it receives an Object ID for a "session" object,
+which serves as a root capability
+for all other available functionality.
+
+(See discussion of authentication below.)
+
+
+### Messages
 
 Once a connection is established, the application and Arti
 communicate in a message-oriented format
@@ -82,6 +241,8 @@ Messages are sent one at a time in each direction,
 in an ordered stream.
 
 The application's messages are called "requests".
+Every request is directed to a single RPC Object.
+
 Arti's replies are called "responses".
 Every response will be in response to a single request.
 
@@ -116,39 +277,7 @@ we may define other encodings/framings in the future.
 > This is not an additional requirement;
 > it is a consequence of the JSON data format.
 
-## Requests, Objects, and Visibility
-
-Every request is directed to some Object.
-(For example, an object may be a session,
-a circuit, a stream, an onion service,
-or the arti process itself.)
-In this document, Object means the target of a request;
-not a JSON document object.
-
-Only certain Objects are visible within a given session.
-When a session is first created,
-the session itself is the only Object visible.
-Other Objects may become visible
-in response to the application's requests.
-If an Object is not visible in a session,
-that session cannot access it.
-
-Clients identify each Object within a session
-by an opaque string, called an "Object Identifier".
-Each identifier may be a "handle" or a "reference".
-If a session has a _handle_ to an Object,
-Arti won't deliberately discard that Object
-until it the handle is "released",
-or the session is closed.
-If a session only has a _reference_ to an Object, however,
-that Object might be closed or discarded in the background,
-and there is no need to release it.
-
-The format of an Object Identifier string is not stable,
-and clients must not rely on it.
-
-
-## Request and response types
+### Request and response types
 
 There are different kinds of requests,
 each identified by a unique method name.
@@ -159,20 +288,34 @@ some are only suitable for one kind of Object.
 
 When we define a method,
 we state its name,
-and the names and types of the parameters `params`.
+and the names and types of its parameters `params`.
 and the expected contents of the successful `result`,
 and any `updates`s.
 
 Unrecognized parameters must be ignored.
-Indeed, any unrecognized fields in a JSON object must be ignored,
-both by the server and by the client.
+(Indeed, any unrecognized fields in a JSON object must be ignored,
+both by the server and by the client.)
 
 Invalid JSON
 and parameter values that do not match their specified types
 must be treated as an error,
 both by the server and by the client.
 
-## Data Streams
+### Concurrent requests and pipelining {#pipelining}
+
+A client may send multiple requests,
+without waiting for responses to earlier requests.
+
+When multiple requests are outstanding,
+the ordering of responses from the server
+is not necessarily the same as the ordering of the requests.
+
+The server may impose limits on the amount of concurrency
+and may stop reading from the client when server buffers are full.
+It is the client's responsibility
+to avoid concurrent-writing-induced deadlocks.
+
+### Data Streams
 
 We do not want to force users
 to mix application data streams and control connections
@@ -200,9 +343,9 @@ We can do this in two ways.
    and Arti uses it to identify which streams belong to the application.
 
 
-# Instantiating our semantics with JSON, Rust, and Serde
+## Instantiating our semantics with JSON, Rust, and Serde
 
-## Encoding with JSON
+### Encoding with JSON
 
 We use the following metaformat, based on JSON-RPC,
 for our requests:
@@ -309,34 +452,80 @@ Any given response will have exactly one of
 > TODO: Specify our error format to be the same as,
 > or similar to, that used by JSON-RPC.
 
+#### Handling invalid JSON
+
+Upon receiving any syntactically incorrect JSON,
+the server MUST close the connection.
+
+(This applies only to strings that are not valid JSON;
+not to strings that are valid JSON
+but which do not match the expected objects.)
+
+> **This is a security feature.**
+>
+> If the server tolerated syntax errors,
+> it would be open to more protocol-in-protocol attacks.
+> For example,
+> an attacker might be able to trick a web browser
+> into making an HTTP request a TCP port serving RPC,
+> and then embed its payload as the HTTP request body.
+> If our protocol were to tolerate incorrect JSON,
+> it would ignore the HTTP headers,
+> and then process the attackers payload.
+>
+> Alternatively, we could have said that syntax errors
+> are only permitted _after_ authentication.
+> But if we did that,
+> an attacker could more easily exploit string injection opportunities
+> in a badly programmed client.
+> (Also, "never allowed" is easier to implement than "sometimes allowed".)
+
+> **Example**
+>
+> Upon receiving `{ a: 3 }\n`, the server will close the connection,
+> since `{ a : 3 }` is not valid JSON.
+>
+> Upon receiving `{ 'a' : 3 }\n`, the server will not close the connection,
+> even though `{ 'a': 3 }` is not a valid request,
+> since `{ 'a' : 3 }` _is_ valid JSON.
+>
+> Upon receiving `{ 'a' : 3\n` (with no closing brace),
+> the server will still not close the connection:
+> The closing brace may appear on a later line,
+> and the server does not enforce
+> one-request-per-line encoding for its inputs.
+
+
+
 
 #### Method namespacing
 
-Any method name containing a colon belongs to a namespace.
-The namespace of a method is everything up to the first colon.
+All methods names consist of a namespace and an identifier.
+Both must be valid C identifiers.
+The namespace and identifier are separated by a colon.
 (For example, the method name `arti:connect`
-is in the namespace `arti`.
-The method name `gettype` is not in any namespace.)
+is in the namespace `arti`, and has the identifier `connect`.)
 
-Only this spec MAY declare non-namespaced methods.
-All methods defined elsewhere SHOULD be in a namespace.
+> All methods appear in a namespace;
+> there are no un-namespaced methods.
 
 Right now, the following namespaces are reserved:
 
 * `arti` — For use by the Arti tor implementation project.
 * `auth` — Defined in this spec; for authenticating an initial session.
+* `rpc` — Defined in this spec.
 
 To reserve a namespace, open a merge request to change the list above.
 
-Namespaces starting with `x-` will never be allocated.
+Namespaces starting with `x_` will never be allocated.
 They are reserved for experimental use.
 
-Method names starting with `x-` indicate
+Method names starting with `x_` indicate
 experimental or unstable status:
 any code using them should expect to be unstable.
 
 
-### Errors
+#### Errors
 
 Errors are reported as responses with an `error` field (as above).
 The `error` field is itself an object, with the following fields:
@@ -393,12 +582,13 @@ code 	message 	meaning
 1	Object error		Some requested object was not valid
 2	Request error		Some other error occurred.
 3   No method impl      This method isn't available on this object.
+4   Request cancelled   The request was cancelled before it could finish.
 ```
 We do not anticipate regularly extending this list of code values.
 
 [`tor_error::ErrorKind`]: https://docs.rs/tor-error/latest/tor_error/enum.ErrorKind.html
 
-#### Future extensions to the Error type.
+##### Future extensions to the Error type.
 
 We're aware that the Error type above
 does not expose a lot of useful details
@@ -408,7 +598,7 @@ If you find that you need more data,
 instead let us know, so we can extend the Error format.
 
 
-#### Unimplemented extension: "data"
+##### Unimplemented extension: "data"
 
 We **do not** currently implement this field in the Error type:
 It was originally part of our design, but we are leaving it out
@@ -438,7 +628,7 @@ data
   other than for non-critical functions such as reporting.
 
 
-#### Example error response JSON document
+##### Example error response JSON document
 
 Note: this is an expanded display for clarity!
 Arti will actually send an error response on a single line,
@@ -460,7 +650,7 @@ to conform to jsonlines framing.
 }
 ```
 
-#### JSON-RPC compatibility
+##### JSON-RPC compatibility
 
 This error format is compatible with JSON-RPC 2.0.
 The differences are:
@@ -474,7 +664,7 @@ The differences are:
 
  * The `message` field may be less concise than JSON-RPC envisages.
 
-### We use I-JSON
+#### We use I-JSON
 
 In this spec JSON means I-JSON (RFC7493).
 The client must not send JSON documents that are not valid I-JSON.
@@ -484,7 +674,7 @@ Arti will only send valid I-JSON
 
 We speak of `fields`, meaning the members of a JSON object.
 
-### A variant: JSON-RPC.
+#### A variant: JSON-RPC.
 
 > (This is not something we plan to build
 > unless it's actually needed.)
@@ -499,7 +689,7 @@ We speak of `fields`, meaning the members of a JSON object.
 > unless we add a regular "poll" request or something:
 > this is also left for future work.
 
-## Framing messages
+### Framing messages
 
 Arti's responses are formatted according to [jsonlines](jsonlines.org):
 every message appears as precisely one line, terminated with a single linefeed.
@@ -518,9 +708,12 @@ until arti has dealt with and replied to some of them.
 There is no minimum must-be-supported number or size of concurrent requests.
 Therefore a client which sends more than one request at a time
 must be prepared to buffer requests at its end,
-while concurrently reading arti's replies.
+while concurrently reading arti's replies;
+otherwise deadlock may occur.
 
-## Authentication
+(See note on implementation strategies in the appendix.)
+
+### Authentication
 
 When a connection is first opened,
 only a single "connection" object is available.
@@ -540,13 +733,12 @@ auth:authenticate
 : Try to authenticate using one of the provided authentication
   methods.
 
+> At present (Sep 2024)
+> auth:get_rpc_protocol is deprecated.
+
 > TODO: Provide more information about these in greater detail.
 
 Three recognized authentication schemes are:
-
-inherent:peer_uid
-: Attempt to authenticate based on the application's
-  user-id.
 
 inherent:unix_path
 : Attempt to authenticate based on the fact that the application
@@ -560,22 +752,16 @@ fs:cookie
   which shouldn't be possible unless it is running on behalf
   of an authorized user.
 
+> At present (Sep 2024)
+> only `inherent:unix_path` is implemented.
+
 > TODO Maybe add a "this is a TLS session and I presented a good certificate"
 > type?
 
 Until authentication is successful on a connection,
 Arti closes the connection after any error.
 
-> Taking a lesson from Tor's control port:
-> we always want a correct authentication handshake to complete
-> before we allow any requests to be handled,
-> even if the stream itself is such
-> that no authentication should be requires.
-> This helps prevent cross-protocol attacks in cases
-> where things are misconfigured.
-
-
-## Specifying requests and replies.
+### Specifying requests and replies.
 
 When we are specifying a request, we list the following.
 
@@ -593,7 +779,7 @@ When we are specifying a request, we list the following.
   annotated for use with serde.
 
 
-# Differences from JSON-RPC
+## Differences from JSON-RPC
 
  * We use I-JSON (RFC7493).
 
@@ -608,30 +794,30 @@ When we are specifying a request, we list the following.
 
  * We have connection-oriented session state.
 
- * We support overlapping and pipelined responses,
-   rather than batched multi-requests.
+ * We support [overlapping and pipelined responses](#pipeing).
 
  * TODO our errors are likely to be a superset of JSON-RPC's.  TBD.
 
  * TODO re-check this spec against JSON-RPC.
 
 
-# A list of requests
+## A list of requests
 
+> At present (Sep 2024),
+> the request methods described in this section aren't implemented.
+> We'll probably remove this section (or most of it)
+> and replace it with better API documentation or plans.
 
 ...
 
-## Cancellation
+### Cancellation
 
-> TODO: take a request ID (as usual),
-> and the ID of the request-to-cancel as a parameter.
->
-> (Using the 'id' as the subject of the request is too cute IMO,
-> even if we change the request's meaning to
-> "cancel every request with the same id as this request".)
+> At present (Sep 2024)
+> a cancellation mechanism is not implemented.
 
 To try to cancel a request,
-there is a "cancel" method, taking arguments of the form:
+the RPC connection object implements
+an `rpc:cancel` method, taking parameters of the form:
 
 ```
 { "request_id": id }
@@ -648,25 +834,18 @@ or if there is no such request,
 Arti will return an error.
 (It might not be possible to distinguish these two cases).
 
-
-TODO: Currently this violates our rule that every request has an `obj`.
-Options: 
- 1. Relax the rule
- 2. Specify a well-known `obj` value to be used;
-    we will need such a thing to bootstrap auth anyway.
- 3. Specify that the cancellation should be sent to the original object.
-    IMO this is improper:
-    cancellation is a framing operation.
+> Alternative: we might implement this on the connection
+> object, rather than on the session object?
 
 
-## Authentication
+### Authentication
 
 ...
 
 > Also authorization, "get instance"
 
 
-## Requests that apply to most Objects
+### Requests that apply to most Objects
 
 ...
 
@@ -676,13 +855,13 @@ Options:
 
 > set status / info
 
-## Checking bootstrap status
+### Checking bootstrap status
 
 ...
 
 > session.bootstrap Object, supports get status
 
-## Instance operations
+### Instance operations
 
 > Shut down
 
@@ -692,7 +871,7 @@ Options:
 
 
 
-## Opening data streams
+### Opening data streams
 
 ...
 
@@ -707,7 +886,7 @@ Options:
 
 
 
-## Working with onion services
+### Working with onion services
 
 ...
 
@@ -722,66 +901,11 @@ Options:
 >     getstatus
 
 
-# Appendix: Some example APIs to wrap this
 
-Every library that wraps this API
-should probably follow a similar design
-(except when it makes sense to do so).
+## Appendix
 
-There should probably be a low-level API
-that handles arbitrary raw JSON objects as requests and responses,
-along with a higher level library
-generated from our JSON schema[^schema].
-There should also be some even-higher-level functionality
-to navigate the authentication problem,
-and for functionality like opening streams.
-
-[^schema]: and by the way, we should have some schemas[^plural]
-[^plural]: Or schemata if you prefer that for the plural.
-
-## Generic, low-level
-
-I'm imagining that the low level
-of any arti-RPC client library
-will probably look a little like this:
-
-```
-type UrlLikeString = String;
-`/// Open the session, authenticate.
-fn open_session(UrlLikeString, prefs: ?) -> Result<Session>;
-
-type Request = JsonObj/String;
-type Response = JsonObj/String;
-enum ResponseType {Update, Error, Result};
-/// Run a request, block till it succeeds or fails
-fn do(Session, Request) -> Result<Response>;
-type Callback = fn(Response, VoidPtr);
-/// Launch a command, return immediately.  Invoke the callback whenever there
-/// is more info.
-fn launch(Session, Request, Callback, VoidPtr) -> Result<()>;
-
-// ---- These are even more low-level... not sure if they're
-//       a good idea.
-
-/// Send a request, and don't wait for a response.
-fn send(Session, RequestId, Request, Option<RequestMeta>) -> Result<()>;
-/// Read a response, if there is one to read.
-fn recv(Session, blocking: bool) -> Result<Response>;
-/// Return an fd that you can poll on to see if the session is ready
-/// to read bytes.
-fn poll_id(Session) -> Option<Fd>;
-```
-
-
-## In rust
-
-## In C
-
-## In Java
-
-
-
-# Appendix
+> At present (Sep 2024), this section is outdated.
+> Once the API is more stable, we'll generate and include an updated trace.
 
 Experimenting with Arti
 
@@ -813,3 +937,23 @@ Note that the server will currently close your connection
 at the first sign of invalid JSON.
 
 Please don't expect the final implementation to work this way!
+
+### Client implementation strategies
+
+We hope that most clients will choose to use
+the `arti-rpc-client-core` library
+(or a wrapper around it)
+in order to interact with Arti RPC.
+It is fairly small, efficient, and well audited.
+
+If you choose to write your own client implementation,
+you will need to consider how to prevent deadlock
+when multiple requests are waiting for a reply at once.
+One simple strategy is to have only one thread
+responsible for reading replies from Arti,
+and dispatching those replies to the appropriate requesting code.
+This thread must never block on anything besides reading—which implies
+that its mechanism for dispatching replies must not block.
+(One example mechanism is having a nonblocking queue for each request.)
+
+More aggressive strategies are possible.
