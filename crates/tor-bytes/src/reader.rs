@@ -685,6 +685,14 @@ mod tests {
     }
 
     #[test]
+    fn incomplete_slice() {
+        // Test specifically the from_possibly_incomplete_slice constructor -
+        // ie, deliberately don't use Reader::from_slice_for_test.
+        let mut b = Reader::from_possibly_incomplete_slice(&[]);
+        assert_eq!(b.take_u32(), Err(Error::new_truncated_for_test(4)));
+    }
+
+    #[test]
     fn extract() {
         // For example purposes, declare a length-then-bytes string type.
         #[derive(Debug)]
