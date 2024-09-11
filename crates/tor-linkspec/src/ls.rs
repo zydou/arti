@@ -306,7 +306,10 @@ mod test {
         }
 
         assert_eq!(t(&hex!("00 03")), Error::new_incomplete_for_test(3));
-        assert_eq!(t(&hex!("00 06 01020304")), Error::new_incomplete_for_test(2));
+        assert_eq!(
+            t(&hex!("00 06 01020304")),
+            Error::new_incomplete_for_test(2)
+        );
         assert_eq!(t(&hex!("99 07 010203")), Error::new_incomplete_for_test(4));
     }
 
@@ -358,6 +361,9 @@ mod test {
 
         assert_eq!(t(&hex!("00")), Error::new_incomplete_for_test(1));
         assert_eq!(t(&hex!("00 04 010203")), Error::new_incomplete_for_test(1));
-        assert_eq!(t(&hex!("00 05 01020304")), Error::new_incomplete_for_test(1));
+        assert_eq!(
+            t(&hex!("00 05 01020304")),
+            Error::new_incomplete_for_test(1)
+        );
     }
 }
