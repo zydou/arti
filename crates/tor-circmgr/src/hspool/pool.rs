@@ -15,10 +15,10 @@ pub(super) struct Pool<C: AbstractCirc> {
     circuits: Vec<HsCircStem<C>>,
 
     /// The number of NAIVE elements that we would like to have in our pool.
-    stub_target: usize,
+    stem_target: usize,
 
     /// The number of GUARDED elements that we would like to have in our pool.
-    guarded_stub_target: usize,
+    guarded_stem_target: usize,
 
     /// True if we have exhausted our pool since the last time we decided
     /// whether to change our target level.
@@ -33,18 +33,18 @@ pub(super) struct Pool<C: AbstractCirc> {
 }
 
 /// Our default (and minimum) target NAIVE pool size.
-const DEFAULT_NAIVE_STUB_TARGET: usize = 3;
+const DEFAULT_NAIVE_STEM_TARGET: usize = 3;
 
 /// Our default (and minimum) target GUARDED pool size.
-const DEFAULT_GUARDED_STUB_TARGET: usize = 1;
+const DEFAULT_GUARDED_STEM_TARGET: usize = 1;
 
 /// Our maximum target NAIVE pool size.  We will never let our NAIVE target grow above this
 /// value.
-const MAX_NAIVE_STUB_TARGET: usize = 384;
+const MAX_NAIVE_STEM_TARGET: usize = 384;
 
 /// Our maximum target GUARDED pool size.  We will never let our GUARDED target grow above this
 /// value.
-const MAX_GUARDED_STUB_TARGET: usize = 128;
+const MAX_GUARDED_STEM_TARGET: usize = 128;
 
 /// A type of circuit we would like to launch.
 ///
@@ -75,42 +75,42 @@ impl<'a> ForLaunch<'a> {
 /// The circuits we need to launch.
 pub(super) struct CircsToLaunch {
     /// The number of NAIVE circuits we want to launch.
-    stub_target: usize,
+    stem_target: usize,
     /// The number of GUARDED circuits we want to launch.
-    guarded_stub_target: usize,
+    guarded_stem_target: usize,
 }
 
 impl CircsToLaunch {
     /// Return a [`ForLaunch`] representing a circuit we would like to launch.
     pub(super) fn for_launch(&mut self) -> ForLaunch {
         // We start by launching NAIVE circuits.
-        if self.stub_target > 0 {
+        if self.stem_target > 0 {
             ForLaunch {
                 kind: HsCircStemKind::Short,
-                count: &mut self.stub_target,
+                count: &mut self.stem_target,
             }
         } else {
             // If we have enough NAIVE circuits, we can start launching GUARDED ones too.
             ForLaunch {
                 kind: HsCircStemKind::Extended,
-                count: &mut self.guarded_stub_target,
+                count: &mut self.guarded_stem_target,
             }
         }
     }
 
     /// Return the number of NAIVE circuits we would like to launch.
-    pub(super) fn stub(&self) -> usize {
-        self.stub_target
+    pub(super) fn stem(&self) -> usize {
+        self.stem_target
     }
 
     /// Return the number of GUARDED circuits we would like to launch.
-    pub(super) fn guarded_stub(&self) -> usize {
-        self.guarded_stub_target
+    pub(super) fn guarded_stem(&self) -> usize {
+        self.guarded_stem_target
     }
 
     /// Return the total number of circuits we would currently like to launch.
     pub(super) fn n_to_launch(&self) -> usize {
-        self.stub_target + self.guarded_stub_target
+        self.stem_target + self.guarded_stem_target
     }
 }
 
@@ -118,8 +118,8 @@ impl<C: AbstractCirc> Default for Pool<C> {
     fn default() -> Self {
         Self {
             circuits: Vec::new(),
-            stub_target: DEFAULT_NAIVE_STUB_TARGET,
-            guarded_stub_target: DEFAULT_GUARDED_STUB_TARGET,
+            stem_target: DEFAULT_NAIVE_STEM_TARGET,
+            guarded_stem_target: DEFAULT_GUARDED_STEM_TARGET,
             have_been_exhausted: false,
             have_been_under_highwater: false,
             last_changed_target: None,
@@ -149,31 +149,31 @@ impl<C: AbstractCirc> Pool<C> {
     /// Return a [`CircsToLaunch`] describing the circuits we would currently like to launch.
     pub(super) fn circs_to_launch(&self) -> CircsToLaunch {
         CircsToLaunch {
-            stub_target: self.stubs_to_launch(),
-            guarded_stub_target: self.guarded_stubs_to_launch(),
+            stem_target: self.stems_to_launch(),
+            guarded_stem_target: self.guarded_stems_to_launch(),
         }
     }
 
     /// Return the number of NAIVE circuits we would currently like to launch.
-    fn stubs_to_launch(&self) -> usize {
+    fn stems_to_launch(&self) -> usize {
         let circ_count = self
             .circuits
             .iter()
             .filter(|c| c.kind == HsCircStemKind::Short)
             .count();
 
-        self.stub_target.saturating_sub(circ_count)
+        self.stem_target.saturating_sub(circ_count)
     }
 
     /// Return the number of GUARDED circuits we would currently like to launch.
-    fn guarded_stubs_to_launch(&self) -> usize {
+    fn guarded_stems_to_launch(&self) -> usize {
         let circ_count = self
             .circuits
             .iter()
             .filter(|c| c.kind == HsCircStemKind::Extended)
             .count();
 
-        self.guarded_stub_target.saturating_sub(circ_count)
+        self.guarded_stem_target.saturating_sub(circ_count)
     }
 
     /// Return the total number of circuits we would like to launch.
@@ -181,7 +181,7 @@ impl<C: AbstractCirc> Pool<C> {
     /// We do not discard when we are _above_ this threshold, but we do
     /// try to build when we are low.
     fn target(&self) -> usize {
-        self.stub_target + self.guarded_stub_target
+        self.stem_target + self.guarded_stem_target
     }
 
     /// If there is any circuit in this pool for which `f`  returns true and that satisfies
@@ -200,9 +200,9 @@ impl<C: AbstractCirc> Pool<C> {
         R: Rng,
         F: Fn(&HsCircStem<C>) -> bool,
     {
-        let rv = match random_idx_where(rng, &mut self.circuits[..], |circ_stub| {
+        let rv = match random_idx_where(rng, &mut self.circuits[..], |circ_stem| {
             // First, check if any circuit matches _all_ the prefs
-            circ_stub.satisfies_prefs(prefs) && f(circ_stub)
+            circ_stem.satisfies_prefs(prefs) && f(circ_stem)
         })
         .or_else(|| {
             // Select a circuit satisfying `f` at random.
@@ -243,7 +243,7 @@ impl<C: AbstractCirc> Pool<C> {
         // TODO: we may want to have separate have_been_exhausted/have_been_under_highwater
         // flags for NAIVE and GUARDED circuits.
         //
-        // TODO: stub_target and guarded_stub_target currently grow/shrink at the same rate,
+        // TODO: stem_target and guarded_stem_target currently grow/shrink at the same rate,
         // which is not ideal.
         //
         // Instead, we should switch to an adaptive strategy, where the two targets are updated
@@ -252,23 +252,23 @@ impl<C: AbstractCirc> Pool<C> {
             if time_since_last_change < MIN_TIME_TO_GROW {
                 return;
             }
-            self.stub_target *= 2;
-            self.guarded_stub_target *= 2;
+            self.stem_target *= 2;
+            self.guarded_stem_target *= 2;
         } else if !self.have_been_under_highwater {
             if time_since_last_change < MIN_TIME_TO_SHRINK {
                 return;
             }
 
-            self.stub_target /= 2;
-            self.guarded_stub_target /= 2;
+            self.stem_target /= 2;
+            self.guarded_stem_target /= 2;
         }
         self.last_changed_target = Some(now);
-        self.stub_target = self
-            .stub_target
-            .clamp(DEFAULT_NAIVE_STUB_TARGET, MAX_NAIVE_STUB_TARGET);
-        self.guarded_stub_target = self
-            .guarded_stub_target
-            .clamp(DEFAULT_GUARDED_STUB_TARGET, MAX_GUARDED_STUB_TARGET);
+        self.stem_target = self
+            .stem_target
+            .clamp(DEFAULT_NAIVE_STEM_TARGET, MAX_NAIVE_STEM_TARGET);
+        self.guarded_stem_target = self
+            .guarded_stem_target
+            .clamp(DEFAULT_GUARDED_STEM_TARGET, MAX_GUARDED_STEM_TARGET);
         self.have_been_exhausted = false;
         self.have_been_under_highwater = false;
     }
@@ -294,7 +294,7 @@ pub(super) struct HsCircPrefs {
 
 impl HsCircPrefs {
     /// Set the preferred [`HsCircStemKind`].
-    pub(super) fn preferred_stub_kind(&mut self, kind: HsCircStemKind) -> &mut Self {
+    pub(super) fn preferred_stem_kind(&mut self, kind: HsCircStemKind) -> &mut Self {
         self.kind_prefs = Some(kind);
         self
     }

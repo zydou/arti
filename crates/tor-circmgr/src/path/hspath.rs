@@ -1,16 +1,16 @@
 //! Code for building paths for HS circuits.
 //!
-//! The path builders defined here are used for creating hidden service stub circuits,
+//! The path builders defined here are used for creating hidden service stem circuits,
 //! which are three- or four-hop circuits that have not yet been extended to a target.
 //!
-//! There are two types of stub circuits:
-//!   * short stub circuits, used for building circuits to a final hop that an adversary
+//! There are two types of stem circuits:
+//!   * short stem circuits, used for building circuits to a final hop that an adversary
 //!     cannot easily control (for example if the target is randomly chosen by us)
-//!   * extended stub circuits, used for building circuits to a final hop that an adversary
+//!   * extended stem circuits, used for building circuits to a final hop that an adversary
 //!     can easily control (for example if the target was not chosen by us)
 //!
-//! Stub circuits eventually become introduction, rendezvous, and HsDir circuits.
-//! For all circuit types except client rendezvous, the stubs must first be
+//! stem circuits eventually become introduction, rendezvous, and HsDir circuits.
+//! For all circuit types except client rendezvous, the stems must first be
 //! extended by an extra hop:
 //!
 //! ```text
@@ -22,8 +22,8 @@
 //!  Service rend:  GUARDED -> Rpt
 //! ```
 //!
-//! If vanguards are disabled, short stub circuits (NAIVE),
-//! and extended stub circuits (GUARDED) are the same,
+//! If vanguards are disabled, short stem circuits (NAIVE),
+//! and extended stem circuits (GUARDED) are the same,
 //! and are built using
 //! [`ExitPathBuilder`](crate::path::exitpath::ExitPathBuilder)'s
 //! path selection rules.
@@ -31,7 +31,7 @@
 //! If vanguards are enabled, the path is built without applying family
 //! or same-subnet restrictions at all, the guard is not prohibited
 //! from appearing as either of the last two hops of the circuit,
-//! and the two circuit stub kinds are built differently
+//! and the two circuit stem kinds are built differently
 //! depending on the type of vanguards that are in use:
 //!
 //!   * with lite vanguards enabled:
@@ -109,7 +109,7 @@ impl HsPathBuilder {
         }
     }
 
-    /// Try to create and return a path for a hidden service circuit stub.
+    /// Try to create and return a path for a hidden service circuit stem.
     #[cfg_attr(feature = "vanguards", allow(unused))]
     pub(crate) fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
@@ -122,7 +122,7 @@ impl HsPathBuilder {
         pick_path(self, rng, netdir, guards, config, now)
     }
 
-    /// Try to create and return a path for a hidden service circuit stub.
+    /// Try to create and return a path for a hidden service circuit stem.
     ///
     /// If vanguards are disabled, this has the same behavior as
     /// [pick_path](HsPathBuilder::pick_path).
@@ -189,7 +189,7 @@ impl AnonymousPathBuilder for HsPathBuilder {
 /// See the [`HsPathBuilder`] documentation for more details.
 #[cfg(feature = "vanguards")]
 struct VanguardHsPathBuilder {
-    /// The kind of circuit stub we are building
+    /// The kind of circuit stem we are building
     kind: HsCircStemKind,
     /// The target we are about to extend the circuit to.
     compatible_with: Option<OwnedChanTarget>,
@@ -197,7 +197,7 @@ struct VanguardHsPathBuilder {
 
 #[cfg(feature = "vanguards")]
 impl VanguardHsPathBuilder {
-    /// Try to create and return a path for a hidden service circuit stub.
+    /// Try to create and return a path for a hidden service circuit stem.
     fn pick_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -261,7 +261,7 @@ impl VanguardHsPathBuilder {
         Ok((path, mon, usable))
     }
 
-    /// Create a path for a hidden service circuit stub using full vanguards.
+    /// Create a path for a hidden service circuit stem using full vanguards.
     fn pick_full_vanguard_path<'n, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -270,7 +270,7 @@ impl VanguardHsPathBuilder {
         l1_guard: MaybeOwnedRelay<'n>,
         target_exclusion: &RelayExclusion<'n>,
     ) -> Result<TorPath<'n>> {
-        // NOTE: if the we are using full vanguards and building an GUARDED circuit stub,
+        // NOTE: if the we are using full vanguards and building an GUARDED circuit stem,
         // we do *not* exclude the target from occurring as the second hop
         // (circuits of the form G - L2 - L3 - M - L2 are valid)
         let l2_target_exclusion = match self.kind {
@@ -286,7 +286,7 @@ impl VanguardHsPathBuilder {
 
         match self.kind {
             HsCircStemKind::Extended => {
-                // If full vanguards are enabled, we need an extra hop for the GUARDED stub:
+                // If full vanguards are enabled, we need an extra hop for the GUARDED stem:
                 //     NAIVE   = G -> L2 -> L3
                 //     GUARDED = G -> L2 -> L3 -> M
                 path.add_middle(target_exclusion)?.build()
@@ -295,7 +295,7 @@ impl VanguardHsPathBuilder {
         }
     }
 
-    /// Create a path for a hidden service circuit stub using lite vanguards.
+    /// Create a path for a hidden service circuit stem using lite vanguards.
     fn pick_lite_vanguard_path<'n, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
@@ -425,7 +425,7 @@ mod test {
     #[cfg(feature = "vanguards")]
     fn assert_vanguard_path_ok(
         path: &TorPath,
-        stub_kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
         mode: VanguardMode,
         target: Option<&OwnedChanTarget>,
     ) {
@@ -433,8 +433,8 @@ mod test {
 
         assert_eq!(
             path.len(),
-            stub_kind.num_hops(mode).unwrap(),
-            "invalid path length for {stub_kind} {mode}-vanguards circuit"
+            stem_kind.num_hops(mode).unwrap(),
+            "invalid path length for {stem_kind} {mode}-vanguards circuit"
         );
 
         let hops = path_hops(path);
@@ -487,7 +487,7 @@ mod test {
     async fn pick_vanguard_path<'a>(
         runtime: &MockRuntime,
         netdir: &'a NetDir,
-        stub_kind: HsCircStemKind,
+        stem_kind: HsCircStemKind,
         mode: VanguardMode,
         target: Option<&OwnedChanTarget>,
     ) -> Result<TorPath<'a>> {
@@ -508,7 +508,7 @@ mod test {
         let config = PathConfig::default();
         let now = SystemTime::now();
         let dirinfo = (netdir).into();
-        HsPathBuilder::new(target.cloned(), stub_kind)
+        HsPathBuilder::new(target.cloned(), stem_kind)
             .pick_path_with_vanguards(&mut rng, dirinfo, &guards, &vanguardmgr, &config, now)
             .map(|res| res.0)
     }
@@ -640,9 +640,9 @@ mod test {
     fn lite_vanguard_path_insufficient_relays() {
         MockRuntime::test_with_various(|runtime| async move {
             let netdir = same_family_test_network(2);
-            for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+            for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                 let err =
-                    pick_vanguard_path(&runtime, &netdir, stub_kind, VanguardMode::Lite, None)
+                    pick_vanguard_path(&runtime, &netdir, stem_kind, VanguardMode::Lite, None)
                         .await
                         .map(|_| ())
                         .unwrap_err();
@@ -676,12 +676,12 @@ mod test {
             let mode = VanguardMode::Lite;
 
             for target in [None, Some(target)] {
-                for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+                for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                     let path =
-                        pick_vanguard_path(&runtime, &netdir, stub_kind, mode, target.as_ref())
+                        pick_vanguard_path(&runtime, &netdir, stem_kind, mode, target.as_ref())
                             .await
                             .unwrap();
-                    assert_vanguard_path_ok(&path, stub_kind, mode, target.as_ref());
+                    assert_vanguard_path_ok(&path, stem_kind, mode, target.as_ref());
                 }
             }
         });
@@ -701,12 +701,12 @@ mod test {
                 .unwrap();
 
             for target in [None, Some(target)] {
-                for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+                for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                     let path =
-                        pick_vanguard_path(&runtime, &netdir, stub_kind, mode, target.as_ref())
+                        pick_vanguard_path(&runtime, &netdir, stem_kind, mode, target.as_ref())
                             .await
                             .unwrap();
-                    assert_vanguard_path_ok(&path, stub_kind, mode, target.as_ref());
+                    assert_vanguard_path_ok(&path, stem_kind, mode, target.as_ref());
                 }
             }
         });
@@ -718,9 +718,9 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             let netdir = same_family_test_network(2);
 
-            for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+            for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
                 let err =
-                    pick_vanguard_path(&runtime, &netdir, stub_kind, VanguardMode::Full, None)
+                    pick_vanguard_path(&runtime, &netdir, stem_kind, VanguardMode::Full, None)
                         .await
                         .map(|_| ())
                         .unwrap_err();
@@ -733,17 +733,17 @@ mod test {
                 );
             }
 
-            // We *can* build stub circuits in a 3-relay network,
+            // We *can* build stem circuits in a 3-relay network,
             // as long as they don't have a specified target
             let netdir = same_family_test_network(3);
             let mode = VanguardMode::Full;
 
-            for stub_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
-                let path = pick_vanguard_path(&runtime, &netdir, stub_kind, mode, None)
+            for stem_kind in [HsCircStemKind::Short, HsCircStemKind::Extended] {
+                let path = pick_vanguard_path(&runtime, &netdir, stem_kind, mode, None)
                     .await
                     .unwrap();
-                assert_vanguard_path_ok(&path, stub_kind, mode, None);
-                match stub_kind {
+                assert_vanguard_path_ok(&path, stem_kind, mode, None);
+                match stem_kind {
                     HsCircStemKind::Short => {
                         // A 3-hop circuit can't contain duplicates,
                         // because that would mean it has one of the following

@@ -65,7 +65,7 @@ pub enum HsCircKind {
 
 impl HsCircKind {
     /// Return the [`HsCircStemKind`] needed to build this type of circuit.
-    fn stub_kind(&self) -> HsCircStemKind {
+    fn stem_kind(&self) -> HsCircStemKind {
         match self {
             HsCircKind::ClientRend | HsCircKind::SvcIntro => HsCircStemKind::Short,
             HsCircKind::SvcHsDir => {
@@ -79,7 +79,7 @@ impl HsCircKind {
     }
 }
 
-/// A hidden service circuit stub.
+/// A hidden service circuit stem.
 ///
 /// This represents a hidden service circuit that has not yet been extended to a target.
 ///
@@ -114,7 +114,7 @@ impl<C: AbstractCirc> Deref for HsCircStem<C> {
 }
 
 impl<C: AbstractCirc> HsCircStem<C> {
-    /// Check if this circuit stub is of the specified `kind`
+    /// Check if this circuit stem is of the specified `kind`
     /// or can be extended to become that kind.
     ///
     /// Returns `true` if this `HsCircStem`'s kind is equal to `other`,
@@ -131,11 +131,11 @@ impl<C: AbstractCirc> HsCircStem<C> {
 }
 
 #[allow(rustdoc::private_intra_doc_links)]
-/// A kind of hidden service circuit stub.
+/// A kind of hidden service circuit stem.
 ///
 /// See [hspath](crate::path::hspath) docs for more information.
 ///
-/// The structure of a stub circuit depends on whether vanguards are enabled:
+/// The structure of a stem circuit depends on whether vanguards are enabled:
 ///
 ///   * with vanguards disabled:
 ///      ```text
@@ -157,13 +157,13 @@ impl<C: AbstractCirc> HsCircStem<C> {
 #[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
 #[non_exhaustive]
 pub(crate) enum HsCircStemKind {
-    /// A short stub circuit.
+    /// A short stem circuit.
     ///
     /// Used for building circuits to a final hop that an adversary cannot easily control,
     /// for example if the final hop is is randomly chosen by us.
     #[display("NAIVE")]
     Short,
-    /// An extended stub circuit.
+    /// An extended stem circuit.
     ///
     /// Used for building circuits to a final hop that an adversary can easily control,
     /// for example if the final hop is not chosen by us.
@@ -350,12 +350,12 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // For rendezvous points, clients use 3-hop circuits.
         // Note that we aren't using any special rules for the last hop here; we
         // are relying on the fact that:
-        //   * all suitable middle relays that we use in these stub circuits are
+        //   * all suitable middle relays that we use in these stem circuits are
         //     suitable renedezvous points, and
         //   * the weighting rules for selecting rendezvous points are the same
         //     as those for selecting an arbitrary middle relay.
         let circ = self
-            .take_or_launch_stub_circuit::<OwnedCircTarget>(netdir, None, HsCircStemKind::Extended)
+            .take_or_launch_stem_circuit::<OwnedCircTarget>(netdir, None, HsCircStemKind::Extended)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -382,7 +382,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
                     // every relay in the circuit is listed.
                     //
                     // TODO: Still, it's an ugly place in our API; maybe we should return the last hop
-                    // from take_or_launch_stub_circuit()?  But in many cases it won't be needed...
+                    // from take_or_launch_stem_circuit()?  But in many cases it won't be needed...
                     None => Err(internal!("Got circuit with unknown last hop!?").into()),
                 }
             }
@@ -404,7 +404,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             return Err(bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into());
         }
 
-        let wanted_kind = kind.stub_kind();
+        let wanted_kind = kind.stem_kind();
 
         // For most* of these circuit types, we want to build our circuit with
         // an extra hop, since the target hop is under somebody else's control.
@@ -415,7 +415,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
         // Get an unfinished circuit that's compatible with our target.
         let circ = self
-            .take_or_launch_stub_circuit(netdir, Some(&target), wanted_kind)
+            .take_or_launch_stem_circuit(netdir, Some(&target), wanted_kind)
             .await?;
 
         #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -425,7 +425,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         ) && circ.kind != wanted_kind
         {
             return Err(internal!(
-                "take_or_launch_stub_circuit() returned {:?}, but we need {wanted_kind:?}",
+                "take_or_launch_stem_circuit() returned {:?}, but we need {wanted_kind:?}",
                 circ.kind
             )
             .into());
@@ -490,13 +490,13 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
     /// Take and return a circuit from our pool suitable for being extended to `avoid_target`.
     ///
-    /// If vanguards are enabled, this will try to build a circuit stub of the specified
+    /// If vanguards are enabled, this will try to build a circuit stem of the specified
     /// [`HsCircStemKind`].
     ///
     /// If vanguards are disabled, `kind` is unused.
     ///
     /// If there is no such circuit, build and return a new one.
-    async fn take_or_launch_stub_circuit<T>(
+    async fn take_or_launch_stem_circuit<T>(
         &self,
         netdir: &NetDir,
         avoid_target: Option<&T>,
@@ -511,7 +511,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         trace!(
             vanguards=%vanguard_mode,
             kind=%kind,
-            "selecting HS circuit stub"
+            "selecting HS circuit stem"
         );
 
         // First, look for a circuit that is already built, if any is suitable.
@@ -553,7 +553,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
 
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             if matches!(vanguard_mode, VanguardMode::Full | VanguardMode::Lite) {
-                prefs.preferred_stub_kind(kind);
+                prefs.preferred_stem_kind(kind);
             }
 
             let found_usable_circ =
@@ -574,7 +574,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         // Return the circuit we found before, if any.
         if let Some(circuit) = found_usable_circ {
             let circuit = self
-                .maybe_extend_stub_circuit(netdir, circuit, avoid_target, kind)
+                .maybe_extend_stem_circuit(netdir, circuit, avoid_target, kind)
                 .await?;
             self.ensure_suitable_circuit(&circuit, avoid_target, kind)?;
             return Ok(circuit);
@@ -597,7 +597,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
     }
 
     /// Return a circuit of the specified `kind`, built from `circuit`.
-    async fn maybe_extend_stub_circuit<T>(
+    async fn maybe_extend_stem_circuit<T>(
         &self,
         netdir: &NetDir,
         circuit: HsCircStem<B::Circ>,
@@ -610,7 +610,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         match self.vanguard_mode() {
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
             VanguardMode::Full => {
-                // NAIVE circuit stubs need to be extended by one hop to become GUARDED stubs
+                // NAIVE circuit stems need to be extended by one hop to become GUARDED stems
                 // if we're using full vanguards.
                 self.extend_full_vanguards_circuit(netdir, circuit, avoid_target, kind)
                     .await
@@ -674,7 +674,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             }
             _ => {
                 trace!("Wanted {kind} circuit, got {}", circuit.kind);
-                // Nothing to do: the circuit stub we got is of the kind we wanted
+                // Nothing to do: the circuit stem we got is of the kind we wanted
                 Ok(circuit)
             }
         }
@@ -915,8 +915,8 @@ async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Ru
         if n_to_launch > 0 {
             debug!(
                 "launching {} NAIVE  and {} GUARDED circuits",
-                circs_to_launch.stub(),
-                circs_to_launch.guarded_stub()
+                circs_to_launch.stem(),
+                circs_to_launch.guarded_stem()
             );
         }
 
