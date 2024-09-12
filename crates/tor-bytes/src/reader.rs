@@ -153,7 +153,7 @@ impl<'a> Reader<'a> {
     }
     /// Skip `n` bytes from the reader.
     ///
-    /// Returns Ok on success.  Returns Err(Error::Truncated) XXXX if there were
+    /// Returns Ok on success.  Throws MissingData or Incomplete if there were
     /// not enough bytes to skip.
     pub fn advance(&mut self, n: usize) -> Result<()> {
         self.peek(n)?;
@@ -183,7 +183,8 @@ impl<'a> Reader<'a> {
     /// consuming them.
     ///
     /// On success, returns Ok(slice).  If there are fewer than n
-    /// bytes, returns Err(Error::Truncated). XXXX
+    /// bytes, Throws MissingData or Incomplete if there were
+    /// not enough bytes to skip.
     pub fn peek(&self, n: usize) -> Result<&'a [u8]> {
         if let Some(deficit) = n
             .checked_sub(self.remaining())
@@ -197,7 +198,7 @@ impl<'a> Reader<'a> {
     /// Try to consume and return a slice of `n` bytes from this reader.
     ///
     /// On success, returns Ok(Slice).  If there are fewer than n
-    /// bytes, returns Err(Error::Truncated). XXXX
+    /// bytes, Throws MissingData or Incomplete.
     ///
     /// # Example
     /// ```
@@ -276,7 +277,7 @@ impl<'a> Reader<'a> {
     /// encounter a terminating byte equal to `term`.
     ///
     /// On success, returns Ok(Slice), where the slice does not
-    /// include the terminating byte.  Returns Err(Error::Truncated) XXXX
+    /// include the terminating byte.  Throws MissingData or Incomplete
     /// if we do not find the terminating bytes.
     ///
     /// Advances the reader to the point immediately after the terminating
