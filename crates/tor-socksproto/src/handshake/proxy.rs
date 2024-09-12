@@ -1,5 +1,6 @@
 //! Types to implement the SOCKS handshake.
 
+use super::framework::HandshakeImpl;
 use super::Action;
 use crate::msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
 use crate::{Error, Result, TResult, Truncated};
@@ -8,6 +9,8 @@ use tor_bytes::{EncodeResult, Error as BytesError};
 use tor_bytes::{Reader, Writer};
 use tor_error::internal;
 
+use derive_deftly::Deftly;
+
 use std::net::IpAddr;
 
 /// The Proxy (responder) side of an ongoing SOCKS handshake.
@@ -15,7 +18,8 @@ use std::net::IpAddr;
 /// To perform a handshake, call the [SocksProxyHandshake::handshake]
 /// method repeatedly with new inputs, until the resulting [Action]
 /// has `finished` set to true.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Handshake)]
 pub struct SocksProxyHandshake {
     /// Current state of the handshake. Each completed message
     /// advances the state.
@@ -71,10 +75,18 @@ impl SocksProxyHandshake {
     /// On success, return an Action describing what to tell the client,
     /// and how much of its input to consume.
     pub fn handshake(&mut self, input: &[u8]) -> TResult<Action> {
+        // XXXX do this and the input[0] below in a more principled way
         if input.is_empty() {
             return Err(Truncated::new());
         }
-        let rv = match (self.state, input[0]) {
+        self.run_handshake(input)
+    }
+}
+
+// XXXX move this so we can rejoin the two impl blocks
+impl HandshakeImpl for SocksProxyHandshake {
+    fn handshake_impl(&mut self, input: &[u8]) -> Result<Action> {
+        match (self.state, input[0]) {
             (State::Initial, 4) => self.s4(input),
             (State::Initial, 5) => self.s5_initial(input),
             (State::Initial, v) => Err(Error::BadProtocol(v)),
@@ -87,20 +99,11 @@ impl SocksProxyHandshake {
                 "called handshake() after handshaking failed"
             ))),
             (_, _) => Err(Error::Syntax),
-        };
-        match rv {
-            #[allow(deprecated)]
-            Err(Error::Decode(
-                tor_bytes::Error::Incomplete { .. } | tor_bytes::Error::Truncated,
-            )) => Err(Truncated::new()),
-            Err(e) => {
-                self.state = State::Failed;
-                Ok(Err(e))
-            }
-            Ok(a) => Ok(Ok(a)),
         }
     }
+}
 
+impl SocksProxyHandshake {
     /// Complete a socks4 or socks4a handshake.
     fn s4(&mut self, input: &[u8]) -> Result<Action> {
         let mut r = Reader::from_possibly_incomplete_slice(input);

@@ -1,16 +1,20 @@
 //! Implementation for a SOCKS client handshake.
 
+use super::framework::HandshakeImpl;
 use super::{Action, NO_AUTHENTICATION, USERNAME_PASSWORD};
 use crate::msg::{SocksAddr, SocksAuth, SocksReply, SocksRequest, SocksStatus, SocksVersion};
-use crate::{Error, Result, TResult, Truncated};
+use crate::{Error, Result, TResult};
 
 use tor_bytes::{Reader, Writer};
 use tor_error::{internal, into_internal};
 
+use derive_deftly::Deftly;
+
 use std::net::{IpAddr, Ipv4Addr};
 
 /// The client (initiator) side of a SOCKS handshake.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Handshake)]
 pub struct SocksClientHandshake {
     /// The request that we are currently trying to negotiate with the proxy.
     request: SocksRequest,
@@ -63,7 +67,7 @@ impl SocksClientHandshake {
     /// Try to advance a SocksProxyHandshake, given some proxy input in
     /// `input`.
     ///
-    /// If there isn't enough input, gives a [`Truncated`].
+    /// If there isn't enough input, gives a [`Truncated`](crate::Truncated).
     /// In this case, *the caller must retain the input*, and pass it to a later
     /// invocation of `handshake`.  Input should only be regarded as consumed when
     /// the `Action::drain` field is nonzero.
@@ -73,8 +77,15 @@ impl SocksClientHandshake {
     /// On success, return an Action describing what to tell the proxy,
     /// and how much of its input to consume.
     pub fn handshake(&mut self, input: &[u8]) -> TResult<Action> {
+        self.run_handshake(input)
+    }
+}
+
+// XXXX move this so we can rejoin the two impl blocks
+impl HandshakeImpl for SocksClientHandshake {
+    fn handshake_impl(&mut self, input: &[u8]) -> Result<Action> {
         use State::*;
-        let rv = match self.state {
+        match self.state {
             Initial => match self.request.version() {
                 SocksVersion::V4 => self.send_v4(),
                 SocksVersion::V5 => self.send_v5_initial(),
@@ -89,20 +100,11 @@ impl SocksClientHandshake {
             Failed => Err(Error::AlreadyFinished(internal!(
                 "called handshake() after handshaking failed"
             ))),
-        };
-        match rv {
-            #[allow(deprecated)]
-            Err(Error::Decode(
-                tor_bytes::Error::Incomplete { .. } | tor_bytes::Error::Truncated,
-            )) => Err(Truncated::new()),
-            Err(e) => {
-                self.state = State::Failed;
-                Ok(Err(e))
-            }
-            Ok(a) => Ok(Ok(a)),
         }
     }
+}
 
+impl SocksClientHandshake {
     /// Send the client side of the socks 4 handshake.
     fn send_v4(&mut self) -> Result<Action> {
         let mut msg = Vec::new();

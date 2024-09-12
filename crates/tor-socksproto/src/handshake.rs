@@ -1,5 +1,9 @@
 //! Implement the socks handshakes.
 
+#[cfg(any(feature = "proxy-handshake", feature = "client-handshake"))]
+#[macro_use]
+pub(crate) mod framework;
+
 #[cfg(feature = "client-handshake")]
 pub(crate) mod client;
 #[cfg(feature = "proxy-handshake")]

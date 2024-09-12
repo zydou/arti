@@ -6165,6 +6165,7 @@ version = "0.23.0"
 dependencies = [
  "arbitrary",
  "caret",
+ "derive-deftly",
  "hex-literal",
  "subtle",
  "thiserror",
