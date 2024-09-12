@@ -19,6 +19,8 @@
 
 use derive_deftly::define_derive_deftly;
 
+use tor_bytes::Reader;
+
 use crate::{Action, Error, Truncated};
 
 define_derive_deftly! {
@@ -66,15 +68,17 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
     /// Does not need to handle setting the state to `Failed` on error.
     /// But *does* need to handle setting the state to `Done` if applicable.
     ///
-    /// May return `Error::Decode(tor_bytes::Error::Incomplete)`
-    /// if the message was incomplete and reading more data would help.
-    fn handshake_impl(&mut self, input: &[u8]) -> crate::Result<Action>;
+    /// May return the error from the `Reader`, in `Error::Decode`.
+    /// (For example,. `Error::Decode(tor_bytes::Error::Incomplete)`
+    /// if the message was incomplete and reading more data would help.)
+    fn handshake_impl(&mut self, r: &mut tor_bytes::Reader<'_>) -> crate::Result<Action>;
 
     /// Perform a handshake, as expected by callers, given, the implementation
     ///
     /// Does necessary preparation, calls `handshake_impl`, and deals with the return value.
     fn run_handshake(&mut self, input: &[u8]) -> crate::TResult<Action> {
-        let rv = self.handshake_impl(input);
+        let mut r = Reader::from_possibly_incomplete_slice(input);
+        let rv = self.handshake_impl(&mut r);
         match rv {
             #[allow(deprecated)]
             Err(Error::Decode(
