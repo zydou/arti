@@ -6,7 +6,7 @@
 /// Note that this does not include fatal parsing errors
 /// that result in closing the connection entirely.
 #[derive(Clone, Debug, thiserror::Error, serde::Serialize)]
-pub(crate) enum RequestParseError {
+pub enum RequestParseError {
     /// The `id` field was missing.
     #[error("Request did not have any `id` field.")]
     IdMissing,

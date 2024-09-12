@@ -22,6 +22,7 @@ use tor_async_utils::SinkExt as _;
 
 use crate::{
     cancel::{Cancel, CancelHandle},
+    err::RequestParseError,
     globalid::{GlobalId, MacKey},
     msgs::{BoxedResponse, FlexibleRequest, Request, RequestId, ResponseBody},
     objmap::{GenIdx, ObjMap},
@@ -242,7 +243,10 @@ impl Connection {
             .fuse(),
         );
 
-        self.run_loop(read, write).await
+        match self.run_loop(read, write).await {
+            Err(e) if e.is_connection_close() => Ok(()),
+            other => other,
+        }
     }
 
     /// Run in a loop, handling requests from `request_stream` and writing
@@ -267,7 +271,7 @@ impl Connection {
         let mut finished_requests = FuturesUnordered::new();
         finished_requests.push(futures::future::pending().boxed());
 
-        'outer: loop {
+        loop {
             futures::select! {
                 r = finished_requests.next() => {
                     // A task is done, so we can forget about it.
@@ -291,23 +295,23 @@ impl Connection {
                         None => {
                             // We've reached the end of the stream of requests;
                             // time to close.
-                            break 'outer;
+                            return Ok(());
                         }
                         Some(Err(e)) => {
                             // We got a non-recoverable error from the JSON codec.
-                            let () = ConnectionError::classify_read_error(e)?;
-                            // This is a clean close; we don't need to treat it as an error,
-                            // but we _do_ need to exit.
-                            break 'outer;
+                            return Err(ConnectionError::from_read_error(e));
+
                         }
                         Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
+                            // We decoded the request as Json, but not as a `Valid`` request.
+                            // Send back a response indicating what was wrong with it.
                             response_sink
                                 .send(
                                     BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
                                 ).await.map_err( ConnectionError::writing)?;
                             if bad_req.id().is_none() {
                                 // The spec says we must close the connection in this case.
-                                break 'outer;
+                                return Err(bad_req.error().into());
                             }
                         }
                         Some(Ok(FlexibleRequest::Valid(req))) => {
@@ -319,8 +323,6 @@ impl Connection {
                 }
             }
         }
-
-        Ok(())
     }
 
     /// Invoke `request` and send all of its responses to `tx_response`.
@@ -437,6 +439,10 @@ pub enum ConnectionError {
     /// Unable to write our response as json.
     #[error("Unable to encode response onto connection")]
     EncodeFailed(#[source] Arc<serde_json::Error>),
+    /// We encountered a problem when parsing a request that was (in our judgment)
+    /// too severe to recover from.
+    #[error("Unrecoverable problem from parsed request")]
+    RequestParseFailed(#[from] RequestParseError),
 }
 
 impl ConnectionError {
@@ -448,35 +454,32 @@ impl ConnectionError {
         }
     }
 
-    /// Decide what to do with an error that has occurred while reading from a Json codec.
+    /// Return true if this error is (or might be) due to the peer closing the connection.
     ///
-    /// Return Ok(()) if the error should silently be ignored,
-    /// and treated as "cleanly" closing the session.
-    /// Otherwise return the error object, which should be logged, and treated as "messily"
-    /// closing the session.
-    ///
-    /// NOTE: It's critical that we close the session on syntax errors.
-    /// if we tolerated and recovered from Json syntax errors,
-    /// we would be opening ourselves to some framing and protocol-in-protocol attacks.
-    fn classify_read_error(error: JsonCodecError) -> Result<(), Self> {
+    /// Such errors should be tolerated without much complaint;
+    /// other errors should at least be logged somewhere.
+    fn is_connection_close(&self) -> bool {
         use std::io::ErrorKind as IK;
-        use JsonCodecError as E;
         use JsonErrorCategory as JK;
+        #[allow(clippy::match_like_matches_macro)]
+        match self {
+            Self::ReadFailed(e) | Self::WriteFailed(e) => match e.kind() {
+                IK::UnexpectedEof | IK::ConnectionAborted | IK::BrokenPipe => true,
+                _ => false,
+            },
+            Self::DecodeFailed(e) => match e.classify() {
+                JK::Eof => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// Construct a `ConnectionError` from a JsonCodecError that occurred while reading.
+    fn from_read_error(error: JsonCodecError) -> Self {
         match error {
-            E::Io(e) => match e.kind() {
-                IK::UnexpectedEof | IK::ConnectionAborted | IK::BrokenPipe => Ok(()),
-                _ => Err(ConnectionError::ReadFailed(Arc::new(e))),
-            },
-            E::Json(e) => match e.classify() {
-                JK::Eof => Ok(()),
-                // Note: the JK::Syntax case is the one that we absolutely must not tolerate.
-                // In theory, we could handle JK::Data, but our use of FlexibleRequest
-                // prevents most of those errors from reaching this point.
-                //
-                // (Rather than accepting JK::Data,
-                // we should make FlexibleRequest more tolerant.)
-                _ => Err(ConnectionError::DecodeFailed(Arc::new(e))),
-            },
+            JsonCodecError::Io(e) => Self::ReadFailed(Arc::new(e)),
+            JsonCodecError::Json(e) => Self::DecodeFailed(Arc::new(e)),
         }
     }
 }
