@@ -68,8 +68,8 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng>(
     // TODO #1028: support introduction-layer authentication.
     let auth_required = None;
 
-    let is_single_onion_service =
-        matches!(config.anonymity, crate::Anonymity::DangerouslyNonAnonymous);
+    // TODO(#727): add support for single onion services
+    let is_single_onion_service = false;
 
     // TODO (#955): perhaps the certificates should be read from the keystore, rather than created
     // when building the descriptor. See #1048
