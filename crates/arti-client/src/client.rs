@@ -1649,7 +1649,7 @@ impl<R: Runtime> TorClient<R> {
     /// have configured this `TorClient` with a non-default keystore and wish to insert the
     /// key in it, you can do so by calling this function with a [KeystoreSelector::Id]
     ///
-    /// Note: the selector argument exists for future-proofing reasons. We don't currently support
+    // Note: the selector argument exists for future-proofing reasons. We don't currently support
     // configuring custom or non-default keystores (see #1106).
     ///
     /// Returns an error if the key already exists in the specified key store.
