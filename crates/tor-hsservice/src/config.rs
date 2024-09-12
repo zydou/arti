@@ -31,17 +31,6 @@ pub struct OnionServiceConfig {
     #[deftly(publisher_view)]
     pub(crate) nickname: HsNickname,
 
-    // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
-    // at all.
-    //
-    // enabled: bool,
-    /// Whether we want this to be a non-anonymous "single onion service".
-    /// We could skip this in v1.  We should make sure that our state
-    /// is built to make it hard to accidentally set this.
-    #[builder(default)]
-    #[deftly(publisher_view)]
-    pub(crate) anonymity: crate::Anonymity,
-
     /// Number of intro points; defaults to 3; max 20.
     #[builder(default = "DEFAULT_NUM_INTRO_POINTS")]
     pub(crate) num_intro_points: u8,
@@ -74,6 +63,21 @@ pub struct OnionServiceConfig {
     #[deftly(publisher_view)]
     #[getter(as_mut)]
     pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
+
+    // TODO(#727): add support for single onion services
+    //
+    // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
+    // at all.
+    //
+    // enabled: bool,
+    // /// Whether we want this to be a non-anonymous "single onion service".
+    // /// We could skip this in v1.  We should make sure that our state
+    // /// is built to make it hard to accidentally set this.
+    // #[builder(default)]
+    // #[deftly(publisher_view)]
+    // pub(crate) anonymity: crate::Anonymity,
+
+
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
     // // enable_pow: bool,
@@ -205,17 +209,6 @@ impl OnionServiceConfig {
 
         fields! {
             nickname: unchangeable,
-
-            // Note: C Tor absolutely forbids changing between different
-            // values here.
-            //
-            // The rationale thinking here is that if you have ever published a
-            // given service non-anonymously, it is de-anonymized forever, and
-            // that if you ever de-anonymize a service, you are de-anonymizing
-            // it retroactively.
-            //
-            // We may someday want to ease this behavior.
-            anonymity: unchangeable,
 
             // IPT manager will respond by adding or removing IPTs as desired.
             // (Old IPTs are not proactively removed, but they will not be replaced

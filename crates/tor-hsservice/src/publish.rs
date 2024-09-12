@@ -172,7 +172,7 @@ mod test {
     use crate::publish::reactor::MockableClientCirc;
     use crate::status::{OnionServiceStatus, StatusSender};
     use crate::test::create_storage_handles;
-    use crate::{Anonymity, HsNickname};
+    use crate::HsNickname;
     use crate::{
         BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
         HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
@@ -426,7 +426,6 @@ mod test {
     fn build_test_config(nickname: HsNickname) -> OnionServiceConfig {
         OnionServiceConfigBuilder::default()
             .nickname(nickname)
-            .anonymity(Anonymity::Anonymous)
             .rate_limit_at_intro(None)
             .build()
             .unwrap()
