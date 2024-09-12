@@ -12,7 +12,7 @@ use tor_rtcompat::Runtime;
 
 #[cfg(feature = "dns-proxy")]
 use crate::dns;
-use crate::{exit, reload_cfg, socks, ArtiConfig, TorClient};
+use crate::{exit, process, reload_cfg, socks, ArtiConfig, TorClient};
 
 #[cfg(feature = "rpc")]
 use crate::rpc;
@@ -25,13 +25,43 @@ type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
 
 /// Run the `proxy` subcommand.
 pub(crate) fn run<R: Runtime>(
-    _runtime: R,
-    _proxy_matches: &ArgMatches,
-    _cfg_sources: ConfigurationSources,
-    _config: ArtiConfig,
-    _client_config: TorClientConfig,
+    runtime: R,
+    proxy_matches: &ArgMatches,
+    cfg_sources: ConfigurationSources,
+    config: ArtiConfig,
+    client_config: TorClientConfig,
 ) -> Result<()> {
-    todo!()
+    // Override configured SOCKS and DNS listen addresses from the command line.
+    // This implies listening on localhost ports.
+    let socks_listen = match proxy_matches.get_one::<String>("socks-port") {
+        Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
+        None => config.proxy().socks_listen.clone(),
+    };
+
+    let dns_listen = match proxy_matches.get_one::<String>("dns-port") {
+        Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
+        None => config.proxy().dns_listen.clone(),
+    };
+
+    info!(
+        "Starting Arti {} in SOCKS proxy mode on {} ...",
+        env!("CARGO_PKG_VERSION"),
+        socks_listen
+    );
+
+    process::use_max_file_limit(&config);
+
+    let rt_copy = runtime.clone();
+    rt_copy.block_on(run_proxy(
+        runtime,
+        socks_listen,
+        dns_listen,
+        cfg_sources,
+        config,
+        client_config,
+    ))?;
+
+    Ok(())
 }
 
 /// Run the main loop of the proxy.

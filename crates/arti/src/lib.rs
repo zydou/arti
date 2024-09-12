@@ -105,8 +105,8 @@ use arti_client::config::default_config_files;
 use arti_client::TorClient;
 use safelog::with_safe_logging_suppressed;
 use tor_config::mistrust::BuilderExt as _;
-use tor_config::{ConfigurationSources, Listen};
-use tor_rtcompat::{BlockOn, Runtime};
+use tor_config::ConfigurationSources;
+use tor_rtcompat::Runtime;
 
 use anyhow::{Context, Error, Result};
 use clap::{value_parser, Arg, ArgAction, Command};
@@ -417,39 +417,10 @@ where
         }
     }
 
-    // Match the non optional subcommands that is the one that are always built in.
+    // Check for the "proxy" subcommand.
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
-        // Override configured SOCKS and DNS listen addresses from the command line.
-        // This implies listening on localhost ports.
-        let socks_listen = match proxy_matches.get_one::<String>("socks-port") {
-            Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
-            None => config.proxy().socks_listen.clone(),
-        };
-
-        let dns_listen = match proxy_matches.get_one::<String>("dns-port") {
-            Some(p) => Listen::new_localhost(p.parse().expect("Invalid port specified")),
-            None => config.proxy().dns_listen.clone(),
-        };
-
-        info!(
-            "Starting Arti {} in SOCKS proxy mode on {} ...",
-            env!("CARGO_PKG_VERSION"),
-            socks_listen
-        );
-
-        process::use_max_file_limit(&config);
-
-        let rt_copy = runtime.clone();
-        rt_copy.block_on(run(
-            runtime,
-            socks_listen,
-            dns_listen,
-            cfg_sources,
-            config,
-            client_config,
-        ))?;
-        return Ok(());
-    };
+        return subcommands::proxy::run(runtime, proxy_matches, cfg_sources, config, client_config);
+    }
 
     // Check for the optional "hss" subcommand.
     cfg_if::cfg_if! {
