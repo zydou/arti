@@ -712,7 +712,12 @@ pub(crate) mod test {
         let existing_hsid_keypair = HsIdKeypair::from(existing_keypair);
 
         keymgr
-            .insert(existing_hsid_keypair, &hsid_spec, KeystoreSelector::Default)
+            .insert(
+                existing_hsid_keypair,
+                &hsid_spec,
+                KeystoreSelector::Default,
+                true,
+            )
             .unwrap();
 
         maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
@@ -753,12 +758,12 @@ pub(crate) mod test {
         let (_hsid_keypair, hsid_public) = create_hsid();
 
         keymgr
-            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default)
+            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default, true)
             .unwrap();
 
         // Insert a mismatched public key
         keymgr
-            .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Default)
+            .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Default, true)
             .unwrap();
 
         assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).is_err());
@@ -775,7 +780,7 @@ pub(crate) mod test {
 
         // Insert the hsid into the keystore
         keymgr
-            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default)
+            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default, true)
             .unwrap();
 
         let config = OnionServiceConfigBuilder::default()

@@ -1887,7 +1887,7 @@ pub(super) fn read_blind_id_keypair(
             // (KeyMgr::generate uses the tor_keymgr::Keygen trait under the hood,
             // which assumes keys are randomly generated, rather than derived from existing keys).
 
-            keymgr.insert(hs_blind_id_kp, &blind_id_key_spec, keystore_selector)?;
+            keymgr.insert(hs_blind_id_kp, &blind_id_key_spec, keystore_selector, true)?;
 
             let arti_path = |spec: &dyn KeySpecifier| {
                 spec.arti_path()
