@@ -441,13 +441,6 @@
 #        ["*", "destroy"]
 #    ]
 
-# Whether to run an _anonymous_ onion service, or non-anonymous service
-# (also called a "single onion service"). Anonymity is the default.
-# In order to run a non-anonymous service, set this value to the
-# string "not_anonymous".
-#
-#    anonymity = true
-
 # Number of introduction points to establish and advertise.
 #
 #    num_intro_points = 3
