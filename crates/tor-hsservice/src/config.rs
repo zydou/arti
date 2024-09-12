@@ -63,7 +63,6 @@ pub struct OnionServiceConfig {
     #[deftly(publisher_view)]
     #[getter(as_mut)]
     pub(crate) restricted_discovery: RestrictedDiscoveryConfig,
-
     // TODO(#727): add support for single onion services
     //
     // TODO: Perhaps this belongs at a higher level.  Perhaps we don't need it
@@ -76,7 +75,6 @@ pub struct OnionServiceConfig {
     // #[builder(default)]
     // #[deftly(publisher_view)]
     // pub(crate) anonymity: crate::Anonymity,
-
 
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
     // /// If true, we will require proof-of-work when we're under heavy load.
