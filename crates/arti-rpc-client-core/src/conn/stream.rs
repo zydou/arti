@@ -268,6 +268,7 @@ fn negotiate_socks(
     password: &str,
 ) -> Result<(), StreamError> {
     use tor_socksproto::{
+        Handshake as _,
         SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksHostname, SocksRequest,
         SocksStatus, SocksVersion, SOCKS_BUF_LEN,
     };

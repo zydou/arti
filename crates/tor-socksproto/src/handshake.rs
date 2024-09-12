@@ -105,6 +105,7 @@ mod test_roundtrip {
     //! <!-- @@ end test lint list
 
     use crate::{
+        Handshake as _,
         SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus, SocksVersion,
     };
 

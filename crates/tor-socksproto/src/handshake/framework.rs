@@ -34,6 +34,7 @@ define_derive_deftly! {
     ///
     /// # Generates
     ///
+    ///  * Implementation of `HasHandshake`
     ///  * Implementation of `HasHandshakeState`
     //
     // An alternative would be to have a each handwhake contain an enum
@@ -46,6 +47,9 @@ define_derive_deftly! {
         fn set_failed(&mut self) {
             self.state = State::Failed {};
         }
+    }
+
+    impl $crate::handshake::framework::Handshake for $ttype {
     }
 }
 #[allow(unused_imports)] // false positives, rust#130570, see also derive-deftly #117
@@ -72,11 +76,24 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
     /// (For example,. `Error::Decode(tor_bytes::Error::Incomplete)`
     /// if the message was incomplete and reading more data would help.)
     fn handshake_impl(&mut self, r: &mut tor_bytes::Reader<'_>) -> crate::Result<Action>;
+}
 
-    /// Perform a handshake, as expected by callers, given, the implementation
+/// Handshake
+#[allow(private_bounds)] // This is a sealed trait, that's expected
+pub trait Handshake: HandshakeImpl {
+    /// Try to advance the handshake, given some peer input in
+    /// `input`.
     ///
-    /// Does necessary preparation, calls `handshake_impl`, and deals with the return value.
-    fn run_handshake(&mut self, input: &[u8]) -> crate::TResult<Action> {
+    /// If there isn't enough input, gives a [`Truncated`].
+    /// In this case, *the caller must retain the input*, and pass it to a later
+    /// invocation of `handshake`.  Input should only be regarded as consumed when
+    /// the `Action::drain` field is nonzero.
+    ///
+    /// Other errors (besides `Truncated`) indicate a failure.
+    ///
+    /// On success, return an Action describing what to tell the peer,
+    /// and how much of its input to consume.
+    fn handshake(&mut self, input: &[u8]) -> crate::TResult<Action> {
         let mut r = Reader::from_possibly_incomplete_slice(input);
         let rv = self.handshake_impl(&mut r);
         match rv {

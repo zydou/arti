@@ -3,7 +3,7 @@
 use super::framework::HandshakeImpl;
 use super::Action;
 use crate::msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
-use crate::{Error, Result, TResult};
+use crate::{Error, Result};
 
 use tor_bytes::{EncodeResult, Error as BytesError};
 use tor_bytes::{Reader, Writer};
@@ -15,8 +15,8 @@ use std::net::IpAddr;
 
 /// The Proxy (responder) side of an ongoing SOCKS handshake.
 ///
-/// To perform a handshake, call the [SocksProxyHandshake::handshake]
-/// method repeatedly with new inputs, until the resulting [Action]
+/// To perform a handshake, call the [`Handshake::handshake`](crate::Handshake::handshake)
+/// method repeatedly with new inputs, until the resulting [`Action`]
 /// has `finished` set to true.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Handshake)]
@@ -60,22 +60,6 @@ impl SocksProxyHandshake {
             socks5_auth: None,
             handshake: None,
         }
-    }
-
-    /// Try to advance the handshake, given some peer input in
-    /// `input`.
-    ///
-    /// If there isn't enough input, gives a [`Truncated`].
-    /// In this case, *the caller must retain the input*, and pass it to a later
-    /// invocation of `handshake`.  Input should only be regarded as consumed when
-    /// the `Action::drain` field is nonzero.
-    ///
-    /// Other errors (besides `Truncated`) indicate a failure.
-    ///
-    /// On success, return an Action describing what to tell the peer,
-    /// and how much of its input to consume.
-    pub fn handshake(&mut self, input: &[u8]) -> TResult<Action> {
-        self.run_handshake(input)
     }
 }
 
@@ -309,7 +293,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::Truncated;
+    use crate::{Handshake as _, Truncated};
     use hex_literal::hex;
 
     #[test]
