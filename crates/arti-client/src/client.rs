@@ -243,23 +243,7 @@ impl InertTorClient {
     /// Generate a service discovery keypair for connecting to a hidden service running in
     /// "restricted discovery" mode.
     ///
-    /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
-    /// have configured this `TorClient` with a non-default keystore and wish to generate the
-    /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
-    /// specifying the keystore ID of your keystore.
-    ///
-    // Note: the selector argument exists for future-proofing reasons. We don't currently support
-    // configuring custom or non-default keystores (see #1106).
-    ///
-    /// Returns an error if the key already exists in the specified key store.
-    ///
-    /// Important: the public part of the generated keypair must be shared with the service, and
-    /// the service needs to be configured to allow the owner of its private counterpart to
-    /// discover its introduction points. The caller is responsible for sharing the public part of
-    /// the key with the hidden service.
-    ///
-    /// This function does not require the `TorClient` to be running or bootstrapped.
+    /// See [`TorClient::generate_service_discovery_key`].
     //
     // TODO: decide whether this should use get_or_generate before making it
     // non-experimental
@@ -299,22 +283,7 @@ impl InertTorClient {
     /// Insert a service discovery secret key for connecting to a hidden service running in
     /// "restricted discovery" mode
     ///
-    /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
-    /// have configured this `TorClient` with a non-default keystore and wish to insert the
-    /// key in it, you can do so by calling this function with a [KeystoreSelector::Id]
-    ///
-    /// Note: the selector argument exists for future-proofing reasons. We don't currently support
-    // configuring custom or non-default keystores (see #1106).
-    ///
-    /// Returns an error if the key already exists in the specified key store.
-    ///
-    /// Important: the public part of the generated keypair must be shared with the service, and
-    /// the service needs to be configured to allow the owner of its private counterpart to
-    /// discover its introduction points. The caller is responsible for sharing the public part of
-    /// the key with the hidden service.
-    ///
-    /// This function does not require the `TorClient` to be running or bootstrapped.
+    /// See [`TorClient::insert_service_discovery_key`].
     #[cfg(all(
         feature = "onion-service-client",
         feature = "experimental-api",
@@ -350,9 +319,7 @@ impl InertTorClient {
 
     /// Return the service discovery public key for the service with the specified `hsid`.
     ///
-    /// Returns `Ok(None)` if no such key exists.
-    ///
-    /// This function does not require the `TorClient` to be running or bootstrapped.
+    /// See [`TorClient::get_service_discovery_key`].
     #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
     #[cfg_attr(
         docsrs,
@@ -377,12 +344,7 @@ impl InertTorClient {
 
     /// Removes the service discovery keypair for the service with the specified `hsid`.
     ///
-    /// Returns an error if the selected keystore is not the default keystore or one of the
-    /// configured secondary stores.
-    ///
-    /// Returns `Ok(None)` if no such keypair exists whereas `Ok(Some()) means the keypair was successfully removed.
-    ///
-    /// Returns `Err` if an error occurred while trying to remove the key.
+    /// See [`TorClient::remove_service_discovery_key`].
     #[cfg(all(
         feature = "onion-service-client",
         feature = "experimental-api",
@@ -1687,7 +1649,7 @@ impl<R: Runtime> TorClient<R> {
     /// have configured this `TorClient` with a non-default keystore and wish to insert the
     /// key in it, you can do so by calling this function with a [KeystoreSelector::Id]
     ///
-    /// Note: the selector argument exists for future-proofing reasons. We don't currently support
+    // Note: the selector argument exists for future-proofing reasons. We don't currently support
     // configuring custom or non-default keystores (see #1106).
     ///
     /// Returns an error if the key already exists in the specified key store.
