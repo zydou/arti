@@ -1582,7 +1582,24 @@ mod test {
                     problem: "called with no plan".to_string(),
                 });
             }
-            let supported_circ_usage = target_to_spec(spec);
+            let supported_circ_usage = match spec {
+                TargetCircUsage::Exit {
+                    ports,
+                    isolation,
+                    country_code,
+                    require_stability,
+                } => SupportedCircUsage::Exit {
+                    policy: ExitPolicy::from_target_ports(&TargetPorts::from(&ports[..])),
+                    isolation: if isolation.isol_eq(&StreamIsolation::no_isolation()) {
+                        None
+                    } else {
+                        Some(isolation.clone())
+                    },
+                    country_code: country_code.clone(),
+                    all_relays_stable: *require_stability,
+                },
+                _ => unimplemented!(),
+            };
             let plan = FakePlan {
                 spec: supported_circ_usage.clone(),
                 op: next_op,
@@ -2294,5 +2311,42 @@ mod test {
             ),
             vec![&mut entry_web_c, &mut entry_full_c]
         );
+    }
+
+    #[test]
+    fn test_circlist_preemptive_target_circs() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let rt = MockSleepRuntime::new(rt);
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let dirinfo = DirInfo::Directory(&netdir);
+
+            let builder = FakeBuilder::new(&rt);
+
+            for circs in [2, 8].iter() {
+                let mut circlist = CircList::<FakeBuilder<tor_rtmock::MockRuntime>>::new();
+
+                let preemptive_target = TargetCircUsage::Preemptive {
+                    port: Some(TargetPort::ipv4(80)),
+                    circs: *circs,
+                    require_stability: false,
+                };
+
+                for _ in 0..*circs {
+                    assert!(circlist.find_open(&preemptive_target).is_none());
+
+                    let usage = TargetCircUsage::new_from_ipv4_ports(&[80]);
+                    let (plan, _) = builder.plan_circuit(&usage, dirinfo).unwrap();
+                    let (spec, circ) = rt.wait_for(builder.build_circuit(plan)).await.unwrap();
+                    let entry = OpenEntry::new(
+                        spec,
+                        circ,
+                        ExpirationInfo::new(rt.now() + Duration::from_secs(60)),
+                    );
+                    circlist.add_open(entry);
+                }
+
+                assert!(circlist.find_open(&preemptive_target).is_some());
+            }
+        });
     }
 }
