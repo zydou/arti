@@ -62,7 +62,7 @@ impl SocksProxyHandshake {
         }
     }
 
-    /// Try to advance a SocksProxyHandshake, given some client input in
+    /// Try to advance the handshake, given some peer input in
     /// `input`.
     ///
     /// If there isn't enough input, gives a [`Truncated`].
@@ -72,7 +72,7 @@ impl SocksProxyHandshake {
     ///
     /// Other errors (besides `Truncated`) indicate a failure.
     ///
-    /// On success, return an Action describing what to tell the client,
+    /// On success, return an Action describing what to tell the peer,
     /// and how much of its input to consume.
     pub fn handshake(&mut self, input: &[u8]) -> TResult<Action> {
         self.run_handshake(input)

@@ -64,7 +64,7 @@ impl SocksClientHandshake {
         self.reply
     }
 
-    /// Try to advance a SocksProxyHandshake, given some proxy input in
+    /// Try to advance the handshake, given some peer input in
     /// `input`.
     ///
     /// If there isn't enough input, gives a [`Truncated`](crate::Truncated).
@@ -74,7 +74,7 @@ impl SocksClientHandshake {
     ///
     /// Other errors (besides `Truncated`) indicate a failure.
     ///
-    /// On success, return an Action describing what to tell the proxy,
+    /// On success, return an Action describing what to tell the peer,
     /// and how much of its input to consume.
     pub fn handshake(&mut self, input: &[u8]) -> TResult<Action> {
         self.run_handshake(input)
