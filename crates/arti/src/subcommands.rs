@@ -9,3 +9,5 @@ pub(crate) mod hss;
     feature = "keymgr"
 ))]
 pub(crate) mod hsc;
+
+pub(crate) mod proxy;
