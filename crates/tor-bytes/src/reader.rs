@@ -338,21 +338,22 @@ impl<'a> Reader<'a> {
     /// # Result::Ok(())
     /// ```
     pub fn take_all_but(&mut self, n: usize) -> Result<&'a [u8]> {
-        if matches!(self.completeness, Completeness::PossiblyIncomplete) {
-            return Err(Error::Bug(bad_api_usage!(
-                "Called take_all_but on a PossiblyIncomplete reader."
-            )));
+        match self.completeness {
+            Completeness::PossiblyIncomplete => {
+                return Err(Error::Bug(bad_api_usage!(
+                    "Called take_all_but on a PossiblyIncomplete reader."
+                )))
+            }
+            Completeness::SupposedlyComplete => {}
         }
 
-        if let Some(n_to_take) = self.remaining().checked_sub(n) {
-            let result = self
-                .take(n_to_take)
-                .map_err(into_internal!("Subtraction misled us somehow"))?;
-            debug_assert_eq!(self.remaining(), n);
-            Ok(result)
-        } else {
-            Err(Error::MissingData)
-        }
+        let n_to_take = self.remaining().checked_sub(n).ok_or(Error::MissingData)?;
+
+        let result = self
+            .take(n_to_take)
+            .map_err(into_internal!("Subtraction misled us somehow"))?;
+        debug_assert_eq!(self.remaining(), n);
+        Ok(result)
     }
 
     /// Try to decode and remove a Readable from this reader, using its
