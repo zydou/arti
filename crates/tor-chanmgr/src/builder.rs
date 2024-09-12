@@ -3,7 +3,7 @@
 use std::io;
 use std::sync::{Arc, Mutex};
 
-use crate::factory::{BootstrapReporter, ChannelFactory};
+use crate::factory::{BootstrapReporter, ChannelFactory, IncomingChannelFactory};
 use crate::transport::TransportImplHelper;
 use crate::{event::ChanMgrEventSender, Error};
 
@@ -81,6 +81,37 @@ where
             .map_err(|_| Error::ChanTimeout {
                 peer: target.to_logged(),
             })?
+    }
+}
+
+#[async_trait]
+impl<R: Runtime, H: TransportImplHelper> IncomingChannelFactory for ChanBuilder<R, H>
+where
+    R: tor_rtcompat::TlsProvider<H::Stream> + Send + Sync,
+    H: Send + Sync,
+{
+    type Stream = H::Stream;
+
+    #[cfg(feature = "relay")]
+    async fn accept_from_transport(
+        &self,
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
+    ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
+        let map_ioe = |ioe, action| Error::Io {
+            action,
+            peer: Some(BridgeAddr::new_addr_from_sockaddr(peer).into()),
+            source: ioe,
+        };
+
+        let _tls = self
+            .tls_connector
+            .negotiate_unvalidated(stream, "ignored")
+            .await
+            .map_err(|e| map_ioe(e.into(), "TLS negotiation"))?;
+
+        // TODO RELAY: do handshake and build channel
+        todo!();
     }
 }
 

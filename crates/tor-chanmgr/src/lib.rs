@@ -110,10 +110,14 @@ pub struct ChanMgr<R: Runtime> {
     ///     built using [`transport::proxied::ExternalProxyPlugin`], which implements
     ///     [`transport::TransportImplHelper`], which in turn is wrapped into a
     ///     `ChanBuilder` to implement `ChannelFactory`.
-    ///   * A `dyn` [`factory::ChannelFactory`] that it uses for everything else
+    ///   * A generic [`factory::ChannelFactory`] that it uses for everything else
     ///     We instantiate this with a
     ///     [`builder::ChanBuilder`] using a [`transport::default::DefaultTransport`].
-    mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
+    // This type is a bit long, but I think it's better to just state it here explicitly rather than
+    // hiding parts of it behind a type alias to make it look nicer.
+    mgr: mgr::AbstractChanMgr<
+        factory::CompoundFactory<builder::ChanBuilder<R, transport::DefaultTransport<R>>>,
+    >,
 
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,
@@ -238,6 +242,19 @@ impl<R: Runtime> ChanMgr<R> {
             ))
             .map_err(|e| Error::from_spawn("channel expiration task", e))?;
         Ok(vec![handle])
+    }
+
+    /// Build a channel for an incoming stream. The channel may or may not be authenticated. This
+    /// method will wait until the channel is usable, and may return an error if we already have an
+    /// existing channel to this peer, or if there are already too many open connections with this
+    /// peer or subnet (as a dos defence).
+    #[cfg(feature = "relay")]
+    pub async fn handle_incoming(
+        &self,
+        src: std::net::SocketAddr,
+        stream: <R as tor_rtcompat::TcpProvider>::TcpStream,
+    ) -> Result<Arc<Channel>> {
+        self.mgr.handle_incoming(src, stream).await
     }
 
     /// Try to get a suitable channel to the provided `target`,

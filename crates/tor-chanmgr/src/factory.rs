@@ -59,35 +59,33 @@ pub trait ChannelFactory: Send + Sync {
     ) -> crate::Result<Arc<Channel>>;
 }
 
+/// Similar to [`ChannelFactory`], but for building channels from incoming streams.
+// This is a separate trait since for some `ChannelFactory`s like the one returned from
+// `tor_ptmgr::PtMgr::factory_for_transport`, it doesn't make sense to deal with incoming streams
+// (all PT connections are outgoing).
 #[async_trait]
-impl<'a> ChannelFactory for Arc<(dyn ChannelFactory + Send + Sync + 'a)> {
-    async fn connect_via_transport(
-        &self,
-        target: &OwnedChanTarget,
-        reporter: BootstrapReporter,
-    ) -> crate::Result<Arc<Channel>> {
-        self.as_ref().connect_via_transport(target, reporter).await
-    }
-}
+pub trait IncomingChannelFactory: Send + Sync {
+    /// The type of byte stream that's required to build channels for incoming connections.
+    type Stream: Send + Sync + 'static;
 
-#[async_trait]
-impl<'a> ChannelFactory for Box<(dyn ChannelFactory + Send + Sync + 'a)> {
-    async fn connect_via_transport(
+    /// Open a channel from `peer` with the given `stream`. The channel may or may not be
+    /// authenticated.
+    #[cfg(feature = "relay")]
+    async fn accept_from_transport(
         &self,
-        target: &OwnedChanTarget,
-        reporter: BootstrapReporter,
-    ) -> crate::Result<Arc<Channel>> {
-        self.as_ref().connect_via_transport(target, reporter).await
-    }
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
+    ) -> crate::Result<Arc<Channel>>;
 }
 
 #[async_trait]
 impl<CF> crate::mgr::AbstractChannelFactory for CF
 where
-    CF: ChannelFactory + Sync,
+    CF: ChannelFactory + IncomingChannelFactory + Sync,
 {
     type Channel = tor_proto::channel::Channel;
     type BuildSpec = OwnedChanTarget;
+    type Stream = CF::Stream;
 
     async fn build_channel(
         &self,
@@ -96,6 +94,16 @@ where
     ) -> crate::Result<Arc<Self::Channel>> {
         debug!("Attempting to open a new channel to {target}");
         self.connect_via_transport(target, reporter).await
+    }
+
+    #[cfg(feature = "relay")]
+    async fn build_channel_using_incoming(
+        &self,
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
+    ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
+        debug!("Attempting to open a new channel from {peer}");
+        self.accept_from_transport(peer, stream).await
     }
 }
 
@@ -136,17 +144,26 @@ where
 
 /// A ChannelFactory built from an optional PtMgr to use for pluggable transports, and a
 /// ChannelFactory to use for everything else.
-#[derive(Clone)]
-pub(crate) struct CompoundFactory {
+pub(crate) struct CompoundFactory<CF> {
     #[cfg(feature = "pt-client")]
     /// The PtMgr to use for pluggable transports
     ptmgr: Option<Arc<dyn AbstractPtMgr + 'static>>,
     /// The factory to use for everything else
-    default_factory: Arc<dyn ChannelFactory + 'static>,
+    default_factory: Arc<CF>,
+}
+
+impl<CF> Clone for CompoundFactory<CF> {
+    fn clone(&self) -> Self {
+        Self {
+            #[cfg(feature = "pt-client")]
+            ptmgr: self.ptmgr.as_ref().map(Arc::clone),
+            default_factory: Arc::clone(&self.default_factory),
+        }
+    }
 }
 
 #[async_trait]
-impl ChannelFactory for CompoundFactory {
+impl<CF: ChannelFactory> ChannelFactory for CompoundFactory<CF> {
     async fn connect_via_transport(
         &self,
         target: &OwnedChanTarget,
@@ -176,11 +193,27 @@ impl ChannelFactory for CompoundFactory {
     }
 }
 
-impl CompoundFactory {
+#[async_trait]
+impl<CF: IncomingChannelFactory> IncomingChannelFactory for CompoundFactory<CF> {
+    type Stream = CF::Stream;
+
+    #[cfg(feature = "relay")]
+    async fn accept_from_transport(
+        &self,
+        peer: std::net::SocketAddr,
+        stream: Self::Stream,
+    ) -> crate::Result<Arc<Channel>> {
+        self.default_factory
+            .accept_from_transport(peer, stream)
+            .await
+    }
+}
+
+impl<CF: ChannelFactory + 'static> CompoundFactory<CF> {
     /// Create a new `Factory` that will try to use `ptmgr` to handle pluggable
     /// transports requests, and `default_factory` to handle everything else.
     pub(crate) fn new(
-        default_factory: Arc<dyn ChannelFactory + 'static>,
+        default_factory: Arc<CF>,
         #[cfg(feature = "pt-client")] ptmgr: Option<Arc<dyn AbstractPtMgr + 'static>>,
     ) -> Self {
         Self {
