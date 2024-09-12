@@ -20,12 +20,12 @@ use crate::{
 };
 
 mod auth;
-mod connect;
 mod connimpl;
+mod stream;
 
 use crate::util::Utf8CString;
-pub use connect::StreamError;
 pub use connimpl::RpcConn;
+pub use stream::StreamError;
 
 /// A handle to an open request.
 ///
