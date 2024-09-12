@@ -100,7 +100,7 @@ impl Body for Padding {
     }
 }
 impl Readable for Padding {
-    fn take_from(_r: &mut Reader<'_>) -> Result<Self> {
+    fn take_from(_b: &mut Reader<'_>) -> Result<Self> {
         Ok(Padding {})
     }
 }
@@ -126,14 +126,14 @@ impl Body for Vpadding {
     }
 }
 impl Readable for Vpadding {
-    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        if r.remaining() > u16::MAX as usize {
+    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+        if b.remaining() > u16::MAX as usize {
             return Err(Error::InvalidMessage(
                 "Too many bytes in VPADDING cell".into(),
             ));
         }
         Ok(Vpadding {
-            len: r.remaining() as u16,
+            len: b.remaining() as u16,
         })
     }
 }
@@ -166,9 +166,9 @@ macro_rules! fixed_len_handshake {
             }
         }
         impl Readable for $name {
-            fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+            fn take_from(b: &mut Reader<'_>) -> Result<Self> {
                 Ok($name {
-                    handshake: r.take($len)?.into(),
+                    handshake: b.take($len)?.into(),
                 })
             }
         }
@@ -282,10 +282,10 @@ impl Body for Create2 {
     }
 }
 impl Readable for Create2 {
-    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        let handshake_type = HandshakeType::from(r.take_u16()?);
-        let hlen = r.take_u16()?;
-        let handshake = r.take(hlen as usize)?.into();
+    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+        let handshake_type = HandshakeType::from(b.take_u16()?);
+        let hlen = b.take_u16()?;
+        let handshake = b.take(hlen as usize)?.into();
         Ok(Create2 {
             handshake_type,
             handshake,
@@ -352,9 +352,9 @@ impl Body for Created2 {
     }
 }
 impl Readable for Created2 {
-    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        let hlen = r.take_u16()?;
-        let handshake = r.take(hlen as usize)?.into();
+    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+        let hlen = b.take_u16()?;
+        let handshake = b.take(hlen as usize)?.into();
         Ok(Created2 { handshake })
     }
 }
@@ -418,9 +418,9 @@ impl Body for Relay {
     }
 }
 impl Readable for Relay {
-    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
         let mut body = Box::new([0_u8; CELL_DATA_LEN]);
-        body.copy_from_slice(r.take(CELL_DATA_LEN)?);
+        body.copy_from_slice(b.take(CELL_DATA_LEN)?);
         Ok(Relay { body })
     }
 }

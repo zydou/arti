@@ -420,8 +420,7 @@ impl UnparsedRelayMsg {
         let (mut msgs, incomplete) = res.into_parts();
         let Some(msg) = msgs.next() else {
             // There was no complete message in the cell.
-            let deficit = 1.try_into().expect("1 == 0"); // underestimate
-            return Err(Error::Truncated { deficit });
+            return Err(Error::MissingData);
         };
         if incomplete.is_some() {
             // There was an incomplete message at the end of the cell.

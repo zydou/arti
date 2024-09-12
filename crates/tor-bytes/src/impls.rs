@@ -142,8 +142,8 @@ mod net_impls {
     }
 
     impl Readable for Ipv4Addr {
-        fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-            Ok(r.take_u32()?.into())
+        fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+            Ok(b.take_u32()?.into())
         }
     }
 
@@ -154,8 +154,8 @@ mod net_impls {
         }
     }
     impl Readable for Ipv6Addr {
-        fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-            Ok(r.take_u128()?.into())
+        fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+            Ok(b.take_u128()?.into())
         }
     }
 }
@@ -280,11 +280,11 @@ mod u8_array_impls {
     }
 
     impl<const N: usize> Readable for [u8; N] {
-        fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+        fn take_from(b: &mut Reader<'_>) -> Result<Self> {
             // note: Conceivably this should use MaybeUninit, but let's
             // avoid that unless there is some measurable benefit.
             let mut array = [0_u8; N];
-            r.take_into(&mut array[..])?;
+            b.take_into(&mut array[..])?;
             Ok(array)
         }
     }
@@ -302,8 +302,8 @@ mod ctbytearray_impls {
     }
 
     impl<const N: usize> Readable for CtByteArray<N> {
-        fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-            Ok(CtByteArray::from(r.extract::<[u8; N]>()?))
+        fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+            Ok(CtByteArray::from(b.extract::<[u8; N]>()?))
         }
     }
 }
@@ -322,10 +322,10 @@ mod tests {
     }
     macro_rules! check_decode {
         ($t:ty, $e:expr, $e2:expr) => {
-            let mut r = Reader::from_slice(&$e[..]);
-            let obj: $t = r.extract().unwrap();
+            let mut b = Reader::from_slice_for_test(&$e[..]);
+            let obj: $t = b.extract().unwrap();
             assert_eq!(obj, $e2);
-            assert!(r.should_be_exhausted().is_ok());
+            assert!(b.should_be_exhausted().is_ok());
         };
     }
     macro_rules! check_roundtrip {
@@ -336,11 +336,11 @@ mod tests {
     }
     macro_rules! check_bad {
         ($t:ty, $e:expr) => {
-            let mut r = Reader::from_slice(&$e[..]);
-            let len_orig = r.remaining();
-            let res: Result<$t, _> = r.extract();
+            let mut b = Reader::from_slice_for_test(&$e[..]);
+            let len_orig = b.remaining();
+            let res: Result<$t, _> = b.extract();
             assert!(res.is_err());
-            assert_eq!(r.remaining(), len_orig);
+            assert_eq!(b.remaining(), len_orig);
         };
     }
     #[test]

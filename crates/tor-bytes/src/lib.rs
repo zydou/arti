@@ -138,13 +138,13 @@ impl<W: Writeable + ?Sized> Writeable for &W {
 /// If `take_from` returns `Err`, it is allowed to have consumed
 /// none, any, or all, of the `Reader`.
 ///
-/// If `take_from` returns `Error::Truncated`:
+/// If `take_from` returns `Error::Incomplete`:
 /// then calling `take_from` again on a similar `Reader`
 /// (ie, where the old reader is a prefix of the new, or vice versa)
 /// must do one of the following:
 ///  * Succeed, consuming at least as many bytes as
 ///    were available in the previous reader plus `deficit`.
-///  * Return `Error::Truncated` with a consistent value of `deficit`.
+///  * Return `Error::Incomplete` with a consistent value of `deficit`.
 ///
 /// If `take_from` fails another way with some reader, it must fail the same way
 /// with all other readers which have that reader as a prefix.

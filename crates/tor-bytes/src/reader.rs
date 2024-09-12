@@ -1,6 +1,7 @@
 //! Internal: Declare the Reader type for tor-bytes
 
 use crate::{Error, Readable, Result};
+use std::num::NonZeroUsize;
 
 /// A type for reading messages from a slice of bytes.
 ///
@@ -18,19 +19,19 @@ use crate::{Error, Readable, Result};
 /// ```
 /// use tor_bytes::{Reader,Result};
 /// let msg = [ 0x00, 0x01, 0x23, 0x45, 0x22, 0x00, 0x00, 0x00 ];
-/// let mut r = Reader::from_slice(&msg[..]);
+/// let mut b = Reader::from_slice(&msg[..]);
 /// // Multi-byte values are always big-endian.
-/// assert_eq!(r.take_u32()?, 0x12345);
-/// assert_eq!(r.take_u8()?, 0x22);
+/// assert_eq!(b.take_u32()?, 0x12345);
+/// assert_eq!(b.take_u8()?, 0x22);
 ///
 /// // You can check on the length of the message...
-/// assert_eq!(r.total_len(), 8);
-/// assert_eq!(r.consumed(), 5);
-/// assert_eq!(r.remaining(), 3);
+/// assert_eq!(b.total_len(), 8);
+/// assert_eq!(b.consumed(), 5);
+/// assert_eq!(b.remaining(), 3);
 /// // then skip over a some bytes...
-/// r.advance(3)?;
+/// b.advance(3)?;
 /// // ... and check that the message is really exhausted.
-/// r.should_be_exhausted()?;
+/// b.should_be_exhausted()?;
 /// # Result::Ok(())
 /// ```
 ///
@@ -39,10 +40,10 @@ use crate::{Error, Readable, Result};
 /// use tor_bytes::{Reader,Result,Readable};
 /// use std::net::Ipv4Addr;
 /// let msg = [ 0x00, 0x04, 0x7f, 0x00, 0x00, 0x01];
-/// let mut r = Reader::from_slice(&msg[..]);
+/// let mut b = Reader::from_slice(&msg[..]);
 ///
-/// let tp: u16 = r.extract()?;
-/// let ip: Ipv4Addr = r.extract()?;
+/// let tp: u16 = b.extract()?;
+/// let ip: Ipv4Addr = b.extract()?;
 /// assert_eq!(tp, 4);
 /// assert_eq!(ip, Ipv4Addr::LOCALHOST);
 /// # Result::Ok(())
@@ -52,12 +53,79 @@ pub struct Reader<'a> {
     b: &'a [u8],
     /// The next position in the slice that we intend to read from.
     off: usize,
+    /// What to do if we run out of data - IOW are we reading a possibly incomplete message
+    completeness: Completeness,
+}
+
+/// Whether we're supposed to have the complete message, or not
+///
+/// IOW are we reading a possibly incomplete message?
+///
+/// Affects the error return if we run out of data
+/// ([`Reader::incomplete_error`]).
+#[derive(Copy, Clone, Debug)]
+enum Completeness {
+    /// We might not have the whole message, and that is expected
+    ///
+    /// Throw [`Error::Incomplete`]
+    PossiblyIncomplete,
+    /// We ought to have the whole message
+    ///
+    /// Throw [`Error::MissingData']
+    SupposedlyComplete,
 }
 
 impl<'a> Reader<'a> {
     /// Construct a new Reader from a slice of bytes.
+    ///
+    /// In tests, prefer [`Reader::from_slice_for_test`].
     pub fn from_slice(slice: &'a [u8]) -> Self {
-        Reader { b: slice, off: 0 }
+        Reader {
+            b: slice,
+            off: 0,
+            completeness: Completeness::SupposedlyComplete,
+        }
+    }
+    /// Construct a new Reader from a slice of bytes which may not be complete.
+    ///
+    /// This can be used to try to deserialise a message received from a protocol stream,
+    /// if we don't know how much data we needed to buffer.
+    ///
+    /// [`Readable`] methods, [`extract`](Reader::extract), and so on,
+    /// will return [`Error::Incomplete`] if the message is incomplete,
+    /// and reading more would help.
+    ///
+    /// (This is achieved via [`incomplete_error`](Reader::incomplete_error.)
+    ///
+    /// # Warning about denial of service through excessive memory use
+    ///
+    /// It is hazardous to use this approach unless the buffer size is limited,
+    /// since the sender could send an apparently-very-large message.
+    ///
+    /// # Warning about sub-readers
+    ///
+    /// If you are constructing other readers from data extracted from this one,
+    /// make sure to use [`Reader::from_slice`] instead of this method!
+    /// This method is only for the outermost reader.
+    ///
+    /// Failure to follow this warning may result in misformed messages
+    /// being incorrectly reported as `Incomplete`.
+    //
+    // TODO this name is quite clumsy!
+    pub fn from_possibly_incomplete_slice(slice: &'a [u8]) -> Self {
+        Reader {
+            b: slice,
+            off: 0,
+            completeness: Completeness::PossiblyIncomplete,
+        }
+    }
+    /// Construct a new Reader from a slice of bytes, in tests
+    ///
+    /// This is equivalent to [`Reader::from_possibly_incomplete_slice`].
+    /// It should be used in test cases, because that gives more precise
+    /// testing of the generation of incomplete data errors.
+    pub fn from_slice_for_test(slice: &'a [u8]) -> Self {
+        Self::from_possibly_incomplete_slice(slice)
     }
     /// Construct a new Reader from a 'Bytes' object.
     pub fn from_bytes(b: &'a bytes::Bytes) -> Self {
@@ -85,7 +153,7 @@ impl<'a> Reader<'a> {
     }
     /// Skip `n` bytes from the reader.
     ///
-    /// Returns Ok on success.  Returns Err(Error::Truncated) if there were
+    /// Returns Ok on success.  Throws MissingData or Incomplete if there were
     /// not enough bytes to skip.
     pub fn advance(&mut self, n: usize) -> Result<()> {
         self.peek(n)?;
@@ -115,13 +183,14 @@ impl<'a> Reader<'a> {
     /// consuming them.
     ///
     /// On success, returns Ok(slice).  If there are fewer than n
-    /// bytes, returns Err(Error::Truncated).
+    /// bytes, Throws MissingData or Incomplete if there were
+    /// not enough bytes to skip.
     pub fn peek(&self, n: usize) -> Result<&'a [u8]> {
         if let Some(deficit) = n
             .checked_sub(self.remaining())
             .and_then(|d| d.try_into().ok())
         {
-            return Err(Error::Truncated { deficit });
+            return Err(self.incomplete_error(deficit));
         }
 
         Ok(&self.b[self.off..(n + self.off)])
@@ -129,17 +198,17 @@ impl<'a> Reader<'a> {
     /// Try to consume and return a slice of `n` bytes from this reader.
     ///
     /// On success, returns Ok(Slice).  If there are fewer than n
-    /// bytes, returns Err(Error::Truncated).
+    /// bytes, Throws MissingData or Incomplete.
     ///
     /// # Example
     /// ```
     /// use tor_bytes::{Reader,Result};
     /// let m = b"Hello World";
-    /// let mut r = Reader::from_slice(m);
-    /// assert_eq!(r.take(5)?, b"Hello");
-    /// assert_eq!(r.take_u8()?, 0x20);
-    /// assert_eq!(r.take(5)?, b"World");
-    /// r.should_be_exhausted()?;
+    /// let mut b = Reader::from_slice(m);
+    /// assert_eq!(b.take(5)?, b"Hello");
+    /// assert_eq!(b.take_u8()?, 0x20);
+    /// assert_eq!(b.take(5)?, b"World");
+    /// b.should_be_exhausted()?;
     /// # Result::Ok(())
     /// ```
     pub fn take(&mut self, n: usize) -> Result<&'a [u8]> {
@@ -160,13 +229,13 @@ impl<'a> Reader<'a> {
     /// let m = b"Hello world";
     /// let mut v1 = vec![0; 5];
     /// let mut v2 = vec![0; 5];
-    /// let mut r = Reader::from_slice(m);
-    /// r.take_into(&mut v1[..])?;
-    /// assert_eq!(r.take_u8()?, b' ');
-    /// r.take_into(&mut v2[..])?;
+    /// let mut b = Reader::from_slice(m);
+    /// b.take_into(&mut v1[..])?;
+    /// assert_eq!(b.take_u8()?, b' ');
+    /// b.take_into(&mut v2[..])?;
     /// assert_eq!(&v1[..], b"Hello");
     /// assert_eq!(&v2[..], b"world");
-    /// r.should_be_exhausted()?;
+    /// b.should_be_exhausted()?;
     /// # tor_bytes::Result::Ok(())
     /// ```
     pub fn take_into(&mut self, buf: &mut [u8]) -> Result<()> {
@@ -208,7 +277,7 @@ impl<'a> Reader<'a> {
     /// encounter a terminating byte equal to `term`.
     ///
     /// On success, returns Ok(Slice), where the slice does not
-    /// include the terminating byte.  Returns Err(Error::Truncated)
+    /// include the terminating byte.  Throws MissingData or Incomplete
     /// if we do not find the terminating bytes.
     ///
     /// Advances the reader to the point immediately after the terminating
@@ -218,18 +287,20 @@ impl<'a> Reader<'a> {
     /// ```
     /// use tor_bytes::{Reader,Result};
     /// let m = b"Hello\0wrld";
-    /// let mut r = Reader::from_slice(m);
-    /// assert_eq!(r.take_until(0)?, b"Hello");
-    /// assert_eq!(r.into_rest(), b"wrld");
+    /// let mut b = Reader::from_slice(m);
+    /// assert_eq!(b.take_until(0)?, b"Hello");
+    /// assert_eq!(b.into_rest(), b"wrld");
     /// # Result::Ok(())
     /// ```
     pub fn take_until(&mut self, term: u8) -> Result<&'a [u8]> {
-        let pos = self.b[self.off..]
-            .iter()
-            .position(|b| *b == term)
-            .ok_or(Error::Truncated {
-                deficit: 1.try_into().expect("1 == 0"),
-            })?;
+        let pos =
+            self.b[self.off..]
+                .iter()
+                .position(|b| *b == term)
+                .ok_or(self.incomplete_error(
+                    //
+                    1.try_into().expect("1 == 0"),
+                ))?;
         let result = self.take(pos)?;
         self.advance(1)?;
         Ok(result)
@@ -368,6 +439,23 @@ impl<'a> Reader<'a> {
             &self.b[..0]
         }
     }
+
+    /// Returns the error that should be returned if we ran out of data
+    ///
+    /// For a usual `Reader` this is [`Error::MissingData`].
+    /// For a reader from
+    /// [`Reader::from_possibly_incomplete_slice`]
+    /// it's [`Error::Incomplete`].
+    pub fn incomplete_error(&self, deficit: NonZeroUsize) -> Error {
+        use Completeness as C;
+        use Error as E;
+        match self.completeness {
+            C::PossiblyIncomplete => E::Incomplete {
+                deficit: deficit.into(),
+            },
+            C::SupposedlyComplete => E::MissingData,
+        }
+    }
 }
 
 /// A reference to a position within a [`Reader`].
@@ -381,14 +469,14 @@ pub struct Cursor<'a> {
 }
 
 /// Implementation of `read_nested_*` -- generic
-fn read_nested_generic<L, F, T>(r: &mut Reader, f: F) -> Result<T>
+fn read_nested_generic<L, F, T>(b: &mut Reader, f: F) -> Result<T>
 where
     F: FnOnce(&mut Reader) -> Result<T>,
     L: Readable + Copy + Sized + TryInto<usize>,
 {
-    let length: L = r.extract()?;
+    let length: L = b.extract()?;
     let length: usize = length.try_into().map_err(|_| Error::BadLengthValue)?;
-    let slice = r.take(length)?;
+    let slice = b.take(length)?;
     let mut inner = Reader::from_slice(slice);
     let out = f(&mut inner)?;
     inner.should_be_exhausted()?;
@@ -451,46 +539,46 @@ mod tests {
     #[test]
     fn read_u128() {
         let bytes = bytes::Bytes::from(&b"irreproducibility?"[..]); // 18 bytes
-        let mut r = Reader::from_bytes(&bytes);
+        let mut b = Reader::from_bytes(&bytes);
 
-        assert_eq!(r.take_u8().unwrap(), b'i');
-        assert_eq!(r.take_u128().unwrap(), 0x72726570726f6475636962696c697479);
-        assert_eq!(r.remaining(), 1);
+        assert_eq!(b.take_u8().unwrap(), b'i');
+        assert_eq!(b.take_u128().unwrap(), 0x72726570726f6475636962696c697479);
+        assert_eq!(b.remaining(), 1);
     }
 
     #[test]
     fn bytecursor_read_missing() {
         let bytes = b"1234567";
-        let mut bc = Reader::from_slice(&bytes[..]);
+        let mut bc = Reader::from_slice_for_test(&bytes[..]);
 
         assert_eq!(bc.consumed(), 0);
         assert_eq!(bc.remaining(), 7);
         assert_eq!(bc.total_len(), 7);
 
-        assert_eq!(bc.take_u64(), Err(Error::new_truncated_for_test(1)));
-        assert_eq!(bc.take(8), Err(Error::new_truncated_for_test(1)));
-        assert_eq!(bc.peek(8), Err(Error::new_truncated_for_test(1)));
+        assert_eq!(bc.take_u64(), Err(Error::new_incomplete_for_test(1)));
+        assert_eq!(bc.take(8), Err(Error::new_incomplete_for_test(1)));
+        assert_eq!(bc.peek(8), Err(Error::new_incomplete_for_test(1)));
 
         assert_eq!(bc.consumed(), 0);
         assert_eq!(bc.remaining(), 7);
         assert_eq!(bc.total_len(), 7);
 
         assert_eq!(bc.take_u32().unwrap(), 0x31323334); // get 4 bytes. 3 left.
-        assert_eq!(bc.take_u32(), Err(Error::new_truncated_for_test(1)));
+        assert_eq!(bc.take_u32(), Err(Error::new_incomplete_for_test(1)));
 
         assert_eq!(bc.consumed(), 4);
         assert_eq!(bc.remaining(), 3);
         assert_eq!(bc.total_len(), 7);
 
         assert_eq!(bc.take_u16().unwrap(), 0x3536); // get 2 bytes. 1 left.
-        assert_eq!(bc.take_u16(), Err(Error::new_truncated_for_test(1)));
+        assert_eq!(bc.take_u16(), Err(Error::new_incomplete_for_test(1)));
 
         assert_eq!(bc.consumed(), 6);
         assert_eq!(bc.remaining(), 1);
         assert_eq!(bc.total_len(), 7);
 
         assert_eq!(bc.take_u8().unwrap(), 0x37); // get 1 byte. 0 left.
-        assert_eq!(bc.take_u8(), Err(Error::new_truncated_for_test(1)));
+        assert_eq!(bc.take_u8(), Err(Error::new_incomplete_for_test(1)));
 
         assert_eq!(bc.consumed(), 7);
         assert_eq!(bc.remaining(), 0);
@@ -500,102 +588,119 @@ mod tests {
     #[test]
     fn advance_too_far() {
         let bytes = b"12345";
-        let mut r = Reader::from_slice(&bytes[..]);
-        assert_eq!(r.remaining(), 5);
-        assert_eq!(r.advance(16), Err(Error::new_truncated_for_test(11)));
-        assert_eq!(r.remaining(), 5);
-        assert_eq!(r.advance(5), Ok(()));
-        assert_eq!(r.remaining(), 0);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
+        assert_eq!(b.remaining(), 5);
+        assert_eq!(b.advance(16), Err(Error::new_incomplete_for_test(11)));
+        assert_eq!(b.remaining(), 5);
+        assert_eq!(b.advance(5), Ok(()));
+        assert_eq!(b.remaining(), 0);
     }
 
     #[test]
     fn truncate() {
         let bytes = b"Hello universe!!!1!";
-        let mut r = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
 
-        assert_eq!(r.take(5).unwrap(), &b"Hello"[..]);
-        assert_eq!(r.remaining(), 14);
-        assert_eq!(r.consumed(), 5);
-        r.truncate(9);
-        assert_eq!(r.remaining(), 9);
-        assert_eq!(r.consumed(), 5);
-        assert_eq!(r.take_u8().unwrap(), 0x20);
-        assert_eq!(r.into_rest(), &b"universe"[..]);
+        assert_eq!(b.take(5).unwrap(), &b"Hello"[..]);
+        assert_eq!(b.remaining(), 14);
+        assert_eq!(b.consumed(), 5);
+        b.truncate(9);
+        assert_eq!(b.remaining(), 9);
+        assert_eq!(b.consumed(), 5);
+        assert_eq!(b.take_u8().unwrap(), 0x20);
+        assert_eq!(b.into_rest(), &b"universe"[..]);
     }
 
     #[test]
     fn exhaust() {
-        let r = Reader::from_slice(&b""[..]);
-        assert_eq!(r.should_be_exhausted(), Ok(()));
+        let b = Reader::from_slice_for_test(&b""[..]);
+        assert_eq!(b.should_be_exhausted(), Ok(()));
 
-        let mut r = Reader::from_slice(&b"outis"[..]);
-        assert_eq!(r.should_be_exhausted(), Err(Error::ExtraneousBytes));
-        r.take(4).unwrap();
-        assert_eq!(r.should_be_exhausted(), Err(Error::ExtraneousBytes));
-        r.take(1).unwrap();
-        assert_eq!(r.should_be_exhausted(), Ok(()));
+        let mut b = Reader::from_slice_for_test(&b"outis"[..]);
+        assert_eq!(b.should_be_exhausted(), Err(Error::ExtraneousBytes));
+        b.take(4).unwrap();
+        assert_eq!(b.should_be_exhausted(), Err(Error::ExtraneousBytes));
+        b.take(1).unwrap();
+        assert_eq!(b.should_be_exhausted(), Ok(()));
     }
 
     #[test]
     fn take_rest() {
-        let mut r = Reader::from_slice(b"si vales valeo");
-        assert_eq!(r.take(3).unwrap(), b"si ");
-        assert_eq!(r.take_rest(), b"vales valeo");
-        assert_eq!(r.take_rest(), b"");
+        let mut b = Reader::from_slice_for_test(b"si vales valeo");
+        assert_eq!(b.take(3).unwrap(), b"si ");
+        assert_eq!(b.take_rest(), b"vales valeo");
+        assert_eq!(b.take_rest(), b"");
     }
 
     #[test]
     fn take_until() {
-        let mut r = Reader::from_slice(&b"si vales valeo"[..]);
-        assert_eq!(r.take_until(b' ').unwrap(), &b"si"[..]);
-        assert_eq!(r.take_until(b' ').unwrap(), &b"vales"[..]);
-        assert_eq!(r.take_until(b' '), Err(Error::new_truncated_for_test(1)));
+        let mut b = Reader::from_slice_for_test(&b"si vales valeo"[..]);
+        assert_eq!(b.take_until(b' ').unwrap(), &b"si"[..]);
+        assert_eq!(b.take_until(b' ').unwrap(), &b"vales"[..]);
+        assert_eq!(b.take_until(b' '), Err(Error::new_incomplete_for_test(1)));
     }
 
     #[test]
     fn truncate_badly() {
-        let mut r = Reader::from_slice(&b"abcdefg"[..]);
-        r.truncate(1000);
-        assert_eq!(r.total_len(), 7);
-        assert_eq!(r.remaining(), 7);
+        let mut b = Reader::from_slice_for_test(&b"abcdefg"[..]);
+        b.truncate(1000);
+        assert_eq!(b.total_len(), 7);
+        assert_eq!(b.remaining(), 7);
     }
 
     #[test]
     fn nested_good() {
-        let mut r = Reader::from_slice(b"abc\0\0\x04defghijkl");
-        assert_eq!(r.take(3).unwrap(), b"abc");
+        let mut b = Reader::from_slice_for_test(b"abc\0\0\x04defghijkl");
+        assert_eq!(b.take(3).unwrap(), b"abc");
 
-        r.read_nested_u16len(|s| {
+        b.read_nested_u16len(|s| {
             assert!(s.should_be_exhausted().is_ok());
             Ok(())
         })
         .unwrap();
 
-        r.read_nested_u8len(|s| {
+        b.read_nested_u8len(|s| {
             assert_eq!(s.take(4).unwrap(), b"defg");
             assert!(s.should_be_exhausted().is_ok());
             Ok(())
         })
         .unwrap();
 
-        assert_eq!(r.take(2).unwrap(), b"hi");
+        assert_eq!(b.take(2).unwrap(), b"hi");
     }
 
     #[test]
     fn nested_bad() {
-        let mut r = Reader::from_slice(b"................");
+        let mut b = Reader::from_slice_for_test(b"................");
         assert_eq!(
-            read_nested_generic::<u128, _, ()>(&mut r, |_| panic!())
+            read_nested_generic::<u128, _, ()>(&mut b, |_| panic!())
                 .err()
                 .unwrap(),
             Error::BadLengthValue
         );
 
-        let mut r = Reader::from_slice(b"................");
+        let mut b = Reader::from_slice_for_test(b"................");
         assert_eq!(
-            r.read_nested_u32len::<_, ()>(|_| panic!()).err().unwrap(),
-            Error::new_truncated_for_test(774778414 - (16 - 4))
+            b.read_nested_u32len::<_, ()>(|_| panic!()).err().unwrap(),
+            Error::new_incomplete_for_test(774778414 - (16 - 4))
         );
+    }
+
+    #[test]
+    fn nested_inner_bad() {
+        let mut b = Reader::from_slice_for_test(&[1, 66]);
+        assert_eq!(
+            b.read_nested_u8len(|b| b.take_u32()),
+            Err(Error::MissingData),
+        );
+    }
+
+    #[test]
+    fn incomplete_slice() {
+        // Test specifically the from_possibly_incomplete_slice constructor -
+        // ie, deliberately don't use Reader::from_slice_for_test.
+        let mut b = Reader::from_possibly_incomplete_slice(&[]);
+        assert_eq!(b.take_u32(), Err(Error::new_incomplete_for_test(4)));
     }
 
     #[test]
@@ -612,46 +717,46 @@ mod tests {
         }
 
         let bytes = b"\x04this\x02is\x09sometimes\x01a\x06string!";
-        let mut r = Reader::from_slice(&bytes[..]);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
 
-        let le: LenEnc = r.extract().unwrap();
+        let le: LenEnc = b.extract().unwrap();
         assert_eq!(&le.0[..], &b"this"[..]);
 
-        let les: Vec<LenEnc> = r.extract_n(4).unwrap();
+        let les: Vec<LenEnc> = b.extract_n(4).unwrap();
         assert_eq!(&les[3].0[..], &b"string"[..]);
 
-        assert_eq!(r.remaining(), 1);
+        assert_eq!(b.remaining(), 1);
 
         // Make sure that we don't advance on a failing extract().
-        let le: Result<LenEnc> = r.extract();
-        assert_eq!(le.unwrap_err(), Error::new_truncated_for_test(33));
-        assert_eq!(r.remaining(), 1);
+        let le: Result<LenEnc> = b.extract();
+        assert_eq!(le.unwrap_err(), Error::new_incomplete_for_test(33));
+        assert_eq!(b.remaining(), 1);
 
         // Make sure that we don't advance on a failing extract_n()
-        let mut r = Reader::from_slice(&bytes[..]);
-        assert_eq!(r.remaining(), 28);
-        let les: Result<Vec<LenEnc>> = r.extract_n(10);
-        assert_eq!(les.unwrap_err(), Error::new_truncated_for_test(33));
-        assert_eq!(r.remaining(), 28);
+        let mut b = Reader::from_slice_for_test(&bytes[..]);
+        assert_eq!(b.remaining(), 28);
+        let les: Result<Vec<LenEnc>> = b.extract_n(10);
+        assert_eq!(les.unwrap_err(), Error::new_incomplete_for_test(33));
+        assert_eq!(b.remaining(), 28);
     }
 
     #[test]
     fn cursor() -> Result<()> {
         let alphabet = b"abcdefghijklmnopqrstuvwxyz";
-        let mut r = Reader::from_slice(&alphabet[..]);
+        let mut b = Reader::from_slice_for_test(&alphabet[..]);
 
-        let c1 = r.cursor();
-        let _ = r.take_u16()?;
-        let c2 = r.cursor();
-        let c2b = r.cursor();
-        r.advance(7)?;
-        let c3 = r.cursor();
+        let c1 = b.cursor();
+        let _ = b.take_u16()?;
+        let c2 = b.cursor();
+        let c2b = b.cursor();
+        b.advance(7)?;
+        let c3 = b.cursor();
 
-        assert_eq!(r.range(c1, c2), &b"ab"[..]);
-        assert_eq!(r.range(c2, c3), &b"cdefghi"[..]);
-        assert_eq!(r.range(c1, c3), &b"abcdefghi"[..]);
-        assert_eq!(r.range(c1, c1), &b""[..]);
-        assert_eq!(r.range(c3, c1), &b""[..]);
+        assert_eq!(b.range(c1, c2), &b"ab"[..]);
+        assert_eq!(b.range(c2, c3), &b"cdefghi"[..]);
+        assert_eq!(b.range(c1, c3), &b"abcdefghi"[..]);
+        assert_eq!(b.range(c1, c1), &b""[..]);
+        assert_eq!(b.range(c3, c1), &b""[..]);
         assert_eq!(c2, c2b);
         assert!(c1 < c2);
         assert!(c2 < c3);

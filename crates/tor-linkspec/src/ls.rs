@@ -41,9 +41,9 @@ caret_int! {
 }
 
 impl Readable for LinkSpec {
-    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-        let lstype = r.take_u8()?.into();
-        r.read_nested_u8len(|r| Self::from_type_and_body(lstype, r))
+    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+        let lstype = b.take_u8()?.into();
+        b.read_nested_u8len(|r| Self::from_type_and_body(lstype, r))
     }
 }
 impl Writeable for LinkSpec {
@@ -255,7 +255,7 @@ mod test {
     #[test]
     fn test_parse_enc() {
         fn t(b: &[u8], val: &LinkSpec) {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: LinkSpec = r.extract().unwrap();
             assert_eq!(r.remaining(), 0);
             assert_eq!(&got, val);
@@ -300,20 +300,23 @@ mod test {
         use tor_bytes::Error;
 
         fn t(b: &[u8]) -> Error {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: Result<LinkSpec> = r.extract();
             got.err().unwrap()
         }
 
-        assert_eq!(t(&hex!("00 03")), Error::new_truncated_for_test(3));
-        assert_eq!(t(&hex!("00 06 01020304")), Error::new_truncated_for_test(2));
-        assert_eq!(t(&hex!("99 07 010203")), Error::new_truncated_for_test(4));
+        assert_eq!(t(&hex!("00 03")), Error::new_incomplete_for_test(3));
+        assert_eq!(
+            t(&hex!("00 06 01020304")),
+            Error::new_incomplete_for_test(2)
+        );
+        assert_eq!(t(&hex!("99 07 010203")), Error::new_incomplete_for_test(4));
     }
 
     #[test]
     fn test_unparsed() {
         fn t(b: &[u8], val: &EncodedLinkSpec) {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: EncodedLinkSpec = r.extract().unwrap();
             assert_eq!(r.remaining(), 0);
             assert_eq!(&got, val);
@@ -351,13 +354,16 @@ mod test {
     fn test_unparsed_bad() {
         use tor_bytes::Error;
         fn t(b: &[u8]) -> Error {
-            let mut r = Reader::from_slice(b);
+            let mut r = Reader::from_slice_for_test(b);
             let got: Result<EncodedLinkSpec> = r.extract();
             got.err().unwrap()
         }
 
-        assert_eq!(t(&hex!("00")), Error::new_truncated_for_test(1));
-        assert_eq!(t(&hex!("00 04 010203")), Error::new_truncated_for_test(1));
-        assert_eq!(t(&hex!("00 05 01020304")), Error::new_truncated_for_test(1));
+        assert_eq!(t(&hex!("00")), Error::new_incomplete_for_test(1));
+        assert_eq!(t(&hex!("00 04 010203")), Error::new_incomplete_for_test(1));
+        assert_eq!(
+            t(&hex!("00 05 01020304")),
+            Error::new_incomplete_for_test(1)
+        );
     }
 }
