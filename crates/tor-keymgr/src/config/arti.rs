@@ -1,4 +1,4 @@
-//! Configuration options for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore)
+//! Configuration options for types implementing [`Keystore`](crate::Keystore)
 
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
 
@@ -12,16 +12,16 @@ use tor_config::{impl_standard_builder, BoolOrAuto};
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 #[non_exhaustive]
 #[builder_struct_attr(non_exhaustive)]
-pub struct ArtiNativeKeystoreConfig {
+pub struct ArtiKeystoreConfig {
     /// Whether keystore use is enabled.
     #[builder_field_attr(serde(default))]
     #[builder(default)]
     enabled: BoolOrAuto,
 }
 
-impl_standard_builder! { ArtiNativeKeystoreConfig }
+impl_standard_builder! { ArtiKeystoreConfig }
 
-impl ArtiNativeKeystoreConfigBuilder {
+impl ArtiKeystoreConfigBuilder {
     /// Check that the keystore configuration is valid
     #[cfg(not(feature = "keymgr"))]
     #[allow(clippy::unnecessary_wraps)]
@@ -47,7 +47,7 @@ impl ArtiNativeKeystoreConfigBuilder {
     }
 }
 
-impl ArtiNativeKeystoreConfig {
+impl ArtiKeystoreConfig {
     /// Whether the keystore is enabled.
     pub fn is_enabled(&self) -> bool {
         let default = cfg!(feature = "keymgr");

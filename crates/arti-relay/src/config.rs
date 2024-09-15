@@ -13,7 +13,7 @@ use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_config::{impl_standard_builder, mistrust::BuilderExt, CfgPath};
-use tor_keymgr::config::arti::{ArtiNativeKeystoreConfig, ArtiNativeKeystoreConfigBuilder};
+use tor_keymgr::config::arti::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
 pub use tor_config::ConfigBuildError;
 
@@ -132,7 +132,7 @@ pub struct StorageConfig {
     /// Location on disk for the Arti keystore.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    keystore: ArtiNativeKeystoreConfig,
+    keystore: ArtiKeystoreConfig,
 
     /// Configuration about which permissions we want to enforce on our files.
     #[builder(sub_builder(fn_name = "build_for_arti"))]

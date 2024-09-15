@@ -29,7 +29,7 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 pub use tor_guardmgr::bridge::BridgeParseError;
 
 use tor_guardmgr::bridge::BridgeConfig;
-use tor_keymgr::config::arti::{ArtiNativeKeystoreConfig, ArtiNativeKeystoreConfigBuilder};
+use tor_keymgr::config::arti::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -187,7 +187,7 @@ pub struct StorageConfig {
     #[cfg(feature = "keymgr")]
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    keystore: ArtiNativeKeystoreConfig,
+    keystore: ArtiKeystoreConfig,
 
     /// Configuration about which permissions we want to enforce on our files.
     #[builder(sub_builder(fn_name = "build_for_arti"))]
@@ -231,7 +231,7 @@ impl StorageConfig {
     }
     /// Return the keystore config
     #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn keystore(&self) -> ArtiNativeKeystoreConfig {
+    pub(crate) fn keystore(&self) -> ArtiKeystoreConfig {
         cfg_if::cfg_if! {
             if #[cfg(feature="keymgr")] {
                 self.keystore.clone()
@@ -742,7 +742,7 @@ impl TorClientConfig {
     }
 
     /// Return the keystore config
-    pub fn keystore(&self) -> ArtiNativeKeystoreConfig {
+    pub fn keystore(&self) -> ArtiKeystoreConfig {
         self.storage.keystore()
     }
 
