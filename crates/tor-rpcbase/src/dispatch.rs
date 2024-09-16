@@ -61,6 +61,14 @@ use void::Void;
 #[cfg(feature = "describe-methods")]
 pub(crate) mod description;
 
+#[cfg(not(feature = "describe-methods"))]
+#[macro_export]
+#[doc(hidden)]
+macro_rules! register_delegation_note {
+    { $from_type:ty, $to_type:ty } => {
+    }
+}
+
 use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
 
 /// A type-erased serializable value.

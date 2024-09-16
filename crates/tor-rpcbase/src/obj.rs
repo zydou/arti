@@ -307,6 +307,18 @@ define_derive_deftly! {
         }
     }
 
+    ${if tmeta(rpc(delegate_type)) {
+        $crate::register_delegation_note!(
+            $ttype,
+            ${tmeta(rpc(delegate_type )) as ty}
+        );
+    }}
+
+    ${if tmeta(rpc(delegate_type)) {
+        #[doc = "Delegates to [`"]
+        #[doc = ${tmeta(rpc(delegate_type)) as str}]
+        #[doc = "`]"]
+    }}
     impl<$tgens> $crate::Object for $ttype where
         // We need this restriction in case there are generics
         // that might not impl these traits.

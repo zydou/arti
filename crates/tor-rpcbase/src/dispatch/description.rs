@@ -42,6 +42,9 @@ struct MethodDescription {
 pub struct RpcDispatchInformation {
     /// A map from RPC method name (such as "arti:foo") to a description of that method.
     methods: BTreeMap<String, MethodDescription>,
+
+    /// A map from an object type to a list of the types that object can delegate to.
+    delegations: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl super::DispatchTable {
@@ -65,7 +68,18 @@ impl super::DispatchTable {
             description.push_object_type(object_type_name);
         }
 
-        RpcDispatchInformation { methods }
+        let mut delegations = BTreeMap::new();
+        for note in inventory::iter::<DelegationNote>() {
+            let set = delegations
+                .entry((note.from_type_name)().to_string())
+                .or_insert_with(BTreeSet::new);
+            set.insert((note.to_type_name)().to_string());
+        }
+
+        RpcDispatchInformation {
+            methods,
+            delegations,
+        }
     }
 }
 
@@ -95,5 +109,34 @@ impl MethodDescription {
     fn push_object_type(&mut self, object_type_name: &str) {
         self.applies_to_object_types
             .insert(object_type_name.to_owned());
+    }
+}
+
+/// Helper to implement RpcDispatchInformation.
+#[derive(Debug)]
+#[doc(hidden)]
+#[allow(clippy::exhaustive_structs)]
+pub struct DelegationNote {
+    /// Name of the type we're delegating from.
+    ///
+    /// (We use a fn() here since std::any::type_name isn't yet const.)
+    pub from_type_name: fn() -> &'static str,
+    /// Name of the type we're delegating to.
+    pub to_type_name: fn() -> &'static str,
+}
+inventory::collect!(DelegationNote);
+
+/// Helper: Declare that `$from_type` (which must implement `Object`)
+/// can delegate to `$to_type` (which also must implement `Object`).
+///
+/// This declaration is used only to help implement `RpcDispatchInformation`.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! register_delegation_note {
+    { $from_type:ty, $to_type:ty } => {
+        $crate::inventory::submit!{$crate::DelegationNote {
+            from_type_name: std::any::type_name::<$from_type>,
+            to_type_name: std::any::type_name::<$to_type>,
+        }}
     }
 }
