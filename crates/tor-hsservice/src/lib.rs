@@ -259,7 +259,10 @@ impl OnionService {
         //let offline_hsid = config.offline_hsid;
         let offline_hsid = false;
 
-        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
+        // TODO (#1106): make this configurable
+        let selector = KeystoreSelector::Default;
+        maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid, selector)?;
+
 
         if config.restricted_discovery.enabled {
             info!(
@@ -469,6 +472,7 @@ fn maybe_generate_hsid(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
     offline_hsid: bool,
+    selector: KeystoreSelector,
 ) -> Result<(), StartupError> {
     if offline_hsid {
         unimplemented!("offline hsid mode");
@@ -483,8 +487,6 @@ fn maybe_generate_hsid(
             cause,
         })?;
 
-    // TODO (#1106): make this configurable
-    let selector = KeystoreSelector::Default;
     let mut rng = rand::thread_rng();
     let (hsid, generated) = match kp {
         Some(kp) => (kp.id(), false),
@@ -634,7 +636,7 @@ pub(crate) mod test {
             assert!($keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().is_none());
             assert!($keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().is_none());
 
-            maybe_generate_hsid(&$keymgr, &nickname, $offline_hsid).unwrap();
+            maybe_generate_hsid(&$keymgr, &nickname, $offline_hsid, Default::default()).unwrap();
         }};
     }
 
@@ -683,7 +685,7 @@ pub(crate) mod test {
             )
             .unwrap();
 
-        maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
+        maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */, Default::default()).unwrap();
 
         let keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
         let pk: HsIdKey = (&keypair).into();
@@ -729,7 +731,7 @@ pub(crate) mod test {
             .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Default, true)
             .unwrap();
 
-        assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).is_err());
+        assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */, Default::default()).is_err());
     }
 
     #[test]
