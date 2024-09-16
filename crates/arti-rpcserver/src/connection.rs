@@ -251,6 +251,8 @@ impl Connection {
 
     /// Run in a loop, handling requests from `request_stream` and writing
     /// responses onto `response_stream`.
+    ///
+    /// After this returns, even if it returns `Ok(())`, the connection must no longer be used.
     pub(crate) async fn run_loop(
         self: Arc<Self>,
         mut request_stream: BoxedRequestStream,
