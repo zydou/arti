@@ -2,9 +2,13 @@
 
 set -xeuo pipefail
 
-curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+TEST_DOMAIN=example.com
 
-[ "$(dig @127.0.0.1 -p 35353 +short example.com A)" == "93.184.216.34" ]
+curl http://"$TEST_DOMAIN" -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+
+DIRECT_LOOKUP="$(dig +short $TEST_DOMAIN A)"
+TOR_LOOKUP="$(dig @127.0.0.1 -p 35353 +short $TEST_DOMAIN A)"
+[ "$DIRECT_LOOKUP" == "$TOR_LOOKUP" ]
 
 ## This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
 ## sadly such a network can't run in CI because there is no IPv6 in docker.
