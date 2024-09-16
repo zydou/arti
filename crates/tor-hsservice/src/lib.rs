@@ -263,7 +263,6 @@ impl OnionService {
         let selector = KeystoreSelector::Default;
         maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid, selector)?;
 
-
         if config.restricted_discovery.enabled {
             info!(
                 nickname=%nickname,
@@ -685,7 +684,13 @@ pub(crate) mod test {
             )
             .unwrap();
 
-        maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */, Default::default()).unwrap();
+        maybe_generate_hsid(
+            &keymgr,
+            &nickname,
+            false, /* offline_hsid */
+            Default::default(),
+        )
+        .unwrap();
 
         let keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
         let pk: HsIdKey = (&keypair).into();
@@ -731,7 +736,13 @@ pub(crate) mod test {
             .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Default, true)
             .unwrap();
 
-        assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */, Default::default()).is_err());
+        assert!(maybe_generate_hsid(
+            &keymgr,
+            &nickname,
+            false, /* offline_hsid */
+            Default::default()
+        )
+        .is_err());
     }
 
     #[test]
