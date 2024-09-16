@@ -15,3 +15,9 @@ proxy_ports = [
     # Forward port 80 on the service to localhost:10080.
     ["80", "127.0.0.1:10080"],
 ]
+
+[onion_services."allium-cepa"]
+proxy_ports = [
+    # Forward port 443 on the service to localhost:10443.
+    ["443", "127.0.0.1:10443"],
+]
