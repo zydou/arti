@@ -312,10 +312,13 @@ impl Connection {
                             Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
                                 // We decoded the request as Json, but not as a `Valid`` request.
                                 // Send back a response indicating what was wrong with it.
+                                let response = BoxedResponse::from_error(
+                                    bad_req.id().cloned(), bad_req.error()
+                                );
                                 response_sink
-                                    .send(
-                                        BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
-                                    ).await.map_err( ConnectionError::writing)?;
+                                    .send(response)
+                                    .await
+                                    .map_err( ConnectionError::writing)?;
                                 if bad_req.id().is_none() {
                                     // The spec says we must close the connection in this case.
                                     return Err(bad_req.error().into());
@@ -325,7 +328,8 @@ impl Connection {
                             }
                             Some(Ok(FlexibleRequest::Valid(req))) => {
                                 // We have a request. Time to launch it!
-                                let fut = self.run_method_and_deliver_response(tx_response.clone(), req);
+                                let tx = tx_response.clone();
+                                let fut = self.run_method_and_deliver_response(tx, req);
                                 finished_requests.push(fut.boxed());
                                 Continue
                             }
@@ -333,7 +337,8 @@ impl Connection {
                     }
                 };
             }
-        }.await;
+        }
+        .await;
 
         match outcome {
             Err(e) if e.is_connection_close() => Ok(()),
