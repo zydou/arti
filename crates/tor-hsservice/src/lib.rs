@@ -208,6 +208,9 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 /// To construct an `OnionService`, use [`OnionServiceBuilder`].
 /// It will not start handling requests until you call its
 /// [``.launch()``](OnionService::launch) method.
+///
+/// Note: the identity key (HsId) of the service is not generated until
+/// [``.launch()``](OnionService::launch) is called.
 #[derive(Builder)]
 #[builder(build_fn(private, name = "build_unvalidated", error = "FatalError"))]
 pub struct OnionService {
@@ -250,6 +253,13 @@ impl OnionService {
         } = self;
 
         let nickname = config.nickname.clone();
+
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
+        // offline
+        //let offline_hsid = config.offline_hsid;
+        let offline_hsid = false;
+
+        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
 
         if config.restricted_discovery.enabled {
             info!(
@@ -346,14 +356,6 @@ impl OnionServiceBuilder {
     /// Build the [`OnionService`]
     pub fn build(&self) -> Result<OnionService, StartupError> {
         let svc = self.build_unvalidated()?;
-
-        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
-        // offline
-        //let offline_hsid = config.offline_hsid;
-        let offline_hsid = false;
-
-        maybe_generate_hsid(&svc.keymgr, &svc.config.nickname, offline_hsid)?;
-
         Ok(svc)
     }
 }
