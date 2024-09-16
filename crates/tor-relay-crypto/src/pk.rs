@@ -10,8 +10,10 @@ use tor_keymgr::{derive_deftly_template_KeySpecifier, KeySpecifier};
 // TODO: The legacy RSA key is needed. Require support in tor-key-forge and keystore.
 // See https://gitlab.torproject.org/tpo/core/arti/-/work_items/1598
 
-// [KP_relayid_ed] Long-term identity keypair. Never rotates.
-define_ed25519_keypair!(pub RelayIdentity);
+define_ed25519_keypair!(
+    /// [KP_relayid_ed] Long-term identity keypair. Never rotates.
+    pub RelayIdentity
+);
 
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor)]
@@ -22,8 +24,10 @@ define_ed25519_keypair!(pub RelayIdentity);
 /// The key sepcifier of the relay long-term identity key (RelayIdentityKeypair)
 pub struct RelayIdentityKeySpecifier;
 
-// [KP_relaysign_ed] Medium-term signing keypair. Rotated periodically.
-define_ed25519_keypair!(pub RelaySigning);
+define_ed25519_keypair!(
+    /// [KP_relaysign_ed] Medium-term signing keypair. Rotated periodically.
+    pub RelaySigning
+);
 
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor)]
@@ -34,5 +38,7 @@ define_ed25519_keypair!(pub RelaySigning);
 /// The key sepcifier of the relay medium-term signing key (RelaySigningKeypair)
 pub struct RelaySigningKeySpecifier;
 
-// [KP_link_ed] Short-term signing keypair for link authentication. Rotated frequently.
-define_ed25519_keypair!(pub RelayLinkSigning);
+define_ed25519_keypair!(
+    /// [KP_link_ed] Short-term signing keypair for link authentication. Rotated frequently.
+    pub RelayLinkSigning
+);

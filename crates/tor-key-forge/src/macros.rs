@@ -34,7 +34,10 @@ use derive_deftly::define_derive_deftly;
 /// use rand::Rng;
 /// use tor_key_forge::prelude::*;
 ///
-/// define_ed25519_keypair!(MySigning);
+/// define_ed25519_keypair!(
+///     /// Our signing key.
+///     MySigning
+/// );
 ///
 /// let mut rng = rand::thread_rng();
 /// let signing_kp = MySigningKeypair::generate(&mut rng).expect("Invalid keygen");
@@ -49,13 +52,14 @@ use derive_deftly::define_derive_deftly;
 /// ```
 #[macro_export]
 macro_rules! define_ed25519_keypair {
-    ($vis:vis $base_name:ident) => {
+    ($(#[ $docs_and_attrs:meta ])*
+     $vis:vis $base_name:ident) => {
         paste::paste! {
             #[derive(derive_deftly::Deftly)]
             #[derive_deftly(Ed25519Keypair)]
             #[deftly(kp(pubkey = $base_name "PublicKey"))]
-            #[allow(missing_docs)]
             #[non_exhaustive]
+            $(#[ $docs_and_attrs ])*
             $vis struct [<$base_name "Keypair">](tor_llcrypto::pk::ed25519::Keypair);
         }
     };
