@@ -43,7 +43,7 @@ thiserror = "1"
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.22.0" }
 tor-config = { path = "../tor-config", version = "0.22.0" }
 tor-error = { path = "../tor-error", version = "0.22.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.22.0", default-features = false }
+tor-keymgr = { path = "../tor-keymgr", version = "0.22.0", features = ["keymgr", "ephemeral-keystore"] }
 tor-netdir = { path = "../tor-netdir", version = "0.22.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.22.0" }
 tor-proto = { path = "../tor-proto", version = "0.22.0" }
