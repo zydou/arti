@@ -248,6 +248,8 @@ impl Connection {
 
     /// Run in a loop, handling requests from `request_stream` and writing
     /// responses onto `response_stream`.
+    ///
+    /// After this returns, even if it returns `Ok(())`, the connection must no longer be used.
     pub(crate) async fn run_loop(
         self: Arc<Self>,
         mut request_stream: BoxedRequestStream,
@@ -268,74 +270,80 @@ impl Connection {
         let mut finished_requests = FuturesUnordered::new();
         finished_requests.push(futures::future::pending().boxed());
 
-        'outer: loop {
-            futures::select! {
-                r = finished_requests.next() => {
-                    // A task is done, so we can forget about it.
-                    let () = r.expect("Somehow, future::pending() terminated.");
-                }
+        /// Helper: enforce an explicit "continue".
+        struct Continue;
 
-                r = rx_response.next() => {
-                    // The future for some request has sent a response (success,
-                    // failure, or update), so we can inform the client.
-                    let update = r.expect("Somehow, tx_update got closed.");
-                    debug_assert!(! update.body.is_final());
-                    // Calling `await` here (and below) is deliberate: we _want_
-                    // to stop reading the client's requests if the client is
-                    // not reading their responses (or not) reading them fast
-                    // enough.
-                    response_sink.send(update).await.map_err(ConnectionError::writing)?;
-                }
+        // We create a separate async block here and immediately await it,
+        // so that any internal `returns` and `?`s do not escape the function.
+        let outcome = async {
+            loop {
+                let _: Continue = futures::select! {
+                    r = finished_requests.next() => {
+                        // A task is done, so we can forget about it.
+                        let () = r.expect("Somehow, future::pending() terminated.");
+                        Continue
+                    }
 
-                req = request_stream.next() => {
-                    match req {
-                        None => {
-                            // We've reached the end of the stream of requests;
-                            // time to close.
-                            break 'outer;
-                        }
-                        Some(Err(e)) => {
-                            // We got a non-recoverable error from the JSON codec.
+                    r = rx_response.next() => {
+                        // The future for some request has sent a response (success,
+                        // failure, or update), so we can inform the client.
+                        let update = r.expect("Somehow, tx_update got closed.");
+                        debug_assert!(! update.body.is_final());
+                        // Calling `await` here (and below) is deliberate: we _want_
+                        // to stop reading the client's requests if the client is
+                        // not reading their responses (or not) reading them fast
+                        // enough.
+                        response_sink.send(update).await.map_err(ConnectionError::writing)?;
+                        Continue
+                    }
 
-                            let (reply_with_error, return_error) = match ConnectionError::classify_read_error(e) {
-                                Ok(()) => break 'outer,
-                                Err(e) => if let Some(r) = e.as_request_parse_err() {
-                                    (r, e)
-                                } else {
-                                    return Err(e);
-                                },
-                            };
+                    req = request_stream.next() => {
+                        match req {
+                            None => {
+                                // We've reached the end of the stream of requests;
+                                // time to close.
+                                return Ok(());
+                            }
+                            Some(Err(e)) => {
+                                // We got a non-recoverable error from the JSON codec.
+                                return Err(ConnectionError::from_read_error(e));
 
-                            response_sink
-                                .send(
-                                    BoxedResponse::from_error(None, reply_with_error)
-                                ).await.map_err(ConnectionError::writing)?;
+                            }
+                            Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
+                                // We decoded the request as Json, but not as a `Valid`` request.
+                                // Send back a response indicating what was wrong with it.
+                                let response = BoxedResponse::from_error(
+                                    bad_req.id().cloned(), bad_req.error()
+                                );
+                                response_sink
+                                    .send(response)
+                                    .await
+                                    .map_err( ConnectionError::writing)?;
+                                if bad_req.id().is_none() {
+                                    // The spec says we must close the connection in this case.
+                                    return Err(bad_req.error().into());
+                                }
+                                Continue
 
-                            // TODO RPC: Perhaps we should keep going on the NotAnObject case?
-                            //      (InvalidJson is not recoverable!)
-                            return Err(return_error);
-                        }
-                        Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
-                            response_sink
-                                .send(
-                                    BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
-                                ).await.map_err( ConnectionError::writing)?;
-                            if bad_req.id().is_none() {
-                                // The spec says we must close the connection in this case.
-                                break 'outer;
+                            }
+                            Some(Ok(FlexibleRequest::Valid(req))) => {
+                                // We have a request. Time to launch it!
+                                let tx = tx_response.clone();
+                                let fut = self.run_method_and_deliver_response(tx, req);
+                                finished_requests.push(fut.boxed());
+                                Continue
                             }
                         }
-                        Some(Ok(FlexibleRequest::Valid(req))) => {
-                            // We have a request. Time to launch it!
-                            let fut = self.run_method_and_deliver_response(tx_response.clone(), req);
-                            finished_requests.push(fut.boxed());
-                        }
                     }
-                }
+                };
             }
         }
+        .await;
 
-        Ok(())
+        match outcome {
+            Err(e) if e.is_connection_close() => Ok(()),
+            other => other,
+        }
     }
 
     /// Invoke `request` and send all of its responses to `tx_response`.
@@ -452,6 +460,10 @@ pub enum ConnectionError {
     /// Unable to write our response as json.
     #[error("Unable to encode response onto connection")]
     EncodeFailed(#[source] Arc<serde_json::Error>),
+    /// We encountered a problem when parsing a request that was (in our judgment)
+    /// too severe to recover from.
+    #[error("Unrecoverable problem from parsed request")]
+    RequestParseFailed(#[from] RequestParseError),
 }
 
 impl ConnectionError {
@@ -463,36 +475,32 @@ impl ConnectionError {
         }
     }
 
-    /// If this error is the result of a Json decode failure, return an appropriate
-    /// `RequestParseError`.
-    fn as_request_parse_err(&self) -> Option<RequestParseError> {
+    /// Return true if this error is (or might be) due to the peer closing the connection.
+    ///
+    /// Such errors should be tolerated without much complaint;
+    /// other errors should at least be logged somewhere.
+    fn is_connection_close(&self) -> bool {
+        use std::io::ErrorKind as IK;
+        use JsonErrorCategory as JK;
+        #[allow(clippy::match_like_matches_macro)]
         match self {
-            ConnectionError::DecodeFailed(d) => match d.classify() {
-                JsonErrorCategory::Syntax => Some(RequestParseError::InvalidJson),
-                JsonErrorCategory::Data => Some(RequestParseError::NotAnObject),
-                _ => None,
+            Self::ReadFailed(e) | Self::WriteFailed(e) => match e.kind() {
+                IK::UnexpectedEof | IK::ConnectionAborted | IK::BrokenPipe => true,
+                _ => false,
             },
-            _ => None,
+            Self::DecodeFailed(e) => match e.classify() {
+                JK::Eof => true,
+                _ => false,
+            },
+            _ => false,
         }
     }
 
-    /// Decide what to do with an error that has occurred while reading from a Json codec.
-    ///
-    /// Return Ok(()) if the error should silently be ignored, and treated as closing the session.
-    /// Otherwise return the error object.
-    fn classify_read_error(error: JsonCodecError) -> Result<(), Self> {
-        use std::io::ErrorKind as IK;
-        use JsonCodecError as E;
-        use JsonErrorCategory as JK;
+    /// Construct a `ConnectionError` from a JsonCodecError that occurred while reading.
+    fn from_read_error(error: JsonCodecError) -> Self {
         match error {
-            E::Io(e) => match e.kind() {
-                IK::UnexpectedEof | IK::ConnectionAborted | IK::BrokenPipe => Ok(()),
-                _ => Err(ConnectionError::ReadFailed(Arc::new(e))),
-            },
-            E::Json(e) => match e.classify() {
-                JK::Eof => Ok(()),
-                _ => Err(ConnectionError::DecodeFailed(Arc::new(e))),
-            },
+            JsonCodecError::Io(e) => Self::ReadFailed(Arc::new(e)),
+            JsonCodecError::Json(e) => Self::DecodeFailed(Arc::new(e)),
         }
     }
 }
