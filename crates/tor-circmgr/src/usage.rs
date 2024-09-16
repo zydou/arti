@@ -42,7 +42,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_guardmgr::vanguards::VanguardMgr;
 
 use crate::isolation::{IsolationHelper, StreamIsolation};
-use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
+use crate::mgr::{AbstractCirc, OpenEntry, RestrictionFailed};
 use crate::Result;
 
 pub use tor_relay_selection::TargetPort;
@@ -96,6 +96,22 @@ impl ExitPolicy {
         Self {
             v4: relay.low_level_details().ipv4_policy(),
             v6: relay.low_level_details().ipv6_policy(),
+        }
+    }
+
+    /// Make a exit policy based on the allowed ports in TargetPorts.
+    #[cfg(test)]
+    pub(crate) fn from_target_ports(target_ports: &TargetPorts) -> Self {
+        let (v6_ports, v4_ports) = target_ports
+            .0
+            .iter()
+            .partition::<Vec<TargetPort>, _>(|port| port.ipv6);
+
+        Self {
+            v4: PortPolicy::from_allowed_port_list(v4_ports.iter().map(|port| port.port).collect())
+                .intern(),
+            v6: PortPolicy::from_allowed_port_list(v6_ports.iter().map(|port| port.port).collect())
+                .intern(),
         }
     }
 
@@ -357,6 +373,18 @@ impl TargetCircUsage {
             }
         }
     }
+
+    /// Create a TargetCircUsage::Exit for a given set of IPv4 ports, with no stream isolation, for
+    /// use in tests.
+    #[cfg(test)]
+    pub(crate) fn new_from_ipv4_ports(ports: &[u16]) -> Self {
+        TargetCircUsage::Exit {
+            ports: ports.iter().map(|p| TargetPort::ipv4(*p)).collect(),
+            isolation: StreamIsolation::no_isolation(),
+            country_code: None,
+            require_stability: false,
+        }
+    }
 }
 
 /// Return true if `a` and `b` count as the same target for the purpose of
@@ -369,10 +397,12 @@ fn owned_targets_equivalent(a: &OwnedChanTarget, b: &OwnedChanTarget) -> bool {
     a.same_relay_ids(b) && a.chan_method() == b.chan_method()
 }
 
-impl crate::mgr::AbstractSpec for SupportedCircUsage {
-    type Usage = TargetCircUsage;
-
-    fn supports(&self, target: &TargetCircUsage) -> bool {
+impl SupportedCircUsage {
+    /// Return true if this spec permits the usage described by `other`.
+    ///
+    /// If this function returns `true`, then it is okay to use a circuit
+    /// with this spec for the target usage described by `other`.
+    pub(crate) fn supports(&self, target: &TargetCircUsage) -> bool {
         use SupportedCircUsage::*;
         match (self, target) {
             (Dir, TargetCircUsage::Dir) => true,
@@ -439,7 +469,13 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         }
     }
 
-    fn restrict_mut(
+    /// Change the value of this spec based on the circuit having been used for `usage`.
+    ///
+    /// Returns an error and makes no changes to `self` if `usage` was not supported by this spec.
+    ///
+    /// If this function returns Ok, the resulting spec will be contained by the original spec, and
+    /// will support `usage`.
+    pub(crate) fn restrict_mut(
         &mut self,
         usage: &TargetCircUsage,
     ) -> std::result::Result<(), RestrictionFailed> {
@@ -483,13 +519,22 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         }
     }
 
-    fn find_supported<'a, 'b, C: AbstractCirc>(
-        list: impl Iterator<Item = &'b mut OpenEntry<Self, C>>,
+    /// Find all open circuits in `list` whose specifications permit `usage`.
+    pub(crate) fn find_supported<'a, 'b, C: AbstractCirc>(
+        list: impl Iterator<Item = &'b mut OpenEntry<C>>,
         usage: &TargetCircUsage,
-    ) -> Vec<&'b mut OpenEntry<Self, C>> {
+    ) -> Vec<&'b mut OpenEntry<C>> {
+        /// Returns all circuits in `list` for which `circuit.spec.supports(usage)` returns `true`.
+        fn find_supported_internal<'a, 'b, C: AbstractCirc>(
+            list: impl Iterator<Item = &'b mut OpenEntry<C>>,
+            usage: &TargetCircUsage,
+        ) -> Vec<&'b mut OpenEntry<C>> {
+            list.filter(|circ| circ.supports(usage)).collect()
+        }
+
         match usage {
             TargetCircUsage::Preemptive { circs, .. } => {
-                let supported = abstract_spec_find_supported(list, usage);
+                let supported = find_supported_internal(list, usage);
                 // We need to have at least two circuits that support `port` in order
                 // to reuse them; otherwise, we must create a new circuit, so
                 // that we get closer to having two circuits.
@@ -504,11 +549,12 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     vec![]
                 }
             }
-            _ => abstract_spec_find_supported(list, usage),
+            _ => find_supported_internal(list, usage),
         }
     }
 
-    fn channel_usage(&self) -> ChannelUsage {
+    /// How the circuit will be used, for use by the channel
+    pub(crate) fn channel_usage(&self) -> ChannelUsage {
         use ChannelUsage as CU;
         use SupportedCircUsage as SCU;
         match self {
@@ -658,7 +704,6 @@ pub(crate) mod test {
 
     #[test]
     fn usage_ops() {
-        use crate::mgr::AbstractSpec;
         // Make an exit-policy object that allows web on IPv4 and
         // smtp on IPv6.
         let policy = ExitPolicy {
@@ -756,8 +801,6 @@ pub(crate) mod test {
 
     #[test]
     fn restrict_mut() {
-        use crate::mgr::AbstractSpec;
-
         let policy = ExitPolicy {
             v4: Arc::new("accept 80,443".parse().unwrap()),
             v6: Arc::new("accept 23".parse().unwrap()),
@@ -864,8 +907,6 @@ pub(crate) mod test {
 
     #[test]
     fn buildpath() {
-        use crate::mgr::AbstractSpec;
-
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let mut rng = testing_rng();
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();

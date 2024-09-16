@@ -10,7 +10,6 @@
 //! crate:
 //!
 //!  * [`AbstractCirc`] is a view of a circuit.
-//!  * [`AbstractSpec`] represents a circuit's possible usages.
 //!  * [`AbstractCircBuilder`] knows how to build an `AbstractCirc`.
 //!
 //! Using these traits, the [`AbstractCircMgr`] object manages a set of
@@ -23,11 +22,11 @@
 //    - Error reported by restrict_mut?
 
 use crate::config::CircuitTiming;
+use crate::usage::{SupportedCircUsage, TargetCircUsage};
 use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
-use tor_chanmgr::ChannelUsage;
 use tor_config::MutCfg;
 use tor_error::{debug_report, info_report, internal, warn_report, AbsRetryTime, HasRetryTime};
 use tor_rtcompat::{Runtime, SleepProviderExt};
@@ -60,68 +59,6 @@ pub(crate) enum CircProvenance {
     Preexisting,
 }
 
-/// Represents restrictions on circuit usage.
-///
-/// An `AbstractSpec` describes what a circuit can be used for.  Each
-/// `AbstractSpec` type has an associated `Usage` type that
-/// describes a _single_ operation that the circuit might support or
-/// not.
-///
-/// (For example, an `AbstractSpec` can describe a set of ports
-/// supported by the exit relay on a circuit.  In that case, its
-/// `Usage` type could be a single port that a client wants to
-/// connect to.)
-///
-/// If an `AbstractSpec` A allows every operation described in a
-/// `Usage` B, we say that A "supports" B.
-///
-/// If one `AbstractSpec` A supports every operation supported by
-/// another `AbstractSpec` B, we say that A "contains" B.
-///
-/// Some circuits can be used for either of two operations, but not both.
-/// For example, a circuit that is used as a rendezvous point can't
-/// be used as an introduction point.  To represent these transitions,
-/// we use a `restrict` operation.  Every time a circuit is used for something
-/// new, that new use "restricts" the circuit's spec, and narrows
-/// what the circuit can be used for.
-pub(crate) trait AbstractSpec: Clone + Debug {
-    /// A type to represent the kind of usages that this circuit permits.
-    type Usage: Clone + Debug + Send + Sync;
-
-    /// Return true if this spec permits the usage described by `other`.
-    ///
-    /// If this function returns `true`, then it is okay to use a circuit
-    /// with this spec for the target usage described by `other`.
-    fn supports(&self, other: &Self::Usage) -> bool;
-
-    /// Change the value of this spec based on the circuit having
-    /// been used for `usage`.
-    ///
-    /// # Requirements
-    ///
-    /// Must return an error and make no changes to `self` if `usage`
-    /// was not supported by this spec.
-    ///
-    /// If this function returns Ok, the resulting spec must be
-    /// contained by the original spec, and must support `usage`.
-    fn restrict_mut(&mut self, usage: &Self::Usage) -> std::result::Result<(), RestrictionFailed>;
-
-    /// Find all open circuits in `list` whose specifications permit
-    /// `usage`.
-    ///
-    /// By default, this calls `abstract_spec_find_supported`.
-    fn find_supported<'a, 'b, C: AbstractCirc>(
-        list: impl Iterator<Item = &'b mut OpenEntry<Self, C>>,
-        usage: &Self::Usage,
-    ) -> Vec<&'b mut OpenEntry<Self, C>> {
-        abstract_spec_find_supported(list, usage)
-    }
-
-    /// How the circuit will be used, for use by the channel
-    fn channel_usage(&self) -> ChannelUsage;
-}
-
-/// An error type returned by [`AbstractSpec::restrict_mut`]
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RestrictionFailed {
@@ -129,18 +66,6 @@ pub enum RestrictionFailed {
     /// requested usage.
     #[error("Specification did not support desired usage")]
     NotSupported,
-}
-
-/// Default implementation of `AbstractSpec::find_supported`; provided as a separate function
-/// so it can be used in overridden implementations.
-///
-/// This returns the all circuits in `list` for which `circuit.spec.supports(usage)` returns
-/// `true`.
-pub(crate) fn abstract_spec_find_supported<'a, 'b, S: AbstractSpec, C: AbstractCirc>(
-    list: impl Iterator<Item = &'b mut OpenEntry<S, C>>,
-    usage: &S::Usage,
-) -> Vec<&'b mut OpenEntry<S, C>> {
-    list.filter(|circ| circ.supports(usage)).collect()
 }
 
 /// Minimal abstract view of a circuit.
@@ -184,9 +109,6 @@ pub(crate) trait MockablePlan {
 /// Second, the circuit is actually built, using the plan as input.
 #[async_trait]
 pub(crate) trait AbstractCircBuilder: Send + Sync {
-    /// The specification type describing what operations circuits can
-    /// be used for.
-    type Spec: AbstractSpec + Debug + Send + Sync;
     /// The circuit type that this builder knows how to build.
     type Circ: AbstractCirc + Send + Sync;
     /// An opaque type describing how a given circuit will be built.
@@ -216,9 +138,9 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     /// The resulting Spec must support `usage`.
     fn plan_circuit(
         &self,
-        usage: &<Self::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(Self::Plan, Self::Spec)>;
+    ) -> Result<(Self::Plan, SupportedCircUsage)>;
 
     /// Construct a circuit according to a given plan.
     ///
@@ -234,7 +156,10 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     /// that was originally passed to `plan_circuit`.  It _must_ also
     /// contain the spec that was originally returned by
     /// `plan_circuit`.
-    async fn build_circuit(&self, plan: Self::Plan) -> Result<(Self::Spec, Arc<Self::Circ>)>;
+    async fn build_circuit(
+        &self,
+        plan: Self::Plan,
+    ) -> Result<(SupportedCircUsage, Arc<Self::Circ>)>;
 
     /// Return a "parallelism factor" with which circuits should be
     /// constructed for a given purpose.
@@ -244,7 +169,7 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     ///
     /// The default implementation returns 1.  The value of 0 is
     /// treated as if it were 1.
-    fn launch_parallelism(&self, usage: &<Self::Spec as AbstractSpec>::Usage) -> usize {
+    fn launch_parallelism(&self, usage: &TargetCircUsage) -> usize {
         let _ = usage; // default implementation ignores this.
         1
     }
@@ -259,7 +184,7 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     /// The default implementation returns 1.  The value of 0 is
     /// treated as if it were 1.
     // TODO: Possibly this doesn't belong in this trait.
-    fn select_parallelism(&self, usage: &<Self::Spec as AbstractSpec>::Usage) -> usize {
+    fn select_parallelism(&self, usage: &TargetCircUsage) -> usize {
         let _ = usage; // default implementation ignores this.
         1
     }
@@ -308,10 +233,10 @@ impl ExpirationInfo {
 }
 
 /// An entry for an open circuit held by an `AbstractCircMgr`.
-#[derive(PartialEq, Debug, Clone, Eq)]
-pub(crate) struct OpenEntry<S, C> {
-    /// Current AbstractCircSpec for this circuit's permitted usages.
-    spec: S,
+#[derive(Debug, Clone)]
+pub(crate) struct OpenEntry<C> {
+    /// The supported usage for this circuit.
+    spec: SupportedCircUsage,
     /// The circuit under management.
     circ: Arc<C>,
     /// When does this circuit expire?
@@ -322,9 +247,9 @@ pub(crate) struct OpenEntry<S, C> {
     expiration: ExpirationInfo,
 }
 
-impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
+impl<C: AbstractCirc> OpenEntry<C> {
     /// Make a new OpenEntry for a given circuit and spec.
-    fn new(spec: S, circ: Arc<C>, expiration: ExpirationInfo) -> Self {
+    fn new(spec: SupportedCircUsage, circ: Arc<C>, expiration: ExpirationInfo) -> Self {
         OpenEntry {
             spec,
             circ,
@@ -333,7 +258,7 @@ impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     }
 
     /// Return true if this circuit can be used for `usage`.
-    fn supports(&self, usage: &<S as AbstractSpec>::Usage) -> bool {
+    pub(crate) fn supports(&self, usage: &TargetCircUsage) -> bool {
         self.circ.usable() && self.spec.supports(usage)
     }
 
@@ -341,7 +266,7 @@ impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     /// been used for `usage` at time `now`.
     ///
     /// Return an error if this circuit may not be used for `usage`.
-    fn restrict_mut(&mut self, usage: &<S as AbstractSpec>::Usage, now: Instant) -> Result<()> {
+    fn restrict_mut(&mut self, usage: &TargetCircUsage, now: Instant) -> Result<()> {
         self.spec.restrict_mut(usage)?;
         self.expiration.mark_dirty(now);
         Ok(())
@@ -360,7 +285,7 @@ impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     fn find_best<'a>(
         // we do not mutate `ents`, but to return `&mut Self` we must have a mutable borrow
         ents: &'a mut [&'a mut Self],
-        usage: &<S as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         parallelism: usize,
     ) -> &'a mut Self {
         let _ = usage; // not yet used.
@@ -394,7 +319,7 @@ type PendResult<B> = Result<<<B as AbstractCircBuilder>::Circ as AbstractCirc>::
 /// might meet the request's requirements.)
 struct PendingRequest<B: AbstractCircBuilder> {
     /// Usage for the operation requested by this request
-    usage: <B::Spec as AbstractSpec>::Usage,
+    usage: TargetCircUsage,
     /// A channel to use for telling this request about circuits that it
     /// might like.
     notify: mpsc::Sender<PendResult<B>>,
@@ -402,7 +327,7 @@ struct PendingRequest<B: AbstractCircBuilder> {
 
 impl<B: AbstractCircBuilder> PendingRequest<B> {
     /// Return true if this request would be supported by `spec`.
-    fn supported_by(&self, spec: &B::Spec) -> bool {
+    fn supported_by(&self, spec: &SupportedCircUsage) -> bool {
         spec.supports(&self.usage)
     }
 }
@@ -419,7 +344,7 @@ struct PendingEntry<B: AbstractCircBuilder> {
     ///
     /// This spec is contained by circ_spec, and must support the usage
     /// of every pending request that's waiting for this circuit.
-    tentative_assignment: sync::Mutex<B::Spec>,
+    tentative_assignment: sync::Mutex<SupportedCircUsage>,
     /// A shared future for requests to use when waiting for
     /// notification of this circuit's success.
     receiver: Shared<oneshot::Receiver<PendResult<B>>>,
@@ -429,7 +354,7 @@ impl<B: AbstractCircBuilder> PendingEntry<B> {
     /// Make a new PendingEntry that starts out supporting a given
     /// spec.  Return that PendingEntry, along with a Sender to use to
     /// report the result of building this circuit.
-    fn new(circ_spec: &B::Spec) -> (Self, oneshot::Sender<PendResult<B>>) {
+    fn new(circ_spec: &SupportedCircUsage) -> (Self, oneshot::Sender<PendResult<B>>) {
         let tentative_assignment = sync::Mutex::new(circ_spec.clone());
         let (sender, receiver) = oneshot::channel();
         let receiver = receiver.shared();
@@ -442,7 +367,7 @@ impl<B: AbstractCircBuilder> PendingEntry<B> {
 
     /// Return true if this circuit's current tentative assignment
     /// supports `usage`.
-    fn supports(&self, usage: &<B::Spec as AbstractSpec>::Usage) -> bool {
+    fn supports(&self, usage: &TargetCircUsage) -> bool {
         let assignment = self.tentative_assignment.lock().expect("poisoned lock");
         assignment.supports(usage)
     }
@@ -452,7 +377,7 @@ impl<B: AbstractCircBuilder> PendingEntry<B> {
     ///
     /// Return an error if the current tentative assignment didn't
     /// support `usage` in the first place.
-    fn tentative_restrict_mut(&self, usage: &<B::Spec as AbstractSpec>::Usage) -> Result<()> {
+    fn tentative_restrict_mut(&self, usage: &TargetCircUsage) -> Result<()> {
         if let Ok(mut assignment) = self.tentative_assignment.lock() {
             assignment.restrict_mut(usage)?;
         }
@@ -466,7 +391,7 @@ impl<B: AbstractCircBuilder> PendingEntry<B> {
     ///
     /// The `ents` slice must not be empty.  Every element of `ents`
     /// must support the given spec.
-    fn find_best(ents: &[Arc<Self>], usage: &<B::Spec as AbstractSpec>::Usage) -> Vec<Arc<Self>> {
+    fn find_best(ents: &[Arc<Self>], usage: &TargetCircUsage) -> Vec<Arc<Self>> {
         // TODO: Actually look over the whole list to see which is better.
         let _ = usage; // currently unused
         vec![Arc::clone(&ents[0])]
@@ -495,7 +420,7 @@ struct CircList<B: AbstractCircBuilder> {
     /// When we decide that such a circuit should no longer be handed out for
     /// any new requests, we "retire" the circuit by removing it from this map.
     #[allow(clippy::type_complexity)]
-    open_circs: HashMap<<B::Circ as AbstractCirc>::Id, OpenEntry<B::Spec, B::Circ>>,
+    open_circs: HashMap<<B::Circ as AbstractCirc>::Id, OpenEntry<B::Circ>>,
     /// Weak-set of PendingEntry for circuits that are being built.
     ///
     /// Because this set only holds weak references, and the only strong
@@ -541,7 +466,7 @@ impl<B: AbstractCircBuilder> CircList<B> {
     }
 
     /// Add `e` to the list of open circuits.
-    fn add_open(&mut self, e: OpenEntry<B::Spec, B::Circ>) {
+    fn add_open(&mut self, e: OpenEntry<B::Circ>) {
         let id = e.circ.id();
         self.open_circs.insert(id, e);
     }
@@ -549,12 +474,9 @@ impl<B: AbstractCircBuilder> CircList<B> {
     /// Find all the usable open circuits that support `usage`.
     ///
     /// Return None if there are no such circuits.
-    fn find_open(
-        &mut self,
-        usage: &<B::Spec as AbstractSpec>::Usage,
-    ) -> Option<Vec<&mut OpenEntry<B::Spec, B::Circ>>> {
+    fn find_open(&mut self, usage: &TargetCircUsage) -> Option<Vec<&mut OpenEntry<B::Circ>>> {
         let list = self.open_circs.values_mut();
-        let v = <B::Spec as AbstractSpec>::find_supported(list, usage);
+        let v = SupportedCircUsage::find_supported(list, usage);
         if v.is_empty() {
             None
         } else {
@@ -568,17 +490,14 @@ impl<B: AbstractCircBuilder> CircList<B> {
     fn get_open_mut(
         &mut self,
         id: &<B::Circ as AbstractCirc>::Id,
-    ) -> Option<&mut OpenEntry<B::Spec, B::Circ>> {
+    ) -> Option<&mut OpenEntry<B::Circ>> {
         self.open_circs.get_mut(id)
     }
 
     /// Extract an open circuit by ID, removing it from this list.
     ///
     /// Return None if no such circuit exists in this list.
-    fn take_open(
-        &mut self,
-        id: &<B::Circ as AbstractCirc>::Id,
-    ) -> Option<OpenEntry<B::Spec, B::Circ>> {
+    fn take_open(&mut self, id: &<B::Circ as AbstractCirc>::Id) -> Option<OpenEntry<B::Circ>> {
         self.open_circs.remove(id)
     }
 
@@ -618,10 +537,7 @@ impl<B: AbstractCircBuilder> CircList<B> {
     /// Find all pending circuits that support `usage`.
     ///
     /// If no such circuits are currently being built, return None.
-    fn find_pending_circs(
-        &self,
-        usage: &<B::Spec as AbstractSpec>::Usage,
-    ) -> Option<Vec<Arc<PendingEntry<B>>>> {
+    fn find_pending_circs(&self, usage: &TargetCircUsage) -> Option<Vec<Arc<PendingEntry<B>>>> {
         let result: Vec<_> = self
             .pending_circs
             .iter()
@@ -655,7 +571,7 @@ impl<B: AbstractCircBuilder> CircList<B> {
 
     /// Return all pending requests that would be satisfied by a circuit
     /// that supports `circ_spec`.
-    fn find_pending_requests(&self, circ_spec: &B::Spec) -> Vec<Arc<PendingRequest<B>>> {
+    fn find_pending_requests(&self, circ_spec: &SupportedCircUsage) -> Vec<Arc<PendingRequest<B>>> {
         self.pending_requests
             .iter()
             .filter(|pend| pend.supported_by(circ_spec))
@@ -794,7 +710,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// This is the primary entry point for AbstractCircMgr.
     pub(crate) async fn get_or_launch(
         self: &Arc<Self>,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         dir: DirInfo<'_>,
     ) -> Result<(Arc<B::Circ>, CircProvenance)> {
         /// Return CEIL(a/b).
@@ -934,7 +850,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     #[allow(dead_code)]
     pub(crate) async fn ensure_circuit(
         self: &Arc<Self>,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         dir: DirInfo<'_>,
     ) -> Result<()> {
         let action = self.prepare_action(usage, dir, false)?;
@@ -956,7 +872,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// `usage`.
     fn prepare_action(
         &self,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         dir: DirInfo<'_>,
         restrict_circ: bool,
     ) -> Result<Action<B>> {
@@ -1027,7 +943,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     async fn take_action(
         self: Arc<Self>,
         act: Action<B>,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
     ) -> std::result::Result<(Arc<B::Circ>, CircProvenance), RetryError<Box<Error>>> {
         /// Store the error `err` into `retry_err`, as appropriate.
         fn record_error(
@@ -1209,7 +1125,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     fn plan_by_usage(
         &self,
         dir: DirInfo<'_>,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
     ) -> Result<(Arc<PendingEntry<B>>, CircBuildPlan<B>)> {
         let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
         let (pending, sender) = PendingEntry::new(&bspec);
@@ -1230,7 +1146,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// Return a listener that will be informed when the circuit is done.
     pub(crate) fn launch_by_usage(
         self: &Arc<Self>,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         dir: DirInfo<'_>,
     ) -> Result<Shared<oneshot::Receiver<PendResult<B>>>> {
         let (pending, plan) = self.plan_by_usage(dir, usage)?;
@@ -1249,7 +1165,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// us build this circuit.
     fn spawn_launch(
         self: Arc<Self>,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         plan: CircBuildPlan<B>,
     ) -> Shared<oneshot::Receiver<PendResult<B>>> {
         let _ = usage; // Currently unused.
@@ -1323,7 +1239,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         self: Arc<Self>,
         plan: <B as AbstractCircBuilder>::Plan,
         pending: Arc<PendingEntry<B>>,
-    ) -> (Option<<B as AbstractCircBuilder>::Spec>, PendResult<B>) {
+    ) -> (Option<SupportedCircUsage>, PendResult<B>) {
         let outcome = self.builder.build_circuit(plan).await;
 
         match outcome {
@@ -1382,9 +1298,9 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     #[cfg(feature = "hs-common")]
     pub(crate) async fn launch_unmanaged(
         &self,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &TargetCircUsage,
         dir: DirInfo<'_>,
-    ) -> Result<(<B as AbstractCircBuilder>::Spec, Arc<B::Circ>)> {
+    ) -> Result<(SupportedCircUsage, Arc<B::Circ>)> {
         let (_, plan) = self.plan_by_usage(dir, usage)?;
         self.builder.build_circuit(plan.plan).await
     }
@@ -1548,9 +1464,8 @@ mod test {
     use super::*;
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
     use crate::usage::{ExitPolicy, SupportedCircUsage};
-    use crate::{Error, StreamIsolation, TargetCircUsage, TargetPort};
+    use crate::{Error, IsolationToken, StreamIsolation, TargetCircUsage, TargetPort, TargetPorts};
     use once_cell::sync::Lazy;
-    use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
     use tor_guardmgr::fallback::FallbackList;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -1593,72 +1508,16 @@ mod test {
         }
     }
 
-    #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-    struct FakeSpec {
-        ports: BTreeSet<u16>,
-        isolation: Option<u8>,
-    }
-
-    impl AbstractSpec for FakeSpec {
-        type Usage = FakeSpec;
-        fn supports(&self, other: &FakeSpec) -> bool {
-            let ports_ok = self.ports.is_superset(&other.ports);
-            let iso_ok = match (self.isolation, other.isolation) {
-                (None, _) => true,
-                (_, None) => true,
-                (Some(a), Some(b)) => a == b,
-            };
-            ports_ok && iso_ok
-        }
-        fn restrict_mut(&mut self, other: &FakeSpec) -> std::result::Result<(), RestrictionFailed> {
-            if !self.ports.is_superset(&other.ports) {
-                return Err(RestrictionFailed::NotSupported);
-            }
-            let new_iso = match (self.isolation, other.isolation) {
-                (None, x) => x,
-                (x, None) => x,
-                (Some(a), Some(b)) if a == b => Some(a),
-                (_, _) => return Err(RestrictionFailed::NotSupported),
-            };
-
-            self.isolation = new_iso;
-            Ok(())
-        }
-        fn channel_usage(&self) -> ChannelUsage {
-            ChannelUsage::UserTraffic
-        }
-    }
-
-    impl FakeSpec {
-        fn new<T>(ports: T) -> Self
-        where
-            T: IntoIterator,
-            T::Item: Into<u16>,
-        {
-            let ports = ports.into_iter().map(Into::into).collect();
-            FakeSpec {
-                ports,
-                isolation: None,
-            }
-        }
-        fn isolated(self, group: u8) -> Self {
-            FakeSpec {
-                ports: self.ports,
-                isolation: Some(group),
-            }
-        }
-    }
-
     #[derive(Debug, Clone)]
     struct FakePlan {
-        spec: FakeSpec,
+        spec: SupportedCircUsage,
         op: FakeOp,
     }
 
     #[derive(Debug)]
     struct FakeBuilder<RT: Runtime> {
         runtime: RT,
-        script: sync::Mutex<HashMap<FakeSpec, Vec<FakeOp>>>,
+        script: sync::Mutex<Vec<(TargetCircUsage, FakeOp)>>,
     }
 
     #[derive(Debug, Clone)]
@@ -1669,7 +1528,7 @@ mod test {
         Timeout,
         TimeoutReleaseAdvance(String),
         NoPlan,
-        WrongSpec(FakeSpec),
+        WrongSpec(SupportedCircUsage),
     }
 
     impl MockablePlan for FakePlan {
@@ -1688,13 +1547,33 @@ mod test {
         (&*FALLBACKS_EMPTY).into()
     }
 
+    fn target_to_spec(target: &TargetCircUsage) -> SupportedCircUsage {
+        match target {
+            TargetCircUsage::Exit {
+                ports,
+                isolation,
+                country_code,
+                require_stability,
+            } => SupportedCircUsage::Exit {
+                policy: ExitPolicy::from_target_ports(&TargetPorts::from(&ports[..])),
+                isolation: Some(isolation.clone()),
+                country_code: country_code.clone(),
+                all_relays_stable: *require_stability,
+            },
+            _ => unimplemented!(),
+        }
+    }
+
     #[async_trait]
     impl<RT: Runtime> AbstractCircBuilder for FakeBuilder<RT> {
-        type Spec = FakeSpec;
         type Circ = FakeCirc;
         type Plan = FakePlan;
 
-        fn plan_circuit(&self, spec: &FakeSpec, _dir: DirInfo<'_>) -> Result<(FakePlan, FakeSpec)> {
+        fn plan_circuit(
+            &self,
+            spec: &TargetCircUsage,
+            _dir: DirInfo<'_>,
+        ) -> Result<(FakePlan, SupportedCircUsage)> {
             let next_op = self.next_op(spec);
             if matches!(next_op, FakeOp::NoPlan) {
                 return Err(Error::NoRelay {
@@ -1703,14 +1582,35 @@ mod test {
                     problem: "called with no plan".to_string(),
                 });
             }
+            let supported_circ_usage = match spec {
+                TargetCircUsage::Exit {
+                    ports,
+                    isolation,
+                    country_code,
+                    require_stability,
+                } => SupportedCircUsage::Exit {
+                    policy: ExitPolicy::from_target_ports(&TargetPorts::from(&ports[..])),
+                    isolation: if isolation.isol_eq(&StreamIsolation::no_isolation()) {
+                        None
+                    } else {
+                        Some(isolation.clone())
+                    },
+                    country_code: country_code.clone(),
+                    all_relays_stable: *require_stability,
+                },
+                _ => unimplemented!(),
+            };
             let plan = FakePlan {
-                spec: spec.clone(),
+                spec: supported_circ_usage.clone(),
                 op: next_op,
             };
-            Ok((plan, spec.clone()))
+            Ok((plan, supported_circ_usage))
         }
 
-        async fn build_circuit(&self, plan: FakePlan) -> Result<(FakeSpec, Arc<FakeCirc>)> {
+        async fn build_circuit(
+            &self,
+            plan: FakePlan,
+        ) -> Result<(SupportedCircUsage, Arc<FakeCirc>)> {
             let op = plan.op;
             let sl = self.runtime.sleep(FAKE_CIRC_DELAY);
             self.runtime.allow_one_advance(FAKE_CIRC_DELAY);
@@ -1745,32 +1645,41 @@ mod test {
         fn new(rt: &RT) -> Self {
             FakeBuilder {
                 runtime: rt.clone(),
-                script: sync::Mutex::new(HashMap::new()),
+                script: sync::Mutex::new(vec![]),
             }
         }
 
-        /// set a plan for a given FakeSpec.
-        fn set<I>(&self, spec: FakeSpec, v: I)
+        /// set a plan for a given TargetCircUsage.
+        fn set<I>(&self, spec: TargetCircUsage, v: I)
         where
             I: IntoIterator<Item = FakeOp>,
         {
             let mut ops: Vec<_> = v.into_iter().collect();
             ops.reverse();
             let mut lst = self.script.lock().unwrap();
-            lst.insert(spec, ops);
+            for op in ops {
+                lst.push((spec.clone(), op));
+            }
         }
 
-        fn next_op(&self, spec: &FakeSpec) -> FakeOp {
+        fn next_op(&self, spec: &TargetCircUsage) -> FakeOp {
             let mut script = self.script.lock().unwrap();
-            let mut s = script.get_mut(spec);
-            match s {
-                None => FakeOp::Succeed,
-                Some(ref mut lst) => lst.pop().unwrap_or(FakeOp::Succeed),
+
+            let idx = script
+                .iter()
+                .enumerate()
+                .find_map(|(i, s)| spec.isol_eq(&s.0).then_some(i));
+
+            if let Some(i) = idx {
+                let (_, op) = script.remove(i);
+                op
+            } else {
+                FakeOp::Succeed
             }
         }
     }
 
-    impl<T: IsolationTokenEq, U: PartialEq> IsolationTokenEq for OpenEntry<T, U> {
+    impl<U: PartialEq> IsolationTokenEq for OpenEntry<U> {
         fn isol_eq(&self, other: &Self) -> bool {
             self.spec.isol_eq(&other.spec)
                 && self.circ == other.circ
@@ -1778,7 +1687,7 @@ mod test {
         }
     }
 
-    impl<T: IsolationTokenEq, U: PartialEq> IsolationTokenEq for &mut OpenEntry<T, U> {
+    impl<U: PartialEq> IsolationTokenEq for &mut OpenEntry<U> {
         fn isol_eq(&self, other: &Self) -> bool {
             self.spec.isol_eq(&other.spec)
                 && self.circ == other.circ
@@ -1799,7 +1708,7 @@ mod test {
                 CircuitTiming::default(),
             ));
 
-            let webports = FakeSpec::new(vec![80_u16, 443]);
+            let webports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // Check initialization.
             assert_eq!(mgr.n_circs(), 0);
@@ -1811,7 +1720,7 @@ mod test {
             assert_eq!(mgr.n_circs(), 1);
 
             // Make sure we get the one we already made if we ask for it.
-            let port80 = FakeSpec::new(vec![80_u16]);
+            let port80 = TargetCircUsage::new_from_ipv4_ports(&[80]);
             let c2 = mgr.get_or_launch(&port80, di()).await;
 
             let c2 = c2.unwrap().0;
@@ -1821,8 +1730,13 @@ mod test {
             // Now try launching two circuits "at once" to make sure that our
             // pending-circuit code works.
 
-            let dnsport = FakeSpec::new(vec![53_u16]);
-            let dnsport_restrict = dnsport.clone().isolated(7);
+            let dnsport = TargetCircUsage::new_from_ipv4_ports(&[53]);
+            let dnsport_restrict = TargetCircUsage::Exit {
+                ports: vec![TargetPort::ipv4(53)],
+                isolation: StreamIsolation::builder().build().unwrap(),
+                country_code: None,
+                require_stability: false,
+            };
 
             let (c3, c4) = rt
                 .wait_for(futures::future::join(
@@ -1868,7 +1782,7 @@ mod test {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
-            let ports = FakeSpec::new(vec![80_u16, 443]);
+            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail once, and then completely time out.  The
             // result will be a failure.
@@ -1897,7 +1811,7 @@ mod test {
             // Now try a more complicated case: we'll try to get things so
             // that we wait for a little over our predicted time because
             // of our wait-for-next-action logic.
-            let ports = FakeSpec::new(vec![80_u16, 443]);
+            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
             let builder = FakeBuilder::new(&rt);
             builder.set(
                 ports.clone(),
@@ -1926,7 +1840,7 @@ mod test {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
-            let ports = FakeSpec::new(vec![80_u16, 443]);
+            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail a the planning stages, a lot.
             let builder = FakeBuilder::new(&rt);
@@ -1947,7 +1861,7 @@ mod test {
     fn request_fails_too_much() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
-            let ports = FakeSpec::new(vec![80_u16, 443]);
+            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail 1000 times, which is above the retry limit.
             let builder = FakeBuilder::new(&rt);
@@ -1968,7 +1882,7 @@ mod test {
     fn request_wrong_spec() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
-            let ports = FakeSpec::new(vec![80_u16, 443]);
+            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // The first time this is called, it will build a circuit
             // with the wrong spec.  (A circuit builder should never
@@ -1976,7 +1890,9 @@ mod test {
             let builder = FakeBuilder::new(&rt);
             builder.set(
                 ports.clone(),
-                vec![FakeOp::WrongSpec(FakeSpec::new(vec![22_u16]))],
+                vec![FakeOp::WrongSpec(target_to_spec(
+                    &TargetCircUsage::new_from_ipv4_ports(&[22]),
+                ))],
             );
 
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -1994,7 +1910,7 @@ mod test {
     fn request_retried() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
-            let ports = FakeSpec::new(vec![80_u16, 443]);
+            let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail twice, and then succeed. The result will be
             // a success.
@@ -2035,27 +1951,44 @@ mod test {
                 CircuitTiming::default(),
             ));
 
-            let ports = FakeSpec::new(vec![443_u16]);
             // Set our isolation so that iso1 and iso2 can't share a circuit,
             // but no_iso can share a circuit with either.
-            let iso1 = ports.clone().isolated(1);
-            let iso2 = ports.clone().isolated(2);
-            let no_iso = ports.clone();
+            let iso1 = TargetCircUsage::Exit {
+                ports: vec![TargetPort::ipv4(443)],
+                isolation: StreamIsolation::builder()
+                    .owner_token(IsolationToken::new())
+                    .build()
+                    .unwrap(),
+                country_code: None,
+                require_stability: false,
+            };
+            let iso2 = TargetCircUsage::Exit {
+                ports: vec![TargetPort::ipv4(443)],
+                isolation: StreamIsolation::builder()
+                    .owner_token(IsolationToken::new())
+                    .build()
+                    .unwrap(),
+                country_code: None,
+                require_stability: false,
+            };
+            let no_iso1 = TargetCircUsage::new_from_ipv4_ports(&[443]);
+            let no_iso2 = no_iso1.clone();
 
-            // We're going to try launching these circuits in 6 different
+            // We're going to try launching these circuits in 24 different
             // orders, to make sure that the outcome is correct each time.
             use itertools::Itertools;
-            let timeouts: Vec<_> = [0_u64, 5, 10]
+            let timeouts: Vec<_> = [0_u64, 2, 4, 6]
                 .iter()
                 .map(|d| Duration::from_millis(*d))
                 .collect();
 
-            for delays in timeouts.iter().permutations(3) {
+            for delays in timeouts.iter().permutations(4) {
                 let d1 = delays[0];
                 let d2 = delays[1];
                 let d3 = delays[2];
-                let (c_iso1, c_iso2, c_none) = rt
-                    .wait_for(futures::future::join3(
+                let d4 = delays[2];
+                let (c_iso1, c_iso2, c_no_iso1, c_no_iso2) = rt
+                    .wait_for(futures::future::join4(
                         async {
                             rt.sleep(*d1).await;
                             mgr.get_or_launch(&iso1, di()).await
@@ -2066,17 +1999,26 @@ mod test {
                         },
                         async {
                             rt.sleep(*d3).await;
-                            mgr.get_or_launch(&no_iso, di()).await
+                            mgr.get_or_launch(&no_iso1, di()).await
+                        },
+                        async {
+                            rt.sleep(*d4).await;
+                            mgr.get_or_launch(&no_iso2, di()).await
                         },
                     ))
                     .await;
 
                 let c_iso1 = c_iso1.unwrap().0;
                 let c_iso2 = c_iso2.unwrap().0;
-                let c_none = c_none.unwrap().0;
+                let c_no_iso1 = c_no_iso1.unwrap().0;
+                let c_no_iso2 = c_no_iso2.unwrap().0;
 
                 assert!(!FakeCirc::eq(&c_iso1, &c_iso2));
-                assert!(FakeCirc::eq(&c_iso1, &c_none) || FakeCirc::eq(&c_iso2, &c_none));
+                assert!(!FakeCirc::eq(&c_iso1, &c_no_iso1));
+                assert!(!FakeCirc::eq(&c_iso1, &c_no_iso2));
+                assert!(!FakeCirc::eq(&c_iso2, &c_no_iso1));
+                assert!(!FakeCirc::eq(&c_iso2, &c_no_iso2));
+                assert!(FakeCirc::eq(&c_no_iso1, &c_no_iso2));
             }
         });
     }
@@ -2090,8 +2032,8 @@ mod test {
             // making a second request after we launch it.  That
             // request should succeed, and notify the first request.
 
-            let ports1 = FakeSpec::new(vec![80_u16]);
-            let ports2 = FakeSpec::new(vec![80_u16, 443]);
+            let ports1 = TargetCircUsage::new_from_ipv4_ports(&[80]);
+            let ports2 = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             let builder = FakeBuilder::new(&rt);
             builder.set(ports1.clone(), vec![FakeOp::Timeout]);
@@ -2136,9 +2078,10 @@ mod test {
                 CircuitTiming::default(),
             ));
 
-            let ports1 = FakeSpec::new(vec![80_u16, 443]);
-            let ports2 = FakeSpec::new(vec![80_u16]);
-            let ports3 = FakeSpec::new(vec![443_u16]);
+            let ports1 = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
+            let ports2 = TargetCircUsage::new_from_ipv4_ports(&[80]);
+            let ports3 = TargetCircUsage::new_from_ipv4_ports(&[443]);
+
             let (ok, c1, c2) = rt
                 .wait_for(futures::future::join3(
                     mgr.ensure_circuit(&ports1, di()),
@@ -2180,8 +2123,8 @@ mod test {
 
             let mgr = Arc::new(AbstractCircMgr::new(builder, rt.clone(), circuit_timing));
 
-            let imap = FakeSpec::new(vec![993_u16]);
-            let pop = FakeSpec::new(vec![995_u16]);
+            let imap = TargetCircUsage::new_from_ipv4_ports(&[993]);
+            let pop = TargetCircUsage::new_from_ipv4_ports(&[995]);
 
             let (ok, pop1) = rt
                 .wait_for(futures::future::join(
@@ -2286,13 +2229,8 @@ mod test {
         );
         let mut entry_full_c = entry_full.clone();
 
-        let usage_web = TargetCircUsage::Exit {
-            ports: vec![TargetPort::ipv4(80)],
-            isolation: StreamIsolation::no_isolation(),
-            country_code: None,
-            require_stability: false,
-        };
-        let empty: Vec<&mut OpenEntry<SupportedCircUsage, FakeCirc>> = vec![];
+        let usage_web = TargetCircUsage::new_from_ipv4_ports(&[80]);
+        let empty: Vec<&mut OpenEntry<FakeCirc>> = vec![];
 
         assert_isoleq!(
             SupportedCircUsage::find_supported(vec![&mut entry_none].into_iter(), &usage_web),
@@ -2373,5 +2311,42 @@ mod test {
             ),
             vec![&mut entry_web_c, &mut entry_full_c]
         );
+    }
+
+    #[test]
+    fn test_circlist_preemptive_target_circs() {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let rt = MockSleepRuntime::new(rt);
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+            let dirinfo = DirInfo::Directory(&netdir);
+
+            let builder = FakeBuilder::new(&rt);
+
+            for circs in [2, 8].iter() {
+                let mut circlist = CircList::<FakeBuilder<tor_rtmock::MockRuntime>>::new();
+
+                let preemptive_target = TargetCircUsage::Preemptive {
+                    port: Some(TargetPort::ipv4(80)),
+                    circs: *circs,
+                    require_stability: false,
+                };
+
+                for _ in 0..*circs {
+                    assert!(circlist.find_open(&preemptive_target).is_none());
+
+                    let usage = TargetCircUsage::new_from_ipv4_ports(&[80]);
+                    let (plan, _) = builder.plan_circuit(&usage, dirinfo).unwrap();
+                    let (spec, circ) = rt.wait_for(builder.build_circuit(plan)).await.unwrap();
+                    let entry = OpenEntry::new(
+                        spec,
+                        circ,
+                        ExpirationInfo::new(rt.now() + Duration::from_secs(60)),
+                    );
+                    circlist.add_open(entry);
+                }
+
+                assert!(circlist.find_open(&preemptive_target).is_some());
+            }
+        });
     }
 }

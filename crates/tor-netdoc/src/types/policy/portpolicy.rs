@@ -62,6 +62,40 @@ impl PortPolicy {
             allowed: Vec::new(),
         }
     }
+
+    /// Create a PortPolicy from a list of allowed ports. All other ports will be rejected. The
+    /// ports in the list may be in any order.
+    pub fn from_allowed_port_list(ports: Vec<u16>) -> Self {
+        let mut ports = ports;
+        ports.sort();
+        let mut ports = ports.iter().peekable();
+
+        let mut out = PortPolicy::new_reject_all();
+
+        let mut current_min = None;
+        while let Some(port) = ports.next() {
+            if current_min.is_none() {
+                current_min = Some(port);
+            }
+            if let Some(next_port) = ports.peek() {
+                if **next_port != port + 1 {
+                    let _ = out.push_policy(PortRange::new_unchecked(
+                        *current_min.expect("Don't have min port number"),
+                        *port,
+                    ));
+                    current_min = None;
+                }
+            } else {
+                let _ = out.push_policy(PortRange::new_unchecked(
+                    *current_min.expect("Don't have min port number"),
+                    *port,
+                ));
+            }
+        }
+
+        out
+    }
+
     /// Helper: replace this policy with its inverse.
     fn invert(&mut self) {
         let mut prev_hi = 0;
@@ -172,6 +206,8 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use itertools::Itertools;
+
     use super::*;
 
     #[test]
@@ -230,6 +266,23 @@ mod test {
             "reject 5,4,3,2",
         ] {
             assert!(s.parse::<PortPolicy>().is_err());
+        }
+    }
+
+    #[test]
+    fn test_from_allowed_port_list() {
+        let mut cases = vec![];
+        cases.push((vec![1, 2, 3, 7, 8, 10, 42], "accept 1-3,7-8,10,42"));
+        cases.push((vec![1, 3, 5], "accept 1,3,5"));
+        cases.push((vec![1, 2, 3, 4], "accept 1-4"));
+        cases.push((vec![65535], "accept 65535"));
+        cases.push((vec![], "reject 1-65535"));
+
+        for (port_list, port_range) in cases {
+            let expected = port_range.parse::<PortPolicy>().unwrap();
+            for port_list in port_list.iter().copied().permutations(port_list.len()) {
+                assert_eq!(PortPolicy::from_allowed_port_list(port_list), expected,);
+            }
         }
     }
 }
