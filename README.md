@@ -161,7 +161,7 @@ for more details.
 
 ## Minimum supported Rust Version
 
-Our current Minimum Supported Rust Version (MSRV) is 1.70.
+Our current Minimum Supported Rust Version (MSRV) is 1.75.
 
 When increasing this MSRV, we won't require any Rust version released in the
 last six months. (That is, we'll only require Rust versions released at least
