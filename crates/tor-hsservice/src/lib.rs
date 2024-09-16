@@ -205,7 +205,7 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 
 /// A handle to an instance of an onion service, which may or may not be running.
 ///
-/// To construct an `OnionService`, call [`OnionService::new`].
+/// To construct an `OnionService`, use [`OnionServiceBuilder`].
 /// It will not start handling requests until you call its
 /// [``.launch()``](OnionService::launch) method.
 //
@@ -224,41 +224,6 @@ pub struct OnionService {
 }
 
 impl OnionService {
-    /// Create (but do not launch) a new onion service.
-    ///
-    /// The onion service's behavior and local nickname will be determined by
-    /// the provided configuration.
-    ///
-    /// The onion service's keys will be kept in `keymgr`.
-    /// Its non-key state information will be stored persistently in a location
-    /// and manner controlled by `state_dir`.
-    ///
-    // TODO (#1228): document.
-    //
-    // TODO (#1228): Document how we handle the case where somebody tries to launch two
-    // onion services with the same nickname?  They will conflict by trying to
-    // use the same state and the same keys.  Do we stop it here, or in
-    // arti_client?
-    #[deprecated(since = "1.2.6", note = "Use OnionServiceBuilder instead.")]
-    pub fn new(
-        config: OnionServiceConfig,
-        keymgr: Arc<KeyMgr>,
-        state_dir: &StateDirectory,
-    ) -> Result<Self, StartupError> {
-        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
-        // offline
-        //let offline_hsid = config.offline_hsid;
-        let offline_hsid = false;
-
-        maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid)?;
-
-        Ok(OnionService {
-            config,
-            keymgr,
-            state_dir: state_dir.clone(),
-        })
-    }
-
     /// Create an [`OnionServiceBuilder`].
     pub fn builder() -> OnionServiceBuilder {
         OnionServiceBuilder::default()
