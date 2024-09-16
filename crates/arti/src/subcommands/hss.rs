@@ -2,7 +2,7 @@
 
 use anyhow::anyhow;
 use arti_client::TorClientConfig;
-use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand};
+use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
 use tor_hsservice::{HsId, HsNickname, OnionService};
 
 use crate::{ArtiConfig, Result, TorClient};
@@ -29,13 +29,50 @@ pub(crate) struct Hss {
 pub(crate) enum HssSubcommand {
     /// Print the .onion address of a hidden service
     OnionName,
+
+    /// Get or prepare a hidden service key
+    #[command(arg_required_else_help = true)]
+    GetKey(GetKeyArgs),
+}
+
+/// The arguments of the [`GetKey`](HssSubcommand::GetKey) subcommand.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct GetKeyArgs {
+    /// The type of key to retrieve.
+    #[arg(long, value_enum)]
+    key_type: KeyType,
+
+    /// Whether to generate the key if it is missing
+    #[arg(
+        long,
+        default_value_t = GenerateKey::No,
+        value_enum
+    )]
+    generate: GenerateKey,
+}
+
+/// Whether to generate the key if missing.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
+enum GenerateKey {
+    /// Do not generate the key.
+    #[default]
+    No,
+    /// Generate the key if it's missing.
+    IfNeeded,
+}
+
+/// A type of key
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+enum KeyType {
+    /// The identity key of the service
+    OnionName,
 }
 
 /// The arguments shared by all [`HssSubcommand`]s.
 #[derive(Debug, Clone, Args)]
 pub(crate) struct CommonArgs {
     /// The nickname of the service
-    #[arg(long)]
+    #[arg(short, long)]
     nickname: HsNickname,
 }
 
@@ -49,6 +86,7 @@ pub(crate) fn run(
 
     match hss.command {
         HssSubcommand::OnionName => onion_name(&hss.common, config, client_config),
+        HssSubcommand::GetKey(args) => get_key(&hss.common, &args, config, client_config),
     }
 }
 
@@ -107,4 +145,47 @@ fn onion_name(
     display_onion_name(&args.nickname, hsid)?;
 
     Ok(())
+}
+
+/// Run the `hss onion-name` subcommand.
+fn get_or_generate_onion_name(
+    args: &CommonArgs,
+    config: &ArtiConfig,
+    client_config: &TorClientConfig,
+) -> Result<()> {
+    let svc = create_svc(&args.nickname, config, client_config)?;
+    let hsid = svc.onion_name();
+    match hsid {
+        Some(hsid) => display_onion_name(&args.nickname, Some(hsid)),
+        None => {
+            let selector = Default::default();
+            let hsid = svc.generate_identity_key(selector)?;
+            display_onion_name(&args.nickname, Some(hsid))
+        }
+    }
+}
+
+/// Run the `hss get-key` subcommand.
+fn get_key_onion_name(
+    args: &CommonArgs,
+    get_key_args: &GetKeyArgs,
+    config: &ArtiConfig,
+    client_config: &TorClientConfig,
+) -> Result<()> {
+    match get_key_args.generate {
+        GenerateKey::No => onion_name(args, config, client_config),
+        GenerateKey::IfNeeded => get_or_generate_onion_name(args, config, client_config),
+    }
+}
+
+/// Run the `hss get-key` subcommand.
+fn get_key(
+    args: &CommonArgs,
+    get_key_args: &GetKeyArgs,
+    config: &ArtiConfig,
+    client_config: &TorClientConfig,
+) -> Result<()> {
+    match get_key_args.key_type {
+        KeyType::OnionName => get_key_onion_name(args, get_key_args, config, client_config),
+    }
 }

@@ -4,11 +4,12 @@ Usage: arti hss [OPTIONS] --nickname <NICKNAME> <COMMAND>
 
 Commands:
   onion-name  Print the .onion address of a hidden service
+  get-key     Get or prepare a hidden service key
   help        Print this message or the help of the given subcommand(s)
 
 Options:
   -c, --config <FILE>                 Specify which config file(s) to read. Defaults to [File("[..]"), Dir("[..]")]
-  -n, --nickname <HS_NICKNAME>        The nickname of the service
+  -n, --nickname <NICKNAME>           The nickname of the service
   -o <KEY=VALUE>                      Override config file parameters, using TOML-like syntax.
   -l, --log-level <LEVEL>             Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error').
       --disable-fs-permission-checks  Don't check permissions on the files we use.
