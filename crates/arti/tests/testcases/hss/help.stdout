@@ -1,6 +1,6 @@
 Run state management commands for an Arti hidden service
 
-Usage: arti hss [OPTIONS] --nickname <HS_NICKNAME> <COMMAND>
+Usage: arti hss [OPTIONS] --nickname <NICKNAME> <COMMAND>
 
 Commands:
   onion-name  Print the .onion address of a hidden service

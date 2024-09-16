@@ -2,10 +2,42 @@
 
 use anyhow::anyhow;
 use arti_client::TorClientConfig;
-use clap::ArgMatches;
+use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand};
 use tor_hsservice::{HsId, HsNickname, OnionService};
 
 use crate::{ArtiConfig, Result, TorClient};
+
+/// The hss subcommands the arti CLI will be augmented with.
+#[derive(Parser, Debug)]
+pub(crate) enum HssSubcommands {
+    /// Run state management commands for an Arti hidden service.
+    Hss(Hss),
+}
+
+#[derive(Debug, Parser)]
+pub(crate) struct Hss {
+    /// Arguments shared by all hss subcommands.
+    #[command(flatten)]
+    common: CommonArgs,
+
+    /// Return the identity key for the specified service.
+    #[command(subcommand)]
+    command: HssSubcommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub(crate) enum HssSubcommand {
+    /// Print the .onion address of a hidden service
+    OnionName,
+}
+
+/// The arguments shared by all [`HssSubcommand`]s.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct CommonArgs {
+    /// The nickname of the service
+    #[arg(long)]
+    nickname: HsNickname,
+}
 
 /// Run the `hss` subcommand.
 pub(crate) fn run(
@@ -13,16 +45,11 @@ pub(crate) fn run(
     config: &ArtiConfig,
     client_config: &TorClientConfig,
 ) -> Result<()> {
-    let nickname = hss_matches
-        .get_one::<String>("nickname")
-        .expect("non-optional nickname flag not specified?!");
+    let hss = Hss::from_arg_matches(hss_matches).expect("Could not parse hss subcommand");
 
-    if let Some(_onion_name_matches) = hss_matches.subcommand_matches("onion-name") {
-        let nickname = tor_hsservice::HsNickname::try_from(nickname.clone())?;
-        return onion_name(nickname, config, client_config);
+    match hss.command {
+        HssSubcommand::OnionName => onion_name(&hss.common, config, client_config),
     }
-
-    Ok(())
 }
 
 /// Create the OnionService configured with `nickname`.
@@ -71,13 +98,13 @@ fn display_onion_name(nickname: &HsNickname, hsid: Option<HsId>) -> Result<()> {
 
 /// Run the `hss onion-name` subcommand.
 fn onion_name(
-    nickname: HsNickname,
+    args: &CommonArgs,
     config: &ArtiConfig,
     client_config: &TorClientConfig,
 ) -> Result<()> {
-    let onion_svc = create_svc(&nickname, config, client_config)?;
+    let onion_svc = create_svc(&args.nickname, config, client_config)?;
     let hsid = onion_svc.onion_name();
-    display_onion_name(&nickname, hsid)?;
+    display_onion_name(&args.nickname, hsid)?;
 
     Ok(())
 }

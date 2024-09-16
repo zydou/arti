@@ -113,10 +113,13 @@ use clap::{value_parser, Arg, ArgAction, Command};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
-#[cfg(all(
-    feature = "onion-service-client",
-    feature = "experimental-api",
-    feature = "keymgr"
+#[cfg(any(
+    all(
+        feature = "onion-service-client",
+        feature = "experimental-api",
+        feature = "keymgr"
+    ),
+    feature = "onion-service-service",
 ))]
 use clap::Subcommand as _;
 
@@ -290,29 +293,7 @@ where
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "onion-service-service")] {
-            let clap_app = clap_app.subcommand(
-                Command::new("hss")
-                    .about(
-                        "Run state management commands for an Arti hidden service",
-                    )
-                    .arg(
-                        Arg::new("nickname")
-                            .short('n')
-                            .long("nickname")
-                            .action(ArgAction::Set)
-                            .value_name("HS_NICKNAME")
-                            .required(true)
-                            .help("The nickname of the service")
-                    )
-                    .subcommand_required(true)
-                    .arg_required_else_help(true)
-                    .subcommand(
-                        Command::new("onion-name")
-                            .about(
-                                "Print the .onion address of a hidden service",
-                            )
-                    )
-            );
+            let clap_app = subcommands::hss::HssSubcommands::augment_subcommands(clap_app);
         }
     }
 
