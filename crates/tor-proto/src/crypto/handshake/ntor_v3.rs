@@ -509,14 +509,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     let id: Ed25519Identity = r.extract()?;
     let requested_pk: curve25519::PublicKey = r.extract()?;
     let client_pk: curve25519::PublicKey = r.extract()?;
-    let client_msg = if let Some(msg_len) = r.remaining().checked_sub(MAC_LEN) {
-        r.take(msg_len)?
-    } else {
-        let deficit = (MAC_LEN - r.remaining())
-            .try_into()
-            .expect("miscalculated!");
-        return Err(r.incomplete_error(deficit).into());
-    };
+    let client_msg = r.take_all_but(MAC_LEN)?;
     let msg_mac: MacVal = r.extract()?;
     r.should_be_exhausted()?;
 

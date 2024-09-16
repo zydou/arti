@@ -1,5 +1,7 @@
 //! Internal: Declare the Reader type for tor-bytes
 
+use tor_error::{bad_api_usage, into_internal};
+
 use crate::{Error, Readable, Result};
 use std::num::NonZeroUsize;
 
@@ -316,6 +318,44 @@ impl<'a> Reader<'a> {
         self.take(self.remaining())
             .expect("taking remaining failed")
     }
+
+    /// Consume and return all but the last `n` remaining bytes.
+    ///
+    /// Gives `Error::MissingData` if there are fewer than `n` remaining bytes.
+    ///
+    /// It is invalid to call this method on a `Reader` constructed with
+    /// [`Reader::from_possibly_incomplete_slice`].  (If we don't know where the
+    /// data actually ends, we can't take all but the last `n` bytes.)
+    /// Such calls cause an internal error.
+    ///
+    /// # Example
+    /// ```
+    /// use tor_bytes::{Reader,Result};
+    /// let m = b"Hello World";
+    /// let mut b = Reader::from_slice(m);
+    /// assert_eq!(b.take_all_but(2)?, b"Hello Wor");
+    /// assert_eq!(b.into_rest(), b"ld");
+    /// # Result::Ok(())
+    /// ```
+    pub fn take_all_but(&mut self, n: usize) -> Result<&'a [u8]> {
+        match self.completeness {
+            Completeness::PossiblyIncomplete => {
+                return Err(Error::Bug(bad_api_usage!(
+                    "Called take_all_but on a PossiblyIncomplete reader."
+                )))
+            }
+            Completeness::SupposedlyComplete => {}
+        }
+
+        let n_to_take = self.remaining().checked_sub(n).ok_or(Error::MissingData)?;
+
+        let result = self
+            .take(n_to_take)
+            .map_err(into_internal!("Subtraction misled us somehow"))?;
+        debug_assert_eq!(self.remaining(), n);
+        Ok(result)
+    }
+
     /// Try to decode and remove a Readable from this reader, using its
     /// take_from() method.
     ///
@@ -760,6 +800,40 @@ mod tests {
         assert_eq!(c2, c2b);
         assert!(c1 < c2);
         assert!(c2 < c3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn take_all_but() -> Result<()> {
+        let message = b"byte manipulation for fun and (non)-profit";
+
+        // Case 1: Successful, complete reader
+        // (Can't use from_slice_for_test here: that's a possibly-incomplete reader.)
+        let mut b = Reader::from_slice(message);
+        assert_eq!(b.take_all_but(6)?, b"byte manipulation for fun and (non)-");
+        assert_eq!(b.into_rest(), b"profit");
+
+        // Case 1b: Successful, take nothing, complete reader.
+        let mut b = Reader::from_slice(message);
+        assert_eq!(b.take_all_but(message.len())?, b"");
+        assert_eq!(b.into_rest(), message);
+
+        // Case 1c: Successful, take everything, complete reader.
+        let mut b = Reader::from_slice(message);
+        assert_eq!(b.take_all_but(0)?, message);
+        assert_eq!(b.into_rest(), b"");
+
+        // Case 2: Unsuccessful, complete reader
+        let mut b = Reader::from_slice(message);
+        assert!(matches!(
+            b.take_all_but(message.len() + 1),
+            Err(Error::MissingData)
+        ));
+
+        // Case 3: Anything, incomplete reader.
+        let mut b = Reader::from_possibly_incomplete_slice(message);
+        assert!(matches!(b.take_all_but(6), Err(Error::Bug(_))));
 
         Ok(())
     }
