@@ -276,63 +276,65 @@ impl Connection {
         /// Helper: enforce an explicit "continue".
         struct Continue;
 
-        loop {
-            let _: Continue = futures::select! {
-                r = finished_requests.next() => {
-                    // A task is done, so we can forget about it.
-                    let () = r.expect("Somehow, future::pending() terminated.");
-                    Continue
-                }
+        let _ = {
+            loop {
+                let _: Continue = futures::select! {
+                    r = finished_requests.next() => {
+                        // A task is done, so we can forget about it.
+                        let () = r.expect("Somehow, future::pending() terminated.");
+                        Continue
+                    }
 
-                r = rx_response.next() => {
-                    // The future for some request has sent a response (success,
-                    // failure, or update), so we can inform the client.
-                    let update = r.expect("Somehow, tx_update got closed.");
-                    debug_assert!(! update.body.is_final());
-                    // Calling `await` here (and below) is deliberate: we _want_
-                    // to stop reading the client's requests if the client is
-                    // not reading their responses (or not) reading them fast
-                    // enough.
-                    response_sink.send(update).await.map_err(ConnectionError::writing)?;
-                    Continue
-                }
+                    r = rx_response.next() => {
+                        // The future for some request has sent a response (success,
+                        // failure, or update), so we can inform the client.
+                        let update = r.expect("Somehow, tx_update got closed.");
+                        debug_assert!(! update.body.is_final());
+                        // Calling `await` here (and below) is deliberate: we _want_
+                        // to stop reading the client's requests if the client is
+                        // not reading their responses (or not) reading them fast
+                        // enough.
+                        response_sink.send(update).await.map_err(ConnectionError::writing)?;
+                        Continue
+                    }
 
-                req = request_stream.next() => {
-                    match req {
-                        None => {
-                            // We've reached the end of the stream of requests;
-                            // time to close.
-                            return Ok(());
-                        }
-                        Some(Err(e)) => {
-                            // We got a non-recoverable error from the JSON codec.
-                            return Err(ConnectionError::from_read_error(e));
-
-                        }
-                        Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
-                            // We decoded the request as Json, but not as a `Valid`` request.
-                            // Send back a response indicating what was wrong with it.
-                            response_sink
-                                .send(
-                                    BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
-                                ).await.map_err( ConnectionError::writing)?;
-                            if bad_req.id().is_none() {
-                                // The spec says we must close the connection in this case.
-                                return Err(bad_req.error().into());
+                    req = request_stream.next() => {
+                        match req {
+                            None => {
+                                // We've reached the end of the stream of requests;
+                                // time to close.
+                                return Ok(());
                             }
-                            Continue
+                            Some(Err(e)) => {
+                                // We got a non-recoverable error from the JSON codec.
+                                return Err(ConnectionError::from_read_error(e));
 
-                        }
-                        Some(Ok(FlexibleRequest::Valid(req))) => {
-                            // We have a request. Time to launch it!
-                            let fut = self.run_method_and_deliver_response(tx_response.clone(), req);
-                            finished_requests.push(fut.boxed());
-                            Continue
+                            }
+                            Some(Ok(FlexibleRequest::Invalid(bad_req))) => {
+                                // We decoded the request as Json, but not as a `Valid`` request.
+                                // Send back a response indicating what was wrong with it.
+                                response_sink
+                                    .send(
+                                        BoxedResponse::from_error(bad_req.id().cloned(), bad_req.error())
+                                    ).await.map_err( ConnectionError::writing)?;
+                                if bad_req.id().is_none() {
+                                    // The spec says we must close the connection in this case.
+                                    return Err(bad_req.error().into());
+                                }
+                                Continue
+
+                            }
+                            Some(Ok(FlexibleRequest::Valid(req))) => {
+                                // We have a request. Time to launch it!
+                                let fut = self.run_method_and_deliver_response(tx_response.clone(), req);
+                                finished_requests.push(fut.boxed());
+                                Continue
+                            }
                         }
                     }
-                }
-            };
-        }
+                };
+            }
+        };
     }
 
     /// Invoke `request` and send all of its responses to `tx_response`.
