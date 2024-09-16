@@ -18,7 +18,10 @@ use super::proxyinfo::{self, ProxyInfo};
 /// level of [`arti_rpcserver`].
 #[derive(Deftly)]
 #[derive_deftly(rpc::Object)]
-#[deftly(rpc(delegate_with = "|this: &Self| Some(this.session.clone())"))]
+#[deftly(rpc(
+    delegate_with = "|this: &Self| Some(this.session.clone())",
+    delegate_type = "arti_rpcserver::RpcSession"
+))]
 #[deftly(rpc(expose_outside_of_session))]
 pub(super) struct ArtiRpcSession {
     /// State about the `arti` server, as seen by the Rpc system.

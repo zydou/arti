@@ -981,7 +981,10 @@ pub(crate) mod test {
     // Define an object with delegation.
     #[derive(Clone, Deftly)]
     #[derive_deftly(Object)]
-    #[deftly(rpc(delegate_with = "|this: &Self| this.contents.clone()"))]
+    #[deftly(rpc(
+        delegate_with = "|this: &Self| this.contents.clone()",
+        delegate_type = "dyn crate::Object"
+    ))]
     struct CatCarrier {
         contents: Option<Arc<dyn crate::Object>>,
     }
