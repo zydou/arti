@@ -420,11 +420,7 @@ integration-chutney:
     - maint/common/apt-install tor git python3 curl dnsutils
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
-    - ./tests/chutney/setup proxy
-    - ./tests/chutney/test
-    - ./tests/chutney/stop-arti
-    - RUST_LOG=debug target/x86_64-unknown-linux-gnu/release/arti-bench -c ./chutney/net/nodes/arti.toml --socks5 127.0.0.1:9008 -o benchmark_results.json
-    - ./tests/chutney/teardown
+    - tests/chutney/integration-e2e
   artifacts:
     paths:
       - benchmark_results.json
