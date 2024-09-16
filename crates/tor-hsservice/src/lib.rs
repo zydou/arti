@@ -208,10 +208,6 @@ impl From<oneshot::Canceled> for ShutdownStatus {
 /// To construct an `OnionService`, use [`OnionServiceBuilder`].
 /// It will not start handling requests until you call its
 /// [``.launch()``](OnionService::launch) method.
-//
-// TODO (#1228): Write more.
-// TODO (#1247): Choose a better name for this struct
-//
 #[derive(Builder)]
 #[builder(build_fn(private, name = "build_unvalidated", error = "FatalError"))]
 pub struct OnionService {
