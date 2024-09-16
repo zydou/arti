@@ -271,11 +271,15 @@ impl Connection {
         let mut finished_requests = FuturesUnordered::new();
         finished_requests.push(futures::future::pending().boxed());
 
+        /// Helper: enforce an explicit "continue".
+        struct Continue;
+
         loop {
-            futures::select! {
+            let _: Continue = futures::select! {
                 r = finished_requests.next() => {
                     // A task is done, so we can forget about it.
                     let () = r.expect("Somehow, future::pending() terminated.");
+                    Continue
                 }
 
                 r = rx_response.next() => {
@@ -288,6 +292,7 @@ impl Connection {
                     // not reading their responses (or not) reading them fast
                     // enough.
                     response_sink.send(update).await.map_err(ConnectionError::writing)?;
+                    Continue
                 }
 
                 req = request_stream.next() => {
@@ -313,15 +318,18 @@ impl Connection {
                                 // The spec says we must close the connection in this case.
                                 return Err(bad_req.error().into());
                             }
+                            Continue
+
                         }
                         Some(Ok(FlexibleRequest::Valid(req))) => {
                             // We have a request. Time to launch it!
                             let fut = self.run_method_and_deliver_response(tx_response.clone(), req);
                             finished_requests.push(fut.boxed());
+                            Continue
                         }
                     }
                 }
-            }
+            };
         }
     }
 
