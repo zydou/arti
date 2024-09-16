@@ -25,8 +25,8 @@ use derive_deftly::define_derive_deftly;
 /// define_ed25519_keypair!(pub(crate) CratePublicSigning);
 /// ```
 ///
-/// The above results in `MySigningKeypair` and `MySigningPublicKey` struct being created and usable
-/// with a series of useful methods.
+/// The above results in `NonPublicSigningKeypair` and `NonPublicSigningPublicKey` struct being
+/// created and usable with a series of useful methods. Same for the other defines.
 ///
 /// You can then use these objects like so:
 ///
