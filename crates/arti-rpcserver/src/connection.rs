@@ -243,10 +243,7 @@ impl Connection {
             .fuse(),
         );
 
-        match self.run_loop(read, write).await {
-            Err(e) if e.is_connection_close() => Ok(()),
-            other => other,
-        }
+        self.run_loop(read, write).await
     }
 
     /// Run in a loop, handling requests from `request_stream` and writing
@@ -276,7 +273,9 @@ impl Connection {
         /// Helper: enforce an explicit "continue".
         struct Continue;
 
-        let _ = {
+        // We create a separate async block here and immediately await it,
+        // so that any internal `returns` and `?`s do not escape the function.
+        let outcome = async {
             loop {
                 let _: Continue = futures::select! {
                     r = finished_requests.next() => {
@@ -334,7 +333,12 @@ impl Connection {
                     }
                 };
             }
-        };
+        }.await;
+
+        match outcome {
+            Err(e) if e.is_connection_close() => Ok(()),
+            other => other,
+        }
     }
 
     /// Invoke `request` and send all of its responses to `tx_response`.
