@@ -23,12 +23,16 @@
 
 use crate::config::CircuitTiming;
 use crate::usage::{SupportedCircUsage, TargetCircUsage};
-use crate::{DirInfo, Error, Result};
+use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_config::MutCfg;
 use tor_error::{debug_report, info_report, internal, warn_report, AbsRetryTime, HasRetryTime};
+#[cfg(feature = "vanguards")]
+use tor_guardmgr::vanguards::VanguardMgr;
+use tor_linkspec::CircTarget;
+use tor_proto::circuit::{CircParameters, Path, UniqId};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -72,6 +76,7 @@ pub enum RestrictionFailed {
 ///
 /// From this module's point of view, circuits are simply objects
 /// with unique identities, and a possible closed-state.
+#[async_trait]
 pub(crate) trait AbstractCirc: Debug {
     /// Type for a unique identifier for circuits.
     type Id: Clone + Debug + Hash + Eq + Send + Sync;
@@ -87,6 +92,33 @@ pub(crate) trait AbstractCirc: Debug {
     ///
     /// Reasons a circuit might be unusable include being closed.
     fn usable(&self) -> bool;
+
+    /// Return a [`Path`] object describing all the hops in this circuit.
+    ///
+    /// Note that this `Path` is not automatically updated if the circuit is
+    /// extended.
+    fn path_ref(&self) -> Arc<Path>;
+
+    /// Return the number of hops in this circuit.
+    ///
+    /// NOTE: This function will currently return only the number of hops
+    /// _currently_ in the circuit. If there is an extend operation in progress,
+    /// the currently pending hop may or may not be counted, depending on whether
+    /// the extend operation finishes before this call is done.
+    fn n_hops(&self) -> usize;
+
+    /// Return true if this circuit is closed and therefore unusable.
+    fn is_closing(&self) -> bool;
+
+    /// Return a process-unique identifier for this circuit.
+    fn unique_id(&self) -> UniqId;
+
+    /// Extend the circuit via the ntor handshake to a new target last hop.
+    async fn extend_ntor<T: CircTarget + Sync>(
+        &self,
+        target: &T,
+        params: &CircParameters,
+    ) -> tor_proto::Result<()>;
 }
 
 /// A plan for an `AbstractCircBuilder` that can maybe be mutated by tests.
@@ -108,7 +140,7 @@ pub(crate) trait MockablePlan {
 ///
 /// Second, the circuit is actually built, using the plan as input.
 #[async_trait]
-pub(crate) trait AbstractCircBuilder: Send + Sync {
+pub(crate) trait AbstractCircBuilder<R: Runtime>: Send + Sync {
     /// The circuit type that this builder knows how to build.
     type Circ: AbstractCirc + Send + Sync;
     /// An opaque type describing how a given circuit will be built.
@@ -192,6 +224,30 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     /// Return true if we are currently attempting to learn circuit
     /// timeouts by building testing circuits.
     fn learning_timeouts(&self) -> bool;
+
+    /// Flush state to the state manager if we own the lock.
+    ///
+    /// Return `Ok(true)` if we saved, and `Ok(false)` if we didn't hold the lock.
+    fn save_state(&self) -> Result<bool>;
+
+    /// Return this builder's [`PathConfig`](crate::PathConfig).
+    fn path_config(&self) -> Arc<PathConfig>;
+
+    /// Replace this builder's [`PathConfig`](crate::PathConfig).
+    // TODO: This is dead_code because we only call this for the CircuitBuilder specialization of
+    // CircMgr, not from the generic version, because this trait doesn't provide guardmgr, which is
+    // needed by the [`CircMgr::reconfigure`] function that would be the only caller of this. We
+    // should add `guardmgr` to this trait, make [`CircMgr::reconfigure`] generic, and remove this
+    // dead_code marking.
+    #[allow(dead_code)]
+    fn set_path_config(&self, new_config: PathConfig);
+
+    /// Return a reference to this builder's timeout estimator.
+    fn estimator(&self) -> &timeouts::Estimator;
+
+    /// Return a reference to this builder's `VanguardMgr`.
+    #[cfg(feature = "vanguards")]
+    fn vanguardmgr(&self) -> &Arc<VanguardMgr<R>>;
 }
 
 /// Enumeration to track the expiration state of a circuit.
@@ -309,7 +365,7 @@ impl<C: AbstractCirc> OpenEntry<C> {
 }
 
 /// A result type whose "Ok" value is the Id for a circuit from B.
-type PendResult<B> = Result<<<B as AbstractCircBuilder>::Circ as AbstractCirc>::Id>;
+type PendResult<B, R> = Result<<<B as AbstractCircBuilder<R>>::Circ as AbstractCirc>::Id>;
 
 /// An in-progress circuit request tracked by an `AbstractCircMgr`.
 ///
@@ -317,15 +373,15 @@ type PendResult<B> = Result<<<B as AbstractCircBuilder>::Circ as AbstractCirc>::
 /// _requests_ for circuits.  The manager uses these entries if it
 /// finds that some circuit created _after_ a request first launched
 /// might meet the request's requirements.)
-struct PendingRequest<B: AbstractCircBuilder> {
+struct PendingRequest<B: AbstractCircBuilder<R>, R: Runtime> {
     /// Usage for the operation requested by this request
     usage: TargetCircUsage,
     /// A channel to use for telling this request about circuits that it
     /// might like.
-    notify: mpsc::Sender<PendResult<B>>,
+    notify: mpsc::Sender<PendResult<B, R>>,
 }
 
-impl<B: AbstractCircBuilder> PendingRequest<B> {
+impl<B: AbstractCircBuilder<R>, R: Runtime> PendingRequest<B, R> {
     /// Return true if this request would be supported by `spec`.
     fn supported_by(&self, spec: &SupportedCircUsage) -> bool {
         spec.supports(&self.usage)
@@ -335,7 +391,7 @@ impl<B: AbstractCircBuilder> PendingRequest<B> {
 /// An entry for an under-construction in-progress circuit tracked by
 /// an `AbstractCircMgr`.
 #[derive(Debug)]
-struct PendingEntry<B: AbstractCircBuilder> {
+struct PendingEntry<B: AbstractCircBuilder<R>, R: Runtime> {
     /// Specification that this circuit will support, if every pending
     /// request that is waiting for it is attached to it.
     ///
@@ -347,14 +403,14 @@ struct PendingEntry<B: AbstractCircBuilder> {
     tentative_assignment: sync::Mutex<SupportedCircUsage>,
     /// A shared future for requests to use when waiting for
     /// notification of this circuit's success.
-    receiver: Shared<oneshot::Receiver<PendResult<B>>>,
+    receiver: Shared<oneshot::Receiver<PendResult<B, R>>>,
 }
 
-impl<B: AbstractCircBuilder> PendingEntry<B> {
+impl<B: AbstractCircBuilder<R>, R: Runtime> PendingEntry<B, R> {
     /// Make a new PendingEntry that starts out supporting a given
     /// spec.  Return that PendingEntry, along with a Sender to use to
     /// report the result of building this circuit.
-    fn new(circ_spec: &SupportedCircUsage) -> (Self, oneshot::Sender<PendResult<B>>) {
+    fn new(circ_spec: &SupportedCircUsage) -> (Self, oneshot::Sender<PendResult<B, R>>) {
         let tentative_assignment = sync::Mutex::new(circ_spec.clone());
         let (sender, receiver) = oneshot::channel();
         let receiver = receiver.shared();
@@ -401,17 +457,17 @@ impl<B: AbstractCircBuilder> PendingEntry<B> {
 /// Wrapper type to represent the state between planning to build a
 /// circuit and constructing it.
 #[derive(Debug)]
-struct CircBuildPlan<B: AbstractCircBuilder> {
+struct CircBuildPlan<B: AbstractCircBuilder<R>, R: Runtime> {
     /// The Plan object returned by [`AbstractCircBuilder::plan_circuit`].
     plan: B::Plan,
     /// A sender to notify any pending requests when this circuit is done.
-    sender: oneshot::Sender<PendResult<B>>,
+    sender: oneshot::Sender<PendResult<B, R>>,
     /// A strong entry to the PendingEntry for this circuit build attempt.
-    pending: Arc<PendingEntry<B>>,
+    pending: Arc<PendingEntry<B, R>>,
 }
 
 /// The inner state of an [`AbstractCircMgr`].
-struct CircList<B: AbstractCircBuilder> {
+struct CircList<B: AbstractCircBuilder<R>, R: Runtime> {
     /// A map from circuit ID to [`OpenEntry`] values for all managed
     /// open circuits.
     ///
@@ -444,7 +500,7 @@ struct CircList<B: AbstractCircBuilder> {
     /// (or failed), we remove the entry (by pointer identity).
     /// If we cannot find the entry, we conclude that the request has been
     /// _cancelled_, and so we discard any circuit that was created.
-    pending_circs: PtrWeakHashSet<Weak<PendingEntry<B>>>,
+    pending_circs: PtrWeakHashSet<Weak<PendingEntry<B, R>>>,
     /// Weak-set of PendingRequest for requests that are waiting for a
     /// circuit to be built.
     ///
@@ -452,10 +508,10 @@ struct CircList<B: AbstractCircBuilder> {
     /// strong reference to the PendingRequest is held by the task
     /// waiting for the circuit to be built, this set's members are
     /// lazily removed after the request succeeds or fails.
-    pending_requests: PtrWeakHashSet<Weak<PendingRequest<B>>>,
+    pending_requests: PtrWeakHashSet<Weak<PendingRequest<B, R>>>,
 }
 
-impl<B: AbstractCircBuilder> CircList<B> {
+impl<B: AbstractCircBuilder<R>, R: Runtime> CircList<B, R> {
     /// Make a new empty `CircList`
     fn new() -> Self {
         CircList {
@@ -530,14 +586,14 @@ impl<B: AbstractCircBuilder> CircList<B> {
     }
 
     /// Add `pending` to the set of in-progress circuits.
-    fn add_pending_circ(&mut self, pending: Arc<PendingEntry<B>>) {
+    fn add_pending_circ(&mut self, pending: Arc<PendingEntry<B, R>>) {
         self.pending_circs.insert(pending);
     }
 
     /// Find all pending circuits that support `usage`.
     ///
     /// If no such circuits are currently being built, return None.
-    fn find_pending_circs(&self, usage: &TargetCircUsage) -> Option<Vec<Arc<PendingEntry<B>>>> {
+    fn find_pending_circs(&self, usage: &TargetCircUsage) -> Option<Vec<Arc<PendingEntry<B, R>>>> {
         let result: Vec<_> = self
             .pending_circs
             .iter()
@@ -556,7 +612,7 @@ impl<B: AbstractCircBuilder> CircList<B> {
     ///
     /// A circuit will become non-pending when finishes (successfully or not), or when it's
     /// removed from this list via `clear_all_circuits()`.
-    fn circ_is_pending(&self, circ: &Arc<PendingEntry<B>>) -> bool {
+    fn circ_is_pending(&self, circ: &Arc<PendingEntry<B, R>>) -> bool {
         self.pending_circs.contains(circ)
     }
 
@@ -565,13 +621,16 @@ impl<B: AbstractCircBuilder> CircList<B> {
     ///
     /// Return the request, and a new receiver stream that it should
     /// use for notification of possible circuits to use.
-    fn add_pending_request(&mut self, pending: &Arc<PendingRequest<B>>) {
+    fn add_pending_request(&mut self, pending: &Arc<PendingRequest<B, R>>) {
         self.pending_requests.insert(Arc::clone(pending));
     }
 
     /// Return all pending requests that would be satisfied by a circuit
     /// that supports `circ_spec`.
-    fn find_pending_requests(&self, circ_spec: &SupportedCircUsage) -> Vec<Arc<PendingRequest<B>>> {
+    fn find_pending_requests(
+        &self,
+        circ_spec: &SupportedCircUsage,
+    ) -> Vec<Arc<PendingRequest<B, R>>> {
         self.pending_requests
             .iter()
             .filter(|pend| pend.supported_by(circ_spec))
@@ -639,7 +698,7 @@ impl From<&tor_netdir::params::NetParameters> for UnusedTimings {
 /// satisfy the request, we try to give that circuit as an answer to
 /// that request even if it was not one of the circuits that request
 /// was waiting for.
-pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
+pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder<R>, R: Runtime> {
     /// Builder used to construct circuits.
     builder: B,
     /// An asynchronous runtime to use for launching tasks and
@@ -647,7 +706,7 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
     runtime: R,
     /// A CircList to manage our list of circuits, requests, and
     /// pending circuits.
-    circs: sync::Mutex<CircList<B>>,
+    circs: sync::Mutex<CircList<B, R>>,
 
     /// Configured information about when to expire circuits and requests.
     circuit_timing: MutCfg<CircuitTiming>,
@@ -659,18 +718,18 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
 }
 
 /// An action to take in order to satisfy a request for a circuit.
-enum Action<B: AbstractCircBuilder> {
+enum Action<B: AbstractCircBuilder<R>, R: Runtime> {
     /// We found an open circuit: return immediately.
     Open(Arc<B::Circ>),
     /// We found one or more pending circuits: wait until one succeeds,
     /// or all fail.
-    Wait(FuturesUnordered<Shared<oneshot::Receiver<PendResult<B>>>>),
+    Wait(FuturesUnordered<Shared<oneshot::Receiver<PendResult<B, R>>>>),
     /// We should launch circuits: here are the instructions for how
     /// to do so.
-    Build(Vec<CircBuildPlan<B>>),
+    Build(Vec<CircBuildPlan<B, R>>),
 }
 
-impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
+impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// Construct a new AbstractCircMgr.
     pub(crate) fn new(builder: B, runtime: R, circuit_timing: CircuitTiming) -> Self {
         let circs = sync::Mutex::new(CircList::new());
@@ -875,7 +934,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &TargetCircUsage,
         dir: DirInfo<'_>,
         restrict_circ: bool,
-    ) -> Result<Action<B>> {
+    ) -> Result<Action<B, R>> {
         let mut list = self.circs.lock().expect("poisoned lock");
 
         if let Some(mut open) = list.find_open(usage) {
@@ -942,7 +1001,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// resulting circuit or error.
     async fn take_action(
         self: Arc<Self>,
-        act: Action<B>,
+        act: Action<B, R>,
         usage: &TargetCircUsage,
     ) -> std::result::Result<(Arc<B::Circ>, CircProvenance), RetryError<Box<Error>>> {
         /// Store the error `err` into `retry_err`, as appropriate.
@@ -1122,11 +1181,12 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     ///
     /// This is an internal function that we call when we're pretty sure
     /// we want to build a circuit.
+    #[allow(clippy::type_complexity)]
     fn plan_by_usage(
         &self,
         dir: DirInfo<'_>,
         usage: &TargetCircUsage,
-    ) -> Result<(Arc<PendingEntry<B>>, CircBuildPlan<B>)> {
+    ) -> Result<(Arc<PendingEntry<B, R>>, CircBuildPlan<B, R>)> {
         let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
         let (pending, sender) = PendingEntry::new(&bspec);
         let pending = Arc::new(pending);
@@ -1148,7 +1208,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         self: &Arc<Self>,
         usage: &TargetCircUsage,
         dir: DirInfo<'_>,
-    ) -> Result<Shared<oneshot::Receiver<PendResult<B>>>> {
+    ) -> Result<Shared<oneshot::Receiver<PendResult<B, R>>>> {
         let (pending, plan) = self.plan_by_usage(dir, usage)?;
 
         self.circs
@@ -1166,8 +1226,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     fn spawn_launch(
         self: Arc<Self>,
         usage: &TargetCircUsage,
-        plan: CircBuildPlan<B>,
-    ) -> Shared<oneshot::Receiver<PendResult<B>>> {
+        plan: CircBuildPlan<B, R>,
+    ) -> Shared<oneshot::Receiver<PendResult<B, R>>> {
         let _ = usage; // Currently unused.
         let CircBuildPlan {
             mut plan,
@@ -1237,9 +1297,9 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// circuit spec and the outcome that should be sent to the initiator.
     async fn do_launch(
         self: Arc<Self>,
-        plan: <B as AbstractCircBuilder>::Plan,
-        pending: Arc<PendingEntry<B>>,
-    ) -> (Option<SupportedCircUsage>, PendResult<B>) {
+        plan: <B as AbstractCircBuilder<R>>::Plan,
+        pending: Arc<PendingEntry<B, R>>,
+    ) -> (Option<SupportedCircUsage>, PendResult<B, R>) {
         let outcome = self.builder.build_circuit(plan).await;
 
         match outcome {
@@ -1411,11 +1471,11 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
 fn spawn_expiration_task<B, R>(
     runtime: &R,
     circmgr: Weak<AbstractCircMgr<B, R>>,
-    circ_id: <<B as AbstractCircBuilder>::Circ as AbstractCirc>::Id,
+    circ_id: <<B as AbstractCircBuilder<R>>::Circ as AbstractCirc>::Id,
     exp_inst: Instant,
 ) where
     R: Runtime,
-    B: 'static + AbstractCircBuilder,
+    B: 'static + AbstractCircBuilder<R>,
 {
     let now = runtime.now();
     let rt_copy = runtime.clone();
@@ -1463,83 +1523,15 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
+    use crate::mocks::{FakeBuilder, FakeCirc, FakeId, FakeOp};
     use crate::usage::{ExitPolicy, SupportedCircUsage};
     use crate::{Error, IsolationToken, StreamIsolation, TargetCircUsage, TargetPort, TargetPorts};
     use once_cell::sync::Lazy;
-    use std::sync::atomic::{self, AtomicUsize};
     use tor_guardmgr::fallback::FallbackList;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
-    use tor_rtmock::MockSleepRuntime;
-    use tracing::trace;
-
-    #[derive(Debug, Clone, Eq, PartialEq, Hash, Copy)]
-    struct FakeId {
-        id: usize,
-    }
-
-    static NEXT_FAKE_ID: AtomicUsize = AtomicUsize::new(0);
-    impl FakeId {
-        fn next() -> Self {
-            let id = NEXT_FAKE_ID.fetch_add(1, atomic::Ordering::SeqCst);
-            FakeId { id }
-        }
-    }
-
-    #[derive(Debug, PartialEq, Clone, Eq)]
-    struct FakeCirc {
-        id: FakeId,
-    }
-
-    impl FakeCirc {
-        fn eq(&self, other: &Self) -> bool {
-            self.id == other.id
-        }
-    }
-
-    impl AbstractCirc for FakeCirc {
-        type Id = FakeId;
-        fn id(&self) -> FakeId {
-            self.id
-        }
-        fn usable(&self) -> bool {
-            true
-        }
-    }
-
-    #[derive(Debug, Clone)]
-    struct FakePlan {
-        spec: SupportedCircUsage,
-        op: FakeOp,
-    }
-
-    #[derive(Debug)]
-    struct FakeBuilder<RT: Runtime> {
-        runtime: RT,
-        script: sync::Mutex<Vec<(TargetCircUsage, FakeOp)>>,
-    }
-
-    #[derive(Debug, Clone)]
-    enum FakeOp {
-        Succeed,
-        Fail,
-        Delay(Duration),
-        Timeout,
-        TimeoutReleaseAdvance(String),
-        NoPlan,
-        WrongSpec(SupportedCircUsage),
-    }
-
-    impl MockablePlan for FakePlan {
-        fn add_blocked_advance_reason(&mut self, reason: String) {
-            if let FakeOp::Timeout = self.op {
-                self.op = FakeOp::TimeoutReleaseAdvance(reason);
-            }
-        }
-    }
-
-    const FAKE_CIRC_DELAY: Duration = Duration::from_millis(30);
+    use tor_rtmock::{MockRuntime, MockSleepRuntime};
 
     static FALLBACKS_EMPTY: Lazy<FallbackList> = Lazy::new(|| [].into());
 
@@ -1564,121 +1556,6 @@ mod test {
         }
     }
 
-    #[async_trait]
-    impl<RT: Runtime> AbstractCircBuilder for FakeBuilder<RT> {
-        type Circ = FakeCirc;
-        type Plan = FakePlan;
-
-        fn plan_circuit(
-            &self,
-            spec: &TargetCircUsage,
-            _dir: DirInfo<'_>,
-        ) -> Result<(FakePlan, SupportedCircUsage)> {
-            let next_op = self.next_op(spec);
-            if matches!(next_op, FakeOp::NoPlan) {
-                return Err(Error::NoRelay {
-                    path_kind: "example",
-                    role: "example",
-                    problem: "called with no plan".to_string(),
-                });
-            }
-            let supported_circ_usage = match spec {
-                TargetCircUsage::Exit {
-                    ports,
-                    isolation,
-                    country_code,
-                    require_stability,
-                } => SupportedCircUsage::Exit {
-                    policy: ExitPolicy::from_target_ports(&TargetPorts::from(&ports[..])),
-                    isolation: if isolation.isol_eq(&StreamIsolation::no_isolation()) {
-                        None
-                    } else {
-                        Some(isolation.clone())
-                    },
-                    country_code: country_code.clone(),
-                    all_relays_stable: *require_stability,
-                },
-                _ => unimplemented!(),
-            };
-            let plan = FakePlan {
-                spec: supported_circ_usage.clone(),
-                op: next_op,
-            };
-            Ok((plan, supported_circ_usage))
-        }
-
-        async fn build_circuit(
-            &self,
-            plan: FakePlan,
-        ) -> Result<(SupportedCircUsage, Arc<FakeCirc>)> {
-            let op = plan.op;
-            let sl = self.runtime.sleep(FAKE_CIRC_DELAY);
-            self.runtime.allow_one_advance(FAKE_CIRC_DELAY);
-            sl.await;
-            match op {
-                FakeOp::Succeed => Ok((plan.spec, Arc::new(FakeCirc { id: FakeId::next() }))),
-                FakeOp::WrongSpec(s) => Ok((s, Arc::new(FakeCirc { id: FakeId::next() }))),
-                FakeOp::Fail => Err(Error::CircTimeout(None)),
-                FakeOp::Delay(d) => {
-                    let sl = self.runtime.sleep(d);
-                    self.runtime.allow_one_advance(d);
-                    sl.await;
-                    Err(Error::PendingCanceled)
-                }
-                FakeOp::Timeout => unreachable!(), // should be converted to the below
-                FakeOp::TimeoutReleaseAdvance(reason) => {
-                    trace!("releasing advance to fake a timeout");
-                    self.runtime.release_advance(reason);
-                    let () = futures::future::pending().await;
-                    unreachable!()
-                }
-                FakeOp::NoPlan => unreachable!(),
-            }
-        }
-
-        fn learning_timeouts(&self) -> bool {
-            false
-        }
-    }
-
-    impl<RT: Runtime> FakeBuilder<RT> {
-        fn new(rt: &RT) -> Self {
-            FakeBuilder {
-                runtime: rt.clone(),
-                script: sync::Mutex::new(vec![]),
-            }
-        }
-
-        /// set a plan for a given TargetCircUsage.
-        fn set<I>(&self, spec: TargetCircUsage, v: I)
-        where
-            I: IntoIterator<Item = FakeOp>,
-        {
-            let mut ops: Vec<_> = v.into_iter().collect();
-            ops.reverse();
-            let mut lst = self.script.lock().unwrap();
-            for op in ops {
-                lst.push((spec.clone(), op));
-            }
-        }
-
-        fn next_op(&self, spec: &TargetCircUsage) -> FakeOp {
-            let mut script = self.script.lock().unwrap();
-
-            let idx = script
-                .iter()
-                .enumerate()
-                .find_map(|(i, s)| spec.isol_eq(&s.0).then_some(i));
-
-            if let Some(i) = idx {
-                let (_, op) = script.remove(i);
-                op
-            } else {
-                FakeOp::Succeed
-            }
-        }
-    }
-
     impl<U: PartialEq> IsolationTokenEq for OpenEntry<U> {
         fn isol_eq(&self, other: &Self) -> bool {
             self.spec.isol_eq(&other.spec)
@@ -1697,7 +1574,7 @@ mod test {
 
     #[test]
     fn basic_tests() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
             let builder = FakeBuilder::new(&rt);
@@ -1779,7 +1656,7 @@ mod test {
 
     #[test]
     fn request_timeout() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
@@ -1787,7 +1664,7 @@ mod test {
             // This will fail once, and then completely time out.  The
             // result will be a failure.
             let builder = FakeBuilder::new(&rt);
-            builder.set(ports.clone(), vec![FakeOp::Fail, FakeOp::Timeout]);
+            builder.set(&ports, vec![FakeOp::Fail, FakeOp::Timeout]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
@@ -1805,7 +1682,7 @@ mod test {
 
     #[test]
     fn request_timeout2() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
             // Now try a more complicated case: we'll try to get things so
@@ -1814,7 +1691,7 @@ mod test {
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
             let builder = FakeBuilder::new(&rt);
             builder.set(
-                ports.clone(),
+                &ports,
                 vec![
                     FakeOp::Delay(Duration::from_millis(60_000 - 25)),
                     FakeOp::NoPlan,
@@ -1837,14 +1714,14 @@ mod test {
 
     #[test]
     fn request_unplannable() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail a the planning stages, a lot.
             let builder = FakeBuilder::new(&rt);
-            builder.set(ports.clone(), vec![FakeOp::NoPlan; 2000]);
+            builder.set(&ports, vec![FakeOp::NoPlan; 2000]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
@@ -1859,13 +1736,13 @@ mod test {
 
     #[test]
     fn request_fails_too_much() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail 1000 times, which is above the retry limit.
             let builder = FakeBuilder::new(&rt);
-            builder.set(ports.clone(), vec![FakeOp::Fail; 1000]);
+            builder.set(&ports, vec![FakeOp::Fail; 1000]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
@@ -1880,7 +1757,7 @@ mod test {
 
     #[test]
     fn request_wrong_spec() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
@@ -1889,7 +1766,7 @@ mod test {
             // actually _do_ that, but it's something we code for.)
             let builder = FakeBuilder::new(&rt);
             builder.set(
-                ports.clone(),
+                &ports,
                 vec![FakeOp::WrongSpec(target_to_spec(
                     &TargetCircUsage::new_from_ipv4_ports(&[22]),
                 ))],
@@ -1908,14 +1785,14 @@ mod test {
 
     #[test]
     fn request_retried() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail twice, and then succeed. The result will be
             // a success.
             let builder = FakeBuilder::new(&rt);
-            builder.set(ports.clone(), vec![FakeOp::Fail, FakeOp::Fail]);
+            builder.set(&ports, vec![FakeOp::Fail, FakeOp::Fail]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
@@ -1942,7 +1819,7 @@ mod test {
 
     #[test]
     fn isolated() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
             let builder = FakeBuilder::new(&rt);
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -2025,7 +1902,7 @@ mod test {
 
     #[test]
     fn opportunistic() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
             // The first request will time out completely, but we're
@@ -2036,7 +1913,7 @@ mod test {
             let ports2 = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             let builder = FakeBuilder::new(&rt);
-            builder.set(ports1.clone(), vec![FakeOp::Timeout]);
+            builder.set(&ports1, vec![FakeOp::Timeout]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
@@ -2066,7 +1943,7 @@ mod test {
 
     #[test]
     fn prebuild() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             // This time we're going to use ensure_circuit() to make
             // sure that a circuit gets built, and then launch two
             // other circuits that will use it.
@@ -2109,7 +1986,7 @@ mod test {
 
     #[test]
     fn expiration() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             use crate::config::CircuitTimingBuilder;
             // Now let's make some circuits -- one dirty, one clean, and
             // make sure that one expires and one doesn't.
@@ -2315,7 +2192,7 @@ mod test {
 
     #[test]
     fn test_circlist_preemptive_target_circs() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+        MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let dirinfo = DirInfo::Directory(&netdir);
@@ -2323,7 +2200,7 @@ mod test {
             let builder = FakeBuilder::new(&rt);
 
             for circs in [2, 8].iter() {
-                let mut circlist = CircList::<FakeBuilder<tor_rtmock::MockRuntime>>::new();
+                let mut circlist = CircList::<FakeBuilder<MockRuntime>, MockRuntime>::new();
 
                 let preemptive_target = TargetCircUsage::Preemptive {
                     port: Some(TargetPort::ipv4(80)),

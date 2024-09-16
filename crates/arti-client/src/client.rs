@@ -845,14 +845,16 @@ impl<R: Runtime> TorClient<R> {
             mgr
         };
 
-        let circmgr = tor_circmgr::CircMgr::new(
-            config,
-            statemgr.clone(),
-            &runtime,
-            Arc::clone(&chanmgr),
-            guardmgr.clone(),
-        )
-        .map_err(ErrorDetail::CircMgrSetup)?;
+        let circmgr = Arc::new(
+            tor_circmgr::CircMgr::new(
+                config,
+                statemgr.clone(),
+                &runtime,
+                Arc::clone(&chanmgr),
+                guardmgr.clone(),
+            )
+            .map_err(ErrorDetail::CircMgrSetup)?,
+        );
 
         let timeout_cfg = config.stream_timeouts.clone();
 
@@ -885,7 +887,7 @@ impl<R: Runtime> TorClient<R> {
 
         #[cfg(any(feature = "onion-service-client", feature = "onion-service-service"))]
         let hs_circ_pool = {
-            let circpool = tor_circmgr::hspool::HsCircPool::new(&circmgr);
+            let circpool = Arc::new(tor_circmgr::hspool::HsCircPool::new(&circmgr));
             circpool
                 .launch_background_tasks(&runtime, &dirmgr.clone().upcast_arc())
                 .map_err(ErrorDetail::CircMgrSetup)?;
