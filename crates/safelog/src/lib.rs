@@ -67,9 +67,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// This behavior can be overridden locally by using
 /// [`with_safe_logging_suppressed`] and globally with [`disable_safe_logging`].
-#[derive(Educe)]
+#[derive(Educe, Clone, Copy)]
 #[educe(
-    Clone(bound),
     Default(bound),
     Deref,
     DerefMut,
@@ -244,9 +243,8 @@ impl<'a, T: Redactable + ?Sized> Redactable for &'a T {
 }
 
 /// A wrapper around a `Redactable` that displays it in redacted format.
-#[derive(Educe)]
+#[derive(Educe, Clone, Copy)]
 #[educe(
-    Clone(bound),
     Default(bound),
     Deref,
     DerefMut,
