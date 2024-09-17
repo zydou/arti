@@ -28,20 +28,12 @@ pub(crate) struct Hss {
 #[derive(Subcommand, Debug, Clone)]
 pub(crate) enum HssSubcommand {
     /// Print the .onion address of a hidden service
-    OnionName,
-
-    /// Get or prepare a hidden service key
-    #[command(arg_required_else_help = true)]
-    GetKey(GetKeyArgs),
+    OnionName(OnionNameArgs),
 }
 
-/// The arguments of the [`GetKey`](HssSubcommand::GetKey) subcommand.
+/// The arguments of the [`OnionName`](HssSubcommand::OnionName) subcommand.
 #[derive(Debug, Clone, Args)]
-pub(crate) struct GetKeyArgs {
-    /// The type of key to retrieve.
-    #[arg(long, value_enum)]
-    key_type: KeyType,
-
+pub(crate) struct OnionNameArgs {
     /// Whether to generate the key if it is missing
     #[arg(
         long,
@@ -85,8 +77,7 @@ pub(crate) fn run(
     let hss = Hss::from_arg_matches(hss_matches).expect("Could not parse hss subcommand");
 
     match hss.command {
-        HssSubcommand::OnionName => onion_name(&hss.common, config, client_config),
-        HssSubcommand::GetKey(args) => get_key(&hss.common, &args, config, client_config),
+        HssSubcommand::OnionName(args) => run_onion_name(&hss.common, &args, config, client_config),
     }
 }
 
@@ -165,27 +156,15 @@ fn get_or_generate_onion_name(
     }
 }
 
-/// Run the `hss get-key` subcommand.
-fn get_key_onion_name(
+/// Run the `hss onion-name` subcommand.
+fn run_onion_name(
     args: &CommonArgs,
-    get_key_args: &GetKeyArgs,
+    get_key_args: &OnionNameArgs,
     config: &ArtiConfig,
     client_config: &TorClientConfig,
 ) -> Result<()> {
     match get_key_args.generate {
         GenerateKey::No => onion_name(args, config, client_config),
         GenerateKey::IfNeeded => get_or_generate_onion_name(args, config, client_config),
-    }
-}
-
-/// Run the `hss get-key` subcommand.
-fn get_key(
-    args: &CommonArgs,
-    get_key_args: &GetKeyArgs,
-    config: &ArtiConfig,
-    client_config: &TorClientConfig,
-) -> Result<()> {
-    match get_key_args.key_type {
-        KeyType::OnionName => get_key_onion_name(args, get_key_args, config, client_config),
     }
 }
