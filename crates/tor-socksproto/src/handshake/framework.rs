@@ -32,11 +32,13 @@ define_derive_deftly! {
     ///  * Must be a struct containing `state: State`
     ///  * `State` must be in scope as a binding at the derivation site
     ///  * `State` must have a unit variant `Failed`
+    ///  * One `Option` field must be decorated `#[deftly(handshake(output))]`
     ///
     /// # Generates
     ///
     ///  * Implementation of `HasHandshake`
     ///  * Implementation of `HasHandshakeState`
+    ///  * Implementation of `HasHandshakeOutput`
     //
     // An alternative would be to have a each handwhake contain an enum
     // which we handle here ourselves, moving `Done` and `failed` here.
@@ -50,8 +52,24 @@ define_derive_deftly! {
         }
     }
 
+  $(
+    // This is supposed to happen precisely once
+    ${when fmeta(handshake(output))}
+
+    // This trick extracts the T from Option<T>
+    ${define OUTPUT { <$ftype as IntoIterator>::Item }}
+
     impl $crate::handshake::framework::Handshake for $ttype {
+        type Output = $OUTPUT;
     }
+
+    impl $crate::handshake::framework::HasHandshakeOutput<$OUTPUT> for $ttype {
+        fn take_output(&mut self) -> Option<$OUTPUT> {
+            // using UFCS arranges that we check that $ftype really is Option
+            Option::take(&mut self.$fname)
+        }
+    }
+  )
 }
 #[allow(unused_imports)] // false positives, rust#130570, see also derive-deftly #117
 #[allow(clippy::single_component_path_imports)] // false positive, see rust-clippy#13419
@@ -80,6 +98,19 @@ pub(crate) enum ImplNextStep {
 pub(super) trait HasHandshakeState {
     /// Set the state to `Failed`
     fn set_failed(&mut self);
+}
+
+/// `Handshake` structs whose output can be obtained
+///
+/// Derive this with
+/// [`#[derive_deftly(Handshake)]`](derive_deftly_template_Handshake).
+#[allow(unused)] // XXXX
+pub(super) trait HasHandshakeOutput<O> {
+    /// Obtain the output from a handshake completed with [`.handshake`](Handshake::handshake)
+    ///
+    /// Call only if `Action` said `finished`, and then only once.
+    /// Otherwise, will return `None`.
+    fn take_output(&mut self) -> Option<O>;
 }
 
 /// `Handshake`s: `SocksClientHandshake` or `SocksProxyHandshake`
@@ -127,7 +158,10 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
 
 /// Handshake
 #[allow(private_bounds)] // This is a sealed trait, that's expected
-pub trait Handshake: HandshakeImpl {
+pub trait Handshake: HandshakeImpl + HasHandshakeOutput<Self::Output> {
+    /// Output from the handshake: the meaning, as we understand it
+    type Output;
+
     /// Try to advance the handshake, given some peer input in
     /// `input`.
     ///

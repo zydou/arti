@@ -28,6 +28,7 @@ pub struct SocksProxyHandshake {
     /// in a SocksRequest object.)
     socks5_auth: Option<SocksAuth>,
     /// Completed SOCKS handshake.
+    #[deftly(handshake(output))]
     handshake: Option<SocksRequest>,
 }
 

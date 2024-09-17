@@ -24,6 +24,7 @@ pub struct SocksClientHandshake {
     /// Our current state in negotiating that request.
     state: State,
     /// If present, the return message that we received from the proxy.
+    #[deftly(handshake(output))]
     reply: Option<SocksReply>,
 }
 
