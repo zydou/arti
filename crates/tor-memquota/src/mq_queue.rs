@@ -61,6 +61,30 @@
 //! then the memory tracking can be based on an underestimate.
 //! (This is significantly mitigated if the bulk of the memory use
 //! for each item is separately boxed.)
+//!
+//! # Use in Arti
+//!
+//! Here are some things that have queued data:
+//!
+//!   * Each Tor stream has a queue or two.
+//!   * Each circuit also has one or more queues _not_ associated with a single stream.
+//!   * Tor channels themselves also can have one or more queues.
+//!   * Each TLS connection can itself have internal buffers.  We can also consider these queues.
+//!   * Each TCP socket can also be buffered.  We can also consider these buffers to be queues.
+//!
+//! When we run out of memory, we find the queues above that have the oldest data.
+//! When we find one, we will kill it.
+//!
+//! If we kill a stream, we will also kill the circuit that it is on.
+//! Killing a circuit queue kills every queue associated with that circuit,
+//! and every queue associated with every one of its Tor streams.
+//! Killing a channel kills every queue associated with that channel,
+//! as well as every circuit associated with that channel,
+//! and every Tor stream associated with one of those circuits.
+//!
+//! Thus, killing a single queue will reclaim the memory associated with several other queues.
+//!
+//! **TODO - this is not yet actually implemented**
 
 use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 
@@ -575,6 +599,7 @@ mod test {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::arithmetic_side_effects)] // don't mind potential panicking ops in tests
 
     use super::*;
     use crate::mtracker::test::*;

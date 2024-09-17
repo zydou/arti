@@ -136,7 +136,9 @@ impl ConfigBuilder {
 
         let config = ConfigInner { max, low_water };
 
-        let min_low_water = crate::mtracker::MAX_CACHE.as_usize() * MIN_MAX_PARTICIPANTS;
+        /// Minimum low water.  `const` so that overflows are compile-time.
+        const MIN_LOW_WATER: usize = crate::mtracker::MAX_CACHE.as_usize() * MIN_MAX_PARTICIPANTS;
+        let min_low_water = MIN_LOW_WATER;
         if *config.low_water < min_low_water {
             return Err(ConfigBuildError::Invalid {
                 field: "low_water".into(),

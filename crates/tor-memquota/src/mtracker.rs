@@ -1092,7 +1092,10 @@ impl Participation {
             // While we're here, fill the cache to TARGET_CACHE_CLAIMING.
             // Cannot underflow: cache < want (since we failed at `got` earlier
             // and we've just checked want <= TARGET_CACHE_CLAIMING.
-            let want_more_cache = Qty(*TARGET_CACHE_CLAIMING - *self_.cache.as_raw());
+            let want_more_cache = TARGET_CACHE_CLAIMING
+                .checked_sub(*self_.cache.as_raw())
+                .expect("but cache < want");
+            let want_more_cache = Qty(want_more_cache);
             if let Ok(add_cache) = claim(want_more_cache) {
                 // On error, just don't do this; presumably the error will show up later
                 // (we mustn't early exit here, because we've got the claim in our hand).
@@ -1126,7 +1129,12 @@ impl Participation {
                     *self_.pid => precord;
                     ?None
                 }
-                let return_from_cache = Qty(*self_.cache.as_raw() - *TARGET_CACHE_RELEASING);
+                let return_from_cache = self_
+                    .cache
+                    .as_raw()
+                    .checked_sub(*TARGET_CACHE_RELEASING)
+                    .expect("TARGET_CACHE_RELEASING > MAX_CACHE ?!");
+                let return_from_cache = Qty(return_from_cache);
                 let from_cache = self_
                     .cache
                     .split_off(return_from_cache)

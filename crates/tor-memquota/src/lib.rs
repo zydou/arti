@@ -27,6 +27,9 @@
 //!    and reclamation also happens on an account-by-account basis.
 //!    (Each Account is with one Tracker.)
 //!
+//!    See [the `mq_queue` docs](mq_queue/index.html#use-in-arti)
+//!    for we use Accounts in Arti to track memory for the various queues.
+//!
 //!  * **Participant**:
 //!    one data structure that uses memory.
 //!    Each Participant is linked to *one* Account.  An account has *one or more* Participants.
@@ -34,6 +37,14 @@
 //!    A Participant provides a `dyn IsParticipant` to the memory system;
 //!    in turn, the memory system provides the Participant with a `Participation` -
 //!    a handle for tracking memory alloc/free.
+//!
+//!    Actual memory allocation is handled by the participant itself,
+//!    using the global heap:
+//!    for each allocation, the Participant *both*
+//!    calls [`claim`](mtracker::Participation::claim)
+//!    *and* allocates the actual object,
+//!    and later, *both* frees the actual object *and*
+//!    calls [`release`](mtracker::Participation::release).
 //!
 //!  * **Child Account**/**Parent Account**:
 //!    An Account may have a Parent.
@@ -144,6 +155,16 @@
 //!             `-------------------------------------------------*   Participation
 //!
 //! ```
+//!
+//! ## Panics and state corruption
+//!
+//! This library is intended to be entirely panic-free,
+//! even in the case of accounting errors, arithmetic overflow, etc.
+//!
+//! In the case of sufficiently bad account errors,
+//! a Participant, or a whole Account, or the whole MemoryQuotaTracker,
+//! may become unuseable,
+//! in which case methods will return errors with kind [`tor_error::ErrorKind::Internal`].
 
 // @@ begin lint list maintained by maint/add_warning @@
 #![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
@@ -185,7 +206,18 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
-#![allow(clippy::blocks_in_conditions)] // TODO #1176
+
+// TODO #1176
+#![allow(clippy::blocks_in_conditions)]
+//
+// See `Panics` in the crate-level docs, above.
+//
+// This lint sometimes has bugs, but it seems to DTRT for me as of 1.81.0-beta.6.
+// If it breaks, these bug(s) may be relevant:
+// https://github.com/rust-lang/rust-clippy/issues/11220
+// https://github.com/rust-lang/rust-clippy/issues/11145
+// https://github.com/rust-lang/rust-clippy/issues/10209
+#![warn(clippy::arithmetic_side_effects)]
 
 // Internal supporting modules
 #[macro_use]
