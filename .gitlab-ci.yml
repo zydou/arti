@@ -357,7 +357,7 @@ coverage:
 minimal-versions:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:1.70
+  image: amd64/rust:1.75
   needs: ["rust-checks"]
   script:
     - rustup install nightly
