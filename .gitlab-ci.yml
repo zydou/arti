@@ -39,6 +39,12 @@ default:
         exit 1;
       fi
       )
+    # Put 3rd party cloned source (that we don't want in artifacts) in ~/src
+    - mkdir -p ~/src
+    # Support installing software to ~/.local
+    - mkdir -p ~/.local
+    - 'export PATH=$HOME/.local/bin:$PATH'
+
   after_script:
     # In every case, if we have a working `cargo` we should clean up
     # our target directory before we exit.  (Leaving big hunks of data
@@ -448,12 +454,7 @@ integration-shadow:
     - ./maint/preserve -u
     - ./maint/ci_log_span start "shadow_install_deps[collapsed=true]" "Installing shadow and tgen"
 
-    # We're going to install binaries to $HOME/.local/bin
-    - 'export PATH=$HOME/.local/bin:$PATH'
-
     - maint/common/apt-install git tor obfs4proxy stow
-    - mkdir -p ~/src
-    - mkdir -p ~/.local
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
