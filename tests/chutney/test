@@ -2,6 +2,7 @@
 
 set -xeuo pipefail
 
+# Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
 TEST_DOMAIN=example.com
 
 if [ -n "${RUNNING_IN_SHADOW:-}" ]; then
