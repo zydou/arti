@@ -433,6 +433,61 @@ integration-chutney:
     paths:
       - benchmark_results.json
 
+# Runs the chutney integration test under shadow.
+integration-chutney-shadow:
+  variables:
+    JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
+    JOB_SHADOW_BRANCH: "main"
+    # Unreleased support for running scripts directly.
+    JOB_SHADOW_COMMIT: "66bffbe041f6818a8d2fb94ae3ade69924197d92"
+  stage: test
+  cache:
+    - key: $CI_JOB_NAME-shadow-$JOB_SHADOW_COMMIT
+      paths:
+      - opt/shadow
+  tags:
+    - amd64
+    # Non-TPA runners may not support running shadow.
+    - tpa
+  script:
+    - ./maint/preserve -u
+    - maint/common/apt-install tor git python3 curl dnsutils stow
+
+    # arti runtime dependencies
+    - maint/common/apt-install libsqlite3-0 libssl3
+
+    # install chutney to prevent the test scripts from trying to install
+    # it from inside the shadow simulation, which won't work.
+    - git clone https://gitlab.torproject.org/tpo/core/chutney
+    - export CHUTNEY_PATH="$(pwd)/chutney"
+
+    # Build shadow
+    # TODO: move this to a separate job and share with integration-shadow
+    - |
+      if [ -f opt/shadow/bin/shadow ]
+      then
+        echo "Using shadow binary from cache"
+      else
+        echo "Building shadow"
+        git clone --shallow-since=2021-08-01 -b $JOB_SHADOW_BRANCH $JOB_SHADOW_REPO ~/src/shadow
+        pushd ~/src/shadow
+        git checkout $JOB_SHADOW_COMMIT
+        export CC=gcc CXX=g++ CONTAINER=debian:12-slim BUILDTYPE=release RUSTPROFILE=minimal
+        ci/container_scripts/install_deps.sh
+        ci/container_scripts/install_extra_deps.sh
+        export PATH="$HOME/.cargo/bin:${PATH}"
+        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/shadow
+        ./setup install
+        popd
+      fi
+    - maint/common/apt-install libglib2.0-0
+    - stow -d opt -t $HOME/.local shadow
+
+    - tests/chutney/integration-e2e-shadow
+  artifacts:
+    paths:
+      - benchmark_results.json
+
 integration-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
@@ -517,6 +572,7 @@ integration-shadow:
     expire_in: 1 week
   tags:
     - amd64
+    # Non-TPA runners may not support running shadow.
     - tpa
 
 rust-recent-test-all-features:
