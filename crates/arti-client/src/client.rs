@@ -1658,6 +1658,14 @@ impl<R: Runtime> TorClient<R> {
     /// associated `HsIdKeypair`  in this `TorClient`'s `KeyMgr`, then this operation
     /// fails rather than overwriting the existing key.
     ///
+    /// The specified `HsIdKeypair` will be inserted in the primary keystore.
+    ///
+    /// **Important**: depending on the configuration of your
+    /// [primary keystore](tor_keymgr::config::arti::PrimaryKeystoreConfig),
+    /// the `HsIdKeypair` **may** get persisted to disk.
+    /// By default, Arti's primary keystore is the [native](ArtiKeystoreKind::Native),
+    /// disk-based keystore.
+    ///
     /// This onion service will not actually handle any requests on its own: you
     /// will need to
     /// pull [`RendRequest`](tor_hsservice::RendRequest) objects from the returned stream,
