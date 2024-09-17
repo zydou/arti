@@ -86,7 +86,7 @@ pub(crate) use {
     tor_error::{Bug, ErrorKind, ErrorReport as _, HasKind},
     tor_hscrypto::ope::AesOpeKey,
     tor_hscrypto::pk::{
-        HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKey, HsDescSigningKeypair, HsId,
+        HsBlindId, HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKey, HsDescSigningKeypair,
         HsIdKey, HsIdKeypair, HsIntroPtSessionIdKey, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair,
     },
     tor_hscrypto::time::TimePeriod,

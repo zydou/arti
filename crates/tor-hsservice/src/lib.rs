@@ -98,6 +98,7 @@ pub use keys::{
 pub use nickname::{HsNickname, InvalidNickname};
 pub use publish::UploadError as DescUploadError;
 pub use req::{RendRequest, StreamRequest};
+pub use tor_hscrypto::pk::HsId;
 
 pub use helpers::handle_rend_requests;
 
@@ -259,7 +260,9 @@ impl OnionService {
         //let offline_hsid = config.offline_hsid;
         let offline_hsid = false;
 
-        maybe_generate_hsid(&keymgr, &nickname, offline_hsid)?;
+        // TODO (#1106): make this configurable
+        let selector = KeystoreSelector::Default;
+        maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid, selector)?;
 
         if config.restricted_discovery.enabled {
             info!(
@@ -349,6 +352,33 @@ impl OnionService {
     /// keystores.
     pub fn onion_name(&self) -> Option<HsId> {
         onion_name(&self.keymgr, &self.config.nickname)
+    }
+
+    /// Generate an identity key (KP_hs_id) for this service.
+    ///
+    /// If the keystore specified by `selector` contains an entry for the identity key
+    /// of this service, it will be returned. Otherwise, a new key will be generated.
+    ///
+    /// Most users do not need to call this function: on [`launch`](`OnionService::launch`),
+    /// the service will automatically generate its identity key if needed.
+    /// You should only use this function if you need to know the KP_hs_id of the service
+    /// before launching it.
+    ///
+    /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
+    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// have configured this `TorClient` with a non-default keystore and wish to generate the
+    /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
+    /// specifying the keystore ID of your keystore.
+    ///
+    // Note: the selector argument exists for future-proofing reasons. We don't currently support
+    // configuring custom or non-default keystores (see #1106).
+    pub fn generate_identity_key(&self, selector: KeystoreSelector) -> Result<HsId, StartupError> {
+        // TODO (#1194): add a config option for specifying whether to expect the KS_hsid to be stored
+        // offline
+        //let offline_hsid = config.offline_hsid;
+        let offline_hsid = false;
+
+        maybe_generate_hsid(&self.keymgr, &self.config.nickname, offline_hsid, selector)
     }
 }
 
@@ -469,7 +499,8 @@ fn maybe_generate_hsid(
     keymgr: &Arc<KeyMgr>,
     nickname: &HsNickname,
     offline_hsid: bool,
-) -> Result<(), StartupError> {
+    selector: KeystoreSelector,
+) -> Result<HsId, StartupError> {
     if offline_hsid {
         unimplemented!("offline hsid mode");
     }
@@ -483,8 +514,6 @@ fn maybe_generate_hsid(
             cause,
         })?;
 
-    // TODO (#1106): make this configurable
-    let selector = KeystoreSelector::Default;
     let mut rng = rand::thread_rng();
     let (hsid, generated) = match kp {
         Some(kp) => (kp.id(), false),
@@ -518,7 +547,7 @@ fn maybe_generate_hsid(
         );
     }
 
-    Ok(())
+    Ok(hsid)
 }
 
 /// Return the onion address of this service.
@@ -634,7 +663,7 @@ pub(crate) mod test {
             assert!($keymgr.get::<HsIdKey>(&pub_hsid_spec).unwrap().is_none());
             assert!($keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().is_none());
 
-            maybe_generate_hsid(&$keymgr, &nickname, $offline_hsid).unwrap();
+            maybe_generate_hsid(&$keymgr, &nickname, $offline_hsid, Default::default()).unwrap();
         }};
     }
 
@@ -683,7 +712,13 @@ pub(crate) mod test {
             )
             .unwrap();
 
-        maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).unwrap();
+        maybe_generate_hsid(
+            &keymgr,
+            &nickname,
+            false, /* offline_hsid */
+            Default::default(),
+        )
+        .unwrap();
 
         let keypair = keymgr.get::<HsIdKeypair>(&hsid_spec).unwrap().unwrap();
         let pk: HsIdKey = (&keypair).into();
@@ -729,7 +764,13 @@ pub(crate) mod test {
             .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Default, true)
             .unwrap();
 
-        assert!(maybe_generate_hsid(&keymgr, &nickname, false /* offline_hsid */).is_err());
+        assert!(maybe_generate_hsid(
+            &keymgr,
+            &nickname,
+            false, /* offline_hsid */
+            Default::default()
+        )
+        .is_err());
     }
 
     #[test]

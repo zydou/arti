@@ -24,3 +24,12 @@ $ arti -c hss.toml hss --nickname allium-cepa onion-name
 [..]/arti: error: Service allium-cepa does not exist, or does not have an K_hsid yet
 
 ```
+
+With `--generate=if-needed`, `onion-name` will generate the key if it doesn't
+already exist:
+
+
+```ignore
+$ arti -c hss.toml hss --nickname allium-cepa onion-name --generate=if-needed
+[..].onion
+```
