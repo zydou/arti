@@ -60,6 +60,8 @@ hosts:
       - -c=./arti.d/arti.common.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
+      - -p=0
+      - -d=0
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace
       environment:
@@ -85,6 +87,8 @@ hosts:
       - -c=./arti.d/arti.onion-auth.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
+      - -p=0
+      - -d=0
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace
       environment:
@@ -111,6 +115,8 @@ hosts:
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
       - -o=vanguards.mode="full"
+      - -p=0
+      - -d=0
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace
       environment:

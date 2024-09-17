@@ -43,11 +43,13 @@ pub(crate) fn run<R: Runtime>(
         None => config.proxy().dns_listen.clone(),
     };
 
-    info!(
-        "Starting Arti {} in SOCKS proxy mode on {} ...",
-        env!("CARGO_PKG_VERSION"),
-        socks_listen
-    );
+    if !socks_listen.is_empty() {
+        info!(
+            "Starting Arti {} in SOCKS proxy mode on {} ...",
+            env!("CARGO_PKG_VERSION"),
+            socks_listen
+        );
+    }
 
     process::use_max_file_limit(&config);
 
@@ -118,12 +120,16 @@ async fn run_proxy<R: Runtime>(
         Arc::new(reload_cfg::Application::new(arti_config.clone())),
     ];
 
-    #[cfg(feature = "onion-service-service")]
-    {
-        let onion_services =
-            onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
-        reconfigurable_modules.push(Arc::new(onion_services));
-    }
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-service")] {
+            let onion_services =
+                onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
+            let launched_onion_svc = !onion_services.is_empty();
+            reconfigurable_modules.push(Arc::new(onion_services));
+        } else {
+            let launched_onion_svc = false;
+        }
+    };
 
     // We weak references here to prevent the thread spawned by watch_for_config_changes from
     // keeping these modules alive after this function exits.
@@ -156,6 +162,7 @@ async fn run_proxy<R: Runtime>(
     if !socks_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
+        let socks_listen = socks_listen.clone();
         proxy.push(Box::pin(async move {
             let res = socks::run_socks_proxy(
                 runtime,
@@ -188,8 +195,14 @@ async fn run_proxy<R: Runtime>(
     }
 
     if proxy.is_empty() {
-        warn!("No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option.");
-        return Ok(());
+        if !launched_onion_svc {
+            warn!("No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option.");
+            return Ok(());
+        } else {
+            // Push a dummy future to appease future::select_all,
+            // which expects a non-empty list
+            proxy.push(Box::pin(futures::future::pending()));
+        }
     }
 
     let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);
@@ -200,7 +213,11 @@ async fn run_proxy<R: Runtime>(
             => r.0.context(format!("{} proxy failure", r.1)),
         r = async {
             client.bootstrap().await?;
-            info!("Sufficiently bootstrapped; system SOCKS now functional.");
+            if !socks_listen.is_empty() {
+                info!("Sufficiently bootstrapped; system SOCKS now functional.");
+            } else {
+                info!("Sufficiently bootstrapped.");
+            }
             futures::future::pending::<Result<()>>().await
         }.fuse()
             => r.context("bootstrap"),
