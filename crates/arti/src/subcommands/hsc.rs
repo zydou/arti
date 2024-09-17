@@ -39,6 +39,10 @@ pub(crate) enum KeySubcommand {
     /// Deprecated. Use key get instead.
     #[command(arg_required_else_help = true)]
     Get(GetKeyArgs),
+
+    /// Rotate a hidden service client key
+    #[command(arg_required_else_help = true)]
+    Rotate(RotateKeyArgs),
 }
 
 /// A type of key
@@ -110,6 +114,22 @@ pub(crate) struct KeygenArgs {
     overwrite: bool,
 }
 
+/// The arguments of the [`Rotate`](KeySubcommand::Rotate) subcommand.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct RotateKeyArgs {
+    /// Arguments shared by all hsc subcommands.
+    #[command(flatten)]
+    common: CommonArgs,
+
+    /// Arguments for configuring keygen.
+    #[command(flatten)]
+    keygen: KeygenArgs,
+
+    /// Do not prompt before overwriting the key.
+    #[arg(long, short)]
+    force: bool,
+}
+
 /// Run the `hsc` subcommand.
 pub(crate) fn run<R: Runtime>(
     runtime: R,
@@ -141,6 +161,7 @@ pub(crate) fn run<R: Runtime>(
 fn run_key(subcommand: KeySubcommand, client: &InertTorClient) -> Result<()> {
     match subcommand {
         KeySubcommand::Get(args) => prepare_service_discovery_key(&args, client),
+        KeySubcommand::Rotate(args) => rotate_service_discovery_key(&args, client),
     }
 }
 
@@ -212,4 +233,48 @@ fn display_service_disocvery_key(args: &KeygenArgs, key: &HsClientDescEncKey) ->
 fn write_public_key(mut f: impl io::Write, key: &HsClientDescEncKey) -> io::Result<()> {
     write!(f, "{}", key)?;
     Ok(())
+}
+
+/// Run the `hsc rotate-key` subcommand.
+fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -> Result<()> {
+    if !args.force {
+        let msg = format!(
+            "rotate client restricted discovery key for {}?",
+            args.common.onion_name
+        );
+        if !prompt(&msg)? {
+            return Ok(());
+        }
+    }
+
+    let key =
+        client.rotate_service_discovery_key(KeystoreSelector::default(), args.common.onion_name)?;
+
+    display_service_disocvery_key(&args.keygen, &key)
+}
+
+/// Prompt the user to confirm by typing yes or no.
+///
+/// Loops until the user confirms or declines,
+/// returning true if they confirmed.
+fn prompt(msg: &str) -> Result<bool> {
+    /// The accept message.
+    const YES: &str = "YES";
+    /// The decline message.
+    const NO: &str = "no";
+
+    let msg = format!("{msg} (type {YES} or {NO})");
+    loop {
+        let proceed = dialoguer::Input::<String>::new()
+            .with_prompt(&msg)
+            .interact_text()?;
+
+        match proceed.as_ref() {
+            NO => return Ok(false),
+            YES => return Ok(true),
+            _ => {
+                continue;
+            }
+        }
+    }
 }

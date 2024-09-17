@@ -113,6 +113,10 @@ arti-client = { package = "arti-client", path = "../arti-client", version = "0.2
 arti-relay = { package = "arti-relay", path = "../arti-relay", version = "0.22.0", default-features = false, optional = true }
 arti-rpcserver = { path = "../arti-rpcserver", version = "0.22.0", optional = true }
 async-ctrlc = { version = "1.2.0", optional = true }
+# TODO: dialoguer is only used by the arti hsc CLI, so it ought to be an
+# optional dependency. We should add a new "hsc" feature, and gate the inclusion
+# of dialoguer and any other CLI-related deps behind this feature
+dialoguer = "0.11.0"
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
