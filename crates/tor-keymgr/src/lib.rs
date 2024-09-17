@@ -74,11 +74,17 @@ pub use key_specifier::{
 #[cfg_attr(docsrs, doc(cfg(feature = "keymgr")))]
 pub use {
     keystore::arti::ArtiNativeKeystore,
-    keystore::ephemeral::ArtiEphemeralKeystore,
     keystore::Keystore,
     mgr::{KeyMgr, KeyMgrBuilder, KeyMgrBuilderError, KeystoreEntry},
     ssh_key,
 };
+
+#[cfg(all(feature = "keymgr", feature = "ephemeral-keystore"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "keymgr", feature = "ephemeral-keystore")))
+)]
+pub use keystore::ephemeral::ArtiEphemeralKeystore;
 
 #[doc(hidden)]
 pub use key_specifier::derive as key_specifier_derive;
