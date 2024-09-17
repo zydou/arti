@@ -65,6 +65,9 @@ else
     # CHUTNEY_PATH is set; tell the user so.
     echo "CHUTNEY_PATH is ${CHUTNEY_PATH}; using your local copy of chutney."
 fi
+# Use consistent CHUTNEY_PATH for all steps. We export it in case we end up
+# calling other tools/scripts that directly look for chutney there.
+echo "export CHUTNEY_PATH=\"$CHUTNEY_PATH\"" >> tests/chutney/arti.run
 
 if [ ! -e "${CHUTNEY_PATH}/${target}" ]; then
     echo "Target network description ${CHUTNEY_PATH}/${target} not found."

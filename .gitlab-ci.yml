@@ -418,8 +418,10 @@ integration-chutney:
   script:
     - ./maint/preserve -u
     - maint/common/apt-install tor git python3 curl dnsutils
+
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
+
     - tests/chutney/integration-e2e
   artifacts:
     paths:
