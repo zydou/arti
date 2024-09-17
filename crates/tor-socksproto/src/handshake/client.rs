@@ -343,7 +343,7 @@ mod test {
 
         let action = hs.handshake(&hex!("00 5A 01BB C000020F")).unwrap().unwrap();
         assert_eq!(action.drain, 8);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();
@@ -373,7 +373,7 @@ mod test {
 
         let action = hs.handshake(&hex!("00 5A 01BB C0000215")).unwrap().unwrap();
         assert_eq!(action.drain, 8);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();
@@ -416,7 +416,7 @@ mod test {
             .unwrap()
             .unwrap();
         assert_eq!(action.drain, 10);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();
@@ -466,7 +466,7 @@ mod test {
             .unwrap()
             .unwrap();
         assert_eq!(action.drain, 10);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();
