@@ -118,12 +118,16 @@ async fn run_proxy<R: Runtime>(
         Arc::new(reload_cfg::Application::new(arti_config.clone())),
     ];
 
-    #[cfg(feature = "onion-service-service")]
-    {
-        let onion_services =
-            onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
-        reconfigurable_modules.push(Arc::new(onion_services));
-    }
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "onion-service-service")] {
+            let onion_services =
+                onion_proxy::ProxySet::launch_new(&client, arti_config.onion_services.clone())?;
+            let launched_onion_svc = !onion_services.is_empty();
+            reconfigurable_modules.push(Arc::new(onion_services));
+        } else {
+            let launched_onion_svc = false;
+        }
+    };
 
     // We weak references here to prevent the thread spawned by watch_for_config_changes from
     // keeping these modules alive after this function exits.
@@ -188,8 +192,14 @@ async fn run_proxy<R: Runtime>(
     }
 
     if proxy.is_empty() {
-        warn!("No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option.");
-        return Ok(());
+        if !launched_onion_svc {
+            warn!("No proxy port set; specify -p PORT (for `socks_port`) or -d PORT (for `dns_port`). Alternatively, use the `socks_port` or `dns_port` configuration option.");
+            return Ok(());
+        } else {
+            // Push a dummy future to appease future::select_all,
+            // which expects a non-empty list
+            proxy.push(Box::pin(futures::future::pending()));
+        }
     }
 
     let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);

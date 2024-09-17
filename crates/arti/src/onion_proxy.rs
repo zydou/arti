@@ -334,6 +334,11 @@ impl<R: Runtime> ProxySet<R> {
 
         Ok(())
     }
+
+    /// Whether this `ProxySet` is empty.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.proxies.lock().expect("lock poisoned").is_empty()
+    }
 }
 
 impl<R: Runtime> crate::reload_cfg::ReconfigurableModule for ProxySet<R> {
