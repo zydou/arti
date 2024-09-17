@@ -43,11 +43,13 @@ pub(crate) fn run<R: Runtime>(
         None => config.proxy().dns_listen.clone(),
     };
 
-    info!(
-        "Starting Arti {} in SOCKS proxy mode on {} ...",
-        env!("CARGO_PKG_VERSION"),
-        socks_listen
-    );
+    if !socks_listen.is_empty() {
+        info!(
+            "Starting Arti {} in SOCKS proxy mode on {} ...",
+            env!("CARGO_PKG_VERSION"),
+            socks_listen
+        );
+    }
 
     process::use_max_file_limit(&config);
 
@@ -160,6 +162,7 @@ async fn run_proxy<R: Runtime>(
     if !socks_listen.is_empty() {
         let runtime = runtime.clone();
         let client = client.isolated_client();
+        let socks_listen = socks_listen.clone();
         proxy.push(Box::pin(async move {
             let res = socks::run_socks_proxy(
                 runtime,
@@ -210,7 +213,11 @@ async fn run_proxy<R: Runtime>(
             => r.0.context(format!("{} proxy failure", r.1)),
         r = async {
             client.bootstrap().await?;
-            info!("Sufficiently bootstrapped; system SOCKS now functional.");
+            if !socks_listen.is_empty() {
+                info!("Sufficiently bootstrapped; system SOCKS now functional.");
+            } else {
+                info!("Sufficiently bootstrapped.");
+            }
             futures::future::pending::<Result<()>>().await
         }.fuse()
             => r.context("bootstrap"),
