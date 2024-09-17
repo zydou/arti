@@ -4,7 +4,6 @@ Usage: arti hss [OPTIONS] --nickname <NICKNAME> <COMMAND>
 
 Commands:
   onion-name  Print the .onion address of a hidden service
-  get-key     Get or prepare a hidden service key
   help        Print this message or the help of the given subcommand(s)
 
 Options:
