@@ -22,8 +22,23 @@ pub(crate) enum HscSubcommands {
 pub(crate) enum HscSubcommand {
     /// Prepare a service discovery key for connecting
     /// to a service running in restricted discovery mode.
+    /// (Deprecated: use `arti hsc key get` instead)
+    ///
+    // TODO: use a clap deprecation attribute when clap supports it:
+    // <https://github.com/clap-rs/clap/issues/3321>
     #[command(arg_required_else_help = true)]
     GetKey(GetKeyArgs),
+    /// Key management subcommands.
+    #[command(subcommand)]
+    Key(KeySubcommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum KeySubcommand {
+    /// Get or generate a hidden service client key
+    /// Deprecated. Use key get instead.
+    #[command(arg_required_else_help = true)]
+    Get(GetKeyArgs),
 }
 
 /// A type of key
@@ -110,9 +125,22 @@ pub(crate) fn run<R: Runtime>(
         .create_inert()?;
 
     match subcommand {
-        HscSubcommand::GetKey(args) => match args.common.key_type {
-            ServiceDiscovery => prepare_service_discovery_key(&args, client),
-        },
+        HscSubcommand::GetKey(args) => {
+            eprintln!(
+                "warning: using deprecated command 'arti hsc key-get` (hint: use 'arti hsc key get' instead)"
+            );
+            match args.common.key_type {
+                ServiceDiscovery => prepare_service_discovery_key(&args, client),
+            }
+        }
+        HscSubcommand::Key(subcommand) => run_key(subcommand, client),
+    }
+}
+
+/// Run the `hsc key` subcommand
+fn run_key(subcommand: KeySubcommand, client: InertTorClient) -> Result<()> {
+    match subcommand {
+        KeySubcommand::Get(args) => prepare_service_discovery_key(&args, client),
     }
 }
 

@@ -3,7 +3,8 @@ Run state management commands for an Arti hidden service client
 Usage: arti hsc [OPTIONS] <COMMAND>
 
 Commands:
-  get-key  Prepare a service discovery key for connecting to a service running in restricted discovery mode
+  get-key  Prepare a service discovery key for connecting to a service running in restricted discovery mode. (Deprecated: use `arti hsc key get` instead)
+  key      Key management subcommands
   help     Print this message or the help of the given subcommand(s)
 
 Options:
