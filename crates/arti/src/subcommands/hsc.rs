@@ -39,19 +39,9 @@ enum KeyType {
 /// subcommand.
 #[derive(Debug, Clone, Args)]
 pub(crate) struct GetKeyArgs {
-    /// The type of key to retrieve.
-    #[arg(
-        long,
-        default_value_t = KeyType::ServiceDiscovery,
-        value_enum
-    )]
-    key_type: KeyType,
-
-    // TODO: these arguments won't all apply to every KeyType.
-    // We should find a way to define argument groups for each KeyType.
-    /// The .onion address of the hidden service
-    #[arg(long)]
-    onion_name: HsId,
+    /// Arguments shared by all hsc subcommands.
+    #[command(flatten)]
+    common: CommonArgs,
 
     /// Write the public key to FILE. Use - to write to stdout
     #[arg(long, name = "FILE")]
@@ -81,6 +71,22 @@ enum GenerateKey {
     IfNeeded,
 }
 
+/// The common arguments of the key subcommands.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct CommonArgs {
+    /// The type of key to rotate.
+    #[arg(
+        long,
+        default_value_t = KeyType::ServiceDiscovery,
+        value_enum
+    )]
+    key_type: KeyType,
+
+    /// The .onion address of the hidden service
+    #[arg(long)]
+    onion_name: HsId,
+}
+
 /// Run the `hsc` subcommand.
 pub(crate) fn run<R: Runtime>(
     runtime: R,
@@ -104,14 +110,14 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: InertTorClient) -> R
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
             client
-                .get_service_discovery_key(args.onion_name)?
+                .get_service_discovery_key(args.common.onion_name)?
                 .map(Ok)
                 .unwrap_or_else(|| {
                     client
-                        .generate_service_discovery_key(KeystoreSelector::Default, args.onion_name)
+                        .generate_service_discovery_key(KeystoreSelector::Default, args.common.onion_name)
                 })?
         }
-        GenerateKey::No => match client.get_service_discovery_key(args.onion_name)? {
+        GenerateKey::No => match client.get_service_discovery_key(args.common.onion_name)? {
             Some(key) => key,
             None => {
                 return Err(anyhow!(
