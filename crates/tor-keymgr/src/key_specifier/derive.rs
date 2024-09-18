@@ -394,6 +394,7 @@ define_derive_deftly! {
 
     #[doc = concat!("Pattern matching some or all [`", stringify!($tname), "`]")]
     #[allow(dead_code)] // Not everyone will need the pattern feature
+    #[non_exhaustive]
     $tvis struct $<$tname Pattern><$tdefgens>
     where $twheres
     ${vdefbody $vname $(

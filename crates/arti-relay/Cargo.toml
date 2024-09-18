@@ -36,17 +36,20 @@ tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde"] }
+rand = "0.8.5"
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.22.0" }
 tor-config = { path = "../tor-config", version = "0.22.0" }
 tor-error = { path = "../tor-error", version = "0.22.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.22.0", default-features = false }
+tor-keymgr = { path = "../tor-keymgr", version = "0.22.0", features = ["keymgr", "ephemeral-keystore"] }
 tor-netdir = { path = "../tor-netdir", version = "0.22.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.22.0" }
 tor-proto = { path = "../tor-proto", version = "0.22.0" }
+tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.22.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.22.0" }
+tracing = "0.1.36"
 
 [dev-dependencies]
 

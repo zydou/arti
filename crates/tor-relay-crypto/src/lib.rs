@@ -41,33 +41,8 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-mod err;
-mod key_type;
-mod macros;
-mod ssh;
-mod traits;
+pub mod certs;
+pub mod pk;
 
-pub use err::Error;
-pub use key_type::KeyType;
-pub use ssh::{SshKeyAlgorithm, SshKeyData};
-pub use traits::{EncodableKey, Keygen, KeygenRng, ToEncodableKey};
-
-// Needed to export our derive_deftly macros.
-#[doc(hidden)]
-pub use derive_deftly;
-
-/// A Result type for this crate.
-pub type Result<T> = std::result::Result<T, Error>;
-
-/// A type-erased key. Used by the tor-keymgr.
-pub type ErasedKey = Box<dyn traits::EncodableKey>;
-
-/// Must have imports in order to use this crate.
-///
-/// Using define_ed25519_keypair!() macro requires the following.
-pub mod prelude {
-    pub use crate::{
-        define_ed25519_keypair, macros::derive_deftly_template_Ed25519Keypair, Keygen,
-    };
-    pub use tor_llcrypto::pk::{ed25519::Signer, ValidatableSignature};
-}
+// Pleasant re-export.
+pub use certs::{gen_link_cert, gen_signing_cert};

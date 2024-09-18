@@ -45,6 +45,12 @@ pub(crate) enum ErrorDetail {
     /// A programming problem, either in our code or the code calling it.
     #[error("Programming problem")]
     Bug(#[from] tor_error::Bug),
+    /// Building configuration failed.
+    #[error("Problem with configuration")]
+    Configuration(#[from] tor_config::ConfigBuildError),
+    /// Error from the KeyMgr crate.
+    #[error("KeyMgr error")]
+    KeyMgr(#[from] tor_keymgr::Error),
 }
 
 impl Error {
@@ -72,6 +78,8 @@ impl tor_error::HasKind for ErrorDetail {
     fn kind(&self) -> ErrorKind {
         match self {
             ErrorDetail::Bug(e) => e.kind(),
+            ErrorDetail::Configuration(e) => e.kind(),
+            ErrorDetail::KeyMgr(e) => e.kind(),
         }
     }
 }

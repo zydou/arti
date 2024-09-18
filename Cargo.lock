@@ -344,6 +344,7 @@ dependencies = [
  "derive_builder_fork_arti",
  "derive_more",
  "fs-mistrust",
+ "rand",
  "serde",
  "strum 0.26.3",
  "thiserror",
@@ -354,7 +355,9 @@ dependencies = [
  "tor-netdir",
  "tor-netdoc",
  "tor-proto",
+ "tor-relay-crypto",
  "tor-rtcompat",
+ "tracing",
 ]
 
 [[package]]
@@ -5591,6 +5594,7 @@ dependencies = [
  "downcast-rs",
  "paste",
  "rand",
+ "signature",
  "ssh-key",
  "thiserror",
  "tor-basic-utils",
@@ -5937,6 +5941,20 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "visibility",
+]
+
+[[package]]
+name = "tor-relay-crypto"
+version = "0.22.0"
+dependencies = [
+ "derive-deftly",
+ "derive_more",
+ "paste",
+ "signature",
+ "tor-cert",
+ "tor-key-forge",
+ "tor-keymgr",
+ "tor-llcrypto",
 ]
 
 [[package]]
