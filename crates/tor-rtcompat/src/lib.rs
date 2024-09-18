@@ -54,6 +54,7 @@ mod opaque;
 pub mod scheduler;
 mod timer;
 mod traits;
+pub mod unix;
 
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 use std::io;
