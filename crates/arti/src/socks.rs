@@ -271,6 +271,8 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
     /// Helper: Try to interpret a SOCKS5 username field as indicating the start of a set of
     /// extended socks authentication information.
     ///
+    /// Implements Prop351.
+    ///
     /// If it does indicate that extensions are in use,
     /// return a tuple containing the extension format type and the remaining information from the username.
     ///
@@ -279,7 +281,8 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
     ///
     /// If it is badly formatted, return an error.
     fn interpret_socks5_username(username: &[u8]) -> Result<(Option<u8>, &[u8])> {
-        /// A constant which, when it appears at the start of a username,
+        /// 8-byte "magic" sequence from Prop351.
+        /// When it appears at the start of a username,
         /// indicates that the username/password are to be interpreted as
         /// as encoding SOCKS5 extended parameters,
         /// but the format might not be one we recognize.
