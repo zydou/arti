@@ -43,6 +43,10 @@ pub(crate) enum KeySubcommand {
     /// Rotate a hidden service client key
     #[command(arg_required_else_help = true)]
     Rotate(RotateKeyArgs),
+
+    /// Remove a hidden service client key
+    #[command(arg_required_else_help = true)]
+    Remove(RemoveKeyArgs),
 }
 
 /// A type of key
@@ -130,6 +134,18 @@ pub(crate) struct RotateKeyArgs {
     force: bool,
 }
 
+/// The arguments of the [`Remove`](KeySubcommand::Remove) subcommand.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct RemoveKeyArgs {
+    /// Arguments shared by all hsc subcommands.
+    #[command(flatten)]
+    common: CommonArgs,
+
+    /// Do not prompt before removing the key.
+    #[arg(long, short)]
+    force: bool,
+}
+
 /// Run the `hsc` subcommand.
 pub(crate) fn run<R: Runtime>(
     runtime: R,
@@ -162,6 +178,7 @@ fn run_key(subcommand: KeySubcommand, client: &InertTorClient) -> Result<()> {
     match subcommand {
         KeySubcommand::Get(args) => prepare_service_discovery_key(&args, client),
         KeySubcommand::Rotate(args) => rotate_service_discovery_key(&args, client),
+        KeySubcommand::Remove(args) => remove_service_discovery_key(&args, client),
     }
 }
 
@@ -251,6 +268,24 @@ fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -
         client.rotate_service_discovery_key(KeystoreSelector::default(), args.common.onion_name)?;
 
     display_service_disocvery_key(&args.keygen, &key)
+}
+
+/// Run the `hsc remove-key` subcommand.
+fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -> Result<()> {
+    if !args.force {
+        let msg = format!(
+            "remove client restricted discovery key for {}?",
+            args.common.onion_name
+        );
+        if !prompt(&msg)? {
+            return Ok(());
+        }
+    }
+
+    let _key =
+        client.remove_service_discovery_key(KeystoreSelector::default(), args.common.onion_name)?;
+
+    Ok(())
 }
 
 /// Prompt the user to confirm by typing yes or no.
