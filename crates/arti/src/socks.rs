@@ -451,29 +451,14 @@ where
     let mut handshake = tor_socksproto::SocksProxyHandshake::new();
 
     let (mut socks_r, mut socks_w) = socks_stream.split();
-    let mut inbuf = [0_u8; 1024];
-    let mut n_read = 0;
+    let mut inbuf = tor_socksproto::Buffer::new();
     let request = loop {
-        if n_read == inbuf.len() {
-            // We would like to read more of this SOCKS request, but there is no
-            // more space in the buffer.  If we try to keep reading into an
-            // empty buffer, we'll just read nothing, try to parse it, and learn
-            // that we still wish we had more to read.
-            //
-            // In theory we might want to resize the buffer.  Right now, though,
-            // we just reject handshakes that don't fit into 1k.
-            return Err(anyhow!("Socks handshake did not fit in 1KiB buffer"));
-        }
-        // Read some more stuff.
-        n_read += socks_r
-            .read(&mut inbuf[n_read..])
-            .await
-            .context("Error while reading SOCKS handshake")?;
+        use tor_socksproto::NextStep as NS;
 
-        // try to advance the handshake to the next state.
-        let action = match handshake.handshake(&inbuf[..n_read]) {
-            Err(_) => continue, // Message truncated.
-            Ok(Err(e)) => {
+        let rv = handshake.step(&mut inbuf);
+
+        let step = match rv {
+            Err(e) => {
                 if let tor_socksproto::Error::BadProtocol(version) = e {
                     // check for HTTP methods: CONNECT, DELETE, GET, HEAD, OPTION, PUT, POST, PATCH and
                     // TRACE.
@@ -487,26 +472,18 @@ where
                 // seems to speak Socks.
                 return Err(e.into());
             }
-            Ok(Ok(action)) => action,
+            Ok(y) => y,
         };
 
-        // reply if needed.
-        if action.drain > 0 {
-            inbuf.copy_within(action.drain..action.drain + n_read, 0);
-            n_read -= action.drain;
-        }
-        if !action.reply.is_empty() {
-            write_all_and_flush(&mut socks_w, &action.reply).await?;
-        }
-        if action.finished {
-            break handshake.into_request();
-        }
-    };
-    let request = match request {
-        Some(r) => r,
-        None => {
-            warn!("SOCKS handshake succeeded, but couldn't convert into a request.");
-            return Ok(());
+        match step {
+            NS::Recv(mut recv) => {
+                let n = socks_r.read(recv.buf())
+                    .await
+                    .context("Error while reading SOCKS handshake")?;
+                recv.note_received(n);
+            },
+            NS::Send(data) => write_all_and_flush(&mut socks_w, &data).await?,
+            NS::Finished(fin) => break fin.into_output_and_slice().0 /* XXXX #1627 */,
         }
     };
 
