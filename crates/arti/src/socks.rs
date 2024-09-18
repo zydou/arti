@@ -268,19 +268,29 @@ mod socks_and_rpc {}
 /// (In no case is it actually SOCKS authentication: it can either be a message
 /// to the stream isolation system or the RPC system.)
 fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
+    /// Interpretation of a SOCKS5 username according to Prop351.
+    enum Uname<'a> {
+        /// This is a legacy username; it's just part of the
+        /// isolation information.
+        Legacy,
+        /// This is using the prop351 socks extension: contains the extension
+        /// format code and the remaining information from the username.
+        Extended(u8, &'a [u8]),
+    }
     /// Helper: Try to interpret a SOCKS5 username field as indicating the start of a set of
     /// extended socks authentication information.
     ///
     /// Implements Prop351.
     ///
     /// If it does indicate that extensions are in use,
-    /// return a tuple containing the extension format type and the remaining information from the username.
+    /// return a `Uname::Extended` containing
+    /// the extension format type and the remaining information from the username.
     ///
     /// If it indicates that no extensions are in use,
-    /// return a tuple containing None and the username.
+    /// return `Uname::Legacy`.
     ///
     /// If it is badly formatted, return an error.
-    fn interpret_socks5_username(username: &[u8]) -> Result<(Option<u8>, &[u8])> {
+    fn interpret_socks5_username(username: &[u8]) -> Result<Uname<'_>> {
         /// 8-byte "magic" sequence from Prop351.
         /// When it appears at the start of a username,
         /// indicates that the username/password are to be interpreted as
@@ -288,7 +298,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
         /// but the format might not be one we recognize.
         const SOCKS_EXT_CONST_ANY: &[u8] = b"<torS0X>";
         let Some(remainder) = username.strip_prefix(SOCKS_EXT_CONST_ANY) else {
-            return Ok((None, username));
+            return Ok(Uname::Legacy);
         };
         if remainder.is_empty() {
             return Err(anyhow!("Exteneded SOCKS information without format code."));
@@ -296,16 +306,16 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
         // TODO MSRV 1.80: use split_at_checked instead.
         // This won't panic since we checked for an empty string above.
         let (format_code, remainder) = remainder.split_at(1);
-        Ok((Some(format_code[0]), remainder))
+        Ok(Uname::Extended(format_code[0], remainder))
     }
 
     let isolation = match auth {
         SocksAuth::Username(user, pass) => match interpret_socks5_username(user)? {
-            (None, _) => ProvidedIsolation::Legacy(auth.clone()),
-            (Some(b'1'), b"") => {
+            Uname::Legacy => ProvidedIsolation::Legacy(auth.clone()),
+            Uname::Extended(b'1', b"") => {
                 return Err(anyhow!("Received empty RPC object ID"));
             }
-            (Some(b'1'), remainder) => {
+            Uname::Extended(format_code @ b'1', remainder) => {
                 #[cfg(not(feature = "rpc"))]
                 return Err(anyhow!(
                     "Received RPC object ID, but not built with support for RPC"
@@ -316,16 +326,16 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
                         std::str::from_utf8(remainder).context("Rpc object ID was not utf-8")?,
                     )),
                     isolation: ProvidedIsolation::Extended {
-                        format_code: b'1',
+                        format_code,
                         isolation: pass.clone().into(),
                     },
                 });
             }
-            (Some(b'0'), b"") => ProvidedIsolation::Extended {
-                format_code: b'0',
+            Uname::Extended(format_code @ b'0', b"") => ProvidedIsolation::Extended {
+                format_code,
                 isolation: pass.clone().into(),
             },
-            (Some(b'0'), _) => {
+            Uname::Extended(b'0', _) => {
                 return Err(anyhow!("Extraneous information in SOCKS username field."))
             }
             _ => return Err(anyhow!("Unrecognized SOCKS format code")),
