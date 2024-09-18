@@ -93,6 +93,8 @@ pub(crate) fn run<R: Runtime>(
     hsc_matches: &ArgMatches,
     config: &TorClientConfig,
 ) -> Result<()> {
+    use KeyType::*;
+
     let subcommand =
         HscSubcommand::from_arg_matches(hsc_matches).expect("Could not parse hsc subcommand");
     let client = TorClient::with_runtime(runtime)
@@ -100,7 +102,9 @@ pub(crate) fn run<R: Runtime>(
         .create_inert()?;
 
     match subcommand {
-        HscSubcommand::GetKey(args) => prepare_service_discovery_key(&args, client),
+        HscSubcommand::GetKey(args) => match args.common.key_type {
+            ServiceDiscovery => prepare_service_discovery_key(&args, client),
+        },
     }
 }
 
