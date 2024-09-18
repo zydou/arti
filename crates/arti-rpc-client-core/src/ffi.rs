@@ -395,9 +395,11 @@ pub unsafe extern "C" fn arti_rpc_conn_free(rpc_conn: *mut ArtiRpcConn) {
 /// (such as a Session or a Client)
 /// that should be used to make the stream.
 ///
-/// If `isolation` is provided, the resulting stream will be configured
+/// The resulting stream will be configured
 /// not to share a circuit with any other stream
 /// having a different `isolation`.
+/// (If your application doesn't care about isolating its streams from one another,
+/// it is acceptable to leave `isolation` as an empty string.)
 ///
 /// If `stream_id_out` is provided,
 /// the resulting stream will have an identifier within the RPC system,
@@ -466,6 +468,7 @@ pub unsafe extern "C" fn arti_rpc_conn_open_stream(
             let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
             let hostname = hostname.ok_or(InvalidInput::NullPointer)?;
             let socket_out = socket_out.ok_or(InvalidInput::NullPointer)?;
+            let isolation = isolation.ok_or(InvalidInput::NullPointer)?;
 
             let port: u16 = port.try_into().map_err(|_| InvalidInput::BadPort)?;
             if port == 0 {

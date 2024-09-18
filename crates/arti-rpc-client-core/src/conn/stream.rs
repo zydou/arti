@@ -161,7 +161,7 @@ impl RpcConn {
         &self,
         on_object: Option<&ObjectId>,
         target: (&str, u16),
-        isolation: Option<&str>,
+        isolation: &str,
     ) -> Result<(ObjectId, TcpStream), StreamError> {
         let on_object = self.resolve_on_object(on_object)?;
         let new_stream_request =
@@ -190,24 +190,24 @@ impl RpcConn {
     /// object that supports opening data streams.  If it is not provided,
     /// the data stream is opened relative to the current session.
     ///
-    /// If `isolation` is provided, we tell Arti that the stream must not share
+    /// We tell Arti that the stream must not share
     /// a circuit with any other stream with a different value for `isolation`.
+    /// (If your application doesn't care about isolating its streams from one another,
+    /// it is acceptable to leave `isolation` as an empty string.)
     pub fn open_stream(
         &self,
         on_object: Option<&ObjectId>,
         (hostname, port): (&str, u16),
-        isolation: Option<&str>,
+        isolation: &str,
     ) -> Result<TcpStream, StreamError> {
         let on_object = self.resolve_on_object(on_object)?;
         let socks_proxy_addr = self.lookup_socks_proxy_addr()?;
         let mut stream = TcpStream::connect(socks_proxy_addr)?;
 
-        let username = "<arti-rpc-session>";
-        let password = match isolation {
-            Some(iso) => format!("{}:{}", on_object.as_ref(), iso),
-            None => on_object.into(),
-        };
-        negotiate_socks(&mut stream, hostname, port, username, &password)?;
+        // See prop351 for information about this encoding.
+        let username = format!("<torS0X>1{}", on_object.as_ref());
+        let password = isolation;
+        negotiate_socks(&mut stream, hostname, port, &username, password)?;
 
         Ok(stream)
     }

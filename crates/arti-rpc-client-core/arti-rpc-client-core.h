@@ -504,9 +504,11 @@ void arti_rpc_conn_free(ArtiRpcConn *rpc_conn);
  * (such as a Session or a Client)
  * that should be used to make the stream.
  *
- * If `isolation` is provided, the resulting stream will be configured
+ * The resulting stream will be configured
  * not to share a circuit with any other stream
  * having a different `isolation`.
+ * (If your application doesn't care about isolating its streams from one another,
+ * it is acceptable to leave `isolation` as an empty string.)
  *
  * If `stream_id_out` is provided,
  * the resulting stream will have an identifier within the RPC system,
