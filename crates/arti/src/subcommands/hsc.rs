@@ -43,13 +43,9 @@ pub(crate) struct GetKeyArgs {
     #[command(flatten)]
     common: CommonArgs,
 
-    /// Write the public key to FILE. Use - to write to stdout
-    #[arg(long, name = "FILE")]
-    output: String,
-
-    /// Whether to overwrite the output file if it already exists
-    #[arg(long)]
-    overwrite: bool,
+    /// Arguments for configuring keygen.
+    #[command(flatten)]
+    keygen: KeygenArgs,
 
     /// Whether to generate the key if it is missing
     #[arg(
@@ -85,6 +81,18 @@ pub(crate) struct CommonArgs {
     /// The .onion address of the hidden service
     #[arg(long)]
     onion_name: HsId,
+}
+
+/// The common arguments of the key subcommands.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct KeygenArgs {
+    /// Write the public key to FILE. Use - to write to stdout
+    #[arg(long, name = "FILE")]
+    output: String,
+
+    /// Whether to overwrite the output file if it already exists
+    #[arg(long)]
+    overwrite: bool,
 }
 
 /// Run the `hsc` subcommand.
@@ -134,12 +142,12 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: InertTorClient) -> R
     };
 
     // Output the public key to the specified file, or to stdout.
-    match args.output.as_str() {
+    match args.keygen.output.as_str() {
         "-" => write_public_key(io::stdout(), &key)?,
         filename => {
             let res = OpenOptions::new()
                 .create(true)
-                .create_new(!args.overwrite)
+                .create_new(!args.keygen.overwrite)
                 .write(true)
                 .truncate(true)
                 .open(filename)
