@@ -3,7 +3,7 @@
 use crate::{Result, TorClient};
 
 use anyhow::{anyhow, Context};
-use arti_client::{HsClientDescEncKey, HsId, KeystoreSelector, TorClientConfig};
+use arti_client::{HsClientDescEncKey, HsId, InertTorClient, KeystoreSelector, TorClientConfig};
 use clap::{ArgMatches, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
 use tor_rtcompat::Runtime;
 
@@ -89,21 +89,20 @@ pub(crate) fn run<R: Runtime>(
 ) -> Result<()> {
     let subcommand =
         HscSubcommand::from_arg_matches(hsc_matches).expect("Could not parse hsc subcommand");
+    let client = TorClient::with_runtime(runtime)
+        .config(config.clone())
+        .create_inert()?;
 
     match subcommand {
-        HscSubcommand::GetKey(args) => prepare_service_discovery_key(runtime, &args, config),
+        HscSubcommand::GetKey(args) => prepare_service_discovery_key(&args, client),
     }
 }
 
 /// Run the `hsc prepare-stealth-mode-key` subcommand.
-fn prepare_service_discovery_key<R: Runtime>(
-    runtime: R,
+fn prepare_service_discovery_key(
     args: &GetKeyArgs,
-    config: &TorClientConfig,
+    client: InertTorClient,
 ) -> Result<()> {
-    let client = TorClient::with_runtime(runtime)
-        .config(config.clone())
-        .create_inert()?;
     let key = match args.generate {
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
