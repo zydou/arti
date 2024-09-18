@@ -416,6 +416,46 @@ build-repro-macos:
     paths:
       - osxcross/target
 
+# We use shadow in multiple tests. Build it here once.
+build-shadow:
+  stage: build
+  variables:
+    JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
+    JOB_SHADOW_BRANCH: "main"
+    # This commit has not-yet-released support for running scripts directly.
+    JOB_SHADOW_COMMIT: "66bffbe041f6818a8d2fb94ae3ade69924197d92"
+  artifacts:
+    paths:
+      - opt/shadow
+    # Intended for consumption later in the pipeline; no need to keep them
+    # around for longer.
+    expire_in: 1 day
+  cache:
+    - key: $CI_JOB_NAME-shadow-$JOB_SHADOW_COMMIT
+      paths:
+      - opt/shadow
+  tags:
+    - amd64
+  script:
+    # Build shadow
+    - |
+      if [ -f opt/shadow/bin/shadow ]
+      then
+        echo "Using shadow binary from cache"
+      else
+        echo "Building shadow"
+        maint/common/apt-install git
+        git clone --shallow-since=2021-08-01 -b $JOB_SHADOW_BRANCH $JOB_SHADOW_REPO ~/src/shadow
+        cd ~/src/shadow
+        git checkout $JOB_SHADOW_COMMIT
+        export CC=gcc CXX=g++ CONTAINER=debian:12-slim BUILDTYPE=release RUSTPROFILE=minimal
+        ci/container_scripts/install_deps.sh
+        ci/container_scripts/install_extra_deps.sh
+        export PATH="$HOME/.cargo/bin:${PATH}"
+        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/shadow
+        ./setup install
+      fi
+
 integration-chutney:
   stage: test
   rules:
@@ -435,23 +475,14 @@ integration-chutney:
 
 # Runs the chutney integration test under shadow.
 integration-chutney-shadow:
-  variables:
-    JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
-    JOB_SHADOW_BRANCH: "main"
-    # Unreleased support for running scripts directly.
-    JOB_SHADOW_COMMIT: "66bffbe041f6818a8d2fb94ae3ade69924197d92"
   stage: test
-  cache:
-    - key: $CI_JOB_NAME-shadow-$JOB_SHADOW_COMMIT
-      paths:
-      - opt/shadow
   tags:
     - amd64
     # Non-TPA runners may not support running shadow.
     - tpa
   script:
     - ./maint/preserve -u
-    - maint/common/apt-install tor git python3 curl dnsutils stow
+    - maint/common/apt-install tor git python3 curl dnsutils stow python3-yaml
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
@@ -461,25 +492,7 @@ integration-chutney-shadow:
     - git clone https://gitlab.torproject.org/tpo/core/chutney
     - export CHUTNEY_PATH="$(pwd)/chutney"
 
-    # Build shadow
-    # TODO: move this to a separate job and share with integration-shadow
-    - |
-      if [ -f opt/shadow/bin/shadow ]
-      then
-        echo "Using shadow binary from cache"
-      else
-        echo "Building shadow"
-        git clone --shallow-since=2021-08-01 -b $JOB_SHADOW_BRANCH $JOB_SHADOW_REPO ~/src/shadow
-        pushd ~/src/shadow
-        git checkout $JOB_SHADOW_COMMIT
-        export CC=gcc CXX=g++ CONTAINER=debian:12-slim BUILDTYPE=release RUSTPROFILE=minimal
-        ci/container_scripts/install_deps.sh
-        ci/container_scripts/install_extra_deps.sh
-        export PATH="$HOME/.cargo/bin:${PATH}"
-        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/shadow
-        ./setup install
-        popd
-      fi
+    # Set up shadow, built in build-shadow
     - maint/common/apt-install libglib2.0-0
     - stow -d opt -t $HOME/.local shadow
 
@@ -490,10 +503,6 @@ integration-chutney-shadow:
 
 integration-shadow:
   variables:
-    JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
-    JOB_SHADOW_BRANCH: "main"
-    JOB_SHADOW_COMMIT: "v3.2.0"
-
     JOB_TGEN_REPO: "https://github.com/shadow/tgen.git"
     JOB_TGEN_BRANCH: "main"
     JOB_TGEN_COMMIT: "v1.1.2"
@@ -514,24 +523,7 @@ integration-shadow:
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
-    # Build shadow
-    - |
-      if [ -f opt/shadow/bin/shadow ]
-      then
-        echo "Using shadow binary from cache"
-      else
-        echo "Building shadow"
-        git clone --shallow-since=2021-08-01 -b $JOB_SHADOW_BRANCH $JOB_SHADOW_REPO ~/src/shadow
-        pushd ~/src/shadow
-        git checkout $JOB_SHADOW_COMMIT
-        export CC=gcc CXX=g++ CONTAINER=debian:12-slim BUILDTYPE=release RUSTPROFILE=minimal
-        ci/container_scripts/install_deps.sh
-        ci/container_scripts/install_extra_deps.sh
-        export PATH="$HOME/.cargo/bin:${PATH}"
-        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/shadow
-        ./setup install
-        popd
-      fi
+    # Set up shadow, built in build-shadow
     - maint/common/apt-install libglib2.0-0
     - stow -d opt -t $HOME/.local shadow
 
