@@ -113,8 +113,10 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: InertTorClient) -> R
                 .get_service_discovery_key(args.common.onion_name)?
                 .map(Ok)
                 .unwrap_or_else(|| {
-                    client
-                        .generate_service_discovery_key(KeystoreSelector::Default, args.common.onion_name)
+                    client.generate_service_discovery_key(
+                        KeystoreSelector::Default,
+                        args.common.onion_name,
+                    )
                 })?
         }
         GenerateKey::No => match client.get_service_discovery_key(args.common.onion_name)? {
