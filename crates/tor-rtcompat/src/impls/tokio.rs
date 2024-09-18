@@ -87,10 +87,6 @@ pub(crate) mod net {
     impl traits::TcpListener for TcpListener {
         type TcpStream = TcpStream;
         type Incoming = IncomingTcpStreams;
-        async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-            let (stream, addr) = self.lis.accept().await?;
-            Ok((stream.into(), addr))
-        }
         fn incoming(self) -> Self::Incoming {
             IncomingTcpStreams { lis: self.lis }
         }

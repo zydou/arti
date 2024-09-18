@@ -87,9 +87,6 @@ mod net {
     impl traits::TcpListener for TcpListener {
         type TcpStream = TcpStream;
         type Incoming = IncomingStreams;
-        async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-            TcpListener::accept(self).await
-        }
         fn incoming(self) -> IncomingStreams {
             IncomingStreams::from_listener(self)
         }

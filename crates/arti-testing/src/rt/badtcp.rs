@@ -225,11 +225,6 @@ impl<S: TcpListener + Send + Sync> TcpListener for BrokenTcpProvider<S> {
     type TcpStream = BreakableTcpStream<S::TcpStream>;
     type Incoming = BrokenTcpProvider<S::Incoming>;
 
-    async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-        let (inner, addr) = self.inner.accept().await?;
-        Ok((BreakableTcpStream::Present(inner), addr))
-    }
-
     fn incoming(self) -> Self::Incoming {
         BrokenTcpProvider {
             inner: self.inner.incoming(),

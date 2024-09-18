@@ -142,20 +142,6 @@ impl<S: TcpListener + Send + Sync> TcpListener for Counting<S> {
     type TcpStream = Counting<S::TcpStream>;
     type Incoming = Counting<S::Incoming>;
 
-    async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-        let (inner, addr) = self.inner.accept().await?;
-        {
-            self.count.lock().expect("lock poisoned").n_accept += 1;
-        }
-        Ok((
-            Counting {
-                inner,
-                count: self.count.clone(),
-            },
-            addr,
-        ))
-    }
-
     fn incoming(self) -> Self::Incoming {
         Counting {
             inner: self.inner.incoming(),

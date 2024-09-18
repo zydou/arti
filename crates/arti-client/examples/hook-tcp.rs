@@ -283,45 +283,12 @@ impl<T> Drop for CustomTcpStream<T> {
     }
 }
 
-type AcceptResult<T> = IoResult<(T, SocketAddr)>;
-
 impl<T> TcpListener for CustomTcpListener<T>
 where
     T: TcpListener,
 {
     type TcpStream = CustomTcpStream<T::TcpStream>;
     type Incoming = CustomIncoming<T::Incoming>;
-
-    // This is also an async trait method (see earlier commentary).
-    fn accept<'a, 'b>(
-        &'a self,
-    ) -> Pin<Box<dyn Future<Output = AcceptResult<Self::TcpStream>> + Send + 'b>>
-    where
-        'a: 'b,
-        Self: 'b,
-    {
-        // As with other implementations, we just defer to `self.inner` and wrap the result.
-        self.inner
-            .accept()
-            .inspect(|r| {
-                if let Ok((_, addr)) = r {
-                    println!("accepted connection from {addr}");
-                }
-            })
-            .map(|r| {
-                r.map(|(stream, addr)| {
-                    (
-                        CustomTcpStream {
-                            inner: stream,
-                            addr,
-                            state: TcpState::Open,
-                        },
-                        addr,
-                    )
-                })
-            })
-            .boxed()
-    }
 
     fn incoming(self) -> Self::Incoming {
         CustomIncoming {

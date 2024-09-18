@@ -283,14 +283,6 @@ impl TcpListener for MockNetListener {
 
     type Incoming = Self;
 
-    async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-        let mut receiver = self.receiver.lock().await;
-        receiver
-            .next()
-            .await
-            .ok_or_else(|| err(ErrorKind::BrokenPipe))
-    }
-
     fn local_addr(&self) -> IoResult<SocketAddr> {
         Ok(self.addr)
     }
@@ -627,7 +619,7 @@ mod test {
                     Ok(())
                 },
                 async {
-                    let (mut conn, a) = lis.accept().await?;
+                    let (mut conn, a) = lis.incoming().next().await.expect("closed?")?;
                     assert_eq!(a.ip(), "192.0.2.55".parse::<IpAddr>().unwrap());
                     let mut inp = Vec::new();
                     conn.read_to_end(&mut inp).await?;
@@ -716,12 +708,12 @@ mod test {
         let (client1, client2) = client_pair();
         let cert = b"I am certified for something I assure you.";
 
-        let lis = client2
-            .listen_tls(&"0.0.0.0:0".parse().unwrap(), cert[..].into())
-            .unwrap();
-        let address = lis.local_addr().unwrap();
-
         test_with_all_runtimes!(|_rt| async {
+            let lis = client2
+                .listen_tls(&"0.0.0.0:0".parse().unwrap(), cert[..].into())
+                .unwrap();
+            let address = lis.local_addr().unwrap();
+
             let (r1, r2): (IoResult<()>, IoResult<()>) = futures::join!(
                 async {
                     let connector = client1.tls_connector();
@@ -738,7 +730,7 @@ mod test {
                     Ok(())
                 },
                 async {
-                    let (mut conn, a) = lis.accept().await?;
+                    let (mut conn, a) = lis.incoming().next().await.expect("closed?")?;
                     assert_eq!(a.ip(), "192.0.2.55".parse::<IpAddr>().unwrap());
                     let mut inp = [0_u8; 26];
                     conn.read_exact(&mut inp[..]).await?;

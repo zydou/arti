@@ -441,7 +441,7 @@ mod test {
         runtime.block_on(async {
             let task1 = async {
                 let mut buf = vec![0_u8; 11];
-                let (mut con, _addr) = listener.accept().await?;
+                let (mut con, _addr) = listener.incoming().next().await.expect("closed?")?;
                 con.read_exact(&mut buf[..]).await?;
                 IoResult::Ok(buf)
             };
