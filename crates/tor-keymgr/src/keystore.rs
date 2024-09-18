@@ -1,6 +1,8 @@
 //! The [`Keystore`] trait and its implementations.
 
 pub(crate) mod arti;
+
+#[cfg(feature = "ephemeral-keystore")]
 pub(crate) mod ephemeral;
 
 use tor_key_forge::{EncodableKey, ErasedKey, KeyType};
