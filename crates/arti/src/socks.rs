@@ -89,7 +89,14 @@ enum ProvidedIsolation {
     /// The socks isolation itself.
     Legacy(SocksAuth),
     /// A bytestring provided as isolation with the extended Socks5 username/password protocol.
-    IsolationString(Box<[u8]>),
+    Extended {
+        /// Which format was negotiated?
+        ///
+        /// (At present, different format codes can't share a circuit.)
+        format_code: u8,
+        /// What's the isolation string?
+        isolation: Box<[u8]>,
+    },
 }
 
 impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
@@ -305,10 +312,16 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
                     rpc_object: Some(rpc::ObjectId::from(
                         std::str::from_utf8(remainder).context("Rpc object ID was not utf-8")?,
                     )),
-                    isolation: ProvidedIsolation::IsolationString(pass.clone().into()),
+                    isolation: ProvidedIsolation::Extended {
+                        format_code: b'1',
+                        isolation: pass.clone().into(),
+                    },
                 });
             }
-            (Some(b'0'), b"") => ProvidedIsolation::IsolationString(pass.clone().into()),
+            (Some(b'0'), b"") => ProvidedIsolation::Extended {
+                format_code: b'0',
+                isolation: pass.clone().into(),
+            },
             (Some(b'0'), _) => {
                 return Err(anyhow!("Extraneous information in SOCKS username field."))
             }
