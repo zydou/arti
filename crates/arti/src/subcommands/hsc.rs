@@ -130,22 +130,22 @@ pub(crate) fn run<R: Runtime>(
                 "warning: using deprecated command 'arti hsc key-get` (hint: use 'arti hsc key get' instead)"
             );
             match args.common.key_type {
-                ServiceDiscovery => prepare_service_discovery_key(&args, client),
+                ServiceDiscovery => prepare_service_discovery_key(&args, &client),
             }
         }
-        HscSubcommand::Key(subcommand) => run_key(subcommand, client),
+        HscSubcommand::Key(subcommand) => run_key(subcommand, &client),
     }
 }
 
 /// Run the `hsc key` subcommand
-fn run_key(subcommand: KeySubcommand, client: InertTorClient) -> Result<()> {
+fn run_key(subcommand: KeySubcommand, client: &InertTorClient) -> Result<()> {
     match subcommand {
         KeySubcommand::Get(args) => prepare_service_discovery_key(&args, client),
     }
 }
 
 /// Run the `hsc prepare-stealth-mode-key` subcommand.
-fn prepare_service_discovery_key(args: &GetKeyArgs, client: InertTorClient) -> Result<()> {
+fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> Result<()> {
     let key = match args.generate {
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
