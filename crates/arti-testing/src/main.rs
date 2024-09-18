@@ -103,7 +103,7 @@ use futures::task::SpawnExt;
 use rt::badtcp::BrokenTcpProvider;
 use tor_config::ConfigurationSources;
 use tor_dirmgr::filter::DirFilter;
-use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
+use tor_rtcompat::{PreferredRuntime, Runtime, RuntimeSubstExt as _, SleepProviderExt};
 
 use anyhow::{anyhow, Result};
 use tracing_subscriber::prelude::*;
@@ -294,14 +294,7 @@ impl Job {
         // to know how many attempts to connect there are, and BrokenTcpProvider
         // eats the attempts that it fails without passing them down the stack.
         let counting_tcp = rt::count::Counting::new_zeroed(broken_tcp.clone());
-        let runtime = tor_rtcompat::CompoundRuntime::new(
-            runtime.clone(),
-            runtime.clone(),
-            runtime.clone(),
-            counting_tcp.clone(),
-            runtime.clone(),
-            runtime,
-        );
+        let runtime = runtime.with_tcp_provider(counting_tcp.clone());
         let client = self.make_client(runtime)?;
 
         let outcome = client

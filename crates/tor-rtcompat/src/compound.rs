@@ -226,3 +226,70 @@ where
         self.inner.udp.bind(addr).await
     }
 }
+
+/// Module to seal RuntimeSubstExt
+mod sealed {
+    /// Helper for sealing RuntimeSubstExt
+    #[allow(unreachable_pub)]
+    pub trait Sealed {}
+}
+/// Extension trait on Runtime:
+/// Construct new Runtimes that replace part of an original runtime.
+///
+/// (If you need to do more complicated versions of this, you should likely construct
+/// CompoundRuntime directly.)
+pub trait RuntimeSubstExt: sealed::Sealed + Sized {
+    /// Return a new runtime wrapping this runtime, but replacing its TcpProvider.
+    fn with_tcp_provider<T>(&self, new_tcp: T) -> CompoundRuntime<Self, Self, Self, T, Self, Self>;
+    /// Return a new runtime wrapping this runtime, but replacing its SleepProvider.
+    fn with_sleep_provider<T>(
+        &self,
+        new_sleep: T,
+    ) -> CompoundRuntime<Self, T, Self, Self, Self, Self>;
+    /// Return a new runtime wrapping this runtime, but replacing its CoarseTimeProvider.
+    fn with_coarse_time_provider<T>(
+        &self,
+        new_coarse_time: T,
+    ) -> CompoundRuntime<Self, Self, T, Self, Self, Self>;
+}
+impl<R: Runtime> sealed::Sealed for R {}
+impl<R: Runtime + Sized> RuntimeSubstExt for R {
+    fn with_tcp_provider<T>(&self, new_tcp: T) -> CompoundRuntime<Self, Self, Self, T, Self, Self> {
+        CompoundRuntime::new(
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            new_tcp,
+            self.clone(),
+            self.clone(),
+        )
+    }
+
+    fn with_sleep_provider<T>(
+        &self,
+        new_sleep: T,
+    ) -> CompoundRuntime<Self, T, Self, Self, Self, Self> {
+        CompoundRuntime::new(
+            self.clone(),
+            new_sleep,
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            self.clone(),
+        )
+    }
+
+    fn with_coarse_time_provider<T>(
+        &self,
+        new_coarse_time: T,
+    ) -> CompoundRuntime<Self, Self, T, Self, Self, Self> {
+        CompoundRuntime::new(
+            self.clone(),
+            self.clone(),
+            new_coarse_time,
+            self.clone(),
+            self.clone(),
+            self.clone(),
+        )
+    }
+}

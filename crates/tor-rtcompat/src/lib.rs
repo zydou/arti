@@ -82,7 +82,7 @@ pub mod tokio;
 #[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "async-std"))]
 pub mod async_std;
 
-pub use compound::CompoundRuntime;
+pub use compound::{CompoundRuntime, RuntimeSubstExt};
 
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
