@@ -12,7 +12,7 @@ categories = ["cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = []
+default = ["keymgr"]
 
 keymgr = []
 full = [
