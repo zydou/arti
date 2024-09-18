@@ -169,17 +169,26 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> 
         },
     };
 
+    display_service_disocvery_key(&args.keygen, &key)
+}
+
+/// Display the public part of a service discovery key.
+//
+// TODO: have a more principled implementation for displaying messages, etc.
+// For example, it would be nice to centralize the logic for writing to stdout/file,
+// and to add a flag for choosing the output format (human-readable or json)
+fn display_service_disocvery_key(args: &KeygenArgs, key: &HsClientDescEncKey) -> Result<()> {
     // Output the public key to the specified file, or to stdout.
-    match args.keygen.output.as_str() {
-        "-" => write_public_key(io::stdout(), &key)?,
+    match args.output.as_str() {
+        "-" => write_public_key(io::stdout(), key)?,
         filename => {
             let res = OpenOptions::new()
                 .create(true)
-                .create_new(!args.keygen.overwrite)
+                .create_new(!args.overwrite)
                 .write(true)
                 .truncate(true)
                 .open(filename)
-                .and_then(|f| write_public_key(f, &key));
+                .and_then(|f| write_public_key(f, key));
 
             if let Err(e) = res {
                 match e.kind() {
