@@ -99,10 +99,7 @@ pub(crate) fn run<R: Runtime>(
 }
 
 /// Run the `hsc prepare-stealth-mode-key` subcommand.
-fn prepare_service_discovery_key(
-    args: &GetKeyArgs,
-    client: InertTorClient,
-) -> Result<()> {
+fn prepare_service_discovery_key(args: &GetKeyArgs, client: InertTorClient) -> Result<()> {
     let key = match args.generate {
         GenerateKey::IfNeeded => {
             // TODO: consider using get_or_generate in generate_service_discovery_key
