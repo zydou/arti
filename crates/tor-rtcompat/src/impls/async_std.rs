@@ -10,6 +10,8 @@ mod net {
     use crate::traits;
 
     use async_std_crate::net::{TcpListener, TcpStream, UdpSocket as StdUdpSocket};
+    #[cfg(unix)]
+    use async_std_crate::os::unix::net::{UnixListener, UnixStream};
     use async_trait::async_trait;
     use futures::future::Future;
     use futures::stream::Stream;
@@ -102,6 +104,8 @@ mod net {
     }
 
     impl_stream! { Tcp, std::net::SocketAddr }
+    #[cfg(unix)]
+    impl_stream! { Unix, crate::unix::SocketAddr}
 
     #[async_trait]
     impl traits::NetStreamProvider<std::net::SocketAddr> for async_executors::AsyncStd {
@@ -112,6 +116,25 @@ mod net {
         }
         async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
             TcpListener::bind(*addr).await
+        }
+    }
+
+    #[cfg(unix)]
+    #[async_trait]
+    impl traits::NetStreamProvider<crate::unix::SocketAddr> for async_executors::AsyncStd {
+        type Stream = UnixStream;
+        type Listener = UnixListener;
+        async fn connect(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Stream> {
+            let path = addr
+                .as_pathname()
+                .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+            UnixStream::connect(path).await
+        }
+        async fn listen(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Listener> {
+            let path = addr
+                .as_pathname()
+                .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+            UnixListener::bind(path).await
         }
     }
 
