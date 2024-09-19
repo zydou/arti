@@ -8,6 +8,9 @@ specifying the TOML configuration file. Using the correct configuration file is
 important, because the state and keys managed by `arti hsc` are relative to the
 state directory, which you might have overridden in the configuration.
 
+> `arti hsc` is an experimental subcommand.
+> To use it, you will need to compile `arti` with the experimental `hsc` feature
+
 ## Generating a service discovery key
 
 Client service discovery keys (previously known as "client authorization" keys)
