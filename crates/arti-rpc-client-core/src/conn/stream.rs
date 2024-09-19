@@ -305,8 +305,7 @@ fn negotiate_socks(
         }
     };
 
-    let status = reply
-        .status();
+    let status = reply.status();
 
     if status == SocksStatus::SUCCEEDED {
         Ok(())
