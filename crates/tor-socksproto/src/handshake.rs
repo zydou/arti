@@ -124,11 +124,11 @@ mod test_roundtrip {
         for _ in 0..100 {
             // Make sure that the client says "truncated" for all prefixes of the proxy's message.
             for truncate in 0..last_proxy_msg.len() {
-                let r = client_hs.handshake(&last_proxy_msg[..truncate]);
+                let r = client_hs.handshake_for_tests(&last_proxy_msg[..truncate]);
                 assert!(r.is_err());
             }
             // Get the client's actual message.
-            let client_action = client_hs.handshake(&last_proxy_msg).unwrap().unwrap();
+            let client_action = client_hs.handshake_for_tests(&last_proxy_msg).unwrap().unwrap();
             assert_eq!(client_action.drain, last_proxy_msg.len());
             if client_action.finished {
                 let received_reply = client_hs.into_reply();
@@ -138,11 +138,11 @@ mod test_roundtrip {
 
             // Make sure that the proxy says "truncated" for all prefixes of the client's message.
             for truncate in 0..client_msg.len() {
-                let r = proxy_hs.handshake(&client_msg[..truncate]);
+                let r = proxy_hs.handshake_for_tests(&client_msg[..truncate]);
                 assert!(r.is_err());
             }
             // Get the proxy's actual reply (if any).
-            let proxy_action = proxy_hs.handshake(&client_msg).unwrap().unwrap();
+            let proxy_action = proxy_hs.handshake_for_tests(&client_msg).unwrap().unwrap();
             assert_eq!(proxy_action.drain, client_msg.len());
             last_proxy_msg = if proxy_action.finished {
                 // The proxy is done: have it reply with a status code.

@@ -287,7 +287,7 @@ mod test {
     fn socks4_good() {
         let mut h = SocksProxyHandshake::default();
         let a = h
-            .handshake(&hex!("04 01 0050 CB007107 00")[..])
+            .handshake_for_tests(&hex!("04 01 0050 CB007107 00")[..])
             .unwrap()
             .unwrap();
         assert!(a.finished);
@@ -317,7 +317,7 @@ mod test {
             "04 01 01BB 00000001 73776f72646669736800
                         7777772e6578616d706c652e636f6d00 99"
         );
-        let a = h.handshake(&msg[..]).unwrap().unwrap();
+        let a = h.handshake_for_tests(&msg[..]).unwrap().unwrap();
         assert!(a.finished);
         assert!(h.finished());
         assert_eq!(a.drain, msg.len() - 1);
@@ -338,7 +338,7 @@ mod test {
     #[test]
     fn socks5_init_noauth() {
         let mut h = SocksProxyHandshake::new();
-        let a = h.handshake(&hex!("05 01 00")[..]).unwrap().unwrap();
+        let a = h.handshake_for_tests(&hex!("05 01 00")[..]).unwrap().unwrap();
         assert!(!a.finished);
         assert_eq!(a.drain, 3);
         assert_eq!(a.reply, &[5, 0]);
@@ -348,7 +348,7 @@ mod test {
     #[test]
     fn socks5_init_username() {
         let mut h = SocksProxyHandshake::new();
-        let a = h.handshake(&hex!("05 04 00023031")[..]).unwrap().unwrap();
+        let a = h.handshake_for_tests(&hex!("05 04 00023031")[..]).unwrap().unwrap();
         assert!(!a.finished);
         assert_eq!(a.drain, 6);
         assert_eq!(a.reply, &[5, 2]);
@@ -358,16 +358,16 @@ mod test {
     #[test]
     fn socks5_init_nothing_works() {
         let mut h = SocksProxyHandshake::new();
-        let a = h.handshake(&hex!("05 02 9988")[..]);
+        let a = h.handshake_for_tests(&hex!("05 02 9988")[..]);
         assert!(matches!(a, Ok(Err(Error::NotImplemented(_)))));
     }
 
     #[test]
     fn socks5_username_ok() {
         let mut h = SocksProxyHandshake::new();
-        let _a = h.handshake(&hex!("05 02 9902")).unwrap().unwrap();
+        let _a = h.handshake_for_tests(&hex!("05 02 9902")).unwrap().unwrap();
         let a = h
-            .handshake(&hex!("01 08 5761677374616666 09 24776f726466693568"))
+            .handshake_for_tests(&hex!("01 08 5761677374616666 09 24776f726466693568"))
             .unwrap()
             .unwrap();
         assert_eq!(a.drain, 20);
@@ -383,9 +383,9 @@ mod test {
     #[test]
     fn socks5_request_ok_ipv4() {
         let mut h = SocksProxyHandshake::new();
-        let _a = h.handshake(&hex!("05 01 00")).unwrap().unwrap();
+        let _a = h.handshake_for_tests(&hex!("05 01 00")).unwrap().unwrap();
         let a = h
-            .handshake(&hex!("05 01 00 01 7f000007 1f90"))
+            .handshake_for_tests(&hex!("05 01 00 01 7f000007 1f90"))
             .unwrap()
             .unwrap();
         assert_eq!(a.drain, 10);
@@ -415,9 +415,9 @@ mod test {
     #[test]
     fn socks5_request_ok_ipv6() {
         let mut h = SocksProxyHandshake::new();
-        let _a = h.handshake(&hex!("05 01 00")).unwrap().unwrap();
+        let _a = h.handshake_for_tests(&hex!("05 01 00")).unwrap().unwrap();
         let a = h
-            .handshake(&hex!(
+            .handshake_for_tests(&hex!(
                 "05 01 00 04 f000 0000 0000 0000 0000 0000 0000 ff11 1f90"
             ))
             .unwrap()
@@ -444,9 +444,9 @@ mod test {
     #[test]
     fn socks5_request_ok_hostname() {
         let mut h = SocksProxyHandshake::new();
-        let _a = h.handshake(&hex!("05 01 00")).unwrap().unwrap();
+        let _a = h.handshake_for_tests(&hex!("05 01 00")).unwrap().unwrap();
         let a = h
-            .handshake(&hex!("05 01 00 03 0f 666f6f2e6578616d706c652e636f6d 1f90"))
+            .handshake_for_tests(&hex!("05 01 00 03 0f 666f6f2e6578616d706c652e636f6d 1f90"))
             .unwrap()
             .unwrap();
         assert_eq!(a.drain, 22);
@@ -469,19 +469,19 @@ mod test {
 
     #[test]
     fn empty_handshake() {
-        let r = SocksProxyHandshake::new().handshake(&[]);
+        let r = SocksProxyHandshake::new().handshake_for_tests(&[]);
         assert!(matches!(r, Err(Truncated { .. })));
     }
 
     #[test]
     fn bad_version() {
         let mut h = SocksProxyHandshake::new();
-        let r = h.handshake(&hex!("06 01 00"));
+        let r = h.handshake_for_tests(&hex!("06 01 00"));
         assert!(matches!(r, Ok(Err(Error::BadProtocol(6)))));
 
         let mut h = SocksProxyHandshake::new();
-        let _a = h.handshake(&hex!("05 01 00")).unwrap();
-        let r = h.handshake(&hex!("06 01 00"));
+        let _a = h.handshake_for_tests(&hex!("05 01 00")).unwrap();
+        let r = h.handshake_for_tests(&hex!("06 01 00"));
         assert!(r.unwrap().is_err());
     }
 
@@ -491,16 +491,16 @@ mod test {
 
         // Can't try again after failure.
         let mut h = SocksProxyHandshake::new();
-        let r = h.handshake(&hex!("06 01 00"));
+        let r = h.handshake_for_tests(&hex!("06 01 00"));
         assert!(r.unwrap().is_err());
-        let r = h.handshake(good_socks4a);
+        let r = h.handshake_for_tests(good_socks4a);
         assert!(matches!(r, Ok(Err(Error::AlreadyFinished(_)))));
 
         // Can't try again after success
         let mut h = SocksProxyHandshake::new();
-        let r = h.handshake(good_socks4a);
+        let r = h.handshake_for_tests(good_socks4a);
         assert!(r.is_ok());
-        let r = h.handshake(good_socks4a);
+        let r = h.handshake_for_tests(good_socks4a);
         assert!(matches!(r, Ok(Err(Error::AlreadyFinished(_)))));
     }
 }

@@ -634,4 +634,12 @@ pub trait Handshake: HandshakeImpl + HasHandshakeOutput<Self::Output> {
             })),
         }
     }
+
+    /// [`Handshake::handshake`] for tests
+    ///
+    /// This wrapper function allows us to avoid writing many (or broad) allows in our tests.
+    #[cfg(test)]
+    fn handshake_for_tests(&mut self, input: &[u8]) -> crate::TResult<Action> {
+        self.handshake(input)
+    }
 }

@@ -300,12 +300,12 @@ mod test {
         )
         .unwrap();
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(action.reply, hex!("04 01 01BB C000020F 00"));
         assert_eq!(action.finished, false);
 
-        let action = hs.handshake(&hex!("00 5A 01BB C000020F")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("00 5A 01BB C000020F")).unwrap().unwrap();
         assert_eq!(action.drain, 8);
         assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
@@ -327,7 +327,7 @@ mod test {
         )
         .unwrap();
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(
             action.reply,
@@ -335,7 +335,7 @@ mod test {
         );
         assert_eq!(action.finished, false);
 
-        let action = hs.handshake(&hex!("00 5A 01BB C0000215")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("00 5A 01BB C0000215")).unwrap().unwrap();
         assert_eq!(action.drain, 8);
         assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
@@ -359,13 +359,13 @@ mod test {
 
         // client begins by proposing authentication types.
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(action.reply, hex!("05 01 00"));
         assert_eq!(action.finished, false);
 
         // proxy chooses noauth; client replies with its handshake.
-        let action = hs.handshake(&hex!("0500")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("0500")).unwrap().unwrap();
         assert_eq!(action.drain, 2);
         assert_eq!(
             action.reply,
@@ -376,7 +376,7 @@ mod test {
         // Proxy says "okay, you're connected."
         // Client is done.
         let action = hs
-            .handshake(&hex!("05 00 00 01 C0000215 01BB"))
+            .handshake_for_tests(&hex!("05 00 00 01 C0000215 01BB"))
             .unwrap()
             .unwrap();
         assert_eq!(action.drain, 10);
@@ -402,20 +402,20 @@ mod test {
 
         // client begins by proposing authentication types.
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(action.reply, hex!("05 02 0200"));
         assert_eq!(action.finished, false);
 
         // proxy chooses username/password; client replies with "hello"/"world"
-        let action = hs.handshake(&hex!("0502")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("0502")).unwrap().unwrap();
         assert_eq!(action.drain, 2);
         assert_eq!(action.reply, hex!("01 05 68656c6c6f 05 776f726c64"));
         assert_eq!(action.finished, false);
 
         // Proxy says "yeah, that's good authentication, go ahead."
         // Client says what it actually wants.
-        let action = hs.handshake(&hex!("0100")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("0100")).unwrap().unwrap();
         assert_eq!(action.drain, 2);
         assert_eq!(
             action.reply,
@@ -426,7 +426,7 @@ mod test {
         // Proxy says "okay, you're connected."
         // Client is done.
         let action = hs
-            .handshake(&hex!("05 00 00 01 C0000215 01BB"))
+            .handshake_for_tests(&hex!("05 00 00 01 C0000215 01BB"))
             .unwrap()
             .unwrap();
         assert_eq!(action.drain, 10);
