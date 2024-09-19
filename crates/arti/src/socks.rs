@@ -434,7 +434,7 @@ impl<R: Runtime> SocksConnContext<R> {
 async fn handle_socks_conn<R, S>(
     runtime: R,
     context: SocksConnContext<R>,
-    socks_stream: S,
+    mut socks_stream: S,
     isolation_info: ConnIsolation,
 ) -> Result<()>
 where
@@ -450,7 +450,6 @@ where
     // loop.
     let mut handshake = tor_socksproto::SocksProxyHandshake::new();
 
-    let (mut socks_r, mut socks_w) = socks_stream.split();
     let mut inbuf = tor_socksproto::Buffer::new();
     let request = loop {
         use tor_socksproto::NextStep as NS;
@@ -465,7 +464,7 @@ where
                     // To do so, check the first byte of the connection, which happen to be placed
                     // where SOCKs version field is.
                     if [b'C', b'D', b'G', b'H', b'O', b'P', b'T'].contains(&version) {
-                        write_all_and_close(&mut socks_w, WRONG_PROTOCOL_PAYLOAD).await?;
+                        write_all_and_close(&mut socks_stream, WRONG_PROTOCOL_PAYLOAD).await?;
                     }
                 }
                 // if there is an handshake error, don't reply with a Socks error, remote does not
@@ -477,12 +476,12 @@ where
 
         match step {
             NS::Recv(mut recv) => {
-                let n = socks_r.read(recv.buf())
+                let n = socks_stream.read(recv.buf())
                     .await
                     .context("Error while reading SOCKS handshake")?;
                 recv.note_received(n);
             },
-            NS::Send(data) => write_all_and_flush(&mut socks_w, &data).await?,
+            NS::Send(data) => write_all_and_flush(&mut socks_stream, &data).await?,
             NS::Finished(fin) => break fin.into_output_forbid_pipelining()?,
         }
     };
@@ -507,7 +506,7 @@ where
             let tor_stream = tor_client.connect_with_prefs(&tor_addr, &prefs).await;
             let tor_stream = match tor_stream {
                 Ok(s) => s,
-                Err(e) => return reply_error(&mut socks_w, &request, e.kind()).await,
+                Err(e) => return reply_error(&mut socks_stream, &request, e.kind()).await,
             };
             // Okay, great! We have a connection over the Tor network.
             debug!("Got a stream for {}:{}", sensitive(&addr), port);
@@ -517,8 +516,9 @@ where
             let reply = request
                 .reply(tor_socksproto::SocksStatus::SUCCEEDED, None)
                 .context("Encoding socks reply")?;
-            write_all_and_flush(&mut socks_w, &reply[..]).await?;
+            write_all_and_flush(&mut socks_stream, &reply[..]).await?;
 
+            let (socks_r, socks_w) = socks_stream.split();
             let (tor_r, tor_w) = tor_stream.split();
 
             // Finally, spawn two background tasks to relay traffic between
@@ -548,9 +548,9 @@ where
                             Some(&SocksAddr::Ip(addr)),
                         )
                         .context("Encoding socks reply")?;
-                    write_all_and_close(&mut socks_w, &reply[..]).await?;
+                    write_all_and_close(&mut socks_stream, &reply[..]).await?;
                 }
-                Err(e) => return reply_error(&mut socks_w, &request, e).await,
+                Err(e) => return reply_error(&mut socks_stream, &request, e).await,
             }
         }
         SocksCmd::RESOLVE_PTR => {
@@ -562,13 +562,13 @@ where
                     let reply = request
                         .reply(tor_socksproto::SocksStatus::ADDRTYPE_NOT_SUPPORTED, None)
                         .context("Encoding socks reply")?;
-                    write_all_and_close(&mut socks_w, &reply[..]).await?;
+                    write_all_and_close(&mut socks_stream, &reply[..]).await?;
                     return Err(anyhow!(e));
                 }
             };
             let hosts = match tor_client.resolve_ptr_with_prefs(addr, &prefs).await {
                 Ok(hosts) => hosts,
-                Err(e) => return reply_error(&mut socks_w, &request, e.kind()).await,
+                Err(e) => return reply_error(&mut socks_stream, &request, e.kind()).await,
             };
             if let Some(host) = hosts.into_iter().next() {
                 // this conversion should never fail, legal DNS names len must be <= 253 but Socks
@@ -577,7 +577,7 @@ where
                 let reply = request
                     .reply(tor_socksproto::SocksStatus::SUCCEEDED, Some(&hostname))
                     .context("Encoding socks reply")?;
-                write_all_and_close(&mut socks_w, &reply[..]).await?;
+                write_all_and_close(&mut socks_stream, &reply[..]).await?;
             }
         }
         _ => {
@@ -586,7 +586,7 @@ where
             let reply = request
                 .reply(tor_socksproto::SocksStatus::COMMAND_NOT_SUPPORTED, None)
                 .context("Encoding socks reply")?;
-            write_all_and_close(&mut socks_w, &reply[..]).await?;
+            write_all_and_close(&mut socks_stream, &reply[..]).await?;
         }
     };
 
