@@ -51,25 +51,6 @@ enum State {
     Failed,
 }
 
-impl SocksClientHandshake {
-    /// Construct a new [`SocksClientHandshake`] that will attempt to negotiate
-    /// with a peer using `request`.
-    pub fn new(request: SocksRequest) -> Self {
-        SocksClientHandshake {
-            request,
-            state: State::Initial,
-            reply: None,
-        }
-    }
-
-    /// Consume this handshake's state; if it finished successfully,
-    /// return the [`SocksReply`] that we got from the proxy..
-    pub fn into_reply(self) -> Option<SocksReply> {
-        self.reply
-    }
-}
-
-// XXXX move this so we can rejoin the two impl blocks
 impl HandshakeImpl for SocksClientHandshake {
     fn handshake_impl(&mut self, input: &mut Reader<'_>) -> Result<ImplNextStep> {
         use State::*;
@@ -93,6 +74,22 @@ impl HandshakeImpl for SocksClientHandshake {
 }
 
 impl SocksClientHandshake {
+    /// Construct a new [`SocksClientHandshake`] that will attempt to negotiate
+    /// with a peer using `request`.
+    pub fn new(request: SocksRequest) -> Self {
+        SocksClientHandshake {
+            request,
+            state: State::Initial,
+            reply: None,
+        }
+    }
+
+    /// Consume this handshake's state; if it finished successfully,
+    /// return the [`SocksReply`] that we got from the proxy..
+    pub fn into_reply(self) -> Option<SocksReply> {
+        self.reply
+    }
+
     /// Send the client side of the socks 4 handshake.
     fn send_v4(&mut self) -> Result<ImplNextStep> {
         let mut msg = Vec::new();

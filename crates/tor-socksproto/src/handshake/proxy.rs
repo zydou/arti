@@ -55,18 +55,6 @@ enum State {
     Failed,
 }
 
-impl SocksProxyHandshake {
-    /// Construct a new SocksProxyHandshake in its initial state
-    pub fn new() -> Self {
-        SocksProxyHandshake {
-            state: State::Initial,
-            socks5_auth: None,
-            handshake: None,
-        }
-    }
-}
-
-// XXXX move this so we can rejoin the two impl blocks
 impl HandshakeImpl for SocksProxyHandshake {
     fn handshake_impl(&mut self, input: &mut Reader<'_>) -> Result<ImplNextStep> {
         match (self.state, input.peek(1)?[0]) {
@@ -87,6 +75,15 @@ impl HandshakeImpl for SocksProxyHandshake {
 }
 
 impl SocksProxyHandshake {
+    /// Construct a new SocksProxyHandshake in its initial state
+    pub fn new() -> Self {
+        SocksProxyHandshake {
+            state: State::Initial,
+            socks5_auth: None,
+            handshake: None,
+        }
+    }
+
     /// Complete a socks4 or socks4a handshake.
     fn s4(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let version = r.take_u8()?.try_into()?;
