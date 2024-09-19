@@ -17,12 +17,363 @@
 // We could consider moving its sub-modules into the toplevel,
 // and its handful of items elsewhere.
 
+use std::fmt::Debug;
+use std::mem;
+use std::num::NonZeroUsize;
+
 use derive_deftly::define_derive_deftly;
+use educe::Educe;
 
 use tor_bytes::Reader;
-use tor_error::internal;
+use tor_error::{internal, Bug};
 
 use crate::{Action, Error, Truncated};
+use crate::{SOCKS_BUF_LEN};
+
+/// Markers indicating whether we're allowing read-ahead,
+///
+/// The `P` type parameter on `[Buffer]` et al indicates
+/// or doing only precise reads:
+/// `()` for normal operation, with readahead;
+/// `PreciseReads` for reading small amounts as needed.
+///
+/// ## Normal operation, `P = ()`
+///
+/// When the SOCKS protocol implementation wants to see more data,
+/// [`RecvStep::<()>::buf`] is all of the free space in the buffer.
+///
+/// The caller will typically read whatever data is available,
+/// including possibly data sent by the peer *after* the end of the SOCKS handshake.
+/// If so, that data will eventually be returned, after the handshake is complete,
+/// by [`Finished::into_output_and_slice`] or [`Finished::into_output_and_vec`].
+///
+/// ## Avoiding read-ahead, `P = PreciseReads`
+///
+/// [`RecvStep::<PreciseReads>::buf()`] is only as long as the SOCKS protocol implementation
+/// *knows* that it needs.
+///
+/// Typically this is a very small buffer, often only one byte.
+/// This means that a single protocol exchange will involve many iterations
+/// each returning a `RecvStep`,
+/// and (depending on the caller) each implying one `recv(2)` call or similar.
+/// This is not very performant.
+/// But it does allow the implementation to avoid reading ahead.
+///
+/// In this mode, `Finished::into_output` is available,
+/// which returns only the output.
+pub trait ReadPrecision: ReadPrecisionSealed + Default + Copy + Debug {}
+impl ReadPrecision for PreciseReads {}
+impl ReadPrecision for () {}
+
+/// Sealed, and adjustment of `RecvStep::buf`
+pub trait ReadPrecisionSealed {
+    /// Adjust `buf` to `deficit`, iff we're doing precise reads
+    fn recv_step_buf(buf: &mut [u8], deficit: NonZeroUsize) -> &mut [u8];
+}
+impl ReadPrecisionSealed for () {
+    fn recv_step_buf(buf: &mut [u8], _deficit: NonZeroUsize) -> &mut [u8] {
+        buf
+    }
+}
+impl ReadPrecisionSealed for PreciseReads {
+    fn recv_step_buf<'b>(buf: &mut [u8], deficit: NonZeroUsize) -> &mut [u8] {
+        &mut buf[0..deficit.into()]
+    }
+}
+
+/// Marker indicating precise reads
+///
+/// See [`ReadPrecision`].
+#[derive(Default, Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[allow(clippy::exhaustive_structs)]
+pub struct PreciseReads;
+
+/// An input buffer containing maybe some socks data
+///
+/// `Buffer` has a capacity set at creation time,
+/// and records how much data it contains.
+///
+/// Data is consumed by [`step()`](Handshake::step), and
+/// received data is appended using a [`RecvStep`] returned from `step`.
+///
+/// The `P` type parameter indicates whether we're allowing read-ahead,
+/// or doing only precise reads.
+/// See [`ReadPrecision`] for details.
+//
+// `P` prevents accidentally mixing `Finished.into_output`
+// with reads into the whole buffer, not limited by the deficit.
+#[derive(Educe)]
+#[educe(Debug)]
+pub struct Buffer<P: ReadPrecision = ()> {
+    /// The actual buffer
+    #[educe(Debug(ignore))]
+    buf: Box<[u8]>,
+
+    /// `[0..filled]` has data that's been read but not yet drained
+    filled: usize,
+
+    /// Marker for the precision
+    //
+    // We don't need PhantomData, since P is always a Copy unit.
+    #[allow(dead_code)]
+    precision: P,
+}
+
+/// Next step to take in the handshake
+///
+/// Returned by [`Handshake::step`].
+///
+/// Instructions from the handshake implementation.
+/// Caller should match on this and perform the requested action.
+//
+// This is an enum, rather than a struct with fields representing different components
+// of an instruction, because an enum demands of the caller that they do precise one thing.
+// With a compound instruction struct, it would be quite easy for a caller to
+// (sometimes) fail to execute some part(s).
+#[derive(Debug)]
+#[allow(clippy::exhaustive_enums)] // callers have no good response to unknown variants anyway
+pub enum NextStep<'b, O, P: ReadPrecision> {
+    /// Caller should send this data to the peer
+    Send(Vec<u8>),
+
+    /// Caller should read from the peer and call one of the `received` functions.
+    Recv(RecvStep<'b, P>),
+
+    /// The handshake is complete
+    ///
+    /// The returned [`Finished`] can be used to obtain the handshake output.
+    ///
+    /// The `Handshake` should not be used any more after this.
+    Finished(Finished<'b, O, P>),
+}
+
+/// A completed handshake
+///
+/// Represents:
+///  * [`Handshake::Output`],
+///    a value representing the meaning of the completed protocol exchange.
+///  * Possibly, some data which was received, but didn't form part of the protocol.
+//
+// Returning this in `NextStep::finished` means that the caller can access the output
+// iff the handshake as finished.  Also, this type's API helps prevent accidental
+// discard of any readahead that there might be.
+#[derive(Debug)]
+#[must_use]
+pub struct Finished<'b, O, P: ReadPrecision> {
+    /// The buffer
+    buffer: &'b mut Buffer<P>,
+
+    /// Details of the completed handshake:
+    output: O,
+}
+
+impl<'b, O> Finished<'b, O, PreciseReads> {
+    /// Return (just) the output of the completed handshake
+    ///
+    /// Available only if the `Buffer` was constructed with [`Buffer::new_precise()`]
+    /// (or equivalent).
+    pub fn into_output(self) -> Result<O, Bug> {
+        if let Ok(nonzero) = NonZeroUsize::try_from(self.buffer.filled_slice().len()) {
+            Err(internal!(
+ "handshake complete, but we read too much earlier, and are now misframed by {nonzero} bytes!"
+            ))
+        } else {
+            Ok(self.output)
+        }
+    }
+}
+
+impl<'b, O, P: ReadPrecision> Finished<'b, O, P> {
+    /// Return the output, and the following already-read data as a slice
+    ///
+    /// (After callin gthis, the following already-read data
+    /// will no longer be in the `Buffer`.)
+    pub fn into_output_and_slice(self) -> (O, &'b [u8]) {
+        let filled = mem::take(&mut self.buffer.filled);
+        let data = &self.buffer.buf[0..filled];
+        (self.output, data)
+    }
+
+    /// Return the output, and the following already-read data as a `Vec`
+    ///
+    /// The `Vec` is quite likely to have a considerably larger capacity than contnets.
+    /// (Its capacity is usually the original buffer size, when the `Buffer` was created.)
+    ///
+    /// The `Buffer` should not be discarded after calling this;
+    /// it will not be useable.
+    //
+    // Ideally, this would *consume* the Buffer.  But that would mean that
+    // `step` would have to take and return the buffer,
+    // which would be quite inconvenient at call sites.
+    pub fn into_output_and_vec(self) -> (O, Vec<u8>) {
+        let mut data = mem::take(&mut self.buffer.buf).into_vec();
+        data.truncate(self.buffer.filled);
+        (self.output, data)
+    }
+}
+
+/// Next step - details for reading from the peer
+///
+/// Value in [`NextStep::Recv`].
+///
+/// Caller should read from the peer and call one of the `received` functions.
+/// Specifically, caller should do one of the following:
+///
+///  1. Read some data into the slice returned by [`.buf()`](RecvStep::buf),
+///     and then call [`.note_received()`](RecvStep::note_received).
+///
+///  2. Determine the available buffer space with [`.buf()`](RecvStep::buf)`.len()`,
+///     write some data into the buffer's [`unfilled_slice()`](Buffer::unfilled_slice),
+///     and call [`Buffer::note_received`].
+///     This allows the caller to
+///     dispose of the [`RecvStep`] (which mutably borrows the `Buffer`)
+///     while reading,
+///     at the cost of slightly less correctness checking by the compiler.
+///
+/// The caller should *not* wait for enough data to fill the whole `buf`.
+#[derive(Debug)]
+pub struct RecvStep<'b, P: ReadPrecision> {
+    /// The buffer
+    buffer: &'b mut Buffer<P>,
+
+    /// Lower bound on the number of bytes that the handshake needs to read to complete.
+    ///
+    /// Useful only for callers that want to avoid reading beyond the end of the handshake.
+    /// Always `<= .buf().len()`.
+    ///
+    /// The returned value has the same semantics as
+    /// [`tor_bytes::IncompleteMessage.deficit`.
+    deficit: NonZeroUsize,
+}
+
+impl<'b, P: ReadPrecision> RecvStep<'b, P> {
+    /// Returns the buffer slice the caller should write data into.
+    ///
+    /// For precise reads, returns the slice of the buffer of length `deficit`.
+    /// sol as to avoid reading ahead beyond the end of the handshake.
+    pub fn buf(&mut self) -> &mut [u8] {
+        P::recv_step_buf(self.buffer.unfilled_slice(), self.deficit)
+    }
+
+    /// Notes that `len` bytes have been received.
+    ///
+    /// The actual data must already have been written to the slice from `.buf()`.
+    ///
+    /// # Panics
+    ///
+    /// `len` must be no more than `.buf().len()`.
+    pub fn note_received(self, len: usize) {
+        self.buffer.note_received(len);
+    }
+}
+
+impl<P: ReadPrecision> Default for Buffer<P> {
+    fn default() -> Self {
+        Buffer::with_size(SOCKS_BUF_LEN)
+    }
+}
+
+impl Buffer<()> {
+    /// Creates a new default `Buffer`
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Buffer<PreciseReads> {
+    /// Creates a new `Buffer` for reeading precisely
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), anyhow::Error> {
+    /// use tor_socksproto::{Handshake as _, SocksProxyHandshake, SocksRequest};
+    ///
+    /// let socket: std::net::TcpStream = todo!();
+    ///
+    /// let mut hs = SocksProxyHandshake::new();
+    /// # }
+    /// ```
+    pub fn new_precise() -> Self {
+        Self::default()
+    }
+}
+
+impl<P: ReadPrecision> Buffer<P> {
+    /// Creates a new `Buffer` with a specified size
+    ///
+    /// Specify the `P` type parameter according to whether you wanted
+    /// a `Buffer` like from [`Buffer::new()`], which will read eagerly,
+    /// or one like from [`Buffer::new_precise()`], which will read eagerly,
+    /// See [`ReadPrecision`].
+    ///
+    /// ```
+    /// let mut buf = tor_socksproto::Buffer::<tor_socksproto::PreciseReads>::with_size(2048);
+    /// ```
+    pub fn with_size(size: usize) -> Self {
+        Buffer {
+            buf: vec![0xaa; size].into(),
+            filled: 0,
+            precision: P::default(),
+        }
+    }
+
+    /// Creates a new `Buffer` from a partially-filed buffer
+    ///
+    ///  * `buf[..filled]` should contain data already read from the peer
+    ///  * `buf[filled..]` should be zero (or other innocuous data),
+    ///                    and will not be used (except if there are bugs)
+    ///
+    /// Using this and `into_parts` to obtain a `Buffer`
+    /// with a differetn the read precision (different `P` type parameter)
+    /// can result in malfunctions.
+    pub fn from_parts(buf: Box<[u8]>, filled: usize) -> Self {
+        Buffer {
+            buf,
+            filled,
+            precision: P::default(),
+        }
+    }
+
+    /// Disassembles a `Buffer`, returning the pieces
+    pub fn into_parts(self) -> (Box<[u8]>, usize) {
+        let Buffer {
+            buf,
+            filled,
+            precision: _,
+        } = self;
+        (buf, filled)
+    }
+
+    /// The portion of the buffer that is available for writing new data.
+    ///
+    /// The caller may fill this (from the beginning) with more data,
+    /// and then call [`Buffer::note_received`].
+    /// Normally, the caller will do this after receiving a [`NextStep::Recv`] instruction.
+    ///
+    /// Where possible, prefer [`RecvStep::buf`] and [`RecvStep::note_received`].
+    pub fn unfilled_slice(&mut self) -> &mut [u8] {
+        &mut self.buf[self.filled..]
+    }
+
+    /// The portion of the buffer that contains already-read, but unprocessed, data.
+    ///
+    /// Callers will not normally want this.
+    pub fn filled_slice(&mut self) -> &[u8] {
+        &self.buf[..self.filled]
+    }
+
+    /// Notes that `len` bytes have been received.
+    ///
+    /// The actual data must already have been written to the slice from `.unfilled_slice()`.
+    /// Where possible, prefer [`RecvStep::buf`] and [`RecvStep::note_received`].
+    ///
+    /// # Panics
+    ///
+    /// `len` must be no more than `.unfilled_slice().len()`.
+    pub fn note_received(&mut self, len: usize) {
+        assert!(len <= self.unfilled_slice().len());
+        self.filled += len;
+    }
+}
 
 define_derive_deftly! {
     /// Macro-generated components for a handshake outer state structure
@@ -104,7 +455,6 @@ pub(super) trait HasHandshakeState {
 ///
 /// Derive this with
 /// [`#[derive_deftly(Handshake)]`](derive_deftly_template_Handshake).
-#[allow(unused)] // XXXX
 pub(super) trait HasHandshakeOutput<O> {
     /// Obtain the output from a handshake completed with [`.handshake`](Handshake::handshake)
     ///
@@ -160,7 +510,80 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
 #[allow(private_bounds)] // This is a sealed trait, that's expected
 pub trait Handshake: HandshakeImpl + HasHandshakeOutput<Self::Output> {
     /// Output from the handshake: the meaning, as we understand it
-    type Output;
+    type Output: Debug;
+
+    /// Drive a handshake forward, determining what the next step is
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), anyhow::Error> {
+    /// use std::io::{Read as _, Write as _};
+    /// use tor_socksproto::{Handshake as _, SocksProxyHandshake, SocksRequest};
+    ///
+    /// let socket: std::net::TcpStream = todo!();
+    ///
+    /// let mut hs = SocksProxyHandshake::new();
+    /// let mut buf = tor_socksproto::Buffer::new();
+    /// let (request, data_read_ahead) = loop {
+    ///     use tor_socksproto::NextStep;
+    ///     match hs.step(&mut buf)? {
+    ///         NextStep::Send(data) => socket.write_all(&data)?,
+    ///         NextStep::Recv(recv) => {
+    ///             let got = socket.read(recv.buf())?;
+    ///             recv.note_received(got);
+    ///         },
+    ///         NextStep::Finished(request) => break request.into_output_and_vec(),
+    ///     }
+    /// };
+    /// let _: SocksRequest = request;
+    /// let _: Vec<u8> = data_read_ahead;
+    ///
+    /// // Or, with precise reading:
+    ///
+    /// //...
+    /// let mut buf = tor_socksproto::Buffer::new_precise();
+    /// let request = loop {
+    ///     use tor_socksproto::NextStep;
+    ///     match hs.step(&mut buf)? {
+    ///         //...
+    ///         NextStep::Finished(request) => break request.into_output()?,
+    /// #       _ => todo!(),
+    ///     }
+    /// };
+    /// let _: SocksRequest = request;
+    /// # }
+    /// ```
+    ///
+    /// See `[ReadPrecision]` for information about read precision and the `P` type parameter.
+    fn step<'b, P: ReadPrecision>(
+        &mut self,
+        buffer: &'b mut Buffer<P>,
+    ) -> Result<NextStep<'b, <Self as Handshake>::Output, P>, Error> {
+        let (drain, rv) = self.call_handshake_impl(buffer.filled_slice());
+
+        if let Err(Error::Decode(tor_bytes::Error::Incomplete { deficit, .. })) = rv {
+            let deficit = deficit.into_inner();
+            return if usize::from(deficit) > buffer.unfilled_slice().len() {
+                Err(Error::MessageTooLong {
+                    limit: buffer.buf.len(),
+                })
+            } else {
+                Ok(NextStep::Recv(RecvStep { buffer, deficit }))
+            };
+        };
+
+        let rv = rv?;
+
+        buffer.buf.copy_within(drain..buffer.filled, 0);
+        buffer.filled -= drain;
+
+        Ok(match rv {
+            ImplNextStep::Reply { reply } => NextStep::Send(reply),
+            ImplNextStep::Finished => {
+                let output = self.take_output().ok_or_else(|| internal!("no output!"))?;
+                NextStep::Finished(Finished { buffer, output })
+            }
+        })
+    }
 
     /// Try to advance the handshake, given some peer input in
     /// `input`.

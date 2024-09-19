@@ -41,6 +41,13 @@ pub enum Error {
     #[error("SOCKS Authentication failed")]
     AuthRejected,
 
+    /// During the protocol exchange, we needed to handle a handshake bigger than our buffer
+    #[error("SOCKS protocol message size limit {limit} exceeded")]
+    MessageTooLong {
+        /// The limit in bytes
+        limit: usize,
+    },
+
     /// The program (perhaps this module, perhaps Arti, perhaps the caller) is buggy
     #[error("Bug while handling SOCKS handshake")]
     Bug(#[from] tor_error::Bug),
@@ -62,6 +69,7 @@ impl HasKind for Error {
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
             E::NotImplemented(_) => EK::NotImplemented,
             E::AuthRejected => EK::LocalProtocolViolation,
+            E::MessageTooLong { .. } => EK::Internal, // We should select a buffer big enough!
             E::AlreadyFinished(e) => e.kind(),
             E::Bug(e) => e.kind(),
         }

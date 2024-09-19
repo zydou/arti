@@ -57,7 +57,8 @@ pub use handshake::proxy::SocksProxyHandshake;
 pub use handshake::client::SocksClientHandshake;
 
 #[cfg(any(feature = "proxy-handshake", feature = "client-handshake"))]
-pub use handshake::framework::Handshake;
+pub use handshake::framework::{Buffer, Finished, Handshake, NextStep, PreciseReads, 
+                               RecvStep, ReadPrecision};
 
 #[deprecated(since = "0.5.2", note = "Use SocksProxyHandshake instead.")]
 #[cfg(feature = "proxy-handshake")]
