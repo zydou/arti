@@ -93,6 +93,32 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
     /// (For example,. `Error::Decode(tor_bytes::Error::Incomplete)`
     /// if the message was incomplete and reading more data would help.)
     fn handshake_impl(&mut self, r: &mut tor_bytes::Reader<'_>) -> crate::Result<ImplNextStep>;
+
+    /// Helper, used by public API implementations to call `handshake_impl`.
+    ///
+    /// Deals with:
+    ///  * Setting up the `Reader`
+    ///  * Determining the amount drained.
+    ///  * Avoiding infinite loops (detect nothing drained, nothing replied)
+    ///
+    /// Return value is `(drain, Result<ImplNextStep>)`.
+    fn call_handshake_impl(&mut self, input: &[u8]) -> (usize, crate::Result<ImplNextStep>) {
+        let mut b = Reader::from_possibly_incomplete_slice(input);
+        let rv = self.handshake_impl(&mut b);
+        let drain = b.consumed();
+
+        // avoid infinite loop
+        match &rv {
+            Ok(ImplNextStep::Reply { reply }) if reply.is_empty() && drain == 0 => {
+                return (0, Err(
+                    internal!("protocol implementation drained nothing, replied nothing").into()
+                ))
+            },
+            _ => {},
+        };
+
+        (drain, rv)
+    }
 }
 
 /// Handshake
@@ -111,9 +137,7 @@ pub trait Handshake: HandshakeImpl {
     /// On success, return an Action describing what to tell the peer,
     /// and how much of its input to consume.
     fn handshake(&mut self, input: &[u8]) -> crate::TResult<Action> {
-        let mut r = Reader::from_possibly_incomplete_slice(input);
-        let rv = self.handshake_impl(&mut r);
-        let drain = r.consumed();
+        let (drain, rv) = self.call_handshake_impl(input);
         match rv {
             #[allow(deprecated)]
             Err(Error::Decode(
@@ -123,9 +147,6 @@ pub trait Handshake: HandshakeImpl {
                 self.set_failed();
                 Ok(Err(e))
             }
-            // avoid infinite loop
-            Ok(ImplNextStep::Reply { reply }) if reply.is_empty() && drain == 0
-                => Ok(Err(internal!("protocol implementation drained nothing, replied nothing").into())),
             Ok(ImplNextStep::Reply {
                 reply,
             }) => Ok(Ok(Action {
