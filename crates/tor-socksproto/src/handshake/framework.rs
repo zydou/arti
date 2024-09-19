@@ -110,11 +110,15 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
         // avoid infinite loop
         match &rv {
             Ok(ImplNextStep::Reply { reply }) if reply.is_empty() && drain == 0 => {
-                return (0, Err(
-                    internal!("protocol implementation drained nothing, replied nothing").into()
-                ))
-            },
-            _ => {},
+                return (
+                    0,
+                    Err(
+                        internal!("protocol implementation drained nothing, replied nothing")
+                            .into(),
+                    ),
+                )
+            }
+            _ => {}
         };
 
         (drain, rv)
@@ -147,15 +151,12 @@ pub trait Handshake: HandshakeImpl {
                 self.set_failed();
                 Ok(Err(e))
             }
-            Ok(ImplNextStep::Reply {
-                reply,
-            }) => Ok(Ok(Action {
+            Ok(ImplNextStep::Reply { reply }) => Ok(Ok(Action {
                 drain,
                 reply,
                 finished: false,
             })),
-            Ok(ImplNextStep::Finished {
-            }) => Ok(Ok(Action {
+            Ok(ImplNextStep::Finished {}) => Ok(Ok(Action {
                 drain,
                 reply: vec![],
                 finished: true,

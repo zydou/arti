@@ -24,9 +24,8 @@ use tor_error::internal;
 use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::NetStreamProvider;
 use tor_socksproto::{
-    Handshake as _,
-    SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
-    SOCKS_BUF_LEN,
+    Handshake as _, SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest,
+    SocksStatus, SocksVersion, SOCKS_BUF_LEN,
 };
 use tracing::trace;
 

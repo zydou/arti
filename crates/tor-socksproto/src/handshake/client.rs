@@ -129,9 +129,7 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks4Wait;
-        Ok(ImplNextStep::Reply {
-            reply: msg,
-        })
+        Ok(ImplNextStep::Reply { reply: msg })
     }
 
     /// Handle a SOCKSv4 response.
@@ -172,9 +170,7 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks5AuthWait;
-        Ok(ImplNextStep::Reply {
-            reply: msg,
-        })
+        Ok(ImplNextStep::Reply { reply: msg })
     }
 
     /// Try to handle a socks5 reply telling us what authentication method to
@@ -196,9 +192,7 @@ impl SocksClientHandshake {
         };
 
         self.state = next_state;
-        Ok(ImplNextStep::Reply {
-            reply: msg,
-        })
+        Ok(ImplNextStep::Reply { reply: msg })
     }
 
     /// Return a message to perform username/password authentication.

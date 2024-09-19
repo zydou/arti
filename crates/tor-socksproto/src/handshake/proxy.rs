@@ -168,9 +168,7 @@ impl SocksProxyHandshake {
 
         self.socks5_auth = Some(SocksAuth::Username(username.into(), passwd.into()));
         self.state = State::Socks5Wait;
-        Ok(ImplNextStep::Reply {
-            reply: vec![1, 0],
-        })
+        Ok(ImplNextStep::Reply { reply: vec![1, 0] })
     }
 
     /// Socks5: final step, to receive client's request.
