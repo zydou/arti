@@ -1,7 +1,7 @@
 //! Support for counting various TCP stats for a Runtime.
 
 use futures::Stream;
-use tor_rtcompat::{TcpListener, TcpProvider};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider};
 
 use async_trait::async_trait;
 use futures::io::{AsyncRead, AsyncWrite};
@@ -57,7 +57,7 @@ impl<R> Counting<R> {
     /// Return a new wrapper around a TcpProvider with a new set of statistics
     pub(crate) fn new_zeroed(inner: R) -> Self
     where
-        R: TcpProvider,
+        R: NetStreamProvider,
     {
         Self {
             inner,
@@ -72,12 +72,12 @@ impl<R> Counting<R> {
 }
 
 #[async_trait]
-impl<R: TcpProvider + Send + Sync> TcpProvider for Counting<R> {
-    type TcpStream = Counting<R::TcpStream>;
+impl<R: NetStreamProvider + Send + Sync> NetStreamProvider for Counting<R> {
+    type Stream = Counting<R::Stream>;
 
-    type TcpListener = Counting<R::TcpListener>;
+    type Listener = Counting<R::Listener>;
 
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
+    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream> {
         {
             self.count.lock().expect("lock poisoned").n_connect_attempt += 1;
         }
@@ -94,7 +94,7 @@ impl<R: TcpProvider + Send + Sync> TcpProvider for Counting<R> {
         })
     }
 
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
         let inner = self.inner.listen(addr).await?;
         Ok(Counting {
             inner,
@@ -138,8 +138,8 @@ impl<S: AsyncWrite> AsyncWrite for Counting<S> {
 }
 
 #[async_trait]
-impl<S: TcpListener + Send + Sync> TcpListener for Counting<S> {
-    type TcpStream = Counting<S::TcpStream>;
+impl<S: NetStreamListener + Send + Sync> NetStreamListener for Counting<S> {
+    type Stream = Counting<S::Stream>;
     type Incoming = Counting<S::Incoming>;
 
     fn incoming(self) -> Self::Incoming {

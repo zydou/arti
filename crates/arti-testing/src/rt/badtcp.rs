@@ -2,7 +2,7 @@
 #![allow(clippy::missing_docs_in_private_items)] // required for pin_project(enum)
 
 use futures::Stream;
-use tor_rtcompat::{Runtime, TcpListener, TcpProvider};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, Runtime};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -144,11 +144,11 @@ impl<R> BrokenTcpProvider<R> {
 }
 
 #[async_trait]
-impl<R: Runtime> TcpProvider for BrokenTcpProvider<R> {
-    type TcpStream = BreakableTcpStream<R::TcpStream>;
-    type TcpListener = BrokenTcpProvider<R::TcpListener>;
+impl<R: Runtime> NetStreamProvider for BrokenTcpProvider<R> {
+    type Stream = BreakableTcpStream<R::Stream>;
+    type Listener = BrokenTcpProvider<R::Listener>;
 
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
+    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream> {
         match self.get_action(addr) {
             Action::Work => {
                 let conn = self.inner.connect(addr).await?;
@@ -164,7 +164,7 @@ impl<R: Runtime> TcpProvider for BrokenTcpProvider<R> {
         }
     }
 
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
         let listener = self.inner.listen(addr).await?;
         Ok(BrokenTcpProvider {
             inner: listener,
@@ -221,8 +221,8 @@ impl<S: AsyncWrite> AsyncWrite for BreakableTcpStream<S> {
 }
 
 #[async_trait]
-impl<S: TcpListener + Send + Sync> TcpListener for BrokenTcpProvider<S> {
-    type TcpStream = BreakableTcpStream<S::TcpStream>;
+impl<S: NetStreamListener + Send + Sync> NetStreamListener for BrokenTcpProvider<S> {
+    type Stream = BreakableTcpStream<S::Stream>;
     type Incoming = BrokenTcpProvider<S::Incoming>;
 
     fn incoming(self) -> Self::Incoming {

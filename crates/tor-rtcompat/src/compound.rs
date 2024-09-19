@@ -149,10 +149,10 @@ where
 }
 
 #[async_trait]
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> TcpProvider
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> NetStreamProvider
     for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
 where
-    TcpR: TcpProvider,
+    TcpR: NetStreamProvider,
     SpawnR: Send + Sync + 'static,
     SleepR: Send + Sync + 'static,
     CoarseTimeR: Send + Sync + 'static,
@@ -160,17 +160,17 @@ where
     TlsR: Send + Sync + 'static,
     UdpR: Send + Sync + 'static,
 {
-    type TcpStream = TcpR::TcpStream;
+    type Stream = TcpR::Stream;
 
-    type TcpListener = TcpR::TcpListener;
+    type Listener = TcpR::Listener;
 
     #[inline]
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
+    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream> {
         self.inner.tcp.connect(addr).await
     }
 
     #[inline]
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
         self.inner.tcp.listen(addr).await
     }
 }
@@ -178,7 +178,7 @@ where
 impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR, S> TlsProvider<S>
     for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
 where
-    TcpR: TcpProvider,
+    TcpR: NetStreamProvider,
     TlsR: TlsProvider<S>,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,

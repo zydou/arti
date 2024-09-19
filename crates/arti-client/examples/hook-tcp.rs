@@ -31,7 +31,7 @@ use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
 
 use futures::{AsyncRead, AsyncWrite, FutureExt, Stream};
-use tor_rtcompat::{PreferredRuntime, RuntimeSubstExt as _, TcpListener, TcpProvider};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, PreferredRuntime, RuntimeSubstExt as _};
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -116,12 +116,12 @@ struct CustomIncoming<T> {
     inner: T,
 }
 
-impl<T> TcpProvider for CustomTcpProvider<T>
+impl<T> NetStreamProvider for CustomTcpProvider<T>
 where
-    T: TcpProvider,
+    T: NetStreamProvider,
 {
-    type TcpStream = CustomTcpStream<T::TcpStream>;
-    type TcpListener = CustomTcpListener<T::TcpListener>;
+    type Stream = CustomTcpStream<T::Stream>;
+    type Listener = CustomTcpListener<T::Listener>;
 
     // This is an async trait method (using the `async_trait` crate). We manually implement it
     // here so that we don't borrow `self` for too long.
@@ -129,7 +129,7 @@ where
     fn connect<'a, 'b, 'c>(
         &'a self,
         addr: &'b SocketAddr,
-    ) -> Pin<Box<dyn Future<Output = IoResult<Self::TcpStream>> + Send + 'c>>
+    ) -> Pin<Box<dyn Future<Output = IoResult<Self::Stream>> + Send + 'c>>
     where
         'a: 'c,
         'b: 'c,
@@ -154,7 +154,7 @@ where
     fn listen<'a, 'b, 'c>(
         &'a self,
         addr: &'b SocketAddr,
-    ) -> Pin<Box<dyn Future<Output = IoResult<Self::TcpListener>> + Send + 'c>>
+    ) -> Pin<Box<dyn Future<Output = IoResult<Self::Listener>> + Send + 'c>>
     where
         'a: 'c,
         'b: 'c,
@@ -283,11 +283,11 @@ impl<T> Drop for CustomTcpStream<T> {
     }
 }
 
-impl<T> TcpListener for CustomTcpListener<T>
+impl<T> NetStreamListener for CustomTcpListener<T>
 where
-    T: TcpListener,
+    T: NetStreamListener,
 {
-    type TcpStream = CustomTcpStream<T::TcpStream>;
+    type Stream = CustomTcpStream<T::Stream>;
     type Incoming = CustomIncoming<T::Incoming>;
 
     fn incoming(self) -> Self::Incoming {

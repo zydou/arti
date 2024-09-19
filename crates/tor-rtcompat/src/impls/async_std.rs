@@ -84,8 +84,8 @@ mod net {
         }
     }
     #[async_trait]
-    impl traits::TcpListener for TcpListener {
-        type TcpStream = TcpStream;
+    impl traits::NetStreamListener for TcpListener {
+        type Stream = TcpStream;
         type Incoming = IncomingStreams;
         fn incoming(self) -> IncomingStreams {
             IncomingStreams::from_listener(self)
@@ -96,13 +96,13 @@ mod net {
     }
 
     #[async_trait]
-    impl traits::TcpProvider for async_executors::AsyncStd {
-        type TcpStream = TcpStream;
-        type TcpListener = TcpListener;
-        async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
+    impl traits::NetStreamProvider for async_executors::AsyncStd {
+        type Stream = TcpStream;
+        type Listener = TcpListener;
+        async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream> {
             TcpStream::connect(addr).await
         }
-        async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+        async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
             TcpListener::bind(*addr).await
         }
     }

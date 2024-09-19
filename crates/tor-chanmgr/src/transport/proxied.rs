@@ -22,7 +22,7 @@ use std::{
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tor_error::internal;
 use tor_linkspec::PtTargetAddr;
-use tor_rtcompat::TcpProvider;
+use tor_rtcompat::NetStreamProvider;
 use tor_socksproto::{
     SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
     SOCKS_BUF_LEN,
@@ -65,12 +65,12 @@ const NO_ADDR: IpAddr = IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 1));
 //
 // TODO: Perhaps we should refactor this someday so it can be a general-purpose
 // proxy function, not only for Arti.
-pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
+pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
     runtime: &R,
     proxy: &SocketAddr,
     protocol: &Protocol,
     target: &PtTargetAddr,
-) -> Result<R::TcpStream, ProxyError> {
+) -> Result<R::Stream, ProxyError> {
     trace!(
         "Launching a proxied connection to {} via proxy at {} using {:?}",
         target,
@@ -300,7 +300,7 @@ pub struct ExternalProxyPlugin<R> {
 
 #[cfg(feature = "pt-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pt-client")))]
-impl<R: TcpProvider + Send + Sync> ExternalProxyPlugin<R> {
+impl<R: NetStreamProvider + Send + Sync> ExternalProxyPlugin<R> {
     /// Make a new `ExternalProxyPlugin`.
     pub fn new(rt: R, proxy_addr: SocketAddr, proxy_version: SocksVersion) -> Self {
         Self {
@@ -313,13 +313,13 @@ impl<R: TcpProvider + Send + Sync> ExternalProxyPlugin<R> {
 
 #[cfg(feature = "pt-client")]
 #[async_trait]
-impl<R: TcpProvider + Send + Sync> TransportImplHelper for ExternalProxyPlugin<R> {
-    type Stream = R::TcpStream;
+impl<R: NetStreamProvider + Send + Sync> TransportImplHelper for ExternalProxyPlugin<R> {
+    type Stream = R::Stream;
 
     async fn connect(
         &self,
         target: &OwnedChanTarget,
-    ) -> crate::Result<(OwnedChanTarget, R::TcpStream)> {
+    ) -> crate::Result<(OwnedChanTarget, R::Stream)> {
         let pt_target = match target.chan_method() {
             ChannelMethod::Direct(_) => {
                 return Err(crate::Error::UnusableTarget(bad_api_usage!(

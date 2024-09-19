@@ -21,7 +21,7 @@ use tor_config::Listen;
 use tor_error::warn_report;
 #[cfg(feature = "rpc")]
 use tor_rpcbase::{self as rpc};
-use tor_rtcompat::{Runtime, TcpListener};
+use tor_rtcompat::{NetStreamListener, Runtime};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SOCKS_BUF_LEN};
 
 use anyhow::{anyhow, Context, Result};
@@ -880,7 +880,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     let mut incoming = futures::stream::select_all(
         listeners
             .into_iter()
-            .map(TcpListener::incoming)
+            .map(NetStreamListener::incoming)
             .enumerate()
             .map(|(listener_id, incoming_conns)| {
                 incoming_conns.map(move |socket| (socket, listener_id))

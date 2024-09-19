@@ -53,8 +53,8 @@ pub trait Runtime:
     + Clone
     + SleepProvider
     + CoarseTimeProvider
-    + TcpProvider
-    + TlsProvider<Self::TcpStream>
+    + NetStreamProvider
+    + TlsProvider<Self::Stream>
     + UdpProvider
     + Debug
     + 'static
@@ -69,8 +69,8 @@ impl<T> Runtime for T where
         + Clone
         + SleepProvider
         + CoarseTimeProvider
-        + TcpProvider
-        + TlsProvider<Self::TcpStream>
+        + NetStreamProvider
+        + TlsProvider<Self::Stream>
         + UdpProvider
         + Debug
         + 'static
@@ -158,11 +158,11 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 // TODO: Use of async_trait is not ideal, since we have to box with every
 // call.  Still, async_io basically makes that necessary :/
 #[async_trait]
-pub trait TcpProvider: Clone + Send + Sync + 'static {
+pub trait NetStreamProvider: Clone + Send + Sync + 'static {
     /// The type for the TCP connections returned by [`Self::connect()`].
-    type TcpStream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
+    type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
     /// The type for the TCP listeners returned by [`Self::listen()`].
-    type TcpListener: TcpListener<TcpStream = Self::TcpStream> + Send + Sync + Unpin + 'static;
+    type Listener: NetStreamListener<Stream = Self::Stream> + Send + Sync + Unpin + 'static;
 
     /// Launch a TCP connection to a given socket address.
     ///
@@ -170,10 +170,10 @@ pub trait TcpProvider: Clone + Send + Sync + 'static {
     /// any types other than a single [`SocketAddr`].  We do this because,
     /// as a Tor implementation, we most be absolutely sure not to perform
     /// unnecessary DNS lookups.
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream>;
+    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream>;
 
     /// Open a TCP listener on a given socket address.
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener>;
+    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener>;
 }
 
 /// Trait for a local socket that accepts incoming TCP streams.
@@ -183,12 +183,12 @@ pub trait TcpProvider: Clone + Send + Sync + 'static {
 /// use `incoming` to wrap this object as a [`stream::Stream`].
 // TODO: Use of async_trait is not ideal here either.
 #[async_trait]
-pub trait TcpListener {
+pub trait NetStreamListener {
     /// The type of TCP connections returned by [`Self::accept()`].
-    type TcpStream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
+    type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
 
     /// The type of [`stream::Stream`] returned by [`Self::incoming()`].
-    type Incoming: stream::Stream<Item = IoResult<(Self::TcpStream, SocketAddr)>> + Send + Unpin;
+    type Incoming: stream::Stream<Item = IoResult<(Self::Stream, SocketAddr)>> + Send + Unpin;
 
     /// Wrap this listener into a new [`stream::Stream`] that yields
     /// TCP streams and addresses.

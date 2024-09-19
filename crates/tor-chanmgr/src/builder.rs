@@ -280,7 +280,7 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_proto::channel::Channel;
-    use tor_rtcompat::{test_with_one_runtime, TcpListener};
+    use tor_rtcompat::{test_with_one_runtime, NetStreamListener};
     use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
 
     // Make sure that the builder can build a real channel.  To test

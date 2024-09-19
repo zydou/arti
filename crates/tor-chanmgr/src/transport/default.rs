@@ -8,7 +8,7 @@ use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryFutureExt};
 use safelog::sensitive as sv;
 use tor_error::bad_api_usage;
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
-use tor_rtcompat::{Runtime, TcpProvider};
+use tor_rtcompat::{NetStreamProvider, Runtime};
 use tracing::trace;
 
 use crate::Error;
@@ -33,7 +33,7 @@ impl<R: Runtime> DefaultTransport<R> {
 
 #[async_trait]
 impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
-    type Stream = <R as TcpProvider>::TcpStream;
+    type Stream = <R as NetStreamProvider>::Stream;
 
     /// Implements the transport: makes a TCP connection (possibly
     /// tunneled over whatever protocol) if possible.
@@ -70,7 +70,7 @@ static CONNECTION_DELAY: Duration = Duration::from_millis(150);
 async fn connect_to_one<R: Runtime>(
     rt: &R,
     addrs: &[SocketAddr],
-) -> crate::Result<(<R as TcpProvider>::TcpStream, SocketAddr)> {
+) -> crate::Result<(<R as NetStreamProvider>::Stream, SocketAddr)> {
     // We need *some* addresses to connect to.
     if addrs.is_empty() {
         return Err(Error::UnusableTarget(bad_api_usage!(

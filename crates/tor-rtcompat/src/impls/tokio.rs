@@ -84,8 +84,8 @@ pub(crate) mod net {
         }
     }
     #[async_trait]
-    impl traits::TcpListener for TcpListener {
-        type TcpStream = TcpStream;
+    impl traits::NetStreamListener for TcpListener {
+        type Stream = TcpStream;
         type Incoming = IncomingTcpStreams;
         fn incoming(self) -> Self::Incoming {
             IncomingTcpStreams { lis: self.lis }
@@ -142,15 +142,15 @@ impl SleepProvider for TokioRuntimeHandle {
 }
 
 #[async_trait]
-impl crate::traits::TcpProvider for TokioRuntimeHandle {
-    type TcpStream = net::TcpStream;
-    type TcpListener = net::TcpListener;
+impl crate::traits::NetStreamProvider for TokioRuntimeHandle {
+    type Stream = net::TcpStream;
+    type Listener = net::TcpListener;
 
-    async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpStream> {
+    async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::Stream> {
         let s = net::TokioTcpStream::connect(addr).await?;
         Ok(s.into())
     }
-    async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::Listener> {
         let lis = net::TokioTcpListener::bind(*addr).await?;
         Ok(net::TcpListener { lis })
     }

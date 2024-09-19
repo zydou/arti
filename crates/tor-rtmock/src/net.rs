@@ -9,7 +9,7 @@ use super::io::{stream_pair, LocalStream};
 use super::MockNetRuntime;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
-use tor_rtcompat::{CertifiedConn, Runtime, TcpListener, TcpProvider, TlsProvider};
+use tor_rtcompat::{CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, TlsProvider};
 use tor_rtcompat::{UdpProvider, UdpSocket};
 
 use async_trait::async_trait;
@@ -278,8 +278,8 @@ impl ProviderBuilder {
 }
 
 #[async_trait]
-impl TcpListener for MockNetListener {
-    type TcpStream = LocalStream;
+impl NetStreamListener for MockNetListener {
+    type Stream = LocalStream;
 
     type Incoming = Self;
 
@@ -426,9 +426,9 @@ impl MockNetProvider {
 }
 
 #[async_trait]
-impl TcpProvider for MockNetProvider {
-    type TcpStream = LocalStream;
-    type TcpListener = MockNetListener;
+impl NetStreamProvider for MockNetProvider {
+    type Stream = LocalStream;
+    type Listener = MockNetListener;
 
     async fn connect(&self, addr: &SocketAddr) -> IoResult<LocalStream> {
         let my_addr = self.get_origin_addr_for(addr)?;
@@ -445,7 +445,7 @@ impl TcpProvider for MockNetProvider {
         Ok(mine)
     }
 
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
         let addr = self.get_listener_addr(addr)?;
 
         let receiver = AsyncMutex::new(self.inner.net.add_listener(addr, None)?);
