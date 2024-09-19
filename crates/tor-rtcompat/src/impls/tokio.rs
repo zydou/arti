@@ -226,6 +226,9 @@ impl crate::traits::NetStreamProvider<crate::unix::SocketAddr> for TokioRuntimeH
     }
 }
 
+#[cfg(not(unix))]
+crate::impls::impl_unix_non_provider! { TokioRuntimeHandle }
+
 #[async_trait]
 impl crate::traits::UdpProvider for TokioRuntimeHandle {
     type UdpSocket = net::UdpSocket;

@@ -13,3 +13,28 @@ pub(crate) mod rustls;
 
 #[cfg(feature = "native-tls")]
 pub(crate) mod native_tls;
+
+#[cfg(not(unix))]
+pub(crate) mod fake_streams;
+
+/// Helper: Implement an unreachable NetProvider<unix::SocketAddr> for a given runtime.
+#[cfg(not(unix))]
+macro_rules! impl_unix_non_provider {
+    { $for_type:ty } => {
+
+        #[async_trait]
+        impl crate::traits::NetStreamProvider<crate::unix::SocketAddr> for $for_type {
+            type Stream = crate::impls::fake_streams::FakeStream;
+            type Listener = crate::impls::fake_streams::FakeListener<crate::unix::SocketAddr>;
+            async fn connect(&self, _a: &crate::unix::SocketAddr) -> IoResult<Self::Stream> {
+                Err(crate::unix::NoUnixAddressSupport.into())
+
+            }
+            async fn listen(&self, _a: &crate::unix::SocketAddr) -> IoResult<Self::Listener> {
+                Err(crate::unix::NoUnixAddressSupport.into())
+            }
+        }
+    }
+}
+#[cfg(not(unix))]
+pub(crate) use impl_unix_non_provider;

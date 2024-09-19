@@ -138,6 +138,9 @@ mod net {
         }
     }
 
+    #[cfg(not(unix))]
+    crate::impls::impl_unix_non_provider! { async_executors::AsyncStd }
+
     #[async_trait]
     impl traits::UdpProvider for async_executors::AsyncStd {
         type UdpSocket = UdpSocket;
