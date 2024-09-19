@@ -104,13 +104,7 @@ mod test_roundtrip {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list
 
-    use crate::{
-        Handshake as _, SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus,
-        SocksVersion,
-    };
-
-    use super::client::SocksClientHandshake;
-    use super::proxy::SocksProxyHandshake;
+    use crate::*;
 
     /// Given a socks request, run a complete (successful round) trip, reply with the
     /// the given status code, and return both sides' results.
