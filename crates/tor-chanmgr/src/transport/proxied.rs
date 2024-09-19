@@ -132,8 +132,7 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
         }
     };
 
-    let status = reply
-        .status();
+    let status = reply.status();
     trace!(
         "SOCKS handshake with {} succeeded, with status {:?}",
         proxy,
