@@ -210,6 +210,20 @@ impl<'b, O, P: ReadPrecision> Finished<'b, O, P> {
         data.truncate(self.buffer.filled);
         (self.output, data)
     }
+
+    /// Return the output of the completed handshake, declaring any readahead a protocol error
+    ///
+    /// This function is appropriate when the peer is not supposed to send data
+    /// until the handshake is complete.
+    /// If data *did* arrive before then, and was read, we call it a protocol error,
+    /// [`Error::ForbiddenPipelining`].
+    pub fn into_output_forbid_pipelining(self) -> Result<O, Error> {
+        if !self.buffer.filled_slice().is_empty() {
+            Err(Error::ForbiddenPipelining)
+        } else {
+            Ok(self.output)
+        }
+    }
 }
 
 /// Next step - details for reading from the peer
