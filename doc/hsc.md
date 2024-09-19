@@ -28,6 +28,11 @@ $ arti -c hsc.toml hsc key get
 descriptor:x25519:RWWKYMW5EXDUZ2ESDDC7FQJCG6ROAR34LXNSTXFSY6JMQOWNDVNQ
 ```
 
+> NOTE: the public part of the generated keypair must be shared with the
+> service, and the service must be configured to allow the client that owns it
+> to discover its introduction points. The caller is responsible for sharing the
+> public key with the hidden service.
+
 See `arti hsc key get --help` for more information.
 
 ## Rotating a service discovery key
@@ -50,6 +55,9 @@ As key rotation is a destructive operation (the old key will be lost),
 `arti hsc key rotate` will prompt you to confirm the operation.
 If you wish to force removal, or to run this command non-interactively,
 use the `-f` option, which disables the confirmation prompt.
+
+> NOTE: as with `arti gsc key get`, the public part of the new keypair
+> must be shared with the service
 
 See `arti hsc key rotate --help` for more information.
 
