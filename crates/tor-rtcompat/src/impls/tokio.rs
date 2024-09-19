@@ -11,6 +11,10 @@ pub(crate) mod net {
     pub(crate) use tokio_crate::net::{
         TcpListener as TokioTcpListener, TcpStream as TokioTcpStream, UdpSocket as TokioUdpSocket,
     };
+    #[cfg(unix)]
+    pub(crate) use tokio_crate::net::{
+        UnixListener as TokioUnixListener, UnixStream as TokioUnixStream,
+    };
 
     use futures::io::{AsyncRead, AsyncWrite};
     use paste::paste;
@@ -23,7 +27,11 @@ pub(crate) mod net {
 
     /// Provide a set of network stream wrappers for a single stream type.
     macro_rules! stream_impl {
-        { $kind:ident, $addr:ty } => {paste!{
+        {
+            $kind:ident,
+            $addr:ty,
+            $cvt_addr:ident
+        } => {paste!{
             /// Wrapper for Tokio's
             #[doc = stringify!($kind)]
             /// streams,
@@ -87,7 +95,7 @@ pub(crate) mod net {
 
                 fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
                     match self.lis.poll_accept(cx) {
-                        Poll::Ready(Ok((s, a))) => Poll::Ready(Some(Ok((s.into(), a)))),
+                        Poll::Ready(Ok((s, a))) => Poll::Ready(Some(Ok((s.into(), $cvt_addr(a)? )))),
                         Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
                         Poll::Pending => Poll::Pending,
                     }
@@ -101,13 +109,39 @@ pub(crate) mod net {
                     [<Incoming $kind Streams>] { lis: self.lis }
                 }
                 fn local_addr(&self) -> IoResult<$addr> {
-                    self.lis.local_addr()
+                    $cvt_addr(self.lis.local_addr()?)
                 }
             }
         }}
     }
 
-    stream_impl! { Tcp, std::net::SocketAddr }
+    /// Try to convert a tokio unix SocketAddr into a crate::SocketAddr.
+    ///
+    /// Frustratingly, this information is _right there_: Tokio's SocketAddr has a
+    /// std::unix::net::SocketAddr internally, but there appears to be no way to get it out.
+    #[cfg(unix)]
+    #[allow(clippy::needless_pass_by_value)]
+    fn try_cvt_tokio_unix_addr(
+        addr: tokio_crate::net::unix::SocketAddr,
+    ) -> IoResult<crate::unix::SocketAddr> {
+        if addr.is_unnamed() {
+            crate::unix::new_unnamed_socketaddr()
+        } else if let Some(p) = addr.as_pathname() {
+            crate::unix::SocketAddr::from_pathname(p)
+        } else {
+            Err(crate::unix::UnsupportedUnixAddressType.into())
+        }
+    }
+
+    /// Wrapper for (not) converting std::net::SocketAddr to itself.
+    #[allow(clippy::unnecessary_wraps)]
+    fn identity_fn_socketaddr(addr: std::net::SocketAddr) -> IoResult<std::net::SocketAddr> {
+        Ok(addr)
+    }
+
+    stream_impl! { Tcp, std::net::SocketAddr, identity_fn_socketaddr }
+    #[cfg(unix)]
+    stream_impl! { Unix, crate::unix::SocketAddr, try_cvt_tokio_unix_addr }
 
     /// Wrap a Tokio UdpSocket
     pub struct UdpSocket {
@@ -167,6 +201,28 @@ impl crate::traits::NetStreamProvider for TokioRuntimeHandle {
     async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::Listener> {
         let lis = net::TokioTcpListener::bind(*addr).await?;
         Ok(net::TcpListener { lis })
+    }
+}
+
+#[cfg(unix)]
+#[async_trait]
+impl crate::traits::NetStreamProvider<crate::unix::SocketAddr> for TokioRuntimeHandle {
+    type Stream = net::UnixStream;
+    type Listener = net::UnixListener;
+
+    async fn connect(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Stream> {
+        let path = addr
+            .as_pathname()
+            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+        let s = net::TokioUnixStream::connect(path).await?;
+        Ok(s.into())
+    }
+    async fn listen(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Listener> {
+        let path = addr
+            .as_pathname()
+            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+        let lis = net::TokioUnixListener::bind(path)?;
+        Ok(net::UnixListener { lis })
     }
 }
 
