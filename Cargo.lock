@@ -372,6 +372,7 @@ dependencies = [
  "socketpair",
  "thiserror",
  "tor-basic-utils",
+ "tor-error",
  "tor-socksproto",
  "void",
 ]

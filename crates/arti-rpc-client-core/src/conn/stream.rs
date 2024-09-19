@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use super::{ErrorResponse, RpcConn};
 use crate::{msgs::request::Request, ObjectId};
 
+use tor_error::ErrorReport as _;
+
 /// An error encountered while trying to open a data stream.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -269,7 +271,7 @@ fn negotiate_socks(
 ) -> Result<(), StreamError> {
     use tor_socksproto::{
         Handshake as _, SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksHostname,
-        SocksRequest, SocksStatus, SocksVersion, SOCKS_BUF_LEN,
+        SocksRequest, SocksStatus, SocksVersion,
     };
     use StreamError as E;
 
@@ -285,45 +287,26 @@ fn negotiate_socks(
     )
     .map_err(E::SocksRequest)?;
 
-    let mut buf = [0_u8; SOCKS_BUF_LEN];
-    let mut n_in_buf = 0;
+    let mut buf = tor_socksproto::Buffer::new_precise();
     let mut state = SocksClientHandshake::new(request);
     let reply = loop {
-        if buf[n_in_buf..].is_empty() {
-            return Err(E::Internal(
-                "Buffer not large enough to perform SOCKS request!?".to_owned(),
-            ));
-        }
-
-        n_in_buf += stream.read(&mut buf[n_in_buf..])?;
-        let action = match state.handshake(&buf[..n_in_buf]) {
-            Err(_truncated) => continue, // need to read more.
-            Ok(Err(e)) => return Err(E::SocksProtocol(e)),
-            Ok(Ok(action)) => action,
-        };
-        if action.drain > 0 {
-            buf.copy_within(action.drain..n_in_buf, 0);
-            n_in_buf -= action.drain;
-        }
-        if !action.reply.is_empty() {
-            stream.write_all(&action.reply)?;
-        }
-        if action.finished {
-            break state.into_reply();
+        use tor_socksproto::NextStep as NS;
+        match state.step(&mut buf).map_err(E::SocksProtocol)? {
+            NS::Recv(mut recv) => {
+                let n = stream.read(recv.buf())?;
+                recv.note_received(n);
+            }
+            NS::Send(send) => stream.write_all(&send)?,
+            NS::Finished(fin) => {
+                break fin
+                    .into_output()
+                    .map_err(|bug| E::Internal(bug.report().to_string()))?
+            }
         }
     };
 
     let status = reply
-        .ok_or_else(|| {
-            E::Internal("SOCKS handshake finished, but didn't give a SocksReply!?".to_owned())
-        })?
         .status();
-
-    if n_in_buf != 0 {
-        return Err(E::Internal(
-            "Unconsumed bytes left after SOCKS handshake!".to_owned(),
-        ));
-    }
 
     if status == SocksStatus::SUCCEEDED {
         Ok(())
