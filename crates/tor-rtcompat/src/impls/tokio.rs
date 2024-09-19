@@ -13,6 +13,7 @@ pub(crate) mod net {
     };
 
     use futures::io::{AsyncRead, AsyncWrite};
+    use paste::paste;
     use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
 
     use std::io::Result as IoResult;
@@ -22,20 +23,23 @@ pub(crate) mod net {
 
     /// Provide a set of network stream wrappers for a single stream type.
     macro_rules! stream_impl {
-        {} => {
-            /// Wrapper for Tokio's TcpStream that implements the standard
+        { $kind:ident, $addr:ty } => {paste!{
+            /// Wrapper for Tokio's
+            #[doc = stringify!($kind)]
+            /// streams,
+            /// that implements the standard
             /// AsyncRead and AsyncWrite.
-            pub struct TcpStream {
+            pub struct [<$kind Stream>] {
                 /// Underlying tokio_util::compat::Compat wrapper.
-                s: Compat<TokioTcpStream>,
+                s: Compat<[<Tokio $kind Stream>]>,
             }
-            impl From<TokioTcpStream> for TcpStream {
-                fn from(s: TokioTcpStream) -> TcpStream {
+            impl From<[<Tokio $kind Stream>]> for [<$kind Stream>] {
+                fn from(s: [<Tokio $kind Stream>]) ->  [<$kind Stream>] {
                     let s = s.compat();
-                    TcpStream { s }
+                    [<$kind Stream>] { s }
                 }
             }
-            impl AsyncRead for TcpStream {
+            impl AsyncRead for  [<$kind Stream>] {
                 fn poll_read(
                     mut self: Pin<&mut Self>,
                     cx: &mut Context<'_>,
@@ -44,7 +48,7 @@ pub(crate) mod net {
                     Pin::new(&mut self.s).poll_read(cx, buf)
                 }
             }
-            impl AsyncWrite for TcpStream {
+            impl AsyncWrite for  [<$kind Stream>] {
                 fn poll_write(
                     mut self: Pin<&mut Self>,
                     cx: &mut Context<'_>,
@@ -60,23 +64,26 @@ pub(crate) mod net {
                 }
             }
 
-            /// Wrap a Tokio TcpListener to behave as a futures::io::TcpListener.
-            pub struct TcpListener {
+            /// Wrap a Tokio
+            #[doc = stringify!($kind)]
+            /// Listener to behave as a futures::io::TcpListener.
+            pub struct [<$kind Listener>] {
                 /// The underlying listener.
-                pub(super) lis: TokioTcpListener,
+                pub(super) lis: [<Tokio $kind Listener>],
             }
 
             /// Asynchronous stream that yields incoming connections from a
-            /// TcpListener.
+            #[doc = stringify!($kind)]
+            /// Listener.
             ///
             /// This is analogous to async_std::net::Incoming.
-            pub struct IncomingTcpStreams {
+            pub struct [<Incoming $kind Streams>] {
                 /// Reference to the underlying listener.
-                pub(super) lis: TokioTcpListener,
+                pub(super) lis: [<Tokio $kind Listener>],
             }
 
-            impl futures::stream::Stream for IncomingTcpStreams {
-                type Item = IoResult<(TcpStream, SocketAddr)>;
+            impl futures::stream::Stream for [<Incoming $kind Streams>] {
+                type Item = IoResult<([<$kind Stream>], $addr)>;
 
                 fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
                     match self.lis.poll_accept(cx) {
@@ -87,20 +94,20 @@ pub(crate) mod net {
                 }
             }
             #[async_trait]
-            impl traits::NetStreamListener for TcpListener {
-                type Stream = TcpStream;
-                type Incoming = IncomingTcpStreams;
+            impl traits::NetStreamListener<$addr> for [<$kind Listener>] {
+                type Stream = [<$kind Stream>];
+                type Incoming = [<Incoming $kind Streams>];
                 fn incoming(self) -> Self::Incoming {
-                    IncomingTcpStreams { lis: self.lis }
+                    [<Incoming $kind Streams>] { lis: self.lis }
                 }
-                fn local_addr(&self) -> IoResult<SocketAddr> {
+                fn local_addr(&self) -> IoResult<$addr> {
                     self.lis.local_addr()
                 }
             }
-        }
+        }}
     }
 
-    stream_impl! {}
+    stream_impl! { Tcp, std::net::SocketAddr }
 
     /// Wrap a Tokio UdpSocket
     pub struct UdpSocket {
