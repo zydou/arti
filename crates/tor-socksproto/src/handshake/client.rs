@@ -1,7 +1,7 @@
 //! Implementation for a SOCKS client handshake.
 
-use super::framework::HandshakeImpl;
-use super::{Action, NO_AUTHENTICATION, USERNAME_PASSWORD};
+use super::framework::{HandshakeImpl, ImplNextStep};
+use super::{NO_AUTHENTICATION, USERNAME_PASSWORD};
 use crate::msg::{SocksAddr, SocksAuth, SocksReply, SocksRequest, SocksStatus, SocksVersion};
 use crate::{Error, Result};
 
@@ -70,7 +70,7 @@ impl SocksClientHandshake {
 
 // XXXX move this so we can rejoin the two impl blocks
 impl HandshakeImpl for SocksClientHandshake {
-    fn handshake_impl(&mut self, input: &mut Reader<'_>) -> Result<Action> {
+    fn handshake_impl(&mut self, input: &mut Reader<'_>) -> Result<ImplNextStep> {
         use State::*;
         match self.state {
             Initial => match self.request.version() {
@@ -93,7 +93,7 @@ impl HandshakeImpl for SocksClientHandshake {
 
 impl SocksClientHandshake {
     /// Send the client side of the socks 4 handshake.
-    fn send_v4(&mut self) -> Result<Action> {
+    fn send_v4(&mut self) -> Result<ImplNextStep> {
         let mut msg = Vec::new();
 
         msg.write_u8(4);
@@ -129,15 +129,14 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks4Wait;
-        Ok(Action {
-            drain: 0,
+        Ok(ImplNextStep {
             reply: msg,
             finished: false,
         })
     }
 
     /// Handle a SOCKSv4 response.
-    fn handle_v4(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn handle_v4(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 0 {
             return Err(Error::Syntax);
@@ -153,15 +152,14 @@ impl SocksClientHandshake {
             port,
         ));
 
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: Vec::new(),
             finished: true,
         })
     }
 
     /// Send our initial socks5 message (which negotiates our authentication methods).
-    fn send_v5_initial(&mut self) -> Result<Action> {
+    fn send_v5_initial(&mut self) -> Result<ImplNextStep> {
         let mut msg = Vec::new();
         msg.write_u8(5);
         match self.request.auth() {
@@ -178,8 +176,7 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks5AuthWait;
-        Ok(Action {
-            drain: 0,
+        Ok(ImplNextStep {
             reply: msg,
             finished: false,
         })
@@ -187,7 +184,7 @@ impl SocksClientHandshake {
 
     /// Try to handle a socks5 reply telling us what authentication method to
     /// use, and reply as appropriate.
-    fn handle_v5_auth(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn handle_v5_auth(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 5 {
             return Err(Error::Syntax);
@@ -204,8 +201,7 @@ impl SocksClientHandshake {
         };
 
         self.state = next_state;
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: msg,
             finished: false,
         })
@@ -234,7 +230,7 @@ impl SocksClientHandshake {
 
     /// Try to handle a reply from the socks5 proxy to acknowledge our
     /// username/password authentication, and reply as appropriate.
-    fn handle_v5_username_ack(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn handle_v5_username_ack(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 1 {
             return Err(Error::Syntax);
@@ -245,8 +241,7 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks5Wait;
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: self.generate_v5_command()?,
             finished: false,
         })
@@ -270,7 +265,7 @@ impl SocksClientHandshake {
     }
 
     /// Handle a final socks5 reply.
-    fn handle_v5_final(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn handle_v5_final(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 5 {
             return Err(Error::Syntax);
@@ -282,8 +277,7 @@ impl SocksClientHandshake {
 
         self.state = State::Done;
         self.reply = Some(SocksReply::new(status, addr, port));
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: Vec::new(),
             finished: true,
         })

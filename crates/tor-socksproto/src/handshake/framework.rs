@@ -56,6 +56,14 @@ define_derive_deftly! {
 #[allow(clippy::single_component_path_imports)] // false positive, see rust-clippy#13419
 use derive_deftly_template_Handshake; // for rustdoc's benefit
 
+/// The internal (implementation-side) representation of the next step to take
+pub(crate) struct ImplNextStep {
+    /// If nonempty, this reply should be sent to the other party.
+    pub reply: Vec<u8>,
+    /// If true, then this handshake is over, either successfully or not.
+    pub finished: bool,
+}
+
 /// `Handshake` structs that have a state that can be `Failed`
 ///
 /// Derive this with
@@ -75,7 +83,7 @@ pub(super) trait HandshakeImpl: HasHandshakeState {
     /// May return the error from the `Reader`, in `Error::Decode`.
     /// (For example,. `Error::Decode(tor_bytes::Error::Incomplete)`
     /// if the message was incomplete and reading more data would help.)
-    fn handshake_impl(&mut self, r: &mut tor_bytes::Reader<'_>) -> crate::Result<Action>;
+    fn handshake_impl(&mut self, r: &mut tor_bytes::Reader<'_>) -> crate::Result<ImplNextStep>;
 }
 
 /// Handshake
@@ -96,6 +104,7 @@ pub trait Handshake: HandshakeImpl {
     fn handshake(&mut self, input: &[u8]) -> crate::TResult<Action> {
         let mut r = Reader::from_possibly_incomplete_slice(input);
         let rv = self.handshake_impl(&mut r);
+        let drain = r.consumed();
         match rv {
             #[allow(deprecated)]
             Err(Error::Decode(
@@ -105,7 +114,14 @@ pub trait Handshake: HandshakeImpl {
                 self.set_failed();
                 Ok(Err(e))
             }
-            Ok(y) => Ok(Ok(y)),
+            Ok(ImplNextStep {
+                reply,
+                finished,
+            }) => Ok(Ok(Action {
+                drain,
+                reply,
+                finished,
+            })),
         }
     }
 }

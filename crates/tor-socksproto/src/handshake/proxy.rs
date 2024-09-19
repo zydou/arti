@@ -1,7 +1,6 @@
 //! Types to implement the SOCKS handshake.
 
-use super::framework::HandshakeImpl;
-use super::Action;
+use super::framework::{HandshakeImpl, ImplNextStep};
 use crate::msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
 use crate::{Error, Result};
 
@@ -16,8 +15,9 @@ use std::net::IpAddr;
 /// The Proxy (responder) side of an ongoing SOCKS handshake.
 ///
 /// To perform a handshake, call the [`Handshake::handshake`](crate::Handshake::handshake)
-/// method repeatedly with new inputs, until the resulting [`Action`]
+/// method repeatedly with new inputs, until the resulting `Action`
 /// has `finished` set to true.
+// XXXX replace these docs with references to new API
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Handshake)]
 pub struct SocksProxyHandshake {
@@ -65,7 +65,7 @@ impl SocksProxyHandshake {
 
 // XXXX move this so we can rejoin the two impl blocks
 impl HandshakeImpl for SocksProxyHandshake {
-    fn handshake_impl(&mut self, input: &mut Reader<'_>) -> Result<Action> {
+    fn handshake_impl(&mut self, input: &mut Reader<'_>) -> Result<ImplNextStep> {
         match (self.state, input.peek(1)?[0]) {
             (State::Initial, 4) => self.s4(input),
             (State::Initial, 5) => self.s5_initial(input),
@@ -85,7 +85,7 @@ impl HandshakeImpl for SocksProxyHandshake {
 
 impl SocksProxyHandshake {
     /// Complete a socks4 or socks4a handshake.
-    fn s4(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn s4(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let version = r.take_u8()?.try_into()?;
         if version != SocksVersion::V4 {
             return Err(internal!("called s4 on wrong type {:?}", version).into());
@@ -121,15 +121,14 @@ impl SocksProxyHandshake {
         self.state = State::Done;
         self.handshake = Some(request);
 
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: Vec::new(),
             finished: true,
         })
     }
 
     /// Socks5: initial handshake to negotiate authentication method.
-    fn s5_initial(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn s5_initial(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         use super::{NO_AUTHENTICATION, USERNAME_PASSWORD};
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
@@ -151,15 +150,14 @@ impl SocksProxyHandshake {
         };
 
         self.state = next;
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: reply.into(),
             finished: false,
         })
     }
 
     /// Socks5: second step for username/password authentication.
-    fn s5_uname(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn s5_uname(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 1 {
             return Err(Error::NotImplemented(
@@ -174,15 +172,14 @@ impl SocksProxyHandshake {
 
         self.socks5_auth = Some(SocksAuth::Username(username.into(), passwd.into()));
         self.state = State::Socks5Wait;
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: vec![1, 0],
             finished: false,
         })
     }
 
     /// Socks5: final step, to receive client's request.
-    fn s5(&mut self, r: &mut Reader<'_>) -> Result<Action> {
+    fn s5(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
             return Err(
@@ -204,8 +201,7 @@ impl SocksProxyHandshake {
         self.state = State::Done;
         self.handshake = Some(request);
 
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep {
             reply: Vec::new(),
             finished: true,
         })
