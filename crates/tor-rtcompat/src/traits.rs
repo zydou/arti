@@ -5,7 +5,7 @@ use futures::task::Spawn;
 use futures::{AsyncRead, AsyncWrite, Future};
 use std::fmt::Debug;
 use std::io::Result as IoResult;
-use std::net::SocketAddr;
+use std::net;
 use std::time::{Duration, Instant, SystemTime};
 
 /// A runtime that we can use to run Tor as a client.
@@ -159,7 +159,7 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 // TODO: Use of async_trait is not ideal, since we have to box with every
 // call.  Still, async_io basically makes that necessary :/
 #[async_trait]
-pub trait NetStreamProvider: Clone + Send + Sync + 'static {
+pub trait NetStreamProvider<ADDR = net::SocketAddr>: Clone + Send + Sync + 'static {
     /// The type for the connections returned by [`Self::connect()`].
     type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
     /// The type for the listeners returned by [`Self::listen()`].
@@ -171,10 +171,10 @@ pub trait NetStreamProvider: Clone + Send + Sync + 'static {
     /// any types other than a single [`SocketAddr`].  We do this because
     /// we must be absolutely sure not to perform
     /// unnecessary DNS lookups.
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream>;
+    async fn connect(&self, addr: &ADDR) -> IoResult<Self::Stream>;
 
     /// Open a listener on a given socket address.
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener>;
+    async fn listen(&self, addr: &ADDR) -> IoResult<Self::Listener>;
 }
 
 /// Trait for a local socket that accepts incoming streams.
@@ -184,19 +184,19 @@ pub trait NetStreamProvider: Clone + Send + Sync + 'static {
 /// use `incoming` to convert this object into a [`stream::Stream`].
 // TODO: Use of async_trait is not ideal here either.
 #[async_trait]
-pub trait NetStreamListener {
+pub trait NetStreamListener<ADDR = net::SocketAddr> {
     /// The type of connections returned by [`Self::incoming()`].
     type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
 
     /// The type of [`stream::Stream`] returned by [`Self::incoming()`].
-    type Incoming: stream::Stream<Item = IoResult<(Self::Stream, SocketAddr)>> + Send + Unpin;
+    type Incoming: stream::Stream<Item = IoResult<(Self::Stream, ADDR)>> + Send + Unpin;
 
     /// Wrap this listener into a new [`stream::Stream`] that yields
     /// streams and addresses.
     fn incoming(self) -> Self::Incoming;
 
     /// Return the local address that this listener is bound to.
-    fn local_addr(&self) -> IoResult<SocketAddr>;
+    fn local_addr(&self) -> IoResult<ADDR>;
 }
 
 /// Trait for a runtime that can send and receive UDP datagrams.
@@ -206,7 +206,7 @@ pub trait UdpProvider: Clone + Send + Sync + 'static {
     type UdpSocket: UdpSocket + Send + Sync + Unpin + 'static;
 
     /// Bind a local port to send and receive packets from
-    async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket>;
+    async fn bind(&self, addr: &net::SocketAddr) -> IoResult<Self::UdpSocket>;
 }
 
 /// Trait for a locally bound Udp socket that can send and receive datagrams.
@@ -219,11 +219,11 @@ pub trait UdpProvider: Clone + Send + Sync + 'static {
 #[async_trait]
 pub trait UdpSocket {
     /// Wait for an incoming datagram; return it along its address.
-    async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)>;
+    async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, net::SocketAddr)>;
     /// Send a datagram to the provided address.
-    async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize>;
+    async fn send(&self, buf: &[u8], target: &net::SocketAddr) -> IoResult<usize>;
     /// Return the local address that this socket is bound to.
-    fn local_addr(&self) -> IoResult<SocketAddr>;
+    fn local_addr(&self) -> IoResult<net::SocketAddr>;
 }
 
 /// An object with a peer certificate: typically a TLS connection.
