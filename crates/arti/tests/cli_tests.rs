@@ -26,7 +26,7 @@ fn cli_tests() {
     }
 
     cfg_if::cfg_if! {
-        if #[cfg(all(feature = "onion-service-client", feature = "experimental-api", feature = "keymgr"))] {
+        if #[cfg(feature = "hsc")] {
             t.case("tests/testcases/hsc/*.toml");
             t.case("tests/testcases/hsc/*.md");
         } else {

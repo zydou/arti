@@ -114,11 +114,7 @@ use clap::{value_parser, Arg, ArgAction, Command};
 use tracing::{error, info, warn};
 
 #[cfg(any(
-    all(
-        feature = "onion-service-client",
-        feature = "experimental-api",
-        feature = "keymgr"
-    ),
+    feature = "hsc",
     feature = "onion-service-service",
 ))]
 use clap::Subcommand as _;
@@ -298,7 +294,7 @@ where
     }
 
     cfg_if::cfg_if! {
-        if #[cfg(all(feature = "onion-service-client", feature = "experimental-api", feature = "keymgr"))] {
+        if #[cfg(feature = "hsc")] {
             let clap_app = subcommands::hsc::HscSubcommands::augment_subcommands(clap_app);
         }
     }
@@ -413,7 +409,7 @@ where
 
     // Check for the optional "hsc" subcommand.
     cfg_if::cfg_if! {
-        if #[cfg(all(feature = "onion-service-client", feature = "experimental-api", feature = "keymgr"))] {
+        if #[cfg(feature = "hsc")] {
             if let Some(hsc_matches) = matches.subcommand_matches("hsc") {
                 return subcommands::hsc::run(runtime, hsc_matches, &client_config);
             }
