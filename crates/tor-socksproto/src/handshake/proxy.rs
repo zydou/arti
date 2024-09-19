@@ -14,10 +14,12 @@ use std::net::IpAddr;
 
 /// The Proxy (responder) side of an ongoing SOCKS handshake.
 ///
-/// To perform a handshake, call the [`Handshake::handshake`](crate::Handshake::handshake)
-/// method repeatedly with new inputs, until the resulting `Action`
-/// has `finished` set to true.
-// XXXX replace these docs with references to new API
+/// Create you have one of these with [`SocksProxyHandshake::new()`],
+/// and then use [`Handshake::step`](crate::Handshake::step) to drive it.
+///
+/// Eventually you will hopefully obtain a [`SocksRequest`],
+/// on which you should call [`.reply()`](SocksRequest::reply),
+/// and send the resulting data to the peer.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Handshake)]
 pub struct SocksProxyHandshake {

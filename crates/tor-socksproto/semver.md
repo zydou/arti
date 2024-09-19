@@ -1,6 +1,7 @@
 # BREAKING
 
- * Move `.handshake` methods to a new `Handshake` trait.
+ * Move `.handshake` methods to a new `Handshake` trait,
+   and deprecate it.
 
 # ADDED
 

@@ -15,7 +15,7 @@ use std::net::{IpAddr, Ipv4Addr};
 /// The client (initiator) side of a SOCKS handshake.
 ///
 /// Create you have one of these with [`SocksClientHandshake::new()`],
-/// and then use [`Handshake::handshake`](crate::Handshake::handshake) to drive it.
+/// and then use [`Handshake::step`](crate::Handshake::step) to drive it.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(Handshake)]
 pub struct SocksClientHandshake {

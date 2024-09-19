@@ -611,6 +611,9 @@ pub trait Handshake: HandshakeImpl + HasHandshakeOutput<Self::Output> {
     ///
     /// On success, return an Action describing what to tell the peer,
     /// and how much of its input to consume.
+    //
+    // When removing this API, also remove `Action`.
+    #[deprecated = "use the new Handshake::step API instead"]
     fn handshake(&mut self, input: &[u8]) -> crate::TResult<Action> {
         let (drain, rv) = self.call_handshake_impl(input);
         match rv {
@@ -639,6 +642,7 @@ pub trait Handshake: HandshakeImpl + HasHandshakeOutput<Self::Output> {
     ///
     /// This wrapper function allows us to avoid writing many (or broad) allows in our tests.
     #[cfg(test)]
+    #[allow(deprecated)]
     fn handshake_for_tests(&mut self, input: &[u8]) -> crate::TResult<Action> {
         self.handshake(input)
     }
