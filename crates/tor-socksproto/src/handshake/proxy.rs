@@ -338,7 +338,10 @@ mod test {
     #[test]
     fn socks5_init_noauth() {
         let mut h = SocksProxyHandshake::new();
-        let a = h.handshake_for_tests(&hex!("05 01 00")[..]).unwrap().unwrap();
+        let a = h
+            .handshake_for_tests(&hex!("05 01 00")[..])
+            .unwrap()
+            .unwrap();
         assert!(!a.finished);
         assert_eq!(a.drain, 3);
         assert_eq!(a.reply, &[5, 0]);
@@ -348,7 +351,10 @@ mod test {
     #[test]
     fn socks5_init_username() {
         let mut h = SocksProxyHandshake::new();
-        let a = h.handshake_for_tests(&hex!("05 04 00023031")[..]).unwrap().unwrap();
+        let a = h
+            .handshake_for_tests(&hex!("05 04 00023031")[..])
+            .unwrap()
+            .unwrap();
         assert!(!a.finished);
         assert_eq!(a.drain, 6);
         assert_eq!(a.reply, &[5, 2]);

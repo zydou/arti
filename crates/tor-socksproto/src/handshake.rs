@@ -128,7 +128,10 @@ mod test_roundtrip {
                 assert!(r.is_err());
             }
             // Get the client's actual message.
-            let client_action = client_hs.handshake_for_tests(&last_proxy_msg).unwrap().unwrap();
+            let client_action = client_hs
+                .handshake_for_tests(&last_proxy_msg)
+                .unwrap()
+                .unwrap();
             assert_eq!(client_action.drain, last_proxy_msg.len());
             if client_action.finished {
                 let received_reply = client_hs.into_reply();
