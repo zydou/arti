@@ -57,7 +57,7 @@ mod net {
                 Ready([<$kind Listener>]),
                 /// We've called `accept` on the listener, and we're waiting
                 /// for a future to complete.
-                Accepting(Pin<Box<dyn Future<Output = [<$kind FResult>]> + Send>>),
+                Accepting(Pin<Box<dyn Future<Output = [<$kind FResult>]> + Send + Sync>>),
             }
             impl [<Incoming $kind Streams>] {
                 /// Create a new IncomingStreams from a Listener.

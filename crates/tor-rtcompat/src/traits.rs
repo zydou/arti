@@ -189,7 +189,11 @@ pub trait NetStreamListener<ADDR = net::SocketAddr> {
     type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
 
     /// The type of [`stream::Stream`] returned by [`Self::incoming()`].
-    type Incoming: stream::Stream<Item = IoResult<(Self::Stream, ADDR)>> + Send + Unpin;
+    type Incoming: stream::Stream<Item = IoResult<(Self::Stream, ADDR)>>
+        + Send
+        + Sync
+        + Unpin
+        + 'static;
 
     /// Wrap this listener into a new [`stream::Stream`] that yields
     /// streams and addresses.
