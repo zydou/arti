@@ -20,12 +20,11 @@ use std::{
 };
 
 use futures::{AsyncReadExt, AsyncWriteExt};
-use tor_error::internal;
 use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::NetStreamProvider;
 use tor_socksproto::{
     Handshake as _, SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest,
-    SocksStatus, SocksVersion, SOCKS_BUF_LEN,
+    SocksStatus, SocksVersion,
 };
 use tracing::trace;
 
@@ -113,62 +112,27 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
     // TODO: This code is largely copied from the socks server wrapper code in
     // arti::proxy. Perhaps we should condense them into a single thing, if we
     // don't just revise the SOCKS code completely.
-    let mut inbuf = [0_u8; SOCKS_BUF_LEN];
-    let mut n_read = 0;
+    let mut buf = tor_socksproto::Buffer::new();
     let reply = loop {
-        // try to advance the handshake to the next state.
-        let action = match handshake.handshake(&inbuf[..n_read]) {
-            Err(_) => {
-                // Message truncated.
-                if n_read == inbuf.len() {
-                    // We won't read any more:
-                    return Err(ProxyError::Bug(internal!(
-                        "SOCKS parser wanted excessively many bytes! {:?} {:?}",
-                        handshake,
-                        inbuf
-                    )));
-                }
-                // read more and try again.
-                continue;
+        use tor_socksproto::NextStep as NS;
+        match handshake.step(&mut buf).map_err(ProxyError::SocksProto)? {
+            NS::Send(send) => {
+                stream.write_all(&send).await?;
+                stream.flush().await?;
             }
-            Ok(Err(e)) => return Err(ProxyError::SocksProto(e)), // real error.
-            Ok(Ok(action)) => action,
-        };
-
-        // reply if needed.
-        if action.drain > 0 {
-            inbuf.copy_within(action.drain..action.drain + n_read, 0);
-            n_read -= action.drain;
+            NS::Finished(fin) => {
+                break fin
+                    .into_output_forbid_pipelining()
+                    .map_err(ProxyError::SocksProto)?
+            }
+            NS::Recv(mut recv) => {
+                let n = stream.read(recv.buf()).await?;
+                recv.note_received(n);
+            }
         }
-        if !action.reply.is_empty() {
-            stream.write_all(&action.reply[..]).await?;
-            stream.flush().await?;
-        }
-        if action.finished {
-            break handshake.into_reply();
-        }
-
-        if n_read == inbuf.len() {
-            // We would like to read more of this SOCKS request, but there is no
-            // more space in the buffer.  If we try to keep reading into an
-            // empty buffer, we'll just read nothing, try to parse it, and learn
-            // that we still wish we had more to read.
-            //
-            // In theory we might want to resize the buffer.  Right now, though,
-            // we just reject handshakes that don't fit into 1k.
-            return Err(ProxyError::SocksProto(
-                tor_socksproto::Error::NotImplemented(
-                    "Socks handshake did not fit in 1KiB buffer".into(),
-                ),
-            ));
-        }
-
-        // Read some more stuff.
-        n_read += stream.read(&mut inbuf[n_read..]).await?;
     };
 
     let status = reply
-        .ok_or_else(|| internal!("SOCKS protocol finished, but gave no status!"))?
         .status();
     trace!(
         "SOCKS handshake with {} succeeded, with status {:?}",
@@ -178,10 +142,6 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
 
     if status != SocksStatus::SUCCEEDED {
         return Err(ProxyError::SocksError(status));
-    }
-
-    if n_read != 0 {
-        return Err(ProxyError::UnexpectedData);
     }
 
     Ok(stream)
