@@ -4,7 +4,7 @@
 use derive_deftly::Deftly;
 use derive_more::Constructor;
 
-use tor_key_forge::prelude::*;
+use tor_key_forge::define_ed25519_keypair;
 use tor_keymgr::{derive_deftly_template_KeySpecifier, KeySpecifier};
 
 // TODO: The legacy RSA key is needed. Require support in tor-key-forge and keystore.

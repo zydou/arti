@@ -18,8 +18,7 @@ use derive_deftly::define_derive_deftly;
 /// # Example:
 ///
 /// ```rust
-/// use tor_key_forge::prelude::*;
-///
+/// use tor_key_forge::define_ed25519_keypair;
 /// define_ed25519_keypair!(NonPublicSigning);
 /// define_ed25519_keypair!(pub PublicSigning);
 /// define_ed25519_keypair!(pub(crate) CratePublicSigning);
@@ -31,8 +30,11 @@ use derive_deftly::define_derive_deftly;
 /// You can then use these objects like so:
 ///
 /// ```rust
+/// # use tor_key_forge::define_ed25519_keypair;
 /// use rand::Rng;
-/// use tor_key_forge::prelude::*;
+/// use tor_llcrypto::pk::ValidatableSignature;
+/// use tor_llcrypto::pk::ed25519::Signer;
+/// use tor_key_forge::Keygen;
 ///
 /// define_ed25519_keypair!(
 ///     /// Our signing key.
@@ -54,13 +56,13 @@ use derive_deftly::define_derive_deftly;
 macro_rules! define_ed25519_keypair {
     ($(#[ $docs_and_attrs:meta ])*
      $vis:vis $base_name:ident) => {
-        paste::paste! {
-            #[derive(derive_deftly::Deftly)]
-            #[derive_deftly(Ed25519Keypair)]
+        $crate::macro_deps::paste! {
+            #[derive($crate::derive_deftly::Deftly)]
+            #[derive_deftly($crate::macro_deps::Ed25519Keypair)]
             #[deftly(kp(pubkey = $base_name "PublicKey"))]
             #[non_exhaustive]
             $(#[ $docs_and_attrs ])*
-            $vis struct [<$base_name "Keypair">](tor_llcrypto::pk::ed25519::Keypair);
+            $vis struct [<$base_name "Keypair">]($crate::macro_deps::ed25519::Keypair);
         }
     };
 }
@@ -79,20 +81,21 @@ define_derive_deftly! {
 
     /// Public key component of this keypair. Useful if we move the public key around,
     /// it then keeps it semantic with the name and less prone to errors.
-    #[derive(Clone, Debug, derive_more::From, derive_more::Into, PartialEq, Eq)]
+    #[derive(Clone, Debug, $crate::macro_deps::derive_more::From, $crate::macro_deps::derive_more::Into, PartialEq, Eq)]
     #[non_exhaustive]
-    $tvis struct $PK_NAME ($tvis tor_llcrypto::pk::ed25519::PublicKey);
+    $tvis struct $PK_NAME ($tvis $crate::macro_deps::ed25519::PublicKey);
 
     impl $PK_NAME {
         /// Verify the signature of a given message.
         #[allow(unused)]
-        $tvis fn verify(&self, sig: tor_llcrypto::pk::ed25519::Signature, text: &[u8]) -> bool {
-            tor_llcrypto::pk::ed25519::ValidatableEd25519Signature::new(self.0, sig, text).is_valid()
+        $tvis fn verify(&self, sig: $crate::macro_deps::ed25519::Signature, text: &[u8]) -> bool {
+            use $crate::macro_deps::ValidatableSignature;
+            $crate::macro_deps::ed25519::ValidatableEd25519Signature::new(self.0, sig, text).is_valid()
         }
     }
 
-    impl tor_llcrypto::pk::ed25519::Ed25519PublicKey for $PK_NAME {
-        fn public_key(&self) -> &tor_llcrypto::pk::ed25519::PublicKey {
+    impl $crate::macro_deps::ed25519::Ed25519PublicKey for $PK_NAME {
+        fn public_key(&self) -> &$crate::macro_deps::ed25519::PublicKey {
             &self.0
         }
     }
@@ -105,30 +108,31 @@ define_derive_deftly! {
             $PK_NAME((&self.$KP_NAME).into())
         }
         /// Verify the signature of a given message.
-        $tvis fn verify(&self, sig: tor_llcrypto::pk::ed25519::Signature, text: &[u8]) -> bool {
-            tor_llcrypto::pk::ed25519::ValidatableEd25519Signature::new(
+        $tvis fn verify(&self, sig: $crate::macro_deps::ed25519::Signature, text: &[u8]) -> bool {
+            use $crate::macro_deps::ValidatableSignature;
+            $crate::macro_deps::ed25519::ValidatableEd25519Signature::new(
                 self.0.verifying_key(), sig, text
             ).is_valid()
         }
         /// Return a Ed25519Identity built from this keypair.
-        $tvis fn to_ed25519_id(&self) -> tor_llcrypto::pk::ed25519::Ed25519Identity {
-            tor_llcrypto::pk::ed25519::Ed25519Identity::from(&self.public().0)
+        $tvis fn to_ed25519_id(&self) -> $crate::macro_deps::ed25519::Ed25519Identity {
+            $crate::macro_deps::ed25519::Ed25519Identity::from(&self.public().0)
         }
     }
 
-    impl From<tor_llcrypto::pk::ed25519::Keypair> for $ttype {
-        fn from(kp: tor_llcrypto::pk::ed25519::Keypair) -> Self {
+    impl From<$crate::macro_deps::ed25519::Keypair> for $ttype {
+        fn from(kp: $crate::macro_deps::ed25519::Keypair) -> Self {
             Self(kp)
         }
     }
-    impl tor_llcrypto::pk::ed25519::Ed25519PublicKey for $ttype {
-        fn public_key(&self) -> &tor_llcrypto::pk::ed25519::PublicKey {
+    impl $crate::macro_deps::ed25519::Ed25519PublicKey for $ttype {
+        fn public_key(&self) -> &$crate::macro_deps::ed25519::PublicKey {
             self.0.as_ref()
         }
     }
 
-    impl tor_llcrypto::pk::ed25519::Signer<tor_llcrypto::pk::ed25519::Signature> for $ttype {
-        fn try_sign(&self, msg: &[u8]) -> Result<tor_llcrypto::pk::ed25519::Signature, signature::Error> {
+    impl $crate::macro_deps::ed25519::Signer<$crate::macro_deps::ed25519::Signature> for $ttype {
+        fn try_sign(&self, msg: &[u8]) -> Result<$crate::macro_deps::ed25519::Signature, $crate::macro_deps::signature::Error> {
             self.0.try_sign(msg)
         }
     }
@@ -146,7 +150,7 @@ define_derive_deftly! {
     }
 
     impl $crate::ToEncodableKey for $ttype {
-        type Key = tor_llcrypto::pk::ed25519::Keypair;
+        type Key = $crate::macro_deps::ed25519::Keypair;
         type KeyPair = $ttype;
 
         fn to_encodable_key(self) -> Self::Key {
@@ -162,7 +166,7 @@ define_derive_deftly! {
         where
             Self: Sized
         {
-            Ok(Self { $KP_NAME: tor_llcrypto::pk::ed25519::Keypair::generate(&mut rng) })
+            Ok(Self { $KP_NAME: $crate::macro_deps::ed25519::Keypair::generate(&mut rng) })
         }
     }
 
@@ -170,14 +174,22 @@ define_derive_deftly! {
     // the relay legacy RSA keys can be declared and for the HS subsystem to replace its current
     // define_pk_keypair macro.
 }
-// Put this here to we can re-export it in our prelude.
-pub use derive_deftly_template_Ed25519Keypair;
+
+// Re-export dependencies as `tor_key_forge::macro_deps` that we use to make this macro work.
+#[doc(hidden)]
+pub mod deps {
+    pub use derive_deftly_template_Ed25519Keypair;
+    pub use derive_more;
+    pub use paste::paste;
+    pub use signature;
+    pub use tor_llcrypto::pk::{ed25519, ValidatableSignature};
+}
 
 #[cfg(test)]
 mod test {
     use crate::Keygen;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_llcrypto::pk::{ed25519::Signer, ValidatableSignature};
+    use tor_llcrypto::pk::ed25519::Signer;
 
     #[test]
     fn deftly_ed25519_keypair() {
