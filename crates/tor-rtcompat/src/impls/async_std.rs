@@ -13,87 +13,95 @@ mod net {
     use async_trait::async_trait;
     use futures::future::Future;
     use futures::stream::Stream;
+    use paste::paste;
     use std::io::Result as IoResult;
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
-    /// A `Stream` of incoming TCP streams.
-    ///
-    /// Differs from the output of [`TcpListener::incoming`] in that this
-    /// struct is a real type, and that it returns a TCP stream and an address
-    /// for each input.
-    pub struct IncomingStreams {
-        /// A state object, stored in an Option so we can take ownership of it
-        /// while poll is being called.
-        // TODO(nickm): I hate using this trick.  At some point in the
-        // future, once Rust has nice support for async traits, maybe
-        // we can refactor it.
-        state: Option<IncomingStreamsState>,
-    }
-    /// The result type returned by [`take_and_poll`].
-    ///
-    /// It has to include the TcpListener, since take_and_poll() has
-    /// ownership of the listener.
-    type FResult = (IoResult<(TcpStream, SocketAddr)>, TcpListener);
-    /// Helper to implement [`IncomingStreams`]
-    ///
-    /// This function calls [`TcpListener::accept`] while owning the
-    /// listener.  Thus, it returns a future that itself owns the listener,
-    /// and we don't have lifetime troubles.
-    async fn take_and_poll(lis: TcpListener) -> FResult {
-        let result = lis.accept().await;
-        (result, lis)
-    }
-    /// The possible states for an [`IncomingStreams`].
-    enum IncomingStreamsState {
-        /// We're ready to call `accept` on the listener again.
-        Ready(TcpListener),
-        /// We've called `accept` on the listener, and we're waiting
-        /// for a future to complete.
-        Accepting(Pin<Box<dyn Future<Output = FResult> + Send>>),
-    }
-    impl IncomingStreams {
-        /// Create a new IncomingStreams from a TcpListener.
-        pub fn from_listener(lis: TcpListener) -> IncomingStreams {
-            IncomingStreams {
-                state: Some(IncomingStreamsState::Ready(lis)),
+    /// Implement NetStreamProvider-related functionality for a single address type.
+    macro_rules! impl_stream {
+        {} => {paste!{
+            /// A `Stream` of incoming TCP streams.
+            ///
+            /// Differs from the output of [`TcpListener::incoming`] in that this
+            /// struct is a real type, and that it returns a TCP stream and an address
+            /// for each input.
+            pub struct IncomingStreams {
+                /// A state object, stored in an Option so we can take ownership of it
+                /// while poll is being called.
+                // TODO(nickm): I hate using this trick.  At some point in the
+                // future, once Rust has nice support for async traits, maybe
+                // we can refactor it.
+                state: Option<IncomingStreamsState>,
             }
-        }
-    }
-    impl Stream for IncomingStreams {
-        type Item = IoResult<(TcpStream, SocketAddr)>;
+            /// The result type returned by [`take_and_poll`].
+            ///
+            /// It has to include the TcpListener, since take_and_poll() has
+            /// ownership of the listener.
+            type FResult = (IoResult<(TcpStream, SocketAddr)>, TcpListener);
+            /// Helper to implement [`IncomingStreams`]
+            ///
+            /// This function calls [`TcpListener::accept`] while owning the
+            /// listener.  Thus, it returns a future that itself owns the listener,
+            /// and we don't have lifetime troubles.
+            async fn take_and_poll(lis: TcpListener) -> FResult {
+                let result = lis.accept().await;
+                (result, lis)
+            }
+            /// The possible states for an [`IncomingStreams`].
+            enum IncomingStreamsState {
+                /// We're ready to call `accept` on the listener again.
+                Ready(TcpListener),
+                /// We've called `accept` on the listener, and we're waiting
+                /// for a future to complete.
+                Accepting(Pin<Box<dyn Future<Output = FResult> + Send>>),
+            }
+            impl IncomingStreams {
+                /// Create a new IncomingStreams from a TcpListener.
+                pub fn from_listener(lis: TcpListener) -> IncomingStreams {
+                    IncomingStreams {
+                        state: Some(IncomingStreamsState::Ready(lis)),
+                    }
+                }
+            }
+            impl Stream for IncomingStreams {
+                type Item = IoResult<(TcpStream, SocketAddr)>;
 
-        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-            use IncomingStreamsState as St;
-            let state = self.state.take().expect("No valid state!");
-            let mut future = match state {
-                St::Ready(lis) => Box::pin(take_and_poll(lis)),
-                St::Accepting(fut) => fut,
-            };
-            match future.as_mut().poll(cx) {
-                Poll::Ready((val, lis)) => {
-                    self.state = Some(St::Ready(lis));
-                    Poll::Ready(Some(val))
-                }
-                Poll::Pending => {
-                    self.state = Some(St::Accepting(future));
-                    Poll::Pending
+                fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+                    use IncomingStreamsState as St;
+                    let state = self.state.take().expect("No valid state!");
+                    let mut future = match state {
+                        St::Ready(lis) => Box::pin(take_and_poll(lis)),
+                        St::Accepting(fut) => fut,
+                    };
+                    match future.as_mut().poll(cx) {
+                        Poll::Ready((val, lis)) => {
+                            self.state = Some(St::Ready(lis));
+                            Poll::Ready(Some(val))
+                        }
+                        Poll::Pending => {
+                            self.state = Some(St::Accepting(future));
+                            Poll::Pending
+                        }
+                    }
                 }
             }
-        }
+            #[async_trait]
+            impl traits::NetStreamListener for TcpListener {
+                type Stream = TcpStream;
+                type Incoming = IncomingStreams;
+                fn incoming(self) -> IncomingStreams {
+                    IncomingStreams::from_listener(self)
+                }
+                fn local_addr(&self) -> IoResult<SocketAddr> {
+                    TcpListener::local_addr(self)
+                }
+            }
+        }}
     }
-    #[async_trait]
-    impl traits::NetStreamListener for TcpListener {
-        type Stream = TcpStream;
-        type Incoming = IncomingStreams;
-        fn incoming(self) -> IncomingStreams {
-            IncomingStreams::from_listener(self)
-        }
-        fn local_addr(&self) -> IoResult<SocketAddr> {
-            TcpListener::local_addr(self)
-        }
-    }
+
+    impl_stream! {}
 
     #[async_trait]
     impl traits::NetStreamProvider for async_executors::AsyncStd {
