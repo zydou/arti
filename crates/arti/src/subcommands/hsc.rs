@@ -304,9 +304,13 @@ fn prompt(msg: &str) -> Result<bool> {
             .with_prompt(&msg)
             .interact_text()?;
 
-        match proceed.as_ref() {
-            NO => return Ok(false),
-            YES => return Ok(true),
+        let proceed: &str = proceed.as_ref();
+        if proceed == YES {
+            return Ok(true);
+        }
+
+        match proceed.to_lowercase().as_str() {
+            NO | "n" => return Ok(false),
             _ => {
                 continue;
             }
