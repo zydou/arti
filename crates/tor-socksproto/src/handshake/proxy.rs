@@ -121,8 +121,7 @@ impl SocksProxyHandshake {
         self.state = State::Done;
         self.handshake = Some(request);
 
-        Ok(ImplNextStep::Finished {
-        })
+        Ok(ImplNextStep::Finished)
     }
 
     /// Socks5: initial handshake to negotiate authentication method.
@@ -197,8 +196,7 @@ impl SocksProxyHandshake {
         self.state = State::Done;
         self.handshake = Some(request);
 
-        Ok(ImplNextStep::Finished {
-        })
+        Ok(ImplNextStep::Finished)
     }
 
     /// Return true if this handshake is finished.

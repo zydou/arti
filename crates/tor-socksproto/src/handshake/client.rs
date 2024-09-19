@@ -151,8 +151,7 @@ impl SocksClientHandshake {
             port,
         ));
 
-        Ok(ImplNextStep::Finished {
-        })
+        Ok(ImplNextStep::Finished)
     }
 
     /// Send our initial socks5 message (which negotiates our authentication methods).
@@ -271,8 +270,7 @@ impl SocksClientHandshake {
 
         self.state = State::Done;
         self.reply = Some(SocksReply::new(status, addr, port));
-        Ok(ImplNextStep::Finished {
-        })
+        Ok(ImplNextStep::Finished)
     }
 }
 
