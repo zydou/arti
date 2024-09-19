@@ -27,8 +27,8 @@ use educe::Educe;
 use tor_bytes::Reader;
 use tor_error::{internal, Bug};
 
+use crate::SOCKS_BUF_LEN;
 use crate::{Action, Error, Truncated};
-use crate::{SOCKS_BUF_LEN};
 
 /// Markers indicating whether we're allowing read-ahead,
 ///
