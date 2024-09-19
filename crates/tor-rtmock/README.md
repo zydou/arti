@@ -45,7 +45,7 @@ use futures::{channel::oneshot, io::{AsyncReadExt as _, AsyncWriteExt as _}, pol
 use futures::StreamExt as _;
 use std::io::ErrorKind;
 use tor_rtmock::{MockRuntime, /*MockNetRuntime,*/ net::MockNetwork};
-use tor_rtcompat::{TcpProvider as _, TcpListener as _};
+use tor_rtcompat::{NetStreamProvider as _, NetStreamListener as _};
 
 // Code to be tested:
 

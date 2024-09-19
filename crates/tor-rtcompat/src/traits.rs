@@ -16,7 +16,7 @@ use std::time::{Duration, Instant, SystemTime};
 /// * [`futures::task::Spawn`] to launch new background tasks.
 /// * [`SleepProvider`] to pause a task for a given amount of time.
 /// * [`CoarseTimeProvider`] for a cheaper but less accurate notion of time.
-/// * [`TcpProvider`] to launch and accept TCP connections.
+/// * [`NetStreamProvider`] to launch and accept network connections.
 /// * [`TlsProvider`] to launch TLS connections.
 /// * [`BlockOn`] to block on a future and run it to completion
 ///   (This may become optional in the future, if/when we add WASM
@@ -149,7 +149,8 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
 
-/// Trait for a runtime that can create and accept TCP connections.
+/// Trait for a runtime that can create and accept connections
+/// over network sockets.
 ///
 /// (In Arti we use the [`AsyncRead`] and [`AsyncWrite`] traits from
 /// [`futures::io`] as more standard, even though the ones from Tokio
@@ -159,39 +160,39 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 // call.  Still, async_io basically makes that necessary :/
 #[async_trait]
 pub trait NetStreamProvider: Clone + Send + Sync + 'static {
-    /// The type for the TCP connections returned by [`Self::connect()`].
+    /// The type for the connections returned by [`Self::connect()`].
     type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
-    /// The type for the TCP listeners returned by [`Self::listen()`].
-    type Listener: NetStreamListener<Stream = Self::Stream> + Send + Sync + Unpin + 'static;
+    /// The type for the listeners returned by [`Self::listen()`].
+    type Listener: NetStreamListener<ADDR, Stream = Self::Stream> + Send + Sync + Unpin + 'static;
 
-    /// Launch a TCP connection to a given socket address.
+    /// Launch a connection connection to a given socket address.
     ///
     /// Note that unlike `std::net:TcpStream::connect`, we do not accept
-    /// any types other than a single [`SocketAddr`].  We do this because,
-    /// as a Tor implementation, we most be absolutely sure not to perform
+    /// any types other than a single [`SocketAddr`].  We do this because
+    /// we must be absolutely sure not to perform
     /// unnecessary DNS lookups.
     async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream>;
 
-    /// Open a TCP listener on a given socket address.
+    /// Open a listener on a given socket address.
     async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener>;
 }
 
-/// Trait for a local socket that accepts incoming TCP streams.
+/// Trait for a local socket that accepts incoming streams.
 ///
-/// These objects are returned by instances of [`TcpProvider`].  To use
-/// one, either call `accept` to accept a single connection, or
-/// use `incoming` to wrap this object as a [`stream::Stream`].
+/// These objects are returned by instances of [`NetStreamProvider`].  To use
+/// one,
+/// use `incoming` to convert this object into a [`stream::Stream`].
 // TODO: Use of async_trait is not ideal here either.
 #[async_trait]
 pub trait NetStreamListener {
-    /// The type of TCP connections returned by [`Self::accept()`].
+    /// The type of connections returned by [`Self::incoming()`].
     type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
 
     /// The type of [`stream::Stream`] returned by [`Self::incoming()`].
     type Incoming: stream::Stream<Item = IoResult<(Self::Stream, SocketAddr)>> + Send + Unpin;
 
     /// Wrap this listener into a new [`stream::Stream`] that yields
-    /// TCP streams and addresses.
+    /// streams and addresses.
     fn incoming(self) -> Self::Incoming;
 
     /// Return the local address that this listener is bound to.

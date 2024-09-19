@@ -48,7 +48,7 @@ encapsulate different runtime capabilities.
  * A runtime is a [`CoarseTimeProvider`] if it provides a monotonic clock
    which is fast to query,
    but perhaps has lower-precision or lower-accuracy.
- * A runtime is a [`TcpProvider`] if it can make and receive TCP
+ * A runtime is a [`NetStreamProvider`]`<std::net::SocketAddr>` if it can make and receive TCP
    connections
  * A runtime is a [`TlsProvider`] if it can make TLS connections.
 
@@ -79,7 +79,7 @@ However, changing the set of Cargo features available can affect this; see
 
 ## Advanced usage: implementing runtimes yourself
 
-You might want to implement some of the traits above (especially [`TcpProvider`] and
+You might want to implement some of the traits above (especially [`NetStreamProvider`] and
 [`TlsProvider`]) if you're embedding Arti, and want more control over the resources it uses.
 For example, you might want to perform actions when TCP connections open and close, replace the
 TLS stack with your own, or proxy TCP connections over your own custom transport.

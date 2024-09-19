@@ -54,7 +54,7 @@ where
 }
 
 impl<R> Counting<R> {
-    /// Return a new wrapper around a TcpProvider with a new set of statistics
+    /// Return a new wrapper around a NetStreamProvider with a new set of statistics
     pub(crate) fn new_zeroed(inner: R) -> Self
     where
         R: NetStreamProvider,

@@ -74,7 +74,8 @@ enum AddrBehavior {
 /// Each simulated host has its own addresses that it's allowed to listen on,
 /// and a reference to the network.
 ///
-/// This type implements [`TcpProvider`] so that it can be used as a
+/// This type implements [`NetStreamProvider`] for [`SocketAddr`]
+/// so that it can be used as a
 /// drop-in replacement for testing code that uses the network.
 ///
 /// # Limitations
@@ -136,7 +137,7 @@ struct MockNetProviderInner {
     next_port: AtomicU16,
 }
 
-/// A [`TcpListener`] implementation returned by a [`MockNetProvider`].
+/// A [`NetStreamListener`] implementation returned by a [`MockNetProvider`].
 ///
 /// Represents listening on a public address for incoming TCP connections.
 pub struct MockNetListener {

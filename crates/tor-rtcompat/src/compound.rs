@@ -16,7 +16,8 @@ use std::time::{Instant, SystemTime};
 /// The `SpawnR` component should implements [`Spawn`] and [`BlockOn`];
 /// the `SleepR` component should implement [`SleepProvider`];
 /// the `CoarseTimeR` component should implement [`CoarseTimeProvider`];
-/// the `TcpR` component should implement [`TcpProvider`]; and
+/// the `TcpR` component should implement [`NetStreamProvider`]
+/// for [`net::SocketAddr`](std::net::SocketAddr); and
 /// the `TlsR` component should implement [`TlsProvider`].
 ///
 /// You can use this structure to create new runtimes in two ways: either by
@@ -40,9 +41,9 @@ struct Inner<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> {
     sleep: SleepR,
     /// A `CoarseTimeProvider`` implementation.
     coarse_time: CoarseTimeR,
-    /// A `TcpProvider` implementation
+    /// A `NetStreamProvider<net::SocketAddr>` implementation
     tcp: TcpR,
-    /// A `TcpProvider<TcpR::TcpStream>` implementation.
+    /// A `TlsProvider<TcpR::TcpStream>` implementation.
     tls: TlsR,
     /// A `UdpProvider` implementation
     udp: UdpR,
@@ -239,7 +240,7 @@ mod sealed {
 /// (If you need to do more complicated versions of this, you should likely construct
 /// CompoundRuntime directly.)
 pub trait RuntimeSubstExt: sealed::Sealed + Sized {
-    /// Return a new runtime wrapping this runtime, but replacing its TcpProvider.
+    /// Return a new runtime wrapping this runtime, but replacing its TCP NetStreamProvider.
     fn with_tcp_provider<T>(&self, new_tcp: T) -> CompoundRuntime<Self, Self, Self, T, Self, Self>;
     /// Return a new runtime wrapping this runtime, but replacing its SleepProvider.
     fn with_sleep_provider<T>(

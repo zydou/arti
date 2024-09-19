@@ -116,7 +116,7 @@ use crate::time_core::MockTimeCore;
 /// # async fn say_hi<R,A>(runtime: R, addr: A) -> Result<(), ()> { Ok(()) }
 /// # // TODO this test hangs for some reason?  Fix it and remove no_run above
 /// use tor_rtmock::{MockSleepRuntime,MockNetRuntime,net::MockNetwork};
-/// use tor_rtcompat::{TcpProvider,TcpListener};
+/// use tor_rtcompat::{NetStreamProvider,NetStreamListener};
 /// use futures::io::AsyncReadExt;
 /// use std::net::SocketAddr;
 /// use futures::StreamExt as _;

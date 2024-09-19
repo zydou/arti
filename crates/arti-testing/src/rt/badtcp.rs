@@ -1,4 +1,4 @@
-//! Implement a tcpProvider that can break things.
+//! Implement a NetStreamProvider that can break things.
 #![allow(clippy::missing_docs_in_private_items)] // required for pin_project(enum)
 
 use futures::Stream;
@@ -105,11 +105,11 @@ impl Default for ConditionalAction {
     }
 }
 
-/// A TcpProvider that can make its connections fail.
+/// A NetStreamProvider that can make its connections fail.
 #[pin_project]
 #[derive(Debug, Clone)]
 pub(crate) struct BrokenTcpProvider<R> {
-    /// An underlying TcpProvider to use when we actually want our connections to succeed
+    /// An underlying NetStreamProvider to use when we actually want our connections to succeed
     #[pin]
     inner: R,
     /// The action to take when we try to make an outbound connection.

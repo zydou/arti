@@ -13,7 +13,7 @@
 #![allow(clippy::needless_pass_by_value)]
 //! <!-- @@ end example lint list maintained by maint/add_warning @@ -->
 
-//! This example showcases using a custom [`TcpProvider`] to do custom actions before Arti initiates
+//! This example showcases using a custom [`NetStreamProvider`] to do custom actions before Arti initiates
 //! TCP connections, and after the connections are closed.
 //!
 //! This might be useful, for example, to dynamically open ports on a restrictive firewall or modify
@@ -106,7 +106,7 @@ enum TcpState {
     Closed,
 }
 
-/// A wrapper over a `TcpListener`.
+/// A wrapper over a `NetStreamListener`.
 struct CustomTcpListener<T> {
     inner: T,
 }

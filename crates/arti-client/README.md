@@ -149,7 +149,7 @@ Arti uses the [`tor_rtcompat`] crate to support multiple asynchronous
 runtimes; currently, both [Tokio](https://tokio.rs) and
 [async-std](https://async.rs) are supported.
 
-The backend Arti uses for TCP connections ([`tor_rtcompat::TcpProvider`])
+The backend Arti uses for TCP connections ([`tor_rtcompat::NetStreamProvider`])
 and for creating TLS sessions ([`tor_rtcompat::TlsProvider`]) is also
 configurable using this crate. This can be used to embed Arti in custom
 environments where you want lots of control over how it uses the network.
