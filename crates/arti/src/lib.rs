@@ -113,10 +113,7 @@ use clap::{value_parser, Arg, ArgAction, Command};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
-#[cfg(any(
-    feature = "hsc",
-    feature = "onion-service-service",
-))]
+#[cfg(any(feature = "hsc", feature = "onion-service-service"))]
 use clap::Subcommand as _;
 
 #[cfg(feature = "experimental-api")]
