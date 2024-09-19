@@ -483,7 +483,7 @@ where
                 recv.note_received(n);
             },
             NS::Send(data) => write_all_and_flush(&mut socks_w, &data).await?,
-            NS::Finished(fin) => break fin.into_output_and_slice().0 /* XXXX #1627 */,
+            NS::Finished(fin) => break fin.into_output_forbid_pipelining()?,
         }
     };
 
