@@ -121,9 +121,7 @@ impl SocksProxyHandshake {
         self.state = State::Done;
         self.handshake = Some(request);
 
-        Ok(ImplNextStep {
-            reply: Vec::new(),
-            finished: true,
+        Ok(ImplNextStep::Finished {
         })
     }
 
@@ -150,9 +148,8 @@ impl SocksProxyHandshake {
         };
 
         self.state = next;
-        Ok(ImplNextStep {
+        Ok(ImplNextStep::Reply {
             reply: reply.into(),
-            finished: false,
         })
     }
 
@@ -172,9 +169,8 @@ impl SocksProxyHandshake {
 
         self.socks5_auth = Some(SocksAuth::Username(username.into(), passwd.into()));
         self.state = State::Socks5Wait;
-        Ok(ImplNextStep {
+        Ok(ImplNextStep::Reply {
             reply: vec![1, 0],
-            finished: false,
         })
     }
 
@@ -201,9 +197,7 @@ impl SocksProxyHandshake {
         self.state = State::Done;
         self.handshake = Some(request);
 
-        Ok(ImplNextStep {
-            reply: Vec::new(),
-            finished: true,
+        Ok(ImplNextStep::Finished {
         })
     }
 

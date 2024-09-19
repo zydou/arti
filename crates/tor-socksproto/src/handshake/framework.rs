@@ -20,6 +20,7 @@
 use derive_deftly::define_derive_deftly;
 
 use tor_bytes::Reader;
+use tor_error::internal;
 
 use crate::{Action, Error, Truncated};
 
@@ -57,11 +58,19 @@ define_derive_deftly! {
 use derive_deftly_template_Handshake; // for rustdoc's benefit
 
 /// The internal (implementation-side) representation of the next step to take
-pub(crate) struct ImplNextStep {
-    /// If nonempty, this reply should be sent to the other party.
-    pub reply: Vec<u8>,
-    /// If true, then this handshake is over, either successfully or not.
-    pub finished: bool,
+///
+/// `handwhake_impl` may not consume nothing from the `Reader`
+/// and return `Reply { reply: vec![] }`,
+/// since that would imply an infinite loop.
+pub(crate) enum ImplNextStep {
+    /// Send some data to the peer
+    Reply {
+        /// The message to send
+        reply: Vec<u8>,
+    },
+
+    /// We're done.  The output is available.
+    Finished,
 }
 
 /// `Handshake` structs that have a state that can be `Failed`
@@ -114,13 +123,21 @@ pub trait Handshake: HandshakeImpl {
                 self.set_failed();
                 Ok(Err(e))
             }
-            Ok(ImplNextStep {
+            // avoid infinite loop
+            Ok(ImplNextStep::Reply { reply }) if reply.is_empty() && drain == 0
+                => Ok(Err(internal!("protocol implementation drained nothing, replied nothing").into())),
+            Ok(ImplNextStep::Reply {
                 reply,
-                finished,
             }) => Ok(Ok(Action {
                 drain,
                 reply,
-                finished,
+                finished: false,
+            })),
+            Ok(ImplNextStep::Finished {
+            }) => Ok(Ok(Action {
+                drain,
+                reply: vec![],
+                finished: true,
             })),
         }
     }

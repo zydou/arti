@@ -129,9 +129,8 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks4Wait;
-        Ok(ImplNextStep {
+        Ok(ImplNextStep::Reply {
             reply: msg,
-            finished: false,
         })
     }
 
@@ -152,9 +151,7 @@ impl SocksClientHandshake {
             port,
         ));
 
-        Ok(ImplNextStep {
-            reply: Vec::new(),
-            finished: true,
+        Ok(ImplNextStep::Finished {
         })
     }
 
@@ -176,9 +173,8 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks5AuthWait;
-        Ok(ImplNextStep {
+        Ok(ImplNextStep::Reply {
             reply: msg,
-            finished: false,
         })
     }
 
@@ -201,9 +197,8 @@ impl SocksClientHandshake {
         };
 
         self.state = next_state;
-        Ok(ImplNextStep {
+        Ok(ImplNextStep::Reply {
             reply: msg,
-            finished: false,
         })
     }
 
@@ -241,9 +236,8 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks5Wait;
-        Ok(ImplNextStep {
+        Ok(ImplNextStep::Reply {
             reply: self.generate_v5_command()?,
-            finished: false,
         })
     }
 
@@ -277,9 +271,7 @@ impl SocksClientHandshake {
 
         self.state = State::Done;
         self.reply = Some(SocksReply::new(status, addr, port));
-        Ok(ImplNextStep {
-            reply: Vec::new(),
-            finished: true,
+        Ok(ImplNextStep::Finished {
         })
     }
 }
