@@ -39,6 +39,14 @@ pub(crate) enum KeySubcommand {
     /// Deprecated. Use key get instead.
     #[command(arg_required_else_help = true)]
     Get(GetKeyArgs),
+
+    /// Rotate a hidden service client key
+    #[command(arg_required_else_help = true)]
+    Rotate(RotateKeyArgs),
+
+    /// Remove a hidden service client key
+    #[command(arg_required_else_help = true)]
+    Remove(RemoveKeyArgs),
 }
 
 /// A type of key
@@ -110,6 +118,34 @@ pub(crate) struct KeygenArgs {
     overwrite: bool,
 }
 
+/// The arguments of the [`Rotate`](KeySubcommand::Rotate) subcommand.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct RotateKeyArgs {
+    /// Arguments shared by all hsc subcommands.
+    #[command(flatten)]
+    common: CommonArgs,
+
+    /// Arguments for configuring keygen.
+    #[command(flatten)]
+    keygen: KeygenArgs,
+
+    /// Do not prompt before overwriting the key.
+    #[arg(long, short)]
+    force: bool,
+}
+
+/// The arguments of the [`Remove`](KeySubcommand::Remove) subcommand.
+#[derive(Debug, Clone, Args)]
+pub(crate) struct RemoveKeyArgs {
+    /// Arguments shared by all hsc subcommands.
+    #[command(flatten)]
+    common: CommonArgs,
+
+    /// Do not prompt before removing the key.
+    #[arg(long, short)]
+    force: bool,
+}
+
 /// Run the `hsc` subcommand.
 pub(crate) fn run<R: Runtime>(
     runtime: R,
@@ -141,6 +177,8 @@ pub(crate) fn run<R: Runtime>(
 fn run_key(subcommand: KeySubcommand, client: &InertTorClient) -> Result<()> {
     match subcommand {
         KeySubcommand::Get(args) => prepare_service_discovery_key(&args, client),
+        KeySubcommand::Rotate(args) => rotate_service_discovery_key(&args, client),
+        KeySubcommand::Remove(args) => remove_service_discovery_key(&args, client),
     }
 }
 
@@ -169,17 +207,26 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> 
         },
     };
 
+    display_service_discovery_key(&args.keygen, &key)
+}
+
+/// Display the public part of a service discovery key.
+//
+// TODO: have a more principled implementation for displaying messages, etc.
+// For example, it would be nice to centralize the logic for writing to stdout/file,
+// and to add a flag for choosing the output format (human-readable or json)
+fn display_service_discovery_key(args: &KeygenArgs, key: &HsClientDescEncKey) -> Result<()> {
     // Output the public key to the specified file, or to stdout.
-    match args.keygen.output.as_str() {
-        "-" => write_public_key(io::stdout(), &key)?,
+    match args.output.as_str() {
+        "-" => write_public_key(io::stdout(), key)?,
         filename => {
             let res = OpenOptions::new()
                 .create(true)
-                .create_new(!args.keygen.overwrite)
+                .create_new(!args.overwrite)
                 .write(true)
                 .truncate(true)
                 .open(filename)
-                .and_then(|f| write_public_key(f, &key));
+                .and_then(|f| write_public_key(f, key));
 
             if let Err(e) = res {
                 match e.kind() {
@@ -203,4 +250,70 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> 
 fn write_public_key(mut f: impl io::Write, key: &HsClientDescEncKey) -> io::Result<()> {
     write!(f, "{}", key)?;
     Ok(())
+}
+
+/// Run the `hsc rotate-key` subcommand.
+fn rotate_service_discovery_key(args: &RotateKeyArgs, client: &InertTorClient) -> Result<()> {
+    if !args.force {
+        let msg = format!(
+            "rotate client restricted discovery key for {}?",
+            args.common.onion_name
+        );
+        if !prompt(&msg)? {
+            return Ok(());
+        }
+    }
+
+    let key =
+        client.rotate_service_discovery_key(KeystoreSelector::default(), args.common.onion_name)?;
+
+    display_service_discovery_key(&args.keygen, &key)
+}
+
+/// Run the `hsc remove-key` subcommand.
+fn remove_service_discovery_key(args: &RemoveKeyArgs, client: &InertTorClient) -> Result<()> {
+    if !args.force {
+        let msg = format!(
+            "remove client restricted discovery key for {}?",
+            args.common.onion_name
+        );
+        if !prompt(&msg)? {
+            return Ok(());
+        }
+    }
+
+    let _key =
+        client.remove_service_discovery_key(KeystoreSelector::default(), args.common.onion_name)?;
+
+    Ok(())
+}
+
+/// Prompt the user to confirm by typing yes or no.
+///
+/// Loops until the user confirms or declines,
+/// returning true if they confirmed.
+fn prompt(msg: &str) -> Result<bool> {
+    /// The accept message.
+    const YES: &str = "YES";
+    /// The decline message.
+    const NO: &str = "no";
+
+    let msg = format!("{msg} (type {YES} or {NO})");
+    loop {
+        let proceed = dialoguer::Input::<String>::new()
+            .with_prompt(&msg)
+            .interact_text()?;
+
+        let proceed: &str = proceed.as_ref();
+        if proceed == YES {
+            return Ok(true);
+        }
+
+        match proceed.to_lowercase().as_str() {
+            NO | "n" => return Ok(false),
+            _ => {
+                continue;
+            }
+        }
+    }
 }

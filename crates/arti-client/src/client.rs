@@ -283,6 +283,43 @@ impl InertTorClient {
         Ok(key.public().clone())
     }
 
+    /// Rotate the service discovery keypair for connecting to a hidden service running in
+    /// "restricted discovery" mode.
+    ///
+    /// See [`TorClient::rotate_service_discovery_key`].
+    #[cfg(all(
+        feature = "onion-service-client",
+        feature = "experimental-api",
+        feature = "keymgr"
+    ))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(
+            feature = "onion-service-client",
+            feature = "experimental-api",
+            feature = "keymgr"
+        )))
+    )]
+    pub fn rotate_service_discovery_key(
+        &self,
+        selector: KeystoreSelector,
+        hsid: HsId,
+    ) -> crate::Result<HsClientDescEncKey> {
+        let mut rng = rand::thread_rng();
+        let spec = HsClientDescEncKeypairSpecifier::new(hsid);
+        let key = self
+            .keymgr
+            .as_ref()
+            .ok_or(ErrorDetail::KeystoreRequired {
+                action: "rotate client service discovery key",
+            })?
+            .generate::<HsClientDescEncKeypair>(
+                &spec, selector, &mut rng, true, /* overwrite */
+            )?;
+
+        Ok(key.public().clone())
+    }
+
     /// Insert a service discovery secret key for connecting to a hidden service running in
     /// "restricted discovery" mode
     ///
@@ -1683,6 +1720,49 @@ impl<R: Runtime> TorClient<R> {
     ) -> crate::Result<HsClientDescEncKey> {
         self.inert_client
             .generate_service_discovery_key(selector, hsid)
+    }
+
+    /// Rotate the service discovery keypair for connecting to a hidden service running in
+    /// "restricted discovery" mode.
+    ///
+    /// **If the specified keystore already contains a restricted discovery keypair
+    /// for the service, it will be overwritten.** Otherwise, a new keypair is generated.
+    ///
+    /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
+    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// have configured this `TorClient` with a non-default keystore and wish to generate the
+    /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
+    /// specifying the keystore ID of your keystore.
+    ///
+    // Note: the selector argument exists for future-proofing reasons. We don't currently support
+    // configuring custom or non-default keystores (see #1106).
+    ///
+    /// Important: the public part of the generated keypair must be shared with the service, and
+    /// the service needs to be configured to allow the owner of its private counterpart to
+    /// discover its introduction points. The caller is responsible for sharing the public part of
+    /// the key with the hidden service.
+    ///
+    /// This function does not require the `TorClient` to be running or bootstrapped.
+    #[cfg(all(
+        feature = "onion-service-client",
+        feature = "experimental-api",
+        feature = "keymgr"
+    ))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(
+            feature = "onion-service-client",
+            feature = "experimental-api",
+            feature = "keymgr"
+        )))
+    )]
+    pub fn rotate_service_discovery_key(
+        &self,
+        selector: KeystoreSelector,
+        hsid: HsId,
+    ) -> crate::Result<HsClientDescEncKey> {
+        self.inert_client
+            .rotate_service_discovery_key(selector, hsid)
     }
 
     /// Insert a service discovery secret key for connecting to a hidden service running in

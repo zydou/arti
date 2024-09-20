@@ -3,11 +3,7 @@
 #[cfg(feature = "onion-service-service")]
 pub(crate) mod hss;
 
-#[cfg(all(
-    feature = "onion-service-client",
-    feature = "experimental-api",
-    feature = "keymgr"
-))]
+#[cfg(feature = "hsc")]
 pub(crate) mod hsc;
 
 pub(crate) mod proxy;

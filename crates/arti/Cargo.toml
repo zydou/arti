@@ -98,11 +98,13 @@ experimental = [
     "relay",
     "restricted-discovery",
     "rpc",
+    "hsc",
     "tor-hsservice/experimental",
 ]
 rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
 
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
+hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental", "dialoguer"]
 __is_experimental = []
 
 [dependencies]
@@ -113,6 +115,7 @@ arti-client = { package = "arti-client", path = "../arti-client", version = "0.2
 arti-relay = { package = "arti-relay", path = "../arti-relay", version = "0.22.0", default-features = false, optional = true }
 arti-rpcserver = { path = "../arti-rpcserver", version = "0.22.0", optional = true }
 async-ctrlc = { version = "1.2.0", optional = true }
+dialoguer = { version = "0.11.0", optional = true }
 cfg-if = "1.0.0"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
