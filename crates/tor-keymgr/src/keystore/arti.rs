@@ -86,7 +86,7 @@ impl ArtiNativeKeystore {
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> StdResult<RelKeyPath, ArtiPathUnavailableError> {
-        RelKeyPath::new(&self.keystore_dir, key_spec, key_type)
+        RelKeyPath::arti(&self.keystore_dir, key_spec, key_type)
     }
 }
 

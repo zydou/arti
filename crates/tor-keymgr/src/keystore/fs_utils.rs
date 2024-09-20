@@ -26,10 +26,10 @@ pub(super) struct RelKeyPath<'a> {
 }
 
 impl<'a> RelKeyPath<'a> {
-    /// Create a new [`RelKeyPath`].
+    /// Create a new [`RelKeyPath`] representing an `ArtiPath`.
     ///
     /// Returns an error if `key_spec` does not have an `ArtiPath`.
-    pub(super) fn new(
+    pub(super) fn arti(
         dir: &'a CheckedDir,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
