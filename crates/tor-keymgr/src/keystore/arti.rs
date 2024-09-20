@@ -310,6 +310,7 @@ mod tests {
     use crate::test_utils::ssh_keys::*;
     use crate::test_utils::TestSpecifier;
     use crate::{ArtiPath, KeyPath};
+    use std::cmp::Ordering;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::{tempdir, TempDir};
@@ -317,6 +318,21 @@ mod tests {
 
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
+
+    impl Ord for KeyPath {
+        fn cmp(&self, other: &Self) -> Ordering {
+            match (self, other) {
+                (KeyPath::Arti(path1), KeyPath::Arti(path2)) => path1.cmp(path2),
+                _ => unimplemented!("not supported"),
+            }
+        }
+    }
+
+    impl PartialOrd for KeyPath {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
 
     fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
         let rel_key_path = key_store

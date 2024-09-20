@@ -64,9 +64,9 @@ pub use err::{
     ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError, UnknownKeyTypeError,
 };
 pub use key_specifier::{
-    ArtiPathUnavailableError, CTorPath, InvalidKeyPathComponentValue, KeyPath, KeyPathError,
-    KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeyPathRange,
-    KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
+    ArtiPathUnavailableError, CTorPath, InvalidKeyPathComponentValue, KeyPath,
+    KeyPathError, KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern,
+    KeyPathRange, KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
     KeySpecifierPattern,
 };
 

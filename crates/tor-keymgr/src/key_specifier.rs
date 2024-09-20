@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use derive_more::{Deref, DerefMut, From, Into};
+use derive_more::{From, Into};
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
@@ -21,7 +21,7 @@ use crate::{ArtiPath, ArtiPathSyntaxError};
 pub mod derive;
 
 /// The identifier of a key.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, From, derive_more::Display)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, From, derive_more::Display)]
 #[non_exhaustive]
 pub enum KeyPath {
     /// An Arti key path.
@@ -61,7 +61,10 @@ impl KeyPath {
 
         let (pattern, path): (&str, &str) = match (self, pat) {
             (KeyPath::Arti(p), Arti(pat)) => (pat.as_ref(), p.as_ref()),
-            (KeyPath::CTor(p), CTor(pat)) => (pat.as_ref(), p.as_ref()),
+            (KeyPath::CTor(p), CTor(pat)) => {
+                // XXX: implement CTorPath matching logic
+                return None;
+            }
             _ => return None,
         };
 
@@ -302,10 +305,50 @@ pub enum KeyPathPattern {
 }
 
 /// The path of a key in the C Tor key store.
-#[derive(
-    Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, derive_more::Display,
-)]
-pub struct CTorPath(String);
+#[derive(Clone, Debug, PartialEq, Eq, Hash, derive_more::Display)] //
+#[non_exhaustive]
+pub enum CTorPath {
+    /// A client descriptor encryption key, to be looked up in ClientOnionAuthDir.
+    ///
+    /// Represents an entry in C Tor's `ClientOnionAuthDir`.
+    ///
+    /// We can't statically know exactly *which* entry has the key for this `HsId`
+    /// (we'd need to read and parse each file from `ClientOnionAuthDir` to find out).
+    #[display("ClientHsDescEncKey({})", _0)]
+    ClientHsDescEncKey(HsId),
+    /// A service key path.
+    #[display("{path}")]
+    Service {
+        /// The nickname of the service,
+        nickname: HsNickname,
+        /// The relative path of this key.
+        path: CTorServicePath,
+    },
+}
+
+/// The relative path in a C Tor key store.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, derive_more::Display)] //
+#[non_exhaustive]
+pub enum CTorServicePath {
+    /// C Tor's `HiddenServiceDirectory/hs_ed25519_public_key`.
+    #[display("hs_ed25519_public_key")]
+    PublicKey,
+    /// C Tor's `HiddenServiceDirectory/hs_ed25519_secret_key`.
+    #[display("hs_ed25519_secret_key")]
+    PrivateKey,
+}
+
+impl CTorPath {
+    /// Create a CTorPath that represents a service key.
+    pub fn service(nickname: HsNickname, path: CTorServicePath) -> Self {
+        Self::Service { nickname, path }
+    }
+
+    /// Create a CTorPath that represents a client authorization key.
+    pub fn client(hsid: HsId) -> Self {
+        Self::ClientHsDescEncKey(hsid)
+    }
+}
 
 /// The "specifier" of a key, which identifies an instance of a key.
 ///
@@ -1008,9 +1051,10 @@ KeyPathInfo {
 
         impl TestSpecifier {
             fn ctp(&self) -> CTorPath {
-                // TODO this ought to use CTorPath's public constructor
-                // but it doesn't have one
-                CTorPath(self.i.to_string())
+                CTorPath::Service {
+                    nickname: HsNickname::from_str("allium-cepa").unwrap(),
+                    path: CTorServicePath::PublicKey,
+                }
             }
         }
 
@@ -1018,7 +1062,13 @@ KeyPathInfo {
 
         check_key_specifier(&spec, "p/42/r");
 
-        assert_eq!(spec.ctor_path(), Some(CTorPath("42".into())),);
+        assert_eq!(
+            spec.ctor_path(),
+            Some(CTorPath::Service {
+                nickname: HsNickname::from_str("allium-cepa").unwrap(),
+                path: CTorServicePath::PublicKey,
+            }),
+        );
     }
 
     #[test]
