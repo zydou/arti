@@ -138,6 +138,37 @@
 # feature is disabled is a configuration error.
 #kind = "auto"
 
+# Optionally configure C Tor keystores for arti to use.
+#
+# Note: The keystores listed here are read-only (keys are only
+# ever written to the primary keystore, configured in
+# `storage.keystore.primary`).
+#
+# Each C Tor keystore **must**:
+#
+#   * have a unique identifier. It is an error to configure multiple keystores
+#     with the same ID.
+#   * have a corresponding arti hidden service configured in the
+#   `[onion_services]` section with the same nickname
+#
+# For example:
+#
+# [storage.keystore.ctor_services."allium-cepa"]
+#
+# This should be set to the `HiddenServiceDirectory` of your hidden service.
+# Arti will read `HiddenServiceDirectory/hostname`
+# and `HiddenServiceDirectory/private_key`.
+# (Note: if your service is running in restricted discovery mode, you must also set the
+# `[[onion_services."<the nickname of your svc>".restricted_discovery.key_dirs]]`
+# to `HiddenServiceDirectory/client_keys`).
+# path = "/var/lib/tor/allium_cepa"
+
+# The identifier of this keystore.
+#
+# Each keystore **must** have a unique identifier.
+# It is an error to configure multiple keystores with the same identifier.
+# id = "foo"
+
 # Describe how to enforce permissions on the filesystem when accessing the cache
 # and state directories.  (This does not apply to configuration files)
 [storage.permissions]

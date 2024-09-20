@@ -5729,6 +5729,7 @@ version = "0.23.0"
 dependencies = [
  "amplify",
  "arrayvec",
+ "cfg-if",
  "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
