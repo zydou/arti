@@ -4,18 +4,16 @@
 
 pub(crate) mod err;
 pub(crate) mod ssh;
-#[macro_use]
-mod rel_path;
 
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
+use crate::keystore::fs_utils::{checked_op, RelKeyPath};
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result};
 use err::{ArtiNativeKeystoreError, FilesystemAction};
-use rel_path::RelKeyPath;
 use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};

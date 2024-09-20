@@ -1,6 +1,7 @@
 //! The [`Keystore`] trait and its implementations.
 
 pub(crate) mod arti;
+pub(crate) mod fs_utils;
 
 #[cfg(feature = "ephemeral-keystore")]
 pub(crate) mod ephemeral;

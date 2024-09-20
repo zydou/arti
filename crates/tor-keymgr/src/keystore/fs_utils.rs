@@ -65,11 +65,18 @@ impl<'a> RelKeyPath<'a> {
     }
 }
 
-/// Run operation `op` on a [`RelKeyPath`].
-///
-/// `op` is an identifier that represents a [`CheckedDir`] function.
-macro_rules! checked_op {
-    ($op:ident, $relpath:expr $(, $arg:expr)* ) => {{
-        $relpath.checked_dir().$op($relpath.rel_path_unchecked(),  $($arg,)* )
-    }}
+pub(crate) use internal::checked_op;
+
+/// Private module for reexporting the `checked_op` macro.
+mod internal {
+    /// Run operation `op` on a [`RelKeyPath`](super::RelKeyPath).
+    ///
+    /// `op` is an identifier that represents a [`CheckedDir`](fs_mistrust::CheckedDir) function.
+    macro_rules! checked_op {
+        ($op:ident, $relpath:expr $(, $arg:expr)* ) => {{
+            $relpath.checked_dir().$op($relpath.rel_path_unchecked(),  $($arg,)* )
+        }}
+    }
+
+    pub(crate) use checked_op;
 }
