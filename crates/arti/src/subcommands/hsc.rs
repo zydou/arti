@@ -192,7 +192,7 @@ fn prepare_service_discovery_key(args: &GetKeyArgs, client: &InertTorClient) -> 
                 .map(Ok)
                 .unwrap_or_else(|| {
                     client.generate_service_discovery_key(
-                        KeystoreSelector::Default,
+                        KeystoreSelector::Primary,
                         args.common.onion_name,
                     )
                 })?

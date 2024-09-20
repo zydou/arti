@@ -137,7 +137,7 @@ impl FromStr for KeystoreId {
 pub enum KeystoreSelector<'a> {
     /// Try to use the keystore with the specified ID.
     Id(&'a KeystoreId),
-    /// Use the default key store.
+    /// Use the primary key store.
     #[default]
-    Default,
+    Primary,
 }

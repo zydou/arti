@@ -28,7 +28,7 @@ use std::sync::Arc;
 #[non_exhaustive]
 pub struct KeyMgr {
     /// The default key store.
-    default_store: BoxedKeystore,
+    primary_store: BoxedKeystore,
     /// The secondary key stores.
     #[builder(default, setter(custom))]
     secondary_stores: Vec<BoxedKeystore>,

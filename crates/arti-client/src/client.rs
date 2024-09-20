@@ -232,7 +232,7 @@ impl InertTorClient {
                 info!("Using keystore from {key_store_dir:?}");
 
                 let keymgr = KeyMgrBuilder::default()
-                    .default_store(Box::new(native_store))
+                    .primary_store(Box::new(native_store))
                     .build()
                     .map_err(|_| internal!("failed to build keymgr"))?;
 
@@ -245,7 +245,7 @@ impl InertTorClient {
                 let ephemeral_store: ArtiEphemeralKeystore =
                     ArtiEphemeralKeystore::new("ephemeral".to_string());
                 let keymgr = KeyMgrBuilder::default()
-                    .default_store(Box::new(ephemeral_store))
+                    .primary_store(Box::new(ephemeral_store))
                     .build()
                     .map_err(|_| internal!("failed to build keymgr"))?;
                 Ok(Some(Arc::new(keymgr)))
@@ -1678,7 +1678,7 @@ impl<R: Runtime> TorClient<R> {
     )> {
         let nickname = config.nickname();
         let hsid_spec = HsIdKeypairSpecifier::new(nickname.clone());
-        let selector = KeystoreSelector::Default;
+        let selector = KeystoreSelector::Primary;
 
         let _kp = self
             .inert_client
@@ -1696,7 +1696,7 @@ impl<R: Runtime> TorClient<R> {
     /// "restricted discovery" mode.
     ///
     /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// While most users will want to write to the [`Default`](KeystoreSelector::Primary), if you
     /// have configured this `TorClient` with a non-default keystore and wish to generate the
     /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
     /// specifying the keystore ID of your keystore.
@@ -1744,7 +1744,7 @@ impl<R: Runtime> TorClient<R> {
     /// for the service, it will be overwritten.** Otherwise, a new keypair is generated.
     ///
     /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// While most users will want to write to the [`Default`](KeystoreSelector::Primary), if you
     /// have configured this `TorClient` with a non-default keystore and wish to generate the
     /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
     /// specifying the keystore ID of your keystore.
@@ -1784,7 +1784,7 @@ impl<R: Runtime> TorClient<R> {
     /// "restricted discovery" mode
     ///
     /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// While most users will want to write to the [`Default`](KeystoreSelector::Primary), if you
     /// have configured this `TorClient` with a non-default keystore and wish to insert the
     /// key in it, you can do so by calling this function with a [KeystoreSelector::Id]
     ///
