@@ -9,6 +9,8 @@
 //! For TP-based keys, that involves deriving [`HsTimePeriodKeySpecifier`]
 //! and adding a call to `remove_if_expired!` in [`expire_publisher_keys`].
 
+use tor_keymgr::{CTorPath, CTorServicePath};
+
 use crate::internal_prelude::*;
 
 /// Keys that are used by publisher, which relate to our HS and a TP
@@ -44,10 +46,19 @@ define_derive_deftly! {
 #[deftly(role = "KP_hs_id")]
 #[deftly(summary = "Public part of the identity key")]
 #[deftly(keypair_specifier = "HsIdKeypairSpecifier")]
+#[deftly(ctor_path = "hsid_public_key_specifier_ctor_path")]
 /// The public part of the identity key of the service.
 pub struct HsIdPublicKeySpecifier {
     /// The nickname of the  hidden service.
     nickname: HsNickname,
+}
+
+/// The `CTorPath` of HsIdPublicKeySpecifier
+fn hsid_public_key_specifier_ctor_path(spec: &HsIdPublicKeySpecifier) -> CTorPath {
+    CTorPath::Service {
+        nickname: spec.nickname.clone(),
+        path: CTorServicePath::PublicKey,
+    }
 }
 
 #[derive(Deftly, PartialEq, Debug, Constructor)]
@@ -55,6 +66,7 @@ pub struct HsIdPublicKeySpecifier {
 #[deftly(prefix = "hss")]
 #[deftly(role = "KS_hs_id")]
 #[deftly(summary = "Long-term identity keypair")]
+#[deftly(ctor_path = "hsid_keypair_key_specifier_ctor_path")]
 /// The long-term identity keypair of the service.
 pub struct HsIdKeypairSpecifier {
     /// The nickname of the  hidden service.
@@ -64,6 +76,14 @@ pub struct HsIdKeypairSpecifier {
 impl From<&HsIdPublicKeySpecifier> for HsIdKeypairSpecifier {
     fn from(hs_id_public_key_specifier: &HsIdPublicKeySpecifier) -> HsIdKeypairSpecifier {
         HsIdKeypairSpecifier::new(hs_id_public_key_specifier.nickname.clone())
+    }
+}
+
+/// The `CTorPath` of HsIdKeypairKeySpecifier
+fn hsid_keypair_key_specifier_ctor_path(spec: &HsIdKeypairSpecifier) -> CTorPath {
+    CTorPath::Service {
+        nickname: spec.nickname.clone(),
+        path: CTorServicePath::PrivateKey,
     }
 }
 
