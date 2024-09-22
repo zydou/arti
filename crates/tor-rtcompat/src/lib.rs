@@ -363,6 +363,7 @@ mod test {
     use futures::stream::StreamExt;
     use native_tls_crate as native_tls;
     use std::io::Result as IoResult;
+    use std::net::SocketAddr;
     use std::net::{Ipv4Addr, SocketAddrV4};
     use std::time::{Duration, Instant};
 
@@ -436,7 +437,7 @@ mod test {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
-        let listener = runtime.block_on(rt1.listen(&(localhost.into())))?;
+        let listener = runtime.block_on(rt1.listen(&(SocketAddr::from(localhost))))?;
         let addr = listener.local_addr()?;
 
         runtime.block_on(async {
@@ -504,7 +505,9 @@ mod test {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
-        let listener = runtime.block_on(rt1.listen(&(localhost.into()))).unwrap();
+        let listener = runtime
+            .block_on(rt1.listen(&SocketAddr::from(localhost)))
+            .unwrap();
         let addr = listener.local_addr().unwrap();
         let mut stream = listener.incoming();
 

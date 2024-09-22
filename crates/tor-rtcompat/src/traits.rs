@@ -1,4 +1,5 @@
 //! Declarations for traits that we need our runtimes to implement.
+use crate::unix;
 use async_trait::async_trait;
 use futures::stream;
 use futures::task::Spawn;
@@ -53,8 +54,9 @@ pub trait Runtime:
     + Clone
     + SleepProvider
     + CoarseTimeProvider
-    + NetStreamProvider
-    + TlsProvider<Self::Stream>
+    + NetStreamProvider<net::SocketAddr>
+    + NetStreamProvider<unix::SocketAddr>
+    + TlsProvider<<Self as NetStreamProvider<net::SocketAddr>>::Stream>
     + UdpProvider
     + Debug
     + 'static
@@ -69,8 +71,9 @@ impl<T> Runtime for T where
         + Clone
         + SleepProvider
         + CoarseTimeProvider
-        + NetStreamProvider
-        + TlsProvider<Self::Stream>
+        + NetStreamProvider<net::SocketAddr>
+        + NetStreamProvider<unix::SocketAddr>
+        + TlsProvider<<Self as NetStreamProvider<net::SocketAddr>>::Stream>
         + UdpProvider
         + Debug
         + 'static

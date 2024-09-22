@@ -2,7 +2,7 @@
 #![allow(clippy::missing_docs_in_private_items)] // required for pin_project(enum)
 
 use futures::Stream;
-use tor_rtcompat::{NetStreamListener, NetStreamProvider, Runtime};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, SleepProvider};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -144,7 +144,7 @@ impl<R> BrokenTcpProvider<R> {
 }
 
 #[async_trait]
-impl<R: Runtime> NetStreamProvider for BrokenTcpProvider<R> {
+impl<R: NetStreamProvider + SleepProvider> NetStreamProvider for BrokenTcpProvider<R> {
     type Stream = BreakableTcpStream<R::Stream>;
     type Listener = BrokenTcpProvider<R::Listener>;
 

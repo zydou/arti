@@ -52,7 +52,7 @@ impl SocketAddr {
 }
 
 /// Error: Unix addresses are not supported on this platform.
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, Default, thiserror::Error)]
 #[error("No support for AF_UNIX addresses on this platform")]
 #[non_exhaustive]
 pub struct NoUnixAddressSupport;

@@ -50,6 +50,22 @@ define_derive_deftly! {
         }
     }
 
+    #[async_trait]
+    impl <$tgens> NetStreamProvider<tor_rtcompat::unix::SocketAddr> for $ttype {
+        // It's mildly naughty to use these types here, but:
+        //   - nothing will actually break, since we don't construct any objects
+        //   - this is only testing code.
+        type Stream = <tor_rtcompat::PreferredRuntime as NetStreamProvider<tor_rtcompat::unix::SocketAddr>>::Stream;
+        type Listener = <tor_rtcompat::PreferredRuntime as NetStreamProvider<tor_rtcompat::unix::SocketAddr>>::Listener;
+
+        async fn connect(&self, _addr: &tor_rtcompat::unix::SocketAddr) -> IoResult<Self::Stream> {
+            Err(tor_rtcompat::unix::NoUnixAddressSupport::default().into())
+        }
+        async fn listen(&self, _addr: &tor_rtcompat::unix::SocketAddr) -> IoResult<Self::Listener> {
+            Err(tor_rtcompat::unix::NoUnixAddressSupport::default().into())
+        }
+    }
+
     impl <$tgens> TlsProvider<<$ftype as NetStreamProvider>::Stream> for $ttype {
         type Connector = <$ftype as TlsProvider<
             <$ftype as NetStreamProvider>::Stream
