@@ -220,7 +220,6 @@ impl<S: AsyncWrite> AsyncWrite for BreakableTcpStream<S> {
     }
 }
 
-#[async_trait]
 impl<S: NetStreamListener + Send + Sync> NetStreamListener for BrokenTcpProvider<S> {
     type Stream = BreakableTcpStream<S::Stream>;
     type Incoming = BrokenTcpProvider<S::Incoming>;

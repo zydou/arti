@@ -137,7 +137,6 @@ impl<S: AsyncWrite> AsyncWrite for Counting<S> {
     }
 }
 
-#[async_trait]
 impl<S: NetStreamListener + Send + Sync> NetStreamListener for Counting<S> {
     type Stream = Counting<S::Stream>;
     type Incoming = Counting<S::Incoming>;

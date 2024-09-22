@@ -61,7 +61,6 @@ impl<ADDR> futures::stream::Stream for FakeIncomingStreams<ADDR> {
     }
 }
 
-#[async_trait]
 impl<ADDR> crate::traits::NetStreamListener<ADDR> for FakeListener<ADDR>
 where
     ADDR: Unpin + Send,

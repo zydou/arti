@@ -185,8 +185,6 @@ pub trait NetStreamProvider<ADDR = net::SocketAddr>: Clone + Send + Sync + 'stat
 /// These objects are returned by instances of [`NetStreamProvider`].  To use
 /// one,
 /// use `incoming` to convert this object into a [`stream::Stream`].
-// TODO: Use of async_trait is not ideal here either.
-#[async_trait]
 pub trait NetStreamListener<ADDR = net::SocketAddr> {
     /// The type of connections returned by [`Self::incoming()`].
     type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;

@@ -83,7 +83,6 @@ pub struct AbstractListener {
     local_addr: GeneralizedAddr,
 }
 
-#[async_trait]
 impl NetStreamListener<GeneralizedAddr> for AbstractListener {
     type Stream = AbstractStream;
     type Incoming = IncomingAbstractStreams;

@@ -101,7 +101,6 @@ pub(crate) mod net {
                     }
                 }
             }
-            #[async_trait]
             impl traits::NetStreamListener<$addr> for [<$kind Listener>] {
                 type Stream = [<$kind Stream>];
                 type Incoming = [<Incoming $kind Streams>];

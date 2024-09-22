@@ -278,7 +278,6 @@ impl ProviderBuilder {
     }
 }
 
-#[async_trait]
 impl NetStreamListener for MockNetListener {
     type Stream = LocalStream;
 
