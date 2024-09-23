@@ -238,8 +238,7 @@ This could be more efficient in space and time.
 
         #[doc = concat!("Remove the element whose `", stringify!($key), "` is `key`")]
         ///
-        /// Return that element on success, and None if there is no such element.")]
-        #[doc=stringify!($key)]
+        /// Return that element on success, and None if there is no such element.
         $vis fn [<remove_by_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> Option<$V>
             where $KEY : std::borrow::Borrow<BorrowAsKey_>,
                   BorrowAsKey_: std::hash::Hash + Eq + ?Sized
@@ -286,7 +285,7 @@ This could be more efficient in space and time.
             self.values.iter().map(|(_, v)| v)
         }
 
-        /// Consumer this container and return an iterator of its values.
+        /// Consume this container and return an iterator of its values.
         $vis fn into_values(self) -> impl Iterator<Item=$V> {
             self.values.into_iter().map(|(_, v)| v)
         }
