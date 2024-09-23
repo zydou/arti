@@ -629,7 +629,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
             .build()
             .expect("OwnedChanTarget builder failed");
 
-        Ok(super::Channel::new(
+        super::Channel::new(
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
@@ -637,7 +637,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
             peer_id,
             self.clock_skew,
             self.sleep_prov,
-        ))
+        )
     }
 }
 

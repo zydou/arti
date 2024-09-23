@@ -511,7 +511,8 @@ pub(crate) mod test {
             dummy_target,
             crate::ClockSkew::None,
             runtime,
-        );
+        )
+        .expect("channel create failed");
         (chan, reactor, recv1, send2)
     }
 

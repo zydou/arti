@@ -423,6 +423,7 @@ impl Channel {
     /// Internal method, called to finalize the channel when we've
     /// sent our netinfo cell, received the peer's netinfo cell, and
     /// we're finally ready to create circuits.
+    #[allow(clippy::unnecessary_wraps)] // XXXX
     fn new<S>(
         link_protocol: u16,
         sink: BoxedChannelSink,
@@ -431,7 +432,7 @@ impl Channel {
         peer_id: OwnedChanTarget,
         clock_skew: ClockSkew,
         sleep_prov: S,
-    ) -> (Arc<Self>, reactor::Reactor<S>)
+    ) -> Result<(Arc<Self>, reactor::Reactor<S>)>
     where
         S: CoarseTimeProvider + SleepProvider,
     {
@@ -484,7 +485,7 @@ impl Channel {
             special_outgoing: Default::default(),
         };
 
-        (channel, reactor)
+        Ok((channel, reactor))
     }
 
     /// Return a process-unique identifier for this channel.
