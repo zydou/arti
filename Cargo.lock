@@ -5838,6 +5838,7 @@ dependencies = [
  "educe",
  "futures",
  "itertools 0.13.0",
+ "paste",
  "pin-project",
  "rand",
  "serde",

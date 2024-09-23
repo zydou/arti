@@ -224,6 +224,8 @@
 mod drop_bomb;
 #[macro_use]
 mod refcount;
+#[macro_use]
+mod memory_cost_derive;
 
 mod drop_reentrancy;
 mod if_enabled;
@@ -256,7 +258,11 @@ pub use config::{Config, ConfigBuilder};
 pub use error::{Error, MemoryReclaimedError, StartupError};
 pub use if_enabled::EnabledToken;
 pub use memory_cost::HasMemoryCost;
+pub use memory_cost_derive::{HasMemoryCostStructural, MemoryCostStructuralCopy};
 pub use mtracker::MemoryQuotaTracker;
+
+#[doc(hidden)]
+pub use derive_deftly;
 
 /// `Result` whose `Err` is [`tor_memtrack::Error`](Error)
 pub type Result<T> = std::result::Result<T, Error>;

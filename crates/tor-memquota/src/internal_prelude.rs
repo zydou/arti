@@ -17,6 +17,7 @@
 #![allow(unused_imports)]
 
 pub(crate) use std::{
+    alloc::Layout,
     cmp::{Ordering, Reverse},
     collections::{BinaryHeap, HashSet},
     fmt::{self, Debug},
@@ -40,6 +41,8 @@ pub(crate) use {
     derive_more::{Constructor, Deref, DerefMut},
     dyn_clone::DynClone,
     educe::Educe,
+    itertools::chain,
+    paste::paste,
     pin_project::pin_project,
     serde::{Deserialize, Serialize},
     slotmap::SlotMap,

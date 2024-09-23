@@ -17,6 +17,8 @@ derive_more = { version = "1.0.0", features = ["full"] }
 dyn-clone = "1.0.17"
 educe = "0.4.6"
 futures = "0.3.14"
+itertools = "0.13.0"
+paste = "1"
 pin-project = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 slotmap = "1.0.6"
@@ -33,7 +35,6 @@ visibility = { version = "0.1.0", optional = true }
 void = "1"
 
 [dev-dependencies]
-itertools = "0.13.0"
 rand = "0.8"
 serde_json = "1.0.50"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
