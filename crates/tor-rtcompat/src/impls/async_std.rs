@@ -51,7 +51,7 @@ mod net {
                 let result = lis.accept().await;
                 (result, lis)
             }
-            /// The possible states for an [`IncomingStreams`].
+            /// The possible states for an `Incoming*Streams`.
             enum [<Incoming $kind StreamsState>] {
                 /// We're ready to call `accept` on the listener again.
                 Ready([<$kind Listener>]),
@@ -89,7 +89,6 @@ mod net {
                     }
                 }
             }
-            #[async_trait]
             impl traits::NetStreamListener<$addr> for [<$kind Listener>] {
                 type Stream = [<$kind Stream>];
                 type Incoming = [<Incoming $kind Streams>];

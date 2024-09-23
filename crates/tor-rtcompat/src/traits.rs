@@ -171,7 +171,7 @@ pub trait NetStreamProvider<ADDR = net::SocketAddr>: Clone + Send + Sync + 'stat
     /// Launch a connection connection to a given socket address.
     ///
     /// Note that unlike `std::net:TcpStream::connect`, we do not accept
-    /// any types other than a single [`SocketAddr`].  We do this because
+    /// any types other than a single `ADDR`.  We do this because
     /// we must be absolutely sure not to perform
     /// unnecessary DNS lookups.
     async fn connect(&self, addr: &ADDR) -> IoResult<Self::Stream>;

@@ -75,7 +75,7 @@ impl stream::Stream for IncomingAbstractStreams {
     }
 }
 
-/// A listener returned by a NetStreamProvider<GeneralizedAddr>`
+/// A listener returned by a `NetStreamProvider<GeneralizedAddr>`
 pub struct AbstractListener {
     /// The `futures::Stream` of incoming network streams.
     streams: IncomingAbstractStreams,

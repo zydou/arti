@@ -17,8 +17,9 @@ use std::time::{Instant, SystemTime};
 /// The `SpawnR` component should implements [`Spawn`] and [`BlockOn`];
 /// the `SleepR` component should implement [`SleepProvider`];
 /// the `CoarseTimeR` component should implement [`CoarseTimeProvider`];
-/// the `TcpR` component should implement [`NetStreamProvider`]
-/// for [`net::SocketAddr`](std::net::SocketAddr); and
+/// the `TcpR` component should implement [`NetStreamProvider`] for [`net::SocketAddr`];
+/// the `UnixR` component should implement [`NetStreamProvider`] for [`unix::SocketAddr`];
+/// and
 /// the `TlsR` component should implement [`TlsProvider`].
 ///
 /// You can use this structure to create new runtimes in two ways: either by
