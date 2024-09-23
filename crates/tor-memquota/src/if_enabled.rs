@@ -26,14 +26,14 @@ impl EnabledToken {
     /// Obtain an `EnabledToken` (only available if tracking is compiled in)
     #[allow(clippy::new_without_default)] // a conditional Default impl would be rather odd
     #[cfg(feature = "memquota")]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         EnabledToken { _hidden: () }
     }
 
     /// Obtain an `EnabledToken` if memory-tracking is compiled in, or `None` otherwise
     #[allow(clippy::unnecessary_wraps)] // Will be None if compiled out
     #[allow(unreachable_code)]
-    pub fn new_if_compiled_in() -> Option<Self> {
+    pub const fn new_if_compiled_in() -> Option<Self> {
         Some(EnabledToken {
             _hidden: (),
 
