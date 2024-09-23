@@ -1696,7 +1696,7 @@ impl<R: Runtime> TorClient<R> {
     /// "restricted discovery" mode.
     ///
     /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Primary), if you
+    /// While most users will want to write to the [`Primary`](KeystoreSelector::Primary), if you
     /// have configured this `TorClient` with a non-default keystore and wish to generate the
     /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
     /// specifying the keystore ID of your keystore.
@@ -1744,7 +1744,7 @@ impl<R: Runtime> TorClient<R> {
     /// for the service, it will be overwritten.** Otherwise, a new keypair is generated.
     ///
     /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Primary), if you
+    /// While most users will want to write to the [`Primary`](KeystoreSelector::Primary), if you
     /// have configured this `TorClient` with a non-default keystore and wish to generate the
     /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
     /// specifying the keystore ID of your keystore.
@@ -1784,7 +1784,7 @@ impl<R: Runtime> TorClient<R> {
     /// "restricted discovery" mode
     ///
     /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Primary), if you
+    /// While most users will want to write to the [`Primary`](KeystoreSelector::Primary), if you
     /// have configured this `TorClient` with a non-default keystore and wish to insert the
     /// key in it, you can do so by calling this function with a [KeystoreSelector::Id]
     ///
