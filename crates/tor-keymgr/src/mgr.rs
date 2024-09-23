@@ -13,14 +13,14 @@ use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
 use tor_key_forge::{EncodableKey, KeyType, Keygen, KeygenRng, ToEncodableKey};
 
-/// A key manager that acts as a frontend to a default [`Keystore`](crate::Keystore) and
+/// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
 ///
 /// Note: [`KeyMgr`] is a low-level utility and does not implement caching (the key stores are
 /// accessed for every read/write).
 ///
 /// The `KeyMgr` accessors - currently just [`get()`](KeyMgr::get) -
-/// search the configured key stores in order: first the default key store,
+/// search the configured key stores in order: first the primary key store,
 /// and then the secondary stores, in order.
 ///
 ///
@@ -39,8 +39,8 @@ use tor_key_forge::{EncodableKey, KeyType, Keygen, KeygenRng, ToEncodableKey};
 #[derive(derive_builder::Builder)]
 #[builder(pattern = "owned", build_fn(private, name = "build_unvalidated"))]
 pub struct KeyMgr {
-    /// The default key store.
-    default_store: BoxedKeystore,
+    /// The primary key store.
+    primary_store: BoxedKeystore,
     /// The secondary key stores.
     #[builder(default, setter(custom))]
     secondary_stores: Vec<BoxedKeystore>,
@@ -234,7 +234,7 @@ impl KeyMgr {
     /// If this key already exists in the keystore, its value is updated
     /// and the old value is returned.
     ///
-    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// Returns an error if the selected keystore is not the primary keystore or one of the
     /// configured secondary stores.
     pub fn insert<K: ToEncodableKey>(
         &self,
@@ -259,7 +259,7 @@ impl KeyMgr {
     /// Remove the key identified by `key_spec` from the [`Keystore`](crate::Keystore)
     /// specified by `selector`.
     ///
-    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// Returns an error if the selected keystore is not the primary keystore or one of the
     /// configured secondary stores.
     ///
     /// Returns the value of the removed key,
@@ -383,23 +383,23 @@ impl KeyMgr {
 
     /// Return an iterator over all configured stores.
     fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
-        iter::once(&self.default_store).chain(self.secondary_stores.iter())
+        iter::once(&self.primary_store).chain(self.secondary_stores.iter())
     }
 
     /// Return the [`Keystore`](crate::Keystore) matching the specified `selector`.
     ///
-    /// Returns an error if the selected keystore is not the default keystore or one of the
+    /// Returns an error if the selected keystore is not the primary keystore or one of the
     /// configured secondary stores.
     fn select_keystore(&self, selector: &KeystoreSelector) -> Result<&BoxedKeystore> {
         match selector {
             KeystoreSelector::Id(keystore_id) => self.find_keystore(keystore_id),
-            KeystoreSelector::Default => Ok(&self.default_store),
+            KeystoreSelector::Primary => Ok(&self.primary_store),
         }
     }
 
     /// Return the [`Keystore`](crate::Keystore) with the specified `id`.
     ///
-    /// Returns an error if the specified ID is not the ID of the default keystore or
+    /// Returns an error if the specified ID is not the ID of the primary keystore or
     /// the ID of one of the configured secondary stores.
     fn find_keystore(&self, id: &KeystoreId) -> Result<&BoxedKeystore> {
         self.all_stores()
@@ -677,7 +677,7 @@ mod tests {
 
     #[test]
     fn insert_and_get() {
-        let mut builder = KeyMgrBuilder::default().default_store(Box::<Keystore1>::default());
+        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
 
         builder
             .secondary_stores()
@@ -745,12 +745,12 @@ mod tests {
             .unwrap();
         assert!(old_key.is_none());
 
-        // Insert a key into the default keystore
+        // Insert a key into the primary keystore
         let old_key = mgr
             .insert(
                 TestKey::new("moorhen"),
                 &TestKeySpecifier3,
-                KeystoreSelector::Default,
+                KeystoreSelector::Primary,
                 true,
             )
             .unwrap();
@@ -766,7 +766,7 @@ mod tests {
         assert!(mgr.get::<TestKey>(&TestKeySpecifier4).unwrap().is_none());
 
         // Insert the same key into all 3 key stores, in reverse order of keystore priority
-        // (otherwise KeyMgr::get will return the key from the default store for each iteration and
+        // (otherwise KeyMgr::get will return the key from the primary store for each iteration and
         // we won't be able to see the key was actually inserted in each store).
         for store in ["keystore3", "keystore2", "keystore1"] {
             let old_key = mgr
@@ -800,7 +800,7 @@ mod tests {
 
     #[test]
     fn remove() {
-        let mut builder = KeyMgrBuilder::default().default_store(Box::<Keystore1>::default());
+        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
 
         builder
             .secondary_stores()
@@ -839,9 +839,9 @@ mod tests {
             .contains(&TestKeySpecifier1, &TestKey::key_type())
             .unwrap());
 
-        // Try to remove the key from the default key store
+        // Try to remove the key from the primary key store
         assert!(mgr
-            .remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Default)
+            .remove::<TestKey>(&TestKeySpecifier1, KeystoreSelector::Primary)
             .unwrap()
             .is_none(),);
 
@@ -870,14 +870,14 @@ mod tests {
     #[test]
     fn keygen() {
         let mgr = KeyMgrBuilder::default()
-            .default_store(Box::<Keystore1>::default())
+            .primary_store(Box::<Keystore1>::default())
             .build()
             .unwrap();
 
         mgr.insert(
             TestKey::new("coot"),
             &TestKeySpecifier1,
-            KeystoreSelector::Default,
+            KeystoreSelector::Primary,
             true,
         )
         .unwrap();
@@ -892,7 +892,7 @@ mod tests {
         let err = mgr
             .generate::<TestKey>(
                 &TestKeySpecifier1,
-                KeystoreSelector::Default,
+                KeystoreSelector::Primary,
                 &mut testing_rng(),
                 false,
             )
@@ -918,7 +918,7 @@ mod tests {
         let key = mgr
             .generate::<TestKey>(
                 &TestKeySpecifier1,
-                KeystoreSelector::Default,
+                KeystoreSelector::Primary,
                 &mut testing_rng(),
                 true,
             )
@@ -942,7 +942,7 @@ mod tests {
 
     #[test]
     fn get_or_generate() {
-        let mut builder = KeyMgrBuilder::default().default_store(Box::<Keystore1>::default());
+        let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
 
         builder
             .secondary_stores()
@@ -966,7 +966,7 @@ mod tests {
         assert_eq!(
             mgr.get_or_generate::<TestKey>(
                 &TestKeySpecifier1,
-                KeystoreSelector::Default,
+                KeystoreSelector::Primary,
                 &mut testing_rng()
             )
             .unwrap()

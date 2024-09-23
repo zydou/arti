@@ -441,7 +441,7 @@ impl Ipt {
 
             let res = imm.keymgr.generate::<$Keypair>(
                 &spec,
-                tor_keymgr::KeystoreSelector::Default,
+                tor_keymgr::KeystoreSelector::Primary,
                 &mut rng,
                 false, /* overwrite */
             );

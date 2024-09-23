@@ -261,7 +261,7 @@ impl OnionService {
         let offline_hsid = false;
 
         // TODO (#1106): make this configurable
-        let selector = KeystoreSelector::Default;
+        let selector = KeystoreSelector::Primary;
         maybe_generate_hsid(&keymgr, &config.nickname, offline_hsid, selector)?;
 
         if config.restricted_discovery.enabled {
@@ -365,7 +365,7 @@ impl OnionService {
     /// before launching it.
     ///
     /// The `selector` argument is used for choosing the keystore in which to generate the keypair.
-    /// While most users will want to write to the [`Default`](KeystoreSelector::Default), if you
+    /// While most users will want to write to the [`Primary`](KeystoreSelector::Primary), if you
     /// have configured this `TorClient` with a non-default keystore and wish to generate the
     /// keypair in it, you can do so by calling this function with a [KeystoreSelector::Id]
     /// specifying the keystore ID of your keystore.
@@ -616,7 +616,7 @@ pub(crate) mod test {
 
             Arc::new(
                 KeyMgrBuilder::default()
-                    .default_store(Box::new(keystore))
+                    .primary_store(Box::new(keystore))
                     .build()
                     .unwrap(),
             )
@@ -707,7 +707,7 @@ pub(crate) mod test {
             .insert(
                 existing_hsid_keypair,
                 &hsid_spec,
-                KeystoreSelector::Default,
+                KeystoreSelector::Primary,
                 true,
             )
             .unwrap();
@@ -756,12 +756,12 @@ pub(crate) mod test {
         let (_hsid_keypair, hsid_public) = create_hsid();
 
         keymgr
-            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default, true)
+            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Primary, true)
             .unwrap();
 
         // Insert a mismatched public key
         keymgr
-            .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Default, true)
+            .insert(hsid_public, &pub_hsid_spec, KeystoreSelector::Primary, true)
             .unwrap();
 
         assert!(maybe_generate_hsid(
@@ -784,7 +784,7 @@ pub(crate) mod test {
 
         // Insert the hsid into the keystore
         keymgr
-            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Default, true)
+            .insert(hsid_keypair, &hsid_spec, KeystoreSelector::Primary, true)
             .unwrap();
 
         let config = OnionServiceConfigBuilder::default()

@@ -95,7 +95,7 @@ impl<R: Runtime> TorRelay<R> {
 
         let keymgr = Arc::new(
             KeyMgrBuilder::default()
-                .default_store(Box::new(persistent_store))
+                .primary_store(Box::new(persistent_store))
                 .set_secondary_stores(vec![Box::new(ephemeral_store)])
                 .build()
                 .map_err(|e| internal!("Failed to build KeyMgr: {e}"))?,

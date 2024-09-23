@@ -355,7 +355,7 @@ mod test {
             .insert(
                 key,
                 svc_key_spec,
-                tor_keymgr::KeystoreSelector::Default,
+                tor_keymgr::KeystoreSelector::Primary,
                 true,
             )
             .unwrap();
@@ -385,7 +385,7 @@ mod test {
 
         // Provision the keystore with the necessary keys:
         let keymgr = KeyMgrBuilder::default()
-            .default_store(Box::new(keystore))
+            .primary_store(Box::new(keystore))
             .build()
             .unwrap();
 
