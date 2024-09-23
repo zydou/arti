@@ -143,12 +143,21 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
     /// Helper: return the objects used to inform pending tasks
     /// about a newly open or failed channel.
-    fn setup_launch<C>(&self, ids: RelayIds) -> (state::ChannelState<C>, Sending) {
+    fn setup_launch<C>(
+        &self,
+        ids: RelayIds,
+    ) -> (state::ChannelState<C>, Sending, state::UniqPendingChanId) {
         let (snd, rcv) = oneshot::channel();
         let pending = rcv.shared();
+        let unique_id = state::UniqPendingChanId::new();
         (
-            state::ChannelState::Building(state::PendingEntry { ids, pending }),
+            state::ChannelState::Building(state::PendingEntry {
+                ids,
+                pending,
+                unique_id,
+            }),
             snd,
+            unique_id,
         )
     }
 
@@ -258,12 +267,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     }
                 }
                 // We need to launch a channel.
-                Some(Action::Launch(send)) => {
+                Some(Action::Launch((send, pending_id))) => {
                     let connector = self.channels.builder();
                     let outcome = connector
                         .build_channel(&target, self.reporter.clone())
                         .await;
-                    let status = self.handle_build_outcome(&target, outcome);
+                    let status = self.handle_build_outcome(&target, pending_id, outcome);
 
                     // It's okay if all the receivers went away:
                     // that means that nobody was waiting for this channel.
@@ -303,31 +312,50 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         final_attempt: bool,
     ) -> Result<Option<Action<CF::Channel>>> {
         use state::ChannelState::*;
-        self.channels.with_channels(|channel_map| {
-            match channel_map.by_all_ids(target) {
-                Some(Open(OpenEntry { channel, .. })) => {
-                    if channel.is_usable() {
-                        // This entry is a perfect match for the target keys:
-                        // we'll return the open entry.
-                        return Ok(Some(Action::Return(Ok(channel.clone()))));
-                    } else if final_attempt {
-                        // We don't launch an attempt in this case.
-                        return Ok(None);
-                    } else {
-                        // This entry was a perfect match for the target, but it
-                        // is no longer usable! We launch a new connection to
-                        // this target, and wait on that.
-                        let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(target));
-                        channel_map.try_insert(new_state)?;
 
-                        return Ok(Some(Action::Launch(send)));
-                    }
+        // The idea here is to choose the channel in two steps:
+        //
+        // - Eligibility: Get channels from the channel map and filter them down to only channels
+        //   which are eligible to be returned.
+        // - Ranking: From the eligible channels, choose the best channel.
+        //
+        // Another way to choose the channel could be something like: first try all canonical open
+        // channels, then all non-canonical open channels, then all pending channels with all
+        // matching relay ids, then remaining pending channels, etc. But this ends up being hard to
+        // follow and inflexible (what if you want to prioritize pending channels over non-canonical
+        // open channels?).
+
+        self.channels.with_channels(|channel_map| {
+            // Open channels which are allowed for requests to `target`.
+            let open_channels = channel_map
+                // channels with all target relay identifiers
+                .by_all_ids(target)
+                .filter(|entry| match entry {
+                    Open(x) => Self::open_channel_is_allowed(x, target),
+                    Building(_) => false,
+                });
+
+            // Pending channels which will *probably* be allowed for requests to `target` once they
+            // complete.
+            let pending_channels = channel_map
+                // channels that have a subset of the relay ids of `target`
+                .all_subset(target)
+                .into_iter()
+                .filter(|entry| match entry {
+                    Open(_) => false,
+                    Building(x) => Self::pending_channel_maybe_allowed(x, target),
+                });
+
+            match Self::choose_best_channel(open_channels.chain(pending_channels), target) {
+                Some(Open(OpenEntry { channel, .. })) => {
+                    // This entry is a perfect match for the target keys: we'll return the open
+                    // entry.
+                    return Ok(Some(Action::Return(Ok(channel.clone()))));
                 }
                 Some(Building(PendingEntry { pending, .. })) => {
-                    // This entry is a perfect match for the target keys: we'll
-                    // return the pending entry. (We don't know for sure if it
-                    // will match once it completes, since we might discover
-                    // additional keys beyond those listed for this pending
+                    // This entry is potentially a match for the target identities: we'll return the
+                    // pending entry. (We don't know for sure if it will match once it completes,
+                    // since we might discover additional keys beyond those listed for this pending
                     // entry.)
                     if final_attempt {
                         // We don't launch an attempt in this case.
@@ -335,47 +363,25 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     }
                     return Ok(Some(Action::Wait(pending.clone())));
                 }
-                _ => {}
+                None => {}
             }
-            // Okay, we don't have an exact match.  But we might have one or more _partial_ matches?
-            let overlapping = channel_map.all_overlapping(target);
-            if overlapping
-                .iter()
+
+            // It's possible we know ahead of time that building a channel would be unsuccessful.
+            if channel_map
+                // channels with at least one id in common with `target`
+                .all_overlapping(target)
+                .into_iter()
+                // but not channels which completely satisfy the id requirements of `target`
+                .filter(|entry| !entry.has_all_relay_ids_from(target))
                 .any(|entry| matches!(entry, Open(OpenEntry{ channel, ..}) if channel.is_usable()))
             {
-                // At least one *open, usable* channel has been negotiated that
-                // overlaps only partially with our target: it has proven itself
-                // to have _one_ of our target identities, but not all.
+                // At least one *open, usable* channel has been negotiated that overlaps only
+                // partially with our target: it has proven itself to have _one_ of our target
+                // identities, but not all.
                 //
-                // Because this channel exists, we know that our target cannot
-                // succeed, since relays are not allowed to share _any_
-                // identities.
+                // Because this channel exists, we know that our target cannot succeed, since relays
+                // are not allowed to share _any_ identities.
                 return Ok(Some(Action::Return(Err(Error::IdentityConflict))));
-            } else if let Some(first_building) = overlapping
-                .iter()
-                .find(|entry| matches!(entry, Building(_)))
-            {
-                // There is at least one *in-progress* channel that has at least
-                // one identity in common with our target, but it does not have
-                // _all_ the identities we want.
-                //
-                // If it succeeds, we might find that we can use it; or we might
-                // find out that it is not suitable.  So we'll wait for it, and
-                // see what happens.
-                //
-                // TODO: This approach will _not_ be sufficient once  we are
-                // implementing relays, and some of our channels are created in
-                // response to client requests.
-                match first_building {
-                    Open(_) => unreachable!(),
-                    Building(PendingEntry { pending, .. }) => {
-                        if final_attempt {
-                            // We don't wait in this case.
-                            return Ok(None);
-                        }
-                        return Ok(Some(Action::Wait(pending.clone())));
-                    }
-                }
             }
 
             if final_attempt {
@@ -384,9 +390,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
             }
 
             // Great, nothing interfered at all.
-            let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(target));
+            let (new_state, send, pending_id) = self.setup_launch(RelayIds::from_relay_ids(target));
             channel_map.try_insert(new_state)?;
-            Ok(Some(Action::Launch(send)))
+            // TODO: Later code could return with an error before the code that eventually removes
+            // this entry, and then this entry would then be left in the map forever. We should have
+            // a better cleanup procedure for channels.
+            Ok(Some(Action::Launch((send, pending_id))))
         })?
     }
 
@@ -398,35 +407,40 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     fn handle_build_outcome(
         &self,
         target: &CF::BuildSpec,
+        pending_id: state::UniqPendingChanId,
         outcome: Result<Arc<CF::Channel>>,
     ) -> Result<Option<Arc<CF::Channel>>> {
-        use state::ChannelState::*;
+        use state::ChannelState::{self, *};
+
+        /// Remove the pending channel with `pending_id` and a `relay_id` from `channel_map`.
+        fn remove_pending_chan<C: AbstractChannel>(
+            channel_map: &mut tor_linkspec::ListByRelayIds<ChannelState<C>>,
+            relay_id: tor_linkspec::RelayIdRef<'_>,
+            pending_id: state::UniqPendingChanId,
+        ) {
+            // we need only one relay id to locate it, even if it has multiple relay ids
+            let removed = channel_map.remove_by_id(relay_id, |c| {
+                let Building(c) = c else {
+                    return false;
+                };
+                c.unique_id == pending_id
+            });
+            debug_assert_eq!(removed.len(), 1, "expected to remove exactly one channel");
+        }
+
+        let relay_id = target
+            .identities()
+            .next()
+            .ok_or(internal!("relay target had no id"))?;
+
         match outcome {
             Ok(chan) => {
                 // The channel got built: remember it, tell the
                 // others, and return it.
                 self.channels
                     .with_channels_and_params(|channel_map, channels_params| {
-                        match channel_map.remove_exact(target) {
-                            Some(Building(_)) => {
-                                // We successfully removed our pending
-                                // action. great!  Fall through and add
-                                // the channel we just built.
-                            }
-                            None => {
-                                // Something removed our entry from the list.
-                                // Time to retry.
-                                return Ok(None);
-                            }
-                            Some(ent @ Open(_)) => {
-                                // Oh no. Something else built an entry
-                                // here, and replaced us.  Put that
-                                // something back, and retry.
-
-                                channel_map.insert(ent);
-                                return Ok(None);
-                            }
-                        }
+                        // Remove the pending channel.
+                        remove_pending_chan(channel_map, relay_id, pending_id);
 
                         // This isn't great.  We context switch to the newly-created
                         // channel just to tell it how and whether to do padding.  Ideally
@@ -457,22 +471,139 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 // The channel failed. Make it non-pending, tell the
                 // others, and set the error.
                 self.channels.with_channels(|channel_map| {
-                    match channel_map.remove_exact(target) {
-                        Some(Building(_)) | None => {
-                            // We successfully removed our pending
-                            // action, or somebody else did.
-                        }
-                        Some(ent @ Open(_)) => {
-                            // Oh no. Something else built an entry
-                            // here, and replaced us.  Put that
-                            // something back.
-                            channel_map.insert(ent);
-                        }
-                    }
+                    // Remove the pending channel.
+                    remove_pending_chan(channel_map, relay_id, pending_id);
                 })?;
                 Err(e)
             }
         }
+    }
+
+    /// Returns `true` if the open channel is allowed to be used for a new channel request to the
+    /// target.
+    fn open_channel_is_allowed(chan: &OpenEntry<CF::Channel>, target: &impl HasRelayIds) -> bool {
+        Some(chan)
+            // only usable channels
+            .filter(|entry| entry.channel.is_usable())
+            // only channels which have *all* the relay ids of `target`
+            .filter(|entry| entry.channel.has_all_relay_ids_from(target))
+            // TODO: only channels which are canonical or have the same address as `target`
+            .filter(|_entry| true)
+            .is_some()
+    }
+
+    /// Returns `true` if the pending channel could possibly be used for a new channel request to
+    /// the target. You still need to verify the final built channel with
+    /// [`open_channel_is_allowed`](Self::open_channel_is_allowed) before using it.
+    fn pending_channel_maybe_allowed(chan: &PendingEntry, target: &impl HasRelayIds) -> bool {
+        // We want to avoid returning pending channels that were initially created from malicious
+        // channel requests (for example from malicious relay-extend requests) that build channels
+        // which will never complete successfully. Two cases where this can happen are:
+        // 1. A malicious channel request asks us to build a channel to a target with a correct
+        //    relay id and address, but also an additional incorrect relay id. Later when the target
+        //    sends its CERTS cell, all of the relay ids won't match and the channel will fail to
+        //    build. We don't want to assign non-malicious channel requests to this pending channel
+        //    that will eventually fail to build.
+        // 2. A malicious channel request asks us to build a channel to a target with an incorrect
+        //    address. This pending channel may stall. We don't want to assign non-malicious channel
+        //    requests to this pending channel that will stall for potentially a long time.
+        Some(chan)
+            // only channels where `target`s relay ids are a superset of `entry`s relay ids
+            // - Hopefully the built channel will gain the additional ids that are requested by
+            //   `target`. This should happen in most cases where none of the channels are made
+            //   maliciously, since the `target` should return all of its relay ids in its CERTS
+            //   cell.
+            // - (Addressing 1. above) By only returning pending channels that have a subset of
+            //   `target`s relay ids, we ensure that the returned pending channel does not have
+            //   additional incorrect relay ids that will intentionally cause the pending channel to
+            //   fail.
+            // - If the built channel does not gain the remaining ids required by `target, then we
+            //   won't be able to use this channel for the channel request to `target`. But we won't
+            //   be able to create a new channel either, since we know that that a new channel also
+            //   won't have all of the relay ids. So this channel request was doomed from the start.
+            // - If the built channel gains additional ids that `target` doesn't have, that's fine
+            //   and we can still use the channel for `target`.
+            .filter(|entry| target.has_all_relay_ids_from(&entry.ids))
+            // TODO: only channels which have the exact same address list as `target` (the two sets
+            // of addresses must match exactly)
+            // - (Addressing 2. above) By only returning pending channels that have exactly the same
+            //   addresses, we ensure that the returned pending channel does not have any incorrect
+            //   addresses that will cause the pending channel to stall.
+            // - If the pending channel had additional addresses compared to `target`, the channel
+            //   could get built using an address that is not valid for `target` and we wouldn't be
+            //   able to use the built channel.
+            // - If the pending channel had fewer addresses compared to `target`, the channel would
+            //   have a lower possibility of building successfully compared to a newly created
+            //   channel to `target`, so this would not be a good channel for us to return.
+            .filter(|_entry| true)
+            .is_some()
+    }
+
+    /// Returns the best channel for `target`.
+    // TODO: remove me when the below TODOs are implemented
+    #[allow(clippy::only_used_in_recursion)]
+    fn choose_best_channel<'a>(
+        channels: impl Iterator<Item = &'a state::ChannelState<CF::Channel>>,
+        target: &impl HasRelayIds,
+    ) -> Option<&'a state::ChannelState<CF::Channel>> {
+        use state::ChannelState::*;
+        use std::cmp::Ordering;
+
+        /// Compare two channels to determine the better channel for `target`. Better channels are
+        /// ordered higher.
+        fn compare_channels<C: AbstractChannel>(
+            a: &&state::ChannelState<C>,
+            b: &&state::ChannelState<C>,
+            target: &impl HasRelayIds,
+        ) -> Ordering {
+            // TODO: follow `channel_is_better` in C tor
+            match (a, b) {
+                // if the open channel is not usable, prefer the pending channel
+                (Open(a), Building(_b)) if !a.channel.is_usable() => Ordering::Less,
+                // otherwise prefer the open channel
+                (Open(_a), Building(_b)) => Ordering::Greater,
+
+                // the logic above, but reversed
+                (Building(_), Open(_)) => compare_channels(b, a, target).reverse(),
+
+                // not much info to help choose when both channels are pending, but this should be
+                // rare
+                (Building(_a), Building(_b)) => Ordering::Equal,
+
+                // both channels are open
+                (Open(a), Open(b)) => {
+                    let a_is_usable = a.channel.is_usable();
+                    let b_is_usable = b.channel.is_usable();
+
+                    // if neither open channel is usable, don't take preference
+                    if !a_is_usable && !b_is_usable {
+                        return Ordering::Equal;
+                    }
+
+                    // prefer a channel that is usable
+                    if !a_is_usable {
+                        return Ordering::Less;
+                    }
+                    if !b_is_usable {
+                        return Ordering::Greater;
+                    }
+
+                    // TODO: prefer canonical channels
+
+                    // TODO: prefer a channel where the address matches the target
+
+                    // TODO: prefer the one we think the peer will think is canonical
+
+                    // TODO: prefer older channels
+
+                    // TODO: use number of circuits as tie-breaker?
+
+                    Ordering::Equal
+                }
+            }
+        }
+
+        channels.max_by(|a, b| compare_channels(a, b, target))
     }
 
     /// Update the netdir
@@ -515,18 +646,22 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         self.channels.expire_channels()
     }
 
-    /// Test only: return the current open usable channel with a given
-    /// `ident`, if any.
+    /// Test only: return the open usable channels with a given `ident`.
     #[cfg(test)]
-    pub(crate) fn get_nowait<'a, T>(&self, ident: T) -> Option<Arc<CF::Channel>>
+    pub(crate) fn get_nowait<'a, T>(&self, ident: T) -> Vec<Arc<CF::Channel>>
     where
         T: Into<tor_linkspec::RelayIdRef<'a>>,
     {
         use state::ChannelState::*;
         self.channels
-            .with_channels(|channel_map| match channel_map.by_id(ident) {
-                Some(Open(ref ent)) if ent.channel.is_usable() => Some(ent.channel.clone()),
-                _ => None,
+            .with_channels(|channel_map| {
+                channel_map
+                    .by_id(ident)
+                    .filter_map(|entry| match entry {
+                        Open(ref ent) if ent.channel.is_usable() => Some(Arc::clone(&ent.channel)),
+                        _ => None,
+                    })
+                    .collect()
             })
             .expect("Poisoned lock")
     }
@@ -537,7 +672,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 enum Action<C> {
     /// We found no channel.  We're going to launch a new one,
     /// then tell everybody about it.
-    Launch(Sending),
+    Launch((Sending, state::UniqPendingChanId)),
     /// We found an in-progress attempt at making a channel.
     /// We're going to wait for it to finish.
     Wait(Pending),
@@ -723,9 +858,7 @@ mod test {
             let chan2 = mgr.get_or_launch(target, CU::UserTraffic).await.unwrap().0;
 
             assert_eq!(chan1, chan2);
-
-            let chan3 = mgr.get_nowait(&u32_to_ed(413)).unwrap();
-            assert_eq!(chan1, chan3);
+            assert_eq!(mgr.get_nowait(&u32_to_ed(413)), vec![chan1]);
         });
     }
 
@@ -739,8 +872,7 @@ mod test {
             let res1 = mgr.get_or_launch(target, CU::UserTraffic).await;
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
-            let chan3 = mgr.get_nowait(&u32_to_ed(999));
-            assert!(chan3.is_none());
+            assert!(mgr.get_nowait(&u32_to_ed(999)).is_empty());
         });
     }
 
@@ -804,9 +936,9 @@ mod test {
 
             mgr.remove_unusable_entries().unwrap();
 
-            assert!(mgr.get_nowait(&u32_to_ed(3)).is_some());
-            assert!(mgr.get_nowait(&u32_to_ed(4)).is_some());
-            assert!(mgr.get_nowait(&u32_to_ed(5)).is_none());
+            assert!(!mgr.get_nowait(&u32_to_ed(3)).is_empty());
+            assert!(!mgr.get_nowait(&u32_to_ed(4)).is_empty());
+            assert!(mgr.get_nowait(&u32_to_ed(5)).is_empty());
         });
     }
 }

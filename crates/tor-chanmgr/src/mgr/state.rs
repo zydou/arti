@@ -7,13 +7,12 @@ use super::{AbstractChannel, Pending};
 use crate::{ChannelConfig, Dormancy, Result};
 
 use std::result::Result as StdResult;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
-use tor_linkspec::ByRelayIds;
-use tor_linkspec::HasRelayIds;
-use tor_linkspec::RelayIds;
+use tor_linkspec::{HasRelayIds, ListByRelayIds, RelayIds};
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
@@ -48,8 +47,8 @@ struct Inner<C: AbstractChannelFactory> {
     /// hand out clones of it when asked.
     builder: C,
 
-    /// A map from identity to channel, or to pending channel status.
-    channels: ByRelayIds<ChannelState<C::Channel>>,
+    /// A map from identity to channels, or to pending channel statuses.
+    channels: ListByRelayIds<ChannelState<C::Channel>>,
 
     /// Parameters for channels that we create, and that all existing channels are using
     ///
@@ -102,6 +101,29 @@ pub(crate) struct OpenEntry<C> {
     pub(crate) max_unused_duration: Duration,
 }
 
+/// A unique ID for a pending ([`PendingEntry`]) channel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct UniqPendingChanId(u64);
+
+impl UniqPendingChanId {
+    /// Construct a new `UniqPendingChanId`.
+    pub(crate) fn new() -> Self {
+        /// The next unique ID.
+        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+        // Relaxed ordering is fine; we don't care about how this
+        // is instantiated with respect to other channels.
+        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        assert!(id != u64::MAX, "Exhausted the pending channel ID namespace");
+        Self(id)
+    }
+}
+
+impl std::fmt::Display for UniqPendingChanId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PendingChan {}", self.0)
+    }
+}
+
 /// An entry for a not-yet-build channel
 #[derive(Clone)]
 pub(crate) struct PendingEntry {
@@ -114,6 +136,9 @@ pub(crate) struct PendingEntry {
     /// This entry will be removed from the map (and possibly replaced with an
     /// `OpenEntry`) _before_ this future becomes ready.
     pub(crate) pending: Pending,
+
+    /// A unique ID that allows us to find this exact pending entry later.
+    pub(crate) unique_id: UniqPendingChanId,
 }
 
 impl<C> HasRelayIds for ChannelState<C>
@@ -242,7 +267,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         MgrState {
             inner: std::sync::Mutex::new(Inner {
                 builder,
-                channels: ByRelayIds::new(),
+                channels: ListByRelayIds::new(),
                 config,
                 channels_params,
                 dormancy,
@@ -258,7 +283,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     /// to make sure that the calling code doesn't await while holding the lock.
     pub(crate) fn with_channels<F, T>(&self, func: F) -> Result<T>
     where
-        F: FnOnce(&mut ByRelayIds<ChannelState<C::Channel>>) -> T,
+        F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>) -> T,
     {
         let mut inner = self.inner.lock()?;
         Ok(func(&mut inner.channels))
@@ -291,7 +316,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     /// to make sure that the calling code doesn't await while holding the lock.
     pub(crate) fn with_channels_and_params<F, T>(&self, func: F) -> Result<T>
     where
-        F: FnOnce(&mut ByRelayIds<ChannelState<C::Channel>>, &ChannelPaddingInstructions) -> T,
+        F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>, &ChannelPaddingInstructions) -> T,
     {
         let mut inner = self.inner.lock()?;
         // We need this silly destructuring syntax so that we don't seem to be
@@ -304,7 +329,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         Ok(func(channels, channels_params))
     }
 
-    /// Remove every unusable state from the map in this state..
+    /// Remove every unusable state from the map in this state.
     #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
         let mut inner = self.inner.lock()?;
@@ -673,18 +698,20 @@ mod test {
 
         map.with_channels(|map| {
             map.insert(closed("machen"));
-            map.insert(ch("feinen"));
             map.insert(closed("wir"));
+            map.insert(ch("wir"));
+            map.insert(ch("feinen"));
+            map.insert(ch("Fug"));
             map.insert(ch("Fug"));
         })?;
 
         map.remove_unusable().unwrap();
 
         map.with_channels(|map| {
-            assert!(map.by_id(&str_to_ed("m")).is_none());
-            assert!(map.by_id(&str_to_ed("w")).is_none());
-            assert!(map.by_id(&str_to_ed("f")).is_some());
-            assert!(map.by_id(&str_to_ed("F")).is_some());
+            assert_eq!(map.by_id(&str_to_ed("m")).len(), 0);
+            assert_eq!(map.by_id(&str_to_ed("w")).len(), 1);
+            assert_eq!(map.by_id(&str_to_ed("f")).len(), 1);
+            assert_eq!(map.by_id(&str_to_ed("F")).len(), 2);
         })?;
 
         Ok(())
@@ -720,8 +747,8 @@ mod test {
 
         let with_ch = |f: &dyn Fn(&FakeChannel)| {
             let inner = map.inner.lock().unwrap();
-            let ch = inner.channels.by_ed25519(&str_to_ed("t"));
-            let ch = ch.unwrap().unwrap_open();
+            let mut ch = inner.channels.by_ed25519(&str_to_ed("t"));
+            let ch = ch.next().unwrap().unwrap_open();
             f(ch);
         };
 
@@ -757,13 +784,13 @@ mod test {
                 "wello",
                 Duration::from_secs(180),
                 Some(181),
-            ))
+            ));
         })?;
 
         // Minimum value of max unused duration is 180 seconds
         assert_eq!(180, map.expire_channels().as_secs());
         map.with_channels(|map| {
-            assert!(map.by_ed25519(&str_to_ed("w")).is_none());
+            assert_eq!(map.by_ed25519(&str_to_ed("w")).len(), 0);
         })?;
 
         let map = new_test_state();
@@ -796,10 +823,10 @@ mod test {
         // Return duration until next channel expires
         assert_eq!(10, map.expire_channels().as_secs());
         map.with_channels(|map| {
-            assert!(map.by_ed25519(&str_to_ed("w")).is_some());
-            assert!(map.by_ed25519(&str_to_ed("y")).is_some());
-            assert!(map.by_ed25519(&str_to_ed("h")).is_some());
-            assert!(map.by_ed25519(&str_to_ed("g")).is_none());
+            assert_eq!(map.by_ed25519(&str_to_ed("w")).len(), 1);
+            assert_eq!(map.by_ed25519(&str_to_ed("y")).len(), 1);
+            assert_eq!(map.by_ed25519(&str_to_ed("h")).len(), 1);
+            assert_eq!(map.by_ed25519(&str_to_ed("g")).len(), 0);
         })?;
         Ok(())
     }
