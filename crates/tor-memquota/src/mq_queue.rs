@@ -454,6 +454,18 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> Stream for Recei
     }
 }
 
+impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> FusedStream for Receiver<T, C>
+where
+    C::Receiver<Entry<T>>: FusedStream,
+{
+    fn is_terminated(&self) -> bool {
+        match &*self.inner.lock() {
+            Ok(y) => y.rx.is_terminated(),
+            Err(CollapsedDueToReclaim) => true,
+        }
+    }
+}
+
 // TODO: When we have a trait for peekable streams, Receiver should implement it
 
 impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> Receiver<T, C> {
