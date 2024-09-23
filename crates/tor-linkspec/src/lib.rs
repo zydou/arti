@@ -53,7 +53,7 @@ mod transport;
 pub mod verbatim;
 
 pub use ids::{
-    by_id::{ByRelayIds, ByRelayIdsError},
+    by_id::{ByRelayIds, ByRelayIdsError, ListByRelayIds, ListByRelayIdsError, ListByRelayIdsIter},
     set::RelayIdSet,
     RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter,
 };
