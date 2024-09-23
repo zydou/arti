@@ -4,10 +4,12 @@ use self::ext::{decl_extension_group, ExtGroup, ExtList};
 
 use super::msg::{self, Body};
 use caret::caret_int;
+use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_hscrypto::RendCookie;
 use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 pub mod est_intro;
 mod ext;
@@ -17,6 +19,8 @@ pub use ext::UnrecognizedExt;
 
 caret_int! {
     /// The type of the introduction point auth key
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct AuthKeyType(u8) {
         /// Ed25519; SHA3-256
         ED25519_SHA3_256 = 2,
@@ -24,7 +28,8 @@ caret_int! {
 }
 
 /// A message sent from client to rendezvous point.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct EstablishRendezvous {
     /// A rendezvous cookie is an arbitrary 20-byte value,
     /// chosen randomly by the client.
@@ -47,7 +52,8 @@ impl msg::Body for EstablishRendezvous {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 /// A message sent from client to introduction point.
 pub struct Introduce1(Introduce);
 
@@ -68,7 +74,8 @@ impl Introduce1 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 /// A message sent from introduction point to hidden service host.
 pub struct Introduce2 {
     /// A copy of the encoded header that we'll use to finish the hs_ntor handshake.
@@ -140,7 +147,8 @@ decl_extension_group! {
     /// An extension to an IntroEstablished message.
     ///
     /// (Currently, no extensions of this type are recognized)
-    #[derive(Debug,Clone)]
+    #[derive(Debug,Clone,Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     enum IntroduceExt [ IntroduceExtType ] {
     }
 }
@@ -149,7 +157,8 @@ decl_extension_group! {
 ///
 /// This is a separate type because the `hs_ntor` handshake requires access to the
 /// encoded format of the header, only.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct IntroduceHeader {
     /// Introduction point auth key type and the type of
     /// the MAC used in `handshake_auth`.
@@ -191,7 +200,8 @@ impl tor_bytes::Writeable for IntroduceHeader {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 /// A message body shared by Introduce1 and Introduce2
 struct Introduce {
     /// The unencrypted header portion of the message.
@@ -235,7 +245,8 @@ impl Introduce {
 
 /// A message sent from an onion service to a rendezvous point, telling it to
 /// make a connection to the client.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Rendezvous1 {
     /// The cookie originally sent by the client in its ESTABLISH_REND message.
     cookie: RendCookie,
@@ -273,7 +284,8 @@ impl Rendezvous1 {
 
 /// A message sent from the rendezvous point to the client, telling it about the
 /// onion service's message.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Rendezvous2 {
     /// The handshake message from the onion service.
     handshake_info: Vec<u8>,
@@ -325,7 +337,8 @@ decl_extension_group! {
     /// An extension to an IntroEstablished message.
     ///
     /// (Currently, no extensions of this type are recognized)
-    #[derive(Debug,Clone)]
+    #[derive(Debug,Clone,Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     #[non_exhaustive]
     pub enum IntroEstablishedExt [ IntroEstablishedExtType ] {
     }
@@ -333,7 +346,8 @@ decl_extension_group! {
 
 /// Reply sent from the introduction point to the onion service, telling it that
 /// an introduction point is now established.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct IntroEstablished {
     /// The extensions included in this cell.
     extensions: ExtList<IntroEstablishedExt>,
@@ -365,6 +379,8 @@ impl Body for IntroEstablished {
 
 caret_int! {
     /// A status code returned in response to an INTRODUCE1 message.
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct IntroduceAckStatus(u16) {
         /// The message was relayed successfully.
         SUCCESS = 0x0000,
@@ -379,7 +395,8 @@ caret_int! {
 }
 caret_int! {
     /// The recognized extension types for an `IntroEstablished` message.
-    #[derive(Ord, PartialOrd)]
+    #[derive(Ord, PartialOrd, Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct IntroduceAckExtType(u8) {
     }
 }
@@ -387,14 +404,16 @@ decl_extension_group! {
     /// An extension to an IntroduceAct message.
     ///
     /// (Currently, no extensions of this type are recognized.)
-    #[derive(Debug,Clone)]
+    #[derive(Debug,Clone,Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     enum IntroduceAckExt [ IntroduceAckExtType ] {
     }
 }
 
 /// A reply from the introduction point to the client, telling it that its
 /// introduce1 was received.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct IntroduceAck {
     /// The status reported for the Introduce1 message.
     status_code: IntroduceAckStatus,

@@ -4,9 +4,11 @@ use super::{BoxedCellBody, ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_units::IntegerMilliseconds;
 
 use caret::caret_int;
+use derive_deftly::Deftly;
 use educe::Educe;
 
 /// Trait for the 'bodies' of channel messages.
@@ -28,7 +30,8 @@ crate::restrict::restricted_msg! {
 /// A ChanMsg is an item received on a channel -- a message from
 /// another Tor client or relay that we are connected to directly over
 /// a TLS connection.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 #[non_exhaustive]
 @omit_from "avoid_conflict_with_a_blanket_implementation"
 pub enum AnyChanMsg : ChanMsg {
@@ -85,7 +88,8 @@ pub enum AnyChanMsg : ChanMsg {
 /// channel, or as a "keep-alive".
 ///
 /// The correct response to a padding cell is to drop it and do nothing.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 #[non_exhaustive]
 pub struct Padding {}
 impl Padding {
@@ -108,7 +112,8 @@ impl Readable for Padding {
 /// A VPadding message is a variable-length padding message.
 ///
 /// The correct response to a padding cell is to drop it and do nothing.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Vpadding {
     /// How much padding to send in this cell's body.
     len: u16,
@@ -146,7 +151,8 @@ macro_rules! fixed_len_handshake {
         $name:ident , $cmd:ident, $len:ident
     } => {
         $(#[$meta])*
-        #[derive(Clone,Debug)]
+        #[derive(Clone,Debug,Deftly)]
+        #[derive_deftly(HasMemoryCost)]
         pub struct $name {
             handshake: Vec<u8>
         }
@@ -240,6 +246,8 @@ impl CreatedFast {
 caret_int! {
     /// Handshake type, corresponding to [`HTYPE` in
     /// tor-spec](https://spec.torproject.org/tor-spec/create-created-cells.html).
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct HandshakeType(u16) {
         /// [TAP](https://spec.torproject.org/tor-spec/create-created-cells.html#TAP) -- the original Tor handshake.
         TAP = 0,
@@ -261,7 +269,8 @@ caret_int! {
 ///
 /// Currently, most Create2 cells contain a client-side instance of the
 /// "ntor" handshake.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Create2 {
     /// Identifier for what kind of handshake this is.
     handshake_type: HandshakeType,
@@ -320,7 +329,8 @@ impl Create2 {
 ///
 /// When a relay receives a valid Create2 message that it can handle, it
 /// establishes the circuit and replies with a Created2.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Created2 {
     /// Body of the handshake reply
     handshake: Vec<u8>,
@@ -369,7 +379,8 @@ impl Readable for Created2 {
 ///
 /// A different protocol is defined over the relay cells; it is implemented
 /// in the [crate::relaycell] module.
-#[derive(Clone, Educe, derive_more::From)]
+#[derive(Clone, Educe, derive_more::From, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 #[educe(Debug)]
 pub struct Relay {
     /// The contents of the relay cell as encoded for transfer.
@@ -428,7 +439,8 @@ impl Readable for Relay {
 /// A Relay cell that is allowed to contain a CREATE message.
 ///
 /// Only a limited number of these may be sent on each circuit.
-#[derive(Clone, Debug, derive_more::Deref, derive_more::From, derive_more::Into)]
+#[derive(Clone, Debug, derive_more::Deref, derive_more::From, derive_more::Into, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct RelayEarly(Relay);
 impl Readable for RelayEarly {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
@@ -456,7 +468,8 @@ impl RelayEarly {
 /// On receiving a Destroy message, a Tor implementation should
 /// tear down the associated circuit, and pass the destroy message
 /// down the circuit to later/earlier hops on the circuit (if any).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Destroy {
     /// Reason code given for tearing down this circuit
     reason: DestroyReason,
@@ -486,6 +499,8 @@ impl Readable for Destroy {
 
 caret_int! {
     /// Declared reason for ending a circuit.
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct DestroyReason(u8) {
         /// No reason given.
         ///
@@ -547,7 +562,8 @@ impl DestroyReason {
 ///
 /// When we get a netinfo cell, we can start creating circuits on a
 /// channel and sending data.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Netinfo {
     /// Time when this cell was sent, or 0 if this cell is sent by a client.
     ///
@@ -672,7 +688,8 @@ impl Readable for Netinfo {
 /// usual channel cell encoding: Versions cells _always_ use two-byte
 /// circuit IDs, whereas all the other cell types use four-byte
 /// circuit IDs [assuming a non-obsolete version is negotiated].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Versions {
     /// List of supported link protocol versions
     versions: Vec<u16>,
@@ -743,6 +760,8 @@ impl Readable for Versions {
 caret_int! {
     /// A ChanCmd is the type of a channel cell.  The value of the ChanCmd
     /// indicates the meaning of the cell, and (possibly) its length.
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct PaddingNegotiateCmd(u8) {
         /// Start padding
         START = 2,
@@ -763,7 +782,8 @@ caret_int! {
 /// This message is constructed in the channel manager and transmitted by the reactor.
 ///
 /// The `Default` impl is the same as [`start_default()`](PaddingNegotiate::start_default`)
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct PaddingNegotiate {
     /// Whether to start or stop padding
     command: PaddingNegotiateCmd,
@@ -857,7 +877,8 @@ impl Readable for PaddingNegotiate {
 ///
 /// The formats used here are implemented in tor-cert. Ed25519Cert is the
 /// most common.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 struct TorCert {
     /// Type code for this certificate.
     certtype: u8,
@@ -895,7 +916,8 @@ fn take_one_tor_cert(r: &mut Reader<'_>) -> Result<TorCert> {
 ///
 /// Every relay sends this message as part of channel negotiation;
 /// clients do not send them.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Certs {
     /// The certificates in this cell
     certs: Vec<TorCert>,
@@ -985,7 +1007,8 @@ const CHALLENGE_LEN: usize = 32;
 /// authentication methods will be accepted.
 ///
 /// Clients can safely ignore this message: they don't need to authenticate.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct AuthChallenge {
     /// Random challenge to be used in generating response
     challenge: [u8; CHALLENGE_LEN],
@@ -1041,7 +1064,8 @@ impl Readable for AuthChallenge {
 /// responder, even if TLS client authentication was not used.
 ///
 /// Clients do not use this.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Authenticate {
     /// Authentication method in use
     authtype: u16,
@@ -1083,7 +1107,8 @@ impl Readable for Authenticate {
 }
 
 /// The Authorize message type is not yet used.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Authorize {
     /// The cell's content, which isn't really specified yet.
     content: Vec<u8>,
@@ -1119,7 +1144,8 @@ impl Readable for Authorize {
 ///
 /// TODO: I believe that this is not a risky case of Postel's law,
 /// since it is only for channels, but we should be careful here.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Unrecognized {
     /// The channel command that we got with this cell
     cmd: ChanCmd,

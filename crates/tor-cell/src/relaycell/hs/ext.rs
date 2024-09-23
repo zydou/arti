@@ -3,7 +3,9 @@
 // TODO: We might generalize this even more in the future to handle other
 // similar lists in our cell protocol.
 
+use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
+use tor_memquota::{derive_deftly_template_HasMemoryCost, HasMemoryCostStructural};
 
 /// A list of extensions, represented in a common format used by many HS-related
 /// message.
@@ -23,7 +25,9 @@ use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, 
 /// * Parties MUST ignore any occurrences all occurrences of an extension
 ///   with a given type after the first such occurrence.
 /// * Extensions SHOULD be sent in numerically ascending order by type.
-#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut)]
+#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+#[deftly(has_memory_cost(bounds = "T: HasMemoryCostStructural"))]
 pub(super) struct ExtList<T> {
     /// The extensions themselves.
     extensions: Vec<T>,
@@ -93,9 +97,12 @@ impl<T: ExtGroup> ExtList<T> {
 }
 
 /// An unrecognized or unencoded extension for some HS-related message.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+#[deftly(has_memory_cost(bounds = "ID: Copy + 'static"))]
 pub struct UnrecognizedExt<ID> {
     /// The field type ID for this extension.
+    #[deftly(has_memory_cost(copy))]
     pub(super) type_id: ID,
     /// The body of this extension.
     pub(super) body: Vec<u8>,

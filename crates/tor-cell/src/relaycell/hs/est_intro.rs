@@ -1,6 +1,7 @@
 //! Define the ESTABLISH_INTRO message and related types.
 
 use caret::caret_int;
+use derive_deftly::Deftly;
 use tor_bytes::{EncodeError, EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_error::bad_api_usage;
 use tor_hscrypto::ops::{HsMacKey, HS_MAC_LEN};
@@ -9,6 +10,7 @@ use tor_llcrypto::{
     traits::ShortMac as _,
     util::ct::CtByteArray,
 };
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 use tor_units::BoundedInt32;
 
 use crate::relaycell::{hs::ext::*, hs::AuthKeyType, msg};
@@ -50,7 +52,8 @@ caret_int! {
 /// This extension requires protover `HSIntro=5`.
 ///
 /// See <https://spec.torproject.org/rend-spec/introduction-protocol.html#EST_INTRO_DOS_EXT>.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct DosParams {
     /// An optional parameter indicates the rate per second of
     /// INTRODUCE2 cell relayed to the service.
@@ -137,7 +140,8 @@ impl Ext for DosParams {
 
 decl_extension_group! {
     /// An extension to an EstablishIntro cell.
-    #[derive(Debug,Clone)]
+    #[derive(Debug,Clone,Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     enum EstablishIntroExt [ EstIntroExtType ] {
         DosParams,
     }
@@ -148,7 +152,8 @@ decl_extension_group! {
 ///
 /// This tells the introduction point which key it should act as an introduction
 /// for, and how.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct EstablishIntroDetails {
     /// The public introduction point auth key.
     auth_key: Ed25519Identity,
@@ -170,7 +175,8 @@ pub struct EstablishIntroDetails {
 /// Onion services should not construct this message object; instead, they
 /// should construct an [`EstablishIntroDetails`], and then call its
 /// `sign_and_encode` method.
-#[derive(educe::Educe, Clone)]
+#[derive(educe::Educe, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 #[educe(Debug)]
 pub struct EstablishIntro {
     /// The underlying body of this, wrapped in authentication.
