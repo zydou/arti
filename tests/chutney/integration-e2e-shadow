@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""
+Run integration-e2e inside the shadow network simulator. This can be helpful
+vs running it directly for several reasons.
+
+* shadow simulates time, and can collapse idle time. This speeds up the
+  network bootstrapping step in particular.
+* shadow tries to be deterministic. There are some gaps, but in general
+  there *should* be less nondeterministic flakiness under shadow
+  than when running natively.
+"""
+
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import yaml
+
+SHADOW_DATA_DIR='shadow.chutney.data'
+SHADOW_CONFIG_FILE='shadow.chutney.yaml'
+SHADOW_LOG_FILE='shadow.log'
+# must be syncd with `TEST_DOMAIN` in `tests/chutney/test`.
+TEST_DOMAIN='example.com'
+
+def gen_shadow_config(**args):
+    """
+    Generate a shadow config file, as a string, for the given parameters.
+    """
+
+    return {
+        'general': {
+            'stop_time': '10m',
+        },
+        'network': {
+            'graph': {
+                'type': '1_gbit_switch'
+            },
+        },
+        'hosts': {
+            'host': {
+                'network_node_id': 0,
+                'processes': [{
+                    'path': './tests/chutney/integration-e2e',
+                    'environment': {
+                        'RUNNING_IN_SHADOW': 'yes',
+                        # unix sockets aren't supported in shadow
+                        'CHUTNEY_ENABLE_CONTROLSOCKET': 'no',
+                        # ipv6 isn't supported in shadow
+                        'CHUTNEY_DISABLE_IPV6': 'yes',
+                        # re-export PATH. The test scripts assume that usual shell utilities are on it.
+                        'PATH': os.getenv('PATH'),
+                        'CHUTNEY_PATH': args['chutney_path'],
+                    },
+                    # Give the web server below a little time to start.
+                    'start_time': '5s',
+                }],
+            },
+            TEST_DOMAIN: {
+                'network_node_id': 0,
+                'processes': [{
+                    'path': 'python3',
+                    'args': '-m http.server 80',
+                    'start_time': '0',
+                    'expected_final_state': 'running',
+                }],
+            }
+        }
+    }
+
+def main():
+    toplevel = pathlib.Path(os.fsdecode(subprocess.check_output("git rev-parse --show-toplevel", shell=True)).strip())
+    os.chdir(toplevel)
+
+    # Get CHUTNEY_PATH and ensure that it's set.
+    # We don't want the script trying to clone or update chutney from inside the
+    # shadow simulation, since it'll fail.
+    chutney_path = os.getenv('CHUTNEY_PATH') or sys.exit("Missing environment variable CHUTNEY_PATH")
+
+    # Write out shadow config. We could just pipe it directly to the shadow
+    # process below, but writing it out is useful for debugging.
+    shadow_config = gen_shadow_config(chutney_path=chutney_path)
+    with open(SHADOW_CONFIG_FILE, 'w') as f:
+        f.write(yaml.safe_dump(shadow_config))
+
+    # Remove shadow's data dir. (It will bail if the directory already exists)
+    if os.path.isdir(SHADOW_DATA_DIR):
+        shutil.rmtree(SHADOW_DATA_DIR)
+
+    shadow_args = [
+        'shadow',
+        '--data-directory=' + SHADOW_DATA_DIR,
+        '--progress=true',
+        '--model-unblocked-syscall-latency=true',
+        SHADOW_CONFIG_FILE
+        ]
+    with open(SHADOW_LOG_FILE, 'w') as shadow_log_file:
+        subprocess.run(shadow_args, check=True, stdout=shadow_log_file)
+
+if __name__ == '__main__':
+    main()

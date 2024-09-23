@@ -2,10 +2,27 @@
 
 set -xeuo pipefail
 
-curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+# Hostname must be syncd in `tests/chutney/integration-e2e-shadow`.
+TEST_DOMAIN=example.com
 
-[ "$(dig @127.0.0.1 -p 35353 +short example.com A)" == "93.184.216.34" ]
+if [ -n "${RUNNING_IN_SHADOW:-}" ]; then
+    # Resolving DNS through tor in shadow is currently broken:
+    # <https://github.com/shadow/shadow/issues/323>.
+    #
+    # We can still do the "curl" test (using --socks5 instead of
+    # --socks5-hostname to resolve locally).
+    #
+    # TODO: Fix or work around this. e.g. run a local `unbound` resolver inside
+    # the simulation.
+    curl http://"$TEST_DOMAIN" -vs --socks5 127.0.0.1:9150 -o /dev/null
+else
+    curl http://"$TEST_DOMAIN" -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+
+    DIRECT_LOOKUP="$(dig +short $TEST_DOMAIN A)"
+    TOR_LOOKUP="$(dig @127.0.0.1 -p 35353 +short $TEST_DOMAIN A)"
+    [ "$DIRECT_LOOKUP" == "$TOR_LOOKUP" ]
+fi
 
 ## This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
-## sadly such a network can't run in CI because there is no IPv6 in docker.
+## sadly such a network can't run in CI because there is no IPv6 in docker (nor in shadow).
 #[ "$(dig @127.0.0.1 -p 35353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
