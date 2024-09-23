@@ -5760,6 +5760,7 @@ version = "0.22.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
+ "dyn-clone",
  "educe",
  "futures",
  "itertools 0.13.0",

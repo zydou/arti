@@ -19,7 +19,7 @@
 //!
 //! ```
 //! use tor_memquota::{MemoryQuotaTracker, HasMemoryCost, EnabledToken};
-//! use tor_rtcompat::PreferredRuntime;
+//! use tor_rtcompat::{DynTimeProvider, PreferredRuntime};
 //! use tor_memquota::mq_queue::{MpscSpec, ChannelSpec as _};
 //! # fn m() -> tor_memquota::Result<()> {
 //!
@@ -30,6 +30,7 @@
 //! }
 //!
 //! let runtime = PreferredRuntime::create().unwrap();
+//! let time_prov = DynTimeProvider::new(runtime.clone());
 #![cfg_attr(
     feature = "memquota",
     doc = "let config  = tor_memquota::Config::builder().max(1024*1024*1024).build().unwrap();",
@@ -41,7 +42,7 @@
 )]
 //! let account = trk.new_account(None).unwrap();
 //!
-//! let (tx, rx) = MpscSpec { buffer: 10 }.new_mq::<Message, _>(&runtime, &account)?;
+//! let (tx, rx) = MpscSpec { buffer: 10 }.new_mq::<Message>(time_prov, &account)?;
 //! #
 //! # Ok(())
 //! # }
@@ -100,7 +101,7 @@ use std::task::{Context, Poll, Poll::*};
 /// See the [module-level docs](crate::mq_queue).
 #[derive(Educe)]
 #[educe(Debug, Clone(bound = "C::Sender<Entry<T>>: Clone"))]
-pub struct Sender<T: Debug + Send + 'static, C: ChannelSpec, R: CoarseTimeProvider + Unpin> {
+pub struct Sender<T: Debug + Send + 'static, C: ChannelSpec> {
     /// The inner sink
     tx: C::Sender<Entry<T>>,
 
@@ -109,7 +110,7 @@ pub struct Sender<T: Debug + Send + 'static, C: ChannelSpec, R: CoarseTimeProvid
 
     /// Time provider for getting the data age
     #[educe(Debug(ignore))] // CoarseTimeProvider isn't Debug
-    runtime: R,
+    runtime: DynTimeProvider,
 }
 
 //---------- Receiver ----------
@@ -288,13 +289,12 @@ pub trait ChannelSpec: Sealed /* see Correctness, above */ + Sized + 'static {
     //
     // This method is supposed to be called by the user, not overridden.
     #[allow(clippy::type_complexity)] // the Result; not sensibly reducible or aliasable
-    fn new_mq<T, R>(self, runtime: &R, account: &Account) -> crate::Result<(
-        Sender<T, Self, R>,
+    fn new_mq<T>(self, runtime: DynTimeProvider, account: &Account) -> crate::Result<(
+        Sender<T, Self>,
         Receiver<T, Self>,
     )>
     where
         T: HasMemoryCost + Debug + Send + 'static,
-        R: CoarseTimeProvider + Unpin
     {
         let (rx, (tx, mq)) = account.register_participant_with(
             runtime.now_coarse(),
@@ -393,11 +393,10 @@ impl ChannelSpec for MpscUnboundedSpec {
 
 //---------- Sender ----------
 
-impl<T, C, R> Sink<T> for Sender<T, C, R>
+impl<T, C> Sink<T> for Sender<T, C>
 where
     T: HasMemoryCost + Debug + Send + 'static,
     C: ChannelSpec,
-    R: CoarseTimeProvider + Unpin,
 {
     type Error = SendError<C::SendError>;
 
@@ -659,16 +658,18 @@ mod test {
     }
 
     struct Setup {
+        dtp: DynTimeProvider,
         trk: Arc<mtracker::MemoryQuotaTracker>,
         acct: Account,
         itrk: Arc<ItemTracker>,
     }
 
     fn setup(rt: &MockRuntime) -> Setup {
+        let dtp = DynTimeProvider::new(rt.clone());
         let trk = mk_tracker(rt);
         let acct = trk.new_account(None).unwrap();
         let itrk = ItemTracker::new_tracker();
-        Setup { trk, acct, itrk }
+        Setup { dtp, trk, acct, itrk }
     }
 
     impl Setup {
@@ -692,7 +693,7 @@ mod test {
     fn lifecycle() {
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, &s.acct).unwrap();
+            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(s.dtp.clone(), &s.acct).unwrap();
 
             tx.send(s.itrk.new_item()).await.unwrap();
             let _: Item = rx.next().await.unwrap();
@@ -722,7 +723,7 @@ mod test {
     fn fill_and_empty() {
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, &s.acct).unwrap();
+            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(s.dtp.clone(), &s.acct).unwrap();
 
             const COUNT: usize = 19;
 
@@ -793,7 +794,7 @@ mod test {
 
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, _rx) = BustedQueueSpec.new_mq(&rt, &s.acct).unwrap();
+            let (mut tx, _rx) = BustedQueueSpec.new_mq(s.dtp.clone(), &s.acct).unwrap();
 
             let e = tx.send(s.itrk.new_item()).await.unwrap_err();
             assert!(matches!(e, SendError::Channel(BustedError)));
