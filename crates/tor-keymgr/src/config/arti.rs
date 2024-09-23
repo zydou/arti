@@ -31,6 +31,19 @@ pub struct ArtiKeystoreConfig {
     #[builder(default)]
     enabled: BoolOrAuto,
 
+    /// The primary keystore.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    primary: PrimaryKeystoreConfig,
+}
+
+/// Primary [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize)]
+#[builder(derive(Serialize, Deserialize, Debug))]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[non_exhaustive]
+#[builder_struct_attr(non_exhaustive)]
+pub struct PrimaryKeystoreConfig {
     /// The type of keystore to use, or none at all.
     #[builder_field_attr(serde(default))]
     #[builder(default)]
@@ -48,14 +61,14 @@ impl ArtiKeystoreConfig {
     /// The type of keystore to use
     ///
     /// Returns `None` if keystore use is disabled.
-    pub fn kind(&self) -> Option<ArtiKeystoreKind> {
+    pub fn primary_kind(&self) -> Option<ArtiKeystoreKind> {
         use ExplicitOrAuto as EoA;
 
         if !self.is_enabled() {
             return None;
         }
 
-        let kind = match self.kind {
+        let kind = match self.primary.kind {
             EoA::Explicit(kind) => kind,
             EoA::Auto => ArtiKeystoreKind::Native,
         };
@@ -82,7 +95,7 @@ impl ArtiKeystoreConfigBuilder {
             });
         }
 
-        match self.kind {
+        match self.primary.kind {
             // only enabled OR kind may be set, and when keymgr is not enabeld they must be false|disabled
             None | Some(EoA::Auto) => Ok(()),
             _ => Err(ConfigBuildError::Inconsistent {

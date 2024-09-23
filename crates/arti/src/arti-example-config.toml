@@ -122,7 +122,8 @@
 # nor disabled is a configuration error.
 #enabled = "auto"
 
-# The kind of keystore to use, if any
+#[storage.keystore.primary]
+# The type of keystore to use, if any
 #
 # If the `keymgr` feature is enabled, this option can be set to
 #    * "auto", to use the default keystore (native)

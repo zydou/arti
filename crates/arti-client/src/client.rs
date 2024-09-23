@@ -221,7 +221,7 @@ impl InertTorClient {
     /// Returns `Ok(None)` if keystore use is disabled.
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
-        match keystore.kind() {
+        match keystore.primary_kind() {
             Some(ArtiKeystoreKind::Native) => {
                 let (state_dir, _mistrust) = config.state_dir()?;
                 let key_store_dir = state_dir.join("keystore");
