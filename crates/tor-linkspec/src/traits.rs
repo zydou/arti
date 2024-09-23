@@ -268,6 +268,13 @@ pub trait HasAddrs {
     fn addrs(&self) -> &[SocketAddr];
 }
 
+impl<T: HasAddrs> HasAddrs for &T {
+    fn addrs(&self) -> &[SocketAddr] {
+        // Be explicit about the type here so that we don't end up in an infinite loop by accident.
+        <T as HasAddrs>::addrs(self)
+    }
+}
+
 /// An object that can be connected to via [`ChannelMethod`]s.
 pub trait HasChanMethod {
     /// Return the known ways to contact this
