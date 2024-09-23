@@ -928,6 +928,13 @@ impl Account {
         };
         WeakAccount(Enabled(inner, *enabled))
     }
+
+    /// Obtain a new `Account` that does nothing and has no associated tracker
+    ///
+    /// All methods on this succeed, but they don't do anything.
+    pub fn new_noop() -> Self {
+        Account(IfEnabled::Noop)
+    }
 }
 
 impl Clone for Account {
