@@ -51,6 +51,13 @@ pub struct ArtiKeystoreConfig {
 }
 
 impl ArtiKeystoreConfig {
+    /// Whether the keystore is enabled.
+    pub fn is_enabled(&self) -> bool {
+        let default = cfg!(feature = "keymgr");
+
+        self.enabled.as_bool().unwrap_or(default)
+    }
+
     /// The type of keystore to use
     pub fn kind(&self) -> ArtiKeystoreKind {
         use BoolOrAuto as BoA;
