@@ -48,7 +48,10 @@ use {
     tor_keymgr::KeystoreSelector,
 };
 
-use tor_keymgr::{ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
+use tor_keymgr::{config::arti::ArtiKeystoreKind, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
+
+#[cfg(feature = "ephemeral-keystore")]
+use tor_keymgr::ArtiEphemeralKeystore;
 
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
@@ -218,28 +221,40 @@ impl InertTorClient {
     /// Returns `Ok(None)` if keystore use is disabled.
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
-        if keystore.is_enabled() {
-            let (state_dir, _mistrust) = config.state_dir()?;
-            let key_store_dir = state_dir.join("keystore");
-            let permissions = config.storage.permissions();
+        match keystore.kind() {
+            ArtiKeystoreKind::Native => {
+                let (state_dir, _mistrust) = config.state_dir()?;
+                let key_store_dir = state_dir.join("keystore");
+                let permissions = config.storage.permissions();
 
-            let arti_store =
-                ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
-            info!("Using keystore from {key_store_dir:?}");
+                let native_store =
+                    ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
+                info!("Using keystore from {key_store_dir:?}");
 
-            // TODO #1106: make the default store configurable
-            let default_store = arti_store;
+                let keymgr = KeyMgrBuilder::default()
+                    .default_store(Box::new(native_store))
+                    .build()
+                    .map_err(|_| internal!("failed to build keymgr"))?;
 
-            let keymgr = KeyMgrBuilder::default()
-                .default_store(Box::new(default_store))
-                .build()
-                .map_err(|_| internal!("failed to build keymgr"))?;
-
-            // TODO #858: add support for the C Tor key store
-            Ok(Some(Arc::new(keymgr)))
-        } else {
-            info!("Running without a keystore");
-            Ok(None)
+                // TODO #858: add support for the C Tor key store
+                Ok(Some(Arc::new(keymgr)))
+            }
+            #[cfg(feature = "ephemeral-keystore")]
+            ArtiKeystoreKind::Ephemeral => {
+                // TODO: make the keystore ID somehow configurable
+                let ephemeral_store: ArtiEphemeralKeystore =
+                    ArtiEphemeralKeystore::new("ephemeral".to_string());
+                let keymgr = KeyMgrBuilder::default()
+                    .default_store(Box::new(ephemeral_store))
+                    .build()
+                    .map_err(|_| internal!("failed to build keymgr"))?;
+                Ok(Some(Arc::new(keymgr)))
+            }
+            ArtiKeystoreKind::Disabled => {
+                info!("Running without a keystore");
+                Ok(None)
+            }
+            ty => Err(internal!("unrecognized keystore type {ty:?}").into()),
         }
     }
 

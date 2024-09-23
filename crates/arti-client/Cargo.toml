@@ -93,6 +93,7 @@ compression = ["tor-dirmgr/compression"]
 
 experimental = [
     "dirfilter",
+    "ephemeral-keystore",
     "experimental-api",
     "error_detail",
     "geoip",
@@ -106,6 +107,7 @@ experimental = [
     "tor-config/experimental",
     "tor-guardmgr/experimental",
     "tor-hsservice/experimental",
+    "tor-keymgr/experimental",
     "restricted-discovery",
 ]
 
@@ -115,6 +117,7 @@ experimental = [
 # feature voids your "semver warrantee".
 experimental-api = ["__is_experimental"]
 dirfilter = ["tor-dirmgr/dirfilter", "__is_experimental"]
+ephemeral-keystore = ["tor-keymgr/ephemeral-keystore", "__is_experimental"]
 error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 rpc = ["dyn-clone", "tor-rpcbase", "__is_experimental"]

@@ -118,8 +118,26 @@
 #     * set to "auto", we will ignore the configured keystore path.
 #
 # Setting this option to true when the `keymgr` feature is disabled is a
-# configuration error.
+# configuration error. Setting this option to false when type is neither auto
+# nor disabled is a configuration error.
 #enabled = "auto"
+
+# The kind of keystore to use, if any
+#
+# If the `keymgr` feature is enabled, this option can be set to
+#    * "auto", to use the default keystore (native)
+#    * "disabled", we will not use a keystore
+#    * "native", to use the native keystore
+#    * "ephemeral", to use the ephemeral keystore
+#
+# If the `keymgr` feature is not enabled, "auto" has the same effect as
+# "disabled".
+#    * "auto", to use the default keystore (disabled)
+#    * "disabled", we will not use a keystore
+#
+# Setting this option to anything besides auto or disabled when the `keymgr`
+# feature is disabled is a configuration error.
+#kind = "auto"
 
 # Describe how to enforce permissions on the filesystem when accessing the cache
 # and state directories.  (This does not apply to configuration files)
