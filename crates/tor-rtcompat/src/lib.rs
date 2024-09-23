@@ -55,6 +55,7 @@ mod opaque;
 pub mod scheduler;
 mod timer;
 mod traits;
+pub mod unimpl;
 pub mod unix;
 
 #[cfg(any(feature = "async-std", feature = "tokio"))]

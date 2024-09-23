@@ -52,11 +52,8 @@ define_derive_deftly! {
 
     #[async_trait]
     impl <$tgens> NetStreamProvider<tor_rtcompat::unix::SocketAddr> for $ttype {
-        // It's mildly naughty to use these types here, but:
-        //   - nothing will actually break, since we don't construct any objects
-        //   - this is only testing code.
-        type Stream = <tor_rtcompat::PreferredRuntime as NetStreamProvider<tor_rtcompat::unix::SocketAddr>>::Stream;
-        type Listener = <tor_rtcompat::PreferredRuntime as NetStreamProvider<tor_rtcompat::unix::SocketAddr>>::Listener;
+        type Stream = FakeStream;
+        type Listener = FakeListener<tor_rtcompat::unix::SocketAddr>;
 
         async fn connect(&self, _addr: &tor_rtcompat::unix::SocketAddr) -> IoResult<Self::Stream> {
             Err(tor_rtcompat::unix::NoUnixAddressSupport::default().into())
@@ -153,7 +150,7 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::net::SocketAddr;
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
-        BlockOn, CoarseInstant, CoarseTimeProvider, NetStreamProvider, Runtime, SleepProvider,
-        TlsProvider, UdpProvider,
+        unimpl::FakeListener, unimpl::FakeStream, BlockOn, CoarseInstant, CoarseTimeProvider,
+        NetStreamProvider, Runtime, SleepProvider, TlsProvider, UdpProvider,
     };
 }

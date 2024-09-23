@@ -1,12 +1,12 @@
-//! Dummy implementations for unsupported stream and listener types.
-#![allow(unreachable_pub)] // Nobody should ever have to refer to these types.
+//! Implementations for unsupported stream and listener types.
+//!
+//! Sometimes we find it convenient to have an implementation for `NetStreamProvider` on an
+//! uninhabited type.  When we do, this module provides the associated types for its listener and streams.
 
 use std::io::Result as IoResult;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
-use async_trait::async_trait;
 
 /// An unconstructable AsyncRead+AsyncWrite type.
 ///
@@ -63,7 +63,7 @@ impl<ADDR> futures::stream::Stream for FakeIncomingStreams<ADDR> {
 
 impl<ADDR> crate::traits::NetStreamListener<ADDR> for FakeListener<ADDR>
 where
-    ADDR: Unpin + Send,
+    ADDR: Unpin + Send + Sync + 'static,
 {
     type Incoming = FakeIncomingStreams<ADDR>;
     type Stream = FakeStream;
