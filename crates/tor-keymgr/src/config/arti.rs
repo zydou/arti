@@ -99,8 +99,8 @@ impl ArtiKeystoreConfigBuilder {
             // only enabled OR kind may be set, and when keymgr is not enabeld they must be false|disabled
             None | Some(EoA::Auto) => Ok(()),
             _ => Err(ConfigBuildError::Inconsistent {
-                fields: ["enabled", "type"].map(Into::into).into_iter().collect(),
-                problem: "type!=auto, but keymgr feature not enabled".into(),
+                fields: ["enabled", "kind"].map(Into::into).into_iter().collect(),
+                problem: "kind!=auto, but keymgr feature not enabled".into(),
             }),
         }
     }
