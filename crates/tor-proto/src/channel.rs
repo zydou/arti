@@ -80,7 +80,7 @@ use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
-use tor_rtcompat::SleepProvider;
+use tor_rtcompat::{CoarseTimeProvider, SleepProvider};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
@@ -411,7 +411,7 @@ impl ChannelBuilder {
     pub fn launch<T, S>(self, tls: T, sleep_prov: S) -> OutboundClientHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-        S: SleepProvider,
+        S: CoarseTimeProvider + SleepProvider,
     {
         handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov)
     }
@@ -433,7 +433,7 @@ impl Channel {
         sleep_prov: S,
     ) -> (Arc<Self>, reactor::Reactor<S>)
     where
-        S: SleepProvider,
+        S: CoarseTimeProvider + SleepProvider,
     {
         use circmap::{CircIdRange, CircMap};
         let circmap = CircMap::new(CircIdRange::High);
