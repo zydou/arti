@@ -634,6 +634,10 @@ impl MemoryQuotaTracker {
     /// Make a new `Account`
     ///
     /// To actually record memory usage, a Participant must be added.
+    ///
+    /// At most call sites, take an `Account` rather than a `MemoryQuotaTracker`,
+    /// and use [`Account::new_child()`].
+    /// That improves the ability to manage the hierarchy of Participants.
     //
     // Right now, parent can't be changed after construction of an Account,
     // so circular accounts are impossible.
@@ -907,6 +911,17 @@ impl Account {
         let particip = particip.promise_dropping_is_ok();
         r?;
         Ok(Ok((particip, xdata)))
+    }
+
+    /// Obtain a new `Account` which is a child of this one
+    ///
+    /// Equivalent to
+    /// [`MemoryQuotaTracker.new_account`](MemoryQuotaTracker::new_account)`(Some(..))`
+    pub fn new_child(&self) -> crate::Result<Self> {
+        let Enabled(self_, _enabled) = &self.0 else {
+            return Ok(Account::new_noop());
+        };
+        self_.tracker.new_account(Some(self))
     }
 
     /// Obtains a handle for the `MemoryQuotaTracker`
