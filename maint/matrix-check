@@ -14,6 +14,7 @@ CRATEDIRS = [
     os.path.join(TOPDIR, 'maint'),
     os.path.join(TOPDIR, 'examples/gsoc2023'),
     os.path.join(TOPDIR, 'examples/hyper'),
+    os.path.join(TOPDIR, 'examples/axum'),
 ]
 
 # some tests don't compile on every combination 😐
