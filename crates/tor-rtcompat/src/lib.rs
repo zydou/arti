@@ -50,7 +50,7 @@ pub mod task;
 
 mod coarse_time;
 mod compound;
-pub mod gen_addr;
+pub mod general;
 mod opaque;
 pub mod scheduler;
 mod timer;
