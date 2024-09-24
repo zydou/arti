@@ -118,24 +118,23 @@
 #     * set to "auto", we will ignore the configured keystore path.
 #
 # Setting this option to true when the `keymgr` feature is disabled is a
-# configuration error. Setting this option to false when type is neither auto
-# nor disabled is a configuration error.
+# configuration error. Setting this option to false when `kind` is not `auto`
+# is a configuration error.
 #enabled = "auto"
 
-# The kind of keystore to use, if any
+#[storage.keystore.primary]
+# The type of primary keystore to use, if any
 #
 # If the `keymgr` feature is enabled, this option can be set to
 #    * "auto", to use the default keystore (native)
-#    * "disabled", we will not use a keystore
 #    * "native", to use the native keystore
-#    * "ephemeral", to use the ephemeral keystore
+#    * "ephemeral", to use the ephemeral keystore (only supported if the
+#    `ephemeral-keystore` feature is enabled)
 #
-# If the `keymgr` feature is not enabled, "auto" has the same effect as
-# "disabled".
-#    * "auto", to use the default keystore (disabled)
-#    * "disabled", we will not use a keystore
+# If the `keymgr` feature is not enabled, this option has no effect,
+# and can only be set to "auto".
 #
-# Setting this option to anything besides auto or disabled when the `keymgr`
+# Setting this option to anything besides auto when the `keymgr`
 # feature is disabled is a configuration error.
 #kind = "auto"
 

@@ -221,8 +221,8 @@ impl InertTorClient {
     /// Returns `Ok(None)` if keystore use is disabled.
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
-        match keystore.kind() {
-            ArtiKeystoreKind::Native => {
+        match keystore.primary_kind() {
+            Some(ArtiKeystoreKind::Native) => {
                 let (state_dir, _mistrust) = config.state_dir()?;
                 let key_store_dir = state_dir.join("keystore");
                 let permissions = config.storage.permissions();
@@ -240,7 +240,7 @@ impl InertTorClient {
                 Ok(Some(Arc::new(keymgr)))
             }
             #[cfg(feature = "ephemeral-keystore")]
-            ArtiKeystoreKind::Ephemeral => {
+            Some(ArtiKeystoreKind::Ephemeral) => {
                 // TODO: make the keystore ID somehow configurable
                 let ephemeral_store: ArtiEphemeralKeystore =
                     ArtiEphemeralKeystore::new("ephemeral".to_string());
@@ -250,7 +250,7 @@ impl InertTorClient {
                     .map_err(|_| internal!("failed to build keymgr"))?;
                 Ok(Some(Arc::new(keymgr)))
             }
-            ArtiKeystoreKind::Disabled => {
+            None => {
                 info!("Running without a keystore");
                 Ok(None)
             }
