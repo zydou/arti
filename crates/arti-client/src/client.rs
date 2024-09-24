@@ -54,6 +54,9 @@ use tor_keymgr::{config::ArtiKeystoreKind, ArtiNativeKeystore, KeyMgr, KeyMgrBui
 #[cfg(feature = "ephemeral-keystore")]
 use tor_keymgr::ArtiEphemeralKeystore;
 
+#[cfg(feature = "ctor-keystore")]
+use tor_keymgr::CTorServiceKeystore;
+
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
 use futures::StreamExt as _;
@@ -234,11 +237,11 @@ impl InertTorClient {
     /// Returns `Ok(None)` if keystore use is disabled.
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
+        let permissions = config.storage.permissions();
         let primary_store: Box<dyn Keystore> = match keystore.primary_kind() {
             Some(ArtiKeystoreKind::Native) => {
                 let (state_dir, _mistrust) = config.state_dir()?;
                 let key_store_dir = state_dir.join("keystore");
-                let permissions = config.storage.permissions();
 
                 let native_store =
                     ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
@@ -261,11 +264,25 @@ impl InertTorClient {
             ty => return Err(internal!("unrecognized keystore type {ty:?}").into()),
         };
 
-        let keymgr = KeyMgrBuilder::default()
-            .primary_store(primary_store)
+        let mut builder = KeyMgrBuilder::default().primary_store(primary_store);
+
+        #[cfg(feature = "ctor-keystore")]
+        for config in config.storage.keystore().ctor_svc_stores() {
+            let store: Box<dyn Keystore> = Box::new(CTorServiceKeystore::from_path_and_mistrust(
+                config.path(),
+                permissions,
+                config.id().clone(),
+                // TODO: these nicknames should be cross-checked with configured
+                // svc nicknames as part of config validation!!!
+                config.nickname().clone(),
+            )?);
+
+            builder.secondary_stores().push(store);
+        }
+
+        let keymgr = builder
             .build()
             .map_err(|_| internal!("failed to build keymgr"))?;
-
         Ok(Some(Arc::new(keymgr)))
     }
 

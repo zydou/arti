@@ -86,6 +86,10 @@ pub use {
 )]
 pub use keystore::ephemeral::ArtiEphemeralKeystore;
 
+#[cfg(all(feature = "keymgr", feature = "ctor-keystore"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "keymgr", feature = "ctor-keystore"))))]
+pub use keystore::ctor::CTorServiceKeystore;
+
 #[doc(hidden)]
 pub use key_specifier::derive as key_specifier_derive;
 
