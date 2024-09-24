@@ -1,0 +1,35 @@
+[package]
+name = "axum-hello-world"
+version = "0.1.0"
+edition = "2021"
+authors = ["The Tor Project, Inc.", "Ramid Khan <ramidzkh@gmail.com>", "tidely"]
+license = "MIT OR Apache-2.0"
+description = "Example of a HTTP server written with axum, running as a hidden service through Tor"
+publish = false
+
+[dependencies]
+anyhow = "1.0.75"
+arti-client = { path = "../../../crates/arti-client", features = [
+    "onion-service-service",
+] }
+axum = { version = "0.7.5", features = ["tracing"] }
+futures = "0.3.14"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1.1", features = ["tokio"] }
+safelog = { path = "../../../crates/safelog" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+tokio-util = "0.7.10"
+tor-cell = { path = "../../../crates/tor-cell" }
+tor-hsservice = { path = "../../../crates/tor-hsservice" }
+tor-proto = { path = "../../../crates/tor-proto" }
+tower = { version = "0.5.1", features = ["util", "tracing"] }
+tracing-subscriber = "0.3.0"
+
+[features]
+full = [
+    "arti-client/full",
+    "safelog/full",
+    "tor-cell/full",
+    "tor-hsservice/full",
+    "tor-proto/full",
+]
