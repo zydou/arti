@@ -190,7 +190,18 @@ impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
     ///
     /// A new `ChannelAccount` will be made from `memquota`, for each Channel.
-    // XXXX ^ this is not yet true
+    ///
+    /// The `ChannelAccount` is used for data associated with this channel.
+    ///
+    /// This does *not* (currently) include downstream outbound data
+    /// (ie, data processed by the channel implementation here,
+    /// awaiting TLS processing and actual transmission).
+    /// In any case we try to keep those buffers small.
+    ///
+    /// The ChannelAccount *does* track upstream outbound data
+    /// (ie, data processed by a circuit, but not yet by the channel),
+    /// even though that data relates to a specific circuit.
+    /// TODO #1652 use `CircuitAccount` for circuit->channel queue.
     ///
     /// # Usage note
     ///

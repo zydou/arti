@@ -60,6 +60,13 @@ pub use crypto::cell::{HopNum, HopNumDisplay};
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
+use std::fmt::Debug;
+use tor_memquota::{
+    mq_queue::{self, ChannelSpec as _},
+    HasMemoryCost,
+};
+use tor_rtcompat::DynTimeProvider;
+
 #[doc(hidden)]
 pub use {derive_deftly, tor_memquota};
 
@@ -89,4 +96,25 @@ pub(crate) fn note_incoming_traffic() {
 /// Returns `None` if we never received "incoming traffic".
 pub fn time_since_last_incoming_traffic() -> Option<std::time::Duration> {
     LAST_INCOMING_TRAFFIC.time_since_update().map(Into::into)
+}
+
+/// Make an MPSC queue, of any type, that participates in memquota, but a fake one for testing
+#[cfg(any(test, feature = "testing"))] // Used by Channel::new_fake which is also feature=testing
+pub(crate) fn fake_mpsc<T: HasMemoryCost + Debug + Send>(
+    buffer: usize,
+) -> (
+    mq_queue::Sender<T, mq_queue::MpscSpec>,
+    mq_queue::Receiver<T, mq_queue::MpscSpec>,
+) {
+    mq_queue::MpscSpec::new(buffer)
+        .new_mq(
+            // The fake Account doesn't care about the data ages, so this will do.
+            //
+            // Thiw would be wrong to use generally in tests, where we might want to mock time,
+            // since we end up, here with totally *different* mocked time.
+            // But it's OK here, and saves passing a runtime parameter into this function.
+            DynTimeProvider::new(tor_rtmock::MockRuntime::default()),
+            &tor_memquota::Account::new_noop(),
+        )
+        .expect("create fake mpsc")
 }

@@ -16,6 +16,7 @@ use tor_async_utils::SinkPrepareExt as _;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg::AnyChanMsg, AnyChanCell, CircId};
+use tor_memquota::mq_queue;
 use tor_rtcompat::SleepProvider;
 
 use futures::channel::mpsc;
@@ -106,7 +107,7 @@ pub struct Reactor<S: SleepProvider> {
     /// A receiver for cells to be sent on this reactor's sink.
     ///
     /// `Channel` objects have a sender that can send cells here.
-    pub(super) cells: mpsc::Receiver<AnyChanCell>,
+    pub(super) cells: mq_queue::Receiver<AnyChanCell, mq_queue::MpscSpec>,
     /// A Stream from which we can read `ChanCell`s.
     ///
     /// This should be backed by a TLS connection if you want it to be secure.

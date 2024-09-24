@@ -66,7 +66,7 @@ mod unique_id;
 pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
-use crate::memquota::ChannelAccount;
+use crate::memquota::{ChannelAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
@@ -81,7 +81,8 @@ use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
-use tor_rtcompat::{CoarseTimeProvider, SleepProvider};
+use tor_memquota::mq_queue::{self, ChannelSpec as _};
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
@@ -185,7 +186,7 @@ pub struct Channel {
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
-    cell_tx: mpsc::Sender<AnyChanCell>,
+    cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
 
     /// A unique identifier for this channel.
     unique_id: UniqId,
@@ -298,7 +299,7 @@ use PaddingControlState as PCS;
 #[derive(Debug)]
 pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
-    cell_tx: mpsc::Sender<AnyChanCell>,
+    cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
     /// Unique ID for this channel. For logging.
     unique_id: UniqId,
     /// Details shared with reactor and channel.
@@ -436,7 +437,6 @@ impl Channel {
     /// sent our netinfo cell, received the peer's netinfo cell, and
     /// we're finally ready to create circuits.
     #[allow(clippy::too_many_arguments)] // TODO consider if we want a builder
-    #[allow(clippy::unnecessary_wraps)] // XXXX
     fn new<S>(
         link_protocol: u16,
         sink: BoxedChannelSink,
@@ -452,9 +452,11 @@ impl Channel {
     {
         use circmap::{CircIdRange, CircMap};
         let circmap = CircMap::new(CircIdRange::High);
+        let dyn_time = DynTimeProvider::new(sleep_prov.clone());
 
         let (control_tx, control_rx) = mpsc::unbounded();
-        let (cell_tx, cell_rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
+        let (cell_tx, cell_rx) = mq_queue::MpscSpec::new(CHANNEL_BUFFER_SIZE)
+            .new_mq(dyn_time.clone(), memquota.as_raw_account())?;
         let closed = AtomicBool::new(false);
         let unused_since = AtomicOptTimestamp::new();
         unused_since.update();
@@ -799,10 +801,10 @@ fn fake_channel_details() -> Arc<ChannelDetails> {
 /// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
 #[cfg(any(test, feature = "testing"))] // Used by Channel::new_fake which is also feature=testing
 pub(crate) fn fake_mpsc() -> (
-    mpsc::Sender<AnyChanCell>,
-    mpsc::Receiver<AnyChanCell>,
+    mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
+    mq_queue::Receiver<AnyChanCell, mq_queue::MpscSpec>,
 ) {
-    mpsc::channel(CHANNEL_BUFFER_SIZE)
+    crate::fake_mpsc(CHANNEL_BUFFER_SIZE)
 }
 
 #[cfg(test)]
