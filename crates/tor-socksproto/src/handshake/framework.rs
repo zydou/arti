@@ -303,7 +303,7 @@ impl Buffer<PreciseReads> {
     ///
     /// let socket: std::net::TcpStream = todo!();
     ///
-    /// let mut hs = SocksProxyHandshake::new();
+    /// let mut hs = SocksProxyHandshake::new_precise();
     /// # }
     /// ```
     pub fn new_precise() -> Self {
