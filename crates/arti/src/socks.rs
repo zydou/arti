@@ -497,7 +497,7 @@ where
 
         // reply if needed.
         if action.drain > 0 {
-            inbuf.copy_within(action.drain..action.drain + n_read, 0);
+            inbuf.copy_within(action.drain..n_read, 0);
             n_read -= action.drain;
         }
         if !action.reply.is_empty() {
