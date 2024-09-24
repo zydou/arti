@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 anyhow = "1.0.72"
 arti-client = { path = "../../../crates/arti-client", features = ["bridge-client", "pt-client", "experimental-api"] }
-axum = "0.6.19"
+axum = "0.7.6"
 clap = { version = "4.3.21", features = ["derive", "wrap_help"] }
 futures = "0.3.28"
 serde = "1.0.180"
