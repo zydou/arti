@@ -33,7 +33,7 @@ use crate::{Action, Error, Truncated};
 /// Markers indicating whether we're allowing read-ahead,
 ///
 /// The `P` type parameter on `[Buffer]` et al indicates
-/// or doing only precise reads:
+/// whether we are doing (only) precise reads:
 /// `()` for normal operation, with readahead;
 /// `PreciseReads` for reading small amounts as needed.
 ///
