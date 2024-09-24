@@ -379,7 +379,7 @@ define_accessor_trait! {
 }
 
 /// Testing configuration, with public fields
-#[cfg(feature = "testing")]
+#[cfg(any(test, feature = "testing"))]
 pub(crate) mod test_config {
     use super::*;
     use crate::*;
