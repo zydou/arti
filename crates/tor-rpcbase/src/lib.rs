@@ -60,6 +60,11 @@ pub use obj::{Object, ObjectArcExt, ObjectId};
 #[cfg_attr(docsrs, doc(cfg(feature = "describe-methods")))]
 pub use dispatch::description::RpcDispatchInformation;
 
+#[cfg(feature = "describe-methods")]
+#[cfg_attr(docsrs, doc(cfg(feature = "describe-methods")))]
+#[doc(hidden)]
+pub use dispatch::description::DelegationNote;
+
 #[doc(hidden)]
 pub use obj::cast::CastTable;
 #[doc(hidden)]

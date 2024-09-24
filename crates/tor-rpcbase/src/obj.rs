@@ -269,7 +269,10 @@ define_derive_deftly! {
 ///
 /// #[derive(Deftly)]
 /// #[derive_deftly(Object)]
-/// #[deftly(rpc(delegate_with="|this: &Self| Some(this.inner.clone())"))]
+/// #[deftly(rpc(
+///      delegate_with="|this: &Self| Some(this.inner.clone())",
+///      delegate_type="Inner"
+/// ))]
 /// struct Outer {
 ///     inner: Arc<Inner>,
 /// }
@@ -304,6 +307,18 @@ define_derive_deftly! {
         }
     }
 
+    ${if tmeta(rpc(delegate_type)) {
+        $crate::register_delegation_note!(
+            $ttype,
+            ${tmeta(rpc(delegate_type )) as ty}
+        );
+    }}
+
+    ${if tmeta(rpc(delegate_type)) {
+        #[doc = "Delegates to [`"]
+        #[doc = ${tmeta(rpc(delegate_type)) as str}]
+        #[doc = "`]"]
+    }}
     impl<$tgens> $crate::Object for $ttype where
         // We need this restriction in case there are generics
         // that might not impl these traits.
@@ -318,7 +333,9 @@ define_derive_deftly! {
 
         ${if tmeta(rpc(delegate_with)) {
             fn delegate(&self) -> Option<Arc<dyn $crate::Object>> {
-                (${tmeta(rpc(delegate_with)) as expr})(self).map(|v| v as Arc<dyn $crate::Object>)
+                let r: Option<Arc<${tmeta(rpc(delegate_type)) as ty}>> = (${tmeta(rpc(delegate_with)) as expr})(self);
+
+                r.map(|v| v as Arc<dyn $crate::Object>)
             }
         }}
 
@@ -464,6 +481,7 @@ mod test {
     #[derive(Deftly)]
     #[derive_deftly(Object)]
     #[deftly(rpc(delegate_with = "|cage: &Self| Some(cage.possum.clone())"))]
+    #[deftly(rpc(delegate_type = "Opossum"))]
     struct PossumCage {
         possum: Arc<Opossum>,
     }

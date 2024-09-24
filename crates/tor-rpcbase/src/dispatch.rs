@@ -61,6 +61,14 @@ use void::Void;
 #[cfg(feature = "describe-methods")]
 pub(crate) mod description;
 
+#[cfg(not(feature = "describe-methods"))]
+#[macro_export]
+#[doc(hidden)]
+macro_rules! register_delegation_note {
+    { $from_type:ty, $to_type:ty } => {
+    }
+}
+
 use crate::{Context, DynMethod, Object, RpcError, SendUpdateError};
 
 /// A type-erased serializable value.
@@ -981,7 +989,10 @@ pub(crate) mod test {
     // Define an object with delegation.
     #[derive(Clone, Deftly)]
     #[derive_deftly(Object)]
-    #[deftly(rpc(delegate_with = "|this: &Self| this.contents.clone()"))]
+    #[deftly(rpc(
+        delegate_with = "|this: &Self| this.contents.clone()",
+        delegate_type = "dyn crate::Object"
+    ))]
     struct CatCarrier {
         contents: Option<Arc<dyn crate::Object>>,
     }
