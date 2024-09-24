@@ -272,6 +272,11 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
     enum Uname<'a> {
         /// This is a legacy username; it's just part of the
         /// isolation information.
+        //
+        // Note: We're not actually throwing away the username here;
+        // instead we're going to use the whole SocksAuth
+        // in a `ProvidedAuthentication::Legacy``.
+        // TODO RPC: Find a more idiomatic way to express this data flow.
         Legacy,
         /// This is using the prop351 socks extension: contains the extension
         /// format code and the remaining information from the username.
