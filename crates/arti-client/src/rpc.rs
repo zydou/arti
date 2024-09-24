@@ -128,7 +128,7 @@ async fn watch_client_status<R: Runtime>(
 pub struct IsolatedClient {}
 
 impl rpc::RpcMethod for IsolatedClient {
-    type Output = rpc::SingletonId;
+    type Output = rpc::SingleIdResponse;
     type Update = rpc::NoUpdates;
 }
 
@@ -137,10 +137,10 @@ async fn isolated_client<R: Runtime>(
     client: Arc<TorClient<R>>,
     _method: Box<IsolatedClient>,
     ctx: Arc<dyn rpc::Context>,
-) -> Result<rpc::SingletonId, rpc::RpcError> {
+) -> Result<rpc::SingleIdResponse, rpc::RpcError> {
     let new_client = Arc::new(client.isolated_client());
     let client_id = ctx.register_owned(new_client);
-    Ok(rpc::SingletonId::from(client_id))
+    Ok(rpc::SingleIdResponse::from(client_id))
 }
 
 /// Type-erased error returned by ClientConnectionTarget.
