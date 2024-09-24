@@ -58,6 +58,7 @@ tor-config = { path = "../tor-config", version = "0.23.0" }
 tor-error = { path = "../tor-error", version = "0.23.0", features = ["tracing"] }
 tor-linkspec = { path = "../tor-linkspec", version = "0.23.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.23.0" }
+tor-memquota = { version = "0.23.0", path = "../tor-memquota" }
 tor-netdir = { path = "../tor-netdir", version = "0.23.0" }
 tor-proto = { path = "../tor-proto", version = "0.23.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.23.0" }
