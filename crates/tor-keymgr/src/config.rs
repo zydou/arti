@@ -2,6 +2,7 @@
 
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
 
+use amplify::Getters;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_config::{
@@ -29,7 +30,7 @@ pub enum ArtiKeystoreKind {
 impl_not_auto_value! {ArtiKeystoreKind}
 
 /// [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 #[non_exhaustive]
