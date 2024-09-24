@@ -88,10 +88,16 @@ struct SocksIsolationKey(ConnIsolation, ProvidedIsolation);
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProvidedIsolation {
     /// The socks isolation itself.
-    Auth(SocksAuth),
-    /// A string provided as isolation with an RPC connection
-    #[cfg(feature = "rpc")]
-    RpcString(Option<String>),
+    Legacy(SocksAuth),
+    /// A bytestring provided as isolation with the extended Socks5 username/password protocol.
+    Extended {
+        /// Which format was negotiated?
+        ///
+        /// (At present, different format codes can't share a circuit.)
+        format_code: u8,
+        /// What's the isolation string?
+        isolation: Box<[u8]>,
+    },
 }
 
 impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
@@ -110,10 +116,10 @@ impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
 
 /// The meaning of a SOCKS authentication field, according to our conventions.
 struct AuthInterpretation {
-    /// Assign this stream to a client determined by given RPC session, and
-    /// register its existence with that session.
+    /// Associate this stream with a DataStream created by using a particular RPC object
+    /// as a Tor client.
     #[cfg(feature = "rpc")]
-    assign_to_session: Option<rpc::ObjectId>,
+    rpc_object: Option<rpc::ObjectId>,
 
     /// Isolate this stream from other streams that do not have the same
     /// value.
@@ -169,80 +175,9 @@ struct AuthInterpretation {
 ///
 /// ## The SOCKS protocol
 ///
-/// To interpret a SOCKS request and look for an RPC target object,
-/// an application behaves as follows.
-/// (For completeness, we document _all_ variants of our SOCKS handshake,
-/// including those which RPC applications do not use.)
-///
-/// This protocol allows the application to provide an isolation string
-/// and/or an RPC target object ID.
-///
-/// TODO RPC: This documents what the handshake currently is.
-/// See the next sections for how I propose to change it. -nickm
-///
-/// 1. If SOCKS5 is not selected, or if SOCKS5 username/password authentication
-///    (Type `1`) is not selected, then
-///    the request is interpreted as a plain Tor SOCKS proxy request
-///    and does not interact with the RPC system.
-///
-/// 2. If SOCKS5 and username/password authentication is selected,
-///    and if the username is `<arti-rpc-session>`,
-///    then the password is interpreted as follows:
-///     - If the password contains a colon,
-///       then everything before the first colon is the Object ID
-///       and everything after is an isolation string.
-///     - Otherwise, the entire password is interpreted as the ObjectID.
-///
-/// 3. Otherwise, the entire username/password pair
-///    is interpreted as an isolation "string".
-///    (Actually, as an isolation tuple.
-///    "But the Idea is the important thing" —Tom Lehrer)
-///
-/// 4. The request is then interpreted by the specified RPC object,
-///    using the `ConnectWithPrefs` method.
-///    For both client-like and datastream objects,
-///    a connection is initiated through the Tor network
-///    to the host and port specified in the object.
-///
-/// ### Proposed changes
-///
-/// In discussions Diziet suggested that this system should have
-/// some kind of forward-compatibility mechanism so that, if we choose,
-/// we could later add support for encoding things other than the isolation string
-/// in the SOCKS request.
-///
-/// Earlier Diziet also suggested
-/// that using "anything else is isolation" as a fallback behavior
-/// could lead to unwanted silent failures if  programmers make mistakes.
-/// (For legacy purposes, however we do need to have a mode
-/// where all username/password pairs are allowable isolation.)
-///
-/// Here's a way to solve both issues.
-///
-/// 1. If the username is `<arti-isolation>` then the password is an isolation string.
-///
-/// 2. Otherwise if the username matches the regex `<arti-rpc-session:[0-9]+>.*`,
-///    then digits encode a protocol version number, defining the interpretation
-///    of the remainder of the username and password.
-///    In v1, the password is behaves as in the current design
-///    (with an Object ID and an optional colon-separated isolation string,
-///    and with the remainder of the username required to be empty.)
-///
-///    If the protocol version number is unrecognized,
-///    the SOCKS connection is rejected.
-///
-/// 3. Otherwise, we look at the SOCKS configuration.
-///    If the SOCKS port is configured in "legacy mode",
-///    then we interpret the username/password pair as an isolation tuple.
-///    If not, we reject the SOCKS connection.
-///
-/// Additionally, we extend the `get_rpc_proxy_info` command
-/// so that, for each RPC-enabled SOCKS port,
-/// it describes the supported protocol versions.
-///
-/// With this scheme,
-/// we have room to add more connection parameters in the future,
-/// and we can later have non-legacy socks ports that require this handshake format.
+/// See [proposal 351](https://spec.torproject.org/proposals/351-socks-auth-extensions.html) for now.
+/// Once it is merged, see the
+/// [SOCKS extensions spec](https://spec.torproject.org/socks-extensions.html).
 ///
 /// ### Another proposed change
 ///
@@ -280,8 +215,8 @@ struct AuthInterpretation {
 ///
 /// To do this, they make a SOCKS connection to arti,
 /// with target address www.example.com.
-/// They set the username to `<arti-rpc-session>`,
-/// and the password to `SESSION-1`.
+/// They set the username to `<torS0X>0SESSION-1`,
+/// and the password to the empty string.
 ///
 /// Arti looks up the Session object via the `SESSION-1` object ID
 /// and tells it (via the ConnectWithPrefs special method)
@@ -309,9 +244,11 @@ struct AuthInterpretation {
 /// Now the application has an object called `STREAM-1` that is not yet a connected
 /// stream, but which may become one.
 ///
+/// This time, it wants to set its isolation string to "xyzzy".
+///
 /// The application opens a socks connection as before.
-/// For the username it sends `<arti-rpc-session>`,
-/// and for the password it sends `STREAM-1`.
+/// For the username it sends `<torS0X>0STREAM-1`,
+/// and for the password it sends `xyzzy`.
 ///
 /// Now Arti looks up the `RpcDataStream` object via `STREAM-1`,
 /// and tells it (via the ConnectWithPrefs special method)
@@ -332,46 +269,91 @@ mod socks_and_rpc {}
 /// (In no case is it actually SOCKS authentication: it can either be a message
 /// to the stream isolation system or the RPC system.)
 fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
-    // TODO RPC: This whole function and the way that it parses SOCKS
-    // authentication is a placeholder (because we need to put _something_ here
-    // for now).  We could probably come up with a much better design, and
-    // should.
-    //
-    // TODO RPC: In our final design we should probably figure out way to
-    // migrate away from the current "anything goes" approach to stream
-    // isolation without breaking all the existing apps that think they can use
-    // an arbitrary byte-string as their isolation token.
-
-    /// A constant which, when it appears as a username, indicates that the
-    /// stream is to be assigned to an Arti RPC session.
-    const RPC_SESSION_CONST: &[u8] = b"<arti-rpc-session>";
-
-    #[allow(unused_variables)] // TODO RPC remove
-    match auth {
-        SocksAuth::Username(user, pass) if user == RPC_SESSION_CONST => {
-            cfg_if::cfg_if! {
-                if #[cfg(feature="rpc")] {
-                    let pass =
-                        std::str::from_utf8(pass).context("rpc-session info must be utf-8")?;
-                    let (session, isolation) = match pass.split_once(':') {
-                        Some((s,i)) => (s.to_owned().into(), Some(i.to_owned())),
-                        None => (pass.to_owned().into(), None),
-                    };
-                    Ok(AuthInterpretation {
-                        assign_to_session: Some(session),
-                        isolation: ProvidedIsolation::RpcString(isolation)
-                    })
-                } else {
-                    Err(anyhow!("Not built with support for RPC"))
-                }
-            }
-        }
-        other_auth => Ok(AuthInterpretation {
-            #[cfg(feature = "rpc")]
-            assign_to_session: None,
-            isolation: ProvidedIsolation::Auth(other_auth.clone()),
-        }),
+    /// Interpretation of a SOCKS5 username according to Prop351.
+    enum Uname<'a> {
+        /// This is a legacy username; it's just part of the
+        /// isolation information.
+        //
+        // Note: We're not actually throwing away the username here;
+        // instead we're going to use the whole SocksAuth
+        // in a `ProvidedAuthentication::Legacy``.
+        // TODO RPC: Find a more idiomatic way to express this data flow.
+        Legacy,
+        /// This is using the prop351 socks extension: contains the extension
+        /// format code and the remaining information from the username.
+        Extended(u8, &'a [u8]),
     }
+    /// Helper: Try to interpret a SOCKS5 username field as indicating the start of a set of
+    /// extended socks authentication information.
+    ///
+    /// Implements Prop351.
+    ///
+    /// If it does indicate that extensions are in use,
+    /// return a `Uname::Extended` containing
+    /// the extension format type and the remaining information from the username.
+    ///
+    /// If it indicates that no extensions are in use,
+    /// return `Uname::Legacy`.
+    ///
+    /// If it is badly formatted, return an error.
+    fn interpret_socks5_username(username: &[u8]) -> Result<Uname<'_>> {
+        /// 8-byte "magic" sequence from Prop351.
+        /// When it appears at the start of a username,
+        /// indicates that the username/password are to be interpreted as
+        /// as encoding SOCKS5 extended parameters,
+        /// but the format might not be one we recognize.
+        const SOCKS_EXT_CONST_ANY: &[u8] = b"<torS0X>";
+        let Some(remainder) = username.strip_prefix(SOCKS_EXT_CONST_ANY) else {
+            return Ok(Uname::Legacy);
+        };
+        if remainder.is_empty() {
+            return Err(anyhow!("Exteneded SOCKS information without format code."));
+        }
+        // TODO MSRV 1.80: use split_at_checked instead.
+        // This won't panic since we checked for an empty string above.
+        let (format_code, remainder) = remainder.split_at(1);
+        Ok(Uname::Extended(format_code[0], remainder))
+    }
+
+    let isolation = match auth {
+        SocksAuth::Username(user, pass) => match interpret_socks5_username(user)? {
+            Uname::Legacy => ProvidedIsolation::Legacy(auth.clone()),
+            Uname::Extended(b'1', b"") => {
+                return Err(anyhow!("Received empty RPC object ID"));
+            }
+            Uname::Extended(format_code @ b'1', remainder) => {
+                #[cfg(not(feature = "rpc"))]
+                return Err(anyhow!(
+                    "Received RPC object ID, but not built with support for RPC"
+                ));
+                #[cfg(feature = "rpc")]
+                return Ok(AuthInterpretation {
+                    rpc_object: Some(rpc::ObjectId::from(
+                        std::str::from_utf8(remainder).context("Rpc object ID was not utf-8")?,
+                    )),
+                    isolation: ProvidedIsolation::Extended {
+                        format_code,
+                        isolation: pass.clone().into(),
+                    },
+                });
+            }
+            Uname::Extended(format_code @ b'0', b"") => ProvidedIsolation::Extended {
+                format_code,
+                isolation: pass.clone().into(),
+            },
+            Uname::Extended(b'0', _) => {
+                return Err(anyhow!("Extraneous information in SOCKS username field."))
+            }
+            _ => return Err(anyhow!("Unrecognized SOCKS format code")),
+        },
+        _ => ProvidedIsolation::Legacy(auth.clone()),
+    };
+
+    Ok(AuthInterpretation {
+        #[cfg(feature = "rpc")]
+        rpc_object: None,
+        isolation,
+    })
 }
 
 /// Information used to implement a SOCKS connection.
@@ -423,7 +405,7 @@ impl<R: Runtime> SocksConnContext<R> {
         prefs.set_isolation(SocksIsolationKey(conn_isolation, interp.isolation));
 
         #[cfg(feature = "rpc")]
-        if let Some(session) = interp.assign_to_session {
+        if let Some(session) = interp.rpc_object {
             if let Some(mgr) = &self.rpc_mgr {
                 let (context, object) = mgr
                     .lookup_object(&session)
