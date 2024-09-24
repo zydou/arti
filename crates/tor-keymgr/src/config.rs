@@ -73,7 +73,7 @@ pub struct PrimaryKeystoreConfig {
 }
 
 /// C Tor [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
-#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[non_exhaustive]
