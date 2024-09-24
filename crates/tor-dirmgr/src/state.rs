@@ -1269,7 +1269,7 @@ mod test {
     use tempfile::TempDir;
     use time::macros::datetime;
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
-    use tor_rtcompat::CompoundRuntime;
+    use tor_rtcompat::RuntimeSubstExt as _;
     use tor_rtmock::time::MockSleepProvider;
 
     #[test]
@@ -1311,7 +1311,8 @@ mod test {
 
     fn make_time_shifted_runtime(now: SystemTime, rt: impl Runtime) -> impl Runtime {
         let msp = MockSleepProvider::new(now);
-        CompoundRuntime::new(rt.clone(), msp.clone(), msp, rt.clone(), rt.clone(), rt)
+        rt.with_sleep_provider(msp.clone())
+            .with_coarse_time_provider(msp)
     }
 
     fn make_dirmgr_config(authorities: Option<Vec<AuthorityBuilder>>) -> Arc<DirMgrConfig> {

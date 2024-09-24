@@ -116,14 +116,16 @@ use crate::time_core::MockTimeCore;
 /// # async fn say_hi<R,A>(runtime: R, addr: A) -> Result<(), ()> { Ok(()) }
 /// # // TODO this test hangs for some reason?  Fix it and remove no_run above
 /// use tor_rtmock::{MockSleepRuntime,MockNetRuntime,net::MockNetwork};
-/// use tor_rtcompat::{TcpProvider,TcpListener};
+/// use tor_rtcompat::{NetStreamProvider,NetStreamListener};
 /// use futures::io::AsyncReadExt;
+/// use std::net::SocketAddr;
+/// use futures::StreamExt as _;
 ///
 /// tor_rtcompat::test_with_all_runtimes!(|rt| async move {
 ///
 ///    let addr1 = "198.51.100.7".parse().unwrap();
 ///    let addr2 = "198.51.100.99".parse().unwrap();
-///    let sockaddr = "198.51.100.99:101".parse().unwrap();
+///    let sockaddr: SocketAddr = "198.51.100.99:101".parse().unwrap();
 ///
 ///    // Make a runtime that pretends that we are at the first address...
 ///    let fake_internet = MockNetwork::new();
@@ -131,12 +133,13 @@ use crate::time_core::MockTimeCore;
 ///    // ...and one that pretends we're listening at the second address.
 ///    let rt2 = fake_internet.builder().add_address(addr2).runtime(rt);
 ///    let listener = rt2.listen(&sockaddr).await.unwrap();
+///    let mut incoming_stream = listener.incoming();
 ///
 ///    // Now we can test our function!
 ///    let (result1,output) = futures::join!(
 ///           say_hi(rt1, &sockaddr),
 ///           async {
-///               let (mut conn,addr) = listener.accept().await.unwrap();
+///               let (mut conn,addr) = incoming_stream.next().await.unwrap().unwrap();
 ///               assert_eq!(addr.ip(), addr1);
 ///               let mut output = Vec::new();
 ///               conn.read_to_end(&mut output).await.unwrap();

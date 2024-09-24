@@ -1500,7 +1500,8 @@ mod test {
     use tor_hscrypto::pk::{HsClientDescEncKey, HsClientDescEncKeypair};
     use tor_llcrypto::pk::curve25519;
     use tor_netdoc::doc::{hsdesc::test_data, netstatus::Lifetime};
-    use tor_rtcompat::{tokio::TokioNativeTlsRuntime, CompoundRuntime};
+    use tor_rtcompat::tokio::TokioNativeTlsRuntime;
+    use tor_rtcompat::RuntimeSubstExt as _;
     use tor_rtmock::time::MockSleepProvider;
     use tracing_test::traced_test;
 
@@ -1625,14 +1626,9 @@ mod test {
         let runtime = TokioNativeTlsRuntime::current().unwrap();
         let now = humantime::parse_rfc3339("2023-02-09T12:00:00Z").unwrap();
         let mock_sp = MockSleepProvider::new(now);
-        let runtime = CompoundRuntime::new(
-            runtime.clone(),
-            mock_sp.clone(),
-            mock_sp,
-            runtime.clone(),
-            runtime.clone(),
-            runtime,
-        );
+        let runtime = runtime
+            .with_sleep_provider(mock_sp.clone())
+            .with_coarse_time_provider(mock_sp);
         let time_period = netdir.hs_time_period();
 
         let mglobal = Arc::new(Mutex::new(MocksGlobal::default()));

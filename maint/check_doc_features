@@ -25,6 +25,12 @@ additional_provided['tor-rtcompat'] = [
     ('NativeTlsProvider', 'all(feature = "native-tls", any(feature = "tokio", feature = "async-std"))'),
     ('RustlsProvider', 'all(feature = "rustls", any(feature = "tokio", feature = "async-std"))'),
 ]
+# "unix::SocketAddr" is present unconditionally,
+# though it has different definitions.
+additional_provided['tor-rtcompat'] += [
+    ('SocketAddr', 'unix'),
+]
+
 
 # We're not very interested in the testing feature
 additional_provided['tor-guardmgr'] = [

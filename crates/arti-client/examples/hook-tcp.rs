@@ -13,7 +13,7 @@
 #![allow(clippy::needless_pass_by_value)]
 //! <!-- @@ end example lint list maintained by maint/add_warning @@ -->
 
-//! This example showcases using a custom [`TcpProvider`] to do custom actions before Arti initiates
+//! This example showcases using a custom [`NetStreamProvider`] to do custom actions before Arti initiates
 //! TCP connections, and after the connections are closed.
 //!
 //! This might be useful, for example, to dynamically open ports on a restrictive firewall or modify
@@ -31,7 +31,7 @@ use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
 
 use futures::{AsyncRead, AsyncWrite, FutureExt, Stream};
-use tor_rtcompat::{CompoundRuntime, PreferredRuntime, TcpListener, TcpProvider};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, PreferredRuntime, RuntimeSubstExt as _};
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
     // Instantiate our custom TCP provider (see implementation below).
     let tcp_rt = CustomTcpProvider { inner: rt.clone() };
     // Create a `CompoundRuntime`, swapping out the TCP part of the preferred runtime for our custom one.
-    let rt = CompoundRuntime::new(rt.clone(), rt.clone(), rt.clone(), tcp_rt, rt.clone(), rt);
+    let rt = rt.with_tcp_provider(tcp_rt);
 
     eprintln!("connecting to Tor...");
     // Pass in our custom runtime using `with_runtime`.
@@ -106,7 +106,7 @@ enum TcpState {
     Closed,
 }
 
-/// A wrapper over a `TcpListener`.
+/// A wrapper over a `NetStreamListener`.
 struct CustomTcpListener<T> {
     inner: T,
 }
@@ -116,12 +116,12 @@ struct CustomIncoming<T> {
     inner: T,
 }
 
-impl<T> TcpProvider for CustomTcpProvider<T>
+impl<T> NetStreamProvider for CustomTcpProvider<T>
 where
-    T: TcpProvider,
+    T: NetStreamProvider,
 {
-    type TcpStream = CustomTcpStream<T::TcpStream>;
-    type TcpListener = CustomTcpListener<T::TcpListener>;
+    type Stream = CustomTcpStream<T::Stream>;
+    type Listener = CustomTcpListener<T::Listener>;
 
     // This is an async trait method (using the `async_trait` crate). We manually implement it
     // here so that we don't borrow `self` for too long.
@@ -129,7 +129,7 @@ where
     fn connect<'a, 'b, 'c>(
         &'a self,
         addr: &'b SocketAddr,
-    ) -> Pin<Box<dyn Future<Output = IoResult<Self::TcpStream>> + Send + 'c>>
+    ) -> Pin<Box<dyn Future<Output = IoResult<Self::Stream>> + Send + 'c>>
     where
         'a: 'c,
         'b: 'c,
@@ -154,7 +154,7 @@ where
     fn listen<'a, 'b, 'c>(
         &'a self,
         addr: &'b SocketAddr,
-    ) -> Pin<Box<dyn Future<Output = IoResult<Self::TcpListener>> + Send + 'c>>
+    ) -> Pin<Box<dyn Future<Output = IoResult<Self::Listener>> + Send + 'c>>
     where
         'a: 'c,
         'b: 'c,
@@ -283,45 +283,12 @@ impl<T> Drop for CustomTcpStream<T> {
     }
 }
 
-type AcceptResult<T> = IoResult<(T, SocketAddr)>;
-
-impl<T> TcpListener for CustomTcpListener<T>
+impl<T> NetStreamListener for CustomTcpListener<T>
 where
-    T: TcpListener,
+    T: NetStreamListener,
 {
-    type TcpStream = CustomTcpStream<T::TcpStream>;
+    type Stream = CustomTcpStream<T::Stream>;
     type Incoming = CustomIncoming<T::Incoming>;
-
-    // This is also an async trait method (see earlier commentary).
-    fn accept<'a, 'b>(
-        &'a self,
-    ) -> Pin<Box<dyn Future<Output = AcceptResult<Self::TcpStream>> + Send + 'b>>
-    where
-        'a: 'b,
-        Self: 'b,
-    {
-        // As with other implementations, we just defer to `self.inner` and wrap the result.
-        self.inner
-            .accept()
-            .inspect(|r| {
-                if let Ok((_, addr)) = r {
-                    println!("accepted connection from {addr}");
-                }
-            })
-            .map(|r| {
-                r.map(|(stream, addr)| {
-                    (
-                        CustomTcpStream {
-                            inner: stream,
-                            addr,
-                            state: TcpState::Open,
-                        },
-                        addr,
-                    )
-                })
-            })
-            .boxed()
-    }
 
     fn incoming(self) -> Self::Incoming {
         CustomIncoming {

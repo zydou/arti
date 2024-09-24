@@ -252,7 +252,7 @@ impl<R: Runtime> ChanMgr<R> {
     pub async fn handle_incoming(
         &self,
         src: std::net::SocketAddr,
-        stream: <R as tor_rtcompat::TcpProvider>::TcpStream,
+        stream: <R as tor_rtcompat::NetStreamProvider>::Stream,
     ) -> Result<Arc<Channel>> {
         self.mgr.handle_incoming(src, stream).await
     }

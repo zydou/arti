@@ -42,9 +42,10 @@ without making any actual network connections.
 use tor_rtcompat::{Runtime, SleepProviderExt as _n};
 use std::{io, net::{IpAddr, SocketAddr}, time::Duration};
 use futures::{channel::oneshot, io::{AsyncReadExt as _, AsyncWriteExt as _}, poll};
+use futures::StreamExt as _;
 use std::io::ErrorKind;
 use tor_rtmock::{MockRuntime, /*MockNetRuntime,*/ net::MockNetwork};
-use tor_rtcompat::{TcpProvider as _, TcpListener as _};
+use tor_rtcompat::{NetStreamProvider as _, NetStreamListener as _};
 
 // Code to be tested:
 
@@ -110,8 +111,9 @@ MockRuntime::test_with_various(|rt| async move {
     eprintln!("Third test.  Working.");
     let saddr = SocketAddr::new(sip, 3);
     let listener = srt.listen(&saddr).await.unwrap();
+    let mut incoming_streams = listener.incoming();
     let mut ret_fut = spawn_test(saddr);
-    let (mut conn, caddr) = listener.accept().await.unwrap();
+    let (mut conn, caddr) = incoming_streams.next().await.unwrap().unwrap();
     eprintln!("listener accepted from {caddr:?}");
     assert_eq!(caddr.ip(), cip);
     let expect = b"Hello world!\r\n";

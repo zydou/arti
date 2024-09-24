@@ -1,9 +1,10 @@
 //! Define a [`CompoundRuntime`] part that can be built from several component
 //! pieces.
 
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net, sync::Arc, time::Duration};
 
 use crate::traits::*;
+use crate::unix;
 use crate::{CoarseInstant, CoarseTimeProvider};
 use async_trait::async_trait;
 use educe::Educe;
@@ -16,7 +17,9 @@ use std::time::{Instant, SystemTime};
 /// The `SpawnR` component should implements [`Spawn`] and [`BlockOn`];
 /// the `SleepR` component should implement [`SleepProvider`];
 /// the `CoarseTimeR` component should implement [`CoarseTimeProvider`];
-/// the `TcpR` component should implement [`TcpProvider`]; and
+/// the `TcpR` component should implement [`NetStreamProvider`] for [`net::SocketAddr`];
+/// the `UnixR` component should implement [`NetStreamProvider`] for [`unix::SocketAddr`];
+/// and
 /// the `TlsR` component should implement [`TlsProvider`].
 ///
 /// You can use this structure to create new runtimes in two ways: either by
@@ -24,32 +27,34 @@ use std::time::{Instant, SystemTime};
 /// new runtime from pieces.
 #[derive(Educe)]
 #[educe(Clone)] // #[derive(Clone)] wrongly infers Clone bounds on the generic parameters
-pub struct CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> {
+pub struct CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> {
     /// The actual collection of Runtime objects.
     ///
     /// We wrap this in an Arc rather than requiring that each item implement
     /// Clone, though we could change our minds later on.
-    inner: Arc<Inner<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>>,
+    inner: Arc<Inner<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>>,
 }
 
 /// A collection of objects implementing that traits that make up a [`Runtime`]
-struct Inner<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> {
+struct Inner<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> {
     /// A `Spawn` and `BlockOn` implementation.
     spawn: SpawnR,
     /// A `SleepProvider` implementation.
     sleep: SleepR,
     /// A `CoarseTimeProvider`` implementation.
     coarse_time: CoarseTimeR,
-    /// A `TcpProvider` implementation
+    /// A `NetStreamProvider<net::SocketAddr>` implementation
     tcp: TcpR,
-    /// A `TcpProvider<TcpR::TcpStream>` implementation.
+    /// A `NetStreamProvider<unix::SocketAddr>` implementation.
+    unix: UnixR,
+    /// A `TlsProvider<TcpR::TcpStream>` implementation.
     tls: TlsR,
     /// A `UdpProvider` implementation
     udp: UdpR,
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
-    CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+    CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 {
     /// Construct a new CompoundRuntime from its components.
     pub fn new(
@@ -57,6 +62,7 @@ impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
         sleep: SleepR,
         coarse_time: CoarseTimeR,
         tcp: TcpR,
+        unix: UnixR,
         tls: TlsR,
         udp: UdpR,
     ) -> Self {
@@ -67,6 +73,7 @@ impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
                 sleep,
                 coarse_time,
                 tcp,
+                unix,
                 tls,
                 udp,
             }),
@@ -74,8 +81,8 @@ impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> Spawn
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> Spawn
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     SpawnR: Spawn,
 {
@@ -86,13 +93,14 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> BlockOn
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> BlockOn
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     SpawnR: BlockOn,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
+    UnixR: Clone + Send + Sync + 'static,
     TlsR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
 {
@@ -103,13 +111,14 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> SleepProvider
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> SleepProvider
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     SleepR: SleepProvider,
     SpawnR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
+    UnixR: Clone + Send + Sync + 'static,
     TlsR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
 {
@@ -131,14 +140,15 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> CoarseTimeProvider
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> CoarseTimeProvider
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     CoarseTimeR: CoarseTimeProvider,
     SleepR: Clone + Send + Sync + 'static,
     SpawnR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     TcpR: Clone + Send + Sync + 'static,
+    UnixR: Clone + Send + Sync + 'static,
     TlsR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
 {
@@ -149,37 +159,67 @@ where
 }
 
 #[async_trait]
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> TcpProvider
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> NetStreamProvider<net::SocketAddr>
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
-    TcpR: TcpProvider,
+    TcpR: NetStreamProvider<net::SocketAddr>,
     SpawnR: Send + Sync + 'static,
     SleepR: Send + Sync + 'static,
     CoarseTimeR: Send + Sync + 'static,
     TcpR: Send + Sync + 'static,
+    UnixR: Clone + Send + Sync + 'static,
     TlsR: Send + Sync + 'static,
     UdpR: Send + Sync + 'static,
 {
-    type TcpStream = TcpR::TcpStream;
+    type Stream = TcpR::Stream;
 
-    type TcpListener = TcpR::TcpListener;
+    type Listener = TcpR::Listener;
 
     #[inline]
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
+    async fn connect(&self, addr: &net::SocketAddr) -> IoResult<Self::Stream> {
         self.inner.tcp.connect(addr).await
     }
 
     #[inline]
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &net::SocketAddr) -> IoResult<Self::Listener> {
         self.inner.tcp.listen(addr).await
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR, S> TlsProvider<S>
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+#[async_trait]
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> NetStreamProvider<unix::SocketAddr>
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
-    TcpR: TcpProvider,
+    UnixR: NetStreamProvider<unix::SocketAddr>,
+    SpawnR: Send + Sync + 'static,
+    SleepR: Send + Sync + 'static,
+    CoarseTimeR: Send + Sync + 'static,
+    TcpR: Send + Sync + 'static,
+    UnixR: Clone + Send + Sync + 'static,
+    TlsR: Send + Sync + 'static,
+    UdpR: Send + Sync + 'static,
+{
+    type Stream = UnixR::Stream;
+
+    type Listener = UnixR::Listener;
+
+    #[inline]
+    async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
+        self.inner.unix.connect(addr).await
+    }
+
+    #[inline]
+    async fn listen(&self, addr: &unix::SocketAddr) -> IoResult<Self::Listener> {
+        self.inner.unix.listen(addr).await
+    }
+}
+
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR, S> TlsProvider<S>
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
+where
+    TcpR: NetStreamProvider,
     TlsR: TlsProvider<S>,
+    UnixR: Clone + Send + Sync + 'static,
     SleepR: Clone + Send + Sync + 'static,
     CoarseTimeR: Clone + Send + Sync + 'static,
     SpawnR: Clone + Send + Sync + 'static,
@@ -199,8 +239,8 @@ where
     }
 }
 
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> std::fmt::Debug
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> std::fmt::Debug
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompoundRuntime").finish_non_exhaustive()
@@ -208,21 +248,98 @@ impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> std::fmt::Debug
 }
 
 #[async_trait]
-impl<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR> UdpProvider
-    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, TlsR, UdpR>
+impl<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR> UdpProvider
+    for CompoundRuntime<SpawnR, SleepR, CoarseTimeR, TcpR, UnixR, TlsR, UdpR>
 where
     UdpR: UdpProvider,
     SpawnR: Send + Sync + 'static,
     SleepR: Send + Sync + 'static,
     CoarseTimeR: Send + Sync + 'static,
     TcpR: Send + Sync + 'static,
+    UnixR: Clone + Send + Sync + 'static,
     TlsR: Send + Sync + 'static,
     UdpR: Send + Sync + 'static,
 {
     type UdpSocket = UdpR::UdpSocket;
 
     #[inline]
-    async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket> {
+    async fn bind(&self, addr: &net::SocketAddr) -> IoResult<Self::UdpSocket> {
         self.inner.udp.bind(addr).await
+    }
+}
+
+/// Module to seal RuntimeSubstExt
+mod sealed {
+    /// Helper for sealing RuntimeSubstExt
+    #[allow(unreachable_pub)]
+    pub trait Sealed {}
+}
+/// Extension trait on Runtime:
+/// Construct new Runtimes that replace part of an original runtime.
+///
+/// (If you need to do more complicated versions of this, you should likely construct
+/// CompoundRuntime directly.)
+pub trait RuntimeSubstExt: sealed::Sealed + Sized {
+    /// Return a new runtime wrapping this runtime, but replacing its TCP NetStreamProvider.
+    fn with_tcp_provider<T>(
+        &self,
+        new_tcp: T,
+    ) -> CompoundRuntime<Self, Self, Self, T, Self, Self, Self>;
+    /// Return a new runtime wrapping this runtime, but replacing its SleepProvider.
+    fn with_sleep_provider<T>(
+        &self,
+        new_sleep: T,
+    ) -> CompoundRuntime<Self, T, Self, Self, Self, Self, Self>;
+    /// Return a new runtime wrapping this runtime, but replacing its CoarseTimeProvider.
+    fn with_coarse_time_provider<T>(
+        &self,
+        new_coarse_time: T,
+    ) -> CompoundRuntime<Self, Self, T, Self, Self, Self, Self>;
+}
+impl<R: Runtime> sealed::Sealed for R {}
+impl<R: Runtime + Sized> RuntimeSubstExt for R {
+    fn with_tcp_provider<T>(
+        &self,
+        new_tcp: T,
+    ) -> CompoundRuntime<Self, Self, Self, T, Self, Self, Self> {
+        CompoundRuntime::new(
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            new_tcp,
+            self.clone(),
+            self.clone(),
+            self.clone(),
+        )
+    }
+
+    fn with_sleep_provider<T>(
+        &self,
+        new_sleep: T,
+    ) -> CompoundRuntime<Self, T, Self, Self, Self, Self, Self> {
+        CompoundRuntime::new(
+            self.clone(),
+            new_sleep,
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            self.clone(),
+        )
+    }
+
+    fn with_coarse_time_provider<T>(
+        &self,
+        new_coarse_time: T,
+    ) -> CompoundRuntime<Self, Self, T, Self, Self, Self, Self> {
+        CompoundRuntime::new(
+            self.clone(),
+            self.clone(),
+            new_coarse_time,
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            self.clone(),
+        )
     }
 }

@@ -9,7 +9,7 @@ use super::io::{stream_pair, LocalStream};
 use super::MockNetRuntime;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
-use tor_rtcompat::{CertifiedConn, Runtime, TcpListener, TcpProvider, TlsProvider};
+use tor_rtcompat::{CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, TlsProvider};
 use tor_rtcompat::{UdpProvider, UdpSocket};
 
 use async_trait::async_trait;
@@ -74,7 +74,8 @@ enum AddrBehavior {
 /// Each simulated host has its own addresses that it's allowed to listen on,
 /// and a reference to the network.
 ///
-/// This type implements [`TcpProvider`] so that it can be used as a
+/// This type implements [`NetStreamProvider`] for [`SocketAddr`]
+/// so that it can be used as a
 /// drop-in replacement for testing code that uses the network.
 ///
 /// # Limitations
@@ -136,7 +137,7 @@ struct MockNetProviderInner {
     next_port: AtomicU16,
 }
 
-/// A [`TcpListener`] implementation returned by a [`MockNetProvider`].
+/// A [`NetStreamListener`] implementation returned by a [`MockNetProvider`].
 ///
 /// Represents listening on a public address for incoming TCP connections.
 pub struct MockNetListener {
@@ -277,19 +278,10 @@ impl ProviderBuilder {
     }
 }
 
-#[async_trait]
-impl TcpListener for MockNetListener {
-    type TcpStream = LocalStream;
+impl NetStreamListener for MockNetListener {
+    type Stream = LocalStream;
 
     type Incoming = Self;
-
-    async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-        let mut receiver = self.receiver.lock().await;
-        receiver
-            .next()
-            .await
-            .ok_or_else(|| err(ErrorKind::BrokenPipe))
-    }
 
     fn local_addr(&self) -> IoResult<SocketAddr> {
         Ok(self.addr)
@@ -434,9 +426,9 @@ impl MockNetProvider {
 }
 
 #[async_trait]
-impl TcpProvider for MockNetProvider {
-    type TcpStream = LocalStream;
-    type TcpListener = MockNetListener;
+impl NetStreamProvider for MockNetProvider {
+    type Stream = LocalStream;
+    type Listener = MockNetListener;
 
     async fn connect(&self, addr: &SocketAddr) -> IoResult<LocalStream> {
         let my_addr = self.get_origin_addr_for(addr)?;
@@ -453,7 +445,7 @@ impl TcpProvider for MockNetProvider {
         Ok(mine)
     }
 
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
         let addr = self.get_listener_addr(addr)?;
 
         let receiver = AsyncMutex::new(self.inner.net.add_listener(addr, None)?);
@@ -627,7 +619,7 @@ mod test {
                     Ok(())
                 },
                 async {
-                    let (mut conn, a) = lis.accept().await?;
+                    let (mut conn, a) = lis.incoming().next().await.expect("closed?")?;
                     assert_eq!(a.ip(), "192.0.2.55".parse::<IpAddr>().unwrap());
                     let mut inp = Vec::new();
                     conn.read_to_end(&mut inp).await?;
@@ -716,12 +708,12 @@ mod test {
         let (client1, client2) = client_pair();
         let cert = b"I am certified for something I assure you.";
 
-        let lis = client2
-            .listen_tls(&"0.0.0.0:0".parse().unwrap(), cert[..].into())
-            .unwrap();
-        let address = lis.local_addr().unwrap();
-
         test_with_all_runtimes!(|_rt| async {
+            let lis = client2
+                .listen_tls(&"0.0.0.0:0".parse().unwrap(), cert[..].into())
+                .unwrap();
+            let address = lis.local_addr().unwrap();
+
             let (r1, r2): (IoResult<()>, IoResult<()>) = futures::join!(
                 async {
                     let connector = client1.tls_connector();
@@ -738,7 +730,7 @@ mod test {
                     Ok(())
                 },
                 async {
-                    let (mut conn, a) = lis.accept().await?;
+                    let (mut conn, a) = lis.incoming().next().await.expect("closed?")?;
                     assert_eq!(a.ip(), "192.0.2.55".parse::<IpAddr>().unwrap());
                     let mut inp = [0_u8; 26];
                     conn.read_exact(&mut inp[..]).await?;

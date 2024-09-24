@@ -38,24 +38,37 @@ define_derive_deftly! {
   ${when fmeta(mock(net))}
 
     #[async_trait]
-    impl <$tgens> TcpProvider for $ttype {
-        type TcpStream = <$ftype as TcpProvider>::TcpStream;
-        type TcpListener = <$ftype as TcpProvider>::TcpListener;
+    impl <$tgens> NetStreamProvider for $ttype {
+        type Stream = <$ftype as NetStreamProvider>::Stream;
+        type Listener = <$ftype as NetStreamProvider>::Listener;
 
-        async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
+        async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream> {
             self.$fname.connect(addr).await
         }
-        async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+        async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
             self.$fname.listen(addr).await
         }
     }
 
-    impl <$tgens> TlsProvider<<$ftype as TcpProvider>::TcpStream> for $ttype {
+    #[async_trait]
+    impl <$tgens> NetStreamProvider<tor_rtcompat::unix::SocketAddr> for $ttype {
+        type Stream = FakeStream;
+        type Listener = FakeListener<tor_rtcompat::unix::SocketAddr>;
+
+        async fn connect(&self, _addr: &tor_rtcompat::unix::SocketAddr) -> IoResult<Self::Stream> {
+            Err(tor_rtcompat::unix::NoUnixAddressSupport::default().into())
+        }
+        async fn listen(&self, _addr: &tor_rtcompat::unix::SocketAddr) -> IoResult<Self::Listener> {
+            Err(tor_rtcompat::unix::NoUnixAddressSupport::default().into())
+        }
+    }
+
+    impl <$tgens> TlsProvider<<$ftype as NetStreamProvider>::Stream> for $ttype {
         type Connector = <$ftype as TlsProvider<
-            <$ftype as TcpProvider>::TcpStream
+            <$ftype as NetStreamProvider>::Stream
             >>::Connector;
         type TlsStream = <$ftype as TlsProvider<
-            <$ftype as TcpProvider>::TcpStream
+            <$ftype as NetStreamProvider>::Stream
             >>::TlsStream;
         fn tls_connector(&self) -> Self::Connector {
             self.$fname.tls_connector()
@@ -137,7 +150,7 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::net::SocketAddr;
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
-        BlockOn, CoarseInstant, CoarseTimeProvider, Runtime, SleepProvider, TcpProvider,
-        TlsProvider, UdpProvider,
+        unimpl::FakeListener, unimpl::FakeStream, BlockOn, CoarseInstant, CoarseTimeProvider,
+        NetStreamProvider, Runtime, SleepProvider, TlsProvider, UdpProvider,
     };
 }

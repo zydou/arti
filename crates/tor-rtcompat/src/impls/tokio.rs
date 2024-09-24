@@ -11,8 +11,13 @@ pub(crate) mod net {
     pub(crate) use tokio_crate::net::{
         TcpListener as TokioTcpListener, TcpStream as TokioTcpStream, UdpSocket as TokioUdpSocket,
     };
+    #[cfg(unix)]
+    pub(crate) use tokio_crate::net::{
+        UnixListener as TokioUnixListener, UnixStream as TokioUnixStream,
+    };
 
     use futures::io::{AsyncRead, AsyncWrite};
+    use paste::paste;
     use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
 
     use std::io::Result as IoResult;
@@ -20,84 +25,122 @@ pub(crate) mod net {
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
-    /// Wrapper for Tokio's TcpStream that implements the standard
-    /// AsyncRead and AsyncWrite.
-    pub struct TcpStream {
-        /// Underlying tokio_util::compat::Compat wrapper.
-        s: Compat<TokioTcpStream>,
-    }
-    impl From<TokioTcpStream> for TcpStream {
-        fn from(s: TokioTcpStream) -> TcpStream {
-            let s = s.compat();
-            TcpStream { s }
-        }
-    }
-    impl AsyncRead for TcpStream {
-        fn poll_read(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<IoResult<usize>> {
-            Pin::new(&mut self.s).poll_read(cx, buf)
-        }
-    }
-    impl AsyncWrite for TcpStream {
-        fn poll_write(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<IoResult<usize>> {
-            Pin::new(&mut self.s).poll_write(cx, buf)
-        }
-        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-            Pin::new(&mut self.s).poll_flush(cx)
-        }
-        fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-            Pin::new(&mut self.s).poll_close(cx)
-        }
-    }
-
-    /// Wrap a Tokio TcpListener to behave as a futures::io::TcpListener.
-    pub struct TcpListener {
-        /// The underlying listener.
-        pub(super) lis: TokioTcpListener,
-    }
-
-    /// Asynchronous stream that yields incoming connections from a
-    /// TcpListener.
-    ///
-    /// This is analogous to async_std::net::Incoming.
-    pub struct IncomingTcpStreams {
-        /// Reference to the underlying listener.
-        pub(super) lis: TokioTcpListener,
-    }
-
-    impl futures::stream::Stream for IncomingTcpStreams {
-        type Item = IoResult<(TcpStream, SocketAddr)>;
-
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            match self.lis.poll_accept(cx) {
-                Poll::Ready(Ok((s, a))) => Poll::Ready(Some(Ok((s.into(), a)))),
-                Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
-                Poll::Pending => Poll::Pending,
+    /// Provide a set of network stream wrappers for a single stream type.
+    macro_rules! stream_impl {
+        {
+            $kind:ident,
+            $addr:ty,
+            $cvt_addr:ident
+        } => {paste!{
+            /// Wrapper for Tokio's
+            #[doc = stringify!($kind)]
+            /// streams,
+            /// that implements the standard
+            /// AsyncRead and AsyncWrite.
+            pub struct [<$kind Stream>] {
+                /// Underlying tokio_util::compat::Compat wrapper.
+                s: Compat<[<Tokio $kind Stream>]>,
             }
+            impl From<[<Tokio $kind Stream>]> for [<$kind Stream>] {
+                fn from(s: [<Tokio $kind Stream>]) ->  [<$kind Stream>] {
+                    let s = s.compat();
+                    [<$kind Stream>] { s }
+                }
+            }
+            impl AsyncRead for  [<$kind Stream>] {
+                fn poll_read(
+                    mut self: Pin<&mut Self>,
+                    cx: &mut Context<'_>,
+                    buf: &mut [u8],
+                ) -> Poll<IoResult<usize>> {
+                    Pin::new(&mut self.s).poll_read(cx, buf)
+                }
+            }
+            impl AsyncWrite for  [<$kind Stream>] {
+                fn poll_write(
+                    mut self: Pin<&mut Self>,
+                    cx: &mut Context<'_>,
+                    buf: &[u8],
+                ) -> Poll<IoResult<usize>> {
+                    Pin::new(&mut self.s).poll_write(cx, buf)
+                }
+                fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+                    Pin::new(&mut self.s).poll_flush(cx)
+                }
+                fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+                    Pin::new(&mut self.s).poll_close(cx)
+                }
+            }
+
+            /// Wrap a Tokio
+            #[doc = stringify!($kind)]
+            /// Listener to behave as a futures::io::TcpListener.
+            pub struct [<$kind Listener>] {
+                /// The underlying listener.
+                pub(super) lis: [<Tokio $kind Listener>],
+            }
+
+            /// Asynchronous stream that yields incoming connections from a
+            #[doc = stringify!($kind)]
+            /// Listener.
+            ///
+            /// This is analogous to async_std::net::Incoming.
+            pub struct [<Incoming $kind Streams>] {
+                /// Reference to the underlying listener.
+                pub(super) lis: [<Tokio $kind Listener>],
+            }
+
+            impl futures::stream::Stream for [<Incoming $kind Streams>] {
+                type Item = IoResult<([<$kind Stream>], $addr)>;
+
+                fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+                    match self.lis.poll_accept(cx) {
+                        Poll::Ready(Ok((s, a))) => Poll::Ready(Some(Ok((s.into(), $cvt_addr(a)? )))),
+                        Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
+                        Poll::Pending => Poll::Pending,
+                    }
+                }
+            }
+            impl traits::NetStreamListener<$addr> for [<$kind Listener>] {
+                type Stream = [<$kind Stream>];
+                type Incoming = [<Incoming $kind Streams>];
+                fn incoming(self) -> Self::Incoming {
+                    [<Incoming $kind Streams>] { lis: self.lis }
+                }
+                fn local_addr(&self) -> IoResult<$addr> {
+                    $cvt_addr(self.lis.local_addr()?)
+                }
+            }
+        }}
+    }
+
+    /// Try to convert a tokio unix SocketAddr into a crate::SocketAddr.
+    ///
+    /// Frustratingly, this information is _right there_: Tokio's SocketAddr has a
+    /// std::unix::net::SocketAddr internally, but there appears to be no way to get it out.
+    #[cfg(unix)]
+    #[allow(clippy::needless_pass_by_value)]
+    fn try_cvt_tokio_unix_addr(
+        addr: tokio_crate::net::unix::SocketAddr,
+    ) -> IoResult<crate::unix::SocketAddr> {
+        if addr.is_unnamed() {
+            crate::unix::new_unnamed_socketaddr()
+        } else if let Some(p) = addr.as_pathname() {
+            crate::unix::SocketAddr::from_pathname(p)
+        } else {
+            Err(crate::unix::UnsupportedUnixAddressType.into())
         }
     }
-    #[async_trait]
-    impl traits::TcpListener for TcpListener {
-        type TcpStream = TcpStream;
-        type Incoming = IncomingTcpStreams;
-        async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-            let (stream, addr) = self.lis.accept().await?;
-            Ok((stream.into(), addr))
-        }
-        fn incoming(self) -> Self::Incoming {
-            IncomingTcpStreams { lis: self.lis }
-        }
-        fn local_addr(&self) -> IoResult<SocketAddr> {
-            self.lis.local_addr()
-        }
+
+    /// Wrapper for (not) converting std::net::SocketAddr to itself.
+    #[allow(clippy::unnecessary_wraps)]
+    fn identity_fn_socketaddr(addr: std::net::SocketAddr) -> IoResult<std::net::SocketAddr> {
+        Ok(addr)
     }
+
+    stream_impl! { Tcp, std::net::SocketAddr, identity_fn_socketaddr }
+    #[cfg(unix)]
+    stream_impl! { Unix, crate::unix::SocketAddr, try_cvt_tokio_unix_addr }
 
     /// Wrap a Tokio UdpSocket
     pub struct UdpSocket {
@@ -146,19 +189,44 @@ impl SleepProvider for TokioRuntimeHandle {
 }
 
 #[async_trait]
-impl crate::traits::TcpProvider for TokioRuntimeHandle {
-    type TcpStream = net::TcpStream;
-    type TcpListener = net::TcpListener;
+impl crate::traits::NetStreamProvider for TokioRuntimeHandle {
+    type Stream = net::TcpStream;
+    type Listener = net::TcpListener;
 
-    async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpStream> {
+    async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::Stream> {
         let s = net::TokioTcpStream::connect(addr).await?;
         Ok(s.into())
     }
-    async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::Listener> {
         let lis = net::TokioTcpListener::bind(*addr).await?;
         Ok(net::TcpListener { lis })
     }
 }
+
+#[cfg(unix)]
+#[async_trait]
+impl crate::traits::NetStreamProvider<crate::unix::SocketAddr> for TokioRuntimeHandle {
+    type Stream = net::UnixStream;
+    type Listener = net::UnixListener;
+
+    async fn connect(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Stream> {
+        let path = addr
+            .as_pathname()
+            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+        let s = net::TokioUnixStream::connect(path).await?;
+        Ok(s.into())
+    }
+    async fn listen(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Listener> {
+        let path = addr
+            .as_pathname()
+            .ok_or(crate::unix::UnsupportedUnixAddressType)?;
+        let lis = net::TokioUnixListener::bind(path)?;
+        Ok(net::UnixListener { lis })
+    }
+}
+
+#[cfg(not(unix))]
+crate::impls::impl_unix_non_provider! { TokioRuntimeHandle }
 
 #[async_trait]
 impl crate::traits::UdpProvider for TokioRuntimeHandle {

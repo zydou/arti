@@ -1,8 +1,8 @@
-//! Implement a tcpProvider that can break things.
+//! Implement a NetStreamProvider that can break things.
 #![allow(clippy::missing_docs_in_private_items)] // required for pin_project(enum)
 
 use futures::Stream;
-use tor_rtcompat::{Runtime, TcpListener, TcpProvider};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, SleepProvider};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -105,11 +105,11 @@ impl Default for ConditionalAction {
     }
 }
 
-/// A TcpProvider that can make its connections fail.
+/// A NetStreamProvider that can make its connections fail.
 #[pin_project]
 #[derive(Debug, Clone)]
 pub(crate) struct BrokenTcpProvider<R> {
-    /// An underlying TcpProvider to use when we actually want our connections to succeed
+    /// An underlying NetStreamProvider to use when we actually want our connections to succeed
     #[pin]
     inner: R,
     /// The action to take when we try to make an outbound connection.
@@ -144,11 +144,11 @@ impl<R> BrokenTcpProvider<R> {
 }
 
 #[async_trait]
-impl<R: Runtime> TcpProvider for BrokenTcpProvider<R> {
-    type TcpStream = BreakableTcpStream<R::TcpStream>;
-    type TcpListener = BrokenTcpProvider<R::TcpListener>;
+impl<R: NetStreamProvider + SleepProvider> NetStreamProvider for BrokenTcpProvider<R> {
+    type Stream = BreakableTcpStream<R::Stream>;
+    type Listener = BrokenTcpProvider<R::Listener>;
 
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::TcpStream> {
+    async fn connect(&self, addr: &SocketAddr) -> IoResult<Self::Stream> {
         match self.get_action(addr) {
             Action::Work => {
                 let conn = self.inner.connect(addr).await?;
@@ -164,7 +164,7 @@ impl<R: Runtime> TcpProvider for BrokenTcpProvider<R> {
         }
     }
 
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::TcpListener> {
+    async fn listen(&self, addr: &SocketAddr) -> IoResult<Self::Listener> {
         let listener = self.inner.listen(addr).await?;
         Ok(BrokenTcpProvider {
             inner: listener,
@@ -220,15 +220,9 @@ impl<S: AsyncWrite> AsyncWrite for BreakableTcpStream<S> {
     }
 }
 
-#[async_trait]
-impl<S: TcpListener + Send + Sync> TcpListener for BrokenTcpProvider<S> {
-    type TcpStream = BreakableTcpStream<S::TcpStream>;
+impl<S: NetStreamListener + Send + Sync> NetStreamListener for BrokenTcpProvider<S> {
+    type Stream = BreakableTcpStream<S::Stream>;
     type Incoming = BrokenTcpProvider<S::Incoming>;
-
-    async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)> {
-        let (inner, addr) = self.inner.accept().await?;
-        Ok((BreakableTcpStream::Present(inner), addr))
-    }
 
     fn incoming(self) -> Self::Incoming {
         BrokenTcpProvider {

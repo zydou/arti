@@ -273,13 +273,14 @@ mod test {
         mgr::{AbstractChannel, AbstractChannelFactory},
         Result,
     };
+    use futures::StreamExt as _;
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
     use tor_linkspec::{ChannelMethod, HasRelayIds, RelayIdType};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_proto::channel::Channel;
-    use tor_rtcompat::{test_with_one_runtime, TcpListener};
+    use tor_rtcompat::{test_with_one_runtime, NetStreamListener};
     use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
 
     // Make sure that the builder can build a real channel.  To test
@@ -341,7 +342,12 @@ mod test {
                 async {
                     // relay-side: accept the channel
                     // (and pretend to know what we're doing).
-                    let (mut con, addr) = lis.accept().await.expect("accept failed");
+                    let (mut con, addr) = lis
+                        .incoming()
+                        .next()
+                        .await
+                        .expect("Closed?")
+                        .expect("accept failed");
                     assert_eq!(client_addr, addr.ip());
                     crate::testing::answer_channel_req(&mut con)
                         .await

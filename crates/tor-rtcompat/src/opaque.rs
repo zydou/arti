@@ -40,15 +40,28 @@ macro_rules! implement_opaque_runtime {
     }
 
     #[async_trait::async_trait]
-    impl $crate::traits::TcpProvider for $t {
-        type TcpStream = <$mty as $crate::traits::TcpProvider>::TcpStream;
-        type TcpListener = <$mty as $crate::traits::TcpProvider>::TcpListener;
+    impl $crate::traits::NetStreamProvider<std::net::SocketAddr> for $t {
+        type Stream = <$mty as $crate::traits::NetStreamProvider>::Stream;
+        type Listener = <$mty as $crate::traits::NetStreamProvider>::Listener;
         #[inline]
-        async fn connect(&self, addr: &std::net::SocketAddr) -> std::io::Result<Self::TcpStream> {
+        async fn connect(&self, addr: &std::net::SocketAddr) -> std::io::Result<Self::Stream> {
             self.$member.connect(addr).await
         }
         #[inline]
-        async fn listen(&self, addr: &std::net::SocketAddr) -> std::io::Result<Self::TcpListener> {
+        async fn listen(&self, addr: &std::net::SocketAddr) -> std::io::Result<Self::Listener> {
+            self.$member.listen(addr).await
+        }
+    }
+    #[async_trait::async_trait]
+    impl $crate::traits::NetStreamProvider<crate::unix::SocketAddr> for $t {
+        type Stream = <$mty as $crate::traits::NetStreamProvider<crate::unix::SocketAddr>>::Stream;
+        type Listener = <$mty as $crate::traits::NetStreamProvider<crate::unix::SocketAddr>>::Listener;
+        #[inline]
+        async fn connect(&self, addr: &crate::unix::SocketAddr) -> std::io::Result<Self::Stream> {
+            self.$member.connect(addr).await
+        }
+        #[inline]
+        async fn listen(&self, addr: &crate::unix::SocketAddr) -> std::io::Result<Self::Listener> {
             self.$member.listen(addr).await
         }
     }

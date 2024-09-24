@@ -50,16 +50,19 @@ pub mod task;
 
 mod coarse_time;
 mod compound;
+pub mod general;
 mod opaque;
 pub mod scheduler;
 mod timer;
 mod traits;
+pub mod unimpl;
+pub mod unix;
 
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 use std::io;
 pub use traits::{
-    BlockOn, CertifiedConn, CoarseTimeProvider, Runtime, SleepProvider, TcpListener, TcpProvider,
-    TlsProvider, UdpProvider, UdpSocket,
+    BlockOn, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider, Runtime,
+    SleepProvider, TlsProvider, UdpProvider, UdpSocket,
 };
 
 pub use coarse_time::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
@@ -82,7 +85,7 @@ pub mod tokio;
 #[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "async-std"))]
 pub mod async_std;
 
-pub use compound::CompoundRuntime;
+pub use compound::{CompoundRuntime, RuntimeSubstExt};
 
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
@@ -361,6 +364,7 @@ mod test {
     use futures::stream::StreamExt;
     use native_tls_crate as native_tls;
     use std::io::Result as IoResult;
+    use std::net::SocketAddr;
     use std::net::{Ipv4Addr, SocketAddrV4};
     use std::time::{Duration, Instant};
 
@@ -434,13 +438,13 @@ mod test {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
-        let listener = runtime.block_on(rt1.listen(&(localhost.into())))?;
+        let listener = runtime.block_on(rt1.listen(&(SocketAddr::from(localhost))))?;
         let addr = listener.local_addr()?;
 
         runtime.block_on(async {
             let task1 = async {
                 let mut buf = vec![0_u8; 11];
-                let (mut con, _addr) = listener.accept().await?;
+                let (mut con, _addr) = listener.incoming().next().await.expect("closed?")?;
                 con.read_exact(&mut buf[..]).await?;
                 IoResult::Ok(buf)
             };
@@ -502,7 +506,9 @@ mod test {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
-        let listener = runtime.block_on(rt1.listen(&(localhost.into()))).unwrap();
+        let listener = runtime
+            .block_on(rt1.listen(&SocketAddr::from(localhost)))
+            .unwrap();
         let addr = listener.local_addr().unwrap();
         let mut stream = listener.incoming();
 
