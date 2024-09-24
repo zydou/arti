@@ -21,6 +21,7 @@ use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{error_report, internal, Bug};
 use tor_guardmgr::{GuardMgr, RetireCircuits};
+use tor_keymgr::Keystore;
 use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 #[cfg(feature = "onion-service-service")]
@@ -233,7 +234,7 @@ impl InertTorClient {
     /// Returns `Ok(None)` if keystore use is disabled.
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
-        match keystore.primary_kind() {
+        let primary_store: Box<dyn Keystore> = match keystore.primary_kind() {
             Some(ArtiKeystoreKind::Native) => {
                 let (state_dir, _mistrust) = config.state_dir()?;
                 let key_store_dir = state_dir.join("keystore");
@@ -243,31 +244,29 @@ impl InertTorClient {
                     ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
                 info!("Using keystore from {key_store_dir:?}");
 
-                let keymgr = KeyMgrBuilder::default()
-                    .primary_store(Box::new(native_store))
-                    .build()
-                    .map_err(|_| internal!("failed to build keymgr"))?;
-
                 // TODO #858: add support for the C Tor key store
-                Ok(Some(Arc::new(keymgr)))
+                Box::new(native_store)
             }
             #[cfg(feature = "ephemeral-keystore")]
             Some(ArtiKeystoreKind::Ephemeral) => {
                 // TODO: make the keystore ID somehow configurable
                 let ephemeral_store: ArtiEphemeralKeystore =
                     ArtiEphemeralKeystore::new("ephemeral".to_string());
-                let keymgr = KeyMgrBuilder::default()
-                    .primary_store(Box::new(ephemeral_store))
-                    .build()
-                    .map_err(|_| internal!("failed to build keymgr"))?;
-                Ok(Some(Arc::new(keymgr)))
+                Box::new(ephemeral_store)
             }
             None => {
                 info!("Running without a keystore");
-                Ok(None)
+                return Ok(None);
             }
-            ty => Err(internal!("unrecognized keystore type {ty:?}").into()),
-        }
+            ty => return Err(internal!("unrecognized keystore type {ty:?}").into()),
+        };
+
+        let keymgr = KeyMgrBuilder::default()
+            .primary_store(primary_store)
+            .build()
+            .map_err(|_| internal!("failed to build keymgr"))?;
+
+        Ok(Some(Arc::new(keymgr)))
     }
 
     /// Generate a service discovery keypair for connecting to a hidden service running in
