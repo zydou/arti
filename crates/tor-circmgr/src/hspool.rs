@@ -10,7 +10,10 @@ use std::{
     time::Duration,
 };
 
-use crate::{timeouts, CircMgr, Error, Result};
+use crate::{
+    build::CircuitBuilder, mgr::AbstractCircBuilder, timeouts, AbstractCirc, CircMgr, CircMgrInner,
+    Error, Result,
+};
 use futures::{task::SpawnExt, StreamExt, TryFutureExt};
 use once_cell::sync::OnceCell;
 use tor_error::{bad_api_usage, internal};
@@ -81,14 +84,14 @@ impl HsCircKind {
 /// This represents a hidden service circuit that has not yet been extended to a target.
 ///
 /// See [HsCircStubKind].
-pub(crate) struct HsCircStub {
+pub(crate) struct HsCircStub<C: AbstractCirc> {
     /// The circuit.
-    pub(crate) circ: Arc<ClientCirc>,
+    pub(crate) circ: Arc<C>,
     /// Whether the circuit is SHORT or EXTENDED
     pub(crate) kind: HsCircStubKind,
 }
 
-impl HsCircStub {
+impl<C: AbstractCirc> HsCircStub<C> {
     /// Whether this circuit satisfies _all_ the [`HsCircPrefs`].
     ///
     /// Returns `false` if any of the `prefs` are not satisfied.
@@ -102,15 +105,15 @@ impl HsCircStub {
     }
 }
 
-impl Deref for HsCircStub {
-    type Target = Arc<ClientCirc>;
+impl<C: AbstractCirc> Deref for HsCircStub<C> {
+    type Target = Arc<C>;
 
     fn deref(&self) -> &Self::Target {
         &self.circ
     }
 }
 
-impl HsCircStub {
+impl<C: AbstractCirc> HsCircStub<C> {
     /// Check if this circuit stub is of the specified `kind`
     /// or can be extended to become that kind.
     ///
@@ -127,6 +130,7 @@ impl HsCircStub {
     }
 }
 
+#[allow(rustdoc::private_intra_doc_links)]
 /// A kind of hidden service circuit stub.
 ///
 /// See [hspath](crate::path::hspath) docs for more information.
@@ -151,6 +155,7 @@ impl HsCircStub {
 ///         EXTENDED = G -> L2 -> L3 -> M
 ///      ```
 #[derive(Copy, Clone, Debug, PartialEq, derive_more::Display)]
+#[non_exhaustive]
 pub(crate) enum HsCircStubKind {
     /// A short stub circuit.
     ///
@@ -191,9 +196,88 @@ impl HsCircStubKind {
 }
 
 /// An object to provide circuits for implementing onion services.
-pub struct HsCircPool<R: Runtime> {
+pub struct HsCircPool<R: Runtime>(Arc<HsCircPoolInner<CircuitBuilder<R>, R>>);
+
+impl<R: Runtime> HsCircPool<R> {
+    /// Create a new `HsCircPool`.
+    ///
+    /// This will not work properly before "launch_background_tasks" is called.
+    pub fn new(circmgr: &Arc<CircMgr<R>>) -> Self {
+        Self(Arc::new(HsCircPoolInner::new(circmgr)))
+    }
+
+    /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    pub async fn get_or_launch_specific<T>(
+        &self,
+        netdir: &NetDir,
+        kind: HsCircKind,
+        target: T,
+    ) -> Result<Arc<ClientCirc>>
+    where
+        T: CircTarget + std::marker::Sync,
+    {
+        self.0.get_or_launch_specific(netdir, kind, target).await
+    }
+
+    /// Create a circuit suitable for use as a rendezvous circuit by a client.
+    ///
+    /// Return the circuit, along with a [`Relay`] from `netdir` representing its final hop.
+    ///
+    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
+    pub async fn get_or_launch_client_rend<'a>(
+        &self,
+        netdir: &'a NetDir,
+    ) -> Result<(Arc<ClientCirc>, Relay<'a>)> {
+        self.0.get_or_launch_client_rend(netdir).await
+    }
+
+    /// Return an estimate-based delay for how long a given
+    /// [`Action`](timeouts::Action) should be allowed to complete.
+    ///
+    /// This function has the same semantics as
+    /// [`CircMgr::estimate_timeout`].
+    /// See the notes there.
+    ///
+    /// In particular **you do not need to use this function** in order to get
+    /// reasonable timeouts for the circuit-building operations provided by `HsCircPool`.
+    //
+    // In principle we could have made this available by making `HsCircPool` `Deref`
+    // to `CircMgr`, but we don't want to do that because `CircMgr` has methods that
+    // operate on *its* pool which is separate from the pool maintained by `HsCircPool`.
+    //
+    // We *might* want to provide a method to access the underlying `CircMgr`
+    // but that has the same issues, albeit less severely.
+    pub fn estimate_timeout(&self, timeout_action: &timeouts::Action) -> std::time::Duration {
+        self.0.estimate_timeout(timeout_action)
+    }
+
+    /// Launch the periodic daemon tasks required by the manager to function properly.
+    ///
+    /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
+    pub fn launch_background_tasks(
+        self: &Arc<Self>,
+        runtime: &R,
+        netdir_provider: &Arc<dyn NetDirProvider + 'static>,
+    ) -> Result<Vec<TaskHandle>> {
+        HsCircPoolInner::launch_background_tasks(&self.0.clone(), runtime, netdir_provider)
+    }
+
+    /// Retire the circuits in this pool.
+    ///
+    /// This is used for handling vanguard configuration changes:
+    /// if the [`VanguardMode`] changes, we need to empty the pool and rebuild it,
+    /// because the old circuits are no longer suitable for use.
+    pub fn retire_all_circuits(&self) -> StdResult<(), tor_config::ReconfigureError> {
+        self.0.retire_all_circuits()
+    }
+}
+
+/// An object to provide circuits for implementing onion services.
+pub(crate) struct HsCircPoolInner<B: AbstractCircBuilder<R> + 'static, R: Runtime> {
     /// An underlying circuit manager, used for constructing circuits.
-    circmgr: Arc<CircMgr<R>>,
+    circmgr: Arc<CircMgrInner<B, R>>,
     /// A task handle for making the background circuit launcher fire early.
     //
     // TODO: I think we may want to move this into the same Mutex as Pool
@@ -201,33 +285,36 @@ pub struct HsCircPool<R: Runtime> {
     // detail.
     launcher_handle: OnceCell<TaskHandle>,
     /// The mutable state of this pool.
-    inner: Mutex<Inner>,
+    inner: Mutex<Inner<B::Circ>>,
 }
 
 /// The mutable state of an [`HsCircPool`]
-struct Inner {
+struct Inner<C: AbstractCirc> {
     /// A collection of pre-constructed circuits.
-    pool: pool::Pool,
+    pool: pool::Pool<C>,
 }
 
-impl<R: Runtime> HsCircPool<R> {
-    /// Create a new `HsCircPool`.
-    ///
-    /// This will not work properly before "launch_background_tasks" is called.
-    pub fn new(circmgr: &Arc<CircMgr<R>>) -> Arc<Self> {
+impl<R: Runtime> HsCircPoolInner<CircuitBuilder<R>, R> {
+    /// Internal implementation for [`HsCircPool::new`].
+    pub(crate) fn new(circmgr: &CircMgr<R>) -> Self {
+        Self::new_internal(&circmgr.0)
+    }
+}
+
+impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
+    /// Create a new [`HsCircPoolInner`] from a [`CircMgrInner`].
+    pub(crate) fn new_internal(circmgr: &Arc<CircMgrInner<B, R>>) -> Self {
         let circmgr = Arc::clone(circmgr);
         let pool = pool::Pool::default();
-        Arc::new(Self {
+        Self {
             circmgr,
             launcher_handle: OnceCell::new(),
             inner: Mutex::new(Inner { pool }),
-        })
+        }
     }
 
-    /// Launch the periodic daemon tasks required by the manager to function properly.
-    ///
-    /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
-    pub fn launch_background_tasks(
+    /// Internal implementation for [`HsCircPool::launch_background_tasks`].
+    pub(crate) fn launch_background_tasks(
         self: &Arc<Self>,
         runtime: &R,
         netdir_provider: &Arc<dyn NetDirProvider + 'static>,
@@ -255,15 +342,11 @@ impl<R: Runtime> HsCircPool<R> {
         Ok(vec![handle.clone()])
     }
 
-    /// Create a circuit suitable for use as a rendezvous circuit by a client.
-    ///
-    /// Return the circuit, along with a [`Relay`] from `netdir` representing its final hop.
-    ///
-    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
-    pub async fn get_or_launch_client_rend<'a>(
+    /// Internal implementation for [`HsCircPool::get_or_launch_client_rend`].
+    pub(crate) async fn get_or_launch_client_rend<'a>(
         &self,
         netdir: &'a NetDir,
-    ) -> Result<(Arc<ClientCirc>, Relay<'a>)> {
+    ) -> Result<(Arc<B::Circ>, Relay<'a>)> {
         // For rendezvous points, clients use 3-hop circuits.
         // Note that we aren't using any special rules for the last hop here; we
         // are relying on the fact that:
@@ -307,17 +390,15 @@ impl<R: Runtime> HsCircPool<R> {
         }
     }
 
-    /// Create a circuit suitable for use for `kind`, ending at the chosen hop `target`.
-    ///
-    /// Only makes  a single attempt; the caller needs to loop if they want to retry.
-    pub async fn get_or_launch_specific<T>(
+    /// Internal implementation for [`HsCircPool::get_or_launch_specific`].
+    pub(crate) async fn get_or_launch_specific<T>(
         &self,
         netdir: &NetDir,
         kind: HsCircKind,
         target: T,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<Arc<B::Circ>>
     where
-        T: CircTarget,
+        T: CircTarget + std::marker::Sync,
     {
         if kind == HsCircKind::ClientRend {
             return Err(bad_api_usage!("get_or_launch_specific with ClientRend circuit!?").into());
@@ -357,12 +438,12 @@ impl<R: Runtime> HsCircPool<R> {
     /// Try to extend a circuit to the specified target hop.
     async fn extend_circ<T>(
         &self,
-        circ: HsCircStub,
+        circ: HsCircStub<B::Circ>,
         params: CircParameters,
         target: T,
-    ) -> Result<Arc<ClientCirc>>
+    ) -> Result<Arc<B::Circ>>
     where
-        T: CircTarget,
+        T: CircTarget + std::marker::Sync,
     {
         // Estimate how long it will take to extend it one more hop, and
         // construct a timeout as appropriate.
@@ -396,12 +477,8 @@ impl<R: Runtime> HsCircPool<R> {
         Ok(circ.circ)
     }
 
-    /// Retire the circuits in this pool.
-    ///
-    /// This is used for handling vanguard configuration changes:
-    /// if the [`VanguardMode`] changes, we need to empty the pool and rebuild it,
-    /// because the old circuits are no longer suitable for use.
-    pub fn retire_all_circuits(&self) -> StdResult<(), tor_config::ReconfigureError> {
+    /// Internal implementation for [`HsCircPool::retire_all_circuits`].
+    pub(crate) fn retire_all_circuits(&self) -> StdResult<(), tor_config::ReconfigureError> {
         self.inner
             .lock()
             .expect("poisoned lock")
@@ -424,11 +501,11 @@ impl<R: Runtime> HsCircPool<R> {
         netdir: &NetDir,
         avoid_target: Option<&T>,
         kind: HsCircStubKind,
-    ) -> Result<HsCircStub>
+    ) -> Result<HsCircStub<B::Circ>>
     where
         // TODO #504: It would be better if this were a type that had to include
         // family info.
-        T: CircTarget,
+        T: CircTarget + std::marker::Sync,
     {
         let vanguard_mode = self.vanguard_mode();
         trace!(
@@ -453,7 +530,7 @@ impl<R: Runtime> HsCircPool<R> {
         let found_usable_circ = {
             let mut inner = self.inner.lock().expect("lock poisoned");
 
-            let restrictions = |circ: &HsCircStub| {
+            let restrictions = |circ: &HsCircStub<B::Circ>| {
                 // If vanguards are enabled, we no longer apply same-family or same-subnet
                 // restrictions, and we allow the guard to appear as either of the last
                 // two hope of the circuit.
@@ -523,12 +600,12 @@ impl<R: Runtime> HsCircPool<R> {
     async fn maybe_extend_stub_circuit<T>(
         &self,
         netdir: &NetDir,
-        circuit: HsCircStub,
+        circuit: HsCircStub<B::Circ>,
         avoid_target: Option<&T>,
         kind: HsCircStubKind,
-    ) -> Result<HsCircStub>
+    ) -> Result<HsCircStub<B::Circ>>
     where
-        T: CircTarget,
+        T: CircTarget + std::marker::Sync,
     {
         match self.vanguard_mode() {
             #[cfg(all(feature = "vanguards", feature = "hs-common"))]
@@ -551,12 +628,12 @@ impl<R: Runtime> HsCircPool<R> {
     async fn extend_full_vanguards_circuit<T>(
         &self,
         netdir: &NetDir,
-        circuit: HsCircStub,
+        circuit: HsCircStub<B::Circ>,
         avoid_target: Option<&T>,
         kind: HsCircStubKind,
-    ) -> Result<HsCircStub>
+    ) -> Result<HsCircStub<B::Circ>>
     where
-        T: CircTarget,
+        T: CircTarget + std::marker::Sync,
     {
         match (circuit.kind, kind) {
             (HsCircStubKind::Short, HsCircStubKind::Extended) => {
@@ -606,12 +683,12 @@ impl<R: Runtime> HsCircPool<R> {
     /// Ensure `circ` is compatible with `target`, and has the correct length for its `kind`.
     fn ensure_suitable_circuit<T>(
         &self,
-        circ: &Arc<ClientCirc>,
+        circ: &Arc<B::Circ>,
         target: Option<&T>,
         kind: HsCircStubKind,
     ) -> StdResult<(), Bug>
     where
-        T: CircTarget,
+        T: CircTarget + std::marker::Sync,
     {
         Self::ensure_circuit_compatible_with_target(circ, target)?;
         self.ensure_circuit_length_valid(circ, kind)?;
@@ -622,7 +699,7 @@ impl<R: Runtime> HsCircPool<R> {
     /// Ensure the specified circuit of type `kind` has the right length.
     fn ensure_circuit_length_valid(
         &self,
-        circ: &Arc<ClientCirc>,
+        circ: &Arc<B::Circ>,
         kind: HsCircStubKind,
     ) -> StdResult<(), Bug> {
         let circ_path_len = circ.path_ref().n_hops();
@@ -650,11 +727,11 @@ impl<R: Runtime> HsCircPool<R> {
     ///   * a relay won't let you extend the circuit to itself
     ///   * relays won't let you extend the circuit to their previous hop
     fn ensure_circuit_compatible_with_target<T>(
-        circ: &Arc<ClientCirc>,
+        circ: &Arc<B::Circ>,
         target: Option<&T>,
     ) -> StdResult<(), Bug>
     where
-        T: CircTarget,
+        T: CircTarget + std::marker::Sync,
     {
         if let Some(target) = target {
             let take_n = 2;
@@ -709,23 +786,11 @@ impl<R: Runtime> HsCircPool<R> {
         }
     }
 
-    /// Return an estimate-based delay for how long a given
-    /// [`Action`](timeouts::Action) should be allowed to complete.
-    ///
-    /// This function has the same semantics as
-    /// [`CircMgr::estimate_timeout`].
-    /// See the notes there.
-    ///
-    /// In particular **you do not need to use this function** in order to get
-    /// reasonable timeouts for the circuit-building operations provided by `HsCircPool`.
-    //
-    // In principle we could have made this available by making `HsCircPool` `Deref`
-    // to `CircMgr`, but we don't want to do that because `CircMgr` has methods that
-    // operate on *its* pool which is separate from the pool maintained by `HsCircPool`.
-    //
-    // We *might* want to provide a method to access the underlying `CircMgr`
-    // but that has the same issues, albeit less severely.
-    pub fn estimate_timeout(&self, timeout_action: &timeouts::Action) -> std::time::Duration {
+    /// Internal implementation for [`HsCircPool::estimate_timeout`].
+    pub(crate) fn estimate_timeout(
+        &self,
+        timeout_action: &timeouts::Action,
+    ) -> std::time::Duration {
         self.circmgr.estimate_timeout(timeout_action)
     }
 }
@@ -735,9 +800,9 @@ impl<R: Runtime> HsCircPool<R> {
 /// We require that the circuit is open, that every hop  in the circuit is
 /// listed in `netdir`, and that no hop in the circuit shares a family with
 /// `target`.
-fn circuit_compatible_with_target(
+fn circuit_compatible_with_target<C: AbstractCirc>(
     netdir: &NetDir,
-    circ: &HsCircStub,
+    circ: &HsCircStub<C>,
     exclude_target: &RelayExclusion,
 ) -> bool {
     // NOTE, TODO #504:
@@ -758,14 +823,14 @@ fn circuit_compatible_with_target(
 /// We require that the circuit is open, that it can become the specified
 /// kind of [`HsCircStub`], that every hop in the circuit is listed in `netdir`,
 /// and that the last two hops are different from the specified target.
-fn vanguards_circuit_compatible_with_target<T>(
+fn vanguards_circuit_compatible_with_target<C: AbstractCirc, T>(
     netdir: &NetDir,
-    circ: &HsCircStub,
+    circ: &HsCircStub<C>,
     kind: HsCircStubKind,
     avoid_target: Option<&T>,
 ) -> bool
 where
-    T: CircTarget,
+    T: CircTarget + std::marker::Sync,
 {
     if let Some(target) = avoid_target {
         let circ_path = circ.circ.path_ref();
@@ -793,8 +858,9 @@ where
 /// We require that the circuit is open, that every hop  in the circuit is
 /// listed in `netdir`, and that `relay_okay` returns true for every hop on the
 /// circuit.
-fn circuit_still_useable<F>(netdir: &NetDir, circ: &HsCircStub, relay_okay: F) -> bool
+fn circuit_still_useable<C, F>(netdir: &NetDir, circ: &HsCircStub<C>, relay_okay: F) -> bool
 where
+    C: AbstractCirc,
     F: Fn(&Relay<'_>) -> bool,
 {
     let circ = &circ.circ;
@@ -821,8 +887,8 @@ where
 }
 
 /// Background task to launch onion circuits as needed.
-async fn launch_hs_circuits_as_needed<R: Runtime>(
-    pool: Weak<HsCircPool<R>>,
+async fn launch_hs_circuits_as_needed<B: AbstractCircBuilder<R> + 'static, R: Runtime>(
+    pool: Weak<HsCircPoolInner<B, R>>,
     netdir_provider: Weak<dyn NetDirProvider + 'static>,
     mut schedule: TaskSchedule<R>,
 ) {
@@ -906,8 +972,8 @@ async fn launch_hs_circuits_as_needed<R: Runtime>(
 }
 
 /// Background task to remove unusable circuits whenever the directory changes.
-async fn remove_unusable_circuits<R: Runtime>(
-    pool: Weak<HsCircPool<R>>,
+async fn remove_unusable_circuits<B: AbstractCircBuilder<R> + 'static, R: Runtime>(
+    pool: Weak<HsCircPoolInner<B, R>>,
     netdir_provider: Weak<dyn NetDirProvider + 'static>,
 ) {
     let mut event_stream = match netdir_provider.upgrade() {
@@ -958,10 +1024,13 @@ mod test {
     use tor_rtmock::MockRuntime;
 
     use super::*;
-    use crate::{CircMgr, TestConfig};
+    use crate::{CircMgrInner, TestConfig};
 
     /// Create a `CircMgr` with an underlying `VanguardMgr` that runs in the specified `mode`.
-    fn circmgr_with_vanguards<R: Runtime>(runtime: R, mode: VanguardMode) -> Arc<CircMgr<R>> {
+    fn circmgr_with_vanguards<R: Runtime>(
+        runtime: R,
+        mode: VanguardMode,
+    ) -> Arc<CircMgrInner<crate::build::CircuitBuilder<R>, R>> {
         let chanmgr = tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &Default::default(),
@@ -987,7 +1056,7 @@ mod test {
             ..Default::default()
         };
 
-        CircMgr::new(
+        CircMgrInner::new(
             &config,
             tor_persist::TestingStateMgr::new(),
             &runtime,
@@ -995,6 +1064,7 @@ mod test {
             guardmgr,
         )
         .unwrap()
+        .into()
     }
 
     // Prevents TROVE-2024-005 (arti#1424)
@@ -1002,7 +1072,7 @@ mod test {
     fn pool_with_vanguards_disabled() {
         MockRuntime::test_with_various(|runtime| async move {
             let circmgr = circmgr_with_vanguards(runtime, VanguardMode::Disabled);
-            let circpool = HsCircPool::new(&circmgr);
+            let circpool = HsCircPoolInner::new_internal(&circmgr);
             assert!(circpool.vanguard_mode() == VanguardMode::Disabled);
         });
     }
@@ -1013,7 +1083,7 @@ mod test {
         MockRuntime::test_with_various(|runtime| async move {
             for mode in [VanguardMode::Lite, VanguardMode::Full] {
                 let circmgr = circmgr_with_vanguards(runtime.clone(), mode);
-                let circpool = HsCircPool::new(&circmgr);
+                let circpool = HsCircPoolInner::new_internal(&circmgr);
                 assert!(circpool.vanguard_mode() == mode);
             }
         });

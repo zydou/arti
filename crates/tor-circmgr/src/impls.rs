@@ -1,25 +1,56 @@
 //! Implement traits from [`crate::mgr`] for the circuit types we use.
 
+use crate::build::CircuitBuilder;
 use crate::mgr::{self, MockablePlan};
 use crate::path::OwnedPath;
 use crate::usage::{SupportedCircUsage, TargetCircUsage};
-use crate::{DirInfo, Error, Result};
+use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 use async_trait::async_trait;
 use educe::Educe;
 use futures::future::OptionFuture;
 use std::sync::Arc;
 use tor_basic_utils::skip_fmt;
 use tor_error::internal;
-use tor_proto::circuit::{CircParameters, ClientCirc};
+#[cfg(feature = "vanguards")]
+use tor_guardmgr::vanguards::VanguardMgr;
+use tor_linkspec::CircTarget;
+use tor_proto::circuit::{CircParameters, ClientCirc, Path, UniqId};
 use tor_rtcompat::Runtime;
 
+#[async_trait]
 impl mgr::AbstractCirc for tor_proto::circuit::ClientCirc {
     type Id = tor_proto::circuit::UniqId;
+
     fn id(&self) -> Self::Id {
         self.unique_id()
     }
+
     fn usable(&self) -> bool {
         !self.is_closing()
+    }
+
+    fn path_ref(&self) -> Arc<Path> {
+        self.path_ref()
+    }
+
+    fn n_hops(&self) -> usize {
+        self.n_hops()
+    }
+
+    fn is_closing(&self) -> bool {
+        self.is_closing()
+    }
+
+    fn unique_id(&self) -> UniqId {
+        self.unique_id()
+    }
+
+    async fn extend_ntor<T: CircTarget + std::marker::Sync>(
+        &self,
+        target: &T,
+        params: &CircParameters,
+    ) -> tor_proto::Result<()> {
+        self.extend_ntor(target, params).await
     }
 }
 
@@ -48,7 +79,7 @@ pub(crate) struct Plan {
 impl MockablePlan for Plan {}
 
 #[async_trait]
-impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilder<R> {
+impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBuilder<R> {
     type Circ = ClientCirc;
     type Plan = Plan;
 
@@ -151,6 +182,27 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
     }
 
     fn learning_timeouts(&self) -> bool {
-        crate::build::CircuitBuilder::learning_timeouts(self)
+        CircuitBuilder::learning_timeouts(self)
+    }
+
+    fn save_state(&self) -> Result<bool> {
+        CircuitBuilder::save_state(self)
+    }
+
+    fn path_config(&self) -> Arc<PathConfig> {
+        CircuitBuilder::path_config(self)
+    }
+
+    fn set_path_config(&self, new_config: PathConfig) {
+        CircuitBuilder::set_path_config(self, new_config);
+    }
+
+    fn estimator(&self) -> &timeouts::Estimator {
+        CircuitBuilder::estimator(self)
+    }
+
+    #[cfg(feature = "vanguards")]
+    fn vanguardmgr(&self) -> &Arc<VanguardMgr<R>> {
+        CircuitBuilder::vanguardmgr(self)
     }
 }

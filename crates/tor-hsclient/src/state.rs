@@ -866,15 +866,17 @@ pub(crate) mod test {
         )
         .unwrap();
 
-        let circmgr = tor_circmgr::CircMgr::new(
-            &tor_circmgr::TestConfig::default(),
-            tor_persist::TestingStateMgr::new(),
-            &runtime,
-            Arc::new(chanmgr),
-            guardmgr,
-        )
-        .unwrap();
-        let circpool = HsCircPool::new(&circmgr);
+        let circmgr = Arc::new(
+            tor_circmgr::CircMgr::new(
+                &tor_circmgr::TestConfig::default(),
+                tor_persist::TestingStateMgr::new(),
+                &runtime,
+                Arc::new(chanmgr),
+                guardmgr,
+            )
+            .unwrap(),
+        );
+        let circpool = Arc::new(HsCircPool::new(&circmgr));
         let (give_send, give) = postage::watch::channel_with(Ready(Ok(())));
         let mock_for_state = MockGlobalState { give };
         #[allow(clippy::let_and_return)] // we'll probably add more in this function

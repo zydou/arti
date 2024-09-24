@@ -41,6 +41,8 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+use build::CircuitBuilder;
+use mgr::{AbstractCirc, AbstractCircBuilder};
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
 use tor_error::{error_report, warn_report};
@@ -70,6 +72,8 @@ pub mod hspool;
 mod impls;
 pub mod isolation;
 mod mgr;
+#[cfg(test)]
+mod mocks;
 pub(crate) mod path;
 mod preemptive;
 pub mod timeouts;
@@ -164,13 +168,7 @@ impl<'a> DirInfo<'a> {
 /// a set of ports; directory circuits were made to talk to directory caches.
 ///
 /// This is a "handle"; clones of it share state.
-#[derive(Clone)]
-pub struct CircMgr<R: Runtime> {
-    /// The underlying circuit manager object that implements our behavior.
-    mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
-    /// A preemptive circuit predictor, for, uh, building circuits preemptively.
-    predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
-}
+pub struct CircMgr<R: Runtime>(Arc<CircMgrInner<build::CircuitBuilder<R>, R>>);
 
 impl<R: Runtime> CircMgr<R> {
     /// Construct a new circuit manager.
@@ -184,7 +182,197 @@ impl<R: Runtime> CircMgr<R> {
         runtime: &R,
         chanmgr: Arc<ChanMgr<R>>,
         guardmgr: tor_guardmgr::GuardMgr<R>,
-    ) -> Result<Arc<Self>>
+    ) -> Result<Self>
+    where
+        SM: tor_persist::StateMgr + Clone + Send + Sync + 'static,
+    {
+        Ok(Self(Arc::new(CircMgrInner::new(
+            config, storage, runtime, chanmgr, guardmgr,
+        )?)))
+    }
+
+    /// Return a circuit suitable for sending one-hop BEGINDIR streams,
+    /// launching it if necessary.
+    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
+        self.0.get_or_launch_dir(netdir).await
+    }
+
+    /// Return a circuit suitable for exiting to all of the provided
+    /// `ports`, launching it if necessary.
+    ///
+    /// If the list of ports is empty, then the chosen circuit will
+    /// still end at _some_ exit.
+    pub async fn get_or_launch_exit(
+        &self,
+        netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
+        ports: &[TargetPort],
+        isolation: StreamIsolation,
+        // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
+        //             additive. The function should be refactored to be builder-like.
+        #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
+    ) -> Result<Arc<ClientCirc>> {
+        self.0
+            .get_or_launch_exit(
+                netdir,
+                ports,
+                isolation,
+                #[cfg(feature = "geoip")]
+                country_code,
+            )
+            .await
+    }
+
+    /// Return a circuit to a specific relay, suitable for using for direct
+    /// (one-hop) directory downloads.
+    ///
+    /// This could be used, for example, to download a descriptor for a bridge.
+    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
+    #[cfg(feature = "specific-relay")]
+    pub async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
+        &self,
+        target: T,
+    ) -> Result<Arc<ClientCirc>> {
+        self.0.get_or_launch_dir_specific(target).await
+    }
+
+    /// Launch the periodic daemon tasks required by the manager to function properly.
+    ///
+    /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
+    //
+    // NOTE(eta): The ?Sized on D is so we can pass a trait object in.
+    pub fn launch_background_tasks<D>(
+        self: &Arc<Self>,
+        runtime: &R,
+        dir_provider: &Arc<D>,
+        state_mgr: FsStateMgr,
+    ) -> Result<Vec<TaskHandle>>
+    where
+        D: NetDirProvider + 'static + ?Sized,
+    {
+        CircMgrInner::launch_background_tasks(&self.0.clone(), runtime, dir_provider, state_mgr)
+    }
+
+    /// Return true if `netdir` has enough information to be used for this
+    /// circuit manager.
+    ///
+    /// (This will check whether the netdir is missing any primary guard
+    /// microdescriptors)
+    pub fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
+        self.0.netdir_is_sufficient(netdir)
+    }
+
+    /// If `circ_id` is the unique identifier for a circuit that we're
+    /// keeping track of, don't give it out for any future requests.
+    pub fn retire_circ(&self, circ_id: &UniqId) {
+        self.0.retire_circ(circ_id);
+    }
+
+    /// Record that a failure occurred on a circuit with a given guard, in a way
+    /// that makes us unwilling to use that guard for future circuits.
+    ///
+    pub fn note_external_failure(
+        &self,
+        target: &impl ChanTarget,
+        external_failure: ExternalActivity,
+    ) {
+        self.0.note_external_failure(target, external_failure);
+    }
+
+    /// Record that a success occurred on a circuit with a given guard, in a way
+    /// that makes us possibly willing to use that guard for future circuits.
+    pub fn note_external_success(
+        &self,
+        target: &impl ChanTarget,
+        external_activity: ExternalActivity,
+    ) {
+        self.0.note_external_success(target, external_activity);
+    }
+
+    /// Return a stream of events about our estimated clock skew; these events
+    /// are `None` when we don't have enough information to make an estimate,
+    /// and `Some(`[`SkewEstimate`]`)` otherwise.
+    ///
+    /// Note that this stream can be lossy: if the estimate changes more than
+    /// one before you read from the stream, you might only get the most recent
+    /// update.
+    pub fn skew_events(&self) -> ClockSkewEvents {
+        self.0.skew_events()
+    }
+
+    /// Try to change our configuration settings to `new_config`.
+    ///
+    /// The actual behavior here will depend on the value of `how`.
+    ///
+    /// Returns whether any of the circuit pools should be cleared.
+    pub fn reconfigure<CFG: CircMgrConfig>(
+        &self,
+        new_config: &CFG,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<RetireCircuits, tor_config::ReconfigureError> {
+        self.0.reconfigure(new_config, how)
+    }
+
+    /// Return an estimate-based delay for how long a given
+    /// [`Action`](timeouts::Action) should be allowed to complete.
+    ///
+    /// Note that **you do not need to use this function** in order to get
+    /// reasonable timeouts for the circuit-building operations provided by the
+    /// `tor-circmgr` crate: those, unless specifically noted, always use these
+    /// timeouts to cancel circuit operations that have taken too long.
+    ///
+    /// Instead, you should only use this function when you need to estimate how
+    /// long some _other_ operation should take to complete.  For example, if
+    /// you are sending a request over a 3-hop circuit and waiting for a reply,
+    /// you might choose to wait for `estimate_timeout(Action::RoundTrip {
+    /// length: 3 })`.
+    ///
+    /// Note also that this function returns a _timeout_ that the operation
+    /// should be permitted to complete, not an estimated Duration that the
+    /// operation _will_ take to complete. Timeouts are chosen to ensure that
+    /// most operations will complete, but very slow ones will not.  So even if
+    /// we expect that a circuit will complete in (say) 3 seconds, we might
+    /// still allow a timeout of 4.5 seconds, to ensure that most circuits can
+    /// complete.
+    ///
+    /// Estimate-based timeouts may change over time, given observations on the
+    /// actual amount of time needed for circuits to complete building.  If not
+    /// enough information has been gathered, a reasonable default will be used.
+    pub fn estimate_timeout(&self, timeout_action: &timeouts::Action) -> std::time::Duration {
+        self.0.estimate_timeout(timeout_action)
+    }
+
+    /// Return a reference to the associated CircuitBuilder that this CircMgr
+    /// will use to create its circuits.
+    #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) fn builder(&self) -> &CircuitBuilder<R> {
+        CircMgrInner::builder(&self.0)
+    }
+}
+
+/// Internal object used to implement CircMgr, which allows for mocking.
+#[derive(Clone)]
+pub(crate) struct CircMgrInner<B: AbstractCircBuilder<R> + 'static, R: Runtime> {
+    /// The underlying circuit manager object that implements our behavior.
+    mgr: Arc<mgr::AbstractCircMgr<B, R>>,
+    /// A preemptive circuit predictor, for, uh, building circuits preemptively.
+    predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
+}
+
+impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
+    /// Construct a new circuit manager.
+    ///
+    /// # Usage note
+    ///
+    /// For the manager to work properly, you will need to call `CircMgr::launch_background_tasks`.
+    #[allow(clippy::unnecessary_wraps)]
+    pub(crate) fn new<SM, CFG: CircMgrConfig>(
+        config: &CFG,
+        storage: SM,
+        runtime: &R,
+        chanmgr: Arc<ChanMgr<R>>,
+        guardmgr: tor_guardmgr::GuardMgr<R>,
+    ) -> Result<Self>
     where
         SM: tor_persist::StateMgr + Clone + Send + Sync + 'static,
     {
@@ -222,10 +410,10 @@ impl<R: Runtime> CircMgr<R> {
         );
         let mgr =
             mgr::AbstractCircMgr::new(builder, runtime.clone(), config.circuit_timing().clone());
-        let circmgr = Arc::new(CircMgr {
+        let circmgr = CircMgrInner {
             mgr: Arc::new(mgr),
             predictor: preemptive,
-        });
+        };
 
         Ok(circmgr)
     }
@@ -235,7 +423,7 @@ impl<R: Runtime> CircMgr<R> {
     /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
     //
     // NOTE(eta): The ?Sized on D is so we can pass a trait object in.
-    pub fn launch_background_tasks<D>(
+    pub(crate) fn launch_background_tasks<D>(
         self: &Arc<Self>,
         runtime: &R,
         dir_provider: &Arc<D>,
@@ -309,7 +497,7 @@ impl<R: Runtime> CircMgr<R> {
     /// The actual behavior here will depend on the value of `how`.
     ///
     /// Returns whether any of the circuit pools should be cleared.
-    pub fn reconfigure<CFG: CircMgrConfig>(
+    pub(crate) fn reconfigure<CFG: CircMgrConfig>(
         &self,
         new_config: &CFG,
         how: tor_config::Reconfigure,
@@ -375,7 +563,7 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// We only call this method if we _don't_ have the lock on the state
     /// files.  If we have the lock, we only want to save.
-    pub fn reload_persistent_state(&self) -> Result<()> {
+    pub(crate) fn reload_persistent_state(&self) -> Result<()> {
         self.mgr.peek_builder().reload_state()?;
         Ok(())
     }
@@ -383,17 +571,9 @@ impl<R: Runtime> CircMgr<R> {
     /// Switch from having an unowned persistent state to having an owned one.
     ///
     /// Requires that we hold the lock on the state files.
-    pub fn upgrade_to_owned_persistent_state(&self) -> Result<()> {
+    pub(crate) fn upgrade_to_owned_persistent_state(&self) -> Result<()> {
         self.mgr.peek_builder().upgrade_to_owned_state()?;
         Ok(())
-    }
-
-    /// Flush state to the state manager, if there is any unsaved state and
-    /// we have the lock.
-    ///
-    /// Return true if we saved something; false if we didn't have the lock.
-    pub fn store_persistent_state(&self) -> Result<bool> {
-        self.mgr.peek_builder().save_state()
     }
 
     /// Reconfigure this circuit manager using the latest set of
@@ -404,7 +584,7 @@ impl<R: Runtime> CircMgr<R> {
     #[deprecated(
         note = "There is no need to call this function if you have used launch_background_tasks"
     )]
-    pub fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters) {
+    pub(crate) fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters) {
         self.mgr.update_network_parameters(p);
         self.mgr.peek_builder().update_network_parameters(p);
     }
@@ -414,7 +594,7 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// (This will check whether the netdir is missing any primary guard
     /// microdescriptors)
-    pub fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
+    pub(crate) fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
         self.mgr
             .peek_builder()
             .guardmgr()
@@ -423,7 +603,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
-    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
+    pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
         let usage = TargetCircUsage::Dir;
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
@@ -434,7 +614,7 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// If the list of ports is empty, then the chosen circuit will
     /// still end at _some_ exit.
-    pub async fn get_or_launch_exit(
+    pub(crate) async fn get_or_launch_exit(
         &self,
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
         ports: &[TargetPort],
@@ -480,7 +660,7 @@ impl<R: Runtime> CircMgr<R> {
     /// This could be used, for example, to download a descriptor for a bridge.
     #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
     #[cfg(feature = "specific-relay")]
-    pub async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
+    pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
         &self,
         target: T,
     ) -> Result<Arc<ClientCirc>> {
@@ -490,36 +670,6 @@ impl<R: Runtime> CircMgr<R> {
             .get_or_launch(&usage, DirInfo::Nothing)
             .await
             .map(|(c, _)| c)
-    }
-
-    /// Create and return a new (typically anonymous) circuit for use as an
-    /// onion service circuit of type `kind`.
-    ///
-    /// This circuit is guaranteed not to have been used for any traffic
-    /// previously, and it will not be given out for any other requests in the
-    /// future unless explicitly re-registered with a circuit manager.
-    ///
-    /// If `planned_target` is provided, then the circuit will be built so that
-    /// it does not share any family members with the provided target.  (The
-    /// circuit _will not be_ extended to that target itself!)
-    ///
-    /// Used to implement onion service clients and services.
-    #[cfg(feature = "hs-common")]
-    pub(crate) async fn launch_hs_unmanaged<T>(
-        &self,
-        planned_target: Option<T>,
-        dir: &NetDir,
-        kind: HsCircStubKind,
-    ) -> Result<Arc<ClientCirc>>
-    where
-        T: IntoOwnedChanTarget,
-    {
-        let usage = TargetCircUsage::HsCircBase {
-            compatible_with_target: planned_target.map(IntoOwnedChanTarget::to_owned),
-            kind,
-        };
-        let (_, client_circ) = self.mgr.launch_unmanaged(&usage, dir.into()).await?;
-        Ok(client_circ)
     }
 
     /// Launch circuits preemptively, using the preemptive circuit predictor's
@@ -579,18 +729,9 @@ impl<R: Runtime> CircMgr<R> {
         }
     }
 
-    /// Return a reference to the associated CircuitBuilder that this CircMgr
-    /// will use to create its circuits.
-    #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
-    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
-    #[allow(dead_code)]
-    pub(crate) fn builder(&self) -> &build::CircuitBuilder<R> {
-        self.mgr.peek_builder()
-    }
-
     /// If `circ_id` is the unique identifier for a circuit that we're
     /// keeping track of, don't give it out for any future requests.
-    pub fn retire_circ(&self, circ_id: &UniqId) {
+    pub(crate) fn retire_circ(&self, circ_id: &UniqId) {
         let _ = self.mgr.take_circ(circ_id);
     }
 
@@ -603,36 +744,6 @@ impl<R: Runtime> CircMgr<R> {
     /// be very clear that you don't want to use it haphazardly.
     pub(crate) fn retire_all_circuits(&self) {
         self.mgr.retire_all_circuits();
-    }
-
-    /// Return an estimate-based delay for how long a given
-    /// [`Action`](timeouts::Action) should be allowed to complete.
-    ///
-    /// Note that **you do not need to use this function** in order to get
-    /// reasonable timeouts for the circuit-building operations provided by the
-    /// `tor-circmgr` crate: those, unless specifically noted, always use these
-    /// timeouts to cancel circuit operations that have taken too long.
-    ///
-    /// Instead, you should only use this function when you need to estimate how
-    /// long some _other_ operation should take to complete.  For example, if
-    /// you are sending a request over a 3-hop circuit and waiting for a reply,
-    /// you might choose to wait for `estimate_timeout(Action::RoundTrip {
-    /// length: 3 })`.
-    ///
-    /// Note also that this function returns a _timeout_ that the operation
-    /// should be permitted to complete, not an estimated Duration that the
-    /// operation _will_ take to complete. Timeouts are chosen to ensure that
-    /// most operations will complete, but very slow ones will not.  So even if
-    /// we expect that a circuit will complete in (say) 3 seconds, we might
-    /// still allow a timeout of 4.5 seconds, to ensure that most circuits can
-    /// complete.
-    ///
-    /// Estimate-based timeouts may change over time, given observations on the
-    /// actual amount of time needed for circuits to complete building.  If not
-    /// enough information has been gathered, a reasonable default will be used.
-    pub fn estimate_timeout(&self, timeout_action: &timeouts::Action) -> std::time::Duration {
-        let (timeout, _abandon) = self.mgr.peek_builder().estimator().timeouts(timeout_action);
-        timeout
     }
 
     /// Expire every circuit that has been dirty for too long.
@@ -860,7 +971,7 @@ impl<R: Runtime> CircMgr<R> {
     /// Record that a failure occurred on a circuit with a given guard, in a way
     /// that makes us unwilling to use that guard for future circuits.
     ///
-    pub fn note_external_failure(
+    pub(crate) fn note_external_failure(
         &self,
         target: &impl ChanTarget,
         external_failure: ExternalActivity,
@@ -873,7 +984,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Record that a success occurred on a circuit with a given guard, in a way
     /// that makes us possibly willing to use that guard for future circuits.
-    pub fn note_external_success(
+    pub(crate) fn note_external_success(
         &self,
         target: &impl ChanTarget,
         external_activity: ExternalActivity,
@@ -891,12 +1002,66 @@ impl<R: Runtime> CircMgr<R> {
     /// Note that this stream can be lossy: if the estimate changes more than
     /// one before you read from the stream, you might only get the most recent
     /// update.
-    pub fn skew_events(&self) -> ClockSkewEvents {
+    pub(crate) fn skew_events(&self) -> ClockSkewEvents {
         self.mgr.peek_builder().guardmgr().skew_events()
     }
 }
 
-impl<R: Runtime> Drop for CircMgr<R> {
+impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
+    /// Create and return a new (typically anonymous) circuit for use as an
+    /// onion service circuit of type `kind`.
+    ///
+    /// This circuit is guaranteed not to have been used for any traffic
+    /// previously, and it will not be given out for any other requests in the
+    /// future unless explicitly re-registered with a circuit manager.
+    ///
+    /// If `planned_target` is provided, then the circuit will be built so that
+    /// it does not share any family members with the provided target.  (The
+    /// circuit _will not be_ extended to that target itself!)
+    ///
+    /// Used to implement onion service clients and services.
+    #[cfg(feature = "hs-common")]
+    pub(crate) async fn launch_hs_unmanaged<T>(
+        &self,
+        planned_target: Option<T>,
+        dir: &NetDir,
+        kind: HsCircStubKind,
+    ) -> Result<Arc<B::Circ>>
+    where
+        T: IntoOwnedChanTarget,
+    {
+        let usage = TargetCircUsage::HsCircBase {
+            compatible_with_target: planned_target.map(IntoOwnedChanTarget::to_owned),
+            kind,
+        };
+        let (_, client_circ) = self.mgr.launch_unmanaged(&usage, dir.into()).await?;
+        Ok(client_circ)
+    }
+
+    /// Internal implementation for [`CircMgr::estimate_timeout`].
+    pub(crate) fn estimate_timeout(
+        &self,
+        timeout_action: &timeouts::Action,
+    ) -> std::time::Duration {
+        let (timeout, _abandon) = self.mgr.peek_builder().estimator().timeouts(timeout_action);
+        timeout
+    }
+
+    /// Internal implementation for [`CircMgr::builder`].
+    pub(crate) fn builder(&self) -> &B {
+        self.mgr.peek_builder()
+    }
+
+    /// Flush state to the state manager, if there is any unsaved state and
+    /// we have the lock.
+    ///
+    /// Return true if we saved something; false if we didn't have the lock.
+    pub(crate) fn store_persistent_state(&self) -> Result<bool> {
+        self.mgr.peek_builder().save_state()
+    }
+}
+
+impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> Drop for CircMgrInner<B, R> {
     fn drop(&mut self) {
         match self.store_persistent_state() {
             Ok(true) => info!("Flushed persistent state at exit."),

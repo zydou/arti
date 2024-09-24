@@ -2,14 +2,17 @@
 
 use std::time::{Duration, Instant};
 
-use crate::hspool::{HsCircStub, HsCircStubKind};
+use crate::{
+    hspool::{HsCircStub, HsCircStubKind},
+    AbstractCirc,
+};
 use rand::Rng;
 use tor_basic_utils::RngExt as _;
 
 /// A collection of circuits used to fulfil onion-service-related requests.
-pub(super) struct Pool {
+pub(super) struct Pool<C: AbstractCirc> {
     /// The collection of circuits themselves, in no particular order.
-    circuits: Vec<HsCircStub>,
+    circuits: Vec<HsCircStub<C>>,
 
     /// The number of SHORT elements that we would like to have in our pool.
     stub_target: usize,
@@ -111,7 +114,7 @@ impl CircsToLaunch {
     }
 }
 
-impl Default for Pool {
+impl<C: AbstractCirc> Default for Pool<C> {
     fn default() -> Self {
         Self {
             circuits: Vec::new(),
@@ -124,16 +127,16 @@ impl Default for Pool {
     }
 }
 
-impl Pool {
+impl<C: AbstractCirc> Pool<C> {
     /// Add `circ` to this pool
-    pub(super) fn insert(&mut self, circ: HsCircStub) {
+    pub(super) fn insert(&mut self, circ: HsCircStub<C>) {
         self.circuits.push(circ);
     }
 
     /// Remove every circuit from this pool for which `f` returns false.
     pub(super) fn retain<F>(&mut self, f: F)
     where
-        F: FnMut(&HsCircStub) -> bool,
+        F: FnMut(&HsCircStub<C>) -> bool,
     {
         self.circuits.retain(f);
     }
@@ -192,10 +195,10 @@ impl Pool {
         rng: &mut R,
         f: F,
         prefs: &HsCircPrefs,
-    ) -> Option<HsCircStub>
+    ) -> Option<HsCircStub<C>>
     where
         R: Rng,
-        F: Fn(&HsCircStub) -> bool,
+        F: Fn(&HsCircStub<C>) -> bool,
     {
         let rv = match random_idx_where(rng, &mut self.circuits[..], |circ_stub| {
             // First, check if any circuit matches _all_ the prefs
