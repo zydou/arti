@@ -729,7 +729,7 @@ impl Channel {
 
         let channel = Channel {
             control,
-            cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            cell_tx: fake_mpsc().0,
             unique_id,
             peer_id,
             clock_skew: ClockSkew::None,
@@ -796,6 +796,15 @@ fn fake_channel_details() -> Arc<ChannelDetails> {
     })
 }
 
+/// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
+#[cfg(any(test, feature = "testing"))] // Used by Channel::new_fake which is also feature=testing
+pub(crate) fn fake_mpsc() -> (
+    mpsc::Sender<AnyChanCell>,
+    mpsc::Receiver<AnyChanCell>,
+) {
+    mpsc::channel(CHANNEL_BUFFER_SIZE)
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // Most of this module is tested via tests that also check on the
@@ -819,7 +828,7 @@ pub(crate) mod test {
             .expect("Couldn't construct peer id");
         Channel {
             control: mpsc::unbounded().0,
-            cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            cell_tx: fake_mpsc().0,
             unique_id,
             peer_id,
             clock_skew: ClockSkew::None,
