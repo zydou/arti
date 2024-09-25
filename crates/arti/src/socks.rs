@@ -823,6 +823,10 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
         None => (None, None),
     };
 
+    if !listen.is_localhost_only() {
+        warn!("Configured to listen for SOCKS on non-local addresses. This is usually insecure! We recommend listening on localhost only.");
+    }
+
     let mut listeners = Vec::new();
     let mut listening_on_addrs = Vec::new();
 
