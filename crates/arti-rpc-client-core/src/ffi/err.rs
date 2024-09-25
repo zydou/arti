@@ -341,7 +341,7 @@ impl IntoFfiError for crate::ProtoError {
             E::RequestCancelled => F::RequestCancelled,
             E::DuplicateWait => F::Internal,
             E::CouldNotEncode(_) => F::Internal,
-            E::CouldNotDecode(_) => F::PeerProtocolViolation,
+            E::InternalRequestFailed(_) => F::PeerProtocolViolation,
         }
     }
     fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
