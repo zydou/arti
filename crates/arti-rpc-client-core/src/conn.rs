@@ -433,7 +433,7 @@ pub enum ConnectError {
 }
 define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
 
-/// An error occurred while trying to construct or manipulate a
+/// An error occurred while trying to construct or manipulate an [`RpcConnBuilder`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum BuilderError {
