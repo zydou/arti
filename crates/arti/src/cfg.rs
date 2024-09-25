@@ -854,14 +854,12 @@ example config file {which:?}, uncommented={uncommented:?}
         /// that are unrecognized.  That is handled by the `default_config` test.
         #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, derive_more::Display)]
         enum ProblemKind {
-            #[display(fmt = "recognised by serialisation, but missing from example config file")]
+            #[display("recognised by serialisation, but missing from example config file")]
             MissingFromExample,
-            #[display(
-                fmt = "expected that example config file should contain have this as a table"
-            )]
+            #[display("expected that example config file should contain have this as a table")]
             ExpectedTableInExample,
             #[display(
-                fmt = "declared exception says this key should be recognised but not in file, but that doesn't seem to be the case"
+                "declared exception says this key should be recognised but not in file, but that doesn't seem to be the case"
             )]
             UnusedException,
         }

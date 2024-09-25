@@ -128,11 +128,11 @@ pub enum ErrorKind {
     /// or perhaps the chosen relay or bridge is not working properly.
     /// Not used for errors that occur within the Tor network, or accessing the public
     /// internet on the far side of Tor.
-    #[display(fmt = "error connecting to Tor")]
+    #[display("error connecting to Tor")]
     TorAccessFailed,
 
     /// An attempt was made to use a Tor client for something without bootstrapping it first.
-    #[display(fmt = "attempted to use unbootstrapped client")]
+    #[display("attempted to use unbootstrapped client")]
     BootstrapRequired,
 
     /// Our network directory has expired before we were able to replace it.
@@ -155,7 +155,7 @@ pub enum ErrorKind {
     //
     // TODO: We should distinguish among the actual issues here, and report a
     // real bootstrapping problem when it exists.
-    #[display(fmt = "network directory is expired.")]
+    #[display("network directory is expired.")]
     DirectoryExpired,
 
     /// IO error accessing local persistent state
@@ -165,7 +165,7 @@ pub enum ErrorKind {
     ///
     /// Note that this kind of error only applies to problems in your `state_dir`:
     /// problems with your cache are another kind.
-    #[display(fmt = "could not read/write persistent state")]
+    #[display("could not read/write persistent state")]
     PersistentStateAccessFailed,
 
     /// We could not start up because a local resource is already being used by someone else
@@ -187,7 +187,7 @@ pub enum ErrorKind {
     /// the resulting error has kind `LocalResourceAlreadyInUse`.
     // Actually, we only currently listen on ports in `arti` so we don't return
     // any Rust errors for this situation at all, at the time of writing.
-    #[display(fmt = "local resource (port, lockfile, etc.) already in use")]
+    #[display("local resource (port, lockfile, etc.) already in use")]
     LocalResourceAlreadyInUse,
 
     /// We encountered a problem with filesystem permissions.
@@ -196,7 +196,7 @@ pub enum ErrorKind {
     /// being too permissive; the next likeliest cause is that we were unable to
     /// check the permissions on the file or directory, or on one of its
     /// ancestors.
-    #[display(fmt = "problem with filesystem permissions")]
+    #[display("problem with filesystem permissions")]
     FsPermissions,
 
     /// Tor client's persistent state has been corrupted
@@ -209,7 +209,7 @@ pub enum ErrorKind {
     ///
     /// Note that this kind of error only applies to problems in your
     /// `state_dir`: problems with your cache are another kind.
-    #[display(fmt = "corrupted data in persistent state")]
+    #[display("corrupted data in persistent state")]
     PersistentStateCorrupted,
 
     /// Tor client's cache has been corrupted.
@@ -221,7 +221,7 @@ pub enum ErrorKind {
     ///
     /// Note that this kind of error only applies to problems in your `cache_dir`:
     /// problems with your persistent state are another kind.
-    #[display(fmt = "corrupted data in cache")]
+    #[display("corrupted data in cache")]
     CacheCorrupted,
 
     /// We had a problem reading or writing to our data cache.
@@ -230,7 +230,7 @@ pub enum ErrorKind {
     ///
     /// Note that this kind of error only applies to problems in your `cache_dir`:
     /// problems with your persistent state are another kind.
-    #[display(fmt = "cache access problem")]
+    #[display("cache access problem")]
     CacheAccessFailed,
 
     /// The keystore has been corrupted
@@ -240,7 +240,7 @@ pub enum ErrorKind {
     ///
     /// Note that this kind of error only applies to problems in your `keystore_dir`:
     /// problems with your cache or persistent state are another kind.
-    #[display(fmt = "corrupted data in keystore")]
+    #[display("corrupted data in keystore")]
     KeystoreCorrupted,
 
     /// IO error accessing keystore
@@ -250,7 +250,7 @@ pub enum ErrorKind {
     ///
     /// Note that this kind of error only applies to problems in your `keystore_dir`:
     /// problems with your cache or persistent state are another kind.
-    #[display(fmt = "could not access keystore")]
+    #[display("could not access keystore")]
     KeystoreAccessFailed,
 
     /// Tor client's Rust async reactor is shutting down.
@@ -258,14 +258,14 @@ pub enum ErrorKind {
     /// This likely indicates that the reactor has encountered a fatal error, or
     /// has been told to do a clean shutdown, and it isn't possible to spawn new
     /// tasks.
-    #[display(fmt = "reactor is shutting down")]
+    #[display("reactor is shutting down")]
     ReactorShuttingDown,
 
     /// Tor client is shutting down.
     ///
     /// This likely indicates that the last handle to the `TorClient` has been
     /// dropped, and is preventing other operations from completing.
-    #[display(fmt = "Tor client is shutting down.")]
+    #[display("Tor client is shutting down.")]
     ArtiShuttingDown,
 
     /// An operation failed because we waited too long for an exit to do
@@ -284,7 +284,7 @@ pub enum ErrorKind {
     //
     // TODO: Say that this is distinct from the case where the exit _tells you_
     // that there is a timeout.
-    #[display(fmt = "operation timed out at exit")]
+    #[display("operation timed out at exit")]
     RemoteNetworkTimeout,
 
     /// One or more configuration values were invalid or incompatible.
@@ -298,7 +298,7 @@ pub enum ErrorKind {
     /// If this occurs because of user configuration, it's probably best to tell
     /// the user about the error. If it occurs because of API usage, it's
     /// probably best to fix the code that causes the error.
-    #[display(fmt = "invalid configuration")]
+    #[display("invalid configuration")]
     InvalidConfig,
 
     /// Tried to change the configuration of a running Arti service in a way
@@ -310,7 +310,7 @@ pub enum ErrorKind {
     ///
     /// The only available remedy is to tear down the service and make a fresh
     /// one (for example, by making a new `TorClient`).
-    #[display(fmt = "invalid configuration transition")]
+    #[display("invalid configuration transition")]
     InvalidConfigTransition,
 
     /// Tried to look up a directory depending on the user's home directory, but
@@ -322,7 +322,7 @@ pub enum ErrorKind {
     /// To resolve this kind of error, either move to an OS with home
     /// directories, or make sure that all paths in the configuration are set
     /// explicitly, and do not depend on any path variables.
-    #[display(fmt = "could not find a home directory")]
+    #[display("could not find a home directory")]
     NoHomeDirectory,
 
     /// A requested operation was not implemented by Arti.
@@ -340,7 +340,7 @@ pub enum ErrorKind {
     ///
     /// It can refer to facilities which were once implemented in Tor or Arti
     /// but for which support has been removed.
-    #[display(fmt = "operation not implemented")]
+    #[display("operation not implemented")]
     NotImplemented,
 
     /// A feature was requested which has been disabled in this build of Arti.
@@ -352,7 +352,7 @@ pub enum ErrorKind {
     /// mis-configured at build-time.  Alternatively, it can occur if the
     /// running system is deliberately stripped down, in which case it might be
     /// reasonable to simply report this error to a user.
-    #[display(fmt = "operation not supported because Arti feature disabled")]
+    #[display("operation not supported because Arti feature disabled")]
     FeatureDisabled,
 
     /// Someone or something local violated a network protocol.
@@ -369,7 +369,7 @@ pub enum ErrorKind {
     ///
     /// This error kind does *not* include situations that are better explained
     /// by a local program simply crashing or terminating unexpectedly.
-    #[display(fmt = "local protocol violation (local bug or incompatibility)")]
+    #[display("local protocol violation (local bug or incompatibility)")]
     LocalProtocolViolation,
 
     /// Someone or something on the Tor network violated the Tor protocols.
@@ -380,7 +380,7 @@ pub enum ErrorKind {
     /// It usually indicates a programming error: either in their implementation
     /// of the protocol, or in ours.  It can also indicate an attempted attack,
     /// though that can be hard to diagnose.
-    #[display(fmt = "Tor network protocol violation (bug, incompatibility, or attack)")]
+    #[display("Tor network protocol violation (bug, incompatibility, or attack)")]
     TorProtocolViolation,
 
     /// Something went wrong with a network connection or the local network.
@@ -388,18 +388,18 @@ pub enum ErrorKind {
     /// This kind of error is usually safe to retry, and shouldn't typically be
     /// seen.  By the time it reaches the caller, a more specific error type
     /// should typically be available.
-    #[display(fmt = "problem with network or connection")]
+    #[display("problem with network or connection")]
     LocalNetworkError,
 
     /// More of a local resource was needed, than is available (or than we are allowed)
     ///
     /// For example, we tried to use more memory than permitted by our memory quota.
-    #[display(fmt = "local resource exhausted")]
+    #[display("local resource exhausted")]
     LocalResourceExhausted,
 
     /// A problem occurred when launching or communicating with an external
     /// process running on this computer.
-    #[display(fmt = "an externally launched plug-in tool failed")]
+    #[display("an externally launched plug-in tool failed")]
     ExternalToolFailed,
 
     /// A relay had an identity other than the one we expected.
@@ -407,13 +407,13 @@ pub enum ErrorKind {
     /// This could indicate a MITM attack, but more likely indicates that the
     /// relay has changed its identity but the new identity hasn't propagated
     /// through the directory system yet.
-    #[display(fmt = "identity mismatch")]
+    #[display("identity mismatch")]
     RelayIdMismatch,
 
     /// An attempt to do something remotely through the Tor network failed
     /// because the circuit it was using shut down before the operation could
     /// finish.
-    #[display(fmt = "circuit collapsed")]
+    #[display("circuit collapsed")]
     CircuitCollapse,
 
     /// An operation timed out on the tor network.
@@ -421,7 +421,7 @@ pub enum ErrorKind {
     /// This may indicate a network problem, either with the local network
     /// environment's ability to contact the Tor network, or with the Tor
     /// network itself.
-    #[display(fmt = "tor operation timed out")]
+    #[display("tor operation timed out")]
     TorNetworkTimeout,
 
     /// We tried but failed to download a piece of directory information.
@@ -430,7 +430,7 @@ pub enum ErrorKind {
     /// before the user can see it.   In the future it is likely to be split
     /// into several other kinds.
     // TODO ^
-    #[display(fmt = "directory fetch attempt failed")]
+    #[display("directory fetch attempt failed")]
     TorDirectoryError,
 
     /// An operation finished because a remote stream was closed successfully.
@@ -438,7 +438,7 @@ pub enum ErrorKind {
     /// This can indicate that the target server closed the TCP connection,
     /// or that the exit told us that it closed the TCP connection.
     /// Callers should generally treat this like a closed TCP connection.
-    #[display(fmt = "remote stream closed")]
+    #[display("remote stream closed")]
     RemoteStreamClosed,
 
     /// An operation finished because the remote stream was closed abruptly.
@@ -449,7 +449,7 @@ pub enum ErrorKind {
     ///
     /// For most purposes, it's fine to treat this kind of error the same as
     /// regular unexpected close.
-    #[display(fmt = "remote stream reset")]
+    #[display("remote stream reset")]
     RemoteStreamReset,
 
     /// An operation finished because a remote stream was closed unsuccessfully.
@@ -457,14 +457,14 @@ pub enum ErrorKind {
     /// This indicates that the exit reported some error message for the stream.
     ///
     /// We only provide this error kind when no more specific kind is available.
-    #[display(fmt = "remote stream error")]
+    #[display("remote stream error")]
     RemoteStreamError,
 
     /// A stream failed, and the exit reports that the remote host refused
     /// the connection.
     ///
     /// This is analogous to an ECONNREFUSED error.
-    #[display(fmt = "remote host refused connection")]
+    #[display("remote host refused connection")]
     RemoteConnectionRefused,
 
     /// A stream was rejected by the exit relay because of that relay's exit
@@ -474,7 +474,7 @@ pub enum ErrorKind {
     /// ports they're willing to connect to.  Clients download only _summaries_
     /// of these policies, so it's possible to be surprised by an exit's refusal
     /// to connect somewhere.)
-    #[display(fmt = "rejected by exit policy")]
+    #[display("rejected by exit policy")]
     ExitPolicyRejected,
 
     /// An operation failed, and the exit reported that it waited too long for
@@ -482,7 +482,7 @@ pub enum ErrorKind {
     ///
     /// This kind of error is distinct from `RemoteNetworkTimeout`, which means
     /// that _our own_ timeout threshold was violated.
-    #[display(fmt = "timeout at exit relay")]
+    #[display("timeout at exit relay")]
     ExitTimeout,
 
     /// An operation failed, and the exit reported a network failure of some
@@ -491,7 +491,7 @@ pub enum ErrorKind {
     /// This kind of error can occur for a number of reasons.  If it happens
     /// when trying to open a stream, it usually indicates a problem connecting,
     /// such as an ENOROUTE error.
-    #[display(fmt = "network failure at exit")]
+    #[display("network failure at exit")]
     RemoteNetworkFailed,
 
     /// An operation finished because an exit failed to look up a hostname.
@@ -503,7 +503,7 @@ pub enum ErrorKind {
     ///
     /// Trying at another exit might succeed, or the address might truly be
     /// unresolvable.
-    #[display(fmt = "remote hostname not found")]
+    #[display("remote hostname not found")]
     RemoteHostNotFound,
 
     /// The target hidden service (`.onion` service) was not found in the directory
@@ -514,7 +514,7 @@ pub enum ErrorKind {
     /// This probably means that the hidden service is not running, or does not exist.
     /// (It might mean that the directory servers are faulty,
     /// and that the hidden service was unable to publish its descriptor.)
-    #[display(fmt = "Onion Service not found")]
+    #[display("Onion Service not found")]
     OnionServiceNotFound,
 
     /// The target hidden service (`.onion` service) seems to be down
@@ -526,14 +526,14 @@ pub enum ErrorKind {
     ///
     /// This probably means that the hidden service is not running.
     /// (It might mean that the introduction point relays are faulty.)
-    #[display(fmt = "Onion Service not running")]
+    #[display("Onion Service not running")]
     OnionServiceNotRunning,
 
     /// Protocol trouble involving the target hidden service (`.onion` service)
     ///
     /// Something unexpected happened when trying to connect to the selected hidden service.
     /// It seems to have been due to the hidden service violating the Tor protocols somehow.
-    #[display(fmt = "Onion Service protocol failed (apparently due to service behaviour)")]
+    #[display("Onion Service protocol failed (apparently due to service behaviour)")]
     OnionServiceProtocolViolation,
 
     /// The target hidden service (`.onion` service) is running but we couldn't connect to it,
@@ -542,12 +542,12 @@ pub enum ErrorKind {
     /// This might be due to malfunction on the part of the service,
     /// or a relay being used as an introduction point or relay,
     /// or failure of the underlying Tor network.
-    #[display(fmt = "Onion Service not reachable (due to service, or Tor network, behaviour)")]
+    #[display("Onion Service not reachable (due to service, or Tor network, behaviour)")]
     OnionServiceConnectionFailed,
 
     /// We tried to connect to an onion service without authentication,
     /// but it apparently requires authentication.
-    #[display(fmt = "Onion service required authentication, but none was provided.")]
+    #[display("Onion service required authentication, but none was provided.")]
     OnionServiceMissingClientAuth,
 
     /// We tried to connect to an onion service that requires authentication, and
@@ -555,9 +555,7 @@ pub enum ErrorKind {
     ///
     /// This likely means that we need to use a different key for talking to
     /// this onion service, or that it has revoked our permissions to reach it.
-    #[display(
-        fmt = "Onion service required authentication, but provided authentication was incorrect."
-    )]
+    #[display("Onion service required authentication, but provided authentication was incorrect.")]
     OnionServiceWrongClientAuth,
 
     /// We tried to parse a `.onion` address, and found that it was not valid.
@@ -565,7 +563,7 @@ pub enum ErrorKind {
     /// This likely means that it was corrupted somewhere along its way from its
     /// origin to our API surface.  It may be the wrong length, have invalid
     /// characters, have an invalid version number, or have an invalid checksum.
-    #[display(fmt = ".onion address was invalid.")]
+    #[display(".onion address was invalid.")]
     OnionServiceAddressInvalid,
 
     /// An resolve operation finished with an error.
@@ -573,7 +571,7 @@ pub enum ErrorKind {
     /// Contrary to [`RemoteHostNotFound`](ErrorKind::RemoteHostNotFound),
     /// this can't mean "this is not a hostname".
     /// This error should be retried.
-    #[display(fmt = "remote hostname lookup failure")]
+    #[display("remote hostname lookup failure")]
     RemoteHostResolutionFailed,
 
     /// Trouble involving a protocol we're using with a peer on the far side of the Tor network
@@ -590,18 +588,18 @@ pub enum ErrorKind {
     /// protocol violation by the peer;
     /// peer refusing to provide service;
     /// etc.
-    #[display(fmt = "remote protocol violation")]
+    #[display("remote protocol violation")]
     RemoteProtocolViolation,
 
     /// An operation failed, and the relay in question reported that it's too
     /// busy to answer our request.
-    #[display(fmt = "relay too busy")]
+    #[display("relay too busy")]
     RelayTooBusy,
 
     /// We were asked to make an anonymous connection to a malformed address.
     ///
     /// This is probably because of a bad input from a user.
-    #[display(fmt = "target address was invalid")]
+    #[display("target address was invalid")]
     InvalidStreamTarget,
 
     /// We were asked to make an anonymous connection to a _locally_ disabled
@@ -613,7 +611,7 @@ pub enum ErrorKind {
     /// Usually this means that you intended to reject the request as
     /// nonsensical; but if you didn't, it probably means you should change your
     /// configuration to allow what you want.
-    #[display(fmt = "target address disabled locally")]
+    #[display("target address disabled locally")]
     ForbiddenStreamTarget,
 
     /// An operation failed in a transient way.
@@ -624,7 +622,7 @@ pub enum ErrorKind {
     /// You should not generally see this kind of error returned directly to you
     /// for high-level functions.  It should only be returned from lower-level
     /// crates that do not automatically retry these failures.
-    #[display(fmt = "un-retried transient failure")]
+    #[display("un-retried transient failure")]
     TransientFailure,
 
     /// Bug, for example calling a function with an invalid argument.
@@ -640,7 +638,7 @@ pub enum ErrorKind {
     // The difference is that an InternalError, with kind `Internal`, represents
     // a bug in arti, whereas errors with kind BadArgument represent bugs which
     // could be (often, are likely to be) outside arti.
-    #[display(fmt = "bad API usage (bug)")]
+    #[display("bad API usage (bug)")]
     BadApiUsage,
 
     /// We asked a relay to create or extend a circuit, and it declined.
@@ -650,7 +648,7 @@ pub enum ErrorKind {
     ///
     /// This error is returned by higher-level functions only if it is the most informative
     /// error after appropriate retries etc.
-    #[display(fmt = "remote host refused our request")]
+    #[display("remote host refused our request")]
     CircuitRefused,
 
     /// We were unable to construct a path through the Tor network.
@@ -666,7 +664,7 @@ pub enum ErrorKind {
     // happens because of a severely broken directory.
     //
     // The latter should be classified as TorDirectoryBroken.
-    #[display(fmt = "could not construct a path")]
+    #[display("could not construct a path")]
     NoPath,
 
     /// We were unable to find an exit relay with a certain set of desired
@@ -677,7 +675,7 @@ pub enum ErrorKind {
     /// exit on the network supporting all of the ports that the user asked for.
     //
     // TODO: same as for NoPath.
-    #[display(fmt = "no exit available for path")]
+    #[display("no exit available for path")]
     NoExit,
 
     /// The Tor consensus directory is broken or unsuitable
@@ -691,7 +689,7 @@ pub enum ErrorKind {
     ///
     /// Currently some instances of this kind of problem
     /// are reported as `NoPath` or `NoExit`.
-    #[display(fmt = "Tor network consensus directory is not usable")]
+    #[display("Tor network consensus directory is not usable")]
     TorDirectoryUnusable,
 
     /// An operation failed because of _possible_ clock skew.
@@ -699,35 +697,35 @@ pub enum ErrorKind {
     /// The broken clock may be ours, or it may belong to another party on the
     /// network. It's also possible that somebody else is lying about the time,
     /// caching documents for far too long, or something like that.
-    #[display(fmt = "possible clock skew detected")]
+    #[display("possible clock skew detected")]
     ClockSkew,
 
     /// An RPC operation failed because a request could not be parsed or was
     /// otherwise invalid.
-    #[display(fmt = "invalid RPC request")]
+    #[display("invalid RPC request")]
     #[cfg(feature = "rpc")]
     RpcInvalidRequest,
 
     /// An RPC operation failed because a method type could not be found,
     /// or is not available on a given object.
-    #[display(fmt = "RPC method not found")]
+    #[display("RPC method not found")]
     #[cfg(feature = "rpc")]
     RpcMethodNotFound,
 
     /// An RPC operation failed because a method type was not implemented
     /// on the given object.
-    #[display(fmt = "RPC method not implemented on this object")]
+    #[display("RPC method not implemented on this object")]
     #[cfg(feature = "rpc")]
     RpcMethodNotImpl,
 
     /// An RPC operation failed because the method type's parameters were not
     /// correct for it.
-    #[display(fmt = "RPC invalid parameters")]
+    #[display("RPC invalid parameters")]
     #[cfg(feature = "rpc")]
     RpcInvalidMethodParameters,
 
     /// An RPC operation failed because a given object could not be found.
-    #[display(fmt = "RPC object not found")]
+    #[display("RPC object not found")]
     #[cfg(feature = "rpc")]
     RpcObjectNotFound,
 
@@ -736,7 +734,7 @@ pub enum ErrorKind {
     /// A supposedly impossible problem has arisen.  This indicates a bug in
     /// Arti; if the Arti version is relatively recent, please report the bug on
     /// our [bug tracker](https://gitlab.torproject.org/tpo/core/arti/-/issues).
-    #[display(fmt = "internal error (bug)")]
+    #[display("internal error (bug)")]
     Internal,
 
     /// Unclassified error
@@ -746,7 +744,7 @@ pub enum ErrorKind {
     /// This kind is provided for use by external code
     /// hooking into or replacing parts of Arti.
     /// It is never returned by the code in Arti (`arti-*` and `tor-*` crates).
-    #[display(fmt = "unclassified error")]
+    #[display("unclassified error")]
     Other,
 }
 

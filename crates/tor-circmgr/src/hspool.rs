@@ -161,13 +161,13 @@ pub(crate) enum HsCircStubKind {
     ///
     /// Used for building circuits to a final hop that an adversary cannot easily control,
     /// for example if the final hop is is randomly chosen by us.
-    #[display(fmt = "SHORT")]
+    #[display("SHORT")]
     Short,
     /// An extended stub circuit.
     ///
     /// Used for building circuits to a final hop that an adversary can easily control,
     /// for example if the final hop is not chosen by us.
-    #[display(fmt = "EXTENDED")]
+    #[display("EXTENDED")]
     Extended,
 }
 

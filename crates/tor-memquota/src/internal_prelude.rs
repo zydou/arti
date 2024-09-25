@@ -23,7 +23,6 @@ pub(crate) use std::{
     future::Future,
     marker::PhantomData,
     mem,
-    ops::{Deref, DerefMut},
     panic::{catch_unwind, AssertUnwindSafe},
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},

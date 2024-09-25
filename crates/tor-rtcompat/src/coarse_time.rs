@@ -41,7 +41,6 @@
 //!  b2. abolish the newtypes and instead make the types
 //!    here aliases for coarsetime
 
-use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::time;
 
 use derive_more::{Add, AddAssign, Sub, SubAssign};
@@ -125,13 +124,13 @@ impl From<CoarseDuration> for time::Duration {
 }
 /// implement `$AddSub<CoarseDuration> for CoarseInstant`, and `*Assign`
 macro_rules! impl_add_sub { { $($AddSub:ident),* $(,)? } => { paste! { $(
-    impl $AddSub<CoarseDuration> for CoarseInstant {
+    impl std::ops::$AddSub<CoarseDuration> for CoarseInstant {
         type Output = CoarseInstant;
         fn [< $AddSub:lower >](self, rhs: CoarseDuration) -> CoarseInstant {
             CoarseInstant(self.0. [< $AddSub:lower >]( rhs.0 ))
         }
     }
-    impl [< $AddSub Assign >]<CoarseDuration> for CoarseInstant {
+    impl std::ops::[< $AddSub Assign >]<CoarseDuration> for CoarseInstant {
         fn [< $AddSub:lower _assign >](&mut self, rhs: CoarseDuration) {
             *self = self.[< $AddSub:lower >](rhs);
         }

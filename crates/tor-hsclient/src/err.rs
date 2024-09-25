@@ -32,7 +32,7 @@ pub(crate) fn rend_pt_identity_for_error(relay: &Relay<'_>) -> RendPtIdentityFor
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, From, Into)]
 #[allow(clippy::exhaustive_structs)]
 #[derive(derive_more::Display)]
-#[display(fmt = "#{}", self + 1)]
+#[display("#{}", self.0 + 1)]
 pub struct IntroPtIndex(pub usize);
 
 /// Error that occurred attempting to reach a hidden service

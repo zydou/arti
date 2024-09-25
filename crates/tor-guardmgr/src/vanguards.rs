@@ -582,10 +582,10 @@ impl VanguardMgr<MockRuntime> {
 #[non_exhaustive]
 pub enum Layer {
     /// L2 vanguard.
-    #[display(fmt = "layer 2")]
+    #[display("layer 2")]
     Layer2,
     /// L3 vanguard.
-    #[display(fmt = "layer 3")]
+    #[display("layer 3")]
     Layer3,
 }
 

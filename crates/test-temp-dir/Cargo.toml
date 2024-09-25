@@ -18,6 +18,6 @@ full = []
 
 [dependencies]
 anyhow = "1.0.23"
-derive_more = "0.99.17"
+derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 tempfile = "3"

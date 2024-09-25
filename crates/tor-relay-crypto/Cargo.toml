@@ -16,7 +16,7 @@ default = []
 
 [dependencies]
 derive-deftly = "0.14"
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 tor-cert = { path = "../tor-cert", version = "0.22.0", features = ["encode"] }
 tor-key-forge = { path = "../tor-key-forge", version = "0.22.0" }
 tor-keymgr = { path = "../tor-keymgr", version = "0.22.0" }

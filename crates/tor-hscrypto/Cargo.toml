@@ -27,7 +27,7 @@ full = [
 [dependencies]
 cipher = { version = "0.4.1", features = ["zeroize"], optional = true }
 data-encoding = "2.3.1"                                                                                    # want MSVC i686 build fix, data-encoding/issues/33
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 itertools = "0.13.0"
 paste = "1"

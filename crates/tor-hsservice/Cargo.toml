@@ -62,7 +62,7 @@ base64ct = "1.5.1"
 cfg-if = "1.0.0"
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99.17"
+derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde"] }

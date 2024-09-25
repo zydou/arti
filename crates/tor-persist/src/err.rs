@@ -12,16 +12,16 @@ use tor_error::{into_bad_api_usage, Bug, ErrorKind};
 #[derive(Debug, Clone, derive_more::Display)]
 pub(crate) enum Resource {
     /// The manager as a whole.
-    #[display(fmt = "persistent storage manager")]
+    #[display("persistent storage manager")]
     Manager,
     /// A checked directory.
-    #[display(fmt = "directory {}", "dir.anonymize_home()")]
+    #[display("directory {}", dir.anonymize_home())]
     Directory {
-        /// The path to the directory.    
+        /// The path to the directory.
         dir: std::path::PathBuf,
     },
     /// A file on disk within our checked directory.
-    #[display(fmt = "{} in {}", "file.display_lossy()", "container.anonymize_home()")]
+    #[display("{} in {}", file.display_lossy(), container.anonymize_home())]
     File {
         /// The path to the checked directory
         container: std::path::PathBuf,
@@ -30,17 +30,17 @@ pub(crate) enum Resource {
     },
     /// Testing-only: a scratch-item in a memory-backed store.
     #[cfg(feature = "testing")]
-    #[display(fmt = "{} in memory-backed store", key)]
+    #[display("{} in memory-backed store", key)]
     Temporary {
         /// The key for the scratch item
         key: String,
     },
     /// An instance state directory
     #[display(
-        fmt = "instance {:?}/{:?} in {}",
-        "kind",
-        "identity",
-        "state_dir.anonymize_home()"
+        "instance {:?}/{:?} in {}",
+        kind,
+        identity,
+        state_dir.anonymize_home()
     )]
     InstanceState {
         /// The path to the top-level state directory.
@@ -56,25 +56,25 @@ pub(crate) enum Resource {
 #[derive(Debug, Clone, derive_more::Display, Eq, PartialEq)]
 pub(crate) enum Action {
     /// We were trying to load an element from the store.
-    #[display(fmt = "loading persistent data")]
+    #[display("loading persistent data")]
     Loading,
     /// We were trying to save an element into the store.
-    #[display(fmt = "storing persistent data")]
+    #[display("storing persistent data")]
     Storing,
     /// We were trying to remove an element from the store.
-    #[display(fmt = "deleting persistent data")]
+    #[display("deleting persistent data")]
     Deleting,
     /// We were trying to acquire the lock for the store.
-    #[display(fmt = "acquiring lock")]
+    #[display("acquiring lock")]
     Locking,
     /// We were trying to release the lock for the store.
-    #[display(fmt = "releasing lock")]
+    #[display("releasing lock")]
     Unlocking,
     /// We were trying to validate the storage and initialize the manager.
-    #[display(fmt = "constructing storage manager")]
+    #[display("constructing storage manager")]
     Initializing,
     /// We were trying to enumerate state objects
-    #[display(fmt = "enumerating instances")]
+    #[display("enumerating instances")]
     Enumerating,
 }
 
@@ -141,7 +141,7 @@ impl From<BadSlug> for Error {
 
 /// An error that occurred while manipulating persistent state.
 #[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "{} while {} on {}", source, action, resource)]
+#[display("{} while {} on {}", source, action, resource)]
 pub struct Error {
     /// The underlying error failure.
     source: ErrorSource,

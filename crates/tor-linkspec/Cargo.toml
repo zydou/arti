@@ -35,7 +35,7 @@ by_address = "1"
 caret = { path = "../caret", version = "0.4.5" }
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 hex = "0.4"
 itertools = "0.13.0"
 safelog = { path = "../safelog", version = "0.3.6" }

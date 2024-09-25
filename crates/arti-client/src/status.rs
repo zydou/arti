@@ -3,7 +3,6 @@
 
 use std::{borrow::Cow, fmt, fmt::Display, time::SystemTime};
 
-use derive_more::Display;
 use educe::Educe;
 use futures::{Stream, StreamExt};
 use tor_basic_utils::skip_fmt;
@@ -116,8 +115,8 @@ impl BootstrapStatus {
 }
 
 /// A reason why a client believes it is stuck.
-#[derive(Clone, Debug, Display)]
-#[display(fmt = "{} ({})", "kind", "message")]
+#[derive(Clone, Debug, derive_more::Display)]
+#[display("{} ({})", kind, message)]
 pub struct Blockage {
     /// Why do we think we're blocked?
     kind: BlockageKind,
@@ -140,26 +139,26 @@ impl Blockage {
 /// A specific type of blockage that a client believes it is experiencing.
 ///
 /// Used to distinguish among instances of [`Blockage`].
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Debug, derive_more::Display)]
 #[non_exhaustive]
 pub enum BlockageKind {
     /// There is some kind of problem with connecting to the network.
-    #[display(fmt = "We seem to be offline")]
+    #[display("We seem to be offline")]
     Offline,
     /// We can connect, but our connections seem to be filtered.
-    #[display(fmt = "Our internet connection seems filtered")]
+    #[display("Our internet connection seems filtered")]
     Filtering,
     /// We have some other kind of problem connecting to Tor
-    #[display(fmt = "Can't reach the Tor network")]
+    #[display("Can't reach the Tor network")]
     CantReachTor,
     /// We believe our clock is set incorrectly, and that's preventing us from
     /// successfully with relays and/or from finding a directory that we trust.
-    #[display(fmt = "Clock is skewed.")]
+    #[display("Clock is skewed.")]
     ClockSkewed,
     /// We've encountered some kind of problem downloading directory
     /// information, and it doesn't seem to be caused by any particular
     /// connection problem.
-    #[display(fmt = "Can't bootstrap a Tor directory.")]
+    #[display("Can't bootstrap a Tor directory.")]
     CantBootstrap,
 }
 

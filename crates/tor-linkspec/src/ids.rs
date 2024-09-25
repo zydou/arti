@@ -41,7 +41,7 @@ pub enum RelayIdType {
     ///
     /// Every relay (currently) has one of these identities. It is the same
     /// as the encoding of the relay's public Ed25519 identity key.
-    #[display(fmt = "Ed25519")]
+    #[display("Ed25519")]
     Ed25519,
     /// An RSA identity.
     ///
@@ -49,7 +49,7 @@ pub enum RelayIdType {
     /// a SHA-1 digest of the DER encoding of the relay's public RSA 1024-bit
     /// identity key.  Because of short key length, this type of identity should
     /// not be considered secure on its own.
-    #[display(fmt = "RSA (legacy)")]
+    #[display("RSA (legacy)")]
     Rsa,
 }
 
@@ -76,10 +76,10 @@ pub enum RelayId {
 #[non_exhaustive]
 pub enum RelayIdRef<'a> {
     /// An Ed25519 identity.
-    #[display(fmt = "ed25519:{}", _0)]
+    #[display("ed25519:{}", _0)]
     Ed25519(&'a Ed25519Identity),
     /// An RSA identity.
-    #[display(fmt = "{}", _0)]
+    #[display("{}", _0)]
     Rsa(&'a RsaIdentity),
 }
 
@@ -218,10 +218,10 @@ impl<'a> Redactable for RelayIdRef<'a> {
     }
 
     fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::fmt::Debug as _;
+        use std::fmt::Debug;
         match self {
-            RelayIdRef::Ed25519(k) => k.redacted().fmt(f),
-            RelayIdRef::Rsa(k) => k.redacted().fmt(f),
+            RelayIdRef::Ed25519(k) => Debug::fmt(*k.redacted(), f),
+            RelayIdRef::Rsa(k) => Debug::fmt(*k.redacted(), f),
         }
     }
 }

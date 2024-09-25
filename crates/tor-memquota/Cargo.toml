@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 derive-deftly = "0.14"
-derive_more = "0.99.17"
+derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 futures = "0.3.14"
 pin-project = "1"

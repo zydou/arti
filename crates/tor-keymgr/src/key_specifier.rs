@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use derive_more::{Deref, DerefMut, Display, From, Into};
+use derive_more::{Deref, DerefMut, From, Into};
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
@@ -20,7 +20,7 @@ use crate::{ArtiPath, ArtiPathSyntaxError};
 pub mod derive;
 
 /// The identifier of a key.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, From, Display)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, From, derive_more::Display)]
 #[non_exhaustive]
 pub enum KeyPath {
     /// An Arti key path.
@@ -301,7 +301,9 @@ pub enum KeyPathPattern {
 }
 
 /// The path of a key in the C Tor key store.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, Display)]
+#[derive(
+    Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, derive_more::Display,
+)]
 pub struct CTorPath(String);
 
 /// The "specifier" of a key, which identifies an instance of a key.

@@ -199,8 +199,8 @@ pub struct FutureTimestamp {
 /// in human-readable formats, an RFC3339 string with seconds precision and timezone `Z`.)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, derive_more::Display)]
 #[display(
-    fmt = "{}",
-    "humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))"
+    "{}",
+    humantime::format_rfc3339_seconds(time_t_to_system_time(*time_t))
 )]
 #[derive(Deftly)]
 #[derive_deftly(RawConversions, SerdeStringOrTransparent)]
