@@ -137,7 +137,7 @@ async fn echo_on_session(
 struct GetClient {}
 
 impl rpc::RpcMethod for GetClient {
-    type Output = rpc::SingletonId;
+    type Output = rpc::SingleIdResponse;
     type Update = rpc::NoUpdates;
 }
 
@@ -146,8 +146,8 @@ async fn get_client_on_session(
     session: Arc<RpcSession>,
     _method: Box<GetClient>,
     ctx: Arc<dyn rpc::Context>,
-) -> Result<rpc::SingletonId, rpc::RpcError> {
-    Ok(rpc::SingletonId::from(
+) -> Result<rpc::SingleIdResponse, rpc::RpcError> {
+    Ok(rpc::SingleIdResponse::from(
         // TODO RPC: This relies (somewhat) on deduplication properties for register_owned.
         ctx.register_owned(session.client.clone().upcast_arc()),
     ))
@@ -158,9 +158,9 @@ async fn isolated_client_on_session(
     session: Arc<RpcSession>,
     _method: Box<arti_client::rpc::IsolatedClient>,
     ctx: Arc<dyn rpc::Context>,
-) -> Result<rpc::SingletonId, rpc::RpcError> {
+) -> Result<rpc::SingleIdResponse, rpc::RpcError> {
     let new_client = session.client.isolated_client();
-    Ok(rpc::SingletonId::from(ctx.register_owned(new_client)))
+    Ok(rpc::SingleIdResponse::from(ctx.register_owned(new_client)))
 }
 
 /// Implement ConnectWithPrefs on an RpcSession

@@ -88,7 +88,7 @@ struct ReleaseObj {
 
 /// A response with a single ID.
 #[derive(Deserialize, Debug)]
-struct SingletonId {
+struct SingleIdResponse {
     /// The object ID of the response.
     id: ObjectId,
 }
@@ -169,7 +169,7 @@ impl RpcConn {
         let stream_id = self
             .execute(&new_stream_request.encode()?)?
             .map_err(StreamError::NewStreamRejected)?
-            .deserialize_as::<SingletonId>()?
+            .deserialize_as::<SingleIdResponse>()?
             .id;
 
         match self.open_stream(Some(&stream_id), target, isolation) {

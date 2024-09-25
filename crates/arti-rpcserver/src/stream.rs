@@ -229,7 +229,7 @@ async fn rpcdatastream_resolve_ptr_with_prefs(
 pub(crate) struct NewStreamHandle {}
 
 impl rpc::RpcMethod for NewStreamHandle {
-    type Output = rpc::SingletonId;
+    type Output = rpc::SingleIdResponse;
     type Update = rpc::NoUpdates; // TODO actually, updates are quite suitable here.
 }
 
@@ -247,7 +247,7 @@ pub(crate) async fn new_stream_handle_on_client<R: tor_rtcompat::Runtime>(
     client: Arc<arti_client::TorClient<R>>,
     _method: Box<NewStreamHandle>,
     ctx: Arc<dyn rpc::Context>,
-) -> Result<rpc::SingletonId, rpc::RpcError> {
+) -> Result<rpc::SingleIdResponse, rpc::RpcError> {
     Ok(new_stream_handle_impl(client, ctx.as_ref()).into())
 }
 
@@ -256,7 +256,7 @@ async fn new_stream_handle_on_session(
     session: Arc<RpcSession>,
     _method: Box<NewStreamHandle>,
     ctx: Arc<dyn rpc::Context>,
-) -> Result<rpc::SingletonId, rpc::RpcError> {
+) -> Result<rpc::SingleIdResponse, rpc::RpcError> {
     Ok(new_stream_handle_impl(session, ctx.as_ref()).into())
 }
 rpc::static_rpc_invoke_fn! {
