@@ -86,6 +86,11 @@ impl Listen {
             _ => return Err(ListenUnsupported {}),
         })
     }
+
+    /// Return true if this `Listen` only configures listening on localhost.
+    pub fn is_localhost_only(&self) -> bool {
+        self.0.iter().all(ListenItem::is_localhost)
+    }
 }
 
 impl Display for Listen {
@@ -134,6 +139,15 @@ impl ListenItem {
                     .map(move |ip| net::SocketAddr::new(ip, port))
             }),
             LI::General(addr) => Either::Right(iter::once(addr).cloned()),
+        }
+    }
+
+    /// Return true if this is a localhost address.
+    fn is_localhost(&self) -> bool {
+        use ListenItem as LI;
+        match self {
+            LI::Localhost(_) => true,
+            LI::General(addr) => addr.ip().is_loopback(),
         }
     }
 }
@@ -395,5 +409,24 @@ mod test {
             ListenItem::General("1.2.3.4:5678".parse().unwrap()),
         ]);
         assert_eq!(multi_addr.to_string(), "localhost port 1234, 1.2.3.4:5678");
+    }
+
+    #[test]
+    fn is_localhost() {
+        fn localhost_only(s: &str) -> bool {
+            let tc: TestConfigFile = toml::from_str(s).expect(s);
+            tc.listen.unwrap().is_localhost_only()
+        }
+
+        assert_eq!(localhost_only(r#"listen = [ ]"#), true);
+        assert_eq!(localhost_only(r#"listen = [ 3 ]"#), true);
+        assert_eq!(localhost_only(r#"listen = [ 3, 10 ]"#), true);
+        assert_eq!(localhost_only(r#"listen = [ "127.0.0.1:9050" ]"#), true);
+        assert_eq!(localhost_only(r#"listen = [ "[::1]:9050" ]"#), true);
+        assert_eq!(
+            localhost_only(r#"listen = [ "[::1]:9050", "192.168.0.1:1234" ]"#),
+            false
+        );
+        assert_eq!(localhost_only(r#"listen = [  "192.168.0.1:1234" ]"#), false);
     }
 }
