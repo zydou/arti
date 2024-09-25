@@ -64,10 +64,10 @@ pub use err::{
     ArtiPathSyntaxError, Error, KeystoreCorruptionError, KeystoreError, UnknownKeyTypeError,
 };
 pub use key_specifier::{
-    ArtiPathUnavailableError, CTorPath, InvalidKeyPathComponentValue, KeyPath,
-    KeyPathError, KeyPathInfo, KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern,
-    ArtiPathRange, KeySpecifier, KeySpecifierComponent, KeySpecifierComponentViaDisplayFromStr,
-    KeySpecifierPattern,
+    ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorServicePath,
+    InvalidKeyPathComponentValue, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoBuilder,
+    KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeySpecifierComponent,
+    KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
 
 #[cfg(feature = "keymgr")]

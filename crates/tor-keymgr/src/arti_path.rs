@@ -7,7 +7,7 @@ use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
 use tor_persist::slug::{self, BadSlug};
 
-use crate::{ArtiPathSyntaxError, ArtiPathRange};
+use crate::{ArtiPathRange, ArtiPathSyntaxError};
 
 // TODO: this is only used for ArtiPaths (we should consider turning this
 // intro a regular impl ArtiPath {} and removing the macro).
