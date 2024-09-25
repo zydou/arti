@@ -122,7 +122,7 @@ error_detail = ["__is_experimental"]
 geoip = ["tor-circmgr/geoip", "tor-dirmgr/geoip", "tor-geoip", "__is_experimental"]
 rpc = ["dyn-clone", "tor-rpcbase", "__is_experimental"]
 
-restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
+restricted-discovery = ["onion-service-service", "tor-hsservice/restricted-discovery", "__is_experimental"]
 __is_experimental = []
 
 [dependencies]
