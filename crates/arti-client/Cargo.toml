@@ -51,7 +51,7 @@ full = [
     "tor-keymgr/full",
     "tor-linkspec/full",
     "tor-geoip?/full",
-    "tor-hsservice?/full",
+    "tor-hsservice?/full", "tor-memquota/full",
 ] # "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
 #   * Features that are experimental or unstable
 #   * Features that are testing-only

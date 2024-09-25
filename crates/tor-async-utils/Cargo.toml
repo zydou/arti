@@ -27,4 +27,4 @@ tor-rtcompat = { version = "0.22.0", path = "../tor-rtcompat" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.22.0" }
 
 [features]
-full = []
+full = ["oneshot-fused-workaround/full"]

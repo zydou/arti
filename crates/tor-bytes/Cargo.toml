@@ -29,6 +29,6 @@ hex-literal = "0.4"
 getrandom = { version = "0.2.3", features = ["js"] }
 
 [features]
-full = ["tor-error/full", "tor-llcrypto/full"]
+full = ["tor-error/full", "tor-llcrypto/full", "safelog/full"]
 [package.metadata.docs.rs]
 all-features = true
