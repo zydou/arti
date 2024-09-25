@@ -25,7 +25,7 @@ full = [
     "tor-netdir/full",
     "tor-netdoc/full",
     "tor-proto/full",
-    "tor-rtcompat/full",
+    "tor-rtcompat/full", "tor-error/full", "tor-relay-crypto/full",
 ]
 
 async-std = ["tor-rtcompat/async-std"]
