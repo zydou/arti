@@ -15,6 +15,10 @@
 //! If the underlying channel's sender is `Clone`,
 //! for example with an MPSC queue, the returned sender is also `Clone`.
 //!
+//! Note that the [`Sender`] and [`Receiver`] only hold weak references to the `Account`.
+//! Ie, the queue is not the accountholder.
+//! The caller should keep a separate copy of the account.
+//!
 //! # Example
 //!
 //! ```
