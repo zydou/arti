@@ -7,6 +7,7 @@ use crate::internal_prelude::*;
 
 use tor_cell::relaycell::msg::{Connected, End, Introduce2};
 use tor_hscrypto::Subcredential;
+use tor_keymgr::ArtiPath;
 use tor_proto::stream::{IncomingStream, IncomingStreamRequest};
 
 /// Request to complete an introduction/rendezvous handshake.
@@ -107,7 +108,10 @@ impl RendRequestContext {
             .list_matching(&pattern)?
             .iter()
             .map(|entry| -> Result<Option<_>, FatalError> {
-                let path = entry.key_path();
+                let path = entry
+                    .key_path()
+                    .arti()
+                    .ok_or_else(|| internal!("CTorPath matched arti pattern?!"))?;
                 let matches = path
                     .matches(&pattern)
                     .ok_or_else(|| internal!("path matched but no longer does?!"))?;
@@ -132,16 +136,10 @@ impl RendRequestContext {
 
     /// Try to parse the `captures` of `path` as a [`TimePeriod`].
     fn parse_time_period(
-        path: &KeyPath,
+        path: &ArtiPath,
         captures: &[KeyPathRange],
     ) -> Result<TimePeriod, tor_keymgr::Error> {
         use tor_keymgr::{KeyPathError, KeystoreCorruptionError as KCE};
-
-        let path = match path {
-            KeyPath::Arti(path) => path,
-            KeyPath::CTor(_) => todo!(),
-            _ => todo!(),
-        };
 
         let [denotator] = captures else {
             return Err(internal!(

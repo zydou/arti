@@ -34,20 +34,19 @@ pub enum KeyPath {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, From)]
 pub struct KeyPathRange(pub(crate) Range<usize>);
 
-impl KeyPath {
-    /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
+impl ArtiPath {
+    /// Check whether this `ArtiPath` matches the specified [`KeyPathPattern`].
     ///
-    /// If the `KeyPath` matches the pattern, this returns the ranges that match its dynamic parts.
+    /// If the `ArtiPath` matches the pattern, this returns the ranges that match its dynamic parts.
     ///
     /// ### Example
     /// ```
     /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathSyntaxError};
     /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
-    /// let path = KeyPath::Arti(ArtiPath::new("foo_bar_baz_1".into())?);
+    /// let path = ArtiPath::new("foo_bar_baz_1".into())?;
     /// let pattern = KeyPathPattern::Arti("*_bar_baz_*".into());
     /// let matches = path.matches(&pattern).unwrap();
     ///
-    /// let path = path.arti().unwrap();
     /// assert_eq!(matches.len(), 2);
     /// assert_eq!(path.substring(&matches[0]), Some("foo"));
     /// assert_eq!(path.substring(&matches[1]), Some("1"));
@@ -59,17 +58,41 @@ impl KeyPath {
     pub fn matches(&self, pat: &KeyPathPattern) -> Option<Vec<KeyPathRange>> {
         use KeyPathPattern::*;
 
-        let (pattern, path): (&str, &str) = match (self, pat) {
-            (KeyPath::Arti(p), Arti(pat)) => (pat.as_ref(), p.as_ref()),
-            (KeyPath::CTor(p), CTor(pat)) => {
-                // XXX: implement CTorPath matching logic
-                return None;
-            }
+        let pattern: &str = match pat {
+            Arti(pat) => pat.as_ref(),
             _ => return None,
         };
 
-        glob_match::glob_match_with_captures(pattern, path)
+        glob_match::glob_match_with_captures(pattern, self.as_ref())
             .map(|res| res.into_iter().map(|r| r.into()).collect())
+    }
+}
+
+impl KeyPath {
+    /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
+    ///
+    /// Returns `true` if the `KeyPath` matches the pattern.
+    ///
+    /// ### Example
+    /// ```
+    /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathSyntaxError};
+    /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
+    /// let path = KeyPath::Arti(ArtiPath::new("foo_bar_baz_1".into())?);
+    /// let pattern = KeyPathPattern::Arti("*_bar_baz_*".into());
+    /// assert!(path.matches(&pattern));
+    /// # Ok(())
+    /// # }
+    /// #
+    /// # demo().unwrap();
+    /// ```
+    pub fn matches(&self, pat: &KeyPathPattern) -> bool {
+        use KeyPathPattern::*;
+
+        match (self, pat) {
+            (KeyPath::Arti(p), Arti(_)) => p.matches(pat).is_some(),
+            (KeyPath::CTor(p), CTor(pat)) if p == pat => true,
+            _ => false,
+        }
     }
 
     // TODO: rewrite these getters using derive_adhoc if KeyPath grows more variants.
@@ -301,7 +324,7 @@ pub enum KeyPathPattern {
     /// A pattern for matching [`ArtiPath`]s.
     Arti(String),
     /// A pattern for matching [`CTorPath`]s.
-    CTor(String),
+    CTor(CTorPath),
 }
 
 /// The path of a key in the C Tor key store.

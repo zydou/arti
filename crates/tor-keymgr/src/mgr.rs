@@ -315,7 +315,7 @@ impl KeyMgr {
                 Ok(store
                     .list()?
                     .into_iter()
-                    .filter(|(key_path, _): &(KeyPath, KeyType)| key_path.matches(pat).is_some())
+                    .filter(|(key_path, _): &(KeyPath, KeyType)| key_path.matches(pat))
                     .map(|(path, key_type)| KeystoreEntry {
                         key_path: path.clone(),
                         key_type,

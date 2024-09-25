@@ -4,3 +4,4 @@ BREAKING: `KeymgrBuilder::default_store` renamed to `KeystoreSelector::primary_s
 BREAKING: The `config::arti` module doesn't exist anymore (all the types from it are now exported directly from `config`)
 BREAKING: `KeyPath` no longer implements `PartialOrd`, `Ord`
 BREAKING: `CTorPath` no longer implements `PartialOrd`, `Ord`, `Deref`, `DerefMut`
+BREAKING: `KeyPath::matches` now returns `bool` (use `ArtiPath::matches` to obtain the matching ranges)
