@@ -218,7 +218,7 @@ impl Keystore for ArtiNativeKeystore {
             .map(|entry| {
                 let entry = entry.map_err(|e| {
                     let msg = e.to_string();
-                    FilesystemError::Filesystem {
+                    FilesystemError::Io {
                         action: FilesystemAction::Read,
                         path: self.keystore_dir.as_path().into(),
                         err: e

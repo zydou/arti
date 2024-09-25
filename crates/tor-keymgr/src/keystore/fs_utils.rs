@@ -92,7 +92,7 @@ mod internal {
 pub(crate) enum FilesystemError {
     /// An IO error that occurred while accessing the filesystem.
     #[error("IO error on {path} while attempting to {action}")]
-    Filesystem {
+    Io {
         /// The action we were trying to perform.
         action: FilesystemAction,
         /// The path of the key we were trying to fetch.
@@ -138,7 +138,7 @@ impl HasKind for FilesystemError {
         use FilesystemError as FE;
 
         match self {
-            FE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
+            FE::Io { .. } => ErrorKind::KeystoreAccessFailed,
             FE::FsMistrust { err, .. } => err.keystore_error_kind(),
             FE::NotARegularFile(_) => ErrorKind::KeystoreCorrupted,
         }
