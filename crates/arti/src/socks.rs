@@ -465,10 +465,15 @@ where
             return Err(anyhow!("Socks handshake did not fit in 1KiB buffer"));
         }
         // Read some more stuff.
-        n_read += socks_r
+        let n = socks_r
             .read(&mut inbuf[n_read..])
             .await
             .context("Error while reading SOCKS handshake")?;
+        if n == 0 {
+            debug!("Socks connection closed");
+            return Ok(());
+        }
+        n_read += n;
 
         // try to advance the handshake to the next state.
         let action = match handshake.handshake(&inbuf[..n_read]) {
@@ -492,7 +497,7 @@ where
 
         // reply if needed.
         if action.drain > 0 {
-            inbuf.copy_within(action.drain..action.drain + n_read, 0);
+            inbuf.copy_within(action.drain..n_read, 0);
             n_read -= action.drain;
         }
         if !action.reply.is_empty() {
