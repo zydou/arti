@@ -41,7 +41,7 @@
 )]
 //! let account = trk.new_account(None).unwrap();
 //!
-//! let (tx, rx) = MpscSpec { buffer: 10 }.new_mq::<Message, _>(&runtime, account)?;
+//! let (tx, rx) = MpscSpec { buffer: 10 }.new_mq::<Message, _>(&runtime, &account)?;
 //! #
 //! # Ok(())
 //! # }
@@ -288,7 +288,7 @@ pub trait ChannelSpec: Sealed /* see Correctness, above */ + Sized + 'static {
     //
     // This method is supposed to be called by the user, not overridden.
     #[allow(clippy::type_complexity)] // the Result; not sensibly reducible or aliasable
-    fn new_mq<T, R>(self, runtime: &R, account: Account) -> crate::Result<(
+    fn new_mq<T, R>(self, runtime: &R, account: &Account) -> crate::Result<(
         Sender<T, Self, R>,
         Receiver<T, Self>,
     )>
@@ -692,7 +692,7 @@ mod test {
     fn lifecycle() {
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, s.acct.clone()).unwrap();
+            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, &s.acct).unwrap();
 
             tx.send(s.itrk.new_item()).await.unwrap();
             let _: Item = rx.next().await.unwrap();
@@ -722,7 +722,7 @@ mod test {
     fn fill_and_empty() {
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, s.acct.clone()).unwrap();
+            let (mut tx, mut rx) = MpscUnboundedSpec.new_mq(&rt, &s.acct).unwrap();
 
             const COUNT: usize = 19;
 
@@ -793,7 +793,7 @@ mod test {
 
         MockRuntime::test_with_various(|rt| async move {
             let s = setup(&rt);
-            let (mut tx, _rx) = BustedQueueSpec.new_mq(&rt, s.acct.clone()).unwrap();
+            let (mut tx, _rx) = BustedQueueSpec.new_mq(&rt, &s.acct).unwrap();
 
             let e = tx.send(s.itrk.new_item()).await.unwrap_err();
             assert!(matches!(e, SendError::Channel(BustedError)));

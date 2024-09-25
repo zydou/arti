@@ -207,9 +207,11 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::erasing_op)]
-    use super::*;
 
     #[cfg(not(miri))]
+    use super::*;
+
+    #[cfg(not(miri))] // This uses a real SystemTime, which doesn't work in miri
     #[test]
     fn sleep_delay() {
         fn calc(now: SystemTime, when: SystemTime) -> Duration {
