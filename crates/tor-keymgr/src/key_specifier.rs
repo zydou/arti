@@ -32,7 +32,7 @@ pub enum KeyPath {
 
 /// A range specifying a substring of a [`KeyPath`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash, From)]
-pub struct KeyPathRange(pub(crate) Range<usize>);
+pub struct ArtiPathRange(pub(crate) Range<usize>);
 
 impl ArtiPath {
     /// Check whether this `ArtiPath` matches the specified [`KeyPathPattern`].
@@ -55,7 +55,7 @@ impl ArtiPath {
     /// #
     /// # demo().unwrap();
     /// ```
-    pub fn matches(&self, pat: &KeyPathPattern) -> Option<Vec<KeyPathRange>> {
+    pub fn matches(&self, pat: &KeyPathPattern) -> Option<Vec<ArtiPathRange>> {
         use KeyPathPattern::*;
 
         let pattern: &str = match pat {

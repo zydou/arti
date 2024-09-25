@@ -7,7 +7,7 @@ use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
 use tor_persist::slug::{self, BadSlug};
 
-use crate::{ArtiPathSyntaxError, KeyPathRange};
+use crate::{ArtiPathSyntaxError, ArtiPathRange};
 
 // TODO: this is only used for ArtiPaths (we should consider turning this
 // intro a regular impl ArtiPath {} and removing the macro).
@@ -135,21 +135,21 @@ impl ArtiPath {
     ///
     /// ### Example
     /// ```
-    /// # use tor_keymgr::{ArtiPath, KeyPathRange, ArtiPathSyntaxError};
+    /// # use tor_keymgr::{ArtiPath, ArtiPathRange, ArtiPathSyntaxError};
     /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
     /// let path = ArtiPath::new("foo_bar_bax_1".into())?;
     ///
-    /// let range = KeyPathRange::from(2..5);
+    /// let range = ArtiPathRange::from(2..5);
     /// assert_eq!(path.substring(&range), Some("o_b"));
     ///
-    /// let range = KeyPathRange::from(22..50);
+    /// let range = ArtiPathRange::from(22..50);
     /// assert_eq!(path.substring(&range), None);
     /// # Ok(())
     /// # }
     /// #
     /// # demo().unwrap();
     /// ```
-    pub fn substring(&self, range: &KeyPathRange) -> Option<&str> {
+    pub fn substring(&self, range: &ArtiPathRange) -> Option<&str> {
         self.0.get(range.0.clone())
     }
 }

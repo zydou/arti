@@ -5,3 +5,4 @@ BREAKING: The `config::arti` module doesn't exist anymore (all the types from it
 BREAKING: `KeyPath` no longer implements `PartialOrd`, `Ord`
 BREAKING: `CTorPath` no longer implements `PartialOrd`, `Ord`, `Deref`, `DerefMut`
 BREAKING: `KeyPath::matches` now returns `bool` (use `ArtiPath::matches` to obtain the matching ranges)
+BREAKING: `KeyPathRange` renamed to `ArtiPathRange`

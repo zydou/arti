@@ -137,7 +137,7 @@ impl RendRequestContext {
     /// Try to parse the `captures` of `path` as a [`TimePeriod`].
     fn parse_time_period(
         path: &ArtiPath,
-        captures: &[KeyPathRange],
+        captures: &[ArtiPathRange],
     ) -> Result<TimePeriod, tor_keymgr::Error> {
         use tor_keymgr::{KeyPathError, KeystoreCorruptionError as KCE};
 
