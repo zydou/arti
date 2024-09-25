@@ -6,10 +6,12 @@ use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::reactor::CloseStreamBehavior;
 use crate::circuit::{ClientCircSyncView, StreamTarget};
 use crate::{Error, Result};
+use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;
 use tor_cell::relaycell::{msg, RelayCmd, UnparsedRelayMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 /// A pending request from the other end of the circuit for us to open a new
 /// stream.
@@ -105,7 +107,8 @@ impl IncomingStream {
 
 restricted_msg! {
     /// The allowed incoming messages on an `IncomingStream`.
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     #[non_exhaustive]
     pub enum IncomingStreamRequest: RelayMsg {
         /// A BEGIN message.
