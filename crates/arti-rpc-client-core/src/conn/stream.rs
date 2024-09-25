@@ -67,10 +67,6 @@ pub enum StreamError {
     /// The other side gave us a SOCKS error.
     #[error("SOCKS error code {0}")]
     SocksError(tor_socksproto::SocksStatus),
-
-    /// The other side closed the SOCKS connection before we finished the handshake.
-    #[error("SOCKS proxy closed unexpectedly")]
-    SocksClosed,
 }
 
 impl From<IoError> for StreamError {
@@ -299,12 +295,7 @@ fn negotiate_socks(
             ));
         }
 
-        let n = stream.read(&mut buf[n_in_buf..])?;
-        if n == 0 {
-            return Err(StreamError::SocksClosed);
-        }
-        n_in_buf += n;
-
+        n_in_buf += stream.read(&mut buf[n_in_buf..])?;
         let action = match state.handshake(&buf[..n_in_buf]) {
             Err(_truncated) => continue, // need to read more.
             Ok(Err(e)) => return Err(E::SocksProtocol(e)),

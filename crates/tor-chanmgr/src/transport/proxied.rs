@@ -164,11 +164,7 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
         }
 
         // Read some more stuff.
-        let n = stream.read(&mut inbuf[n_read..]).await?;
-        if n == 0 {
-            return Err(ProxyError::SocksClosed);
-        }
-        n_read += n;
+        n_read += stream.read(&mut inbuf[n_read..]).await?;
     };
 
     let status = reply
@@ -219,10 +215,6 @@ pub enum ProxyError {
     #[error("Protocol error while communicating with SOCKS proxy")]
     SocksProto(#[source] tor_socksproto::Error),
 
-    /// Unexpected close from SOCKS proxy before handshake was completed.
-    #[error("Unexpected close while communicating with SOCKS proxy")]
-    SocksClosed,
-
     /// We encountered an internal programming error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -260,7 +252,6 @@ impl tor_error::HasKind for ProxyError {
             E::InvalidSocksAddr(_) | E::InvalidSocksRequest(_) => EK::BadApiUsage,
             E::UnrecognizedAddr => EK::NotImplemented,
             E::SocksProto(_) => EK::LocalProtocolViolation,
-            E::SocksClosed => EK::LocalNetworkError, // Could also be a protocol violation.
             E::Bug(e) => e.kind(),
             E::UnexpectedData => EK::NotImplemented,
             E::SocksError(_) => EK::LocalProtocolViolation,
@@ -279,7 +270,6 @@ impl tor_error::HasRetryTime for ProxyError {
             E::UnrecognizedAddr => RT::Never,
             E::InvalidSocksRequest(_) => RT::Never,
             E::SocksProto(_) => RT::AfterWaiting,
-            E::SocksClosed => RT::AfterWaiting,
             E::Bug(_) => RT::Never,
             E::UnexpectedData => RT::Never,
             E::SocksError(e) => match *e {

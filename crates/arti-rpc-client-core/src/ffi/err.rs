@@ -322,7 +322,6 @@ impl IntoFfiError for crate::StreamError {
                 // possibly with a different call.  See #1580.
                 F::ProxyStreamFailed
             }
-            E::SocksClosed => F::ProxyIo,
         }
     }
 
