@@ -121,6 +121,13 @@ impl<R: Runtime> PtMgr<R> {
                 ret.insert(tn.clone(), thing.clone().try_into()?);
             }
         }
+        for opt in ret.values() {
+            if let TransportOptions::Unmanaged(u) = opt {
+                if !u.is_localhost() {
+                    warn!("Configured to connect to a PT on a non-local addresses. This is usually insecure! We recommend running PTs on localhost only.");
+                }
+            }
+        }
         Ok(ret)
     }
 
