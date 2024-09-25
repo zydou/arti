@@ -2,7 +2,7 @@
 name = "tor-rpcbase"
 version = "0.22.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.77"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"

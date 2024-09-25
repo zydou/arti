@@ -9,7 +9,7 @@ description = "Wrapper around a lockfile with unlock-on-drop semantics"
 keywords = ["fs", "file", "lock"]
 categories = ["filesystem"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
-rust-version = "1.75"
+rust-version = "1.77"
 
 [features]
 default = []
