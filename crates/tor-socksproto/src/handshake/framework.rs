@@ -297,14 +297,11 @@ impl Buffer<()> {
 impl Buffer<PreciseReads> {
     /// Creates a new `Buffer` for reeading precisely
     ///
-    /// ```no_run
-    /// # fn main() -> Result<(), anyhow::Error> {
+    /// ```
     /// use tor_socksproto::{Handshake as _, SocksProxyHandshake, SocksRequest};
     ///
-    /// let socket: std::net::TcpStream = todo!();
-    ///
-    /// let mut hs = SocksProxyHandshake::new_precise();
-    /// # }
+    /// let mut hs = SocksProxyHandshake::new();
+    /// let mut buf = tor_socksproto::Buffer::new_precise();
     /// ```
     pub fn new_precise() -> Self {
         Self::default()
