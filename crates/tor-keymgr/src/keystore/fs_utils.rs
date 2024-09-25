@@ -6,13 +6,14 @@
 //! You may also use the `checked_op` macro to call [`CheckedDir`] functions on the path.
 
 use std::path::{Path, PathBuf};
-use std::result::Result as StdResult;
+use std::io;
+use std::sync::Arc;
 
 use fs_mistrust::CheckedDir;
+use tor_error::{ErrorKind, HasKind};
 use tor_key_forge::KeyType;
 
-use crate::keystore::arti::err::{ArtiNativeKeystoreError, FilesystemAction};
-use crate::{ArtiPathUnavailableError, KeySpecifier, Result};
+use crate::{ArtiPathUnavailableError, KeySpecifier};
 
 /// The path of a key, relative to a [`CheckedDir`].
 ///
@@ -33,7 +34,7 @@ impl<'a> RelKeyPath<'a> {
         dir: &'a CheckedDir,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
-    ) -> StdResult<Self, ArtiPathUnavailableError> {
+    ) -> Result<Self, ArtiPathUnavailableError> {
         let arti_path: String = key_spec.arti_path()?.into();
         let mut path = PathBuf::from(arti_path);
         path.set_extension(key_type.arti_extension());
@@ -46,11 +47,11 @@ impl<'a> RelKeyPath<'a> {
     }
 
     /// Return the checked absolute path.
-    pub(super) fn checked_path(&self) -> Result<PathBuf> {
+    pub(super) fn checked_path(&self) -> Result<PathBuf, FilesystemError> {
         let abs_path =
             self.dir
                 .join(&self.path)
-                .map_err(|err| ArtiNativeKeystoreError::FsMistrust {
+                .map_err(|err| FilesystemError::FsMistrust {
                     action: FilesystemAction::Read,
                     path: self.path.clone(),
                     err: err.into(),
@@ -84,4 +85,62 @@ mod internal {
     }
 
     pub(crate) use checked_op;
+}
+
+/// An error that occurred while accessing the filesystem.
+#[derive(thiserror::Error, Debug, Clone)]
+pub(crate) enum FilesystemError {
+    /// An IO error that occurred while accessing the filesystem.
+    #[error("IO error on {path} while attempting to {action}")]
+    Filesystem {
+        /// The action we were trying to perform.
+        action: FilesystemAction,
+        /// The path of the key we were trying to fetch.
+        path: PathBuf,
+        /// The underlying error.
+        #[source]
+        err: Arc<io::Error>,
+    },
+
+    /// Encountered an inaccessible path or invalid permissions.
+    #[error("Inaccessible path or bad permissions on {path} while attempting to {action}")]
+    FsMistrust {
+        /// The action we were trying to perform.
+        action: FilesystemAction,
+        /// The path of the key we were trying to fetch.
+        path: PathBuf,
+        /// The underlying error.
+        #[source]
+        err: Arc<fs_mistrust::Error>,
+    },
+
+    /// An error due to encountering a directory or symlink at a key path.
+    #[error("File at {0} is not a regular file")]
+    NotARegularFile(PathBuf),
+}
+
+/// The action that caused a [`FilesystemError`].
+#[derive(Copy, Clone, Debug, derive_more::Display)]
+pub(crate) enum FilesystemAction {
+    /// Filesystem key store initialization.
+    Init,
+    /// Filesystem read
+    Read,
+    /// Filesystem write
+    Write,
+    /// Filesystem remove
+    Remove,
+}
+
+impl HasKind for FilesystemError {
+    fn kind(&self) -> ErrorKind {
+        use tor_persist::FsMistrustErrorExt as _;
+        use FilesystemError as FE;
+
+        match self {
+            FE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
+            FE::FsMistrust { err, .. } => err.keystore_error_kind(),
+            FE::NotARegularFile(_) => ErrorKind::KeystoreCorrupted,
+        }
+    }
 }
