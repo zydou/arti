@@ -47,6 +47,7 @@
 pub mod channel;
 pub mod circuit;
 mod crypto;
+pub mod memquota;
 pub mod stream;
 mod util;
 
@@ -58,6 +59,9 @@ pub use crypto::cell::{HopNum, HopNumDisplay};
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[doc(hidden)]
+pub use {derive_deftly, tor_memquota};
 
 /// Timestamp object that we update whenever we get incoming traffic.
 ///
