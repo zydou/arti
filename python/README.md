@@ -29,19 +29,19 @@ cargo build --release --all-features -p arti-rpc-client-core
 Tell this library where to find `arti-rpc-client-core`:
 
 ```
-export LIBARTI_RPC_CLIENT_CORE=$(pwd)/target/quicktest/libarti_rpc_client_core.so
+export LIBARTI_RPC_CLIENT_CORE=$(pwd)/target/release/libarti_rpc_client_core.so
 ```
 
 Start arti:
 
 ```
-./target/release/arti proxy
+./target/release/arti proxy -o "rpc.rpc_listen = \"${HOME}/.local/run/arti/SOCKET\""
 ```
 
 Run the demo!
 
 ```
-PYHONPATH=./python python3 python/samples/rpc_demo.py
+PYTHONPATH=./python python3 python/samples/rpc_demo.py
 ```
 
 
