@@ -1,5 +1,6 @@
 //! Read-only C Tor key store support.
 
+pub(crate) mod client;
 pub(crate) mod err;
 pub(crate) mod service;
 
@@ -11,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use err::CTorKeystoreError;
 
+pub use client::CTorClientKeystore;
 pub use service::CTorServiceKeystore;
 
 /// Common fields for C Tor keystores.

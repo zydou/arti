@@ -3,6 +3,7 @@
 use crate::keystore::fs_utils;
 use crate::{KeyType, KeystoreError};
 use tor_error::{ErrorKind, HasKind};
+use tor_hscrypto::pk::HsIdParseError;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,6 +53,10 @@ pub(crate) enum MalformedKeyError {
     /// A malformed hidden service key.
     #[error("{0}")]
     Service(#[from] MalformedServiceKeyError),
+
+    /// A malformed hidden service client key.
+    #[error("{0}")]
+    Client(#[from] MalformedClientKeyError),
 }
 
 /// Encountered a malformed C Tor service key.
@@ -91,6 +96,34 @@ pub(crate) enum MalformedServiceKeyError {
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
+}
+
+/// Encountered a malformed C Tor client key.
+#[derive(thiserror::Error, Debug, Clone)]
+pub(crate) enum MalformedClientKeyError {
+    /// The auth type is not "descriptor".
+    #[error("Invalid auth type {0}")]
+    InvalidAuthType(String),
+
+    /// The key type is not "x25519".
+    #[error("Invalid key type {0}")]
+    InvalidKeyType(String),
+
+    /// The key is not in the `<auth-type>:x25519:<base32-encoded-public-key>` format.
+    #[error("Invalid key format")]
+    InvalidFormat,
+
+    /// The encoded key material is invalid.
+    #[error("Invalid key material")]
+    InvalidKeyMaterial,
+
+    /// Base32 decoding failed.
+    #[error("Invalid base32 in client key")]
+    InvalidBase32(#[from] data_encoding::DecodeError),
+
+    /// Failed to parse the HsId.
+    #[error("Invalid HsId client key")]
+    InvalidHsId(#[from] HsIdParseError),
 }
 
 impl KeystoreError for CTorKeystoreError {}

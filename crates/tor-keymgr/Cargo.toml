@@ -32,7 +32,7 @@ full = [
 # feature voids your "semver warrantee".
 experimental = ["ephemeral-keystore", "ctor-keystore", "testing"]
 ephemeral-keystore = ["__is_experimental"]
-ctor-keystore = ["__is_experimental"]
+ctor-keystore = ["data-encoding", "__is_experimental"]
 testing = ["__is_experimental"]
 __is_experimental = []
 
@@ -40,6 +40,7 @@ __is_experimental = []
 amplify = { version = "4", default-features = false, features = ["derive"] }
 arrayvec = "0.7.3"
 cfg-if = "1.0.0"
+data-encoding = { version = "2.3.1", optional = true }
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
