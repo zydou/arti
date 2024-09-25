@@ -19,7 +19,7 @@
 
 use std::fmt::Debug;
 use std::mem;
-use std::num::NonZeroUsize;
+use std::num::{NonZeroUsize, TryFromIntError};
 
 use derive_deftly::define_derive_deftly;
 use educe::Educe;
@@ -273,11 +273,15 @@ impl<'b, P: ReadPrecision> RecvStep<'b, P> {
     ///
     /// The actual data must already have been written to the slice from `.buf()`.
     ///
+    /// If `len == 0`, treats this as having received EOF (which is an error).
+    ///
     /// # Panics
     ///
     /// `len` must be no more than `.buf().len()`.
-    pub fn note_received(self, len: usize) {
+    pub fn note_received(self, len: usize) -> Result<(), Error> {
+        let len = len.try_into().map_err(|_: TryFromIntError| Error::UnexpectedEof)?;
         self.buffer.note_received(len);
+        Ok(())
     }
 }
 
@@ -377,10 +381,16 @@ impl<P: ReadPrecision> Buffer<P> {
     /// The actual data must already have been written to the slice from `.unfilled_slice()`.
     /// Where possible, prefer [`RecvStep::buf`] and [`RecvStep::note_received`].
     ///
+    /// (It doesn't make sense to call this with `len == 0`.
+    /// If the `0` came from a read call, this indicates EOF -
+    /// but that might not be an error if the protocol implemnetation doesn't need more data.
+    /// [`RecvStep::note_received`] handles this properly.)
+    ///
     /// # Panics
     ///
     /// `len` must be no more than `.unfilled_slice().len()`.
-    pub fn note_received(&mut self, len: usize) {
+    pub fn note_received(&mut self, len: NonZeroUsize) {
+        let len = usize::from(len);
         assert!(len <= self.unfilled_slice().len());
         self.filled += len;
     }

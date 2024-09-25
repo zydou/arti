@@ -48,6 +48,10 @@ pub enum Error {
         limit: usize,
     },
 
+    /// Peer closed connection during SOCKS handshake
+    #[error("peer closed connection during SOCKS handshake")]
+    UnexpectedEof,
+
     /// The peer sent payload data too early
     ///
     /// The peer sent data after its part of the protocol exchange,
@@ -80,6 +84,7 @@ impl HasKind for Error {
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
             E::NotImplemented(_) => EK::NotImplemented,
             E::AuthRejected => EK::LocalProtocolViolation,
+            E::UnexpectedEof => EK::LocalProtocolViolation,
             E::ForbiddenPipelining => EK::LocalProtocolViolation,
             E::MessageTooLong { .. } => EK::Internal, // We should select a buffer big enough!
             E::AlreadyFinished(e) => e.kind(),

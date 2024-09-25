@@ -216,7 +216,12 @@ mod test_roundtrip {
                         for p in &mut recv.buf()[0..n] {
                             *p = rx.pop_front().unwrap();
                         }
-                        recv.note_received(n);
+                        recv.note_received(n).unwrap_or_else(|e| match e {
+                            // This is actually expected; our test case produces 0-byte reads
+                            // sometimes.
+                            Error::UnexpectedEof => {}
+                            other => panic!("{:?}", other),
+                        });
                         if n != 0 {
                             Some(DidSomething)
                         } else {

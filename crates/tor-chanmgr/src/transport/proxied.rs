@@ -127,7 +127,7 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
             }
             NS::Recv(mut recv) => {
                 let n = stream.read(recv.buf()).await?;
-                recv.note_received(n);
+                recv.note_received(n).map_err(ProxyError::SocksProto)?;
             }
         }
     };

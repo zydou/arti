@@ -294,7 +294,7 @@ fn negotiate_socks(
         match state.step(&mut buf).map_err(E::SocksProtocol)? {
             NS::Recv(mut recv) => {
                 let n = stream.read(recv.buf())?;
-                recv.note_received(n);
+                recv.note_received(n).map_err(E::SocksProtocol)?;
             }
             NS::Send(send) => stream.write_all(&send)?,
             NS::Finished(fin) => {
