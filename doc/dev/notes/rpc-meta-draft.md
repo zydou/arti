@@ -20,7 +20,7 @@ Ultimately we hope it will be sufficient
 for a (perhaps hypothetical) reimplementation.
 Right now, though, its primary role
 is to support our own implementation work,
-on both the RPC RPC implementation
+on both the RPC implementation
 and its consumers.
 This document does not discuss internal implementation details:
 Although there are some interesting challenges
@@ -48,7 +48,7 @@ There may be multiple sessions at once,
 but each applications should only need one at a time.
 
 Sessions are authenticated enough to prove at least
-that they that they're launched by an authorized user,
+that they're launched by an authorized user,
 and aren't coming from a confused web browser or something.
 
 (This authentication can use unix domain sockets,
@@ -98,7 +98,7 @@ a session has access to one or more "RPC Objects"
 
 > For example, an Object may be a session,
 > a circuit, a stream, an onion service,
->or the arti process itself.
+> or the arti process itself.
 
 In this document, Object means an RPC Object,
 not a JSON document object.
@@ -205,7 +205,7 @@ then the DataStream will be closed even if it is still in use.)
 > TODO: "destroyed" is also a funny word here.
 > Can we come up with a better word that applies
 > to all of our things can be closed, torn down, destroyed,
-> deleted, expunged, etc?)
+> deleted, expunged, etc?
 >
 > Also TODO: "ordinary lifecycle" is a bit fuzzy.
 
@@ -269,7 +269,7 @@ an "error" indicates a failure.
 > will receive only a series of updates.
 
 Messages are representable as JSON -
-specifically, the are within the subset defined in RFC7493 (I-JSON).
+specifically, they are within the subset defined in RFC7493 (I-JSON).
 In the current concrete protocol they are *represented as* JSON;
 we may define other encodings/framings in the future.
 
@@ -382,8 +382,8 @@ meta
 : A JSON object describing protocol features to enable for this request.
   It is optional.
   Unrecognized fields are ignored.
-  The only recognized field is currently:
-  "updates"­a boolean that indicates whether
+  The only recognized field is currently
+  "updates"­: a boolean that indicates whether
   updates are acceptable.
   It defaults to false.
 
