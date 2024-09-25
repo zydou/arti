@@ -92,6 +92,10 @@ impl_standard_builder! { ApplicationConfig }
 ///
 /// Broken out into a macro so as to avoid having to state the field name four times,
 /// which is a recipe for programming slips.
+///
+/// NOTE: Don't use this for new ports options!
+/// We only have to use it where we do because of the legacy `port` options.
+/// For new ports, provide a listener only.
 macro_rules! resolve_listen_port {
     { $self:expr, $field:ident, $def_port:expr } => { paste!{
         resolve_alternative_specs(
