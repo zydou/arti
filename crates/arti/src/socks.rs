@@ -514,11 +514,6 @@ where
             return Ok(());
         }
     };
-    if n_read != 0 {
-        // TODO this is not great, we should actually *support* optimistic data.
-        // But this is an easy way to mitigate #1627 aka TROVE-2024-010 for now.
-        return Err(anyhow!("Optimistic data received - sent by client before SOCKS handshake completed.  This is not supported in this version of Arti, sorry."));
-    }
 
     // Unpack the socks request and find out where we're connecting to.
     let addr = request.addr().to_string();
