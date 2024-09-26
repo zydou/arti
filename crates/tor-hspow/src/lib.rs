@@ -41,8 +41,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-pub mod v1;
-
 mod err;
+pub mod v1;
 
 pub use err::{Error, RuntimeError, SolutionError};

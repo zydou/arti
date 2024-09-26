@@ -4,7 +4,10 @@
 //! as inputs for Equi-X. We need to construct challenge strings both to
 //! solve and to verify puzzles.
 
-use crate::v1::{Effort, Instance, Nonce, Seed, SolutionError, NONCE_LEN, SEED_LEN};
+use crate::v1::{
+    err::SolutionErrorV1, types::Effort, types::Instance, types::Nonce, types::Seed,
+    types::NONCE_LEN, types::SEED_LEN,
+};
 use arrayvec::{ArrayVec, CapacityError};
 use blake2::{digest::consts::U4, Blake2b, Digest};
 
@@ -124,14 +127,14 @@ impl Challenge {
     pub(super) fn check_effort(
         &self,
         proof: &equix::SolutionByteArray,
-    ) -> Result<(), SolutionError> {
+    ) -> Result<(), SolutionErrorV1> {
         let mut hasher = Blake2b::<U4>::new();
         hasher.update(self.as_ref());
         hasher.update(proof.as_ref());
         let value = u32::from_be_bytes(hasher.finalize().into());
         match value.checked_mul(*self.effort().as_ref()) {
             Some(_) => Ok(()),
-            None => Err(SolutionError::Effort),
+            None => Err(SolutionErrorV1::Effort),
         }
     }
 }
