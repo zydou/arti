@@ -41,6 +41,8 @@ Start arti:
 Run the demo!
 
 ```
-PYTHONPATH="./python:${$PYTHONPATH:-}" python3 python/samples/rpc_demo.py
+PYTHONPATH="./python/arti_rpc/src:${$PYTHONPATH:-}" python3 \
+        python/arti_rpc/samples/rpc_demo.py
 ```
+
 
