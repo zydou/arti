@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arti_rpc"
+version = "0.0.0.dev0"
+requires-python = ">= 3.9" # May work with earlier; haven't tested.
+authors = [
+   { name = "Nick Mathewson", email = "nickm@torproject.org" },
+]
+description = "Use the Arti Tor implementation via its RPC protocol."
+readme = "README.md"
+license = { text = "MIT OR Apache-2.0" }
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+
+    "Intended Audience :: Developers",
+
+    # Remove this once it is more mature.
+    "Private :: Do Not Upload",
+]
