@@ -36,7 +36,7 @@ pub(crate) use futures::{
 };
 
 pub(crate) use {
-    derive_deftly::{define_derive_deftly, Deftly},
+    derive_deftly::{define_derive_deftly, derive_deftly_adhoc, Deftly},
     derive_more::{Constructor, Deref, DerefMut},
     dyn_clone::DynClone,
     educe::Educe,
