@@ -431,6 +431,20 @@ where
     }
 }
 
+impl<T, C> Sender<T, C>
+where
+    T: Debug + Send + 'static,
+    C: ChannelSpec,
+{
+    /// Obtain a reference to the `Sender`'s [`DynTimeProvider`]
+    ///
+    /// (This can sometimes be used to avoid having to keep
+    /// a separate clone of the time provider.)
+    pub fn time_provider(&self) -> &DynTimeProvider {
+        &self.runtime
+    }
+}
+
 //---------- Receiver ----------
 
 impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> Stream for Receiver<T, C> {
