@@ -15,7 +15,7 @@ mod build;
 mod inner;
 mod middle;
 mod outer;
-mod pow;
+pub mod pow;
 
 pub use desc_enc::DecryptionError;
 use tor_basic_utils::rangebounds::RangeBoundsExt;

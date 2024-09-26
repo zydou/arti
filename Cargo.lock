@@ -5559,6 +5559,7 @@ dependencies = [
  "tor-error",
  "tor-guardmgr",
  "tor-hscrypto",
+ "tor-hspow",
  "tor-keymgr",
  "tor-linkspec",
  "tor-llcrypto",
@@ -5611,7 +5612,11 @@ dependencies = [
  "hex-literal",
  "rand",
  "thiserror",
+ "tor-async-utils",
+ "tor-cell",
  "tor-hscrypto",
+ "tor-netdoc",
+ "tracing",
 ]
 
 [[package]]

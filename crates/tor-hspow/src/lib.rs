@@ -41,7 +41,14 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#[cfg(feature = "hs-client")]
+mod client;
+
 mod err;
 pub mod v1;
 
 pub use err::{Error, RuntimeError, SolutionError};
+
+#[cfg(feature = "hs-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hs-client")))]
+pub use client::HsPowClient;

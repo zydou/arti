@@ -15,7 +15,13 @@ publish = false
 
 [features]
 default = []
-full = ["tor-hscrypto/full", "equix/full"]
+hs-client = ["tor-netdoc/hs-client"]
+hs-service = ["tor-netdoc/hs-service"]
+full = [
+    "hs-client",
+    "hs-service",
+    "equix/full"
+]
 
 [dependencies]
 arrayvec = "0.7.4"
@@ -25,6 +31,10 @@ equix = { path = "../equix", version = "0.2.0" }
 rand = "0.8.5"
 thiserror = "1"
 tor-hscrypto = { version = "0.23.0", path = "../tor-hscrypto" }
+tor-async-utils = { path = "../tor-async-utils", version = "0.23.0" }
+tor-cell = { path = "../tor-cell", version = "0.23.0", features = ["hs"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.23.0" }
+tracing = "0.1.36"
 
 [dev-dependencies]
 hex-literal = "0.4.1"

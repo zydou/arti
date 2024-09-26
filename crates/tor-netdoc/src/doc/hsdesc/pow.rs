@@ -11,7 +11,7 @@ use std::time::SystemTime;
 /// A list of parsed `pow-params` lines, at most one per scheme
 ///
 #[derive(Debug, Clone)]
-pub(super) struct HsPowParamSet(Vec<HsPowParams>);
+pub struct HsPowParamSet(Vec<HsPowParams>);
 
 impl HsPowParamSet {
     /// Reference all parameters as a slice in arbitrary order

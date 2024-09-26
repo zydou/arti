@@ -15,6 +15,7 @@ use itertools::Itertools;
 use rand::Rng;
 use tor_bytes::Writeable;
 use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
+use tor_cell::relaycell::hs::pow::ProofOfWork;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
 use tor_error::{debug_report, warn_report, Bug};
 use tor_hscrypto::Subcredential;
@@ -746,6 +747,11 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         // for different services, it wouldn't be reusable anyway.
         let mut saved_rendezvous = None;
 
+        // If we are using proof-of-work DoS mitigation, this chooses an
+        // algorithm and initial effort, and adjusts that effort when we retry.
+        #[cfg(feature = "hs-pow")]
+        let mut pow_client = tor_hspow::HsPowClient::new(&self.hs_blind_id, desc);
+
         // We might consider making multiple INTRODUCE attempts to different
         // IPTs in in parallel, and somehow aggregating the errors and
         // experiences.
@@ -817,6 +823,20 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 };
                 let intro_index = ipt.intro_index;
 
+                #[cfg(not(feature = "hs-pow"))]
+                let proof_of_work = None;
+                #[cfg(feature = "hs-pow")]
+                let proof_of_work = match pow_client.solve().await {
+                    Ok(solution) => solution,
+                    Err(e) => {
+                        debug!(
+                            "failing to compute proof-of-work, trying without. ({:?})",
+                            e
+                        );
+                        None
+                    }
+                };
+
                 // We record how long things take, starting from here, as
                 // as a statistic we'll use for the IPT in future.
                 // This is stored in a variable outside this async block,
@@ -840,7 +860,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     .runtime
                     .timeout(
                         intro_timeout,
-                        self.exchange_introduce(ipt, &mut saved_rendezvous),
+                        self.exchange_introduce(ipt, &mut saved_rendezvous, proof_of_work),
                     )
                     .await
                     .map_err(|_: TimeoutError| {
@@ -929,6 +949,10 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                         store_experience(intro_index, Err(error.retry_time()));
                     }
                     errors.push(error);
+
+                    // If we are using proof-of-work DoS mitigation, try harder next time
+                    #[cfg(feature = "hs-pow")]
+                    pow_client.increase_effort();
                 }
             }
         }
@@ -1031,7 +1055,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
     /// Attempt (once) to send an INTRODUCE1 and wait for the INTRODUCE_ACK
     ///
-    /// `take`s the input `rednezvous` (but only takes it if it gets that far)
+    /// `take`s the input `rendezvous` (but only takes it if it gets that far)
     /// and, if successful, returns it.
     /// (This arranges that the rendezvous is "used up" precisely if
     /// we sent its secret somewhere.)
@@ -1045,6 +1069,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &'c self,
         ipt: &UsableIntroPt<'_>,
         rendezvous: &mut Option<Rendezvous<'c, R, M>>,
+        proof_of_work: Option<ProofOfWork>,
     ) -> Result<(Rendezvous<'c, R, M>, Introduced<R, M>), FAE> {
         let intro_index = ipt.intro_index;
 
@@ -1105,8 +1130,12 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 .rend_relay
                 .linkspecs()
                 .map_err(into_internal!("Couldn't encode link specifiers"))?;
-            let payload =
-                IntroduceHandshakePayload::new(rendezvous.rend_cookie, onion_key, linkspecs, None);
+            let payload = IntroduceHandshakePayload::new(
+                rendezvous.rend_cookie,
+                onion_key,
+                linkspecs,
+                proof_of_work,
+            );
             let mut encoded = vec![];
             payload
                 .write_onto(&mut encoded)

@@ -15,6 +15,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 keymgr = ["tor-keymgr/keymgr", "__is_experimental"]
+hs-pow = ["tor-hspow"]
+
 full = [
     "retry-error/full",
     "safelog/full",
@@ -67,6 +69,7 @@ tor-config = { path = "../tor-config", version = "0.23.0" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.23.0", default-features = false, features = ["hs-client"] }
 tor-error = { path = "../tor-error", version = "0.23.0", features = ["tracing"] }
 tor-hscrypto = { version = "0.23.0", path = "../tor-hscrypto" }
+tor-hspow = { path = "../tor-hspow", version = "0.17.0", features = ["hs-client"], optional = true }
 tor-keymgr = { version = "0.23.0", path = "../tor-keymgr", default-features = false }
 tor-linkspec = { version = "0.23.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
 tor-llcrypto = { version = "0.23.0", path = "../tor-llcrypto" }
