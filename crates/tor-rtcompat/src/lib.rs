@@ -351,7 +351,8 @@ macro_rules! test_with_one_runtime {
 #[cfg(all(
     test,
     any(feature = "native-tls", feature = "rustls"),
-    any(feature = "async-std", feature = "tokio")
+    any(feature = "async-std", feature = "tokio"),
+    not(miri), // Many of these tests use real sockets or SystemTime
 ))]
 mod test {
     #![allow(clippy::unwrap_used, clippy::unnecessary_wraps)]

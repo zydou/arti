@@ -209,6 +209,7 @@ mod test {
     #![allow(clippy::erasing_op)]
     use super::*;
 
+    #[cfg(not(miri))]
     #[test]
     fn sleep_delay() {
         fn calc(now: SystemTime, when: SystemTime) -> Duration {

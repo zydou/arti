@@ -165,6 +165,7 @@ impl AsyncStdRustlsRuntime {
     }
 }
 
+#[cfg(not(miri))] // async_ztd startup seems to fail under miri
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
