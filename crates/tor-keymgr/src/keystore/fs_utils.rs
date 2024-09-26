@@ -5,8 +5,8 @@
 //! [`checked_path`](RelKeyPath::checked_path) where possible.
 //! You may also use the `checked_op` macro to call [`CheckedDir`] functions on the path.
 
-use std::path::{Path, PathBuf};
 use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fs_mistrust::CheckedDir;
@@ -48,14 +48,14 @@ impl<'a> RelKeyPath<'a> {
 
     /// Return the checked absolute path.
     pub(super) fn checked_path(&self) -> Result<PathBuf, FilesystemError> {
-        let abs_path =
-            self.dir
-                .join(&self.path)
-                .map_err(|err| FilesystemError::FsMistrust {
-                    action: FilesystemAction::Read,
-                    path: self.path.clone(),
-                    err: err.into(),
-                })?;
+        let abs_path = self
+            .dir
+            .join(&self.path)
+            .map_err(|err| FilesystemError::FsMistrust {
+                action: FilesystemAction::Read,
+                path: self.path.clone(),
+                err: err.into(),
+            })?;
 
         Ok(abs_path)
     }
