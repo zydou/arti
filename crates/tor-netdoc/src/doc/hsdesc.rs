@@ -15,6 +15,7 @@ mod build;
 mod inner;
 mod middle;
 mod outer;
+mod pow;
 
 pub use desc_enc::DecryptionError;
 use tor_basic_utils::rangebounds::RangeBoundsExt;
@@ -108,6 +109,9 @@ pub struct HsDesc {
 
     /// One or more introduction points used to contact the onion service.
     intro_points: Vec<IntroPointDesc>,
+
+    /// A list of offered proof-of-work parameters, at most one per type.
+    pow_params: pow::HsPowParamSet,
     // /// A list of recognized CREATE handshakes that this onion service supports.
     //
     // TODO:  When someday we add a "create2 format" other than "hs-ntor", we
@@ -339,6 +343,11 @@ impl HsDesc {
     pub fn requires_intro_authentication(&self) -> bool {
         self.auth_required.is_some()
     }
+
+    /// Get a list of offered proof-of-work parameters, at most one per type.
+    pub fn pow_params(&self) -> &[pow::HsPowParams] {
+        self.pow_params.slice()
+    }
 }
 
 /// An error returned by [`HsDesc::parse_decrypt_validate`], indicating what
@@ -501,6 +510,7 @@ impl EncryptedHsDesc {
                 auth_required: inner.intro_auth_types,
                 is_single_onion_service: inner.single_onion_service,
                 intro_points: inner.intro_points,
+                pow_params: inner.pow_params,
             })
         });
         Ok(time_bound)

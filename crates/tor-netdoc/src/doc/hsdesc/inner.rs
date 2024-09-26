@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use super::{IntroAuthType, IntroPointDesc};
 use crate::batching_split_before::IteratorExt as _;
+use crate::doc::hsdesc::pow::HsPowParamSet;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::{UnvalidatedEdCert, B64};
@@ -40,6 +41,8 @@ pub(crate) struct HsDescInner {
     //
     // Always has >= 1 and <= NUM_INTRO_POINT_MAX entries
     pub(super) intro_points: Vec<IntroPointDesc>,
+    /// A list of offered proof-of-work parameters, at most one per type.
+    pub(super) pow_params: HsPowParamSet,
 }
 
 decl_keyword! {
@@ -54,6 +57,7 @@ decl_keyword! {
         "enc-key-cert" => ENC_KEY_CERT,
         "legacy-key" => LEGACY_KEY,
         "legacy-key-cert" => LEGACY_KEY_CERT,
+        "pow-params" => POW_PARAMS,
     }
 }
 
@@ -66,6 +70,7 @@ static HS_INNER_HEADER_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     rules.add(CREATE2_FORMATS.rule().required().args(1..));
     rules.add(INTRO_AUTH_REQUIRED.rule().args(1..));
     rules.add(SINGLE_ONION_SERVICE.rule());
+    rules.add(POW_PARAMS.rule());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
 
     rules.build()
@@ -255,6 +260,9 @@ impl HsDescInner {
         // Recognize `single-onion-service` if it's there.
         let is_single_onion_service = header.get(SINGLE_ONION_SERVICE).is_some();
 
+        // Recognize `pow-params`, parsing each line and rejecting duplicate types
+        let pow_params = HsPowParamSet::from_items(header.slice(POW_PARAMS))?;
+
         let mut signatures = Vec::new();
         let mut expirations = Vec::new();
         let mut cert_signing_key: Option<Ed25519Identity> = None;
@@ -417,6 +425,7 @@ impl HsDescInner {
         let inner = HsDescInner {
             intro_auth_types: auth_types,
             single_onion_service: is_single_onion_service,
+            pow_params,
             intro_points,
         };
         let sig_gated = SignatureGated::new(inner, signatures);
