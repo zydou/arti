@@ -3,6 +3,321 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.2.8 — 1 October 2024
+
+Arti 1.2.7 continues development on onion services,
+the RPC subsystem, key management, and relay infrastructure.
+It also includes fixes for two security issues in
+handling the SOCKS protocol, the most severe of which is rated at
+"medium" according to our [security policy].
+
+Arti 1.2.8 also increases our MSRV (Minimum Supported Rust Version)
+to 1.77, in accordance with our [MSRV policy].
+
+### Breaking changes
+
+- Arti now requires Rust 1.77 or later. ([!2421], [!2451])
+- The `arti hsc` subcommand is now gated behind the experimental `hsc`
+  feature until it is ready for general use. ([ab41a9d330ed1db])
+
+### Security fixes
+
+- Temporarily reject attempts to send optimistic data before
+  the SOCKS handshake is complete.
+  Previously, we would discard data in this case,
+  which has the potential to cause mis-framing bugs that could enable
+  cross-protocol attacks under some circumstances.
+  This is tracked as TROVE-2024-010.
+  We intend to add full support for optimistic data soon;
+  this is a temporary workaround.
+  ([#1627], [!2443])
+- Prevent an infinite loop that could occur in our SOCKS code
+  if a local connection was closed at the wrong time.
+  This is tracked as TROVE-2024-011.
+  ([#1635], [!2447])
+
+### Breaking changes in lower-level crates
+
+- The `tor-bytes` crate now reports `Incomplete` rather than `Truncated`
+  for most reader types. ([#1614], [!2407])
+- Removed some deprecated code in `tor-hsservice`. ([7a838da0ff2359f9])
+- The "ephemeral keystore" feature in `tor-keymgr` is now marked as
+  experimental, and available behind an `ephemeral-keystore` feature.
+  ([!2426])
+- The `tor-rtcompat` crate now supports AF_UNIX sockets,
+  and provides a more generic API
+  for opening and listening for network streams.
+  To this end, several of its APIs have been renamed or refactored,
+  and the `Runtime` trait now depends on more supertraits.
+  ([#1152], [!2437])
+- In `tor-rtcompat`, `TcpListener::accept()` no longer exists.
+  Use `NetStreamListener::incoming()` instead.
+  ([168f55df05f4b56f])
+- In `arti-client`, the type for `StorageConfig::keystore` has changed.
+  ([5e4e7b69b8cd2791])
+- In `tor-circmgr`, the function `CircMgr::new` now returns a `CircMgr` rather than an
+  `Arc<CircMgr>`.
+  ([!2420])
+- In `tor-hsservice`, numerous types related to initialization and status
+  have been renamed or refactored.
+  ([!2397], [!2413])
+- In `tor-keymgr`, several types have been renamed.
+  ([5e4e7b69b8cd279], [80095da1aa47978])
+- In `tor-netdir`, several test-network construction callbacks
+  now take an extra parameter.
+  ([b2b75302ab095bc])
+
+### Onion service development
+
+- Remove the number of cases in which an onion service needs to know
+  its secret identity key `KS_hs_id`.
+  This will help with implementing offline key support.
+  ([#1194], [!2393])
+- Add support for adding externally generated keys;
+  this will also help with offline key support.
+  ([#1613], [!2396])
+- Report onion service status correctly based on upload results.
+  This includes major refactoring to onion service status reporting,
+  and significant tests.
+  ([#1572], [!2397])
+- Remove setting for non-anonymous ("single onion") services.
+  We don't actually support them yet.
+  ([!2413])
+- Defer generating service identity keys (`K_hs_id`)
+  until the service is actually launched.
+  This allows tools like `onion-name` to check whether these keys are present.
+  ([!2417])
+- The `arti hss onion-name` subcommand now has support for generating
+  identity keys on demand. ([#1621], [!2419])
+- Experimental support for launching onion service with user-provided
+  identity keys. ([#1612], [!2402])
+- Allow arti to run with onion services only, and SOCKS/DNS ports  disabled.
+  ([#1569], [!2423])
+- Move onion service client key management functionality
+  into a new `arti hsc key` sub-command,
+  which supports key inspection, rotation, and deletion.
+  The old `arti hsc get-key` subcommand is now deprecated.
+  ([#1475], [!2432], [!2435])
+- Support making an `InertTorClient` with an emphemeral key manager.
+  ([#1610], [!2394])
+- The "default" keystore has been renamed to "primary".
+  ([!2438])
+- Keystore configuration options have been significantly revised;
+  `keystore.kind` is now `keystore.primary.kind`.
+  ([!2441])
+
+### Relay development
+
+- Give `TorRelay` an instance of `ChanMgr` to keep track of open channels.
+  ([!2361])
+- Continued development on memory-quota support,
+  to prevent memory-based denial-of-service attacks
+  against relays and onion services. ([!2374], [!2404])
+- New `tor-key-forge` crate
+  for defining specific key and keypair wrappers,
+  for use with relay keys.
+  ([#1137], [#1619], [!2356], [!2430], [!2433])
+- Define a set of high-level error wrappers for use by the `TorRelay` code.
+  ([!2392])
+- The channel manager now has (partial) support for receiving and handling
+  incoming channels. ([!2389])
+- Initial key generation and management support for relays.
+  ([#1604], [!2411])
+- Move Arti's (in-progress) `relay` subcommand to its own module. ([!2455)
+
+### RPC development
+
+- Add support throughout the RPC stack
+  for opening data streams and registering them with the RPC system,
+  using the protocol developed in [proposal 351].
+  ([#1524], [!2373], [!2401], [!2406], [!2409], [!2434], [!2452])
+- Update RPC specification draft to match current reality and plans.
+  ([!2386], [!2453])
+- Refactor the way that the RPC service handles errors,
+  to ensure that framing errors are never silently tolerated,
+  and other errors are handled uniformly.
+  ([#1591], [!2400])
+- Expose a list of object delegation types,
+  to make it possible to generate full documentation
+  of which objects support which methods.
+  ([#1624], [!2418])
+- Add a (work-in-progress! unstable! experimental!) Python wrapper
+  for our similarly unstable RPC client library.
+  ([!2446])
+
+### Testing
+
+- Partially fix test nondeterminism in the `reload_cfg::watch_single_file` test.
+  ([#1549], [!2375], [!2391])
+- Improve performance for the `reload_cfg::watch_multiple` test.
+  ([#1589], [!2387])
+- [Chutney] network integration tests are now
+  run inside the [Shadow] discrete event simulator.
+  ([!2427])
+
+### Documentation
+
+- Typo fixes in our documentation. ([!2403])
+- Improved documentation for onion service descriptor publication.
+  ([#1216], [b87b9f44ae05d4f0])
+- Clean up documentation for `InertTorClient`. ([!2414])
+- Clarify behavior of `ArtiEphemeralKeystore`. ([!2424])
+- New example: running an axum router as an onion service.
+  ([!2445])
+- Add an example for an onion service's `reject` option to our
+  sample configuration ([!2458])
+
+### Infrastructure
+
+- Clean-ups to CI jobs that generate debian packages.
+  ([!2368])
+- Adjust exceptions for `downgrade-dependencies` script.
+  ([!2398], [!2451], [cf7f25851ac0319f])
+
+### Cleanups, minor features, and bugfixes
+
+- Move Arti's `proxy` subcommand to its own module. ([!2416])
+- Clean up needless abstraction, and add smarter abstraction,
+  to make `tor-circmgr` easier to test.
+  ([!2412], [!2420])
+- When encountering truncated data, the `tor-bytes` crates now
+  gives a lower-bound estimate for how much more data would be needed
+  in order produce a successful parse. ([!2390])
+- The `tor-bytes` crate now tracks whether its inputs are possibly
+  incomplete, and only reports "Truncated" data as a recoverable error
+  on a possibly incomplete data.
+  This helps to prevent a category of bug
+  (which it appears our code doesn't actually have)
+  where we might erroneously
+  keep reading more data without limit.
+  ([#1614], [!2407])
+- Fix a bug in our SOCKS handling
+  that would cause us to exceed the bounds of a buffer,
+  causing the SOCKS task to exit with a panic.
+  ([dceeb82f7d115489])
+- Upgrade to the latest versions of `float-cmp` and `derive-more`.
+  ([!2450])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Adam Joseph, Alexander Hansen Færøy, Anonym, Morgan, opara,
+Pier Angelo Vendrame, Steven Engler, tidely, and Wesley Aptekar-Cassels.
+
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!2356]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2356
+[!2361]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2361
+[!2368]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2368
+[!2373]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2373
+[!2374]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2374
+[!2375]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2375
+[!2386]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2386
+[!2387]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2387
+[!2389]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2389
+[!2390]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2390
+[!2391]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2391
+[!2392]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2392
+[!2393]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2393
+[!2394]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2394
+[!2396]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2396
+[!2397]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2397
+[!2398]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2398
+[!2400]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2400
+[!2401]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2401
+[!2402]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2402
+[!2403]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2403
+[!2404]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2404
+[!2406]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2406
+[!2407]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2407
+[!2409]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2409
+[!2411]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2411
+[!2412]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2412
+[!2413]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2413
+[!2414]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2414
+[!2416]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2416
+[!2417]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2417
+[!2418]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2418
+[!2419]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2419
+[!2420]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2420
+[!2421]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2421
+[!2423]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2423
+[!2424]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2424
+[!2426]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2426
+[!2427]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2427
+[!2430]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2430
+[!2432]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2432
+[!2433]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2433
+[!2434]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2434
+[!2435]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2435
+[!2437]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2437
+[!2438]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2438
+[!2441]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2441
+[!2443]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2443
+[!2445]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2445
+[!2446]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2446
+[!2447]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2447
+[!2450]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2450
+[!2451]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2451
+[!2452]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2452
+[!2453]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2453
+[!2458]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2458
+[#1137]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1137
+[#1152]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1152
+[#1194]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1194
+[#1216]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1216
+[#1475]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1475
+[#1524]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1524
+[#1549]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1549
+[#1569]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1569
+[#1572]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1572
+[#1589]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1589
+[#1591]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1591
+[#1604]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1604
+[#1610]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1610
+[#1612]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1612
+[#1613]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1613
+[#1614]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1614
+[#1619]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1619
+[#1621]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1621
+[#1624]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1624
+[#1627]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1627
+[#1635]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1635
+[168f55df05f4b56f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/168f55df05f4b56fd61423c020ce62e93f1d7a9f
+[5e4e7b69b8cd279]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5e4e7b69b8cd2791763559cb0563dc60c8a66ce2
+[5e4e7b69b8cd2791]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5e4e7b69b8cd2791763559cb0563dc60c8a66ce2
+[7a838da0ff2359f9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/7a838da0ff2359f9b1eacbf24d9be9b8b88d5302
+[80095da1aa47978]: https://gitlab.torproject.org/tpo/core/arti/-/commit/80095da1aa47978cdba26c2b3d254a99c075cf53
+[ab41a9d330ed1db]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ab41a9d330ed1dbd506c8de8b5e331908ed78b97
+[b2b75302ab095bc]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b2b75302ab095bccdc7ccecb627e4648a3ae9419
+[b87b9f44ae05d4f0]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b87b9f44ae05d4f033e8b5e9a45684543ca2f323
+[cf7f25851ac0319f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cf7f25851ac0319fbb784a94050a715883989e0a
+[dceeb82f7d115489]: https://gitlab.torproject.org/tpo/core/arti/-/commit/dceeb82f7d1154894ab9c7c607d68f8335bb9615
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Chutney]: https://gitlab.torproject.org/tpo/core/chutney
+[MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md#minimum-supported-rust-version
+[Shadow]: https://shadow.github.io
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[other sponsors]: https://www.torproject.org/about/sponsors/
+[proposal 351]: https://spec.torproject.org/proposals/351-socks-auth-extensions.html
+[security policy]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/SecurityPolicy
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Arti 1.2.7 — 3 September 2024
 
 Arti 1.2.7 continues development on onion service client authorization,
@@ -1509,7 +1824,7 @@ See [`doc/OnionService.md`] for instructions and caveats.
 - Do not output ANSI escape codes when logging to file. ([!1999], [#1298])
 - Upgrade our dependency on [curve25519-dalek] from 4.1.1 to 4.1.2 ([!2000])
 - Upgrade to the latest versions of [event-listener], [rusqlite],
-  [async-broadcast], [signature], [config]. ([!2001], [!2004])
+  [async-broadcast], [signature], [config]. ([!2001], [!2004], [!2451])
 - Fix `ArtiPath` creation on Windows. ([!2012])
 - Fix compilation and warnings on Windows. ([!2014], [!2009])
 - Gate `RpcConfig` behind `rpc` feature. ([6c9e70e39ab279aa]])
