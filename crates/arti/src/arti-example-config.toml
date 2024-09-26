@@ -453,6 +453,8 @@
 #        # ("ignore" is not generally a good idea for an anonymous service;
 #        #  "destroy" is safer.)
 #        ["265", "ignore"],
+#        # Reject attempts to connect to port 443.
+#        ["443", "reject"],
 #        # Any other connection attempts will make us destroy the circuit.
 #        # (This is the default; you do not need to include this line.)
 #        ["*", "destroy"]
