@@ -42,17 +42,17 @@ pub struct ConnStatus {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 #[non_exhaustive]
 pub enum ConnBlockage {
-    #[display(fmt = "unable to connect to the internet")]
+    #[display("unable to connect to the internet")]
     /// We haven't been able to make successful TCP connections.
     NoTcp,
     /// We've made TCP connections, but our TLS connections either failed, or
     /// got hit by an attempted man-in-the-middle attack.
-    #[display(fmt = "our internet connection seems to be filtered")]
+    #[display("our internet connection seems to be filtered")]
     NoHandshake,
     /// We've made TCP connections, and our TLS connections mostly succeeded,
     /// but we encountered failures that are well explained by clock skew,
     /// or expired certificates.
-    #[display(fmt = "relays all seem to be using expired certificates")]
+    #[display("relays all seem to be using expired certificates")]
     CertsExpired,
 }
 

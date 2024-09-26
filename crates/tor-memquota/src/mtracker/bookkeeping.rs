@@ -153,7 +153,7 @@ pub(super) struct TotalQty {
 /// This is the total amount `claim`ed, plus the caches in each `Participation`.
 #[derive(Default, Debug, Deftly, derive_more::Display)]
 #[derive_deftly(BookkeptQty)]
-#[display(fmt = "{raw}")]
+#[display("{raw}")]
 pub(super) struct ParticipQty {
     /// See [`BookkeptQty`]
     raw: Qty,
@@ -173,7 +173,7 @@ pub(super) struct ParticipQty {
 /// to store.  The participant is supposed to track this separately somehow.
 #[derive(Default, Debug, Deftly, derive_more::Display)]
 #[derive_deftly(BookkeptQty)]
-#[display(fmt = "{raw}")]
+#[display("{raw}")]
 #[must_use]
 pub(super) struct ClaimedQty {
     /// See [`BookkeptQty`]

@@ -17,7 +17,7 @@ default = []
 full = []
 
 [dependencies]
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 either = "1"
 fluid-let = "1"

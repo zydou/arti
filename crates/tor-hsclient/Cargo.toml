@@ -44,7 +44,7 @@ experimental = ["keymgr"]
 [dependencies]
 async-trait = "0.1.54"
 derive-deftly = "0.14"
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 either = "1"
 futures = "0.3.14"

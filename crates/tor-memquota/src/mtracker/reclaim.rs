@@ -42,13 +42,13 @@ enum PStatus {
 #[derive(Debug, derive_more::Display)]
 enum Outcome {
     /// We reached the low water mark
-    #[display(fmt = "complete")]
+    #[display("complete")]
     TargetReached,
 
     /// We didn't, but we have so many participants that that's possibly expected
     ///
     /// (Can only happen on 32-bit platforms.)
-    #[display(fmt = "{} participants, good enough - stopping", n_particips)]
+    #[display("{} participants, good enough - stopping", n_particips)]
     GoodEnough {
         /// The number of participants
         n_particips: NumParticips,

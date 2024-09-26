@@ -13,7 +13,7 @@ categories = ["parser-implementations", "network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 once_cell = "1.18"
 rangemap = "1.3"
 thiserror = "1"

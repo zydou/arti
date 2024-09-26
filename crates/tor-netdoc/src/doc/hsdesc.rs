@@ -121,7 +121,7 @@ pub struct HsDesc {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, derive_more::Display)]
 pub enum IntroAuthType {
     /// Ed25519 authentication is required.
-    #[display(fmt = "ed25519")]
+    #[display("ed25519")]
     Ed25519,
 }
 

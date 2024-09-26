@@ -42,7 +42,7 @@ __is_experimental = []
 [dependencies]
 async-trait = "0.1.54"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 futures = "0.3.14"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.1.0" }

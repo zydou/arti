@@ -24,7 +24,7 @@ __is_experimental = []
 
 [dependencies]
 derive-deftly = "0.14"
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 downcast-rs = "1.2.0"
 paste = "1"
 rand = "0.8"

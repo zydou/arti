@@ -335,7 +335,7 @@ struct StatusEntry {
 
 /// The status for a single directory.
 #[derive(Clone, Debug, Default, derive_more::Display)]
-#[display(fmt = "{0}", progress)]
+#[display("{0}", progress)]
 pub(crate) struct DirStatus {
     /// How much of the directory do we currently have?
     progress: DirProgress,
@@ -418,7 +418,7 @@ pub enum DirBlockage {
     /// This might indicate that there's a problem with information propagating
     /// through the Tor network, or it might indicate that a bogus consensus or
     /// a bad clock has tricked us into asking for something that nobody has.
-    #[display(fmt = "Can't make progress.")]
+    #[display("Can't make progress.")]
     Stalled,
     /// We've gotten a lot of errors without making forward progress on our
     /// bootstrap attempt.
@@ -427,7 +427,7 @@ pub enum DirBlockage {
     /// there's something buggy with our ability to handle directory responses.
     /// It might also indicate a malfunction on our directory guards, or a bug
     /// on our retry logic.
-    #[display(fmt = "Too many errors without making progress.")]
+    #[display("Too many errors without making progress.")]
     TooManyErrors,
     /// We've reset our bootstrap attempt a lot of times.
     ///
@@ -435,7 +435,7 @@ pub enum DirBlockage {
     /// other reasons above, or that we keep getting served a consensus which
     /// turns out, upon trying to fetch certificates, not to be usable.  It can
     /// also indicate a bug in our retry logic.
-    #[display(fmt = "Had to reset bootstrapping too many times.")]
+    #[display("Had to reset bootstrapping too many times.")]
     TooManyResets,
 }
 

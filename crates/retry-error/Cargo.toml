@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dev-dependencies]
 
 anyhow = "1.0.23"
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 thiserror = "1"
 
 [dependencies]

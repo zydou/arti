@@ -60,7 +60,7 @@ bytes = "1"
 cipher = { version = "0.4.1", features = ["zeroize"] }
 coarsetime = "0.1.20"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.6"
 futures = "0.3.14"

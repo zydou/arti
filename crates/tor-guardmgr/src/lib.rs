@@ -1855,13 +1855,13 @@ pub enum GuardRestriction {
 pub enum VanguardMode {
     /// "Lite" vanguards.
     #[default]
-    #[display(fmt = "lite")]
+    #[display("lite")]
     Lite = 1,
     /// "Full" vanguards.
-    #[display(fmt = "full")]
+    #[display("full")]
     Full = 2,
     /// Vanguards are disabled.
-    #[display(fmt = "disabled")]
+    #[display("disabled")]
     Disabled = 0,
 }
 
@@ -1918,7 +1918,7 @@ impl VanguardConfig {
 pub enum VanguardMode {
     /// Vanguards are disabled.
     #[default]
-    #[display(fmt = "disabled")]
+    #[display("disabled")]
     Disabled = 0,
 }
 

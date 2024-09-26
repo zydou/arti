@@ -64,7 +64,7 @@ async-trait = "0.1.54"
 bounded-vec-deque = "0.1"
 cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 downcast-rs = "1.2.0"
 dyn-clone = "1.0.4"
 educe = "0.4.6"

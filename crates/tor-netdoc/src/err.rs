@@ -169,115 +169,115 @@ impl fmt::Display for Pos {
 #[non_exhaustive]
 pub enum NetdocErrorKind {
     /// An internal error in the parser: these should never happen.
-    #[display(fmt = "internal error")]
+    #[display("internal error")]
     Internal,
     /// Invoked an API in an incorrect manner.
-    #[display(fmt = "bad API usage")]
+    #[display("bad API usage")]
     BadApiUsage,
     /// An entry was found with no keyword.
-    #[display(fmt = "no keyword for entry")]
+    #[display("no keyword for entry")]
     MissingKeyword,
     /// An entry was found with no newline at the end.
-    #[display(fmt = "line truncated before newline")]
+    #[display("line truncated before newline")]
     TruncatedLine,
     /// A bad string was found in the keyword position.
-    #[display(fmt = "invalid keyword")]
+    #[display("invalid keyword")]
     BadKeyword,
     /// We found an ill-formed "BEGIN FOO" tag.
-    #[display(fmt = "invalid PEM BEGIN tag")]
+    #[display("invalid PEM BEGIN tag")]
     BadObjectBeginTag,
     /// We found an ill-formed "END FOO" tag.
-    #[display(fmt = "invalid PEM END tag")]
+    #[display("invalid PEM END tag")]
     BadObjectEndTag,
     /// We found a "BEGIN FOO" tag with an "END FOO" tag that didn't match.
-    #[display(fmt = "mismatched PEM tags")]
+    #[display("mismatched PEM tags")]
     BadObjectMismatchedTag,
     /// We found a base64 object with an invalid base64 encoding.
-    #[display(fmt = "invalid base64 in object")]
+    #[display("invalid base64 in object")]
     BadObjectBase64,
     /// The document is not supposed to contain more than one of some
     /// kind of entry, but we found one anyway.
-    #[display(fmt = "duplicate entry")]
+    #[display("duplicate entry")]
     DuplicateToken,
     /// The document is not supposed to contain any of some particular kind
     /// of entry, but we found one anyway.
-    #[display(fmt = "unexpected entry")]
+    #[display("unexpected entry")]
     UnexpectedToken,
     /// The document is supposed to contain any of some particular kind
     /// of entry, but we didn't find one one anyway.
-    #[display(fmt = "didn't find required entry")]
+    #[display("didn't find required entry")]
     MissingToken,
     /// The document was supposed to have one of these, but not where we
     /// found it.
-    #[display(fmt = "entry out of place")]
+    #[display("entry out of place")]
     MisplacedToken,
     /// We found more arguments on an entry than it is allowed to have.
-    #[display(fmt = "too many arguments")]
+    #[display("too many arguments")]
     TooManyArguments,
     /// We didn't fine enough arguments for some entry.
-    #[display(fmt = "too few arguments")]
+    #[display("too few arguments")]
     TooFewArguments,
     /// We found an object attached to an entry that isn't supposed to
     /// have one.
-    #[display(fmt = "unexpected object")]
+    #[display("unexpected object")]
     UnexpectedObject,
     /// An entry was supposed to have an object, but it didn't.
-    #[display(fmt = "missing object")]
+    #[display("missing object")]
     MissingObject,
     /// We found an object on an entry, but the type was wrong.
-    #[display(fmt = "wrong object type")]
+    #[display("wrong object type")]
     WrongObject,
     /// We tried to find an argument that we were sure would be there,
     /// but it wasn't!
     ///
     /// This error should never occur in correct code; it should be
     /// caught earlier by TooFewArguments.
-    #[display(fmt = "missing argument")]
+    #[display("missing argument")]
     MissingArgument,
     /// We found an argument that couldn't be parsed.
-    #[display(fmt = "bad argument for entry")]
+    #[display("bad argument for entry")]
     BadArgument,
     /// We found an object that couldn't be parsed after it was decoded.
-    #[display(fmt = "bad object for entry")]
+    #[display("bad object for entry")]
     BadObjectVal,
     /// There was some signature that we couldn't validate.
-    #[display(fmt = "couldn't validate signature")]
+    #[display("couldn't validate signature")]
     BadSignature, // TODO(nickm): say which kind of signature.
     /// The object is not valid at the required time.
-    #[display(fmt = "couldn't validate time bound")]
+    #[display("couldn't validate time bound")]
     BadTimeBound,
     /// There was a tor version we couldn't parse.
-    #[display(fmt = "couldn't parse Tor version")]
+    #[display("couldn't parse Tor version")]
     BadTorVersion,
     /// There was an ipv4 or ipv6 policy entry that we couldn't parse.
-    #[display(fmt = "invalid policy entry")]
+    #[display("invalid policy entry")]
     BadPolicy,
     /// An underlying byte sequence couldn't be decoded.
-    #[display(fmt = "decoding error")]
+    #[display("decoding error")]
     Undecodable,
     /// Versioned document with an unrecognized version.
-    #[display(fmt = "unrecognized document version")]
+    #[display("unrecognized document version")]
     BadDocumentVersion,
     /// Unexpected document type
-    #[display(fmt = "unexpected document type")]
+    #[display("unexpected document type")]
     BadDocumentType,
     /// We expected a kind of entry that we didn't find
-    #[display(fmt = "missing entry")]
+    #[display("missing entry")]
     MissingEntry,
     /// Document or section started with wrong token
-    #[display(fmt = "Wrong starting token")]
+    #[display("Wrong starting token")]
     WrongStartingToken,
     /// Document or section ended with wrong token
-    #[display(fmt = "Wrong ending token")]
+    #[display("Wrong ending token")]
     WrongEndingToken,
     /// Items not sorted as expected
-    #[display(fmt = "Incorrect sort order")]
+    #[display("Incorrect sort order")]
     WrongSortOrder,
     /// A consensus lifetime was ill-formed.
-    #[display(fmt = "Invalid consensus lifetime")]
+    #[display("Invalid consensus lifetime")]
     InvalidLifetime,
     /// Found an empty line in the middle of a document
-    #[display(fmt = "Empty line")]
+    #[display("Empty line")]
     EmptyLine,
 }
 

@@ -33,7 +33,6 @@ pub(crate) use {
     std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     std::iter,
     std::marker::PhantomData,
-    std::ops::{Deref, DerefMut},
     std::panic::AssertUnwindSafe,
     std::path::{Path, PathBuf},
     std::str::FromStr,

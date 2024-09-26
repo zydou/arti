@@ -13,7 +13,7 @@ categories = ["rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 hex = "0.4"
 itertools = "0.13.0"
 paste = "1"
@@ -27,7 +27,7 @@ thiserror = "1"
 libc = { version = "0.2", default-features = false }
 
 [dev-dependencies]
-derive_more = "0.99.3"
+derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 serde = { version = "1.0.103", features = ["derive"] }
 serde-value = "0.7.0"

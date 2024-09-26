@@ -57,7 +57,7 @@ macro_rules! propagate_fatal_errors {
 ///
 /// These are used to track the progress of each attempt independently.
 #[derive(Copy, Clone, Debug, derive_more::Display, Eq, PartialEq, Ord, PartialOrd)]
-#[display(fmt = "{0}", id)]
+#[display("{0}", id)]
 pub(crate) struct AttemptId {
     /// Which attempt at downloading a directory is this?
     id: NonZeroUsize,

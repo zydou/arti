@@ -20,7 +20,7 @@ use crate::err::ErrorSource;
 
 /// Common arguments to load/store operations
 #[derive(derive_more::Display)]
-#[display(fmt = "{:?}/{:?}", "dir.as_path()", "rel_fname")]
+#[display("{:?}/{:?}", dir.as_path(), rel_fname)]
 pub(crate) struct Target<'r> {
     /// Directory
     pub(crate) dir: &'r CheckedDir,

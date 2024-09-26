@@ -55,7 +55,7 @@ pub struct TypedParticipation<T> {
 #[derive(Educe, derive_more::Display)]
 #[educe(Copy, Clone)]
 #[educe(Debug(named_field = false))]
-#[display(fmt = "{raw}")]
+#[display("{raw}")]
 pub struct TypedMemoryCost<T> {
     /// The actual cost in bytes
     raw: usize,
