@@ -5152,6 +5152,7 @@ dependencies = [
 name = "tor-cell"
 version = "0.23.0"
 dependencies = [
+ "amplify",
  "bitflags 2.6.0",
  "bytes",
  "caret",

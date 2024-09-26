@@ -889,7 +889,7 @@ fn testvec_intro_payload() {
             hex!("3FF84AA4B21453D20106BD4EDDA919386BF67D541CAA78F38BE6A08C2B3D0C4F"),
         ),
     ];
-    let expected = IntroduceHandshakePayload::new(cookie, onion_key, link_specifiers);
+    let expected = IntroduceHandshakePayload::new(cookie, onion_key, link_specifiers, None);
 
     // Taken from a modified Tor client on a chutney network.
     let encoded = hex!(

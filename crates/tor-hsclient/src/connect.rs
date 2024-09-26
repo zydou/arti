@@ -1106,7 +1106,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 .linkspecs()
                 .map_err(into_internal!("Couldn't encode link specifiers"))?;
             let payload =
-                IntroduceHandshakePayload::new(rendezvous.rend_cookie, onion_key, linkspecs);
+                IntroduceHandshakePayload::new(rendezvous.rend_cookie, onion_key, linkspecs, None);
             let mut encoded = vec![];
             payload
                 .write_onto(&mut encoded)
