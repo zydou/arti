@@ -6045,6 +6045,7 @@ dependencies = [
  "async_executors",
  "coarsetime",
  "derive_more",
+ "dyn-clone",
  "educe",
  "futures",
  "futures-rustls",

@@ -50,6 +50,7 @@ pub mod task;
 
 mod coarse_time;
 mod compound;
+mod dyn_time;
 pub mod general;
 mod opaque;
 pub mod scheduler;
@@ -66,6 +67,7 @@ pub use traits::{
 };
 
 pub use coarse_time::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
+pub use dyn_time::DynTimeProvider;
 pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 
 /// Traits used to describe TLS connections and objects that can
