@@ -15,6 +15,9 @@ use sha2::Sha512;
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
+#[cfg(feature = "memquota")]
+use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+
 use ed25519_dalek::hazmat::ExpandedSecretKey;
 // NOTE: We are renaming a few types here to maintain consistency with
 // our variable names, and with the nomenclature we use elsewhere for public
@@ -130,6 +133,7 @@ impl From<ExpandedKeypair> for PublicKey {
 ///  * This type hasn't checked whether the bytes here actually _are_ a valid
 ///    Ed25519 public key.
 #[derive(Clone, Copy, Hash, PartialOrd, Ord, Eq, PartialEq)]
+#[cfg_attr(feature = "memquota", derive(Deftly), derive_deftly(HasMemoryCost))]
 pub struct Ed25519Identity {
     /// A raw unchecked Ed25519 public key.
     id: CtByteArray<ED25519_ID_LEN>,
@@ -301,10 +305,13 @@ impl<'de> serde::Deserialize<'de> for Ed25519Identity {
 /// An ed25519 signature, plus the document that it signs and its
 /// public key.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "memquota", derive(Deftly), derive_deftly(HasMemoryCost))]
 pub struct ValidatableEd25519Signature {
     /// The key that allegedly produced the signature
+    #[cfg_attr(feature = "memquota", deftly(has_memory_cost(copy)))]
     key: PublicKey,
     /// The alleged signature
+    #[cfg_attr(feature = "memquota", deftly(has_memory_cost(copy)))]
     sig: Signature,
     /// The entire body of text that is allegedly signed here.
     ///

@@ -3,6 +3,9 @@
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use zeroize::Zeroize;
 
+#[cfg(feature = "memquota")]
+use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+
 /// A byte array of length N for which comparisons are performed in constant
 /// time.
 ///
@@ -15,6 +18,7 @@ use zeroize::Zeroize;
 /// (The decision to avoid implementing `Deref`/`DerefMut` is deliberate.)
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Clone, Copy, Debug, Hash, Zeroize, derive_more::Deref)]
+#[cfg_attr(feature = "memquota", derive(Deftly), derive_deftly(HasMemoryCost))]
 pub struct CtByteArray<const N: usize>([u8; N]);
 
 impl<const N: usize> ConstantTimeEq for CtByteArray<N> {

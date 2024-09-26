@@ -13,7 +13,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-full = ["safelog/full"]
+memquota = ["tor-memquota", "derive-deftly"]
+full = ["memquota", "safelog/full"]
 
 with-openssl = ["openssl", "typenum", "cipher", "__is_nonadditive"]
 with-sha1-asm = ["sha1/asm", "__is_nonadditive"]
@@ -41,6 +42,7 @@ cipher = { version = "0.4.3", optional = true, features = ["zeroize"] }
 ctr = { version = "0.9", features = ["zeroize"] }
 curve25519-dalek = "4.1"
 der-parser = { version = "9", features = ["serialize"] }
+derive-deftly = { version = "0.14.2", optional = true }
 derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 ed25519-dalek = { version = "2.1", features = ["batch", "hazmat"] }
@@ -57,6 +59,7 @@ sha3 = "0.10.6"
 signature = "2"
 subtle = "2"
 thiserror = "1"
+tor-memquota = { version = "0.23.0", path = "../tor-memquota", no_default_features = true, optional = true }
 typenum = { version = "1.15.0", optional = true }
 visibility = "0.1.0"
 x25519-dalek = { version = "2.0.0", features = ["static_secrets"] }
