@@ -25,12 +25,14 @@ default = [
     "pt-client",
     "onion-service-client",
     "vanguards",
+    "hs-pow",
 ]
 
 full = [
     "onion-service-client",
     "onion-service-service",
     "vanguards",
+    "hs-pow",
     "async-std",
     "tokio",
     "native-tls",
@@ -67,6 +69,7 @@ native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
 onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice"]
 vanguards = ["arti-client/vanguards"]
+hs-pow = ["arti-client/hs-pow"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 relay = ["arti-relay", "__is_experimental"]
 ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
