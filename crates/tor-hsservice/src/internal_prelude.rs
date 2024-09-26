@@ -93,7 +93,7 @@ pub(crate) use {
     tor_keymgr::{
         derive_deftly_template_KeySpecifier, KeyMgr, KeySpecifier,
         KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern as _, KeystoreSelector,
-        {ArtiPathRange, KeyPath, KeySpecifierComponent},
+        {ArtiPathRange, KeySpecifierComponent},
     },
     tor_linkspec::{
         CircTarget, HasRelayIds as _, OwnedChanTargetBuilder, OwnedCircTarget, RelayIds,
