@@ -113,7 +113,7 @@ use clap::{value_parser, Arg, ArgAction, Command};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
-#[cfg(any(feature = "hsc", feature = "onion-service-service"))]
+#[cfg(any(feature = "hsc", feature = "onion-service-service", feature = "relay"))]
 use clap::Subcommand as _;
 
 #[cfg(feature = "experimental-api")]
@@ -296,13 +296,9 @@ where
         }
     }
 
-    // Relay subcommand
     cfg_if::cfg_if! {
         if #[cfg(feature = "relay")] {
-            let clap_app = clap_app.subcommand(
-                Command::new("relay")
-                    .about("Run Arti in relay mode acting as a relay of the Tor network")
-            );
+            let clap_app = subcommands::relay::RelaySubcommands::augment_subcommands(clap_app);
         }
     }
 
@@ -416,9 +412,8 @@ where
     // Check for the optional "relay" subcommand.
     cfg_if::cfg_if! {
         if #[cfg(feature = "relay")] {
-            if let Some(_relay_matches) = matches.subcommand_matches("relay") {
-                // TODO: Actually implement the launch of a relay.
-                todo!()
+            if let Some(relay_matches) = matches.subcommand_matches("relay") {
+                return subcommands::relay::run(runtime, relay_matches, &config);
             }
         }
     }
