@@ -56,7 +56,6 @@ mod ipt_mgr;
 mod ipt_set;
 mod keys;
 mod netdir;
-mod nickname;
 mod publish;
 mod rend_handshake;
 mod replay;
@@ -95,10 +94,10 @@ pub use keys::{
     BlindIdKeypairSpecifier, BlindIdPublicKeySpecifier, DescSigningKeypairSpecifier,
     HsIdKeypairSpecifier, HsIdPublicKeySpecifier,
 };
-pub use nickname::{HsNickname, InvalidNickname};
 pub use publish::UploadError as DescUploadError;
 pub use req::{RendRequest, StreamRequest};
 pub use tor_hscrypto::pk::HsId;
+pub use tor_persist::hsnickname::{HsNickname, InvalidNickname};
 
 pub use helpers::handle_rend_requests;
 

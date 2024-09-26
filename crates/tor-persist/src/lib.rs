@@ -49,6 +49,7 @@ mod err;
 mod fs;
 mod fs_mistrust_error_ext;
 mod handle;
+pub mod hsnickname;
 mod load_store;
 pub mod slug;
 #[cfg(feature = "testing")]

@@ -11,6 +11,7 @@ use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
 use tor_hscrypto::time::TimePeriod;
+use tor_persist::hsnickname::HsNickname;
 use tor_persist::slug::Slug;
 
 use crate::{ArtiPath, ArtiPathSyntaxError};
@@ -494,6 +495,8 @@ impl<T: KeySpecifierComponentViaDisplayFromStr> KeySpecifierComponent for T {
         Display::fmt(self, f)
     }
 }
+
+impl KeySpecifierComponentViaDisplayFromStr for HsNickname {}
 
 impl KeySpecifierComponent for HsId {
     fn to_slug(&self) -> StdResult<Slug, Bug> {
