@@ -5573,6 +5573,7 @@ version = "0.23.0"
 dependencies = [
  "cipher",
  "data-encoding",
+ "derive-deftly",
  "derive_more",
  "digest",
  "hex",
@@ -5589,6 +5590,7 @@ dependencies = [
  "tor-bytes",
  "tor-error",
  "tor-llcrypto",
+ "tor-memquota",
  "tor-units",
  "zeroize",
 ]
