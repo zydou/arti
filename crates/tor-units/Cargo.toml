@@ -13,14 +13,17 @@ categories = ["rust-patterns"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+derive-deftly = { version = "0.14.2", optional = true }
 derive_more = { version = "1.0.0", features = ["full"] }
 thiserror = "1"
+tor-memquota = { version = "0.23.0", path = "../tor-memquota", no_default_features = true, optional = true }
 
 [dev-dependencies]
 float-cmp = "0.10.0"
 
 [features]
-full = []
+full = ["memquota"]
+memquota = ["derive-deftly", "tor-memquota"]
 
 # [derive_more]
 # default-features = false

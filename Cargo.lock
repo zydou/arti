@@ -6188,9 +6188,11 @@ dependencies = [
 name = "tor-units"
 version = "0.23.0"
 dependencies = [
+ "derive-deftly",
  "derive_more",
  "float-cmp",
  "thiserror",
+ "tor-memquota",
 ]
 
 [[package]]
