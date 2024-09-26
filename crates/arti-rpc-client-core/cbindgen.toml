@@ -105,6 +105,9 @@ header = """\
  *   (This does not apply to functions that take an argument via a
  *   non-const pointer.)
  *
+ * - Whenever a function returns an error, it returns no other newly allocated objects
+ *   besides the error object itself.
+ *
  * ## Correctness requirements
  *
  * If any correctness requirements stated here or elsewhere are violated,
@@ -170,14 +173,7 @@ typedef int ArtiRpcRawSocket;
 [export]
 # These structs are not ones we want to expose under their actual names,
 # or ones that we don't want to expose at all.
-exclude = [
-        "FfiError",
-        "RequestHandle",
-        "RpcConn",
-        "RpcErrorCode",
-        "Utf8CString",
-        "ArtiRpcRawSocket",
-]
+exclude = ["FfiError", "RequestHandle", "RpcConn", "RpcErrorCode", "Utf8CString", "ArtiRpcRawSocket"]
 
 [export.rename]
 # Having not declared these structs, we can give them new names in the

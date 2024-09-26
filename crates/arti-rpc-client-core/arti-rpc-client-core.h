@@ -96,6 +96,9 @@
  *   (This does not apply to functions that take an argument via a
  *   non-const pointer.)
  *
+ * - Whenever a function returns an error, it returns no other newly allocated objects
+ *   besides the error object itself.
+ *
  * ## Correctness requirements
  *
  * If any correctness requirements stated here or elsewhere are violated,
