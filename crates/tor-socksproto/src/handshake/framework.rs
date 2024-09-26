@@ -279,7 +279,9 @@ impl<'b, P: ReadPrecision> RecvStep<'b, P> {
     ///
     /// `len` must be no more than `.buf().len()`.
     pub fn note_received(self, len: usize) -> Result<(), Error> {
-        let len = len.try_into().map_err(|_: TryFromIntError| Error::UnexpectedEof)?;
+        let len = len
+            .try_into()
+            .map_err(|_: TryFromIntError| Error::UnexpectedEof)?;
         self.buffer.note_received(len);
         Ok(())
     }
