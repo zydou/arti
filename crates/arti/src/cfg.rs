@@ -1270,6 +1270,10 @@ example config file {which:?}, uncommented={uncommented:?}
                 ));
                 */
                 b.proxy().proxy_ports().push(ProxyRule::new(
+                    ProxyPattern::one_port(443).unwrap(),
+                    ProxyAction::RejectStream,
+                ));
+                b.proxy().proxy_ports().push(ProxyRule::new(
                     ProxyPattern::all_ports(),
                     ProxyAction::DestroyCircuit,
                 ));
