@@ -69,6 +69,7 @@ use crate::circuit::path;
 #[cfg(test)]
 use crate::circuit::sendme::CircTag;
 use crate::circuit::sendme::StreamSendWindow;
+use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
@@ -216,9 +217,9 @@ pub(super) enum CtrlMsg {
         /// SENDME cells once we've read enough out of the other end. If it *does* block, we
         /// can assume someone is trying to send us more cells than they should, and abort
         /// the stream.
-        sender: mpsc::Sender<UnparsedRelayMsg>,
+        sender: StreamMpscSender<UnparsedRelayMsg>,
         /// A channel to receive messages to send on this stream from.
-        rx: mpsc::Receiver<AnyRelayMsg>,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<StreamId>,
         /// A `CmdChecker` to keep track of which message types are acceptable.
@@ -743,9 +744,9 @@ pub(super) struct StreamReqInfo {
     // incoming stream request from two separate hops.  (There is only one that's valid.)
     pub(super) hop_num: HopNum,
     /// A channel for receiving messages from this stream.
-    pub(super) receiver: mpsc::Receiver<UnparsedRelayMsg>,
+    pub(super) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
     /// A channel for sending messages to be sent on this stream.
-    pub(super) msg_tx: mpsc::Sender<AnyRelayMsg>,
+    pub(super) msg_tx: StreamMpscSender<AnyRelayMsg>,
 }
 
 /// Data required for handling an incoming stream request.
@@ -1692,8 +1693,8 @@ impl Reactor {
         cx: &mut Context<'_>,
         hopnum: HopNum,
         message: AnyRelayMsg,
-        sender: mpsc::Sender<UnparsedRelayMsg>,
-        rx: mpsc::Receiver<AnyRelayMsg>,
+        sender: StreamMpscSender<UnparsedRelayMsg>,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
         let hop = self

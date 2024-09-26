@@ -2,6 +2,7 @@
 
 use crate::circuit::halfstream::HalfStream;
 use crate::circuit::sendme;
+use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
@@ -11,7 +12,6 @@ use tor_async_utils::stream_peek::StreamUnobtrusivePeeker;
 use tor_cell::relaycell::{msg::AnyRelayMsg, StreamId};
 use tor_cell::relaycell::{RelayMsg, UnparsedRelayMsg};
 
-use futures::channel::mpsc;
 use std::collections::hash_map;
 use std::collections::HashMap;
 use std::num::NonZeroU16;
@@ -33,7 +33,7 @@ use tracing::debug;
 #[pin_project]
 pub(super) struct OpenStreamEnt {
     /// Sink to send relay cells tagged for this stream into.
-    pub(super) sink: mpsc::Sender<UnparsedRelayMsg>,
+    pub(super) sink: StreamMpscSender<UnparsedRelayMsg>,
     /// Number of cells dropped due to the stream disappearing before we can
     /// transform this into an `EndSent`.
     pub(super) dropped: u16,
@@ -48,7 +48,7 @@ pub(super) struct OpenStreamEnt {
     // `OpenStreamEntStream`s implementation of `Stream`, which in turn should
     // only be used through `StreamPollSet`.
     #[pin]
-    rx: StreamUnobtrusivePeeker<mpsc::Receiver<AnyRelayMsg>>,
+    rx: StreamUnobtrusivePeeker<StreamMpscReceiver<AnyRelayMsg>>,
     /// Waker to be woken when more sending capacity becomes available (e.g.
     /// receiving a SENDME).
     flow_ctrl_waker: Option<Waker>,
@@ -270,8 +270,8 @@ impl StreamMap {
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
-        sink: mpsc::Sender<UnparsedRelayMsg>,
-        rx: mpsc::Receiver<AnyRelayMsg>,
+        sink: StreamMpscSender<UnparsedRelayMsg>,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
         cmd_checker: AnyCmdChecker,
     ) -> Result<StreamId> {
@@ -310,8 +310,8 @@ impl StreamMap {
     #[cfg(feature = "hs-service")]
     pub(super) fn add_ent_with_id(
         &mut self,
-        sink: mpsc::Sender<UnparsedRelayMsg>,
-        rx: mpsc::Receiver<AnyRelayMsg>,
+        sink: StreamMpscSender<UnparsedRelayMsg>,
+        rx: StreamMpscReceiver<AnyRelayMsg>,
         send_window: sendme::StreamSendWindow,
         id: StreamId,
         cmd_checker: AnyCmdChecker,
@@ -515,6 +515,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::circuit::test::fake_mpsc;
     use crate::{circuit::sendme::StreamSendWindow, stream::DataCmdChecker};
 
     #[test]
@@ -537,8 +538,8 @@ mod test {
 
         // Try add_ent
         for n in 1..=128 {
-            let (sink, _) = mpsc::channel(128);
-            let (_, rx) = mpsc::channel(2);
+            let (sink, _) = fake_mpsc(128);
+            let (_, rx) = fake_mpsc(2);
             let id = map.add_ent(
                 sink,
                 rx,
