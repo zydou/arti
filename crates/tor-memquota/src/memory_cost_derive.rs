@@ -212,6 +212,9 @@ define_derive_deftly! {
     ///  * **`#[deftly(has_memory_cost(indirect_fn = "FUNCTION"))]`**:
     ///    `FUNCTION` is a function with the signature and semantics of
     ///    [`HasMemoryCostStructural::indirect_memory_cost`],
+    ///  * **`#[deftly(has_memory_cost(indirect_size = "EXPR"))]`**:
+    ///    `EXPR` is an expression of type usize with the semantics of a return value from
+    ///    [`HasMemoryCostStructural::indirect_memory_cost`].
     ///
     /// With one of these, the field doesn't need to implement `HasMemoryCostStructural`.
     export HasMemoryCost expect items:
@@ -232,6 +235,9 @@ define_derive_deftly! {
                     }
                     fmeta(has_memory_cost(indirect_fn)) {
                         ${fmeta(has_memory_cost(indirect_fn)) as expr}(&$fpatname, et)
+                    }
+                    fmeta(has_memory_cost(indirect_size)) {
+                        ${fmeta(has_memory_cost(indirect_size)) as expr}
                     }
                     else {
      <$ftype as $crate::HasMemoryCostStructural>::indirect_memory_cost(&$fpatname, et)
