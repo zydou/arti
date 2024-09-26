@@ -363,7 +363,7 @@ coverage:
 minimal-versions:
   stage: test
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:1.75
+  image: amd64/rust:1.77
   needs: ["rust-checks"]
   script:
     - rustup install nightly
@@ -377,7 +377,7 @@ minimal-versions:
     TARGET: UNDEFINED--BUG-IN-CI-YAML
   # If you upgrade this image, also change the one in docker_reproducible_build.
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/rust:1.76.0-alpine3.18
+  image: amd64/rust:1.77.0-alpine3.18
   script:
     - apk add bash
     - ./maint/reproducible_build $TARGET

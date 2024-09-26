@@ -9,7 +9,7 @@ description = "Ensure that files can only be read or written by trusted users"
 keywords = ["fs", "file", "permissions", "ownership", "privacy"]
 categories = ["filesystem"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
-rust-version = "1.75"
+rust-version = "1.77"
 
 [features]
 default = ["walkdir", "anon_home"]
