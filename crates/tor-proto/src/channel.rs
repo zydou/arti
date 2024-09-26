@@ -325,6 +325,15 @@ impl ChannelSender {
             _ => Ok(()),
         }
     }
+
+    /// Obtain a reference to the `ChannelSender`'s [`DynTimeProvider`]
+    ///
+    /// (This can sometimes be used to avoid having to keep
+    /// a separate clone of the time provider.)
+    #[allow(dead_code)] // XXXX
+    pub(crate) fn time_provider(&self) -> &DynTimeProvider {
+        self.cell_tx.time_provider()
+    }
 }
 
 impl Sink<AnyChanCell> for ChannelSender {
@@ -513,6 +522,14 @@ impl Channel {
     /// Return a reference to the memory tracking account for this Channel
     pub fn mq_account(&self) -> &ChannelAccount {
         &self.details.memquota
+    }
+
+    /// Obtain a reference to the `Channel`'s [`DynTimeProvider`]
+    ///
+    /// (This can sometimes be used to avoid having to keep
+    /// a separate clone of the time provider.)
+    pub fn time_provider(&self) -> &DynTimeProvider {
+        self.cell_tx.time_provider()
     }
 
     /// Return an OwnedChanTarget representing the actual handshake used to
