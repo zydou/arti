@@ -669,7 +669,12 @@ mod test {
         let trk = mk_tracker(rt);
         let acct = trk.new_account(None).unwrap();
         let itrk = ItemTracker::new_tracker();
-        Setup { dtp, trk, acct, itrk }
+        Setup {
+            dtp,
+            trk,
+            acct,
+            itrk,
+        }
     }
 
     impl Setup {
