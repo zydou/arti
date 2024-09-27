@@ -55,7 +55,7 @@ use tor_keymgr::{config::ArtiKeystoreKind, ArtiNativeKeystore, KeyMgr, KeyMgrBui
 use tor_keymgr::ArtiEphemeralKeystore;
 
 #[cfg(feature = "ctor-keystore")]
-use tor_keymgr::CTorServiceKeystore;
+use tor_keymgr::{CTorClientKeystore, CTorServiceKeystore};
 
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
@@ -275,6 +275,17 @@ impl InertTorClient {
                 // TODO: these nicknames should be cross-checked with configured
                 // svc nicknames as part of config validation!!!
                 config.nickname().clone(),
+            )?);
+
+            builder.secondary_stores().push(store);
+        }
+
+        #[cfg(feature = "ctor-keystore")]
+        for config in config.storage.keystore().ctor_client_stores() {
+            let store: Box<dyn Keystore> = Box::new(CTorClientKeystore::from_path_and_mistrust(
+                config.path(),
+                permissions,
+                config.id().clone(),
             )?);
 
             builder.secondary_stores().push(store);

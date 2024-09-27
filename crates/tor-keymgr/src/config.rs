@@ -299,7 +299,7 @@ impl ArtiKeystoreConfig {
     }
 
     /// The ctor client keystore configs
-    pub fn ctor_slient_stores(&self) -> impl Iterator<Item = &CTorClientKeystoreConfig> {
+    pub fn ctor_client_stores(&self) -> impl Iterator<Item = &CTorClientKeystoreConfig> {
         self.ctor_clients.iter()
     }
 }
