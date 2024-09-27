@@ -649,7 +649,15 @@ mod test {
         );
 
         // These are commented-out by default
-        declare_exceptions(None, None, Recognized, &["storage.keystore.ctor_services"]);
+        declare_exceptions(
+            None,
+            None,
+            FeatureDependent,
+            &[
+                "storage.keystore.ctor_services",
+                "storage.keystore.ctor_clients",
+            ],
+        );
 
         out.sort();
 

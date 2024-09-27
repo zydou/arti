@@ -57,6 +57,17 @@ pub struct ArtiKeystoreConfig {
     #[builder(default, sub_builder(fn_name = "build"), setter(custom))]
     #[builder_field_attr(serde(default))]
     ctor_services: CTorServiceKeystoreConfigMap,
+
+    /// Optionally configure C Tor client keystores for arti to use.
+    /// Note: The keystores listed here are read-only (keys are only
+    /// ever written to the primary keystore, configured in
+    /// `storage.keystore.primary`).
+    ///
+    /// Each C Tor keystore **must** have a unique identifier.
+    /// It is an error to configure multiple keystores with the same [`KeystoreId`].
+    #[builder(default, sub_builder(fn_name = "build"))]
+    #[builder_field_attr(serde(default))]
+    ctor_clients: CTorClientKeystoreConfigList,
 }
 
 /// Primary [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
@@ -200,6 +211,62 @@ fn build_ctor_service_list(
     Ok(map)
 }
 
+/// C Tor [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
+#[builder(derive(Serialize, Deserialize, Debug))]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[non_exhaustive]
+#[builder_struct_attr(non_exhaustive)]
+pub struct CTorClientKeystoreConfig {
+    /// The identifier of this keystore.
+    ///
+    /// Each keystore **must** have a unique identifier.
+    /// It is an error to configure multiple keystores with the same [`KeystoreId`].
+    id: KeystoreId,
+
+    /// The root directory of this keystore.
+    ///
+    /// This should be set to the `ClientOnionAuthDir` of your client.
+    /// If Arti is configured to run as a client (i.e. if it runs in SOCKS proxy mode),
+    /// it will read the client restricted discovery keys from this path.
+    ///
+    /// The key files are expected to have the `.auth_private` extension,
+    /// and their content **must** be of the form:
+    /// `<56-char-onion-addr-without-.onion-part>:descriptor:x25519:<x25519 private key in base32>`.
+    ///
+    /// Malformed files, and files that don't have the `.auth_private` extension, will be ignored.
+    path: PathBuf,
+}
+
+/// The serialized format of a [`CTorClientKeystoreConfigListBuilder`]:
+pub type CTorClientKeystoreConfigList = Vec<CTorClientKeystoreConfig>;
+
+define_list_builder_helper! {
+    pub struct CTorClientKeystoreConfigListBuilder {
+        stores: [CTorClientKeystoreConfigBuilder],
+    }
+    built: CTorClientKeystoreConfigList = build_ctor_client_store_config(stores)?;
+    default = vec![];
+}
+
+/// Helper for building and validating a [`CTorClientKeystoreConfigList`].
+///
+/// Returns an error if the [`KeystoreId`]s of the `CTorClientKeystoreConfig`s are not unique.
+fn build_ctor_client_store_config(
+    ctor_stores: Vec<CTorClientKeystoreConfig>,
+) -> Result<CTorClientKeystoreConfigList, ConfigBuildError> {
+    use itertools::Itertools as _;
+
+    if !ctor_stores.iter().map(|s| &s.id).all_unique() {
+        return Err(ConfigBuildError::Inconsistent {
+            fields: ["id"].map(Into::into).into_iter().collect(),
+            problem: "the C Tor keystores do not have unique IDs".into(),
+        });
+    }
+
+    Ok(ctor_stores)
+}
+
 impl ArtiKeystoreConfig {
     /// Whether the keystore is enabled.
     pub fn is_enabled(&self) -> bool {
@@ -229,6 +296,11 @@ impl ArtiKeystoreConfig {
     /// The ctor keystore configs
     pub fn ctor_svc_stores(&self) -> impl Iterator<Item = &CTorServiceKeystoreConfig> {
         self.ctor_services.values()
+    }
+
+    /// The ctor client keystore configs
+    pub fn ctor_slient_stores(&self) -> impl Iterator<Item = &CTorClientKeystoreConfig> {
+        self.ctor_clients.iter()
     }
 }
 
@@ -288,6 +360,16 @@ impl ArtiKeystoreConfigBuilder {
             .unwrap_or_default()
         {
             return Err(no_compile_time_support("ctor_services"));
+        }
+
+        if self
+            .ctor_clients
+            .stores
+            .as_ref()
+            .map(|s| !s.is_empty())
+            .unwrap_or_default()
+        {
+            return Err(no_compile_time_support("ctor_clients"));
         }
 
         Ok(())

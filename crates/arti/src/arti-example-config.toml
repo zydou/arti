@@ -162,12 +162,25 @@
 # `[[onion_services."<the nickname of your svc>".restricted_discovery.key_dirs]]`
 # to `HiddenServiceDirectory/client_keys`).
 # path = "/var/lib/tor/allium_cepa"
-
-# The identifier of this keystore.
 #
-# Each keystore **must** have a unique identifier.
-# It is an error to configure multiple keystores with the same identifier.
+# The identifier of this keystore.
 # id = "foo"
+
+# [[storage.keystore.ctor_clients]]
+#
+# The identifier of this keystore.
+# id = "bar"
+#
+# This should be set to the `ClientOnionAuthDir` of your client.
+# If Arti is configured to run as a client (i.e. if it runs in SOCKS proxy mode),
+# it will read the client restricted discovery keys from this path.
+#
+# The key files are expected to have the `.auth_private` extension,
+# and their content **must** be of the form:
+# `<56-char-onion-addr-without-.onion-part>:descriptor:x25519:<x25519 private key in base32>`.
+#
+# Malformed files, and files that don't have the `.auth_private` extension, will be ignored.
+# path = "/var/lib/tor/onion_auth"
 
 # Describe how to enforce permissions on the filesystem when accessing the cache
 # and state directories.  (This does not apply to configuration files)
