@@ -247,7 +247,6 @@ impl InertTorClient {
                     ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
                 info!("Using keystore from {key_store_dir:?}");
 
-                // TODO #858: add support for the C Tor key store
                 Box::new(native_store)
             }
             #[cfg(feature = "ephemeral-keystore")]

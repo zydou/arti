@@ -490,11 +490,6 @@ define_derive_deftly! {
 
         fn ctor_path(&self) -> Option<$crate::CTorPath> {
             ${if tmeta(ctor_path) {
-                // TODO (#858): the HsSvcKeySpecifier will need to be configured with all the
-                // directories used by C tor. The resulting CTorPath will be prefixed with the
-                // appropriate C tor directory, based on the HsSvcKeyRole.
-                //
-                // Ie, provide the #[deftly(ctor_path)] attribute
                 Some( ${tmeta(ctor_path) as token_stream} (self) )
             } else {
                 None
