@@ -73,7 +73,15 @@ pub struct KeystoreEntry<'a> {
 impl KeyMgrBuilder {
     /// Construct a [`KeyMgr`] from this builder.
     pub fn build(self) -> StdResult<KeyMgr, KeyMgrBuilderError> {
+        use itertools::Itertools as _;
+
         let mut keymgr = self.build_unvalidated()?;
+
+        if !keymgr.all_stores().map(|s| s.id()).all_unique() {
+            return Err(KeyMgrBuilderError::ValidationError(
+                "the keystore IDs are not pairwise unique".into(),
+            ));
+        }
 
         keymgr.key_info_extractors = inventory::iter::<&'static dyn KeyPathInfoExtractor>
             .into_iter()
