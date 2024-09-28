@@ -3,7 +3,8 @@
 //! For now, this module is just contains a couple of workarounds for the
 //! limitations of other libraries.
 
-use simple_asn1::{oid, ASN1Block};
+use der_parser::ber::{BerObject, BerObjectContent};
+use der_parser::der::parse_der;
 pub mod ct;
 
 /// Given an X.509 certificate in DER, return its SubjectPublicKey if that key
@@ -13,9 +14,8 @@ pub mod ct;
 //
 // TODO(nickm): This is a massive kludge.
 pub fn x509_extract_rsa_subject_kludge(der: &[u8]) -> Option<crate::pk::rsa::PublicKey> {
-    //use ASN1Block::*;
-    let blocks = simple_asn1::from_der(der).ok()?;
-    let block = Asn1(blocks.first()?);
+    let (_, obj) = parse_der(der).ok()?;
+    let block = Asn1(&obj);
     // TBSCertificate
     let tbs_cert: Asn1<'_> = block.into_seq()?.first()?.into();
     // SubjectPublicKeyInfo
@@ -32,17 +32,17 @@ pub fn x509_extract_rsa_subject_kludge(der: &[u8]) -> Option<crate::pk::rsa::Pub
 }
 
 /// Helper to wrap a simple_asn1::Asn1Block and add more methods to it.
-struct Asn1<'a>(&'a ASN1Block);
-impl<'a> From<&'a ASN1Block> for Asn1<'a> {
-    fn from(b: &'a ASN1Block) -> Asn1<'a> {
+struct Asn1<'a>(&'a BerObject<'a>);
+impl<'a> From<&'a BerObject<'a>> for Asn1<'a> {
+    fn from(b: &'a BerObject) -> Asn1<'a> {
         Asn1(b)
     }
 }
 impl<'a> Asn1<'a> {
     /// If this block is a sequence, return a reference to its members.
-    fn into_seq(self) -> Option<&'a [ASN1Block]> {
-        match self.0 {
-            ASN1Block::Sequence(_, ref s) => Some(s),
+    fn into_seq(self) -> Option<&'a [BerObject<'a>]> {
+        match self.0.content {
+            BerObjectContent::Sequence(ref s) => Some(s.as_slice()),
             _ => None,
         }
     }
@@ -52,15 +52,11 @@ impl<'a> Asn1<'a> {
     /// (It's not a great API, but it lets us use the ? operator
     /// easily above.)
     fn must_be_rsa_oid(self) -> Option<()> {
-        // Current and nightly rust disagree about whether these imports
-        // are unused.
-        #[allow(unused_imports)]
-        use simple_asn1::{BigUint, OID};
-        let oid = match self.0 {
-            ASN1Block::ObjectIdentifier(_, ref oid) => Some(oid),
+        let oid = match self.0.content {
+            BerObjectContent::OID(ref oid) => Some(oid),
             _ => None,
         }?;
-        if oid == oid!(1, 2, 840, 113549, 1, 1, 1) {
+        if oid.as_bytes() == der_parser::oid!(raw 1.2.840.113549.1.1.1) {
             Some(())
         } else {
             None
@@ -69,8 +65,8 @@ impl<'a> Asn1<'a> {
     /// If this block is a BitString, return its bitstring value as a
     /// slice of bytes.
     fn to_bitstr(&self) -> Option<&[u8]> {
-        match self.0 {
-            ASN1Block::BitString(_, _, ref v) => Some(&v[..]),
+        match self.0.content {
+            BerObjectContent::BitString(_, ref v) => Some(v.data),
             _ => None,
         }
     }
