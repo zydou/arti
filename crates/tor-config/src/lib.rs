@@ -53,6 +53,8 @@ pub mod mistrust;
 mod mut_cfg;
 mod path;
 pub mod sources;
+#[cfg(feature = "testing")]
+pub mod testing;
 
 #[doc(hidden)]
 pub mod deps {

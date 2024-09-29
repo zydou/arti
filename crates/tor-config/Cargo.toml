@@ -16,13 +16,17 @@ default = ["expand-paths"]
 
 full = ["expand-paths", "fs-mistrust/full", "tor-basic-utils/full", "tor-error/full", "tor-rtcompat/full"]
 
-experimental = ["experimental-api"]
+experimental = ["testing", "experimental-api"]
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental-api = ["__is_experimental"]
 expand-paths = ["shellexpand", "directories"]
+
+# Enable testing-only APIs.  APIs under this feature are not
+# covered by semver.
+testing = ["__is_experimental"]
 
 __is_experimental = []
 
