@@ -466,7 +466,7 @@
 # A description of what to do with incoming connections to different ports.
 # This is given as a list of rules; the first matching rule applies.
 #
-#    proxy_ports = [ 
+#    proxy_ports = [
 #        # Forward port 80 on the service to localhost:10080.
 #        ["80", "127.0.0.1:10080"],
 #        # Tear down the circuit on attempts to connect to port 22.
