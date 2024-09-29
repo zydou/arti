@@ -378,7 +378,29 @@ impl ArtiKeystoreConfigBuilder {
     /// Validate the configured C Tor keystores.
     #[cfg(feature = "ctor-keystore")]
     fn validate_ctor_keystores(&self) -> Result<(), ConfigBuildError> {
-        // XXX TODO
+        use itertools::chain;
+        use itertools::Itertools as _;
+
+        let Self {
+            enabled: _,
+            primary: _,
+            ref ctor_services,
+            ref ctor_clients,
+        } = self;
+        let mut ctor_store_ids = chain![
+            ctor_services.stores.iter().flatten().map(|s| &s.id),
+            ctor_clients.stores.iter().flatten().map(|s| &s.id)
+        ];
+
+        // This is also validated by the KeyMgrBuilder (but it's a good idea to catch this sort of
+        // mistake at configuration-time regardless).
+        if !ctor_store_ids.all_unique() {
+            return Err(ConfigBuildError::Inconsistent {
+                fields: ["id"].map(Into::into).into_iter().collect(),
+                problem: "the C Tor keystores do not have unique IDs".into(),
+            });
+        }
+
         Ok(())
     }
 
