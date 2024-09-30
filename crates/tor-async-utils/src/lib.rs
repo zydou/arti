@@ -56,6 +56,7 @@ pub use prepare_send::{SinkPrepareExt, SinkPrepareSendFuture, SinkSendable};
 
 pub use sinkext::SinkExt;
 
+pub use sink_try_send::{ErasedSinkTrySendError, MpscOtherSinkTrySendError};
 pub use sink_try_send::{SinkTrySend, SinkTrySendError};
 
 pub use watch::{DropNotifyEofSignallable, DropNotifyWatchSender, PostageWatchSenderExt};

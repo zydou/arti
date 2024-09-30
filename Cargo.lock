@@ -5094,12 +5094,14 @@ dependencies = [
 name = "tor-async-utils"
 version = "0.23.0"
 dependencies = [
+ "derive-deftly",
  "educe",
  "futures",
  "futures-await-test",
  "oneshot-fused-workaround",
  "pin-project",
  "postage",
+ "thiserror",
  "tokio",
  "tor-rtcompat",
  "tor-rtmock",
