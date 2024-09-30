@@ -102,9 +102,6 @@ to 1.77, in accordance with our [MSRV policy].
   ([#1610], [!2394])
 - The "default" keystore has been renamed to "primary".
   ([!2438])
-- Keystore configuration options have been significantly revised;
-  `keystore.kind` is now `keystore.primary.kind`.
-  ([!2441])
 
 ### Relay development
 
@@ -197,6 +194,10 @@ to 1.77, in accordance with our [MSRV policy].
   ([dceeb82f7d115489])
 - Upgrade to the latest versions of `float-cmp` and `derive-more`.
   ([!2450])
+- Keystore configuration options have been significantly revised;
+  there is now a `keystore.primary.kind` option
+  to configure the primary keystore.
+  ([!2441])
 
 ### Acknowledgments
 
