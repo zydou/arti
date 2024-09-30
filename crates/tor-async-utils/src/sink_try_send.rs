@@ -104,7 +104,28 @@ define_derive_deftly! {
                 } else
             )
                 /* else */ {
-                    $ttype::Other(Arc::new(e))
+                    let e = Arc::new(e);
+                    // Avoid generating a nested ErasedSinkTrySendError.
+                    // Is it *already* an ESTSE (necessarily, then, an `Other`?)
+                    //
+                    // TODO replace this with a call to `downcast_value` from arti!2460
+                    let e2 = e.clone();
+                    match Arc::downcast(e2) {
+                        Ok::<Arc<ErasedSinkTrySendError>, _>(y2) => {
+                            drop(e); // Drop the original
+                            let inner: ErasedSinkTrySendError =
+                                Arc::into_inner(y2).expect(
+              "somehow we weren't the only owner, despite us just having made an Arc!"
+                                );
+                            return inner;
+                        }
+                        Err(other_e2) => {
+                            drop(other_e2);
+                            // We need to use e, not other_e2, because Arc::downcast
+                            // returns dyn Any but we need dyn SinkTrySendError.
+                            ErasedSinkTrySendError::Other(e)
+                        },
+                    }
                 }
         }
     }
