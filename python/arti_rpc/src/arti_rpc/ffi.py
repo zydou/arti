@@ -17,6 +17,7 @@ from ctypes import (
 )
 
 import os
+import sys
 
 ##########
 # Declare some types for use with ctypes.
@@ -162,13 +163,21 @@ def _load_library():
         return ctypes.cdll.LoadLibrary(p)
 
     # TODO RPC: On Windows, does this need to be WinDLL wither than cdll?
-    # Do we need to re-name the file with a ".dll"?
     # Do we need to configure Cargo.toml differently
     #    to get a new object type, or annotate our FFI functions
     #    with something other than `extern "C"`?
 
     # TODO RPC: Do we need to start versioning this?
-    return ctypes.cdll.LoadLibrary("libarti_rpc_client_core.so")
+    base = "libarti_rpc_client_core"
+    if sys.platform == 'darwin':
+        ext = "dylib"
+    elif sys.platform == 'win32':
+        ext = "dll"
+    else:
+        ext = "so"
+    libname = f"{base}.{ext}"
+
+    return ctypes.cdll.LoadLibrary(libname)
 
 _THE_LIBRARY = None
 
