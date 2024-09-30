@@ -321,7 +321,7 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::test_utils::ssh_keys::*;
-    use crate::test_utils::{TestSpecifier, assert_found};
+    use crate::test_utils::{assert_found, TestSpecifier};
     use crate::{ArtiPath, KeyPath};
     use std::cmp::Ordering;
     use std::fs;

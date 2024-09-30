@@ -290,6 +290,135 @@ mod tests {
     #![allow(clippy::useless_vec)]
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+    use std::fs;
+    use tempfile::{tempdir, TempDir};
 
-    // TODO
+    use crate::test_utils::{assert_found, DummyKey, TestCTorSpecifier};
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    /// A valid client restricted discovery key.
+    const ALICE_AUTH_PRIVATE_VALID: &str = include_str!("../../../testdata/alice.auth_private");
+
+    /// An invalid client restricted discovery key.
+    const BOB_AUTH_PRIVATE_INVALID: &str = include_str!("../../../testdata/bob.auth_private");
+
+    /// A valid client restricted discovery key.
+    const CAROL_AUTH_PRIVATE_VALID: &str = include_str!("../../../testdata/carol.auth_private");
+
+    /// A valid client restricted discovery key.
+    const DAN_AUTH_PRIVATE_VALID: &str = include_str!("../../../testdata/dan.auth_private");
+
+    // An .onion addr we don't have a client key for.
+    const HSID: &str = "mnyizjj7m3hpcr7i5afph3zt7maa65johyu2ruis6z7cmnjmaj3h6tad.onion";
+
+    fn init_keystore(id: &str) -> (CTorClientKeystore, TempDir) {
+        let keystore_dir = tempdir().unwrap();
+
+        #[cfg(unix)]
+        fs::set_permissions(&keystore_dir, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let id = KeystoreId::from_str(id).unwrap();
+        let keystore =
+            CTorClientKeystore::from_path_and_mistrust(&keystore_dir, &Mistrust::default(), id)
+                .unwrap();
+
+        let keys: &[(&str, &str)] = &[
+            ("alice.auth_private", ALICE_AUTH_PRIVATE_VALID),
+            // A couple of malformed key, added to check that our impl doesn't trip over them
+            ("bob.auth_private", BOB_AUTH_PRIVATE_INVALID),
+            (
+                "alice-truncated.auth_private",
+                &ALICE_AUTH_PRIVATE_VALID[..100],
+            ),
+            // A valid key, but with the wrong extension (so it should be ignored)
+            ("carol.auth", CAROL_AUTH_PRIVATE_VALID),
+            ("dan.auth_private", DAN_AUTH_PRIVATE_VALID),
+        ];
+
+        for (name, key) in keys {
+            fs::write(keystore_dir.path().join(name), key).unwrap();
+        }
+
+        (keystore, keystore_dir)
+    }
+
+    #[test]
+    fn get() {
+        let (keystore, _keystore_dir) = init_keystore("foo");
+        let path = CTorPath::ClientHsDescEncKey(HsId::from_str(HSID).unwrap());
+
+        // Not found!
+        assert_found!(
+            keystore,
+            &TestCTorSpecifier(path.clone()),
+            &KeyType::X25519StaticKeypair,
+            false
+        );
+
+        for hsid in &[ALICE_AUTH_PRIVATE_VALID, DAN_AUTH_PRIVATE_VALID] {
+            // Extract the HsId associated with this key.
+            let onion = hsid.split(":").next().unwrap();
+            let hsid = HsId::from_str(&format!("{onion}.onion")).unwrap();
+            let path = CTorPath::ClientHsDescEncKey(hsid.clone());
+
+            // Found!
+            assert_found!(
+                keystore,
+                &TestCTorSpecifier(path.clone()),
+                &KeyType::X25519StaticKeypair,
+                true
+            );
+        }
+
+        let keys: Vec<_> = keystore.list().unwrap();
+
+        assert_eq!(keys.len(), 2);
+        assert!(keys
+            .iter()
+            .all(|(_, key_type)| *key_type == KeyType::X25519StaticKeypair));
+    }
+
+    #[test]
+    fn unsupported_operation() {
+        let (keystore, _keystore_dir) = init_keystore("foo");
+        let path = CTorPath::ClientHsDescEncKey(HsId::from_str(HSID).unwrap());
+
+        let err = keystore
+            .remove(
+                &TestCTorSpecifier(path.clone()),
+                &KeyType::X25519StaticKeypair,
+            )
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "Operation not supported: remove");
+
+        let err = keystore
+            .insert(
+                &DummyKey,
+                &TestCTorSpecifier(path),
+                &KeyType::X25519StaticKeypair,
+            )
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "Operation not supported: insert");
+    }
+
+    #[test]
+    fn wrong_keytype() {
+        let (keystore, _keystore_dir) = init_keystore("foo");
+        let path = CTorPath::ClientHsDescEncKey(HsId::from_str(HSID).unwrap());
+
+        let err = keystore
+            .get(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey)
+            .map(|_| ())
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Invalid key type Ed25519PublicKey for client restricted discovery key"
+        );
+    }
 }
