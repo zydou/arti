@@ -41,11 +41,8 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-// TODO probably remove this at some point - see tpo/core/arti#1060
-#![cfg_attr(
-    not(all(feature = "full", feature = "experimental")),
-    allow(unused_imports)
-)]
+// TODO #1645 (either remove this, or decide to have it everywhere)
+#![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
 pub mod channel;
 pub mod circuit;
