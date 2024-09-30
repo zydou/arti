@@ -244,27 +244,25 @@ impl PublicKey {
     ///
     /// The result is an RsaPublicKey, not a PublicKeyInfo.
     pub fn to_der(&self) -> Vec<u8> {
-        // There seem to be version issues with these two
-        // versions of bigint: yuck!
+        use der_parser::ber::BerObject;
         use rsa::traits::PublicKeyParts;
-        use rsa::BigUint; // not the same as the one in simple_asn1.
-        use simple_asn1::{ASN1Block, BigInt};
-        /// Helper: convert a BigUInt to signed asn1.
-        fn to_asn1_int(x: &BigUint) -> ASN1Block {
-            // We stick a "0" on the front so that we can used
-            // from_signed_bytes_be.  The 0 guarantees that we'll
-            // have a positive value.
-            let mut bytes = vec![0];
-            bytes.extend(x.to_bytes_be());
-            // We use from_signed_bytes_be() here because simple_asn1
-            // exposes BigInt but not Sign, so we can't call
-            // its version of from_signed_bytes().
-            let bigint = BigInt::from_signed_bytes_be(&bytes);
-            ASN1Block::Integer(0, bigint)
-        }
 
-        let asn1 = ASN1Block::Sequence(0, vec![to_asn1_int(self.0.n()), to_asn1_int(self.0.e())]);
-        simple_asn1::to_der(&asn1).expect("RSA key not encodable as DER")
+        let mut n = self.0.n().to_bytes_be();
+        // prepend 0 if high bit is 1 to ensure correct signed encoding
+        if n[0] & 0b10000000 != 0 {
+            n.insert(0, 0_u8);
+        }
+        let n = BerObject::from_int_slice(&n);
+
+        let mut e = self.0.e().to_bytes_be();
+        // prepend 0 if high bit is 1 to ensure correct signed encoding
+        if e[0] & 0b10000000 != 0 {
+            e.insert(0, 0_u8);
+        }
+        let e = BerObject::from_int_slice(&e);
+
+        let asn1 = BerObject::from_seq(vec![n, e]);
+        asn1.to_vec().expect("RSA key not encodable as DER")
     }
 
     /// Compute the RsaIdentity for this public key.
