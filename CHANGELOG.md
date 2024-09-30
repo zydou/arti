@@ -288,33 +288,23 @@ for funding the development of Arti!
 [#1627]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1627
 [#1635]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1635
 [168f55df05f4b56f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/168f55df05f4b56fd61423c020ce62e93f1d7a9f
-[5e4e7b69b8cd279]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5e4e7b69b8cd2791763559cb0563dc60c8a66ce2
 [5e4e7b69b8cd2791]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5e4e7b69b8cd2791763559cb0563dc60c8a66ce2
+[5e4e7b69b8cd279]: https://gitlab.torproject.org/tpo/core/arti/-/commit/5e4e7b69b8cd2791763559cb0563dc60c8a66ce2
 [7a838da0ff2359f9]: https://gitlab.torproject.org/tpo/core/arti/-/commit/7a838da0ff2359f9b1eacbf24d9be9b8b88d5302
 [80095da1aa47978]: https://gitlab.torproject.org/tpo/core/arti/-/commit/80095da1aa47978cdba26c2b3d254a99c075cf53
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Chutney]: https://gitlab.torproject.org/tpo/core/chutney
+[MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/#minimum-supported-rust-version
+[Shadow]: https://shadow.github.io
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [ab41a9d330ed1db]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ab41a9d330ed1dbd506c8de8b5e331908ed78b97
 [b2b75302ab095bc]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b2b75302ab095bccdc7ccecb627e4648a3ae9419
 [b87b9f44ae05d4f0]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b87b9f44ae05d4f033e8b5e9a45684543ca2f323
 [cf7f25851ac0319f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cf7f25851ac0319fbb784a94050a715883989e0a
 [dceeb82f7d115489]: https://gitlab.torproject.org/tpo/core/arti/-/commit/dceeb82f7d1154894ab9c7c607d68f8335bb9615
-[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
-[Chutney]: https://gitlab.torproject.org/tpo/core/chutney
-[MSRV policy]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md#minimum-supported-rust-version
-[Shadow]: https://shadow.github.io
-[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [other sponsors]: https://www.torproject.org/about/sponsors/
 [proposal 351]: https://spec.torproject.org/proposals/351-socks-auth-extensions.html
 [security policy]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/SecurityPolicy
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1879,6 +1869,7 @@ for funding the development of Arti!
 [!2014]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2014
 [!2015]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2015
 [!2016]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2016
+[!2451]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2451
 [#1083]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1083
 [#1100]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1100
 [#1115]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1115
