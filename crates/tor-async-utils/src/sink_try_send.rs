@@ -189,3 +189,70 @@ impl<T> SinkTrySend<T> for mpsc::Sender<T> {
         mpsc::Sender::try_send(self_, item).map_err(handle_mpsc_error)
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::arithmetic_side_effects)] // don't mind potential panicking ops in tests
+    #![allow(clippy::useless_format)] // srsly
+
+    use super::*;
+    use derive_deftly::derive_deftly_adhoc;
+    use tor_error::ErrorReport as _;
+
+    #[test]
+    fn chk_erased_sink() {
+        #[derive(Error, Clone, Debug, Deftly)]
+        #[error("concrete {is_full} {is_disconnected}")]
+        #[derive_deftly_adhoc]
+        struct Concrete {
+            is_full: bool,
+            is_disconnected: bool,
+        }
+
+        derive_deftly_adhoc! {
+            Concrete:
+
+            impl SinkTrySendError for Concrete { $(
+                fn $fname(&self) -> bool { self.$fname }
+            ) }
+        }
+
+        for is_full in [false, true] {
+            for is_disconnected in [false, true] {
+                let c = Concrete {
+                    is_full,
+                    is_disconnected,
+                };
+                let e = ErasedSinkTrySendError::from(c.clone());
+                let e2 = ErasedSinkTrySendError::from(e.clone());
+
+                let cs = format!("concrete {is_full} {is_disconnected}");
+
+                let es = if is_full {
+                    format!("stream full (backpressure)")
+                } else if is_disconnected {
+                    format!("stream disconnected")
+                } else {
+                    format!("failed to convey data: {cs}")
+                };
+
+                assert_eq!(c.report().to_string(), format!("error: {cs}"));
+                assert_eq!(e.report().to_string(), format!("error: {es}"));
+                assert_eq!(e2.report().to_string(), format!("error: {es}"));
+            }
+        }
+    }
+}
