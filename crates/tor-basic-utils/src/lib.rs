@@ -49,6 +49,7 @@ use std::path::Path;
 use std::time::Duration;
 
 pub mod iter;
+pub mod n_key_list;
 pub mod n_key_set;
 pub mod rangebounds;
 pub mod retry;

@@ -140,6 +140,12 @@ impl From<tor_linkspec::ByRelayIdsError> for Error {
     }
 }
 
+impl From<tor_linkspec::ListByRelayIdsError> for Error {
+    fn from(_: tor_linkspec::ListByRelayIdsError) -> Self {
+        Error::MissingId
+    }
+}
+
 impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
         use tor_proto::Error as ProtoErr;
