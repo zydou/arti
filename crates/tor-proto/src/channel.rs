@@ -149,6 +149,40 @@ restricted_msg! {
     }
 }
 
+/// This indicate what type of channel it is. It allows us to decide for the correct channel cell
+/// state machines and authentication process (if any).
+///
+/// It is created when a channel is requested for creation which means the subsystem wanting to
+/// open a channel needs to know what type it wants.
+#[derive(Clone, Copy, Debug, derive_more::Display)]
+#[non_exhaustive]
+pub enum ChannelType {
+    /// Client: Initiated from a client to a relay. Client is unauthenticated and relay is
+    /// authenticated.
+    ClientInitiator,
+    /// Relay: Initiating as a relay to a relay. Both sides are authenticated.
+    RelayInitiator,
+    /// Relay: Responding as a relay to a relay or client. Authenticated or Unauthenticated.
+    RelayResponder {
+        /// Indicate if the channel is authenticated. Responding as a relay can be either from a
+        /// Relay (authenticated) or a Client/Bridge (Unauthenticated). We only know this
+        /// information once the handshake is completed.
+        ///
+        /// This side is always authenticated, the other side can be if a relay or not if
+        /// bridge/client. This is set to false unless we end up authenticating the other side
+        /// meaning a relay.
+        authenticated: bool,
+    },
+}
+
+impl ChannelType {
+    /// Return true if this channel type is an initiator.
+    #[expect(unused)] // TODO: Remove once used.
+    pub(crate) fn is_initiator(&self) -> bool {
+        matches!(self, Self::ClientInitiator | Self::RelayInitiator)
+    }
+}
+
 /// A channel cell that we allot to be sent on an open channel from
 /// a server to a client.
 pub(crate) type OpenChanCellS2C = ChanCell<OpenChanMsgS2C>;
@@ -189,6 +223,9 @@ type CellFrame<T> =
 /// with an error.
 #[derive(Debug)]
 pub struct Channel {
+    /// The channel type.
+    #[expect(unused)] // TODO: Remove once used.
+    channel_type: ChannelType,
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
@@ -444,8 +481,12 @@ impl Channel {
     /// Internal method, called to finalize the channel when we've
     /// sent our netinfo cell, received the peer's netinfo cell, and
     /// we're finally ready to create circuits.
+    ///
+    /// Quick note on the allow clippy. This is has one call site so for now, it is fine that we
+    /// bust the mighty 7 arguments.
     #[allow(clippy::too_many_arguments)] // TODO consider if we want a builder
     fn new<S>(
+        channel_type: ChannelType,
         link_protocol: u16,
         sink: BoxedChannelSink,
         stream: BoxedChannelStream,
@@ -479,6 +520,7 @@ impl Channel {
         let details = Arc::new(details);
 
         let channel = Arc::new(Channel {
+            channel_type,
             control: control_tx,
             cell_tx,
             reactor_closed_rx,
@@ -758,7 +800,7 @@ impl Channel {
     //  * It returns the mpsc Receiver
     //  * It does not require explicit specification of details
     #[cfg(feature = "testing")]
-    pub fn new_fake() -> (Channel, mpsc::UnboundedReceiver<CtrlMsg>) {
+    pub fn new_fake(channel_type: ChannelType) -> (Channel, mpsc::UnboundedReceiver<CtrlMsg>) {
         let (control, control_recv) = mpsc::unbounded();
         let details = fake_channel_details();
 
@@ -773,6 +815,7 @@ impl Channel {
         let (_tx, rx) = oneshot_broadcast::channel();
 
         let channel = Channel {
+            channel_type,
             control,
             cell_tx: fake_mpsc().0,
             reactor_closed_rx: rx,
@@ -884,7 +927,7 @@ pub(crate) mod test {
     use tor_rtcompat::PreferredRuntime;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
-    pub(crate) fn fake_channel(details: Arc<ChannelDetails>) -> Channel {
+    pub(crate) fn fake_channel(channel_type: ChannelType) -> Channel {
         let unique_id = UniqId::new();
         let peer_id = OwnedChanTarget::builder()
             .ed_identity([6_u8; 32].into())
@@ -894,6 +937,7 @@ pub(crate) mod test {
         // This will make rx trigger immediately.
         let (_tx, rx) = oneshot_broadcast::channel();
         Channel {
+            channel_type,
             control: mpsc::unbounded().0,
             cell_tx: fake_mpsc().0,
             reactor_closed_rx: rx,
@@ -902,7 +946,7 @@ pub(crate) mod test {
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
             mutable: Default::default(),
-            details,
+            details: fake_channel_details(),
         }
     }
 
@@ -910,7 +954,7 @@ pub(crate) mod test {
     fn send_bad() {
         tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
             use std::error::Error;
-            let chan = fake_channel(fake_channel_details());
+            let chan = fake_channel(ChannelType::ClientInitiator);
 
             let cell = AnyChanCell::new(CircId::new(7), msg::Created2::new(&b"hihi"[..]).into());
             let e = chan.sender().check_cell(&cell);
@@ -952,7 +996,7 @@ pub(crate) mod test {
 
     #[test]
     fn check_match() {
-        let chan = fake_channel(fake_channel_details());
+        let chan = fake_channel(ChannelType::ClientInitiator);
 
         let t1 = OwnedChanTarget::builder()
             .ed_identity([6; 32].into())
@@ -977,15 +1021,16 @@ pub(crate) mod test {
 
     #[test]
     fn unique_id() {
-        let ch1 = fake_channel(fake_channel_details());
-        let ch2 = fake_channel(fake_channel_details());
+        let ch1 = fake_channel(ChannelType::ClientInitiator);
+        let ch2 = fake_channel(ChannelType::ClientInitiator);
         assert_ne!(ch1.unique_id(), ch2.unique_id());
     }
 
     #[test]
     fn duration_unused_at() {
         let details = fake_channel_details();
-        let ch = fake_channel(Arc::clone(&details));
+        let mut ch = fake_channel(ChannelType::ClientInitiator);
+        ch.details = details.clone();
         details.unused_since.update();
         assert!(ch.duration_unused().is_some());
     }

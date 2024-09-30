@@ -528,7 +528,7 @@ impl<S: SleepProvider> Reactor<S> {
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::channel::{ClosedUnexpectedly, UniqId};
+    use crate::channel::{ChannelType, ClosedUnexpectedly, UniqId};
     use crate::client::circuit::CircParameters;
     use crate::fake_mpsc;
     use crate::util::fake_mq;
@@ -564,6 +564,7 @@ pub(crate) mod test {
         });
         let stream_ops = NoOpStreamOpsHandle::default();
         let (chan, reactor) = crate::channel::Channel::new(
+            ChannelType::ClientInitiator,
             link_protocol,
             Box::new(send1),
             Box::new(recv2),

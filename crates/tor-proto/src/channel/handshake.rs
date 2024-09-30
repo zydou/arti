@@ -7,8 +7,8 @@ use futures::stream::StreamExt;
 use tor_cell::restricted_msg;
 use tor_error::internal;
 
-use crate::channel::UniqId;
 use crate::channel::codec::{self, ChannelCodec, CodecError};
+use crate::channel::{ChannelType, UniqId};
 use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
@@ -65,6 +65,8 @@ pub struct UnverifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
+    /// Indicate what type of channel this is.
+    channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
     /// Memory quota account
@@ -100,6 +102,8 @@ pub struct VerifiedChannel<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
+    /// Indicate what type of channel this is.
+    channel_type: ChannelType,
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
     /// Memory quota account
@@ -322,6 +326,7 @@ impl<
                     ClockSkew::None
                 };
                 Ok(UnverifiedChannel {
+                    channel_type: ChannelType::ClientInitiator,
                     link_protocol,
                     tls: codec::change_message_types(tls),
                     certs_cell,
@@ -582,6 +587,7 @@ impl<
         rsa_cert_timeliness?;
 
         Ok(VerifiedChannel {
+            channel_type: self.channel_type,
             link_protocol: self.link_protocol,
             tls: self.tls,
             unique_id: self.unique_id,
@@ -661,6 +667,7 @@ impl<
             .expect("OwnedChanTarget builder failed");
 
         super::Channel::new(
+            self.channel_type,
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
@@ -893,6 +900,7 @@ pub(super) mod test {
         let netinfo_cell = msg::Netinfo::from_client(Some(localhost));
         let clock_skew = ClockSkew::None;
         UnverifiedChannel {
+            channel_type: ChannelType::ClientInitiator,
             link_protocol: 4,
             tls: asynchronous_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
             certs_cell: certs,
@@ -1163,6 +1171,7 @@ pub(super) mod test {
             let rsa_id = [4_u8; 20].into();
             let peer_addr = "127.1.1.2:443".parse().unwrap();
             let ver = VerifiedChannel {
+                channel_type: ChannelType::ClientInitiator,
                 link_protocol: 4,
                 tls: asynchronous_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
                 unique_id: UniqId::new(),

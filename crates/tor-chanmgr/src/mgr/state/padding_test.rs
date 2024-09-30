@@ -175,7 +175,7 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
 
     eprintln!("\n---- {:?} {:?} {:?} ----", &cconfig, &dormancy, &usage);
 
-    let (channel, recv) = Channel::new_fake();
+    let (channel, recv) = Channel::new_fake(tor_proto::channel::ChannelType::ClientInitiator);
     let peer_id = channel.target().ed_identity().unwrap().clone();
     let relay_ids = RelayIds::builder()
         .ed_identity(peer_id.clone())
