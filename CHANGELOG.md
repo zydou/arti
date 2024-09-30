@@ -202,7 +202,7 @@ to 1.77, in accordance with our [MSRV policy].
 ### Acknowledgments
 
 Thanks to everybody who's contributed to this release, including
-Adam Joseph, Alexander Hansen Færøy, Anonym, Morgan, opara,
+Adam Joseph, Alexander Hansen Færøy, Anonym, Morgan,
 Pier Angelo Vendrame, Steven Engler, tidely, and Wesley Aptekar-Cassels.
 Also, our welcome to Wesley Aptekar-Cassels as they join the team!
 
