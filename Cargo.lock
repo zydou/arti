@@ -6255,9 +6255,9 @@ dependencies = [
 
 [[package]]
 name = "typed-index-collections"
-version = "3.2.2"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9db9d52cbe79f2c778128f00190032aad34a34b9aaffad910a7f92b402e4189a"
+checksum = "183496e014253d15abbe6235677b1392dba2d40524c88938991226baa38ac7c4"
 
 [[package]]
 name = "typeid"
