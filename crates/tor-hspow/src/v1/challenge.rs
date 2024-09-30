@@ -1,4 +1,4 @@
-//! Implement the `v1` protocol's challenge string format
+//! Implement the `v1` scheme's challenge string format
 //!
 //! This is a packed byte-string which encodes our puzzle's parameters
 //! as inputs for Equi-X. We need to construct challenge strings both to
