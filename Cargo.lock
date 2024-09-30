@@ -983,7 +983,7 @@ checksum = "c6d44951c469019e225e7667d799052f67fb8ea358d086878f3582b39f0de5e5"
 
 [[package]]
 name = "caret"
-version = "0.4.7"
+version = "0.5.0"
 
 [[package]]
 name = "cc"
@@ -1773,7 +1773,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "equix"
-version = "0.1.7"
+version = "0.2.0"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.7.13"
+version = "0.8.0"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -2045,7 +2045,7 @@ dependencies = [
 
 [[package]]
 name = "fslock-guard"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "fslock-arti-fork",
  "test-temp-dir",
@@ -2311,7 +2311,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -3221,7 +3221,7 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "oneshot-fused-workaround"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures",
 ]
@@ -3839,7 +3839,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
 name = "retry-error"
-version = "0.5.4"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -4052,7 +4052,7 @@ dependencies = [
 
 [[package]]
 name = "safelog"
-version = "0.3.8"
+version = "0.4.0"
 dependencies = [
  "derive_more",
  "educe",
@@ -4507,7 +4507,7 @@ dependencies = [
 
 [[package]]
 name = "slotmap-careful"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "paste",
  "serde",
@@ -4798,7 +4798,7 @@ dependencies = [
 
 [[package]]
 name = "test-temp-dir"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "derive_more",

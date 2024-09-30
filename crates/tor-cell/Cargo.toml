@@ -40,7 +40,7 @@ __is_experimental = []
 [dependencies]
 bitflags = "2"
 bytes = "1"
-caret = { path = "../caret", version = "0.4.5" }
+caret = { path = "../caret", version = "0.5.0" }
 derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 paste = "1"

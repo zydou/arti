@@ -36,12 +36,12 @@ derive-deftly = "0.14"
 derive_more = { version = "1.0.0", features = ["full"] }
 erased-serde = "0.4.2"
 futures = "0.3.14"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.1.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
-slotmap-careful = { path = "../slotmap-careful", version = "0.1.0" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.0" }
 thiserror = "1"
 tiny-keccak = { version = "2", features = ["kmac"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.22.0" }

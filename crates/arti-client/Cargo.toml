@@ -134,7 +134,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 dyn-clone = { version = "1.0.11", optional = true }
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.0", features = ["serde"] }
 futures = "0.3.14"
 hostname-validator = "1.1.1"
 humantime = "2"
@@ -142,7 +142,7 @@ humantime-serde = "1.1.1"
 libc = "0.2"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-safelog = { path = "../safelog", version = "0.3.6" }
+safelog = { path = "../safelog", version = "0.4.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.22.0" }

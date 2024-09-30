@@ -18,7 +18,7 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 
 c_str_macro = { version = "1", optional = true }
-caret = { path = "../caret", version = "0.4.5" }
+caret = { path = "../caret", version = "0.5.0" }
 cfg-if = "1.0.0"
 derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"

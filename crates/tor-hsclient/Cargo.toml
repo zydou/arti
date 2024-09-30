@@ -49,11 +49,11 @@ educe = "0.4.6"
 either = "1"
 futures = "0.3.14"
 itertools = "0.13.0"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.1.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-retry-error = { path = "../retry-error", version = "0.5.2" }
-safelog = { path = "../safelog", version = "0.3.6" }
+retry-error = { path = "../retry-error", version = "0.6.0" }
+safelog = { path = "../safelog", version = "0.4.0" }
 slotmap = "1.0.6"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"

@@ -1,6 +1,6 @@
 [package]
 name = "fslock-guard"
-version = "0.1.5"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -20,7 +20,7 @@ fslock = { version = "0.2.0", package = "fslock-arti-fork" }
 thiserror = "1"
 
 [dev-dependencies]
-test-temp-dir = { version = "0.2.1", path = "../test-temp-dir" }
+test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
 
 [target.'cfg(windows)'.dependencies.winapi]
 version = "^0.3.8"

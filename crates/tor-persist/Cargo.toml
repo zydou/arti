@@ -35,11 +35,11 @@ amplify = { version = "4", default-features = false, features = ["derive"], opti
 derive-deftly = "0.14"
 derive_more = { version = "1.0.0", features = ["full"] }
 filetime = { version = "0.2", default-features = false }
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["walkdir"] }
-fslock-guard = { path = "../fslock-guard", version = "0.1.2", optional = true }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.0", features = ["walkdir"] }
+fslock-guard = { path = "../fslock-guard", version = "0.2.0", optional = true }
 futures = "0.3.14"
 itertools = "0.13.0"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.1.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 paste = "1"
 sanitize-filename = "0.5.0"
 serde = { version = "1.0.103", features = ["derive"] }
@@ -59,7 +59,7 @@ anyhow = { version = "1.0.23" }
 derive-deftly = "0.14"
 itertools = "0.13.0"
 tempfile = "3"
-test-temp-dir = { version = "0.2.1", path = "../test-temp-dir" }
+test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
 tracing-test = "0.2.4"
 
 [package.metadata.docs.rs]

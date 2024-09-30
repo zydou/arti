@@ -43,7 +43,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 downcast-rs = "1.2.0"
 dyn-clone = "1.0.11"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.9", features = ["serde", "walkdir"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.0", features = ["serde", "walkdir"] }
 glob-match = "0.2.1"
 humantime = "2"
 inventory = "0.3.13"

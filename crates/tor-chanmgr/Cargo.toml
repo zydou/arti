@@ -45,10 +45,10 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 futures = "0.3.14"
-oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.1.0" }
+oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-safelog = { path = "../safelog", version = "0.3.6" }
+safelog = { path = "../safelog", version = "0.4.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.22.0", path = "../tor-async-utils" }
