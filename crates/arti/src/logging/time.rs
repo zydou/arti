@@ -98,7 +98,7 @@ impl LogPrecision {
             // This is the lowest precision we have.
             LogPrecision::Hours
         } else if seconds >= 60 {
-            let minutes = (seconds + 59) / 60; // TODO MSRV div_ceil once it exists.
+            let minutes = seconds.div_ceil(60);
             assert!((1..=59).contains(&minutes));
             LogPrecision::Minutes(minutes.try_into().expect("Math bug"))
         } else if seconds >= 1 {
