@@ -415,3 +415,167 @@ impl ArtiKeystoreConfigBuilder {
         self
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    use std::path::PathBuf;
+    use std::str::FromStr as _;
+    use tor_config::assert_config_error;
+
+    /// Helper for creating [`CTorServiceKeystoreConfigBuilders`].
+    fn svc_config_builder(
+        id: &str,
+        path: &str,
+        nickname: &str,
+    ) -> CTorServiceKeystoreConfigBuilder {
+        let mut b = CTorServiceKeystoreConfigBuilder::default();
+        b.id(KeystoreId::from_str(id).unwrap());
+        b.path(PathBuf::from(path));
+        b.nickname(HsNickname::from_str(nickname).unwrap());
+        b
+    }
+
+    /// Helper for creating [`CTorClientKeystoreConfigBuilders`].
+    fn client_config_builder(id: &str, path: &str) -> CTorClientKeystoreConfigBuilder {
+        let mut b = CTorClientKeystoreConfigBuilder::default();
+        b.id(KeystoreId::from_str(id).unwrap());
+        b.path(PathBuf::from(path));
+        b
+    }
+
+    #[test]
+    #[cfg(all(feature = "ctor-keystore", feature = "keymgr"))]
+    fn invalid_config() {
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        // Push two clients with the same (default) ID:
+        builder
+            .ctor_clients()
+            .access()
+            .push(client_config_builder("foo", "/var/lib/foo"));
+
+        builder
+            .ctor_clients()
+            .access()
+            .push(client_config_builder("foo", "/var/lib/bar"));
+        let err = builder.build().unwrap_err();
+
+        assert_config_error!(
+            err,
+            Inconsistent,
+            "the C Tor keystores do not have unique IDs"
+        );
+
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        // Push two services with the same ID:
+        builder
+            .ctor_service(svc_config_builder("foo", "/var/lib/foo", "pungent"))
+            .ctor_service(svc_config_builder("foo", "/var/lib/foo", "pungent"));
+        let err = builder.build().unwrap_err();
+
+        assert_config_error!(
+            err,
+            Inconsistent,
+            "the C Tor keystores do not have unique IDs"
+        );
+
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        // Push two services with different IDs but same nicknames:
+        builder
+            .ctor_service(svc_config_builder("foo", "/var/lib/foo", "pungent"))
+            .ctor_service(svc_config_builder("bar", "/var/lib/bar", "pungent"));
+        let err = builder.build().unwrap_err();
+
+        assert_config_error!(
+            err,
+            Inconsistent,
+            "Multiple C Tor service keystores for service with nickname pungent"
+        );
+    }
+
+    #[test]
+    #[cfg(all(not(feature = "ctor-keystore"), feature = "keymgr"))]
+    fn invalid_config() {
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        builder
+            .ctor_clients()
+            .access()
+            .push(client_config_builder("foo", "/var/lib/foo"));
+        let err = builder.build().unwrap_err();
+
+        assert_config_error!(
+            err,
+            NoCompileTimeSupport,
+            "ctor_clients configured but ctor-keystore feature not enabled"
+        );
+
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        builder.ctor_service(svc_config_builder("foo", "/var/lib/foo", "pungent"));
+        let err = builder.build().unwrap_err();
+
+        assert_config_error!(
+            err,
+            NoCompileTimeSupport,
+            "ctor_services configured but ctor-keystore feature not enabled"
+        );
+    }
+
+    #[test]
+    #[cfg(not(feature = "keymgr"))]
+    fn invalid_config() {
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        builder.enabled(BoolOrAuto::Explicit(true));
+
+        let err = builder.build().unwrap_err();
+        assert_config_error!(
+            err,
+            Inconsistent,
+            "keystore enabled=true, but keymgr feature not enabled"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "ctor-keystore")]
+    fn valid_config() {
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        builder
+            .ctor_clients()
+            .access()
+            .push(client_config_builder("foo", "/var/lib/foo"));
+        builder
+            .ctor_clients()
+            .access()
+            .push(client_config_builder("bar", "/var/lib/bar"));
+
+        let res = builder.build();
+        assert!(res.is_ok(), "{:?}", res);
+    }
+
+    #[test]
+    #[cfg(all(not(feature = "ctor-keystore"), feature = "keymgr"))]
+    fn valid_config() {
+        let mut builder = ArtiKeystoreConfigBuilder::default();
+        builder
+            .enabled(BoolOrAuto::Explicit(true))
+            .primary()
+            .kind(ExplicitOrAuto::Explicit(ArtiKeystoreKind::Native));
+
+        let res = builder.build();
+        assert!(res.is_ok(), "{:?}", res);
+    }
+}
