@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.2.8 — 1 October 2024
 
-Arti 1.2.7 continues development on onion services,
+Arti 1.2.8 continues development on onion services,
 the RPC subsystem, key management, and relay infrastructure.
 It also includes fixes for two security issues in
 handling the SOCKS protocol, the most severe of which is rated at
@@ -203,6 +203,7 @@ to 1.77, in accordance with our [MSRV policy].
 Thanks to everybody who's contributed to this release, including
 Adam Joseph, Alexander Hansen Færøy, Anonym, Morgan, opara,
 Pier Angelo Vendrame, Steven Engler, tidely, and Wesley Aptekar-Cassels.
+Also, our welcome to Wesley Aptekar-Cassels as they join the team!
 
 Also, our deep thanks to
 [Zcash Community Grants],
