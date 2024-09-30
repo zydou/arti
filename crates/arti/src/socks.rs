@@ -179,6 +179,22 @@ struct AuthInterpretation {
 /// Once it is merged, see the
 /// [SOCKS extensions spec](https://spec.torproject.org/socks-extensions.html).
 ///
+/// ### Further restrictions on Object IDs and isolation
+///
+/// In some cases,
+/// the RPC Object ID may denote an object
+/// that already includes information about its intended stream isolation.
+/// In such cases, the stream isolation MUST be blank.
+/// Implementations MUST reject non-blank stream isolation in such cases.
+///
+/// In some cases, the RPC object ID may denote an object
+/// that already includes information
+/// about its intended destination address and port.
+/// In such cases, the destination address MUST be `0.0.0.0` or `::`
+/// (encoded either as an IPv4 address, an IPv6 address, or a hostname)
+/// and the destination port MUST be 0.
+/// Implementations MUST reject other addresses in such cases.
+///
 /// ### Another proposed change
 ///
 /// We could add a new method to clients, with a name like
