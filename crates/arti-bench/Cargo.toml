@@ -17,19 +17,19 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.23"
-arti = { path = "../arti", version = "1.2.7" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.22.0" }
+arti = { path = "../arti", version = "1.2.8" }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.23.0" }
 clap = { version = "4.3.24", features = ["wrap_help"] }
 float-ord = "0.3"
-fs-mistrust = { path = "../fs-mistrust", version = "0.7.9" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.0" }
 futures = "0.3.14"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 tokio = { version = "1.7", features = ["full"] }
 tokio-socks = "0.5"
-tor-config = { path = "../tor-config", version = "0.22.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.22.0", features = ["tokio", "native-tls"] }
+tor-config = { path = "../tor-config", version = "0.23.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.23.0", features = ["tokio", "native-tls"] }
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 

@@ -1,6 +1,6 @@
 [package]
 name = "arti-rpc-client-core"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -18,7 +18,7 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 
 c_str_macro = { version = "1", optional = true }
-caret = { path = "../caret", version = "0.4.5" }
+caret = { path = "../caret", version = "0.5.0" }
 cfg-if = "1.0.0"
 derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
@@ -26,7 +26,7 @@ paste = { version = "1", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.104"
 thiserror = "1"
-tor-socksproto = { path = "../tor-socksproto", version = "0.22.0", default-features = false, features = [
+tor-socksproto = { path = "../tor-socksproto", version = "0.23.0", default-features = false, features = [
     "client-handshake",
 ] }
 void = "1"
@@ -35,7 +35,7 @@ void = "1"
 rand = "0.8"
 rand_chacha = "0.3"
 socketpair = "0.19"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
 
 [features]
 full = ["ffi", "caret/full", "tor-socksproto/full"]

@@ -1,6 +1,6 @@
 [package]
 name = "tor-llcrypto"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -48,7 +48,7 @@ hex = "0.4"
 openssl = { version = "0.10.48", optional = true }
 rand_core = "0.6.2"
 rsa = "0.9.0"
-safelog = { version = "0.3.6", path = "../safelog" }
+safelog = { version = "0.4.0", path = "../safelog" }
 serde = "1.0.103"
 sha1 = "0.10.0"
 sha2 = "0.10.0"
@@ -67,7 +67,7 @@ cipher = "0.4.1"
 hex-literal = "0.4"
 rand = "0.8"
 serde_test = "1.0.124"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }

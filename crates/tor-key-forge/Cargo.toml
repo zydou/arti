@@ -1,6 +1,6 @@
 [package]
 name = "tor-key-forge"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["The Tor Project, Inc."]
 edition = "2021"
 rust-version = "1.77"
@@ -31,10 +31,10 @@ rand = "0.8"
 signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "1"
-tor-error = { version = "0.22.0", path = "../tor-error" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.22.0" }
-tor-llcrypto = { version = "0.22.0", path = "../tor-llcrypto" }
+tor-error = { version = "0.23.0", path = "../tor-error" }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.23.0" }
+tor-llcrypto = { version = "0.23.0", path = "../tor-llcrypto" }
 
 [dev-dependencies]
 signature = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }

@@ -1,6 +1,6 @@
 [package]
 name = "tor-linkspec"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -32,22 +32,22 @@ __is_experimental = []
 [dependencies]
 base64ct = "1.5.1"
 by_address = "1"
-caret = { path = "../caret", version = "0.4.5" }
+caret = { path = "../caret", version = "0.5.0" }
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 hex = "0.4"
 itertools = "0.13.0"
-safelog = { path = "../safelog", version = "0.3.6" }
+safelog = { path = "../safelog", version = "0.4.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.22.0" }
-tor-config = { path = "../tor-config", version = "0.22.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.22.0" }
-tor-protover = { path = "../tor-protover", version = "0.22.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.23.0" }
+tor-config = { path = "../tor-config", version = "0.23.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.23.0" }
+tor-protover = { path = "../tor-protover", version = "0.23.0" }
 
 [dev-dependencies]
 hex-literal = "0.4"
