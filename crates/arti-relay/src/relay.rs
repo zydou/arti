@@ -49,6 +49,7 @@ impl<R: Runtime> TorRelay<R> {
             Dormancy::Active,
             &NetParameters::default(),
             ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
+            Some(keymgr.clone()),
         ));
 
         Ok(Self {

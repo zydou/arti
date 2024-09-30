@@ -9,6 +9,7 @@ use crate::{Error, event::ChanMgrEventSender};
 
 use std::time::Duration;
 use tor_error::internal;
+use tor_keymgr::KeyMgr;
 use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -40,6 +41,9 @@ where
     transport: H,
     /// Object to build TLS connections.
     tls_connector: <R as TlsProvider<H::Stream>>::Connector,
+    /// Relay only: Key manager to get keys for channel authentication.
+    #[expect(dead_code)]
+    keymgr: Option<Arc<KeyMgr>>,
 }
 
 impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
@@ -47,12 +51,13 @@ where
     R: TlsProvider<H::Stream>,
 {
     /// Construct a new ChanBuilder.
-    pub fn new(runtime: R, transport: H) -> Self {
+    pub fn new(runtime: R, transport: H, keymgr: Option<Arc<KeyMgr>>) -> Self {
         let tls_connector = <R as TlsProvider<H::Stream>>::tls_connector(&runtime);
         ChanBuilder {
             runtime,
             transport,
             tls_connector,
+            keymgr,
         }
     }
 }
@@ -344,7 +349,7 @@ mod test {
 
             // Create the channel builder that we want to test.
             let transport = crate::transport::DefaultTransport::new(client_rt.clone());
-            let builder = ChanBuilder::new(client_rt, transport);
+            let builder = ChanBuilder::new(client_rt, transport, None);
 
             let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
                 async {
