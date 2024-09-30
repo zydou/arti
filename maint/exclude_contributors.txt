@@ -2,8 +2,8 @@
 #1 Include employees and contractors of the Tor Project here.
 #2 WARNING: This file MUST be sorted.
 Alexander Færøy
+Alexander Hansen Færøy
 David Goulet
-eta
 Gaba
 gabi-250
 Gabi Moldovan
@@ -11,4 +11,7 @@ Gabriela Moldovan
 Ian Jackson
 Jim Newsome
 Nick Mathewson
+opara
+Steven Engler
 Tor CI Release
+Wesley Aptekar-Cassels
