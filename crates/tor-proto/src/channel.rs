@@ -59,6 +59,7 @@ mod circmap;
 mod codec;
 mod handshake;
 pub mod kist;
+mod msg;
 pub mod padding;
 pub mod params;
 mod reactor;
@@ -81,7 +82,7 @@ use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tor_cell::chancell::msg::AnyChanMsg;
-use tor_cell::chancell::{AnyChanCell, CircId, msg, msg::PaddingNegotiate};
+use tor_cell::chancell::{AnyChanCell, CircId, msg::PaddingNegotiate};
 use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
@@ -347,7 +348,7 @@ impl ChannelSender {
     /// Check whether a cell type is permissible to be _sent_ on an
     /// open client channel.
     fn check_cell(&self, cell: &AnyChanCell) -> Result<()> {
-        use msg::AnyChanMsg::*;
+        use tor_cell::chancell::msg::AnyChanMsg::*;
         let msg = cell.msg();
         match msg {
             Created(_) | Created2(_) | CreatedFast(_) => Err(Error::from(internal!(
@@ -389,7 +390,7 @@ impl Sink<AnyChanCell> for ChannelSender {
         }
         this.check_cell(&cell)?;
         {
-            use msg::AnyChanMsg::*;
+            use tor_cell::chancell::msg::AnyChanMsg::*;
             match cell.msg() {
                 Relay(_) | Padding(_) | Vpadding(_) => {} // too frequent to log.
                 _ => trace!(
