@@ -24,7 +24,7 @@ derive_more = { version = "1.0.0", features = ["full"] }
 equix = { path = "../equix", version = "0.2.0" }
 rand = "0.8.5"
 thiserror = "1"
-tor-hscrypto = { version = "0.22.0", path = "../tor-hscrypto" }
+tor-hscrypto = { version = "0.23.0", path = "../tor-hscrypto" }
 
 [dev-dependencies]
 hex-literal = "0.4.1"

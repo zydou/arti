@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsservice"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -83,30 +83,30 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
-tor-async-utils = { path = "../tor-async-utils", version = "0.22.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.22.0" }
-tor-bytes = { version = "0.22.0", path = "../tor-bytes" }
-tor-cell = { version = "0.22.0", path = "../tor-cell", features = ["hs"] }
-tor-circmgr = { version = "0.22.0", path = "../tor-circmgr", features = ["hs-service"] }
-tor-config = { version = "0.22.0", path = "../tor-config" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.22.0", default-features = false, features = ["hs-service"] }
-tor-error = { version = "0.22.0", path = "../tor-error" }
-tor-hscrypto = { version = "0.22.0", path = "../tor-hscrypto", features = ["ope"] }
-tor-keymgr = { version = "0.22.0", path = "../tor-keymgr", features = ["keymgr"] }
-tor-linkspec = { version = "0.22.0", path = "../tor-linkspec", features = ["verbatim", "decode"] }
-tor-llcrypto = { version = "0.22.0", path = "../tor-llcrypto" }
-tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.22.0" }
-tor-netdir = { version = "0.22.0", path = "../tor-netdir", features = ["hs-service"] }
-tor-netdoc = { version = "0.22.0", path = "../tor-netdoc", features = ["hs-service"] }
-tor-persist = { version = "0.22.0", path = "../tor-persist", features = ["state-dir"] }
-tor-proto = { version = "0.22.0", path = "../tor-proto", features = [
+tor-async-utils = { path = "../tor-async-utils", version = "0.23.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
+tor-bytes = { version = "0.23.0", path = "../tor-bytes" }
+tor-cell = { version = "0.23.0", path = "../tor-cell", features = ["hs"] }
+tor-circmgr = { version = "0.23.0", path = "../tor-circmgr", features = ["hs-service"] }
+tor-config = { version = "0.23.0", path = "../tor-config" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.23.0", default-features = false, features = ["hs-service"] }
+tor-error = { version = "0.23.0", path = "../tor-error" }
+tor-hscrypto = { version = "0.23.0", path = "../tor-hscrypto", features = ["ope"] }
+tor-keymgr = { version = "0.23.0", path = "../tor-keymgr", features = ["keymgr"] }
+tor-linkspec = { version = "0.23.0", path = "../tor-linkspec", features = ["verbatim", "decode"] }
+tor-llcrypto = { version = "0.23.0", path = "../tor-llcrypto" }
+tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.23.0" }
+tor-netdir = { version = "0.23.0", path = "../tor-netdir", features = ["hs-service"] }
+tor-netdoc = { version = "0.23.0", path = "../tor-netdoc", features = ["hs-service"] }
+tor-persist = { version = "0.23.0", path = "../tor-persist", features = ["state-dir"] }
+tor-proto = { version = "0.23.0", path = "../tor-proto", features = [
     "experimental-api",
     "hs-service",
     "send-control-msg",
 ] }
-tor-protover = { version = "0.22.0", path = "../tor-protover" }
-tor-relay-selection = { path = "../tor-relay-selection", version = "0.22.0" }
-tor-rtcompat = { version = "0.22.0", path = "../tor-rtcompat" }
+tor-protover = { version = "0.23.0", path = "../tor-protover" }
+tor-relay-selection = { path = "../tor-relay-selection", version = "0.23.0" }
+tor-rtcompat = { version = "0.23.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 void = "1"
 
@@ -117,11 +117,11 @@ serde_json = "1.0.104"
 slotmap = "1.0.6"
 tempfile = "3"
 test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
-tor-key-forge = { version = "0.22.0", path = "../tor-key-forge" }
-tor-keymgr = { version = "0.22.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
-tor-netdir = { version = "0.22.0", path = "../tor-netdir", features = ["hs-service", "testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.22.0", features = ["testing"] }
-tor-persist = { version = "0.22.0", path = "../tor-persist", features = ["testing"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.22.0" }
+tor-key-forge = { version = "0.23.0", path = "../tor-key-forge" }
+tor-keymgr = { version = "0.23.0", path = "../tor-keymgr", features = ["keymgr", "testing"] }
+tor-netdir = { version = "0.23.0", path = "../tor-netdir", features = ["hs-service", "testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.23.0", features = ["testing"] }
+tor-persist = { version = "0.23.0", path = "../tor-persist", features = ["testing"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.23.0" }
 tracing-test = "0.2.4"
 walkdir = "2"

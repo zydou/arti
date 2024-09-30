@@ -1,6 +1,6 @@
 [package]
 name = "tor-relay-crypto"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["The Tor Project, Inc."]
 edition = "2021"
 rust-version = "1.77"
@@ -18,8 +18,8 @@ full = ["tor-cert/full", "tor-key-forge/full", "tor-keymgr/full"]
 [dependencies]
 derive-deftly = "0.14"
 derive_more = { version = "1.0.0", features = ["full"] }
-tor-cert = { path = "../tor-cert", version = "0.22.0", features = ["encode"] }
-tor-key-forge = { path = "../tor-key-forge", version = "0.22.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.22.0" }
+tor-cert = { path = "../tor-cert", version = "0.23.0", features = ["encode"] }
+tor-key-forge = { path = "../tor-key-forge", version = "0.23.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.23.0" }
 
 [dev-dependencies]
