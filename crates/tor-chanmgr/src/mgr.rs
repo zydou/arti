@@ -549,26 +549,25 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         use state::ChannelState::*;
         use std::cmp::Ordering;
 
-        /// Compare two channels to determine the better channel for `target`. Better channels are
-        /// ordered higher.
-        fn compare_channels<C: AbstractChannel>(
+        /// Compare two channels to determine the better channel for `target`.
+        fn choose_channel<C: AbstractChannel>(
             a: &&state::ChannelState<C>,
             b: &&state::ChannelState<C>,
             target: &impl HasRelayIds,
-        ) -> Ordering {
+        ) -> Choice {
             // TODO: follow `channel_is_better` in C tor
             match (a, b) {
                 // if the open channel is not usable, prefer the pending channel
-                (Open(a), Building(_b)) if !a.channel.is_usable() => Ordering::Less,
+                (Open(a), Building(_b)) if !a.channel.is_usable() => Choice::Second,
                 // otherwise prefer the open channel
-                (Open(_a), Building(_b)) => Ordering::Greater,
+                (Open(_a), Building(_b)) => Choice::First,
 
                 // the logic above, but reversed
-                (Building(_), Open(_)) => compare_channels(b, a, target).reverse(),
+                (Building(_), Open(_)) => choose_channel(b, a, target).reverse(),
 
                 // not much info to help choose when both channels are pending, but this should be
                 // rare
-                (Building(_a), Building(_b)) => Ordering::Equal,
+                (Building(_a), Building(_b)) => Choice::Either,
 
                 // both channels are open
                 (Open(a), Open(b)) => {
@@ -577,15 +576,15 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
                     // if neither open channel is usable, don't take preference
                     if !a_is_usable && !b_is_usable {
-                        return Ordering::Equal;
+                        return Choice::Either;
                     }
 
                     // prefer a channel that is usable
                     if !a_is_usable {
-                        return Ordering::Less;
+                        return Choice::Second;
                     }
                     if !b_is_usable {
-                        return Ordering::Greater;
+                        return Choice::First;
                     }
 
                     // TODO: prefer canonical channels
@@ -598,12 +597,17 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
                     // TODO: use number of circuits as tie-breaker?
 
-                    Ordering::Equal
+                    Choice::Either
                 }
             }
         }
 
-        channels.max_by(|a, b| compare_channels(a, b, target))
+        // preferred channels will be ordered higher, and we choose the max
+        channels.max_by(|a, b| match choose_channel(a, b, target) {
+            Choice::First => Ordering::Greater,
+            Choice::Second => Ordering::Less,
+            Choice::Either => Ordering::Equal,
+        })
     }
 
     /// Update the netdir
@@ -678,6 +682,34 @@ enum Action<C> {
     Wait(Pending),
     /// We found a usable channel.  We're going to return it.
     Return(Result<Arc<C>>),
+}
+
+/// Similar to [`Ordering`](std::cmp::Ordering), but is easier to reason about when comparing two
+/// objects that don't have a numeric sense of ordering (ex: returning `Greater` is confusing if the
+/// ordering isn't numeric).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+enum Choice {
+    /// Choose the first.
+    First,
+    /// Choose the second.
+    Second,
+    /// Choose either.
+    Either,
+}
+
+impl Choice {
+    /// Reverses the `Choice`.
+    ///
+    /// - `First` becomes `Second`.
+    /// - `Second` becomes `First`.
+    /// - `Either` becomes `Either`.
+    fn reverse(self) -> Self {
+        match self {
+            Self::First => Self::Second,
+            Self::Second => Self::First,
+            Self::Either => Self::Either,
+        }
+    }
 }
 
 #[cfg(test)]
