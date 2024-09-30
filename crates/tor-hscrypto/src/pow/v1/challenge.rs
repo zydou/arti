@@ -4,7 +4,7 @@
 //! as inputs for Equi-X. We need to construct challenge strings both to
 //! solve and to verify puzzles.
 
-use crate::v1::{
+use crate::pow::v1::{
     err::SolutionErrorV1, types::Effort, types::Instance, types::Nonce, types::Seed,
     types::NONCE_LEN, types::SEED_LEN,
 };

@@ -1,12 +1,13 @@
 //! Implement parsing for the `pow-params` line within the `HsDescInner` layer
 
+#[cfg(feature = "hs-pow-v1")]
+pub mod v1;
+
 use crate::doc::hsdesc::inner::HsInnerKwd;
 use crate::parse::tokenize::Item;
-use crate::types::misc::{Iso8601TimeNoSp, B64};
 use crate::{NetdocErrorKind as EK, Result};
 use std::collections::HashSet;
 use std::mem::Discriminant;
-use std::time::SystemTime;
 
 /// A list of parsed `pow-params` lines, at most one per scheme
 ///
@@ -53,7 +54,8 @@ impl HsPowParamSet {
 #[non_exhaustive]
 pub enum HsPowParams {
     /// Parameters for the `v1` scheme
-    V1(HsPowParamsV1),
+    #[cfg(feature = "hs-pow-v1")]
+    V1(v1::HsPowParamsV1),
 }
 
 impl HsPowParams {
@@ -63,39 +65,12 @@ impl HsPowParams {
     /// If the scheme is unknown, returns None.
     /// If the scheme field is missing entirely, returns a parse error.
     fn from_item(item: &Item<'_, HsInnerKwd>) -> Result<Option<Self>> {
+        #[allow(unused)]
         let scheme = item.required_arg(0)?;
+        #[cfg(feature = "hs-pow-v1")]
         if scheme == "v1" {
-            Ok(Some(HsPowParams::V1(HsPowParamsV1::from_item(item)?)))
-        } else {
-            Ok(None)
+            return Ok(Some(HsPowParams::V1(v1::HsPowParamsV1::from_item(item)?)));
         }
-    }
-}
-
-/// The contents of a `pow-params v1` line
-#[derive(Debug, Clone, derive_more::Constructor, amplify::Getters)]
-pub struct HsPowParamsV1 {
-    /// Current random seed, valid until the declared expiration time
-    #[getter(as_ref)]
-    seed: [u8; 32],
-    /// Current suggested effort, or zero if this is available but not recommended
-    #[getter(as_copy)]
-    suggested_effort: u32,
-    /// Declared time when this seed expires
-    #[getter(as_copy)]
-    expires: SystemTime,
-}
-
-impl HsPowParamsV1 {
-    /// Parse a single `pow-params v1` line from an `Item`
-    fn from_item(item: &Item<'_, HsInnerKwd>) -> Result<Self> {
-        let seed = item.required_arg(1)?.parse::<B64>()?.into_array()?;
-        let suggested_effort = item.required_arg(2)?.parse::<u32>()?;
-        let expires = item.required_arg(3)?.parse::<Iso8601TimeNoSp>()?.into();
-        Ok(Self {
-            seed,
-            suggested_effort,
-            expires,
-        })
+        Ok(None)
     }
 }

@@ -15,6 +15,7 @@ mod build;
 mod inner;
 mod middle;
 mod outer;
+#[cfg(feature = "hs-pow-common")]
 pub mod pow;
 
 pub use desc_enc::DecryptionError;
@@ -111,6 +112,9 @@ pub struct HsDesc {
     intro_points: Vec<IntroPointDesc>,
 
     /// A list of offered proof-of-work parameters, at most one per type.
+    ///
+    /// Requires the "pow" crate feature.
+    #[cfg(feature = "hs-pow-common")]
     pow_params: pow::HsPowParamSet,
     // /// A list of recognized CREATE handshakes that this onion service supports.
     //
@@ -345,6 +349,7 @@ impl HsDesc {
     }
 
     /// Get a list of offered proof-of-work parameters, at most one per type.
+    #[cfg(feature = "hs-pow-common")]
     pub fn pow_params(&self) -> &[pow::HsPowParams] {
         self.pow_params.slice()
     }
@@ -510,6 +515,7 @@ impl EncryptedHsDesc {
                 auth_required: inner.intro_auth_types,
                 is_single_onion_service: inner.single_onion_service,
                 intro_points: inner.intro_points,
+                #[cfg(feature = "hs-pow-common")]
                 pow_params: inner.pow_params,
             })
         });

@@ -1,6 +1,7 @@
-//! Define error types for the `tor-hspow` crate
+//! Combined error types for any proof of work scheme
 
-use crate::v1::{RuntimeErrorV1, SolutionErrorV1};
+#[cfg(feature = "pow-v1")]
+use crate::pow::v1::{RuntimeErrorV1, SolutionErrorV1};
 
 /// Error type for the onion service proof of work subsystem
 #[derive(Clone, Debug, thiserror::Error)]
@@ -38,7 +39,8 @@ pub enum Error {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SolutionError {
-    /// Solution errors from the v1 protocol implementation
+    /// Solution errors from the `v1` proof of work scheme
+    #[cfg(feature = "pow-v1")]
     #[error("V1, {0}")]
     V1(#[from] SolutionErrorV1),
 }
@@ -47,7 +49,8 @@ pub enum SolutionError {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RuntimeError {
-    /// Runtime errors from the v1 protocol implementation
+    /// Runtime errors from the `v1` proof of work scheme
+    #[cfg(feature = "pow-v1")]
     #[error("V1, {0}")]
     V1(#[from] RuntimeErrorV1),
 }

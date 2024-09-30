@@ -66,7 +66,12 @@ memquota = ["tor-memquota/memquota", "__is_experimental"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
-hs-pow = ["tor-hsclient/hs-pow"]
+
+# Onion service proof of work schemes (specific schemes, full set, default set)
+hs-pow-common = ["tor-hsclient?/pow-common", "tor-hsservice?/pow-common"]
+hs-pow-v1 = ["hs-pow-common", "tor-hsclient?/pow-v1", "tor-hsservice?/pow-v1"]
+hs-pow-full = ["hs-pow-v1"]
+hs-pow = ["hs-pow-v1"]
 
 # Expose interfaces useful for testing
 testing = ["__is_experimental", "visibility"]

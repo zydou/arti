@@ -749,8 +749,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         // If we are using proof-of-work DoS mitigation, this chooses an
         // algorithm and initial effort, and adjusts that effort when we retry.
-        #[cfg(feature = "hs-pow")]
-        let mut pow_client = tor_hspow::HsPowClient::new(&self.hs_blind_id, desc);
+        #[cfg(feature = "pow-common")]
+        let mut pow_client = crate::pow::HsPowClient::new(&self.hs_blind_id, desc);
 
         // We might consider making multiple INTRODUCE attempts to different
         // IPTs in in parallel, and somehow aggregating the errors and
@@ -823,9 +823,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 };
                 let intro_index = ipt.intro_index;
 
-                #[cfg(not(feature = "hs-pow"))]
-                let proof_of_work = None;
-                #[cfg(feature = "hs-pow")]
+                #[cfg(feature = "pow-common")]
                 let proof_of_work = match pow_client.solve().await {
                     Ok(solution) => solution,
                     Err(e) => {
@@ -860,7 +858,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     .runtime
                     .timeout(
                         intro_timeout,
-                        self.exchange_introduce(ipt, &mut saved_rendezvous, proof_of_work),
+                        self.exchange_introduce(ipt, &mut saved_rendezvous,
+                            #[cfg(feature = "pow-common")]
+                            proof_of_work),
                     )
                     .await
                     .map_err(|_: TimeoutError| {
@@ -951,7 +951,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     errors.push(error);
 
                     // If we are using proof-of-work DoS mitigation, try harder next time
-                    #[cfg(feature = "hs-pow")]
+                    #[cfg(feature = "pow-common")]
                     pow_client.increase_effort();
                 }
             }
@@ -1069,7 +1069,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &'c self,
         ipt: &UsableIntroPt<'_>,
         rendezvous: &mut Option<Rendezvous<'c, R, M>>,
-        proof_of_work: Option<ProofOfWork>,
+        #[cfg(feature = "pow-common")] proof_of_work: Option<ProofOfWork>,
     ) -> Result<(Rendezvous<'c, R, M>, Introduced<R, M>), FAE> {
         let intro_index = ipt.intro_index;
 
@@ -1134,6 +1134,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 rendezvous.rend_cookie,
                 onion_key,
                 linkspecs,
+                #[cfg(feature = "pow-common")]
                 proof_of_work,
             );
             let mut encoded = vec![];

@@ -1,7 +1,8 @@
 //! Basic types used by the v1 client puzzle
 
-use crate::v1::err::SolutionErrorV1;
-use tor_hscrypto::pk::HsBlindId;
+use crate::pk::HsBlindId;
+use crate::pow::v1::err::SolutionErrorV1;
+use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
 
 /// Effort setting, a u32 value with linear scale
 ///
@@ -43,6 +44,27 @@ pub const NONCE_LEN: usize = 16;
 /// Generated randomly by solvers and included in the solution
 #[derive(derive_more::AsRef, derive_more::From, Debug, Clone, Eq, PartialEq)]
 pub struct Nonce([u8; NONCE_LEN]);
+
+/// Generate [`Readable`] and [`Writeable`] implementations for trivial newtype wrappers
+macro_rules! impl_readable_writeable_newtype {
+    ($t:ty) => {
+        impl Readable for $t {
+            fn take_from(b: &mut Reader<'_>) -> tor_bytes::Result<Self> {
+                Ok(Self(Readable::take_from(b)?))
+            }
+        }
+        impl Writeable for $t {
+            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+                self.0.write_onto(b)
+            }
+        }
+    };
+}
+
+impl_readable_writeable_newtype!(Effort);
+impl_readable_writeable_newtype!(Seed);
+impl_readable_writeable_newtype!(SeedHead);
+impl_readable_writeable_newtype!(Nonce);
 
 /// One instance of this proof-of-work puzzle
 ///

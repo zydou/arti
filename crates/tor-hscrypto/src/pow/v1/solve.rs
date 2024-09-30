@@ -1,7 +1,7 @@
 //! Solver implementation for v1 client puzzles
 
-use crate::v1::challenge::Challenge;
-use crate::v1::{
+use crate::pow::v1::challenge::Challenge;
+use crate::pow::v1::{
     err::RuntimeErrorV1, types::Effort, types::Instance, types::Nonce, types::Solution,
     types::NONCE_LEN,
 };

@@ -5559,7 +5559,6 @@ dependencies = [
  "tor-error",
  "tor-guardmgr",
  "tor-hscrypto",
- "tor-hspow",
  "tor-keymgr",
  "tor-linkspec",
  "tor-llcrypto",
@@ -5577,11 +5576,14 @@ dependencies = [
 name = "tor-hscrypto"
 version = "0.23.0"
 dependencies = [
+ "arrayvec",
+ "blake2",
  "cipher",
  "data-encoding",
  "derive-deftly",
  "derive_more",
  "digest",
+ "equix",
  "hex",
  "hex-literal",
  "humantime",
@@ -5599,24 +5601,6 @@ dependencies = [
  "tor-memquota",
  "tor-units",
  "zeroize",
-]
-
-[[package]]
-name = "tor-hspow"
-version = "0.17.0"
-dependencies = [
- "arrayvec",
- "blake2",
- "derive_more",
- "equix",
- "hex-literal",
- "rand",
- "thiserror",
- "tor-async-utils",
- "tor-cell",
- "tor-hscrypto",
- "tor-netdoc",
- "tracing",
 ]
 
 [[package]]

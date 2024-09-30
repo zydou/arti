@@ -1,4 +1,4 @@
-//! Test vectors from the C tor implementation
+//! PoW v1 test vectors from the C tor implementation
 //!
 //! Includes short-running 'verify' tests and longer-running 'solve' tests,
 //! with vectors from C tor.
@@ -7,13 +7,13 @@
 //! time, by artificially choosing a `first_nonce` only slightly lower than the
 //! `expected_nonce` we want to find.
 
-use equix::SolutionByteArray;
 use hex_literal::hex;
 use tor_hscrypto::pk::HsBlindId;
-use tor_hspow::v1::{
-    Effort, Instance, Nonce, Seed, Solution, SolutionErrorV1, SolverInput, Verifier,
+use tor_hscrypto::pow::v1::{
+    Effort, Instance, Nonce, Seed, Solution, SolutionByteArray, SolutionErrorV1, SolverInput,
+    Verifier,
 };
-use tor_hspow::{Error, SolutionError};
+use tor_hscrypto::pow::{Error, SolutionError};
 
 #[test]
 fn verify_seed0_effort1_hash_err() {

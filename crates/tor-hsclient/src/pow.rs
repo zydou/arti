@@ -1,0 +1,69 @@
+//! Common support for proof of work denial of service mitigation on the client side
+
+mod v1;
+
+use std::time::SystemTime;
+use tor_cell::relaycell::hs::pow::ProofOfWork;
+use tor_hscrypto::pk::HsBlindId;
+use tor_hscrypto::pow::RuntimeError;
+use tor_netdoc::doc::hsdesc::pow::HsPowParams;
+use tor_netdoc::doc::hsdesc::HsDesc;
+use v1::HsPowClientV1;
+
+/// Client-side state for a series of connection attempts that might use proof-of-work.
+///
+/// The `HsPowClient` can be initialized using a recent `HsDesc`, at which point
+/// we choose a proof of work scheme and its initial parameters.
+///
+/// When an attempt fails, we can increase the effort in an algorithm-specific way.
+///
+/// For now we have only scheme, `v1`. We try to make only minimal assumptions
+/// about how future schemes may interact with each other.
+#[derive(Default)]
+pub(crate) struct HsPowClient {
+    /// Client state specifically for the `v1` scheme
+    #[cfg(feature = "pow-v1")]
+    v1: Option<HsPowClientV1>,
+}
+
+impl HsPowClient {
+    /// Initialize a new group of connection attempts, given the required context
+    pub(crate) fn new(hs_blind_id: &HsBlindId, desc: &HsDesc) -> Self {
+        let mut client: HsPowClient = Default::default();
+        for params in desc.pow_params() {
+            #[cfg(feature = "pow-v1")]
+            if let HsPowParams::V1(v1) = params {
+                client.v1 = Some(HsPowClientV1::new(hs_blind_id, v1));
+            }
+        }
+        client
+    }
+
+    /// Increase effort in response to a failed connection attempt.
+    ///
+    /// If no proof of work scheme is in use or the effort cannot be increased, this has no effect.
+    ///
+    /// Specified in <https://spec.torproject.org/hspow-spec/common-protocol.html#client-timeout>
+    ///
+    pub(crate) fn increase_effort(&mut self) {
+        #[cfg(feature = "pow-v1")]
+        if let Some(v1) = &mut self.v1 {
+            v1.increase_effort();
+        }
+    }
+
+    /// If we have an applicable proof of work scheme, do the work and return a proof
+    pub(crate) async fn solve(&self) -> Result<Option<ProofOfWork>, RuntimeError> {
+        #[cfg(feature = "pow-v1")]
+        if let Some(v1) = &self.v1 {
+            if v1.is_usable(SystemTime::now()) {
+                return match v1.solve().await {
+                    Ok(None) => Ok(None),
+                    Err(e) => Err(RuntimeError::V1(e)),
+                    Ok(Some(r)) => Ok(Some(ProofOfWork::V1(r))),
+                };
+            }
+        }
+        Ok(None)
+    }
+}

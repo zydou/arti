@@ -24,6 +24,11 @@ hs = ["tor-hscrypto", "__is_experimental"]
 # Enable testing only API
 testing = ["experimental-udp", "__is_experimental"]
 
+# Onion service proof of work schemes
+hs-pow-common = []
+hs-pow-v1 = ["hs-pow-common", "tor-hscrypto/pow-v1"]
+hs-pow-full = ["hs-pow-v1"]
+
 full = [
     "caret/full",
     "tor-basic-utils/full",

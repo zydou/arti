@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use super::{IntroAuthType, IntroPointDesc};
 use crate::batching_split_before::IteratorExt as _;
+#[cfg(feature = "hs-pow-common")]
 use crate::doc::hsdesc::pow::HsPowParamSet;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::parse::{keyword::Keyword, parser::SectionRules};
@@ -42,6 +43,7 @@ pub(crate) struct HsDescInner {
     // Always has >= 1 and <= NUM_INTRO_POINT_MAX entries
     pub(super) intro_points: Vec<IntroPointDesc>,
     /// A list of offered proof-of-work parameters, at most one per type.
+    #[cfg(feature = "hs-pow-common")]
     pub(super) pow_params: HsPowParamSet,
 }
 
@@ -261,6 +263,7 @@ impl HsDescInner {
         let is_single_onion_service = header.get(SINGLE_ONION_SERVICE).is_some();
 
         // Recognize `pow-params`, parsing each line and rejecting duplicate types
+        #[cfg(feature = "hs-pow-common")]
         let pow_params = HsPowParamSet::from_items(header.slice(POW_PARAMS))?;
 
         let mut signatures = Vec::new();
@@ -425,6 +428,7 @@ impl HsDescInner {
         let inner = HsDescInner {
             intro_auth_types: auth_types,
             single_onion_service: is_single_onion_service,
+            #[cfg(feature = "hs-pow-common")]
             pow_params,
             intro_points,
         };

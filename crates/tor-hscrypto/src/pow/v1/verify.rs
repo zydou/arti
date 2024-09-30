@@ -1,8 +1,8 @@
 //! Verifier implementation for v1 client puzzles
 
-use crate::err::Error;
-use crate::v1::challenge::Challenge;
-use crate::v1::{err::RuntimeErrorV1, err::SolutionErrorV1, types::Instance, types::Solution};
+use crate::pow::err::Error;
+use crate::pow::v1::challenge::Challenge;
+use crate::pow::v1::{err::RuntimeErrorV1, err::SolutionErrorV1, types::Instance, types::Solution};
 use equix::{EquiXBuilder, HashError, RuntimeOption};
 
 /// Checker for potential [`Solution`]s to a particular puzzle [`Instance`]

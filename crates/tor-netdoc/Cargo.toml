@@ -62,6 +62,11 @@ hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 # Testing only : expose code to parse inner layers of onion service descriptors.
 hsdesc-inner-docs = ["visibility", "__is_experimental"] # TODO maybe fold this feature into `testing`
 
+# Onion service proof of work schemes
+hs-pow-common = []
+hs-pow-v1 = ["hs-pow-common", "tor-hscrypto/pow-v1"]
+hs-pow-full = ["hs-pow-v1"]
+
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this

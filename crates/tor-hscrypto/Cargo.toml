@@ -15,6 +15,12 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 memquota = ["derive-deftly", "tor-memquota", "tor-units/memquota", "tor-llcrypto/memquota"]
 ope = ["cipher", "zeroize"]
+
+# Onion service proof of work schemes
+pow-common = []
+pow-v1 = ["pow-common", "arrayvec", "blake2", "equix"]
+pow-full = ["pow-v1"]
+
 full = [
     "memquota",
     "ope",
@@ -27,11 +33,14 @@ full = [
 ]
 
 [dependencies]
+arrayvec = { version = "0.7.4", optional = true }
+blake2 = { version = "0.10.6", optional = true }
 cipher = { version = "0.4.1", features = ["zeroize"], optional = true }
 data-encoding = "2.3.1"                                                                                    # want MSVC i686 build fix, data-encoding/issues/33
 derive-deftly = { version = "0.14.2", optional = true }
 derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
+equix = { path = "../equix", version = "0.2.0", optional = true }
 itertools = "0.13.0"
 paste = "1"
 rand = "0.8"
@@ -52,3 +61,7 @@ hex = "0.4"
 hex-literal = "0.4"
 humantime = "2"
 tor-basic-utils = { version = "0.23.0", path = "../tor-basic-utils" }
+
+[[test]]
+name = "pow_v1_vectors"
+required-features = ["pow-v1"]
