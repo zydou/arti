@@ -272,6 +272,7 @@ impl_standard_builder! { ArtiConfig }
 impl ArtiConfigBuilder {
     /// Build the [`ArtiConfig`].
     pub fn build(&self) -> Result<ArtiConfig, ConfigBuildError> {
+        #[cfg_attr(not(feature = "onion-service-service"), allow(unused_mut))]
         let mut config = self.build_unvalidated()?;
         #[cfg(feature = "onion-service-service")]
         for svc in config.onion_services.values_mut() {
