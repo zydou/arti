@@ -15,7 +15,7 @@ use tracing::debug;
 ///
 /// This could be made configurable, but currently it's hardcoded in c-tor and documented in the
 /// spec as a recommended value.
-const CLIENT_POW_EFFORT_DOUBLE_UNTIL: u32 = 1000;
+const CLIENT_POW_EFFORT_DOUBLE_UNTIL: Effort = Effort::new(1000);
 
 /// Effort multiplier to use above the doubling threshold.
 ///
@@ -27,13 +27,13 @@ const CLIENT_POW_RETRY_MULTIPLIER: f32 = 1.5;
 ///
 /// This could be made configurable, but currently it's hardcoded in c-tor and documented in the
 /// spec as a recommended value.
-const CLIENT_MIN_RETRY_POW_EFFORT: u32 = 8;
+const CLIENT_MIN_RETRY_POW_EFFORT: Effort = Effort::new(8);
 
 /// Client maximum effort.
 ///
 /// This could be made configurable, but currently it's hardcoded in c-tor and documented in the
 /// spec as a recommended value.
-const CLIENT_MAX_POW_EFFORT: u32 = 10000;
+const CLIENT_MAX_POW_EFFORT: Effort = Effort::new(10000);
 
 /// Client-side state for the 'v1' scheme in particular
 ///
@@ -54,7 +54,7 @@ impl HsPowClientV1 {
         Self {
             instance: Instance::new(hs_blind_id.to_owned(), params.seed().to_owned()),
             expires: params.expires(),
-            effort: min(CLIENT_MAX_POW_EFFORT.into(), params.suggested_effort()),
+            effort: min(CLIENT_MAX_POW_EFFORT, params.suggested_effort()),
         }
     }
 
@@ -65,13 +65,13 @@ impl HsPowClientV1 {
     /// Specified in <https://spec.torproject.org/hspow-spec/common-protocol.html#client-timeout>
     ///
     pub(super) fn increase_effort(&mut self) {
-        let effort = if self.effort < CLIENT_POW_EFFORT_DOUBLE_UNTIL.into() {
-            (*self.effort.as_ref() * 2).into()
+        let effort = if self.effort < CLIENT_POW_EFFORT_DOUBLE_UNTIL {
+            self.effort.saturating_mul_u32(2)
         } else {
-            ((*self.effort.as_ref() as f32 * CLIENT_POW_RETRY_MULTIPLIER) as u32).into()
+            self.effort.saturating_mul_f32(CLIENT_POW_RETRY_MULTIPLIER)
         };
-        let effort = max(CLIENT_MIN_RETRY_POW_EFFORT.into(), effort);
-        self.effort = min(CLIENT_MAX_POW_EFFORT.into(), effort);
+        let effort = max(CLIENT_MIN_RETRY_POW_EFFORT, effort);
+        self.effort = min(CLIENT_MAX_POW_EFFORT, effort);
     }
 
     /// Check whether it's worth trying to solve this scheme
@@ -79,7 +79,7 @@ impl HsPowClientV1 {
     /// Requires that the effort is currently nonzero, and the seed is unexpired.
     ///
     pub(super) fn is_usable(&self, at_time: SystemTime) -> bool {
-        self.effort != 0.into() && self.expires > at_time
+        self.effort != Effort::zero() && self.expires > at_time
     }
 
     /// Run the `v1` solver on a thread
