@@ -2053,16 +2053,13 @@ impl Reactor {
         hop.map
             .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;
 
-        let outcome = Pin::new(&mut handler
-            .incoming_sender
-	)
-            .try_send(StreamReqInfo {
-                req,
-                stream_id,
-                hop_num,
-                msg_tx,
-                receiver,
-            });
+        let outcome = Pin::new(&mut handler.incoming_sender).try_send(StreamReqInfo {
+            req,
+            stream_id,
+            hop_num,
+            msg_tx,
+            receiver,
+        });
 
         log_ratelim!("Delivering message to incoming stream handler"; outcome);
 
