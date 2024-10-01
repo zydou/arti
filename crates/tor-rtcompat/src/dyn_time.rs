@@ -289,7 +289,7 @@ mod test {
         #[derive(Debug)]
         struct DropCounter(u32);
 
-        fn chk(x: impl Debug + 'static) -> Result<DropCounter, impl Debug + 'static> {
+        fn try_downcast_dc(x: impl Debug + 'static) -> Result<DropCounter, impl Debug + 'static> {
             black_box(downcast_value(black_box(x)))
         }
 
@@ -300,7 +300,7 @@ mod test {
         }
 
         let dc = DropCounter(0);
-        let mut dc: DropCounter = chk(dc).unwrap();
+        let mut dc: DropCounter = try_downcast_dc(dc).unwrap();
         assert_eq!(dc.0, 0);
         dc.0 = 1;
     }
