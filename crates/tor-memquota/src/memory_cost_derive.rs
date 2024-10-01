@@ -2,8 +2,6 @@
 
 use crate::internal_prelude::*;
 
-use std::num::NonZero;
-
 //---------- helper ----------
 
 /// Convenience trait that provides the alias `T::SIZE`
@@ -117,8 +115,11 @@ macro_rules! memory_cost_structural_copy { { $($ty:ty),* $(,)? } => { $(
 memory_cost_structural_copy! {
     u8, u16, u32, u64, usize,
     i8, i16, i32, i64, isize,
-    NonZero<u8>, NonZero<u16>, NonZero<u32>, NonZero<u64>, NonZero<usize>,
-    NonZero<i8>, NonZero<i16>, NonZero<i32>, NonZero<i64>, NonZero<isize>,
+    // TODO MSRV use std::num::NonZero<_> and avoid all these qualified names
+    std::num::NonZeroU8, std::num::NonZeroU16, std::num::NonZeroU32, std::num::NonZeroU64,
+    std::num::NonZeroI8, std::num::NonZeroI16, std::num::NonZeroI32, std::num::NonZeroI64,
+    std::num::NonZeroUsize,
+    std::num::NonZeroIsize,
     std::net::IpAddr, std::net::Ipv4Addr, std::net::Ipv6Addr,
 }
 
