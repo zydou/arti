@@ -232,7 +232,7 @@ impl Error {
     ///
     /// Does not recurse, since we do not create nested instances of
     /// `Error::Multiple`.
-    pub fn errors<'a>(&'a self) -> impl Iterator<Item = &Error> + 'a {
+    pub fn errors<'a>(&'a self) -> impl Iterator<Item = &'a Error> + 'a {
         let result: Box<dyn Iterator<Item = &Error> + 'a> = match self {
             Error::Multiple(v) => Box::new(v.iter().map(|e| e.as_ref())),
             _ => Box::new(vec![self].into_iter()),

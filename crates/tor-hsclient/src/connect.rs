@@ -949,7 +949,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
     async fn establish_rendezvous(
         &'c self,
         using_rend_pt: &mut Option<RendPtIdentityForError>,
-    ) -> Result<Rendezvous<R, M>, FAE> {
+    ) -> Result<Rendezvous<'c, R, M>, FAE> {
         let (rend_circ, rend_relay) = self
             .circpool
             .m_get_or_launch_client_rend(&self.netdir)
@@ -1045,7 +1045,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
         &'c self,
         ipt: &UsableIntroPt<'_>,
         rendezvous: &mut Option<Rendezvous<'c, R, M>>,
-    ) -> Result<(Rendezvous<R, M>, Introduced<R, M>), FAE> {
+    ) -> Result<(Rendezvous<'c, R, M>, Introduced<R, M>), FAE> {
         let intro_index = ipt.intro_index;
 
         debug!(
