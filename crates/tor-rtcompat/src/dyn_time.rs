@@ -270,9 +270,9 @@ mod test {
     use std::fmt::{Debug, Display};
     use std::hint::black_box;
 
-    fn try_downcast_string(
-        x: impl Display + Debug + 'static,
-    ) -> Result<String, impl Display + Debug + 'static> {
+    fn try_downcast_string<S: Display + Debug + 'static> (
+        x: S,
+    ) -> Result<String, S> {
         black_box(downcast_value(black_box(x)))
     }
 
