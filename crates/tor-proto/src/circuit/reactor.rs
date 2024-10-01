@@ -94,6 +94,10 @@ pub(super) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
+/// MPSC queue containing stream requests
+#[cfg(feature = "hs-service")]
+type StreamReqSender = mpsc::Sender<StreamReqInfo>;
+
 /// A handshake type, to be used when creating circuit hops.
 #[derive(Clone, Debug)]
 pub(super) enum CircuitHandshake {
@@ -247,7 +251,7 @@ pub(super) enum CtrlMsg {
     #[cfg(feature = "hs-service")]
     AwaitStreamRequest {
         /// A channel for sending information about an incoming stream request.
-        incoming_sender: mpsc::Sender<StreamReqInfo>,
+        incoming_sender: StreamReqSender,
         /// A `CmdChecker` to keep track of which message types are acceptable.
         cmd_checker: AnyCmdChecker,
         /// Oneshot channel to notify on completion.
@@ -755,7 +759,7 @@ pub(super) struct StreamReqInfo {
 #[educe(Debug)]
 struct IncomingStreamRequestHandler {
     /// A sender for sharing information about an incoming stream request.
-    incoming_sender: mpsc::Sender<StreamReqInfo>,
+    incoming_sender: StreamReqSender,
     /// A [`AnyCmdChecker`] for validating incoming stream requests.
     cmd_checker: AnyCmdChecker,
     /// The hop to expect incoming stream requests from.
