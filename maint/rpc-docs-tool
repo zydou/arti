@@ -402,7 +402,11 @@ class RpcUniverse:
         f.write("\n\n")
 
         rustdoc_url = self.get_rustdoc_url(m_ident)
-        f.write(f"- [Parameters]({rustdoc_url}#fields)\n")
+        f.write(f"- [Rustdoc]({rustdoc_url})\n")
+        if self.rustdoc[m_ident.crate()].type_has_no_fields(m_ident):
+            f.write("- (Takes no parameters)\n")
+        else:
+            f.write(f"- [Parameters]({rustdoc_url}#fields)\n")
         otype = obj["output_type"]
         otype_url = self.get_rustdoc_url(otype)
         f.write(f"- Returns [`{otype}`]({otype_url})\n")
@@ -511,6 +515,16 @@ class Rustdoc:
         id_parts = str(ident).split("::")
         id_parts[-1] = f"{kind}.{id_parts[-1]}.html"
         return RUSTDOC_ROOT + "/".join(id_parts)
+
+    def type_has_no_fields(self, ident):
+        """Return true if `ident` is a type that definitely has no fields."""
+        obj = self.doc["index"][self.idx_by_ident[ident]]
+        try:
+            fields = obj["inner"]["struct"]["kind"]["plain"]["fields"]
+        except KeyError:
+            return False
+
+        return len(fields) == 0
 
 
 def build_rustdoc_json(crate):
