@@ -57,7 +57,10 @@ pub struct OutboundClientHandshake<
 /// A client channel on which versions have been negotiated and the
 /// relay's handshake has been read, but where the certs have not
 /// been checked.
-pub struct UnverifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider> {
+pub struct UnverifiedChannel<
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
     /// The negotiated link protocol.  Must be a member of LINK_PROTOCOLS
@@ -87,7 +90,10 @@ pub struct UnverifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 /// This type is separate from UnverifiedChannel, since finishing the
 /// handshake requires a bunch of CPU, and you might want to do it as
 /// a separate task or after a yield.
-pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider> {
+pub struct VerifiedChannel<
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
     /// The negotiated link protocol.
@@ -313,7 +319,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider> UnverifiedChannel<T, S> {
+impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
+    UnverifiedChannel<T, S>
+{
     /// Return the reported clock skew from this handshake.
     ///
     /// Note that the skew reported by this function might not be "true": the
@@ -566,7 +574,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider> VerifiedChannel<T, S> {
+impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
+    VerifiedChannel<T, S>
+{
     /// Send a 'Netinfo' message to the relay to finish the handshake,
     /// and create an open channel and reactor.
     ///
