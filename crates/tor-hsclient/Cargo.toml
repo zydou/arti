@@ -17,8 +17,7 @@ default = []
 keymgr = ["tor-keymgr/keymgr", "__is_experimental"]
 
 # Onion service proof of work schemes
-pow-common = ["tor-hscrypto/pow-common", "tor-netdoc/hs-pow-common", "tor-cell/hs-pow-common"]
-pow-v1 = ["pow-common", "tor-hscrypto/pow-v1", "tor-netdoc/hs-pow-v1", "tor-cell/hs-pow-v1"]
+pow-v1 = ["tor-hscrypto/pow-v1", "tor-netdoc/hs-pow-v1", "tor-cell/hs-pow-v1"]
 pow-full = ["pow-v1"]
 
 full = [

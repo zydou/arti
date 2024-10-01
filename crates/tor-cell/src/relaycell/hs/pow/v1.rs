@@ -1,13 +1,13 @@
 //! Support for the `v1` proof of work scheme's intro payload extension
 
+use crate::relaycell::hs::pow::ProofOfWorkType;
 use tor_bytes::{EncodeResult, Reader, Result, Writeable, Writer};
 use tor_hscrypto::pow::v1::{Effort, Nonce, SeedHead, SolutionByteArray};
 
 /// Proof of work using the `v1` scheme
 ///
 /// Specified as part of <https://spec.torproject.org/rend-spec/introduction-protocol.html#INTRO1_POW_EXT>
-#[derive(derive_more::Constructor, amplify::Getters)] //
-#[derive(Debug, Clone, Eq, PartialEq)] //
+#[derive(derive_more::Constructor, amplify::Getters, Debug, Clone)]
 pub struct ProofOfWorkV1 {
     /// Nonce value chosen by the client
     #[getter(as_ref)]
@@ -27,18 +27,23 @@ pub struct ProofOfWorkV1 {
 }
 
 impl ProofOfWorkV1 {
-    /// Read the scheme-specific portion of a v1 Proof Of Work intro payload extension
-    pub(super) fn take_body_from(b: &mut Reader<'_>) -> Result<Self> {
-        Ok(Self {
-            nonce: b.extract()?,
-            effort: b.extract()?,
-            seed: b.extract()?,
-            solution: b.extract()?,
-        })
+    /// Construct by reading the scheme-specific data, if this scheme is active
+    pub(super) fn try_take_body_from(scheme: u8, b: &mut Reader<'_>) -> Result<Option<Self>> {
+        if scheme == ProofOfWorkType::V1.get() {
+            Ok(Some(Self {
+                nonce: b.extract()?,
+                effort: b.extract()?,
+                seed: b.extract()?,
+                solution: b.extract()?,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
-    /// Write the scheme-specific portion of a v1 Proof Of Work intro payload extension
-    pub(super) fn write_body_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+    /// Write the scheme and scheme-specific portion the v1 Proof Of Work
+    pub(super) fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+        b.write_u8(ProofOfWorkType::V1.get());
         self.nonce.write_onto(b)?;
         self.effort.write_onto(b)?;
         self.seed.write_onto(b)?;

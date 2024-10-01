@@ -1,6 +1,5 @@
 //! Combined error types for any proof of work scheme
 
-#[cfg(feature = "pow-v1")]
 use crate::pow::v1::{RuntimeErrorV1, SolutionErrorV1};
 
 /// Error type for the onion service proof of work subsystem
@@ -40,7 +39,6 @@ pub enum Error {
 #[non_exhaustive]
 pub enum SolutionError {
     /// Solution errors from the `v1` proof of work scheme
-    #[cfg(feature = "pow-v1")]
     #[error("V1, {0}")]
     V1(#[from] SolutionErrorV1),
 }
@@ -50,7 +48,6 @@ pub enum SolutionError {
 #[non_exhaustive]
 pub enum RuntimeError {
     /// Runtime errors from the `v1` proof of work scheme
-    #[cfg(feature = "pow-v1")]
     #[error("V1, {0}")]
     V1(#[from] RuntimeErrorV1),
 }

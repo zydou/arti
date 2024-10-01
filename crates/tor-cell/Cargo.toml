@@ -25,8 +25,7 @@ hs = ["tor-hscrypto", "__is_experimental"]
 testing = ["experimental-udp", "__is_experimental"]
 
 # Onion service proof of work schemes
-hs-pow-common = []
-hs-pow-v1 = ["hs-pow-common", "tor-hscrypto/pow-v1"]
+hs-pow-v1 = ["tor-hscrypto/pow-v1"]
 hs-pow-full = ["hs-pow-v1"]
 
 full = [
@@ -63,6 +62,7 @@ tor-linkspec = { path = "../tor-linkspec", version = "0.23.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.23.0", features = ["memquota"] }
 tor-memquota = { version = "0.23.0", path = "../tor-memquota" }
 tor-units = { path = "../tor-units", version = "0.23.0", features = ["memquota"] }
+void = "1"
 
 [dev-dependencies]
 hex = "0.4"

@@ -162,10 +162,9 @@ impl IntroduceHandshakePayload {
         cookie: RendCookie,
         onion_key: OnionKey,
         link_specifiers: Vec<EncodedLinkSpec>,
-        #[cfg(feature = "hs-pow-common")] proof_of_work: Option<ProofOfWork>,
+        proof_of_work: Option<ProofOfWork>,
     ) -> Self {
         let mut extensions = ExtList::default();
-        #[cfg(feature = "hs-pow-common")]
         if let Some(proof_of_work) = proof_of_work {
             extensions.push(proof_of_work.into());
         }

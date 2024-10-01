@@ -45,12 +45,10 @@ mod connect;
 mod err;
 mod isol_map;
 mod keys;
+mod pow;
 mod proto_oneshot;
 mod relay_info;
 mod state;
-
-#[cfg(feature = "pow-common")]
-mod pow;
 
 use std::future::Future;
 use std::sync::{Arc, Mutex, MutexGuard};

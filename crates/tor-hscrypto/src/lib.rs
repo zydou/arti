@@ -47,7 +47,6 @@ mod macros;
 pub mod ope;
 pub mod ops;
 pub mod pk;
-#[cfg(feature = "pow-common")]
 pub mod pow;
 pub mod time;
 

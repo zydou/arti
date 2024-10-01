@@ -17,7 +17,7 @@ use tor_hscrypto::pow::v1::{Effort, Seed};
 /// timestamp, and a suggested effort value that clients may use for
 /// their initial request.
 #[derive(Debug, Clone, derive_more::Constructor, amplify::Getters)]
-pub struct HsPowParamsV1 {
+pub struct PowParamsV1 {
     /// Current random seed, valid until the declared expiration time
     #[getter(as_ref)]
     seed: Seed,
@@ -29,7 +29,7 @@ pub struct HsPowParamsV1 {
     expires: SystemTime,
 }
 
-impl HsPowParamsV1 {
+impl PowParamsV1 {
     /// Parse a single `pow-params v1` line from an `Item`
     pub(super) fn from_item(item: &Item<'_, HsInnerKwd>) -> Result<Self> {
         let seed = item.required_arg(1)?.parse::<B64>()?.into_array()?.into();

@@ -8,7 +8,7 @@ use tor_async_utils::oneshot::Canceled;
 use tor_cell::relaycell::hs::pow::v1::ProofOfWorkV1;
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::pow::v1::{Effort, Instance, RuntimeErrorV1, SolverInput};
-use tor_netdoc::doc::hsdesc::pow::v1::HsPowParamsV1;
+use tor_netdoc::doc::hsdesc::pow::v1::PowParamsV1;
 use tracing::debug;
 
 /// Double effort at retry until this threshold.
@@ -50,7 +50,7 @@ pub(super) struct HsPowClientV1 {
 impl HsPowClientV1 {
     /// Initialize client state for the `v1` scheme
     ///
-    pub(super) fn new(hs_blind_id: &HsBlindId, params: &HsPowParamsV1) -> Self {
+    pub(super) fn new(hs_blind_id: &HsBlindId, params: &PowParamsV1) -> Self {
         Self {
             instance: Instance::new(hs_blind_id.to_owned(), params.seed().to_owned()),
             expires: params.expires(),

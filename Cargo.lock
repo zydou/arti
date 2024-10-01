@@ -5174,6 +5174,7 @@ dependencies = [
  "tor-llcrypto",
  "tor-memquota",
  "tor-units",
+ "void",
 ]
 
 [[package]]
@@ -5600,6 +5601,7 @@ dependencies = [
  "tor-llcrypto",
  "tor-memquota",
  "tor-units",
+ "void",
  "zeroize",
 ]
 

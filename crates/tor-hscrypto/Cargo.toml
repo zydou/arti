@@ -17,8 +17,7 @@ memquota = ["derive-deftly", "tor-memquota", "tor-units/memquota", "tor-llcrypto
 ope = ["cipher", "zeroize"]
 
 # Onion service proof of work schemes
-pow-common = []
-pow-v1 = ["pow-common", "arrayvec", "blake2", "equix"]
+pow-v1 = ["arrayvec", "blake2", "equix"]
 pow-full = ["pow-v1"]
 
 full = [
@@ -54,6 +53,7 @@ tor-error = { version = "0.23.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.23.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
 tor-memquota = { version = "0.23.0", path = "../tor-memquota", default-features = false, optional = true }
 tor-units = { path = "../tor-units", version = "0.23.0" }
+void = "1"
 zeroize = { version = "1", optional = true }
 
 [dev-dependencies]

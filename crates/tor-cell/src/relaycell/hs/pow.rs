@@ -1,8 +1,9 @@
 //! Support for the proof-of-work intro payload extension
 
-#[cfg(feature = "hs-pow-v1")]
+#[cfg_attr(not(feature = "hs-pow-v1"), path = "pow/v1_stub.rs")]
 pub mod v1;
 
+use self::v1::ProofOfWorkV1;
 use super::ext::Ext;
 use super::intro_payload::IntroPayloadExtType;
 use caret::caret_int;
@@ -14,14 +15,13 @@ use tor_bytes::{EncodeResult, Reader, Result, Writer};
 ///
 /// The extension has a variable format depending on the specific scheme that was chosen.
 ///
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum ProofOfWork {
-    /// A potential solution using the `v1` scheme
-    #[cfg(feature = "hs-pow-v1")]
-    V1(v1::ProofOfWorkV1),
     /// A potential solution with unrecognized scheme
-    Unknown(u8),
+    Unrecognized(UnrecognizedProofOfWork),
+    /// A potential solution using the `v1` scheme
+    V1(v1::ProofOfWorkV1),
 }
 
 impl Ext for ProofOfWork {
@@ -32,23 +32,22 @@ impl Ext for ProofOfWork {
     }
 
     fn take_body_from(b: &mut Reader<'_>) -> Result<Self> {
-        let version = b.take_u8()?;
-        #[cfg(feature = "hs-pow-v1")]
-        if version == ProofOfWorkType::V1.get() {
-            return Ok(ProofOfWork::V1(v1::ProofOfWorkV1::take_body_from(b)?));
+        let scheme = b.take_u8()?;
+        if let Some(v1) = ProofOfWorkV1::try_take_body_from(scheme, b)? {
+            return Ok(ProofOfWork::V1(v1));
         }
-        Ok(ProofOfWork::Unknown(version))
+        Ok(ProofOfWork::Unrecognized(
+            UnrecognizedProofOfWork::take_body_from(scheme, b),
+        ))
     }
 
     fn write_body_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
         match self {
-            #[cfg(feature = "hs-pow-v1")]
-            ProofOfWork::V1(v1) => {
-                b.write_u8(ProofOfWorkType::V1.get());
-                v1.write_body_onto(b)?;
+            ProofOfWork::V1(v1) => v1.write_onto(b),
+            ProofOfWork::Unrecognized(unrecognized) => {
+                unrecognized.write_onto(b);
                 Ok(())
             }
-            _ => Ok(()),
         }
     }
 }
@@ -59,5 +58,39 @@ caret_int! {
     pub struct ProofOfWorkType(u8) {
         /// Solution for the `v1` scheme
         V1 = 1,
+    }
+}
+
+/// A proof of work with unknown scheme
+///
+/// The reader needs a way to represent future schemes when we can't fail to parse.
+/// This is similar to [`super::UnrecognizedExt`], but specific to an unrecognized scheme
+/// within a known type of extension.
+///
+#[derive(Debug, Clone, Eq, PartialEq, amplify::Getters, derive_more::Constructor)]
+pub struct UnrecognizedProofOfWork {
+    /// The `scheme` byte
+    ///
+    /// Intended usage is that this won't be any of the known `ProofOfWorkType`
+    /// values. We don't strictly verify this, to avoid breaking the API every
+    /// time a new type is added.
+    ///
+    #[getter(as_copy)]
+    scheme: u8,
+    /// Arbitrary contents with an unknown format
+    #[getter(as_ref)]
+    data: Vec<u8>,
+}
+
+impl UnrecognizedProofOfWork {
+    /// Construct by taking the remaining scheme-specific unknown data
+    pub(super) fn take_body_from(scheme: u8, b: &mut Reader<'_>) -> Self {
+        Self::new(scheme, b.take_rest().to_vec())
+    }
+
+    /// Write the unrecognized proof's scheme and data
+    pub(super) fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        b.write_u8(self.scheme());
+        b.write_all(self.data());
     }
 }

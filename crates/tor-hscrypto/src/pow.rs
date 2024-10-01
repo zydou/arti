@@ -10,12 +10,13 @@
 //!
 //! Specification at: <https://spec.torproject.org/hspow-spec/index.html>
 //!
-//! Disabled with default crate features. All schemes can be included
-//! with the `pow` feature, or schemes can be selected individually (`pow-v1`).
+//! Individual schemes must be selected with crate features ("pow-v1", or
+//! "pow-full" to enable every scheme.) Some Void stub types are provided
+//! for functionality that isn't enabled.
 
 mod err;
 
-pub use err::{Error, RuntimeError, SolutionError};
-
-#[cfg(feature = "pow-v1")]
+#[cfg_attr(not(feature = "pow-v1"), path = "pow/v1_stub.rs")]
 pub mod v1;
+
+pub use err::{Error, RuntimeError, SolutionError};

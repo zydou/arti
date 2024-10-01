@@ -1,12 +1,13 @@
 //! Common support for proof of work denial of service mitigation on the client side
 
+#[cfg_attr(not(feature = "pow-v1"), path = "pow/v1_stub.rs")]
 mod v1;
 
 use std::time::SystemTime;
 use tor_cell::relaycell::hs::pow::ProofOfWork;
 use tor_hscrypto::pk::HsBlindId;
 use tor_hscrypto::pow::RuntimeError;
-use tor_netdoc::doc::hsdesc::pow::HsPowParams;
+use tor_netdoc::doc::hsdesc::pow::PowParams;
 use tor_netdoc::doc::hsdesc::HsDesc;
 use v1::HsPowClientV1;
 
@@ -22,7 +23,6 @@ use v1::HsPowClientV1;
 #[derive(Default)]
 pub(crate) struct HsPowClient {
     /// Client state specifically for the `v1` scheme
-    #[cfg(feature = "pow-v1")]
     v1: Option<HsPowClientV1>,
 }
 
@@ -31,8 +31,7 @@ impl HsPowClient {
     pub(crate) fn new(hs_blind_id: &HsBlindId, desc: &HsDesc) -> Self {
         let mut client: HsPowClient = Default::default();
         for params in desc.pow_params() {
-            #[cfg(feature = "pow-v1")]
-            if let HsPowParams::V1(v1) = params {
+            if let PowParams::V1(v1) = params {
                 client.v1 = Some(HsPowClientV1::new(hs_blind_id, v1));
             }
         }
@@ -46,7 +45,6 @@ impl HsPowClient {
     /// Specified in <https://spec.torproject.org/hspow-spec/common-protocol.html#client-timeout>
     ///
     pub(crate) fn increase_effort(&mut self) {
-        #[cfg(feature = "pow-v1")]
         if let Some(v1) = &mut self.v1 {
             v1.increase_effort();
         }
@@ -54,7 +52,6 @@ impl HsPowClient {
 
     /// If we have an applicable proof of work scheme, do the work and return a proof
     pub(crate) async fn solve(&self) -> Result<Option<ProofOfWork>, RuntimeError> {
-        #[cfg(feature = "pow-v1")]
         if let Some(v1) = &self.v1 {
             if v1.is_usable(SystemTime::now()) {
                 return match v1.solve().await {
