@@ -96,6 +96,7 @@ use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 use crate::internal_prelude::*;
 
 use std::task::{Context, Poll, Poll::*};
+use tor_async_utils::{ErasedSinkTrySendError, SinkTrySend};
 
 //---------- Sender ----------
 
@@ -432,6 +433,36 @@ where
         self.tx
             .poll_close_unpin(cx)
             .map(|r| r.map_err(SendError::Channel))
+    }
+}
+
+impl<T, C> SinkTrySend<T> for Sender<T, C>
+where
+    T: HasMemoryCost + Debug + Send + 'static,
+    C: ChannelSpec,
+    C::Sender<Entry<T>>: SinkTrySend<Entry<T>>,
+    <C::Sender<Entry<T>> as SinkTrySend<Entry<T>>>::Error: Send + Sync,
+{
+    type Error = ErasedSinkTrySendError;
+    fn try_send_or_return(
+        self: Pin<&mut Self>,
+        item: T,
+    ) -> Result<(), (<Self as SinkTrySend<T>>::Error, T)> {
+        let self_ = self.get_mut();
+        let item = Entry {
+            t: item,
+            when: self_.runtime.now_coarse(),
+        };
+
+        use ErasedSinkTrySendError as ESTSE;
+
+        self_
+            .mq
+            .try_claim_or_return(item, |item| {
+                Pin::new(&mut self_.tx).try_send_or_return(item)
+            })
+            .map_err(|(mqe, unsent)| (ESTSE::Other(Arc::new(mqe)), unsent.t))?
+            .map_err(|(tse, unsent)| (ESTSE::from(tse), unsent.t))
     }
 }
 

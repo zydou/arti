@@ -43,6 +43,7 @@
 
 mod join_read_write;
 mod prepare_send;
+mod sink_try_send;
 mod sinkext;
 mod watch;
 
@@ -54,6 +55,9 @@ pub use join_read_write::*;
 pub use prepare_send::{SinkPrepareExt, SinkPrepareSendFuture, SinkSendable};
 
 pub use sinkext::SinkExt;
+
+pub use sink_try_send::{ErasedSinkTrySendError, MpscOtherSinkTrySendError};
+pub use sink_try_send::{SinkTrySend, SinkTrySendError};
 
 pub use watch::{DropNotifyEofSignallable, DropNotifyWatchSender, PostageWatchSenderExt};
 

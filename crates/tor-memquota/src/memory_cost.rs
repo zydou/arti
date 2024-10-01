@@ -136,7 +136,27 @@ impl<T> TypedParticipation<T> {
     ///
     /// In these error cases, `item` will typically be dropped by `call`,
     /// it is not convenient for `call` to do otherwise.
+    /// If that's wanted, use [`try_claim_or_return`](TypedParticipation::try_claim_or_return).
     pub fn try_claim<C, F, E, R>(&mut self, item: C, call: F) -> Result<Result<R, E>, Error>
+    where
+        C: HasTypedMemoryCost<T>,
+        F: FnOnce(C) -> Result<R, E>,
+    {
+        self.try_claim_or_return(item, call).map_err(|(e, _item)| e)
+    }
+
+    /// Claiming wrapper for a closure
+    ///
+    /// Claims the memory, iff `call` succeeds.
+    ///
+    /// Like [`try_claim`](TypedParticipation::try_claim),
+    /// but returns the item if memory claim fails.
+    /// Typically, a failing `call` will need to return the item in `E`.
+    pub fn try_claim_or_return<C, F, E, R>(
+        &mut self,
+        item: C,
+        call: F,
+    ) -> Result<Result<R, E>, (Error, C)>
     where
         C: HasTypedMemoryCost<T>,
         F: FnOnce(C) -> Result<R, E>,
@@ -146,7 +166,10 @@ impl<T> TypedParticipation<T> {
         };
 
         let cost = item.typed_memory_cost(enabled);
-        self.claim(&cost)?;
+        match self.claim(&cost) {
+            Ok(()) => {}
+            Err(e) => return Err((e, item)),
+        }
         // Unwind safety:
         //  - "`F` may not be safely transferred across an unwind boundary"
         //    but we don't; it is moved into the closure and

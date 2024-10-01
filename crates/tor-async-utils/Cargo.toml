@@ -13,16 +13,19 @@ categories = ["rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
+derive-deftly = "0.14"
 educe = "0.4.6"
 futures = "0.3.14"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
+thiserror = "1"
 void = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
 tokio = { version = "1.7", features = ["macros", "net", "rt", "rt-multi-thread", "time"] }
+tor-error = { path = "../tor-error", version = "0.23.0" }
 tor-rtcompat = { version = "0.23.0", path = "../tor-rtcompat" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.23.0" }
 
