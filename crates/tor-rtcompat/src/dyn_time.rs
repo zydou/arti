@@ -249,12 +249,31 @@ fn downcast_value<I: std::any::Any, O: Sized + 'static>(input: I) -> Result<O, I
     }
 }
 
-#[test]
-#[allow(clippy::unwrap_used, clippy::useless_format)]
-fn check_downcast_value() {
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    #![allow(clippy::useless_format)]
+    use super::*;
+
     use std::fmt::{Debug, Display};
     use std::hint::black_box;
 
+#[test]
+fn check_downcast_value() {
+    // This and the one in check_downcast_dropcount are not combined, with generics,
+    // so that the types of everything are as clear as they can be.
     fn chk(x: impl Display + Debug + 'static) -> Result<String, impl Display + Debug + 'static> {
         black_box(downcast_value(black_box(x)))
     }
@@ -264,11 +283,7 @@ fn check_downcast_value() {
 }
 
 #[test]
-#[allow(clippy::unwrap_used)]
 fn check_downcast_dropcount() {
-    use std::fmt::Debug;
-    use std::hint::black_box;
-
     #[derive(Debug)]
     struct DropCounter(u32);
 
@@ -286,4 +301,6 @@ fn check_downcast_dropcount() {
     let mut dc: DropCounter = chk(dc).unwrap();
     assert_eq!(dc.0, 0);
     dc.0 = 1;
+}
+
 }
