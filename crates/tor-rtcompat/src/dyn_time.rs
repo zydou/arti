@@ -270,18 +270,18 @@ mod test {
     use std::fmt::{Debug, Display};
     use std::hint::black_box;
 
+    fn try_downcast_string(
+        x: impl Display + Debug + 'static,
+    ) -> Result<String, impl Display + Debug + 'static> {
+        black_box(downcast_value(black_box(x)))
+    }
+
     #[test]
     fn check_downcast_value() {
         // This and the one in check_downcast_dropcount are not combined, with generics,
         // so that the types of everything are as clear as they can be.
-        fn chk(
-            x: impl Display + Debug + 'static,
-        ) -> Result<String, impl Display + Debug + 'static> {
-            black_box(downcast_value(black_box(x)))
-        }
-
-        assert_eq!(chk(format!("hi")).unwrap(), format!("hi"));
-        assert_eq!(chk("hi").unwrap_err().to_string(), "hi");
+        assert_eq!(try_downcast_string(format!("hi")).unwrap(), format!("hi"));
+        assert_eq!(try_downcast_string("hi").unwrap_err().to_string(), "hi");
     }
 
     #[test]
