@@ -69,6 +69,7 @@ pub enum PtMessage {
         /// The protocol used ('socks4' or 'socks5').
         protocol: String,
         /// An address to connect via this transport.
+        /// (This should be localhost.)
         endpoint: SocketAddr,
     },
     /// `CMETHOD-ERROR`: An error was encountered setting up a client transport.
@@ -227,6 +228,11 @@ impl FromStr for PtMessage {
                     .ok_or_else(|| Cow::from("no endpoint"))?
                     .parse::<SocketAddr>()
                     .map_err(|e| Cow::from(format!("failed to parse endpoint: {}", e)))?;
+                if !endpoint.ip().is_loopback() {
+                    return Err(Cow::from(format!(
+                        "CMETHOD endpoint {endpoint} was not localhost"
+                    )));
+                }
                 Self::ClientTransportLaunched {
                     transport: transport
                         .parse()
@@ -256,6 +262,7 @@ impl FromStr for PtMessage {
                     .ok_or_else(|| Cow::from("no endpoint"))?
                     .parse::<SocketAddr>()
                     .map_err(|e| Cow::from(format!("failed to parse endpoint: {}", e)))?;
+                // The SMETHOD endpoint is the place where _clients_ connect, and it shouldn't be localhost.
                 let mut parsed_args = HashMap::new();
 
                 // NOTE(eta): pt-spec.txt seems to imply these options can't contain spaces, so

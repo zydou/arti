@@ -92,6 +92,11 @@ impl_standard_builder! { ApplicationConfig }
 ///
 /// Broken out into a macro so as to avoid having to state the field name four times,
 /// which is a recipe for programming slips.
+///
+/// NOTE: Don't use this for new ports options!
+/// We only have to use it where we do because of the legacy `port` options.
+/// For new ports, provide a listener only.
+#[deprecated = "This macro is only for supporting old _port options! Don't use it for new options."]
 macro_rules! resolve_listen_port {
     { $self:expr, $field:ident, $def_port:expr } => { paste!{
         resolve_alternative_specs(
@@ -117,7 +122,10 @@ macro_rules! resolve_listen_port {
 #[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
 pub struct ProxyConfig {
     /// Addresses to listen on for incoming SOCKS connections.
-    #[builder(field(build = r#"resolve_listen_port!(self, socks, 9150)"#))]
+    #[builder(field(build = r#"#[allow(deprecated)]
+                   // We use this deprecated macro to instantiate the legacy socks_port option.
+                   { resolve_listen_port!(self, socks, 9150) }
+                 "#))]
     pub(crate) socks_listen: Listen,
 
     /// Port to listen on (at localhost) for incoming SOCKS connections.
@@ -133,7 +141,10 @@ pub struct ProxyConfig {
     pub(crate) socks_port: (),
 
     /// Addresses to listen on for incoming DNS connections.
-    #[builder(field(build = r#"resolve_listen_port!(self, dns, 0)"#))]
+    #[builder(field(build = r#"#[allow(deprecated)]
+                   // We use this deprecated macro to instantiate the legacy dns_port option.
+                   { resolve_listen_port!(self, dns, 0) }
+                 "#))]
     pub(crate) dns_listen: Listen,
 
     /// Port to listen on (at localhost) for incoming DNS connections.

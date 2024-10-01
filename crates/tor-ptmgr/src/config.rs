@@ -203,4 +203,9 @@ impl UnmanagedTransportOptions {
             endpoint: self.proxy_addr,
         }
     }
+
+    /// Return true if this transport is configured on localhost.
+    pub(crate) fn is_localhost(&self) -> bool {
+        self.proxy_addr.ip().is_loopback()
+    }
 }

@@ -238,6 +238,10 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
     tor_client: TorClient<R>,
     listen: Listen,
 ) -> Result<()> {
+    if !listen.is_localhost_only() {
+        warn!("Configured to listen for DNS on non-local addresses. This is usually insecure! We recommend listening on localhost only.");
+    }
+
     let mut listeners = Vec::new();
 
     // Try to bind to the DNS ports.
