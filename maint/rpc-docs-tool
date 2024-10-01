@@ -176,7 +176,7 @@ def recursively_fix_links(doc, linkfixer):
             recursively_fix_links(elt, linkfixer)
 
 
-def adjust_doc(doc, outer_h_level=3):
+def adjust_doc(doc, link_table, outer_h_level=3):
     """
     Modify a markdown document that we've gotten from rustdoc json:
 
@@ -190,7 +190,16 @@ def adjust_doc(doc, outer_h_level=3):
 
     Returns a string rendering of the document.
     """
-    document = MD.parse(doc)
+    parser = marko.parser.Parser()
+
+    # We add a bunch of Rustdoc link definitions to the end of the document,
+    # since otherwise marko won't know how to handle them.
+    parts = [doc, "\n\n"]
+    for k,v in link_table.items():
+        parts.append(f"[{k}]: {v}\n")
+    doc = "".join(parts)
+
+    document = parser.parse(doc)
 
     #### Pull out the section that's called MAGIC_HEADING, if any.
     extract_md_section(document)
@@ -368,6 +377,13 @@ class RpcUniverse:
         """
         return self.rustdoc[ident.crate()].get_doc(ident)
 
+    def get_link_table(self, ident):
+        """
+        Return a link table to interpret links in the rustdoc
+        for the object `ident`.
+        """
+        return self.rustdoc[ident.crate()].get_link_table(ident)
+
     def get_rustdoc_url(self, ident):
         """
         Return a canonical rustdoc URL (within RUSTDOC_ROOT) for `ident`.
@@ -394,11 +410,12 @@ class RpcUniverse:
         """
         m_ident = obj["method_type"]
         m_doc = self.get_doc(m_ident)
+        link_table = self.get_link_table(m_ident)
         m_summary = doc_subject(m_doc)
         m_anchor = "method:" + m_str
         header = f"### `{m_str}` — {m_summary}"
         f.write(mdheader(header, m_anchor))
-        f.write(adjust_doc(m_doc))
+        f.write(adjust_doc(m_doc, link_table))
         f.write("\n\n")
 
         rustdoc_url = self.get_rustdoc_url(m_ident)
@@ -450,10 +467,11 @@ class RpcUniverse:
         """
         o_anchor = f"object:{o_name}"
         o_doc = self.get_doc(o_name)
+        link_table = self.get_link_table(o_name)
         o_summary = doc_subject(o_doc)
         header = f"### `{o_name}` — {o_summary}"
         f.write(mdheader(header, o_anchor))
-        f.write(adjust_doc(o_doc))
+        f.write(adjust_doc(o_doc, link_table))
         f.write("\n\n")
         rustdoc_url = self.get_rustdoc_url(o_name)
         f.write(f"- [Rustdoc]({rustdoc_url})\n")
@@ -505,16 +523,35 @@ class Rustdoc:
         obj = self.doc["index"][self.idx_by_ident[ident]]
         return obj["docs"]
 
+    def get_link_table(self, ident):
+        """
+        Return a dict mapping reference link ID to corresponding URLs for
+        the documentation of `ident`.
+        """
+        obj = self.doc["index"][self.idx_by_ident[ident]]
+        links = obj["links"]
+        table = {}
+        for content,idx in links.items():
+            table[content] = self.get_rustdoc_url_by_idx(idx)
+        return table
+
     def get_rustdoc_url(self, ident):
         """
         Return a URL for the documentation for an identifier within this crate,
         relative to a rustdoc installation at RUSTDOC_ROOT.
         """
         idx = self.idx_by_ident[ident]
-        kind = self.doc["paths"][idx]["kind"]
-        id_parts = str(ident).split("::")
-        id_parts[-1] = f"{kind}.{id_parts[-1]}.html"
-        return RUSTDOC_ROOT + "/".join(id_parts)
+        return self.get_rustdoc_url_by_idx(idx)
+
+    def get_rustdoc_url_by_idx(self, idx):
+        """
+        Return a URL according to a rustdoc "index".
+        """
+        obj = self.doc["paths"][idx]
+        kind = obj["kind"]
+        path = obj["path"][:]
+        path[-1] = f"{kind}.{path[-1]}.html"
+        return RUSTDOC_ROOT + "/".join(path)
 
     def type_has_no_fields(self, ident):
         """Return true if `ident` is a type that definitely has no fields."""
