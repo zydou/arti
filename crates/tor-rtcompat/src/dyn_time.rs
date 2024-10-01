@@ -286,7 +286,8 @@ mod test {
 
     #[test]
     fn check_downcast_dropcount() {
-        #[derive(Debug)]
+        #[derive(Debug, derive_more::Display)]
+        #[display("{self:?}")]
         struct DropCounter(u32);
 
         fn try_downcast_dc(x: impl Debug + 'static) -> Result<DropCounter, impl Debug + 'static> {
@@ -301,6 +302,11 @@ mod test {
 
         let dc = DropCounter(0);
         let mut dc: DropCounter = try_downcast_dc(dc).unwrap();
+        assert_eq!(dc.0, 0);
+        dc.0 = 1;
+
+        let dc = DropCounter(0);
+        let mut dc: DropCounter = try_downcast_string(dc).unwrap_err();
         assert_eq!(dc.0, 0);
         dc.0 = 1;
     }
