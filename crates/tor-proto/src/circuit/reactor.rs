@@ -83,7 +83,7 @@ use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
 use tor_memquota::derive_deftly_template_HasMemoryCost;
-use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
+use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 use tracing::{debug, trace, warn};
 
 /// Initial value for outbound flow-control window on streams.
@@ -102,7 +102,7 @@ pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
 /// MPSC queue containing stream requests
 #[cfg(feature = "hs-service")]
-type StreamReqSender = mpsc::Sender<StreamReqInfo>;
+type StreamReqSender = mq_queue::Sender<StreamReqInfo, MpscSpec>;
 
 /// A handshake type, to be used when creating circuit hops.
 #[derive(Clone, Debug)]

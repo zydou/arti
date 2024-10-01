@@ -577,8 +577,10 @@ impl ClientCirc {
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
+        let time_prov = self.channel().time_provider().clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
-        let (incoming_sender, incoming_receiver) = mpsc::channel(INCOMING_BUFFER);
+        let (incoming_sender, incoming_receiver) = MpscSpec::new(INCOMING_BUFFER)
+            .new_mq(time_prov, self.memquota.as_raw_account())?;
         let (tx, rx) = oneshot::channel();
 
         self.control
