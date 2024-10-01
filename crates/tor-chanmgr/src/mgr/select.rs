@@ -79,11 +79,13 @@ pub(crate) fn pending_channel_maybe_allowed(
 // TODO: remove me when the below TODOs are implemented
 #[allow(clippy::only_used_in_recursion)]
 pub(crate) fn choose_best_channel<'a, C: AbstractChannel>(
-    channels: impl Iterator<Item = &'a ChannelState<C>>,
+    channels: impl IntoIterator<Item = &'a ChannelState<C>>,
     target: &impl HasRelayIds,
 ) -> Option<&'a ChannelState<C>> {
     use std::cmp::Ordering;
     use ChannelState::*;
+
+    let channels = channels.into_iter();
 
     /// Compare two channels to determine the better channel for `target`.
     fn choose_channel<C: AbstractChannel>(
