@@ -207,6 +207,24 @@ impl CoarseTimeProvider for DynTimeProvider {
 ///  * `mopa`
 ///  * `as_any`
 fn downcast_value<I: std::any::Any, O: Sized + 'static>(input: I) -> Result<O, I> {
+    // `MaybeUninit` makes it possible to to use `downcast_mut`
+    // and, if it's successful, *move* out of the reference.
+    //
+    // It might be possible to write this function using `mme::transmute` instead.
+    // That might be simpler on the surface, but `mem:transmute` is a very big hammer,
+    // and doing it that way would make it quite easy to accidentally
+    // use the wrong type for the dynamic type check, or mess up lifetimes in I or O.
+    // (Also if we try to transmute the *value*, it might not be possible to
+    // persuade the compiler that the two layouts were necessarily the same.)
+    //
+    // The technique we use is:
+    //    * Put the input into `MaybeUninit`, giving us manual control of `I`'s ownership.
+    //    * Try to downcast `&mut I` (from the `MaybeUninit`) to `&mut O`.
+    //    * If the downcast is successful, move out of the `&mut O`;
+    //      this invalidates the `MaybeUninit` (making it uninitialised).
+    //    * If the downcast is unsuccessful, reocver the original `I`,
+    //      which hasn't in fact have invalidated.
+
     let mut input = MaybeUninit::new(input);
     // SAFETY: the MaybeUninit is initialised just above
     let mut_ref: &mut I = unsafe { input.assume_init_mut() };
