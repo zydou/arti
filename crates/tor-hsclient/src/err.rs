@@ -456,3 +456,25 @@ impl HasKind for StartupError {
         }
     }
 }
+
+/// Error that occurred while trying to solve a proof of work puzzle
+///
+/// These errors will not prevent a connection from proceeding.
+/// We may try a different proof of work scheme or none at all.
+///
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+pub(crate) enum ProofOfWorkError {
+    /// Runtime error from a specific proof of work scheme
+    #[error("Runtime error from client puzzle solver, #{0}")]
+    Runtime(#[from] tor_hscrypto::pow::RuntimeError),
+
+    /// Time-limited parameters are not valid
+    #[error("Client puzzle parameters are not valid at this time")]
+    TimeValidity(#[from] tor_checkable::TimeValidityError),
+
+    /// Unexpectedly lost contact with solver
+    #[error("Unexpectedly lost contact with solver task")]
+    #[allow(dead_code)]
+    SolverDisconnected,
+}

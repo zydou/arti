@@ -1,13 +1,15 @@
 //! Client support for the `v1` onion service proof of work scheme
 
+use crate::err::ProofOfWorkError;
 use rand::thread_rng;
 use std::cmp::{max, min};
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 use tor_async_utils::oneshot;
 use tor_async_utils::oneshot::Canceled;
 use tor_cell::relaycell::hs::pow::v1::ProofOfWorkV1;
+use tor_checkable::{timed::TimerangeBound, Timebound};
 use tor_hscrypto::pk::HsBlindId;
-use tor_hscrypto::pow::v1::{Effort, Instance, RuntimeErrorV1, SolverInput};
+use tor_hscrypto::pow::v1::{Effort, Instance, SolverInput};
 use tor_netdoc::doc::hsdesc::pow::v1::PowParamsV1;
 use tracing::debug;
 
@@ -39,10 +41,8 @@ const CLIENT_MAX_POW_EFFORT: Effort = Effort::new(10000);
 ///
 #[derive(Debug)]
 pub(super) struct HsPowClientV1 {
-    /// Puzzle instance
-    instance: Instance,
-    /// Expiration time
-    expires: SystemTime,
+    /// Time limited puzzle instance
+    instance: TimerangeBound<Instance>,
     /// Next effort to use
     effort: Effort,
 }
@@ -52,8 +52,14 @@ impl HsPowClientV1 {
     ///
     pub(super) fn new(hs_blind_id: &HsBlindId, params: &PowParamsV1) -> Self {
         Self {
-            instance: Instance::new(hs_blind_id.to_owned(), params.seed().to_owned()),
-            expires: params.expires(),
+            // Create a puzzle Instance for this Seed. It doesn't matter whether
+            // the seed is valid at this moment. The time bound is preserved, and
+            // it's checked before we use the seed at each retry.
+            instance: params
+                .seed()
+                .to_owned()
+                .dangerously_map(|seed| Instance::new(hs_blind_id.to_owned(), seed)),
+            // Enforce maximum effort right away
             effort: min(CLIENT_MAX_POW_EFFORT, params.suggested_effort()),
         }
     }
@@ -74,18 +80,17 @@ impl HsPowClientV1 {
         self.effort = min(CLIENT_MAX_POW_EFFORT, effort);
     }
 
-    /// Check whether it's worth trying to solve this scheme
+    /// Run the `v1` solver on a thread, if the effort is nonzero
     ///
-    /// Requires that the effort is currently nonzero, and the seed is unexpired.
-    ///
-    pub(super) fn is_usable(&self, at_time: SystemTime) -> bool {
-        self.effort != Effort::zero() && self.expires > at_time
-    }
-
-    /// Run the `v1` solver on a thread
-    pub(super) async fn solve(&self) -> Result<Option<ProofOfWorkV1>, RuntimeErrorV1> {
-        let mut input = SolverInput::new(self.instance.clone(), self.effort);
-
+    /// Returns None if the effort was zero.
+    /// Returns an Err() if the solver experienced a runtime error,
+    /// or if the seed is expired.
+    pub(super) async fn solve(&self) -> Result<Option<ProofOfWorkV1>, ProofOfWorkError> {
+        if self.effort == Effort::zero() {
+            return Ok(None);
+        }
+        let instance = self.instance.as_ref().check_valid_now()?.clone();
+        let mut input = SolverInput::new(instance, self.effort);
         // TODO: config option
         input.runtime(Default::default());
 
@@ -115,8 +120,8 @@ impl HsPowClientV1 {
                 solution.seed_head(),
                 solution.proof_to_bytes(),
             ))),
-            Ok(Err(e)) => Err(e),
-            Err(Canceled) => Ok(None),
+            Ok(Err(e)) => Err(ProofOfWorkError::Runtime(e.into())),
+            Err(Canceled) => Err(ProofOfWorkError::SolverDisconnected),
         };
 
         let elapsed_time = start_time.elapsed();

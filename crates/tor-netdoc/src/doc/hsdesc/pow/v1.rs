@@ -5,6 +5,7 @@ use crate::parse::tokenize::Item;
 use crate::types::misc::{Iso8601TimeNoSp, B64};
 use crate::Result;
 use std::time::SystemTime;
+use tor_checkable::timed::TimerangeBound;
 use tor_hscrypto::pow::v1::{Effort, Seed};
 
 /// The contents of a `pow-params v1` line
@@ -18,15 +19,15 @@ use tor_hscrypto::pow::v1::{Effort, Seed};
 /// their initial request.
 #[derive(Debug, Clone, derive_more::Constructor, amplify::Getters)]
 pub struct PowParamsV1 {
-    /// Current random seed, valid until the declared expiration time
+    /// Time limited [`Seed`]
     #[getter(as_ref)]
-    seed: Seed,
-    /// Current suggested effort, or zero if this is available but not recommended
+    seed: TimerangeBound<Seed>,
+    /// Last known suggested [`Effort`]
+    ///
+    /// This can be [`Effort::zero()`] if the puzzle is available but the
+    /// service doesn't recommend using it for an initial connection attempt.
     #[getter(as_copy)]
     suggested_effort: Effort,
-    /// Declared time when this seed expires
-    #[getter(as_copy)]
-    expires: SystemTime,
 }
 
 impl PowParamsV1 {
@@ -34,11 +35,10 @@ impl PowParamsV1 {
     pub(super) fn from_item(item: &Item<'_, HsInnerKwd>) -> Result<Self> {
         let seed = item.required_arg(1)?.parse::<B64>()?.into_array()?.into();
         let suggested_effort = item.required_arg(2)?.parse::<u32>()?.into();
-        let expires = item.required_arg(3)?.parse::<Iso8601TimeNoSp>()?.into();
+        let expires: SystemTime = item.required_arg(3)?.parse::<Iso8601TimeNoSp>()?.into();
         Ok(Self {
-            seed,
+            seed: TimerangeBound::new(seed, ..expires),
             suggested_effort,
-            expires,
         })
     }
 }

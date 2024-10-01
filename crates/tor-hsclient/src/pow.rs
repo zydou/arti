@@ -3,10 +3,9 @@
 #[cfg_attr(not(feature = "pow-v1"), path = "pow/v1_stub.rs")]
 mod v1;
 
-use std::time::SystemTime;
+use crate::err::ProofOfWorkError;
 use tor_cell::relaycell::hs::pow::ProofOfWork;
 use tor_hscrypto::pk::HsBlindId;
-use tor_hscrypto::pow::RuntimeError;
 use tor_netdoc::doc::hsdesc::pow::PowParams;
 use tor_netdoc::doc::hsdesc::HsDesc;
 use v1::HsPowClientV1;
@@ -51,16 +50,11 @@ impl HsPowClient {
     }
 
     /// If we have an applicable proof of work scheme, do the work and return a proof
-    pub(crate) async fn solve(&self) -> Result<Option<ProofOfWork>, RuntimeError> {
+    pub(crate) async fn solve(&self) -> Result<Option<ProofOfWork>, ProofOfWorkError> {
         if let Some(v1) = &self.v1 {
-            if v1.is_usable(SystemTime::now()) {
-                return match v1.solve().await {
-                    Ok(None) => Ok(None),
-                    Err(e) => Err(RuntimeError::V1(e)),
-                    Ok(Some(r)) => Ok(Some(ProofOfWork::V1(r))),
-                };
-            }
+            Ok(v1.solve().await?.map(ProofOfWork::V1))
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 }
