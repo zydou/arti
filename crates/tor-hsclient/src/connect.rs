@@ -46,6 +46,7 @@ use tor_proto::circuit::{
 };
 use tor_rtcompat::{Runtime, SleepProviderExt as _, TimeoutError};
 
+use crate::pow::HsPowClient;
 use crate::proto_oneshot;
 use crate::relay_info::ipt_to_circtarget;
 use crate::state::MockableConnectorData;
@@ -749,7 +750,7 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
 
         // If we are using proof-of-work DoS mitigation, this chooses an
         // algorithm and initial effort, and adjusts that effort when we retry.
-        let mut pow_client = crate::pow::HsPowClient::new(&self.hs_blind_id, desc);
+        let mut pow_client = HsPowClient::new(&self.hs_blind_id, desc);
 
         // We might consider making multiple INTRODUCE attempts to different
         // IPTs in in parallel, and somehow aggregating the errors and
