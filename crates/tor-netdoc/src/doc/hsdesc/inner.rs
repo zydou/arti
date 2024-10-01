@@ -539,6 +539,114 @@ mod test {
         }
     }
 
+    /// Ensure the same valid v1 pow document parses with the addition of unknown schemes
+    #[test]
+    fn inner_c_pow_v1_with_unknown() {
+        const TEMPLATE: &str = include_str!("../../../testdata/hsdesc-inner-pow-v1.txt");
+        let parts = TEMPLATE.rsplit_once("\npow-params").unwrap();
+        let test_data_inner = format!("{}\npow-params x-example\npow-params{}", parts.0, parts.1);
+        let desc = HsDescInner::parse(&test_data_inner).unwrap();
+        let pow_params = desc
+            .1
+            .dangerously_into_parts()
+            .0
+            .dangerously_assume_wellsigned()
+            .pow_params;
+        assert_eq!(pow_params.slice().len(), 1);
+    }
+
+    /// Incorrect reduced document with a pow-params line that has no scheme parameter
+    #[test]
+    fn inner_pow_empty() {
+        const TEST_DATA_INNER: &str = include_str!("../../../testdata/hsdesc-inner-pow-empty.txt");
+        let err = HsDescInner::parse(TEST_DATA_INNER).map(|_| ()).unwrap_err();
+        assert_eq!(err.kind, crate::NetdocErrorKind::TooFewArguments);
+    }
+
+    /// Incorrect document with duplicated pow-params lines of the same known type
+    #[test]
+    fn inner_pow_duplicate() {
+        // Modify the canned v1 pow example from c tor, by duplicating the entire pow-params line
+        const TEMPLATE: &str = include_str!("../../../testdata/hsdesc-inner-pow-v1.txt");
+        let first_split = TEMPLATE.rsplit_once("\npow-params").unwrap();
+        let second_split = first_split.1.split_once("\n").unwrap();
+        let test_data_inner = format!(
+            "{}\npow-params{}\npow-params{}\n{}",
+            first_split.0, second_split.0, second_split.0, second_split.1
+        );
+        let err = HsDescInner::parse(&test_data_inner)
+            .map(|_| ())
+            .unwrap_err();
+        assert_eq!(err.kind, crate::NetdocErrorKind::DuplicateToken);
+    }
+
+    /// Incorrect document with an unexpected object encoded after the pow v1 scheme's pow-params
+    #[test]
+    #[cfg(feature = "hs-pow-v1")]
+    fn inner_pow_v1_object() {
+        // Modify the canned v1 pow example
+        const TEMPLATE: &str = include_str!("../../../testdata/hsdesc-inner-pow-v1.txt");
+        let first_split = TEMPLATE.rsplit_once("\npow-params").unwrap();
+        let second_split = first_split.1.split_once("\n").unwrap();
+        let test_data_inner = format!(
+            "{}\npow-params{}\n-----BEGIN THING-----\n-----END THING-----\n{}",
+            first_split.0, second_split.0, second_split.1
+        );
+        let err = HsDescInner::parse(&test_data_inner)
+            .map(|_| ())
+            .unwrap_err();
+        assert_eq!(err.kind, crate::NetdocErrorKind::UnexpectedObject);
+    }
+
+    /// Document including an unrecognized pow-params line, ignored without error and not
+    /// represented in the output at all.
+    ///
+    /// Also tests that unrecognized schemes are not subject to a restriction against
+    /// duplicate appearances. (The spec allows that implementations do not need to
+    /// implement this prohibition for arbitrary scheme strings)
+    ///
+    /// TODO: We may want PowParamSet to provide a representation for arbitrary unknown PoW
+    ///       schemes, to the extent that this information may be useful for error reporting
+    ///       purposes after an onion service rendezvous fails.
+    #[test]
+    fn inner_pow_unrecognized() {
+        // Use the reduced document from inner_pow_empty() as a template
+        const TEMPLATE: &str = include_str!("../../../testdata/hsdesc-inner-pow-empty.txt");
+        let parts = TEMPLATE.rsplit_once("\npow-params").unwrap();
+        let test_data_inner = format!(
+            "{}\npow-params x-example\npow-params x-example{}",
+            parts.0, parts.1
+        );
+        let desc = HsDescInner::parse(&test_data_inner).unwrap();
+        let pow_params = desc
+            .1
+            .dangerously_into_parts()
+            .0
+            .dangerously_assume_wellsigned()
+            .pow_params;
+        assert_eq!(pow_params.slice().len(), 0);
+    }
+
+    /// Document with an unrecognized pow-params line including an object
+    #[test]
+    fn inner_pow_unrecognized_object() {
+        // Use the reduced document from inner_pow_empty() as a template
+        const TEMPLATE: &str = include_str!("../../../testdata/hsdesc-inner-pow-empty.txt");
+        let parts = TEMPLATE.rsplit_once("\npow-params").unwrap();
+        let test_data_inner = format!(
+            "{}\npow-params x-something-else with args\n-----BEGIN THING-----\n-----END THING-----{}",
+            parts.0, parts.1
+        );
+        let desc = HsDescInner::parse(&test_data_inner).unwrap();
+        let pow_params = desc
+            .1
+            .dangerously_into_parts()
+            .0
+            .dangerously_assume_wellsigned()
+            .pow_params;
+        assert_eq!(pow_params.slice().len(), 0);
+    }
+
     #[test]
     fn parse_good() -> Result<()> {
         let desc = HsDescOuter::parse(TEST_DATA)?
