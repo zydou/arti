@@ -71,7 +71,20 @@ pub struct DynTimeProvider(Impl);
 
 /// Actual contents of a `DynTimeProvider`
 ///
-/// We optimise the `PreferredRuntime` case
+/// We optimise the `PreferredRuntime` case.
+/// We *could*, instead, just use `Box<dyn DynProvider>` here.
+///
+/// The reason for doing it this way is that we expect this to be on many hot paths.
+/// Putting a message in a queue is extremely common, and we'd like to save a dyn dispatch,
+/// and reference to a further heap entry (which might be distant in the cache).
+///
+/// (Also, it's nice to avoid boxing when we crate new types that use this,
+/// including our memory-quota-tracked mpsc streams, see `tor-memquota::mq_queue`.
+///
+/// The downside is that this means:
+///  * This enum instead of a simple type
+///  * The `unsafe` inside `downcast_value`.
+///  * `match` statements in method shims
 #[derive(Clone, Educe)]
 #[educe(Debug)]
 enum Impl {
