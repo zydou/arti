@@ -25,14 +25,12 @@ default = [
     "pt-client",
     "onion-service-client",
     "vanguards",
-    "hs-pow",
 ]
 
 full = [
     "onion-service-client",
     "onion-service-service",
     "vanguards",
-    "hs-pow",
     "async-std",
     "tokio",
     "native-tls",
@@ -97,6 +95,7 @@ compression = ["arti-client/compression"]
 experimental = [
     "arti-client/experimental",
     "experimental-api",
+    "hs-pow",
     "keymgr",
     "memquota",
     "relay",
