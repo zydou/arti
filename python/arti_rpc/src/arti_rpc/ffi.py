@@ -15,6 +15,7 @@ from ctypes import (
     c_uint32,
     Structure,
 )
+from typing import TypeAlias
 
 import os
 import sys
@@ -26,25 +27,25 @@ import sys
 class ArtiRpcStr(Structure):
     """FFI type: String returned by the RPC protocol."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 class ArtiRpcConn(Structure):
     """FFI type: Connection to Arti via the RPC protocol."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 class ArtiRpcError(Structure):
     """FFI type: Error from the RPC library."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 class ArtiRpcHandle(Structure):
     """FFI type: Handle to an open RPC request."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 ArtiRpcResponseType = c_int
@@ -58,6 +59,7 @@ _ArtiRpcResponseTypeOut = POINTER(ArtiRpcResponseType)
 _ArtiRpcStatus = c_uint32
 
 
+_ArtiRpcRawSocket: type
 if os.name == "nt":
     # Alas, SOCKET on win32 is defined as UINT_PTR_T,
     # which ctypes doesn't know about.
