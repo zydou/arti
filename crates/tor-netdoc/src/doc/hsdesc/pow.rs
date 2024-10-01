@@ -55,6 +55,13 @@ impl PowParamSet {
 #[non_exhaustive]
 pub enum PowParams {
     /// Parameters for the `v1` scheme
+    ///
+    /// This scheme uses the Equi-X asymmetric puzzle, in an iterated
+    /// construction with Blake2b for effort adjustment. The Tor specification
+    /// describes this puzzle construction and references the underlying
+    /// algorithms:
+    ///
+    /// <https://spec.torproject.org/hspow-spec/v1-equix.html>
     V1(PowParamsV1),
 }
 
