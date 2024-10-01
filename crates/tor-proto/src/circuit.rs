@@ -1396,10 +1396,9 @@ mod test {
 
     /// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
     #[cfg(test)]
-    pub(crate) fn fake_mpsc<T: Debug + Send>(buffer: usize) -> (
-        StreamMpscSender<T>,
-        StreamMpscReceiver<T>,
-    ) {
+    pub(crate) fn fake_mpsc<T: Debug + Send>(
+        buffer: usize,
+    ) -> (StreamMpscSender<T>, StreamMpscReceiver<T>) {
         mpsc::channel(buffer)
     }
 
