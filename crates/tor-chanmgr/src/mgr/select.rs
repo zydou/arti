@@ -174,3 +174,419 @@ impl Choice {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use tor_linkspec::RelayIds;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
+    use tor_llcrypto::pk::rsa::RsaIdentity;
+    use tor_proto::channel::ChannelPaddingInstructionsUpdates;
+
+    #[derive(Debug)]
+    struct FakeChannel {
+        usable: bool,
+        ids: RelayIds,
+    }
+
+    impl AbstractChannel for FakeChannel {
+        fn is_usable(&self) -> bool {
+            self.usable
+        }
+        fn duration_unused(&self) -> Option<Duration> {
+            None
+        }
+        fn reparameterize(
+            &self,
+            _updates: Arc<ChannelPaddingInstructionsUpdates>,
+        ) -> tor_proto::Result<()> {
+            Ok(())
+        }
+        fn engage_padding_activities(&self) {}
+    }
+
+    impl HasRelayIds for FakeChannel {
+        fn identity(
+            &self,
+            key_type: tor_linkspec::RelayIdType,
+        ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+            self.ids.identity(key_type)
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct FakeBuildSpec {
+        ids: RelayIds,
+    }
+
+    impl FakeBuildSpec {
+        fn new(ids: RelayIds) -> Self {
+            Self { ids }
+        }
+    }
+
+    impl HasRelayIds for FakeBuildSpec {
+        fn identity(
+            &self,
+            key_type: tor_linkspec::RelayIdType,
+        ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+            self.ids.identity(key_type)
+        }
+    }
+
+    /// Assert that two `Option<&T>` point to the same data.
+    macro_rules! assert_opt_ptr_eq {
+        ($a:expr, $b:expr) => {
+            assert_opt_ptr_eq!($a, $b,);
+        };
+        ($a:expr, $b:expr, $($x:tt)*) => {
+            assert_eq!($a.map(std::ptr::from_ref), $b.map(std::ptr::from_ref), $($x)*);
+        };
+    }
+
+    /// Calls `f` with every permutation of `list`. Don't use with large lists :)
+    fn with_permutations<T>(list: &[T], mut f: impl FnMut(Vec<&T>)) {
+        use itertools::Itertools;
+        for new_list in list.iter().permutations(list.len()) {
+            f(new_list);
+        }
+    }
+
+    /// Helper to make a fake Ed identity from some bytes.
+    fn ed(a: &[u8]) -> Ed25519Identity {
+        let mut bytes = [0; 32];
+        bytes[0..a.len()].copy_from_slice(a);
+        bytes.into()
+    }
+
+    /// Helper to make a fake rsa identity from some bytes.
+    fn rsa(a: &[u8]) -> RsaIdentity {
+        let mut bytes = [0; 20];
+        bytes[0..a.len()].copy_from_slice(a);
+        bytes.into()
+    }
+
+    /// Helper to build a `RelayIds` to make tests shorter.
+    fn ids(
+        rsa: impl Into<Option<RsaIdentity>>,
+        ed: impl Into<Option<Ed25519Identity>>,
+    ) -> RelayIds {
+        let mut ids = tor_linkspec::RelayIdsBuilder::default();
+        if let Some(rsa) = rsa.into() {
+            ids.rsa_identity(rsa);
+        }
+        if let Some(ed) = ed.into() {
+            ids.ed_identity(ed);
+        }
+        ids.build().unwrap()
+    }
+
+    /// Create an open channel entry.
+    fn open_channel<C>(chan: C) -> OpenEntry<C> {
+        OpenEntry {
+            channel: Arc::new(chan),
+            max_unused_duration: Duration::from_secs(0),
+        }
+    }
+
+    /// Create a pending channel entry with the given IDs.
+    fn pending_channel(ids: RelayIds) -> PendingEntry {
+        use crate::mgr::state::UniqPendingChanId;
+        use futures::FutureExt;
+        use oneshot_fused_workaround as oneshot;
+
+        PendingEntry {
+            ids,
+            pending: oneshot::channel().1.shared(),
+            unique_id: UniqPendingChanId::new(),
+        }
+    }
+
+    #[test]
+    fn best_channel_usable_unusable() {
+        // two channels where only the first is usable
+        let channels = [
+            ChannelState::Open(open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, ed(b"A")),
+            })),
+            ChannelState::Open(open_channel(FakeChannel {
+                usable: false,
+                ids: ids(None, ed(b"A")),
+            })),
+        ];
+
+        // should return the usable channel
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        with_permutations(&channels, |x| {
+            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
+        });
+    }
+
+    #[test]
+    fn best_channel_open_pending() {
+        // a usable open channel and a pending channel
+        let channels = [
+            ChannelState::Open(open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, ed(b"A")),
+            })),
+            ChannelState::Building(pending_channel(ids(None, ed(b"A")))),
+        ];
+
+        // should return the open channel
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        with_permutations(&channels, |x| {
+            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[0]));
+        });
+
+        // an unusable open channel and a pending channel
+        let channels = [
+            ChannelState::Open(open_channel(FakeChannel {
+                usable: false,
+                ids: ids(None, ed(b"A")),
+            })),
+            ChannelState::Building(pending_channel(ids(None, ed(b"A")))),
+        ];
+
+        // should return the pending channel
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        with_permutations(&channels, |x| {
+            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
+        });
+    }
+
+    #[test]
+    fn best_channel_many() {
+        // some misc channels (as we make `choose_best_channel` more complex, hopefull we can add
+        // more channels here)
+        let channels = [
+            ChannelState::Open(open_channel(FakeChannel {
+                usable: false,
+                ids: ids(None, ed(b"A")),
+            })),
+            ChannelState::Open(open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, ed(b"A")),
+            })),
+            ChannelState::Building(pending_channel(ids(None, ed(b"A")))),
+            ChannelState::Building(pending_channel(ids(None, None))),
+        ];
+
+        // should return the open+usable channel
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+        with_permutations(&channels, |x| {
+            assert_opt_ptr_eq!(choose_best_channel(x, &target), Some(&channels[1]));
+        });
+    }
+
+    #[test]
+    fn test_open_channel_is_allowed() {
+        // target with an ed relay id
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+
+        // not allowed: unusable channel
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: false,
+                ids: ids(None, ed(b"A")),
+            }),
+            &target,
+        ));
+
+        // allowed: usable channel with correct relay id
+        assert!(open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, ed(b"A")),
+            }),
+            &target,
+        ));
+
+        // not allowed: usable channel with incorrect relay id
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, ed(b"B")),
+            }),
+            &target,
+        ));
+
+        // not allowed: usable channel with no relay ids
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, None),
+            }),
+            &target,
+        ));
+
+        // allowed: usable channel with additional relay id
+        assert!(open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(rsa(b"X"), ed(b"A")),
+            }),
+            &target,
+        ));
+
+        // not allowed: usable channel with missing ed relay id
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(rsa(b"X"), None),
+            }),
+            &target,
+        ));
+
+        // target with no relay id
+        let target = FakeBuildSpec::new(ids(None, None));
+
+        // not allowed: unusable channel
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: false,
+                ids: ids(None, None),
+            }),
+            &target,
+        ));
+
+        // allowed: usable channel with no relay ids
+        assert!(open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, None),
+            }),
+            &target,
+        ));
+
+        // target with multiple relay ids
+        let target = FakeBuildSpec::new(ids(rsa(b"X"), ed(b"A")));
+
+        // not allowed: unusable channel
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: false,
+                ids: ids(rsa(b"X"), ed(b"A")),
+            }),
+            &target,
+        ));
+
+        // allowed: usable channel with correct relay ids
+        assert!(open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(rsa(b"X"), ed(b"A")),
+            }),
+            &target,
+        ));
+
+        // not allowed: usable channel with partial relay ids
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(None, ed(b"A")),
+            }),
+            &target,
+        ));
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(rsa(b"X"), None),
+            }),
+            &target,
+        ));
+
+        // not allowed: usable channel with one incorrect relay id
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(rsa(b"X"), ed(b"B")),
+            }),
+            &target,
+        ));
+        assert!(!open_channel_is_allowed(
+            &open_channel(FakeChannel {
+                usable: true,
+                ids: ids(rsa(b"Y"), ed(b"A")),
+            }),
+            &target,
+        ));
+    }
+
+    #[test]
+    fn test_pending_channel_maybe_allowed() {
+        // target with an ed relay id
+        let target = FakeBuildSpec::new(ids(None, ed(b"A")));
+
+        // allowed: channel with same relay id
+        assert!(pending_channel_maybe_allowed(
+            &pending_channel(ids(None, ed(b"A"))),
+            &target,
+        ));
+
+        // not allowed: channel with additional relay id
+        assert!(!pending_channel_maybe_allowed(
+            &pending_channel(ids(rsa(b"X"), ed(b"A"))),
+            &target,
+        ));
+
+        // target with multiple relay ids
+        let target = FakeBuildSpec::new(ids(rsa(b"X"), ed(b"A")));
+
+        // allowed: channel with same relay ids
+        assert!(pending_channel_maybe_allowed(
+            &pending_channel(ids(rsa(b"X"), ed(b"A"))),
+            &target,
+        ));
+
+        // allowed: channel with fewer relay ids
+        assert!(pending_channel_maybe_allowed(
+            &pending_channel(ids(None, ed(b"A"))),
+            &target,
+        ));
+        assert!(pending_channel_maybe_allowed(
+            &pending_channel(ids(rsa(b"X"), None)),
+            &target,
+        ));
+
+        // not allowed: channel with no relay ids
+        assert!(!pending_channel_maybe_allowed(
+            &pending_channel(ids(None, None)),
+            &target,
+        ));
+
+        // target with no relay ids
+        let target = FakeBuildSpec::new(ids(None, None));
+
+        // not allowed: channel with a relay id
+        assert!(!pending_channel_maybe_allowed(
+            &pending_channel(ids(None, ed(b"A"))),
+            &target,
+        ));
+
+        // not allowed: channel with no relay ids
+        assert!(!pending_channel_maybe_allowed(
+            &pending_channel(ids(None, None)),
+            &target,
+        ));
+    }
+}
