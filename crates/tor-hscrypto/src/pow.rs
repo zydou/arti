@@ -6,7 +6,7 @@
 //!
 //! There is infrastructure to support new algorithms over time, but right now
 //! only a single algorithm is defined, named [`v1`] and implemented via the
-//! [`equix`] crate.
+//! `equix` crate.
 //!
 //! Specification at: <https://spec.torproject.org/hspow-spec/index.html>
 //!

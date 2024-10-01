@@ -114,14 +114,14 @@ pub struct Solution {
     ///
     /// - We can ensure the effort value here was chosen prior to successfully
     ///   solving the Equi-X puzzle just by verifying the Equi-X proof.
-    ///   Effort values are part of the [`crate::v1::challenge::Challenge`]
+    ///   Effort values are part of the [`crate::pow::v1::challenge::Challenge`]
     ///   string the puzzle is constructed around.
     ///
     /// - We can ensure, on average, that the proper proportion of Equi-X
     ///   solutions have been discarded. The proof and challenge are hashed,
     ///   and the resulting digest is effectively a random variable that must
     ///   fit within a range inversely proportional to the effort. This test
-    ///   happens in [`crate::v1::challenge::Challenge::check_effort`].
+    ///   happens in [`crate::pow::v1::challenge::Challenge::check_effort`].
     effort: Effort,
 
     /// Prefix of the [`Seed`] used in this puzzle Instance

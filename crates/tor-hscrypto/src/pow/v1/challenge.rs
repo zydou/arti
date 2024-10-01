@@ -123,7 +123,7 @@ impl Challenge {
     /// Equi-X solution, and tests the result against the effort encoded
     /// in the challenge string.
     ///
-    /// Used by both the [`crate::v1::Solver`] and the [`crate::v1::Verifier`].
+    /// Used by both the [`crate::pow::v1::Solver`] and the [`crate::pow::v1::Verifier`].
     pub(super) fn check_effort(
         &self,
         proof: &equix::SolutionByteArray,
