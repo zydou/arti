@@ -9,6 +9,8 @@ we will break them a lot before we declare them stable.
 Don't use them in production.
 """
 
+from __future__ import annotations
+
 # Design notes:
 #
 # - Every object gets a reference to the ctypes library object
@@ -21,9 +23,17 @@ Don't use them in production.
 import json
 import os
 import socket
-from ctypes import POINTER, byref, c_int
+from ctypes import POINTER, byref, c_int, _Pointer as Ptr
 from enum import Enum
 import arti_rpc.ffi
+from arti_rpc.ffi import (
+    ArtiRpcStr as FfiStr,
+    ArtiRpcError as FfiError,
+    ArtiRpcHandle as FfiHandle,
+    ArtiRpcConn as FfiConn,
+    _ArtiRpcStatus as FfiStatus,
+)
+from typing import Union,Tuple # needed for Python 3.9, which lacks some syntax.
 
 if os.name == "nt":
     def _socket_is_valid(sock):
@@ -40,7 +50,7 @@ class _RpcBase:
     def __init__(self, rpc_lib):
         self._rpc = rpc_lib
 
-    def _consume_rpc_str(self, s):
+    def _consume_rpc_str(self, s: Ptr[FfiStr]) -> str:
         """
         Consume an ffi.ArtiRpcStr and return a python string.
         """
@@ -50,7 +60,7 @@ class _RpcBase:
         finally:
             self._rpc.arti_rpc_str_free(s)
 
-    def _handle_error(self, rv, error_ptr):
+    def _handle_error(self, rv: FfiStatus, error_ptr: Ptr[FfiError]) -> None:
         """
         If `(rv,error_ptr)` indicates an error, then raise that error.
         Otherwise do nothing.
@@ -70,8 +80,10 @@ class ArtiRpcConn(_RpcBase):
     """
     An open connection to Arti.
     """
+    _conn: Union[None,Ptr[FfiConn]]
+    _session_id: str
 
-    def __init__(self, connect_string, rpc_lib=None):
+    def __init__(self, connect_string: str, rpc_lib=None):
         """
         Try to connect to Arti, using the parameters specified in
         `connect_str`.
@@ -102,7 +114,7 @@ class ArtiRpcConn(_RpcBase):
             # Note that if _conn is set, then _rpc is necessarily set.
             self._rpc.arti_rpc_conn_free(self._conn)
 
-    def make_object(self, object_id):
+    def make_object(self, object_id:str) -> ArtiRpcObject:
         """
         Return an ArtiRpcObject for a given object ID on this connection.
 
@@ -111,7 +123,7 @@ class ArtiRpcConn(_RpcBase):
         """
         return ArtiRpcObject(object_id, self)
 
-    def session(self):
+    def session(self) -> ArtiRpcObject:
         """
         Return an ArtiRpcObject for this connection's Session object.
 
@@ -121,7 +133,7 @@ class ArtiRpcConn(_RpcBase):
         """
         return self.make_object(self._session_id)
 
-    def execute(self, msg):
+    def execute(self, msg: str) -> str:
         """
         Run an RPC request on this connection.
 
@@ -139,7 +151,7 @@ class ArtiRpcConn(_RpcBase):
         self._handle_error(rv, error)
         return self._consume_rpc_str(response)
 
-    def execute_with_handle(self, msg):
+    def execute_with_handle(self, msg: str) -> ArtiRequestHandle:
         """
         Launch an RPC request on this connection, and return a ArtiRequestHandle
         to the open request.
@@ -157,13 +169,13 @@ class ArtiRpcConn(_RpcBase):
 
     def connect(
         self,
-        hostname,
-        port,
+        hostname: str,
+        port: int,
         *,
-        on_object=None,
-        isolation="",
-        want_stream_id=False,
-    ):
+        on_object:Union[ArtiRpcObject,str,None]=None,
+        isolation:str="",
+        want_stream_id:bool=False,
+    ) : #TODO returntype is a bit silly. Make it sensible before annotating it.
         """
         Open an anonymized data stream to `hostname`:`port` over Arti.
 
@@ -181,36 +193,39 @@ class ArtiRpcConn(_RpcBase):
         Caveats: TODO RPC.  Copy-paste the caveats from arti-rpc-client-core,
         once they have stabilized.
         """
-        hostname = hostname.encode("utf-8")
-        isolation = isolation.encode("utf-8")
-        if on_object is not None:
-            on_object = on_object.encode("utf-8")
+        hostname_b:bytes = hostname.encode("utf-8")
+        isolation_b:bytes = isolation.encode("utf-8")
+        if on_object is None:
+            on_object_b = None
+        elif isinstance(on_object, ArtiRpcObject):
+            on_object_b = on_object._id.encode("utf-8")
+        else:
+            on_object_b = on_object.encode("utf-8")
         if want_stream_id:
             stream_id = POINTER(arti_rpc.ffi.ArtiRpcStr)()
             stream_id_ptr = byref(stream_id)
         else:
             stream_id_ptr = None
-        sock = c_int(arti_rpc.ffi.INVALID_SOCKET)
+        sock_cint = c_int(arti_rpc.ffi.INVALID_SOCKET)
         error = POINTER(arti_rpc.ffi.ArtiRpcError)()
 
         rv = self._rpc.arti_rpc_conn_open_stream(
             self._conn,
-            hostname,
+            hostname_b,
             port,
-            on_object,
-            isolation,
-            byref(sock),
+            on_object_b,
+            isolation_b,
+            byref(sock_cint),
             stream_id_ptr,
             byref(error),
         )
         self._handle_error(rv, error)
 
-        sock = sock.value
-        assert _socket_is_valid(sock)
-        sock = socket.socket(fileno=sock)
+        assert _socket_is_valid(sock_cint.value)
+        sock = socket.socket(fileno=sock_cint.value)
 
         if want_stream_id:
-            return (sock, stream_id)
+            return (sock, stream_id) # TODO: change stream_id into an Object.
         else:
             return sock
 
@@ -219,8 +234,10 @@ class ArtiRpcError(Exception):
     """
     An error returned by the RPC library.
     """
+    _rc: FfiStatus
+    _err: Ptr[FfiError]
 
-    def __init__(self, rv, err, rpc):
+    def __init__(self, rv: FfiStatus, err: Ptr[FfiError], rpc):
         self._rv = rv
         self._err = err
         self._rpc = rpc
@@ -235,7 +252,7 @@ class ArtiRpcError(Exception):
         msg = self._rpc.arti_rpc_err_message(self._err).decode("utf-8")
         return f"{status}: {msg}"
 
-    def os_error_code(self):
+    def os_error_code(self) -> Union[int,None]:
         """
         Return the OS error code (e.g., errno) associated with this error,
         if there is one.
@@ -246,7 +263,7 @@ class ArtiRpcError(Exception):
         else:
             return code
 
-    def response(self):
+    def response(self) -> Union[int,None]:
         """
         Return the error response message associated with this error,
         if there is one.
@@ -263,13 +280,16 @@ class ArtiRpcObject(_RpcBase):
     Wrapper around an object ID and an ArtiRpcConn;
     used to launch RPC requests ergonomically.
     """
+    _id: str
+    _conn: ArtiRpcConn
 
-    def __init__(self, object_id, connection):
+    def __init__(self, object_id: str, connection: ArtiRpcConn):
         _RpcBase.__init__(self, connection._rpc)
         self._id = object_id
         self._conn = connection
 
-    def invoke(self, method, **params):
+    # TODO better annotation for params; it can be any json-encodable dict
+    def invoke(self, method: str, **params):
         """
         Invoke a given RPC method with a given set of parameters,
         wait for it to complete,
@@ -279,7 +299,8 @@ class ArtiRpcObject(_RpcBase):
         result = self._conn.execute(json.dumps(request))
         return json.loads(result)["result"]
 
-    def invoke_with_handle(self, method, **params):
+    # TODO better annotation for params; it can be any json-encodable dict.
+    def invoke_with_handle(self, method: str, **params):
         """
         Invoke a given RPC method with a given set of parameters,
         and return an RpcHandle that can be used to check its progress.
@@ -302,15 +323,16 @@ class ArtiRequestHandle(_RpcBase):
     """
     Handle to a pending RPC request.
     """
+    _handle: Ptr[FfiHandle]
 
-    def __init__(self, handle, rpc):
+    def __init__(self, handle: Ptr[FfiHandle], rpc):
         _RpcBase.__init__(self, rpc)
         self._handle = handle
 
     def __del__(self):
         self._rpc.arti_rpc_handle_free(self._handle)
 
-    def wait_raw(self):
+    def wait_raw(self) -> Tuple[ArtiResponseTypeCode, str]:
         """
         Wait for a response (update, error, or final result)
         on this handle.
@@ -328,6 +350,6 @@ class ArtiRequestHandle(_RpcBase):
             self._handle, byref(response), byref(responsetype), byref(error)
         )
         self._handle_error(rv, error)
-        response = self._consume_rpc_str(response)
-        return (ResponseTypeeCode(responsetype.value), response)
+        response_str = self._consume_rpc_str(response)
+        return (ArtiResponseTypeCode(responsetype.value), response_str)
 

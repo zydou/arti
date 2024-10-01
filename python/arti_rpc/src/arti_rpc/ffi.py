@@ -4,6 +4,8 @@ ctypes-based wrappers for the functions exposed by arti-rpc-client-core.
 These wrappers deliberately do as little as possible.
 """
 
+from __future__ import annotations
+
 import ctypes
 from ctypes import (
     POINTER,
@@ -58,7 +60,6 @@ _ArtiRpcResponseTypeOut = POINTER(ArtiRpcResponseType)
 
 _ArtiRpcStatus = c_uint32
 
-
 _ArtiRpcRawSocket: type
 if os.name == "nt":
     # Alas, SOCKET on win32 is defined as UINT_PTR_T,
@@ -78,6 +79,11 @@ else:
 
 ##########
 # Tell ctypes about the function signatures.
+
+# TODO: What's the right way to type-annotate 'lib'?
+# I think We'll want to define an alias for Union[CDLL or WinDLL].  But:
+#  - WinDLL doesn't exist except on Windows.
+#  - I don't see how to declare a platform-dependent type.
 
 def _annotate_library(lib):
     """Helper: annotate a ctypes dll `lib` with appropriate function signatures."""
