@@ -293,6 +293,18 @@ fn negotiate_socks(
     let mut n_in_buf = 0;
     let mut state = SocksClientHandshake::new(request);
     let reply = loop {
+        if buf[n_in_buf..].is_empty() {
+            return Err(E::Internal(
+                "Buffer not large enough to perform SOCKS request!?".to_owned(),
+            ));
+        }
+
+        let n = stream.read(&mut buf[n_in_buf..])?;
+        if n == 0 {
+            return Err(StreamError::SocksClosed);
+        }
+        n_in_buf += n;
+
         let action = match state.handshake(&buf[..n_in_buf]) {
             Err(_truncated) => continue, // need to read more.
             Ok(Err(e)) => return Err(E::SocksProtocol(e)),
@@ -308,18 +320,6 @@ fn negotiate_socks(
         if action.finished {
             break state.into_reply();
         }
-
-        if buf[n_in_buf..].is_empty() {
-            return Err(E::Internal(
-                "Buffer not large enough to perform SOCKS request!?".to_owned(),
-            ));
-        }
-
-        let n = stream.read(&mut buf[n_in_buf..])?;
-        if n == 0 {
-            return Err(StreamError::SocksClosed);
-        }
-        n_in_buf += n;
     };
 
     let status = reply
