@@ -41,6 +41,28 @@ pub enum Error {
     #[error("SOCKS Authentication failed")]
     AuthRejected,
 
+    /// During the protocol exchange, we needed to handle a handshake bigger than our buffer
+    #[error("SOCKS protocol message size limit {limit} exceeded")]
+    MessageTooLong {
+        /// The limit in bytes
+        limit: usize,
+    },
+
+    /// Peer closed connection during SOCKS handshake
+    #[error("peer closed connection during SOCKS handshake")]
+    UnexpectedEof,
+
+    /// The peer sent payload data too early
+    ///
+    /// The peer sent data after its part of the protocol exchange,
+    /// without waiting for our side of it to complete,
+    /// in circumstances where we consider that a protocol violation by the peer.
+    ///
+    /// Returned only by
+    /// [`Finished::into_output_forbid_pipelining`](crate::Finished::into_output_forbid_pipelining).
+    #[error("SOCKS peer inappropriately pipelined (optimistically sent) payload data")]
+    ForbiddenPipelining,
+
     /// The program (perhaps this module, perhaps Arti, perhaps the caller) is buggy
     #[error("Bug while handling SOCKS handshake")]
     Bug(#[from] tor_error::Bug),
@@ -62,6 +84,9 @@ impl HasKind for Error {
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
             E::NotImplemented(_) => EK::NotImplemented,
             E::AuthRejected => EK::LocalProtocolViolation,
+            E::UnexpectedEof => EK::LocalProtocolViolation,
+            E::ForbiddenPipelining => EK::LocalProtocolViolation,
+            E::MessageTooLong { .. } => EK::Internal, // We should select a buffer big enough!
             E::AlreadyFinished(e) => e.kind(),
             E::Bug(e) => e.kind(),
         }

@@ -44,7 +44,7 @@ pub enum Error {
     ///
     /// It might be an inner data structure, or the outer message being parsed.
     #[deprecated(since = "0.22.0", note = "Use Reader::incomplete_error instead.")]
-    #[error("")]
+    #[error("something was truncated (maybe inner structure, maybe outer message)")]
     Truncated,
     /// Tried to read something, but we didn't find enough bytes.
     ///

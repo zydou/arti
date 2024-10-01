@@ -1,22 +1,30 @@
 //! Implementation for a SOCKS client handshake.
 
-use super::{Action, NO_AUTHENTICATION, USERNAME_PASSWORD};
+use super::framework::{HandshakeImpl, ImplNextStep};
+use super::{NO_AUTHENTICATION, USERNAME_PASSWORD};
 use crate::msg::{SocksAddr, SocksAuth, SocksReply, SocksRequest, SocksStatus, SocksVersion};
-use crate::{Error, Result, TResult, Truncated};
+use crate::{Error, Result};
 
 use tor_bytes::{Reader, Writer};
 use tor_error::{internal, into_internal};
 
+use derive_deftly::Deftly;
+
 use std::net::{IpAddr, Ipv4Addr};
 
 /// The client (initiator) side of a SOCKS handshake.
-#[derive(Clone, Debug)]
+///
+/// Create you have one of these with [`SocksClientHandshake::new()`],
+/// and then use [`Handshake::step`](crate::Handshake::step) to drive it.
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(Handshake)]
 pub struct SocksClientHandshake {
     /// The request that we are currently trying to negotiate with the proxy.
     request: SocksRequest,
     /// Our current state in negotiating that request.
     state: State,
     /// If present, the return message that we received from the proxy.
+    #[deftly(handshake(output))]
     reply: Option<SocksReply>,
 }
 
@@ -43,6 +51,28 @@ enum State {
     Failed,
 }
 
+impl HandshakeImpl for SocksClientHandshake {
+    fn handshake_impl(&mut self, input: &mut Reader<'_>) -> Result<ImplNextStep> {
+        use State::*;
+        match self.state {
+            Initial => match self.request.version() {
+                SocksVersion::V4 => self.send_v4(),
+                SocksVersion::V5 => self.send_v5_initial(),
+            },
+            Socks4Wait => self.handle_v4(input),
+            Socks5AuthWait => self.handle_v5_auth(input),
+            Socks5UsernameWait => self.handle_v5_username_ack(input),
+            Socks5Wait => self.handle_v5_final(input),
+            Done => Err(Error::AlreadyFinished(internal!(
+                "called handshake() after handshaking succeeded"
+            ))),
+            Failed => Err(Error::AlreadyFinished(internal!(
+                "called handshake() after handshaking failed"
+            ))),
+        }
+    }
+}
+
 impl SocksClientHandshake {
     /// Construct a new [`SocksClientHandshake`] that will attempt to negotiate
     /// with a peer using `request`.
@@ -60,51 +90,8 @@ impl SocksClientHandshake {
         self.reply
     }
 
-    /// Try to advance a SocksProxyHandshake, given some proxy input in
-    /// `input`.
-    ///
-    /// If there isn't enough input, gives a [`Truncated`].
-    /// In this case, *the caller must retain the input*, and pass it to a later
-    /// invocation of `handshake`.  Input should only be regarded as consumed when
-    /// the `Action::drain` field is nonzero.
-    ///
-    /// Other errors (besides `Truncated`) indicate a failure.
-    ///
-    /// On success, return an Action describing what to tell the proxy,
-    /// and how much of its input to consume.
-    pub fn handshake(&mut self, input: &[u8]) -> TResult<Action> {
-        use State::*;
-        let rv = match self.state {
-            Initial => match self.request.version() {
-                SocksVersion::V4 => self.send_v4(),
-                SocksVersion::V5 => self.send_v5_initial(),
-            },
-            Socks4Wait => self.handle_v4(input),
-            Socks5AuthWait => self.handle_v5_auth(input),
-            Socks5UsernameWait => self.handle_v5_username_ack(input),
-            Socks5Wait => self.handle_v5_final(input),
-            Done => Err(Error::AlreadyFinished(internal!(
-                "called handshake() after handshaking succeeded"
-            ))),
-            Failed => Err(Error::AlreadyFinished(internal!(
-                "called handshake() after handshaking failed"
-            ))),
-        };
-        match rv {
-            #[allow(deprecated)]
-            Err(Error::Decode(
-                tor_bytes::Error::Incomplete { .. } | tor_bytes::Error::Truncated,
-            )) => Err(Truncated::new()),
-            Err(e) => {
-                self.state = State::Failed;
-                Ok(Err(e))
-            }
-            Ok(a) => Ok(Ok(a)),
-        }
-    }
-
     /// Send the client side of the socks 4 handshake.
-    fn send_v4(&mut self) -> Result<Action> {
+    fn send_v4(&mut self) -> Result<ImplNextStep> {
         let mut msg = Vec::new();
 
         msg.write_u8(4);
@@ -140,16 +127,11 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks4Wait;
-        Ok(Action {
-            drain: 0,
-            reply: msg,
-            finished: false,
-        })
+        Ok(ImplNextStep::Reply { reply: msg })
     }
 
     /// Handle a SOCKSv4 response.
-    fn handle_v4(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_possibly_incomplete_slice(input);
+    fn handle_v4(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 0 {
             return Err(Error::Syntax);
@@ -165,15 +147,11 @@ impl SocksClientHandshake {
             port,
         ));
 
-        Ok(Action {
-            drain: r.consumed(),
-            reply: Vec::new(),
-            finished: true,
-        })
+        Ok(ImplNextStep::Finished)
     }
 
     /// Send our initial socks5 message (which negotiates our authentication methods).
-    fn send_v5_initial(&mut self) -> Result<Action> {
+    fn send_v5_initial(&mut self) -> Result<ImplNextStep> {
         let mut msg = Vec::new();
         msg.write_u8(5);
         match self.request.auth() {
@@ -190,17 +168,12 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks5AuthWait;
-        Ok(Action {
-            drain: 0,
-            reply: msg,
-            finished: false,
-        })
+        Ok(ImplNextStep::Reply { reply: msg })
     }
 
     /// Try to handle a socks5 reply telling us what authentication method to
     /// use, and reply as appropriate.
-    fn handle_v5_auth(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_possibly_incomplete_slice(input);
+    fn handle_v5_auth(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 5 {
             return Err(Error::Syntax);
@@ -217,11 +190,7 @@ impl SocksClientHandshake {
         };
 
         self.state = next_state;
-        Ok(Action {
-            drain: r.consumed(),
-            reply: msg,
-            finished: false,
-        })
+        Ok(ImplNextStep::Reply { reply: msg })
     }
 
     /// Return a message to perform username/password authentication.
@@ -247,8 +216,7 @@ impl SocksClientHandshake {
 
     /// Try to handle a reply from the socks5 proxy to acknowledge our
     /// username/password authentication, and reply as appropriate.
-    fn handle_v5_username_ack(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_possibly_incomplete_slice(input);
+    fn handle_v5_username_ack(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 1 {
             return Err(Error::Syntax);
@@ -259,10 +227,8 @@ impl SocksClientHandshake {
         }
 
         self.state = State::Socks5Wait;
-        Ok(Action {
-            drain: r.consumed(),
+        Ok(ImplNextStep::Reply {
             reply: self.generate_v5_command()?,
-            finished: false,
         })
     }
 
@@ -284,8 +250,7 @@ impl SocksClientHandshake {
     }
 
     /// Handle a final socks5 reply.
-    fn handle_v5_final(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_possibly_incomplete_slice(input);
+    fn handle_v5_final(&mut self, r: &mut Reader<'_>) -> Result<ImplNextStep> {
         let ver = r.take_u8()?;
         if ver != 5 {
             return Err(Error::Syntax);
@@ -297,11 +262,7 @@ impl SocksClientHandshake {
 
         self.state = State::Done;
         self.reply = Some(SocksReply::new(status, addr, port));
-        Ok(Action {
-            drain: r.consumed(),
-            reply: Vec::new(),
-            finished: true,
-        })
+        Ok(ImplNextStep::Finished)
     }
 }
 
@@ -322,7 +283,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use crate::msg::SocksCmd;
+    use crate::{msg::SocksCmd, Handshake as _};
     use hex_literal::hex;
 
     #[test]
@@ -336,14 +297,17 @@ mod test {
         )
         .unwrap();
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(action.reply, hex!("04 01 01BB C000020F 00"));
         assert_eq!(action.finished, false);
 
-        let action = hs.handshake(&hex!("00 5A 01BB C000020F")).unwrap().unwrap();
+        let action = hs
+            .handshake_for_tests(&hex!("00 5A 01BB C000020F"))
+            .unwrap()
+            .unwrap();
         assert_eq!(action.drain, 8);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();
@@ -363,7 +327,7 @@ mod test {
         )
         .unwrap();
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(
             action.reply,
@@ -371,9 +335,12 @@ mod test {
         );
         assert_eq!(action.finished, false);
 
-        let action = hs.handshake(&hex!("00 5A 01BB C0000215")).unwrap().unwrap();
+        let action = hs
+            .handshake_for_tests(&hex!("00 5A 01BB C0000215"))
+            .unwrap()
+            .unwrap();
         assert_eq!(action.drain, 8);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();
@@ -395,13 +362,13 @@ mod test {
 
         // client begins by proposing authentication types.
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(action.reply, hex!("05 01 00"));
         assert_eq!(action.finished, false);
 
         // proxy chooses noauth; client replies with its handshake.
-        let action = hs.handshake(&hex!("0500")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("0500")).unwrap().unwrap();
         assert_eq!(action.drain, 2);
         assert_eq!(
             action.reply,
@@ -412,11 +379,11 @@ mod test {
         // Proxy says "okay, you're connected."
         // Client is done.
         let action = hs
-            .handshake(&hex!("05 00 00 01 C0000215 01BB"))
+            .handshake_for_tests(&hex!("05 00 00 01 C0000215 01BB"))
             .unwrap()
             .unwrap();
         assert_eq!(action.drain, 10);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();
@@ -438,20 +405,20 @@ mod test {
 
         // client begins by proposing authentication types.
         let mut hs = SocksClientHandshake::new(r);
-        let action = hs.handshake(&[]).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&[]).unwrap().unwrap();
         assert_eq!(action.drain, 0);
         assert_eq!(action.reply, hex!("05 02 0200"));
         assert_eq!(action.finished, false);
 
         // proxy chooses username/password; client replies with "hello"/"world"
-        let action = hs.handshake(&hex!("0502")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("0502")).unwrap().unwrap();
         assert_eq!(action.drain, 2);
         assert_eq!(action.reply, hex!("01 05 68656c6c6f 05 776f726c64"));
         assert_eq!(action.finished, false);
 
         // Proxy says "yeah, that's good authentication, go ahead."
         // Client says what it actually wants.
-        let action = hs.handshake(&hex!("0100")).unwrap().unwrap();
+        let action = hs.handshake_for_tests(&hex!("0100")).unwrap().unwrap();
         assert_eq!(action.drain, 2);
         assert_eq!(
             action.reply,
@@ -462,11 +429,11 @@ mod test {
         // Proxy says "okay, you're connected."
         // Client is done.
         let action = hs
-            .handshake(&hex!("05 00 00 01 C0000215 01BB"))
+            .handshake_for_tests(&hex!("05 00 00 01 C0000215 01BB"))
             .unwrap()
             .unwrap();
         assert_eq!(action.drain, 10);
-        assert_eq!(action.reply, &[]);
+        assert!(action.reply.is_empty());
         assert_eq!(action.finished, true);
 
         let reply = hs.into_reply().unwrap();

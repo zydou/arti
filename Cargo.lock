@@ -372,6 +372,7 @@ dependencies = [
  "socketpair",
  "thiserror",
  "tor-basic-utils",
+ "tor-error",
  "tor-socksproto",
  "void",
 ]
@@ -6168,9 +6169,14 @@ dependencies = [
 name = "tor-socksproto"
 version = "0.23.0"
 dependencies = [
+ "amplify",
+ "anyhow",
  "arbitrary",
  "caret",
+ "derive-deftly",
+ "educe",
  "hex-literal",
+ "safelog",
  "subtle",
  "thiserror",
  "tor-bytes",

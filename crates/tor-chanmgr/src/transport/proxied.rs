@@ -20,12 +20,11 @@ use std::{
 };
 
 use futures::{AsyncReadExt, AsyncWriteExt};
-use tor_error::internal;
 use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::NetStreamProvider;
 use tor_socksproto::{
-    SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
-    SOCKS_BUF_LEN,
+    Handshake as _, SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest,
+    SocksStatus, SocksVersion,
 };
 use tracing::trace;
 
@@ -113,67 +112,27 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
     // TODO: This code is largely copied from the socks server wrapper code in
     // arti::proxy. Perhaps we should condense them into a single thing, if we
     // don't just revise the SOCKS code completely.
-    let mut inbuf = [0_u8; SOCKS_BUF_LEN];
-    let mut n_read = 0;
+    let mut buf = tor_socksproto::Buffer::new();
     let reply = loop {
-        // try to advance the handshake to the next state.
-        let action = match handshake.handshake(&inbuf[..n_read]) {
-            Err(_) => {
-                // Message truncated.
-                if n_read == inbuf.len() {
-                    // We won't read any more:
-                    return Err(ProxyError::Bug(internal!(
-                        "SOCKS parser wanted excessively many bytes! {:?} {:?}",
-                        handshake,
-                        inbuf
-                    )));
-                }
-                // read more and try again.
-                continue;
+        use tor_socksproto::NextStep as NS;
+        match handshake.step(&mut buf).map_err(ProxyError::SocksProto)? {
+            NS::Send(send) => {
+                stream.write_all(&send).await?;
+                stream.flush().await?;
             }
-            Ok(Err(e)) => return Err(ProxyError::SocksProto(e)), // real error.
-            Ok(Ok(action)) => action,
-        };
-
-        // reply if needed.
-        if action.drain > 0 {
-            inbuf.copy_within(action.drain..n_read, 0);
-            n_read -= action.drain;
+            NS::Finished(fin) => {
+                break fin
+                    .into_output_forbid_pipelining()
+                    .map_err(ProxyError::SocksProto)?
+            }
+            NS::Recv(mut recv) => {
+                let n = stream.read(recv.buf()).await?;
+                recv.note_received(n).map_err(ProxyError::SocksProto)?;
+            }
         }
-        if !action.reply.is_empty() {
-            stream.write_all(&action.reply[..]).await?;
-            stream.flush().await?;
-        }
-        if action.finished {
-            break handshake.into_reply();
-        }
-
-        if n_read == inbuf.len() {
-            // We would like to read more of this SOCKS request, but there is no
-            // more space in the buffer.  If we try to keep reading into an
-            // empty buffer, we'll just read nothing, try to parse it, and learn
-            // that we still wish we had more to read.
-            //
-            // In theory we might want to resize the buffer.  Right now, though,
-            // we just reject handshakes that don't fit into 1k.
-            return Err(ProxyError::SocksProto(
-                tor_socksproto::Error::NotImplemented(
-                    "Socks handshake did not fit in 1KiB buffer".into(),
-                ),
-            ));
-        }
-
-        // Read some more stuff.
-        let n = stream.read(&mut inbuf[n_read..]).await?;
-        if n == 0 {
-            return Err(ProxyError::SocksClosed);
-        }
-        n_read += n;
     };
 
-    let status = reply
-        .ok_or_else(|| internal!("SOCKS protocol finished, but gave no status!"))?
-        .status();
+    let status = reply.status();
     trace!(
         "SOCKS handshake with {} succeeded, with status {:?}",
         proxy,
@@ -182,10 +141,6 @@ pub(crate) async fn connect_via_proxy<R: NetStreamProvider + Send + Sync>(
 
     if status != SocksStatus::SUCCEEDED {
         return Err(ProxyError::SocksError(status));
-    }
-
-    if n_read != 0 {
-        return Err(ProxyError::UnexpectedData);
     }
 
     Ok(stream)
@@ -218,10 +173,6 @@ pub enum ProxyError {
     /// The peer refused our request, or spoke SOCKS incorrectly.
     #[error("Protocol error while communicating with SOCKS proxy")]
     SocksProto(#[source] tor_socksproto::Error),
-
-    /// Unexpected close from SOCKS proxy before handshake was completed.
-    #[error("Unexpected close while communicating with SOCKS proxy")]
-    SocksClosed,
 
     /// We encountered an internal programming error.
     #[error("Internal error")]
@@ -260,7 +211,6 @@ impl tor_error::HasKind for ProxyError {
             E::InvalidSocksAddr(_) | E::InvalidSocksRequest(_) => EK::BadApiUsage,
             E::UnrecognizedAddr => EK::NotImplemented,
             E::SocksProto(_) => EK::LocalProtocolViolation,
-            E::SocksClosed => EK::LocalNetworkError, // Could also be a protocol violation.
             E::Bug(e) => e.kind(),
             E::UnexpectedData => EK::NotImplemented,
             E::SocksError(_) => EK::LocalProtocolViolation,
@@ -279,7 +229,6 @@ impl tor_error::HasRetryTime for ProxyError {
             E::UnrecognizedAddr => RT::Never,
             E::InvalidSocksRequest(_) => RT::Never,
             E::SocksProto(_) => RT::AfterWaiting,
-            E::SocksClosed => RT::AfterWaiting,
             E::Bug(_) => RT::Never,
             E::UnexpectedData => RT::Never,
             E::SocksError(e) => match *e {

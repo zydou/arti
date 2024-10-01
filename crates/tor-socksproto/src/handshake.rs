@@ -1,5 +1,9 @@
 //! Implement the socks handshakes.
 
+#[cfg(any(feature = "proxy-handshake", feature = "client-handshake"))]
+#[macro_use]
+pub(crate) mod framework;
+
 #[cfg(feature = "client-handshake")]
 pub(crate) mod client;
 #[cfg(feature = "proxy-handshake")]
@@ -100,16 +104,17 @@ mod test_roundtrip {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list
 
-    use crate::{
-        SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus, SocksVersion,
-    };
-
-    use super::client::SocksClientHandshake;
-    use super::proxy::SocksProxyHandshake;
+    use crate::*;
+    use std::collections::VecDeque;
 
     /// Given a socks request, run a complete (successful round) trip, reply with the
     /// the given status code, and return both sides' results.
-    fn run_handshake(request: SocksRequest, status: SocksStatus) -> (SocksRequest, SocksReply) {
+    ///
+    /// Use the (deprecated) `Handshake::handshake` and `Action` API
+    fn run_handshake_old_api(
+        request: SocksRequest,
+        status: SocksStatus,
+    ) -> (SocksRequest, SocksReply) {
         let mut client_hs = SocksClientHandshake::new(request);
         let mut proxy_hs = SocksProxyHandshake::new();
         let mut received_request = None;
@@ -119,11 +124,14 @@ mod test_roundtrip {
         for _ in 0..100 {
             // Make sure that the client says "truncated" for all prefixes of the proxy's message.
             for truncate in 0..last_proxy_msg.len() {
-                let r = client_hs.handshake(&last_proxy_msg[..truncate]);
+                let r = client_hs.handshake_for_tests(&last_proxy_msg[..truncate]);
                 assert!(r.is_err());
             }
             // Get the client's actual message.
-            let client_action = client_hs.handshake(&last_proxy_msg).unwrap().unwrap();
+            let client_action = client_hs
+                .handshake_for_tests(&last_proxy_msg)
+                .unwrap()
+                .unwrap();
             assert_eq!(client_action.drain, last_proxy_msg.len());
             if client_action.finished {
                 let received_reply = client_hs.into_reply();
@@ -133,11 +141,11 @@ mod test_roundtrip {
 
             // Make sure that the proxy says "truncated" for all prefixes of the client's message.
             for truncate in 0..client_msg.len() {
-                let r = proxy_hs.handshake(&client_msg[..truncate]);
+                let r = proxy_hs.handshake_for_tests(&client_msg[..truncate]);
                 assert!(r.is_err());
             }
             // Get the proxy's actual reply (if any).
-            let proxy_action = proxy_hs.handshake(&client_msg).unwrap().unwrap();
+            let proxy_action = proxy_hs.handshake_for_tests(&client_msg).unwrap().unwrap();
             assert_eq!(proxy_action.drain, client_msg.len());
             last_proxy_msg = if proxy_action.finished {
                 // The proxy is done: have it reply with a status code.
@@ -154,11 +162,123 @@ mod test_roundtrip {
         panic!("Handshake ran for too many steps")
     }
 
+    /// Given a socks request, run a complete (successful round) trip, reply with the
+    /// the given status code, and return both sides' results.
+    ///
+    /// Use the (new) `Handshake::step` API
+    fn run_handshake_new_api<P: ReadPrecision, const MAX_RECV: usize>(
+        request: SocksRequest,
+        status: SocksStatus,
+    ) -> (SocksRequest, SocksReply) {
+        struct State<P: ReadPrecision, H: Handshake> {
+            hs: H,
+            buf: Buffer<P>,
+            fin: Option<H::Output>,
+        }
+
+        struct DidSomething;
+
+        let mut client = State::<P, _>::new(SocksClientHandshake::new(request));
+        let mut server = State::<P, _>::new(SocksProxyHandshake::new());
+
+        let mut c2s = VecDeque::new();
+        let mut s2c = VecDeque::new();
+
+        let mut status = Some(status);
+
+        impl<P: ReadPrecision, H: Handshake> State<P, H> {
+            fn new(hs: H) -> Self {
+                State {
+                    hs,
+                    buf: Default::default(),
+                    fin: None,
+                }
+            }
+
+            fn progress_1(
+                &mut self,
+                max_recv: usize,
+                rx: &mut VecDeque<u8>,
+                tx: &mut VecDeque<u8>,
+            ) -> Option<DidSomething> {
+                use NextStep as NS;
+
+                if self.fin.is_some() {
+                    return None;
+                }
+
+                match self.hs.step(&mut self.buf).unwrap() {
+                    NS::Recv(mut recv) => {
+                        let n = [recv.buf().len(), rx.len(), max_recv]
+                            .into_iter()
+                            .min()
+                            .unwrap();
+                        for p in &mut recv.buf()[0..n] {
+                            *p = rx.pop_front().unwrap();
+                        }
+                        recv.note_received(n).unwrap_or_else(|e| match e {
+                            // This is actually expected; our test case produces 0-byte reads
+                            // sometimes.
+                            Error::UnexpectedEof => {}
+                            other => panic!("{:?}", other),
+                        });
+                        if n != 0 {
+                            Some(DidSomething)
+                        } else {
+                            None
+                        }
+                    }
+                    NS::Send(send) => {
+                        for c in send {
+                            tx.push_back(c);
+                        }
+                        Some(DidSomething)
+                    }
+                    NS::Finished(fin) => {
+                        self.fin = Some(fin.into_output_forbid_pipelining().unwrap());
+                        Some(DidSomething)
+                    }
+                }
+            }
+        }
+
+        loop {
+            let ds = [
+                client.progress_1(MAX_RECV, &mut s2c, &mut c2s),
+                server.progress_1(MAX_RECV, &mut c2s, &mut s2c),
+            ]
+            .into_iter()
+            .flatten()
+            .next();
+
+            if let Some(DidSomething) = ds {
+                continue;
+            }
+
+            let Some(status) = status.take() else { break };
+
+            let reply = server.fin.as_ref().unwrap().reply(status, None).unwrap();
+            for c in reply {
+                s2c.push_back(c);
+            }
+        }
+
+        (server.fin.unwrap(), client.fin.unwrap())
+    }
+
     // Invoke run_handshake and assert that the output matches the input.
     fn test_handshake(request: &SocksRequest, status: SocksStatus) {
-        let (request_out, status_out) = run_handshake(request.clone(), status);
-        assert_eq!(&request_out, request);
-        assert_eq!(status_out.status(), status);
+        for run_handshake in [
+            run_handshake_old_api,
+            run_handshake_new_api::<(), 1>,
+            run_handshake_new_api::<(), 100>,
+            run_handshake_new_api::<PreciseReads, 1>,
+            run_handshake_new_api::<PreciseReads, 100>,
+        ] {
+            let (request_out, status_out) = run_handshake(request.clone(), status);
+            assert_eq!(&request_out, request);
+            assert_eq!(status_out.status(), status);
+        }
     }
 
     #[test]
