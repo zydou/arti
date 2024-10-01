@@ -262,3 +262,28 @@ fn check_downcast_value() {
     assert_eq!(chk(format!("hi")).unwrap(), format!("hi"));
     assert_eq!(chk("hi").unwrap_err().to_string(), "hi");
 }
+
+#[test]
+#[allow(clippy::unwrap_used)]
+fn check_downcast_dropcount() {
+    use std::fmt::Debug;
+    use std::hint::black_box;
+
+    #[derive(Debug)]
+    struct DropCounter(u32);
+
+    fn chk(x: impl Debug + 'static) -> Result<DropCounter, impl Debug + 'static> {
+        black_box(downcast_value(black_box(x)))
+    }
+
+    impl Drop for DropCounter {
+	fn drop(&mut self) {
+	    let _: u32 = self.0.checked_sub(1).unwrap();
+	}
+    }
+
+    let dc = DropCounter(0);
+    let mut dc: DropCounter = chk(dc).unwrap();
+    assert_eq!(dc.0, 0);
+    dc.0 = 1;
+}
