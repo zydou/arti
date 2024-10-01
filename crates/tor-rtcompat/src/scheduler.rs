@@ -260,6 +260,7 @@ impl<R: SleepProvider> Stream for TaskSchedule<R> {
     test,
     any(feature = "native-tls", feature = "rustls"),
     any(feature = "tokio", feature = "async-std"),
+    not(miri), // Several of these use real SystemTime
 ))]
 mod test {
     use crate::scheduler::TaskSchedule;

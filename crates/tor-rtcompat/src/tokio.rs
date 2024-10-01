@@ -234,7 +234,10 @@ fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
     tokio_crate::runtime::Handle::try_current().map_err(|e| IoError::new(ErrorKind::Other, e))
 }
 
-#[cfg(test)]
+#[cfg(all(
+    test,
+    not(miri), // tokio makes some syscalls that don't work with miri
+))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

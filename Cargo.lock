@@ -5830,6 +5830,7 @@ version = "0.23.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
+ "dyn-clone",
  "educe",
  "futures",
  "itertools 0.13.0",
@@ -6115,6 +6116,7 @@ dependencies = [
  "async_executors",
  "coarsetime",
  "derive_more",
+ "dyn-clone",
  "educe",
  "futures",
  "futures-rustls",

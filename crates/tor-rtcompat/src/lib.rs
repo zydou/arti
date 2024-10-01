@@ -53,6 +53,7 @@ pub mod task;
 
 mod coarse_time;
 mod compound;
+mod dyn_time;
 pub mod general;
 mod opaque;
 pub mod scheduler;
@@ -69,6 +70,7 @@ pub use traits::{
 };
 
 pub use coarse_time::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};
+pub use dyn_time::DynTimeProvider;
 pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 
 /// Traits used to describe TLS connections and objects that can
@@ -354,7 +356,8 @@ macro_rules! test_with_one_runtime {
 #[cfg(all(
     test,
     any(feature = "native-tls", feature = "rustls"),
-    any(feature = "async-std", feature = "tokio")
+    any(feature = "async-std", feature = "tokio"),
+    not(miri), // Many of these tests use real sockets or SystemTime
 ))]
 mod test {
     #![allow(clippy::unwrap_used, clippy::unnecessary_wraps)]

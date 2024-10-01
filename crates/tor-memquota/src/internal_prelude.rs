@@ -38,6 +38,7 @@ pub(crate) use futures::{
 pub(crate) use {
     derive_deftly::{define_derive_deftly, Deftly},
     derive_more::{Constructor, Deref, DerefMut},
+    dyn_clone::DynClone,
     educe::Educe,
     pin_project::pin_project,
     serde::{Deserialize, Serialize},
@@ -54,7 +55,7 @@ pub(crate) use {
     tor_config::{ConfigBuildError, ReconfigureError},
     tor_error::{error_report, internal, into_internal, Bug, ErrorKind, HasKind},
     tor_log_ratelim::log_ratelim,
-    tor_rtcompat::{CoarseInstant, CoarseTimeProvider},
+    tor_rtcompat::{CoarseInstant, CoarseTimeProvider, DynTimeProvider},
 };
 
 pub(crate) use crate::{
