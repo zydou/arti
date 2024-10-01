@@ -1,9 +1,9 @@
 //! Implement parsing for the `pow-params v1` scheme
 
 use crate::doc::hsdesc::inner::HsInnerKwd;
-use crate::parse::tokenize::Item;
+use crate::parse::{keyword::Keyword, tokenize::Item};
 use crate::types::misc::{Iso8601TimeNoSp, B64};
-use crate::Result;
+use crate::{NetdocErrorKind, Result};
 use std::time::SystemTime;
 use tor_checkable::timed::TimerangeBound;
 use tor_hscrypto::pow::v1::{Effort, Seed};
@@ -33,6 +33,11 @@ pub struct PowParamsV1 {
 impl PowParamsV1 {
     /// Parse a single `pow-params v1` line from an `Item`
     pub(super) fn from_item(item: &Item<'_, HsInnerKwd>) -> Result<Self> {
+        if item.has_obj() {
+            return Err(NetdocErrorKind::UnexpectedObject
+                .with_msg(item.kwd().to_str())
+                .at_pos(item.pos()));
+        }
         let seed = item.required_arg(1)?.parse::<B64>()?.into_array()?.into();
         let suggested_effort = item.required_arg(2)?.parse::<u32>()?.into();
         let expires: SystemTime = item.required_arg(3)?.parse::<Iso8601TimeNoSp>()?.into();

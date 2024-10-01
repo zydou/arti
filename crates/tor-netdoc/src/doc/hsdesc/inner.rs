@@ -70,7 +70,7 @@ static HS_INNER_HEADER_RULES: Lazy<SectionRules<HsInnerKwd>> = Lazy::new(|| {
     rules.add(CREATE2_FORMATS.rule().required().args(1..));
     rules.add(INTRO_AUTH_REQUIRED.rule().args(1..));
     rules.add(SINGLE_ONION_SERVICE.rule());
-    rules.add(POW_PARAMS.rule().args(1..));
+    rules.add(POW_PARAMS.rule().args(1..).may_repeat().obj_optional());
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
 
     rules.build()
