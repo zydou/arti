@@ -96,7 +96,7 @@ use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 use crate::internal_prelude::*;
 
 use std::task::{Context, Poll, Poll::*};
-use tor_async_utils::{ErasedSinkTrySendError, SinkTrySend};
+use tor_async_utils::{ErasedSinkTrySendError, SinkCloseChannel, SinkTrySend};
 
 //---------- Sender ----------
 
@@ -463,6 +463,17 @@ where
             })
             .map_err(|(mqe, unsent)| (ESTSE::Other(Arc::new(mqe)), unsent.t))?
             .map_err(|(tse, unsent)| (ESTSE::from(tse), unsent.t))
+    }
+}
+
+impl<T, C> SinkCloseChannel<T> for Sender<T, C>
+where
+    T: HasMemoryCost + Debug + Send, //Debug + 'static,
+    C: ChannelSpec,
+    C::Sender<Entry<T>>: SinkCloseChannel<Entry<T>>,
+{
+    fn close_channel(self: Pin<&mut Self>) {
+        Pin::new(&mut self.get_mut().tx).close_channel();
     }
 }
 
