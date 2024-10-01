@@ -387,6 +387,7 @@ pub(crate) mod sealed {
                     PtError::Internal(internal!("Created child process without stdout pipe"))
                 })?,
             );
+            // TODO RELAY #1648 We don't use a tor_memquota::mq_queue here yet
             let (mut tx, rx) = mpsc::channel(PT_STDIO_BUFFER);
             let ident = identifier.clone();
             #[allow(clippy::cognitive_complexity)]
