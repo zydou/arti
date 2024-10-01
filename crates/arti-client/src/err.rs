@@ -122,7 +122,7 @@ pub_if_error_detail! {
 enum ErrorDetail {
     /// Error setting up the memory quota tracker
     #[error("Error setting up the memory quota tracker")]
-    MemQuotaSetup(#[from] tor_memquota::StartupError),
+    MemquotaSetup(#[from] tor_memquota::StartupError),
 
     /// Error setting up the channel manager
     // TODO: should "chanmgr setup error" be its own type in tor-chanmgr
@@ -391,7 +391,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::ObtainHsCircuit { cause, .. } => cause.kind(),
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
-            E::MemQuotaSetup(e) => e.kind(),
+            E::MemquotaSetup(e) => e.kind(),
             E::GuardMgrSetup(e) => e.kind(),
             #[cfg(all(
                 feature = "vanguards",

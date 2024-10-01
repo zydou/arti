@@ -15,6 +15,10 @@
 //! If the underlying channel's sender is `Clone`,
 //! for example with an MPSC queue, the returned sender is also `Clone`.
 //!
+//! Note that the [`Sender`] and [`Receiver`] only hold weak references to the `Account`.
+//! Ie, the queue is not the accountholder.
+//! The caller should keep a separate copy of the account.
+//!
 //! # Example
 //!
 //! ```
@@ -451,6 +455,18 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> Stream for Recei
             }
         }
         ret.map(|r| r.map(|e| e.t))
+    }
+}
+
+impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> FusedStream for Receiver<T, C>
+where
+    C::Receiver<Entry<T>>: FusedStream,
+{
+    fn is_terminated(&self) -> bool {
+        match &*self.inner.lock() {
+            Ok(y) => y.rx.is_terminated(),
+            Err(CollapsedDueToReclaim) => true,
+        }
     }
 }
 

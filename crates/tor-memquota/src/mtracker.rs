@@ -634,6 +634,10 @@ impl MemoryQuotaTracker {
     /// Make a new `Account`
     ///
     /// To actually record memory usage, a Participant must be added.
+    ///
+    /// At most call sites, take an `Account` rather than a `MemoryQuotaTracker`,
+    /// and use [`Account::new_child()`].
+    /// That improves the ability to manage the hierarchy of Participants.
     //
     // Right now, parent can't be changed after construction of an Account,
     // so circular accounts are impossible.
@@ -909,6 +913,17 @@ impl Account {
         Ok(Ok((particip, xdata)))
     }
 
+    /// Obtain a new `Account` which is a child of this one
+    ///
+    /// Equivalent to
+    /// [`MemoryQuotaTracker.new_account`](MemoryQuotaTracker::new_account)`(Some(..))`
+    pub fn new_child(&self) -> crate::Result<Self> {
+        let Enabled(self_, _enabled) = &self.0 else {
+            return Ok(Account::new_noop());
+        };
+        self_.tracker.new_account(Some(self))
+    }
+
     /// Obtains a handle for the `MemoryQuotaTracker`
     pub fn tracker(&self) -> Arc<MemoryQuotaTracker> {
         let Enabled(self_, _enabled) = &self.0 else {
@@ -927,6 +942,13 @@ impl Account {
             tracker: Arc::downgrade(&self_.tracker),
         };
         WeakAccount(Enabled(inner, *enabled))
+    }
+
+    /// Obtain a new `Account` that does nothing and has no associated tracker
+    ///
+    /// All methods on this succeed, but they don't do anything.
+    pub fn new_noop() -> Self {
+        Account(IfEnabled::Noop)
     }
 }
 
