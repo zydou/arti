@@ -42,7 +42,7 @@ pub(crate) fn pending_channel_maybe_allowed(
     //    address. This pending channel may stall. We don't want to assign non-malicious channel
     //    requests to this pending channel that will stall for potentially a long time.
     Some(chan)
-        // only channels where `target`s relay ids are a superset of `entry`s relay ids
+        // Only channels where `target`s relay ids are a superset of `entry`s relay ids.
         // - Hopefully the built channel will gain the additional ids that are requested by
         //   `target`. This should happen in most cases where none of the channels are made
         //   maliciously, since the `target` should return all of its relay ids in its CERTS cell.
@@ -57,8 +57,8 @@ pub(crate) fn pending_channel_maybe_allowed(
         // - If the built channel gains additional ids that `target` doesn't have, that's fine and
         //   we can still use the channel for `target`.
         .filter(|entry| target.has_all_relay_ids_from(&entry.ids))
-        // TODO: only channels which have the exact same address list as `target` (the two sets of
-        // addresses must match exactly)
+        // TODO: Only channels which have the exact same address list as `target` (the two sets of
+        // addresses must match exactly).
         // - (Addressing 2. above) By only returning pending channels that have exactly the same
         //   addresses, we ensure that the returned pending channel does not have any incorrect
         //   addresses that will cause the pending channel to stall.
