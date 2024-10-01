@@ -17,7 +17,7 @@ pub struct ProofOfWorkV1 {
     effort: Effort,
     /// Header with which to identify the applicable service-provided seed
     #[getter(as_copy)]
-    seed: SeedHead,
+    seed_head: SeedHead,
     /// Proposed solution proof, not validated
     ///
     /// This byte array still needs to be validated first as a well-formed
@@ -33,7 +33,7 @@ impl ProofOfWorkV1 {
             Ok(Some(Self {
                 nonce: b.extract()?,
                 effort: b.extract()?,
-                seed: b.extract()?,
+                seed_head: b.extract()?,
                 solution: b.extract()?,
             }))
         } else {
@@ -46,7 +46,7 @@ impl ProofOfWorkV1 {
         b.write_u8(ProofOfWorkType::V1.get());
         self.nonce.write_onto(b)?;
         self.effort.write_onto(b)?;
-        self.seed.write_onto(b)?;
+        self.seed_head.write_onto(b)?;
         self.solution.write_onto(b)?;
         Ok(())
     }
