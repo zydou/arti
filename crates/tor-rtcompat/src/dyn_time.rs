@@ -270,37 +270,38 @@ mod test {
     use std::fmt::{Debug, Display};
     use std::hint::black_box;
 
-#[test]
-fn check_downcast_value() {
-    // This and the one in check_downcast_dropcount are not combined, with generics,
-    // so that the types of everything are as clear as they can be.
-    fn chk(x: impl Display + Debug + 'static) -> Result<String, impl Display + Debug + 'static> {
-        black_box(downcast_value(black_box(x)))
+    #[test]
+    fn check_downcast_value() {
+        // This and the one in check_downcast_dropcount are not combined, with generics,
+        // so that the types of everything are as clear as they can be.
+        fn chk(
+            x: impl Display + Debug + 'static,
+        ) -> Result<String, impl Display + Debug + 'static> {
+            black_box(downcast_value(black_box(x)))
+        }
+
+        assert_eq!(chk(format!("hi")).unwrap(), format!("hi"));
+        assert_eq!(chk("hi").unwrap_err().to_string(), "hi");
     }
 
-    assert_eq!(chk(format!("hi")).unwrap(), format!("hi"));
-    assert_eq!(chk("hi").unwrap_err().to_string(), "hi");
-}
+    #[test]
+    fn check_downcast_dropcount() {
+        #[derive(Debug)]
+        struct DropCounter(u32);
 
-#[test]
-fn check_downcast_dropcount() {
-    #[derive(Debug)]
-    struct DropCounter(u32);
+        fn chk(x: impl Debug + 'static) -> Result<DropCounter, impl Debug + 'static> {
+            black_box(downcast_value(black_box(x)))
+        }
 
-    fn chk(x: impl Debug + 'static) -> Result<DropCounter, impl Debug + 'static> {
-        black_box(downcast_value(black_box(x)))
+        impl Drop for DropCounter {
+            fn drop(&mut self) {
+                let _: u32 = self.0.checked_sub(1).unwrap();
+            }
+        }
+
+        let dc = DropCounter(0);
+        let mut dc: DropCounter = chk(dc).unwrap();
+        assert_eq!(dc.0, 0);
+        dc.0 = 1;
     }
-
-    impl Drop for DropCounter {
-	fn drop(&mut self) {
-	    let _: u32 = self.0.checked_sub(1).unwrap();
-	}
-    }
-
-    let dc = DropCounter(0);
-    let mut dc: DropCounter = chk(dc).unwrap();
-    assert_eq!(dc.0, 0);
-    dc.0 = 1;
-}
-
 }
