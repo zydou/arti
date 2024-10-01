@@ -2,7 +2,6 @@
 
 use crate::err::ProofOfWorkError;
 use rand::thread_rng;
-use std::cmp::{max, min};
 use std::time::Instant;
 use tor_async_utils::oneshot;
 use tor_async_utils::oneshot::Canceled;
@@ -60,7 +59,9 @@ impl HsPowClientV1 {
                 .to_owned()
                 .dangerously_map(|seed| Instance::new(hs_blind_id.to_owned(), seed)),
             // Enforce maximum effort right away
-            effort: min(CLIENT_MAX_POW_EFFORT, params.suggested_effort()),
+            effort: params
+                .suggested_effort()
+                .clamp(Effort::zero(), CLIENT_MAX_POW_EFFORT),
         }
     }
 
@@ -76,8 +77,7 @@ impl HsPowClientV1 {
         } else {
             self.effort.saturating_mul_f32(CLIENT_POW_RETRY_MULTIPLIER)
         };
-        let effort = max(CLIENT_MIN_RETRY_POW_EFFORT, effort);
-        self.effort = min(CLIENT_MAX_POW_EFFORT, effort);
+        self.effort = effort.clamp(CLIENT_MIN_RETRY_POW_EFFORT, CLIENT_MAX_POW_EFFORT);
     }
 
     /// Run the `v1` solver on a thread, if the effort is nonzero
