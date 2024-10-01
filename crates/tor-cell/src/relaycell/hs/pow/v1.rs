@@ -27,7 +27,7 @@ pub struct ProofOfWorkV1 {
 }
 
 impl ProofOfWorkV1 {
-    /// Construct by reading the scheme-specific data, if this scheme is active
+    /// Construct by reading the scheme-specific data, if the scheme ID is correct for [`ProofOfWorkV1`]
     pub(super) fn try_take_body_from(scheme: u8, b: &mut Reader<'_>) -> Result<Option<Self>> {
         if scheme == ProofOfWorkType::V1.get() {
             Ok(Some(Self {
