@@ -302,5 +302,152 @@ mod tests {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    // TODO
+    use super::*;
+    use std::fs;
+    use std::str::FromStr as _;
+    use tempfile::{tempdir, TempDir};
+
+    use crate::test_utils::{assert_found, DummyKey, TestCTorSpecifier};
+    use crate::CTorServicePath;
+
+    const PUBKEY: &[u8] = include_bytes!("../../../testdata/tor-service/hs_ed25519_public_key");
+    const PRIVKEY: &[u8] = include_bytes!("../../../testdata/tor-service/hs_ed25519_secret_key");
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    fn init_keystore(id: &str, nickname: &str) -> (CTorServiceKeystore, TempDir) {
+        let keystore_dir = tempdir().unwrap();
+
+        #[cfg(unix)]
+        fs::set_permissions(&keystore_dir, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let id = KeystoreId::from_str(id).unwrap();
+        let nickname = HsNickname::from_str(nickname).unwrap();
+        let keystore = CTorServiceKeystore::from_path_and_mistrust(
+            &keystore_dir,
+            &Mistrust::default(),
+            id,
+            nickname,
+        )
+        .unwrap();
+
+        const KEYS: &[(&str, &[u8])] = &[
+            ("hs_ed25519_public_key", PUBKEY),
+            ("hs_ed25519_secret_key", PRIVKEY),
+        ];
+
+        for (name, key) in KEYS {
+            fs::write(keystore_dir.path().join(name), key).unwrap();
+        }
+
+        (keystore, keystore_dir)
+    }
+
+    #[test]
+    fn get() {
+        let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
+
+        let unk_nickname = HsNickname::new("acutus-cepa".into()).unwrap();
+        let path = CTorPath::Service {
+            nickname: unk_nickname.clone(),
+            path: CTorServicePath::PublicKey,
+        };
+
+        // Not found!
+        assert_found!(
+            keystore,
+            &TestCTorSpecifier(path.clone()),
+            &KeyType::Ed25519PublicKey,
+            false
+        );
+
+        // But if we use the right nickname (i.e. the one matching the keystore's nickname),
+        // the key is found.
+        let path = CTorPath::Service {
+            nickname: keystore.nickname.clone(),
+            path: CTorServicePath::PublicKey,
+        };
+        assert_found!(
+            keystore,
+            &TestCTorSpecifier(path.clone()),
+            &KeyType::Ed25519PublicKey,
+            true
+        );
+
+        let path = CTorPath::Service {
+            nickname: keystore.nickname.clone(),
+            path: CTorServicePath::PrivateKey,
+        };
+        assert_found!(
+            keystore,
+            &TestCTorSpecifier(path.clone()),
+            &KeyType::Ed25519ExpandedKeypair,
+            true
+        );
+    }
+
+    #[test]
+    fn unsupported_operation() {
+        let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
+        let path = CTorPath::Service {
+            nickname: keystore.nickname.clone(),
+            path: CTorServicePath::PublicKey,
+        };
+
+        let err = keystore
+            .remove(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey)
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "Operation not supported: remove");
+
+        let err = keystore
+            .insert(
+                &DummyKey,
+                &TestCTorSpecifier(path.clone()),
+                &KeyType::Ed25519PublicKey,
+            )
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "Operation not supported: insert");
+    }
+
+    #[test]
+    fn wrong_keytype() {
+        let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
+
+        let path = CTorPath::Service {
+            nickname: keystore.nickname.clone(),
+            path: CTorServicePath::PublicKey,
+        };
+
+        let err = keystore
+            .get(
+                &TestCTorSpecifier(path.clone()),
+                &KeyType::X25519StaticKeypair,
+            )
+            .map(|_| ())
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Invalid key type X25519StaticKeypair for key hs_ed25519_public_key"
+        );
+    }
+
+    #[test]
+    fn list() {
+        let (keystore, _keystore_dir) = init_keystore("foo", "allium-cepa");
+        let keys: Vec<_> = keystore.list().unwrap();
+
+        assert_eq!(keys.len(), 2);
+
+        assert!(keys
+            .iter()
+            .any(|(_, key_type)| *key_type == KeyType::Ed25519ExpandedKeypair));
+
+        assert!(keys
+            .iter()
+            .any(|(_, key_type)| *key_type == KeyType::Ed25519PublicKey));
+    }
 }
