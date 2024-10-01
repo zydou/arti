@@ -2,7 +2,7 @@
 
 use crate::mgr::state::{ChannelState, OpenEntry, PendingEntry};
 use crate::mgr::AbstractChannel;
-use tor_linkspec::HasRelayIds;
+use tor_linkspec::{HasRelayIds, RelayIds};
 
 /// Returns `true` if the open channel is allowed to be used for a new channel request to the
 /// target.
@@ -27,6 +27,9 @@ pub(crate) fn pending_channel_maybe_allowed(
     chan: &PendingEntry,
     target: &impl HasRelayIds,
 ) -> bool {
+    /// An empty [`RelayIds`].
+    const EMPTY_IDS: RelayIds = RelayIds::empty();
+
     // We want to avoid returning pending channels that were initially created from malicious
     // channel requests (for example from malicious relay-extend requests) that build channels which
     // will never complete successfully. Two cases where this can happen are:
@@ -66,6 +69,9 @@ pub(crate) fn pending_channel_maybe_allowed(
         //   a lower possibility of building successfully compared to a newly created channel to
         //   `target`, so this would not be a good channel for us to return.
         .filter(|_entry| true)
+        // Don't allow a pending channel that has no relay ids. I don't have a good reason for
+        // excluding this, other than "it seems weird".
+        .filter(|entry| entry.ids != EMPTY_IDS)
         .is_some()
 }
 
