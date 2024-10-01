@@ -93,6 +93,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::StreamId;
+use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 // use std::time::Duration;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -113,9 +114,9 @@ pub use {
 };
 
 /// MPSC queue relating to a stream (either inbound or outbound), sender
-pub(crate) type StreamMpscSender<T> = mpsc::Sender<T>;
+pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
 /// MPSC queue relating to a stream (either inbound or outbound), receiver
-pub(crate) type StreamMpscReceiver<T> = mpsc::Receiver<T>;
+pub(crate) type StreamMpscReceiver<T> = mq_queue::Receiver<T, MpscSpec>;
 
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
@@ -775,6 +776,8 @@ impl ClientCirc {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
+        let time_prov = self.channel().time_provider().clone();
+
         let hop_num = self
             .mutable
             .lock()
@@ -783,9 +786,12 @@ impl ClientCirc {
             .last_hop_num()
             .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
 
-        let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
+        let memquota = StreamAccount::new(self.mq_account())?;
+        let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
+            .new_mq(time_prov.clone(), memquota.as_raw_account())?;
         let (tx, rx) = oneshot::channel();
-        let (msg_tx, msg_rx) = mpsc::channel(CIRCUIT_BUFFER_SIZE);
+        let (msg_tx, msg_rx) = MpscSpec::new(CIRCUIT_BUFFER_SIZE)
+            .new_mq(time_prov, memquota.as_raw_account())?;
 
         self.control
             .unbounded_send(CtrlMsg::BeginStream {
@@ -1378,6 +1384,7 @@ mod test {
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
     };
     use tor_linkspec::OwnedCircTarget;
+    use tor_memquota::HasMemoryCost;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
@@ -1413,10 +1420,10 @@ mod test {
 
     /// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
     #[cfg(test)]
-    pub(crate) fn fake_mpsc<T: Debug + Send>(
+    pub(crate) fn fake_mpsc<T: HasMemoryCost + Debug + Send>(
         buffer: usize,
     ) -> (StreamMpscSender<T>, StreamMpscReceiver<T>) {
-        mpsc::channel(buffer)
+        crate::fake_mpsc(buffer)
     }
 
     /// return an example OwnedCircTarget that can get used for an ntor handshake.

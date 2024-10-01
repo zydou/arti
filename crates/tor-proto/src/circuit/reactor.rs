@@ -80,6 +80,7 @@ use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
+use tor_memquota::mq_queue::{ChannelSpec as _, MpscSpec};
 use tracing::{debug, trace, warn};
 
 /// Initial value for outbound flow-control window on streams.
@@ -2059,9 +2060,12 @@ impl Reactor {
             .ok_or(Error::CircuitClosed)?;
 
         let memquota = StreamAccount::new(&self.memquota)?;
+        let time_prov = self.chan_sender.as_inner().time_provider().clone();
 
-        let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
-        let (msg_tx, msg_rx) = mpsc::channel(super::CIRCUIT_BUFFER_SIZE);
+        let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
+            .new_mq(time_prov.clone(), memquota.as_raw_account())?;
+        let (msg_tx, msg_rx) = MpscSpec::new(super::CIRCUIT_BUFFER_SIZE)
+            .new_mq(time_prov, memquota.as_raw_account())?;
 
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
         let cmd_checker = DataCmdChecker::new_connected();
