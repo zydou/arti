@@ -13,9 +13,16 @@ use super::proxyinfo::{self, ProxyInfo};
 
 /// A top-level RPC session object.
 ///
+/// This is the first object that an RPC user receives upon authenticating;
+/// It is returned by `auth:authenticate`.
+///
+/// Other objects are available using methods from this method.
+///
 /// This type wraps and delegates to [`arti_rpcserver::RpcSession`],
-/// and exposes additional functionality not available at the
-/// level of [`arti_rpcserver`].
+/// but exposes additional functionality not available at the
+/// level of [`arti_rpcserver`], including information about configured proxies.
+///
+/// This ObjectID for this object can be used as the target of a SOCKS stream.
 #[derive(Deftly)]
 #[derive_deftly(rpc::Object)]
 #[deftly(rpc(

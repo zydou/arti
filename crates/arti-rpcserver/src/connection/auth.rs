@@ -90,7 +90,11 @@ enum AuthenticationScheme {
     InherentUnixPath,
 }
 
-/// Method to ask which authentication methods are supported.
+/// Ask which authentication methods are supported.
+///
+/// This method can be invoked on a `Connection` pre-authentication;
+/// it's used to tell which methods are supported,
+/// and what parameters they require.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "auth:query"))]
@@ -129,8 +133,17 @@ rpc::static_rpc_invoke_fn! {
     conn_authquery;
 }
 
-/// Method to implement basic authentication.  Right now only "I connected to
-/// you so I must have permission!" is supported.
+/// Authenticate on an RPC Connection, returning a new Session.
+///
+/// After connecting to Arti, clients use this method to create a Session,
+/// which they then use to access other functionality.
+///
+/// For now, only the `inherent:unix_path` method is supported;
+/// other methods will be implemented in the future.
+///
+/// You typically won't need to invoke this method yourself;
+/// instead, your RPC library (such as `arti-rpc-client-core`)
+/// should handle it for you.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "auth:authenticate"))]
@@ -144,7 +157,7 @@ struct Authenticate {
 /// A reply from the `Authenticate` method.
 #[derive(Debug, serde::Serialize)]
 struct AuthenticateReply {
-    /// An owned reference to a `Session` object.
+    /// An handle for a `Session` object.
     session: rpc::ObjectId,
 }
 

@@ -15,8 +15,8 @@ use crate::RpcSession;
 
 /// An RPC object representing a (possibly unconstructed) DataStream.
 ///
-/// This object is created from an RPC method, and starts out with
-/// enough information to know how to create a DataStream or to respond
+/// This object is returned by the `arti:new_stream_handle` method, and starts out with
+/// enough information to know how to create a DataStream, or to respond
 /// to some other SOCKS request.
 ///
 /// This object is single-use: once a SOCKS request has referred to it,
@@ -25,8 +25,10 @@ use crate::RpcSession;
 /// (Alternatively, you can think of this as a single-use Client object
 /// which, because it is single use,
 /// can be treated interchangeably with the stream that it is used to construct.)
+///
+/// The ObjectID for this object can be used as the target of a SOCKS request.
 //
-// TODO RPC: This object's name is questionable.  Perhaps RpcDataStreamHandle?
+// TODO RPC BREAKING: This object's name is questionable.  Perhaps RpcDataStreamHandle?
 // Or maybe StreamCapturingClient, OneshotClient, StreamSlot...?
 // More importantly we should make sure that we like `arti:new_stream_handle`
 // as a method name.
@@ -222,7 +224,16 @@ async fn rpcdatastream_resolve_ptr_with_prefs(
     *result
 }
 
-/// Method to create a stream handle.
+/// Create a new `RpcDataStream` to wait for a SOCKS request.
+///
+/// The resulting ObjectID will be a handle to an `RpcDataStream`.
+/// It can be used as the target of a single SOCKS request.
+///
+/// Once used for a SOCKS connect request,
+/// the object will become a handle for the the underlying DataStream.
+///
+/// TODO RPC BREAKING: (This method will likely be renamed in the future, when `RpcDataStream` is
+/// renamed.)
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "arti:new_stream_handle"))]

@@ -29,7 +29,7 @@ impl<R: Runtime> TorClient<R> {
     }
 }
 
-/// RPC method: Return the current ClientStatusInfo.
+/// Return current bootstrap and health information for a client.
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(method_name = "arti:get_client_status"))]
@@ -40,7 +40,7 @@ impl rpc::RpcMethod for GetClientStatus {
     type Update = rpc::NoUpdates;
 }
 
-/// RPC method: Run forever, delivering an updated view of the ClientStatusInfo whenever it changes.
+/// Run forever, delivering updates about a client's bootstrap and health information.
 ///
 /// (This method can return updates that have no visible changes.)
 #[derive(Deftly, Debug, Serialize, Deserialize)]
@@ -49,16 +49,22 @@ impl rpc::RpcMethod for GetClientStatus {
 struct WatchClientStatus {}
 
 impl rpc::RpcMethod for WatchClientStatus {
-    type Output = rpc::Nil;
+    type Output = rpc::Nil; // TODO: Possibly there should be an rpc::Never for methods that don't return.
     type Update = ClientStatusInfo;
 }
 
-/// RPC result: The reported status of a TorClient.
+/// Reported bootstrap and health information for a client.
+///
+/// Note that all `TorClient`s on a session share the same underlying bootstrap status:
+/// if you check the status for one, you don't need to check the others.
 #[derive(Serialize, Deserialize)]
 struct ClientStatusInfo {
     /// True if the client is ready for traffic.
     ready: bool,
     /// Approximate estimate of how close the client is to being ready for traffic.
+    ///
+    /// This value is a rough approximation; its exact implementation may change over
+    /// arti versions.  It is not guaranteed to be monotonic.
     fraction: f32,
     /// If present, a description of possible problem(s) that may be stopping
     /// the client from using the Tor network.
@@ -120,7 +126,12 @@ async fn watch_client_status<R: Runtime>(
     Ok(rpc::NIL)
 }
 
-/// RPC method: Return an owned ID for a new isolated client instance.
+/// Create a new isolated client instance.
+///
+/// Returned ObjectID is a handle for a new `TorClient`,
+/// which is isolated from other `TorClients`:
+/// any streams created with the new `TorClient` will not share circuits
+/// with streams crated with any other `TorClient`.
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(method_name = "arti:isolated_client"))]

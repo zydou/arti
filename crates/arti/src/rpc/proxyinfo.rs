@@ -36,17 +36,18 @@ pub(super) struct ProxyInfo {
     pub(super) proxies: Vec<Proxy>,
 }
 
-/// RPC method: Get a list of all the currently running proxies.
+/// Get a list of all the currently running proxies.
 ///
 /// This method should not be used when deciding which proxy
-/// an RPC application should connect to.  Instead it should use
+/// an RPC application should connect to.
+/// Instead, the application should use
 /// [`arti:get_rpc_proxy_info`](GetRpcProxyInfo).
 #[derive(Debug, serde::Deserialize, derive_deftly::Deftly)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(method_name = "arti:get_proxy_info"))]
 struct GetProxyInfo {}
 
-/// RPC method: Get a list of the currently running proxies
+/// Get a list of the currently running proxies
 /// that are integrated with the RPC system.
 ///
 /// This method returns a list of proxies.
@@ -54,6 +55,10 @@ struct GetProxyInfo {}
 /// and may prefer some proxies over other.
 /// When multiple proxies are equally preferred,
 /// the application SHOULD use whichever appears first in the list.
+///
+/// You typically won't need to invoke this method yourself:
+/// your RPC library (like `arti-rpc-client-core`)
+/// should take care if it for you.
 #[derive(Debug, serde::Deserialize, derive_deftly::Deftly)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(method_name = "arti:get_rpc_proxy_info"))]
