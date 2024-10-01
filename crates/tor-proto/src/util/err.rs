@@ -212,6 +212,12 @@ impl Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self::ChanIoErr(Arc::new(err))
+    }
+}
+
 impl From<Error> for std::io::Error {
     fn from(err: Error) -> std::io::Error {
         use Error::*;
