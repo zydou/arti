@@ -87,7 +87,9 @@ use oneshot_fused_workaround as oneshot;
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::{FutureExt as _, SinkExt as _};
 use std::net::IpAddr;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::StreamId;
 // use std::time::Duration;
 
@@ -1276,7 +1278,7 @@ impl StreamTarget {
     /// You don't need to call this method if the stream is closing because all of its StreamTargets
     /// have been dropped.
     pub(crate) fn close(&mut self) {
-        self.tx.close_channel();
+        Pin::new(&mut self.tx).close_channel();
     }
 
     /// Called when a circuit-level protocol error has occurred and the

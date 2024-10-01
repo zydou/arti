@@ -72,6 +72,7 @@ use crate::circuit::sendme::StreamSendWindow;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use safelog::sensitive as sv;
+use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
 use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
 use tor_cell::relaycell::extend::NtorV3Extension;
@@ -1902,7 +1903,7 @@ impl Reactor {
                 let message_closes_stream =
                     ent.cmd_checker.check_msg(&msg)? == StreamStatus::Closed;
 
-                if let Err(e) = ent.sink.try_send(msg) {
+                if let Err(e) = Pin::new(&mut ent.sink).try_send(msg) {
                     if e.is_full() {
                         // If we get here, we either have a logic bug (!), or an attacker
                         // is sending us more cells than we asked for via congestion control.
@@ -2052,16 +2053,16 @@ impl Reactor {
         hop.map
             .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;
 
-        let outcome = handler
+        let outcome = Pin::new(&mut handler
             .incoming_sender
+	)
             .try_send(StreamReqInfo {
                 req,
                 stream_id,
                 hop_num,
                 msg_tx,
                 receiver,
-            })
-            .map_err(|e| e.into_send_error());
+            });
 
         log_ratelim!("Delivering message to incoming stream handler"; outcome);
 
