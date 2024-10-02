@@ -47,9 +47,6 @@ pub trait HasMemoryCostStructural {
 
 /// (Internal) wrapper for to help implement `MemoryCostStructural` for `Copy` types and fields
 ///
-/// Ideally, we would `impl <T: Copy + 'static> MemoryCostStructural for T`.
-/// But that falls foul of trait coherence rules.
-///
 /// So instead, when we have `Copy` types or fields, we wrap them in this.
 ///
 /// (We could just hardcode a `0` at the use sites of this struct,
@@ -81,6 +78,11 @@ impl<T: HasMemoryCostStructural> HasMemoryCost for T {
 /// of a `Copy + 'static` type is zero.
 ///
 /// This macro implements that.
+///
+/// Ideally, we would `impl <T: Copy + 'static> MemoryCostStructural for T`.
+/// But that falls foul of trait coherence rules.
+/// So instead we provide `memory_cost_structural_copy!`
+/// and the `#[deftly(has_memory_cost(copy))]` attribute.
 ///
 /// This macro can only be used within `tor-memquota`, or for types local to your crate.
 /// For other types, use `#[deftly(has_memory_cost(copy))]` on each field of that type.
