@@ -17,7 +17,7 @@ pub trait SinkCloseChannel<T>: Sink<T> {
     /// For example, if `Self` is `Clone`, all clones are affected.
     ///
     /// If the Sink is for a channel,
-    /// the receiver will see EOF, after reading the messages that were successful sent so far.
+    /// the receiver will see EOF after reading the messages that were successfully sent so far.
     fn close_channel(self: Pin<&mut Self>);
 }
 
