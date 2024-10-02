@@ -57,6 +57,10 @@ pub use handshake::proxy::SocksProxyHandshake;
 pub use handshake::client::SocksClientHandshake;
 
 #[cfg(any(feature = "proxy-handshake", feature = "client-handshake"))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(any(feature = "proxy-handshake", feature = "client-handshake")))
+)]
 pub use handshake::framework::{
     Buffer, Finished, Handshake, NextStep, PreciseReads, ReadPrecision, RecvStep,
 };
