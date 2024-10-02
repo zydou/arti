@@ -110,6 +110,11 @@ pub use {
     reactor::{ConversationInHandler, MetaCellDisposition},
 };
 
+/// MPSC queue relating to a stream (either inbound or outbound), sender
+pub(crate) type StreamMpscSender<T> = mpsc::Sender<T>;
+/// MPSC queue relating to a stream (either inbound or outbound), receiver
+pub(crate) type StreamMpscReceiver<T> = mpsc::Receiver<T>;
+
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
 ///
@@ -289,7 +294,7 @@ pub(crate) struct StreamTarget {
     /// Reactor ID for this stream.
     stream_id: StreamId,
     /// Channel to send cells down.
-    tx: mpsc::Sender<AnyRelayMsg>,
+    tx: StreamMpscSender<AnyRelayMsg>,
     /// Reference to the circuit that this stream is on.
     circ: Arc<ClientCirc>,
 }
@@ -1349,6 +1354,7 @@ mod test {
     use futures::task::SpawnExt;
     use hex_literal::hex;
     use std::collections::{HashMap, VecDeque};
+    use std::fmt::Debug;
     use std::time::Duration;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, AnyChanCell, BoxedCellBody};
@@ -1389,6 +1395,14 @@ mod test {
         hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253");
     const EXAMPLE_ED_ID: [u8; 32] = [6; 32];
     const EXAMPLE_RSA_ID: [u8; 20] = [10; 20];
+
+    /// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
+    #[cfg(test)]
+    pub(crate) fn fake_mpsc<T: Debug + Send>(
+        buffer: usize,
+    ) -> (StreamMpscSender<T>, StreamMpscReceiver<T>) {
+        mpsc::channel(buffer)
+    }
 
     /// return an example OwnedCircTarget that can get used for an ntor handshake.
     fn example_target() -> OwnedCircTarget {

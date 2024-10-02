@@ -6,7 +6,7 @@ use crate::{Error, Result};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
 use crate::circuit::sendme::StreamRecvWindow;
-use futures::channel::mpsc;
+use crate::circuit::StreamMpscReceiver;
 use futures::stream::StreamExt;
 
 /// The read part of a stream on a particular circuit.
@@ -21,7 +21,7 @@ pub struct StreamReader {
     ///     is dropped.
     pub(crate) target: StreamTarget,
     /// Channel to receive stream messages from the reactor.
-    pub(crate) receiver: mpsc::Receiver<UnparsedRelayMsg>,
+    pub(crate) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
     /// Congestion control receive window for this stream.
     ///
     /// Having this here means we're only going to update it when the end consumer of this stream
