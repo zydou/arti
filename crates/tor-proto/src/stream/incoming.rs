@@ -5,6 +5,7 @@ use bitvec::prelude::*;
 use super::{AnyCmdChecker, DataStream, StreamReader, StreamStatus};
 use crate::circuit::reactor::CloseStreamBehavior;
 use crate::circuit::{ClientCircSyncView, StreamTarget};
+use crate::memquota::StreamAccount;
 use crate::{Error, Result};
 use derive_deftly::Deftly;
 use oneshot_fused_workaround as oneshot;
@@ -30,6 +31,8 @@ pub struct IncomingStream {
     stream: StreamTarget,
     /// The underlying `StreamReader`.
     reader: StreamReader,
+    /// The memory quota account that should be used for this stream's data
+    memquota: StreamAccount,
 }
 
 impl IncomingStream {
@@ -38,11 +41,13 @@ impl IncomingStream {
         request: IncomingStreamRequest,
         stream: StreamTarget,
         reader: StreamReader,
+        memquota: StreamAccount,
     ) -> Self {
         Self {
             request,
             stream,
             reader,
+            memquota,
         }
     }
 
@@ -58,12 +63,13 @@ impl IncomingStream {
             request,
             mut stream,
             reader,
+            memquota,
         } = self;
 
         match request {
             IncomingStreamRequest::Begin(_) | IncomingStreamRequest::BeginDir(_) => {
                 stream.send(message.into()).await?;
-                Ok(DataStream::new_connected(reader, stream))
+                Ok(DataStream::new_connected(reader, stream, memquota))
             }
             IncomingStreamRequest::Resolve(_) => {
                 Err(internal!("Cannot accept data on a RESOLVE stream").into())

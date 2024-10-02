@@ -35,7 +35,7 @@ use crate::crypto::cell::{
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
-use crate::memquota::CircuitAccount;
+use crate::memquota::{CircuitAccount, SpecificAccount as _, StreamAccount};
 use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
@@ -756,6 +756,8 @@ pub(super) struct StreamReqInfo {
     pub(super) receiver: StreamMpscReceiver<UnparsedRelayMsg>,
     /// A channel for sending messages to be sent on this stream.
     pub(super) msg_tx: StreamMpscSender<AnyRelayMsg>,
+    /// The memory quota account to be used for this stream
+    pub(super) memquota: StreamAccount,
 }
 
 /// Data required for handling an incoming stream request.
@@ -2056,6 +2058,8 @@ impl Reactor {
             .get_mut(Into::<usize>::into(hop_num))
             .ok_or(Error::CircuitClosed)?;
 
+        let memquota = StreamAccount::new(&self.memquota)?;
+
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (msg_tx, msg_rx) = mpsc::channel(super::CIRCUIT_BUFFER_SIZE);
 
@@ -2070,6 +2074,7 @@ impl Reactor {
             hop_num,
             msg_tx,
             receiver,
+            memquota,
         });
 
         log_ratelim!("Delivering message to incoming stream handler"; outcome);

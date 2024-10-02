@@ -60,6 +60,7 @@ pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
+pub use crate::memquota::StreamAccount;
 use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
@@ -602,6 +603,7 @@ impl ClientCirc {
                 hop_num,
                 receiver,
                 msg_tx,
+                memquota,
             } = req_ctx;
 
             // We already enforce this in handle_incoming_stream_request; this
@@ -624,7 +626,7 @@ impl ClientCirc {
                 ended: false,
             };
 
-            IncomingStream::new(req, target, reader)
+            IncomingStream::new(req, target, reader, memquota)
         }))
     }
 
@@ -822,10 +824,11 @@ impl ClientCirc {
         msg: AnyRelayMsg,
         optimistic: bool,
     ) -> Result<DataStream> {
+        let memquota = StreamAccount::new(self.mq_account())?;
         let (reader, target) = self
             .begin_stream_impl(msg, DataCmdChecker::new_any())
             .await?;
-        let mut stream = DataStream::new(reader, target);
+        let mut stream = DataStream::new(reader, target, memquota);
         if !optimistic {
             stream.wait_for_connection().await?;
         }
