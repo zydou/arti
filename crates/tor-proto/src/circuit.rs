@@ -1024,13 +1024,14 @@ impl PendingClientCirc {
     /// Does not send a CREATE* cell on its own.
     ///
     ///
+    #[allow(clippy::unnecessary_wraps)] // XXXX
     pub(crate) fn new(
         id: CircId,
         channel: Arc<Channel>,
         createdreceiver: oneshot::Receiver<CreateResponse>,
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
-    ) -> (PendingClientCirc, reactor::Reactor) {
+    ) -> Result<(PendingClientCirc, reactor::Reactor)> {
         let (reactor, control_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel.clone(), id, unique_id, input);
 
@@ -1048,7 +1049,7 @@ impl PendingClientCirc {
             recvcreated: createdreceiver,
             circ: Arc::new(circuit),
         };
-        (pending, reactor)
+        Ok((pending, reactor))
     }
 
     /// Extract the process-unique identifier for this pending circuit.
@@ -1470,7 +1471,7 @@ mod test {
         let unique_id = UniqId::new(23, 17);
 
         let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id);
+            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id).unwrap();
 
         rt.spawn(async {
             let _ignore = reactor.run().await;
@@ -1640,7 +1641,7 @@ mod test {
         let unique_id = UniqId::new(23, 17);
 
         let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id);
+            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id).unwrap();
 
         rt.spawn(async {
             let _ignore = reactor.run().await;
