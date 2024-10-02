@@ -64,45 +64,52 @@ impl<'a, T> OutVal<'a, *mut T> {
     }
 }
 
-/// Trait to prevent implementation of OptOutPtrExt inappropriately.
-//
-// TODO: Move this into a separate module once our MSRV allows us to do so.
-// With 1.70, it causes an error.
-pub(super) trait Sealed {}
-/// Extension trait on `Option<OutPtr<T>>`
-#[allow(private_bounds)]
-pub(super) trait OptOutPtrExt<T>: Sealed {
-    /// Consume this `Option<OutPtr<T>>` and the provided value.
-    ///
-    /// If this is Some, write the value into the outptr.
-    ///
-    /// Otherwise, discard the value.
-    fn write_boxed_value_if_ptr_set(self, value: T);
-}
-/// Extension trait on `Option<OutVal<T>>`
-pub(super) trait OptOutValExt<T>: Sealed {
-    /// Consume this `Option<OutVal<T>>` and the provided value.
-    ///
-    /// If this is Some, write the value into the outptr.
-    ///
-    /// Otherwise, discard the value.
-    fn write_value_if_ptr_set(self, value: T);
-}
-impl<'a, T> Sealed for Option<OutVal<'a, T>> {}
-impl<'a, T> OptOutPtrExt<T> for Option<OutVal<'a, *mut T>> {
-    fn write_boxed_value_if_ptr_set(self, value: T) {
-        if let Some(outptr) = self {
-            outptr.write_value_boxed(value);
+/// Implement OptOutPtrExt and OptOutValExt.
+///
+/// This is a separate module so we can seal these traits.
+mod out_ptr_ext {
+    use super::OutVal;
+
+    /// Trait to prevent implementation of OptOutPtrExt outside this module.
+    trait Sealed {}
+
+    /// Extension trait on `Option<OutPtr<T>>`
+    #[allow(private_bounds)]
+    pub(in crate::ffi) trait OptOutPtrExt<T>: Sealed {
+        /// Consume this `Option<OutPtr<T>>` and the provided value.
+        ///
+        /// If this is Some, write the value into the outptr.
+        ///
+        /// Otherwise, discard the value.
+        fn write_boxed_value_if_ptr_set(self, value: T);
+    }
+    /// Extension trait on `Option<OutVal<T>>`
+    #[allow(private_bounds)]
+    pub(in crate::ffi) trait OptOutValExt<T>: Sealed {
+        /// Consume this `Option<OutVal<T>>` and the provided value.
+        ///
+        /// If this is Some, write the value into the outptr.
+        ///
+        /// Otherwise, discard the value.
+        fn write_value_if_ptr_set(self, value: T);
+    }
+    impl<'a, T> Sealed for Option<OutVal<'a, T>> {}
+    impl<'a, T> OptOutPtrExt<T> for Option<OutVal<'a, *mut T>> {
+        fn write_boxed_value_if_ptr_set(self, value: T) {
+            if let Some(outptr) = self {
+                outptr.write_value_boxed(value);
+            }
+        }
+    }
+    impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
+        fn write_value_if_ptr_set(self, value: T) {
+            if let Some(outptr) = self {
+                outptr.write_value(value);
+            }
         }
     }
 }
-impl<'a, T> OptOutValExt<T> for Option<OutVal<'a, T>> {
-    fn write_value_if_ptr_set(self, value: T) {
-        if let Some(outptr) = self {
-            outptr.write_value(value);
-        }
-    }
-}
+pub(super) use out_ptr_ext::{OptOutPtrExt, OptOutValExt};
 
 /// Helper for output parameters represented as `*mut ArtiRpcRawSocket`.
 ///
