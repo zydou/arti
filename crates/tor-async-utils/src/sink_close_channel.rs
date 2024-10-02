@@ -11,12 +11,13 @@ use futures::Sink;
 pub trait SinkCloseChannel<T>: Sink<T> {
     /// Close the channel from the sending end, giving EOF at the receiver
     ///
-    /// This closes *all* clones.
-    /// Attempts to send will get a disconnected error.
+    /// Future attempts to send will get a disconnected error.
     ///
-    /// The receiver will see EOF, after reading the messages that were successful sent so far.
+    /// This closes *all* equivalent senders for the underlying data sink.
+    /// For example, if `Self` is `Clone`, all clones are affected.
     ///
-    /// MPSC channel senders are `Clone`, and/or you can make new senders from a rceiver.
+    /// If the Sink is for a channel,
+    /// the receiver will see EOF, after reading the messages that were successful sent so far.
     fn close_channel(self: Pin<&mut Self>);
 }
 
