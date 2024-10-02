@@ -278,7 +278,7 @@ impl RpcConn {
     /// Behaves like `execute`, except on success, where it tries to decode the `result` field
     /// of the response as a `T`.
     ///
-    /// Use this method this in cases where it's reasonable for Arti to sometimes return an RPC error:
+    /// Use this method in cases where it's reasonable for Arti to sometimes return an RPC error:
     /// in other words, where it's not necessarily a programming error or version mismatch.
     ///
     /// Don't use this for user-generated requests.
