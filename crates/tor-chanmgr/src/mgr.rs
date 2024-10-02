@@ -15,7 +15,7 @@ use tor_error::internal;
 use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
-use tor_proto::memquota::ToplevelAccount;
+use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount};
 
 mod select;
 mod state;
@@ -75,6 +75,7 @@ pub(crate) trait AbstractChannelFactory {
         &self,
         target: &Self::BuildSpec,
         reporter: BootstrapReporter,
+        memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>>;
 
     /// Construct a new channel for an incoming connection.
@@ -83,6 +84,7 @@ pub(crate) trait AbstractChannelFactory {
         &self,
         peer: std::net::SocketAddr,
         stream: Self::Stream,
+        memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>>;
 }
 
@@ -105,7 +107,6 @@ pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
     pub(crate) reporter: BootstrapReporter,
 
     /// The memory quota account that every channel will be a child of
-    #[allow(dead_code)] // XXXX
     pub(crate) memquota: ToplevelAccount,
 }
 
@@ -178,8 +179,9 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         stream: CF::Stream,
     ) -> Result<Arc<CF::Channel>> {
         let chan_builder = self.channels.builder();
+        let memquota = ChannelAccount::new(&self.memquota)?;
         let _outcome = chan_builder
-            .build_channel_using_incoming(src, stream)
+            .build_channel_using_incoming(src, stream, memquota)
             .await?;
 
         // TODO RELAY: we need to do something with the channel here now that we've created it
@@ -277,8 +279,9 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 // We need to launch a channel.
                 Some(Action::Launch((send, pending_id))) => {
                     let connector = self.channels.builder();
+                    let memquota = ChannelAccount::new(&self.memquota)?;
                     let outcome = connector
-                        .build_channel(&target, self.reporter.clone())
+                        .build_channel(&target, self.reporter.clone(), memquota)
                         .await;
                     let status = self.handle_build_outcome(&target, pending_id, outcome);
 
@@ -587,7 +590,6 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     use crate::ChannelUsage as CU;
-    use tor_proto::memquota::SpecificAccount as _;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
 
     #[derive(Clone)]
@@ -695,6 +697,7 @@ mod test {
             &self,
             target: &Self::BuildSpec,
             _reporter: BootstrapReporter,
+            _memquota: ChannelAccount, // XXXX pass this on
         ) -> Result<Arc<FakeChannel>> {
             yield_now().await;
             let FakeBuildSpec(ident, mood, id) = *target;
@@ -723,6 +726,7 @@ mod test {
             &self,
             _peer: std::net::SocketAddr,
             _stream: Self::Stream,
+            _memquota: ChannelAccount,
         ) -> Result<Arc<Self::Channel>> {
             unimplemented!()
         }

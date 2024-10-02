@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use tor_error::{internal, HasKind, HasRetryTime};
 use tor_linkspec::{HasChanMethod, OwnedChanTarget, PtTransportName};
 use tor_proto::channel::Channel;
+use tor_proto::memquota::ChannelAccount;
 use tracing::debug;
 
 /// An opaque type that lets a `ChannelFactory` update the `ChanMgr` about bootstrap progress.
@@ -91,6 +92,7 @@ where
         &self,
         target: &Self::BuildSpec,
         reporter: BootstrapReporter,
+        _memquota: ChannelAccount, // XXXX pass this on
     ) -> crate::Result<Arc<Self::Channel>> {
         debug!("Attempting to open a new channel to {target}");
         self.connect_via_transport(target, reporter).await
@@ -101,6 +103,7 @@ where
         &self,
         peer: std::net::SocketAddr,
         stream: Self::Stream,
+        _memquota: ChannelAccount, // XXXX pass this on
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         debug!("Attempting to open a new channel from {peer}");
         self.accept_from_transport(peer, stream).await
