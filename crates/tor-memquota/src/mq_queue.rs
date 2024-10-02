@@ -866,7 +866,9 @@ mod test {
             let error = BustedError;
 
             let s = setup(&rt);
-            let (mut tx, _rx) = BustedQueueSpec { error }.new_mq(s.dtp.clone(), &s.acct).unwrap();
+            let (mut tx, _rx) = BustedQueueSpec { error }
+                .new_mq(s.dtp.clone(), &s.acct)
+                .unwrap();
 
             let e = tx.send(s.itrk.new_item()).await.unwrap_err();
             assert!(matches!(e, SendError::Channel(BustedError { .. })));
