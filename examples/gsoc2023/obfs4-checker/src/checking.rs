@@ -37,7 +37,9 @@ async fn is_bridge_online(
     tor_client: &TorClient<PreferredRuntime>,
 ) -> Result<Arc<Channel>, tor_chanmgr::Error> {
     let chanmgr = tor_client.chanmgr();
-    chanmgr.build_unmanaged_channel(bridge_config).await
+    chanmgr
+        .build_unmanaged_channel(bridge_config)
+        .await
 }
 
 /// Waits for given channel to expire and sends this info through specified

@@ -192,7 +192,9 @@ impl<CF: ChannelFactory> ChannelFactory for CompoundFactory<CF> {
             }
         };
 
-        factory.connect_via_transport(target, reporter).await
+        factory
+            .connect_via_transport(target, reporter)
+            .await
     }
 }
 

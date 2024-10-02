@@ -408,7 +408,11 @@ impl ChannelBuilder {
     /// authentication info from the relay: call `check()` on the result
     /// to check that.  Finally, to finish the handshake, call `finish()`
     /// on the result of _that_.
-    pub fn launch<T, S>(self, tls: T, sleep_prov: S) -> OutboundClientHandshake<T, S>
+    pub fn launch<T, S>(
+        self,
+        tls: T,
+        sleep_prov: S,
+    ) -> OutboundClientHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,

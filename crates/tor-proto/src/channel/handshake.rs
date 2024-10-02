@@ -148,7 +148,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
     OutboundClientHandshake<T, S>
 {
     /// Construct a new OutboundClientHandshake.
-    pub(crate) fn new(tls: T, target_method: Option<ChannelMethod>, sleep_prov: S) -> Self {
+    pub(crate) fn new(
+        tls: T,
+        target_method: Option<ChannelMethod>,
+        sleep_prov: S,
+    ) -> Self {
         Self {
             tls,
             target_method,
