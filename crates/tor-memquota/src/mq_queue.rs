@@ -844,9 +844,28 @@ mod test {
             }
         }
 
+        impl<T> SinkTrySend<T> for BustedSink {
+            type Error = BustedError;
+
+            fn try_send_or_return(self: Pin<&mut Self>, item: T) -> Result<(), (BustedError, T)> {
+                Err((self.error, item))
+            }
+        }
+
+        impl tor_async_utils::SinkTrySendError for BustedError {
+            fn is_disconnected(&self) -> bool {
+                self.is_disconnected
+            }
+            fn is_full(&self) -> bool {
+                false
+            }
+        }
+
         #[derive(Error, Debug, Clone, Copy)]
-        #[error("busted, for testing")]
-        struct BustedError;
+        #[error("busted, for testing, dc={is_disconnected:?}")]
+        struct BustedError {
+            is_disconnected: bool,
+        }
 
         struct BustedQueueSpec {
             error: BustedError,
@@ -863,7 +882,9 @@ mod test {
         }
 
         MockRuntime::test_with_various(|rt| async move {
-            let error = BustedError;
+            let error = BustedError {
+                is_disconnected: true,
+            };
 
             let s = setup(&rt);
             let (mut tx, _rx) = BustedQueueSpec { error }
