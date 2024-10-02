@@ -209,7 +209,8 @@ impl RpcConn {
         let socks_proxy_addr = self.lookup_socks_proxy_addr()?;
         let mut stream = TcpStream::connect(socks_proxy_addr)?;
 
-        // See prop351 for information about this encoding.
+        // For information about this encoding,
+        // see https://spec.torproject.org/socks-extensions.html#extended-auth
         let username = format!("<torS0X>1{}", on_object.as_ref());
         let password = isolation;
         negotiate_socks(&mut stream, hostname, port, &username, password)?;
