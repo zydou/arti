@@ -12,7 +12,7 @@ use crate::channel::UniqId;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use tor_cell::chancell::{msg, ChanCmd, ChanMsg};
-use tor_rtcompat::SleepProvider;
+use tor_rtcompat::{CoarseTimeProvider, SleepProvider};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -36,7 +36,7 @@ static LINK_PROTOCOLS: &[u16] = &[4, 5];
 /// A raw client channel on which nothing has been done.
 pub struct OutboundClientHandshake<
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    S: SleepProvider,
+    S: CoarseTimeProvider + SleepProvider,
 > {
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
@@ -57,7 +57,10 @@ pub struct OutboundClientHandshake<
 /// A client channel on which versions have been negotiated and the
 /// relay's handshake has been read, but where the certs have not
 /// been checked.
-pub struct UnverifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> {
+pub struct UnverifiedChannel<
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
     /// The negotiated link protocol.  Must be a member of LINK_PROTOCOLS
@@ -87,7 +90,10 @@ pub struct UnverifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 /// This type is separate from UnverifiedChannel, since finishing the
 /// handshake requires a bunch of CPU, and you might want to do it as
 /// a separate task or after a yield.
-pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> {
+pub struct VerifiedChannel<
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    S: CoarseTimeProvider + SleepProvider,
+> {
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
     /// The negotiated link protocol.
@@ -138,7 +144,7 @@ fn codec_err_to_handshake(err: CodecError) -> Error {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
+impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
     OutboundClientHandshake<T, S>
 {
     /// Construct a new OutboundClientHandshake.
@@ -313,7 +319,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> UnverifiedChannel<T, S> {
+impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
+    UnverifiedChannel<T, S>
+{
     /// Return the reported clock skew from this handshake.
     ///
     /// Note that the skew reported by this function might not be "true": the
@@ -566,7 +574,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> VerifiedChannel<T, S> {
+impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
+    VerifiedChannel<T, S>
+{
     /// Send a 'Netinfo' message to the relay to finish the handshake,
     /// and create an open channel and reactor.
     ///
@@ -727,7 +737,7 @@ pub(super) mod test {
 
     async fn connect_err<T: Into<Vec<u8>>, S>(input: T, sleep_prov: S) -> Error
     where
-        S: SleepProvider,
+        S: CoarseTimeProvider + SleepProvider,
     {
         let mb = MsgBuf::new(input);
         let handshake = OutboundClientHandshake::new(mb, None, sleep_prov);
