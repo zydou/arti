@@ -147,6 +147,7 @@ rust-checks:
     - ./maint/cargo_sort
     - ./maint/check_tree
     - ./maint/check_all_lockfiles
+    - ./maint/common/forbid-hard-tabs
   cache:
     paths:
       - cache

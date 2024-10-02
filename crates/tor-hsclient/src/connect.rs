@@ -850,9 +850,9 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                     })?
                     // TODO: Maybe try, once, to extend-and-reuse the intro circuit.
                     //
-	            // If the introduction fails, the introduction circuit is in principle
+                    // If the introduction fails, the introduction circuit is in principle
                     // still usable.  We believe that in this case, C Tor extends the intro
-	            // circuit by one hop to the next IPT to try.  That saves on building a
+                    // circuit by one hop to the next IPT to try.  That saves on building a
                     // whole new 3-hop intro circuit.  However, our HS experts tell us that
                     // if introduction fails at one IPT it is likely to fail at the others too,
                     // so that optimisation might reduce our network impact and time to failure,
