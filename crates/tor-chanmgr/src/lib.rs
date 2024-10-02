@@ -62,7 +62,7 @@ use tor_error::error_report;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_proto::channel::Channel;
-use tor_proto::memquota::ToplevelAccount;
+use tor_proto::memquota::{ChannelAccount, ToplevelAccount};
 use tracing::debug;
 use void::{ResultVoidErrExt, Void};
 
@@ -355,6 +355,7 @@ impl<R: Runtime> ChanMgr<R> {
     pub async fn build_unmanaged_channel(
         &self,
         target: impl tor_linkspec::IntoOwnedChanTarget,
+        memquota: ChannelAccount,
     ) -> Result<Arc<Channel>> {
         use factory::ChannelFactory as _;
         let target = target.to_owned();
@@ -362,7 +363,7 @@ impl<R: Runtime> ChanMgr<R> {
         self.mgr
             .channels
             .builder()
-            .connect_via_transport(&target, self.mgr.reporter.clone())
+            .connect_via_transport(&target, self.mgr.reporter.clone(), memquota)
             .await
     }
 

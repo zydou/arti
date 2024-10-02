@@ -474,6 +474,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::UniqId;
     use crate::circuit::CircParameters;
+    use crate::util::fake_mq;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
@@ -511,6 +512,7 @@ pub(crate) mod test {
             dummy_target,
             crate::ClockSkew::None,
             runtime,
+            fake_mq(),
         )
         .expect("channel create failed");
         (chan, reactor, recv1, send2)

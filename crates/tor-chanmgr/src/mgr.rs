@@ -697,7 +697,7 @@ mod test {
             &self,
             target: &Self::BuildSpec,
             _reporter: BootstrapReporter,
-            _memquota: ChannelAccount, // XXXX pass this on
+            _memquota: ChannelAccount,
         ) -> Result<Arc<FakeChannel>> {
             yield_now().await;
             let FakeBuildSpec(ident, mood, id) = *target;

@@ -11,6 +11,7 @@ use tokio::time::{timeout, Duration};
 use tor_error::ErrorReport;
 use tor_guardmgr::bridge::{BridgeConfig, BridgeParseError};
 use tor_proto::channel::Channel;
+use tor_proto::memquota::{ChannelAccount, SpecificAccount as _};
 use tor_rtcompat::PreferredRuntime;
 
 use crate::BridgeResult;
@@ -38,7 +39,7 @@ async fn is_bridge_online(
 ) -> Result<Arc<Channel>, tor_chanmgr::Error> {
     let chanmgr = tor_client.chanmgr();
     chanmgr
-        .build_unmanaged_channel(bridge_config)
+        .build_unmanaged_channel(bridge_config, ChannelAccount::new_noop())
         .await
 }
 

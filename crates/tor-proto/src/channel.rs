@@ -66,6 +66,7 @@ mod unique_id;
 pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
+use crate::memquota::ChannelAccount;
 use crate::util::err::ChannelClosed;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
@@ -227,6 +228,12 @@ pub(crate) struct ChannelDetails {
     /// Set by reactor when a circuit is added or removed.
     /// Read from `Channel::duration_unused`.
     unused_since: AtomicOptTimestamp,
+    /// Memory quota account
+    ///
+    /// This is here partly because we need to ensure it lives as long as the channel,
+    /// as otherwise the memquota system will tear the account down.
+    #[allow(dead_code)]
+    memquota: ChannelAccount,
 }
 
 /// Mutable details (state) used by the `Channel` (frontend)
@@ -412,12 +419,13 @@ impl ChannelBuilder {
         self,
         tls: T,
         sleep_prov: S,
+        memquota: ChannelAccount,
     ) -> OutboundClientHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov)
+        handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov, memquota)
     }
 }
 
@@ -427,6 +435,7 @@ impl Channel {
     /// Internal method, called to finalize the channel when we've
     /// sent our netinfo cell, received the peer's netinfo cell, and
     /// we're finally ready to create circuits.
+    #[allow(clippy::too_many_arguments)] // TODO consider if we want a builder
     #[allow(clippy::unnecessary_wraps)] // XXXX
     fn new<S>(
         link_protocol: u16,
@@ -436,6 +445,7 @@ impl Channel {
         peer_id: OwnedChanTarget,
         clock_skew: ClockSkew,
         sleep_prov: S,
+        memquota: ChannelAccount,
     ) -> Result<(Arc<Self>, reactor::Reactor<S>)>
     where
         S: CoarseTimeProvider + SleepProvider,
@@ -457,6 +467,7 @@ impl Channel {
             closed,
             unused_since,
             reactor_closed_rx,
+            memquota,
         };
         let details = Arc::new(details);
 
@@ -495,6 +506,11 @@ impl Channel {
     /// Return a process-unique identifier for this channel.
     pub fn unique_id(&self) -> UniqId {
         self.unique_id
+    }
+
+    /// Return a reference to the memory tracking account for this Channel
+    pub fn mq_account(&self) -> &ChannelAccount {
+        &self.details.memquota
     }
 
     /// Return an OwnedChanTarget representing the actual handshake used to
@@ -776,6 +792,7 @@ fn fake_channel_details() -> Arc<ChannelDetails> {
         closed: AtomicBool::new(false),
         reactor_closed_rx: rx.shared(),
         unused_since,
+        memquota: crate::util::fake_mq(),
     })
 }
 
@@ -787,6 +804,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::codec::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::new_reactor;
+    use crate::util::fake_mq;
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{msg, AnyChanCell};
     use tor_rtcompat::PreferredRuntime;
@@ -848,7 +866,7 @@ pub(crate) mod test {
             .parse()
             .unwrap()]));
         let tls = MsgBuf::new(&b""[..]);
-        let _outbound = builder.launch(tls, rt);
+        let _outbound = builder.launch(tls, rt, fake_mq());
     }
 
     #[test]

@@ -9,6 +9,7 @@ use tor_error::internal;
 
 use crate::channel::codec::{self, ChannelCodec, CodecError};
 use crate::channel::UniqId;
+use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use tor_cell::chancell::{msg, ChanCmd, ChanMsg};
@@ -41,6 +42,9 @@ pub struct OutboundClientHandshake<
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
 
+    /// Memory quota account
+    memquota: ChannelAccount,
+
     /// Underlying TLS stream.
     ///
     /// (We don't enforce that this is actually TLS, but if it isn't, the
@@ -63,6 +67,8 @@ pub struct UnverifiedChannel<
 > {
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
+    /// Memory quota account
+    memquota: ChannelAccount,
     /// The negotiated link protocol.  Must be a member of LINK_PROTOCOLS
     link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
@@ -96,6 +102,8 @@ pub struct VerifiedChannel<
 > {
     /// Runtime handle (insofar as we need it)
     sleep_prov: S,
+    /// Memory quota account
+    memquota: ChannelAccount,
     /// The negotiated link protocol.
     link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
@@ -152,12 +160,14 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
         tls: T,
         target_method: Option<ChannelMethod>,
         sleep_prov: S,
+        memquota: ChannelAccount,
     ) -> Self {
         Self {
             tls,
             target_method,
             unique_id: UniqId::new(),
             sleep_prov,
+            memquota,
         }
     }
 
@@ -317,6 +327,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
                     target_method: self.target_method.take(),
                     unique_id: self.unique_id,
                     sleep_prov: self.sleep_prov.clone(),
+                    memquota: self.memquota.clone(),
                 })
             }
         }
@@ -574,6 +585,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
             rsa_id,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,
+            memquota: self.memquota,
         })
     }
 }
@@ -641,6 +653,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
             peer_id,
             self.clock_skew,
             self.sleep_prov,
+            self.memquota,
         )
     }
 }
@@ -654,6 +667,7 @@ pub(super) mod test {
 
     use super::*;
     use crate::channel::codec::test::MsgBuf;
+    use crate::util::fake_mq;
     use crate::Result;
     use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
@@ -704,7 +718,7 @@ pub(super) mod test {
             // netinfo cell -- quite minimal.
             add_padded(&mut buf, NETINFO_PREFIX);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = OutboundClientHandshake::new(mb, None, rt.clone());
+            let handshake = OutboundClientHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now).await?;
 
             assert_eq!(unverified.link_protocol, 5);
@@ -720,7 +734,7 @@ pub(super) mod test {
             buf.extend_from_slice(VPADDING);
             add_padded(&mut buf, NETINFO_PREFIX_WITH_TIME);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = OutboundClientHandshake::new(mb, None, rt.clone());
+            let handshake = OutboundClientHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now).await?;
             // Correct timestamp in the NETINFO, so no skew.
             assert_eq!(unverified.clock_skew(), ClockSkew::None);
@@ -728,7 +742,7 @@ pub(super) mod test {
             // Now pretend our clock is fast.
             let now2 = now + Duration::from_secs(3600);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = OutboundClientHandshake::new(mb, None, rt.clone());
+            let handshake = OutboundClientHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now2).await?;
             assert_eq!(
                 unverified.clock_skew(),
@@ -744,7 +758,7 @@ pub(super) mod test {
         S: CoarseTimeProvider + SleepProvider,
     {
         let mb = MsgBuf::new(input);
-        let handshake = OutboundClientHandshake::new(mb, None, sleep_prov);
+        let handshake = OutboundClientHandshake::new(mb, None, sleep_prov, fake_mq());
         handshake.connect(SystemTime::now).await.err().unwrap()
     }
 
@@ -871,6 +885,7 @@ pub(super) mod test {
             target_method: None,
             unique_id: UniqId::new(),
             sleep_prov: runtime,
+            memquota: fake_mq(),
         }
     }
 
@@ -1132,6 +1147,7 @@ pub(super) mod test {
                 rsa_id,
                 clock_skew: ClockSkew::None,
                 sleep_prov: rt,
+                memquota: fake_mq(),
             };
 
             let (_chan, _reactor) = ver.finish().await.unwrap();
