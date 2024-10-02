@@ -87,8 +87,8 @@ impl<T: HasMemoryCostStructural> HasMemoryCost for T {
 macro_rules! memory_cost_structural_copy { { $($ty:ty),* $(,)? } => { $(
     impl $crate::HasMemoryCostStructural for $ty {
         fn indirect_memory_cost(&self, _et: $crate::EnabledToken) -> usize {
-	    $crate::assert_copy_static::<$ty>(self);
-	    0
+            $crate::assert_copy_static::<$ty>(self);
+            0
         }
     }
 )* } }
