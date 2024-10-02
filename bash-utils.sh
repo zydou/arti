@@ -29,7 +29,7 @@ alias reject_all_arguments='
 
 # shellcheck disable=SC2142
 alias reject_options='
-case "$1" in
+case "${1-}" in
     --) shift ;;
     -*) echo >&2 "$0: No options allowed"; exit 12 ;;
 esac
