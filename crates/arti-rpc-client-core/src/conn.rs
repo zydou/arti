@@ -468,7 +468,7 @@ pub enum ProtoError {
 
     /// We got a response to some internally generated request that wasn't what we expected.
     #[error("{0}")]
-    InternalRequestFailed(UnexpectedReply),
+    InternalRequestFailed(#[source] UnexpectedReply),
 }
 
 /// An error while trying to connect to the Arti process.
