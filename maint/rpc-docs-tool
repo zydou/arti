@@ -110,8 +110,7 @@ MD = marko.Markdown(renderer=marko.md_renderer.MarkdownRenderer)
 
 # A string we'll use to identify RPC-specific sections in a markdown document.
 # (Case-insensitive.)
-MAGIC_HEADING = "In The Arti RPC Sysem"
-
+MAGIC_HEADING = "In The Arti RPC System"
 
 def heading_matches(h, s):
     """
@@ -122,7 +121,8 @@ def heading_matches(h, s):
         return False
     if h.children[0].get_type() != "RawText":
         return False
-    return h.strip().lower() == s.strip().lower()
+    h_text = h.children[0].children
+    return h_text.strip().lower() == s.strip().lower()
 
 
 def extract_md_section(document, magic_heading=MAGIC_HEADING):
@@ -147,7 +147,6 @@ def extract_md_section(document, magic_heading=MAGIC_HEADING):
             if heading_matches(elt, magic_heading):
                 in_section = True
                 section_h_level = elt.level
-                new_children.append(elt)
 
         elif in_section and is_heading:
             if elt.level > section_h_level:
