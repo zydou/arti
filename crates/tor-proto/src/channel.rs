@@ -651,13 +651,7 @@ impl Channel {
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
-        circuit::PendingClientCirc::new(
-            id,
-            self.clone(),
-            createdreceiver,
-            receiver,
-            circ_unique_id,
-        )
+        circuit::PendingClientCirc::new(id, self.clone(), createdreceiver, receiver, circ_unique_id)
     }
 
     /// Shut down this channel immediately, along with all circuits that
