@@ -5,7 +5,11 @@
 #
 # Requires that source code files contain no hard tabs.
 #
-# GIT-FILE-SPECIFICATIONS are arguments to git grep (after --).
+# GIT-FILE-SPECIFICATIONS are arguments to git grep.
+#
+# (GIT-FILE-SPECIFICATIONS are passed to `git grep` after `--`,
+# so we run `git grep ... -- GIT-FILE-SPECIFICATIONS`.
+# That ensures the file specifications are interpreted by git as `<pathspec>`s.)
 #
 # If not specified, the default is
 #     :*.c :*.py :*.rs :*.toml :*.yaml :*.yml
