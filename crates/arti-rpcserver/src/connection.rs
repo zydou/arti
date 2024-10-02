@@ -50,7 +50,8 @@ use tor_rpcbase::templates::*;
 /// even before you authenticate.  Its ObjectId is always `"connection"`.
 ///
 /// Because this object is available before authentication,
-/// it provides only those methods that you need order to perform authentication
+/// it provides only those methods that you need
+/// in order to perform authentication
 /// and receive an `RpcSession`.
 #[derive(Deftly)]
 #[derive_deftly(Object)]

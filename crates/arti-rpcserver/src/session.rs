@@ -79,7 +79,9 @@ impl RpcSession {
 
 /// Release a single ObjectID.
 ///
-/// Only works on a strong reference (handle).
+/// Only works if the ObjectID is strong reference (also known as a "handle"):
+/// see RPC specification for more information on the distinction.
+/// (We intend to relax this requirement in the future.)
 ///
 /// After calling this method, the provided ObjectID will no longer be usable,
 /// but other ObjectIDs for the same object may still exist.
@@ -242,7 +244,7 @@ mod list_all_methods {
     use derive_deftly::Deftly;
     use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*, RpcDispatchInformation};
 
-    /// Return a description all recognized RPC methods.
+    /// Return a description of all recognized RPC methods.
     ///
     /// Note that not every recognized method is necessarily invocable in practice.
     /// Depending on the session's access level, you might not be able to

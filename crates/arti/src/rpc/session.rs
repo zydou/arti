@@ -16,7 +16,9 @@ use super::proxyinfo::{self, ProxyInfo};
 /// This is the first object that an RPC user receives upon authenticating;
 /// It is returned by `auth:authenticate`.
 ///
-/// Other objects are available using methods from this method.
+/// Other objects (`TorClient`,`RpcDataStream`, etc)
+/// are available using methods on this object.
+/// (See the list of available methods.)
 ///
 /// This type wraps and delegates to [`arti_rpcserver::RpcSession`],
 /// but exposes additional functionality not available at the
