@@ -813,8 +813,10 @@ mod test {
     #[traced_test]
     #[test]
     fn sink_error() {
-        #[derive(Default, Debug)]
-        struct BustedSink;
+        #[derive(Debug, Copy, Clone)]
+        struct BustedSink {
+            error: BustedError,
+        }
 
         impl<T> Sink<T> for BustedSink {
             type Error = BustedError;
@@ -823,7 +825,7 @@ mod test {
                 self: Pin<&mut Self>,
                 _: &mut Context<'_>,
             ) -> Poll<Result<(), Self::Error>> {
-                Ready(Err(BustedError))
+                Ready(Err(self.error))
             }
             fn start_send(self: Pin<&mut Self>, _item: T) -> Result<(), Self::Error> {
                 panic!("poll_ready always gives error, start_send should not be called");
@@ -842,28 +844,32 @@ mod test {
             }
         }
 
-        #[derive(Error, Debug)]
+        #[derive(Error, Debug, Clone, Copy)]
         #[error("busted, for testing")]
         struct BustedError;
 
-        struct BustedQueueSpec;
+        struct BustedQueueSpec {
+            error: BustedError,
+        }
         impl Sealed for BustedQueueSpec {}
         impl ChannelSpec for BustedQueueSpec {
             type Sender<T: Debug + Send + 'static> = BustedSink;
             type Receiver<T: Debug + Send + 'static> = futures::stream::Pending<T>;
             type SendError = BustedError;
             fn raw_channel<T: Debug + Send + 'static>(self) -> (BustedSink, Self::Receiver<T>) {
-                (BustedSink, futures::stream::pending())
+                (BustedSink { error: self.error }, futures::stream::pending())
             }
             fn close_receiver<T: Debug + Send + 'static>(_rx: &mut Self::Receiver<T>) {}
         }
 
         MockRuntime::test_with_various(|rt| async move {
+            let error = BustedError;
+
             let s = setup(&rt);
-            let (mut tx, _rx) = BustedQueueSpec.new_mq(s.dtp.clone(), &s.acct).unwrap();
+            let (mut tx, _rx) = BustedQueueSpec { error }.new_mq(s.dtp.clone(), &s.acct).unwrap();
 
             let e = tx.send(s.itrk.new_item()).await.unwrap_err();
-            assert!(matches!(e, SendError::Channel(BustedError)));
+            assert!(matches!(e, SendError::Channel(BustedError { .. })));
 
             // item should have been destroyed
             assert_eq!(s.itrk.lock().existing, 0);
