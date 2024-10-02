@@ -206,6 +206,45 @@ define_derive_deftly! {
     ///    [`HasMemoryCostStructural::indirect_memory_cost`].
     ///
     /// With one of these, the field doesn't need to implement `HasMemoryCostStructural`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use derive_deftly::Deftly;
+    /// use std::mem::size_of;
+    /// use tor_memquota::{HasMemoryCost, HasMemoryCostStructural};
+    /// use tor_memquota::derive_deftly_template_HasMemoryCost;
+    ///
+    /// #[derive(Deftly)]
+    /// #[derive_deftly(HasMemoryCost)]
+    /// #[deftly(has_memory_cost(bounds = "Data: HasMemoryCostStructural"))]
+    /// struct Struct<Data> {
+    ///     data: Data,
+    ///
+    ///     #[deftly(has_memory_cost(indirect_size = "0"))] // this is a good guess
+    ///     num: serde_json::Number,
+    ///
+    ///     #[deftly(has_memory_cost(copy))]
+    ///     msg: &'static str,
+    ///
+    ///     #[deftly(has_memory_cost(indirect_fn = "|info, _et| String::capacity(info)"))]
+    ///     info: safelog::Sensitive<String>,
+    /// }
+    ///
+    /// let s = Struct {
+    ///     data: String::with_capacity(33),
+    ///     num: serde_json::Number::from_f64(0.0).unwrap(),
+    ///     msg: "hello",
+    ///     info: String::with_capacity(12).into(),
+    /// };
+    ///
+    /// let Some(et) = tor_memquota::EnabledToken::new_if_compiled_in() else { return };
+    ///
+    /// assert_eq!(
+    ///     s.memory_cost(et),
+    ///     size_of::<Struct<String>>() + 33 + 12,
+    /// );
+    /// ```
     export HasMemoryCost expect items:
 
     impl<$tgens> $crate::HasMemoryCostStructural for $ttype

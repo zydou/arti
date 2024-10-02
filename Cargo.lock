@@ -5848,6 +5848,7 @@ dependencies = [
  "paste",
  "pin-project",
  "rand",
+ "safelog",
  "serde",
  "serde_json",
  "slotmap",
