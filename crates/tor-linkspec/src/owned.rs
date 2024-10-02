@@ -56,7 +56,7 @@ impl RelayIds {
     ///
     /// This is _not_ a `Default` method, since this is not what you should
     /// usually construct.
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             ed_identity: None,
             rsa_identity: None,
