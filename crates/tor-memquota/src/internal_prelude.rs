@@ -17,13 +17,12 @@
 #![allow(unused_imports)]
 
 pub(crate) use std::{
-    alloc::Layout,
     cmp::{Ordering, Reverse},
     collections::{BinaryHeap, HashSet},
     fmt::{self, Debug},
     future::Future,
     marker::PhantomData,
-    mem,
+    mem::{self, size_of},
     panic::{catch_unwind, AssertUnwindSafe},
     pin::Pin,
     sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},

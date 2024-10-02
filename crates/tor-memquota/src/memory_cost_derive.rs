@@ -2,17 +2,6 @@
 
 use crate::internal_prelude::*;
 
-//---------- helper ----------
-
-/// Convenience trait that provides the alias `T::SIZE`
-trait Size {
-    /// Equal to `Layout::new::<Self>().size()`
-    const SIZE: usize;
-}
-impl<T: Sized> Size for T {
-    const SIZE: usize = Layout::new::<T>().size();
-}
-
 //---------- main public items ----------
 
 /// Types whose `HasMemoryCost` is derived structurally
@@ -32,14 +21,14 @@ impl<T: Sized> Size for T {
 ///
 /// The memory cost of a `HasMemoryCostStructural` type is:
 ///
-/// - The number of bytes in its [`Layout`]; plus
+/// - The number of bytes in its own size [`size_of`]; plus
 ///
 /// - The (structural) memory cost of all the out-of-line data that it owns;
 ///   that's what's returned by
 ///   [`indirect_memory_cost`](HasMemoryCostStructural::indirect_memory_cost)
 ///
 /// For example, `String`s out-of-line memory cost is just its capacity,
-/// so its memory cost is the size of its three word `Layout` plus its capacity.
+/// so its memory cost is the size of its three word layout plus its capacity.
 ///
 /// This calculation is performed by the blanket impl of `HasMemoryCost`.
 ///
@@ -76,7 +65,7 @@ impl<'r, T: Copy + 'static> HasMemoryCostStructural for MemoryCostStructuralCopy
 
 impl<T: HasMemoryCostStructural> HasMemoryCost for T {
     fn memory_cost(&self, et: EnabledToken) -> usize {
-        T::SIZE //
+        size_of::<T>() //
             .saturating_add(
                 //
                 <T as HasMemoryCostStructural>::indirect_memory_cost(self, et),
@@ -178,7 +167,7 @@ impl<T: HasMemoryCostStructural> HasMemoryCostStructural for Box<T> {
 impl<T: HasMemoryCostStructural> HasMemoryCostStructural for Vec<T> {
     fn indirect_memory_cost(&self, et: EnabledToken) -> usize {
         chain!(
-            [T::SIZE.saturating_mul(self.capacity())],
+            [size_of::<T>().saturating_mul(self.capacity())],
             self.iter().map(|t| t.indirect_memory_cost(et)),
         )
         .fold(0, usize::saturating_add)
@@ -300,9 +289,9 @@ mod test {
 
     #[test]
     fn structs() {
-        assert_eq!(S::default().memory_cost(ET), S::SIZE + 4);
-        assert_eq!(E::U(0).memory_cost(ET), E::SIZE);
-        assert_eq!(E::B(Box::default()).memory_cost(ET), E::SIZE + 4);
+        assert_eq!(S::default().memory_cost(ET), size_of::<S>() + 4);
+        assert_eq!(E::U(0).memory_cost(ET), size_of::<E>());
+        assert_eq!(E::B(Box::default()).memory_cost(ET), size_of::<E>() + 4);
     }
 
     #[test]
@@ -319,7 +308,7 @@ mod test {
 
         assert_eq!(
             s.memory_cost(ET),
-            S::SIZE + 4 /* b */ + 10 * 4, /* v buffer */
+            size_of::<S>() + 4 /* b */ + 10 * 4, /* v buffer */
         );
     }
 
@@ -334,7 +323,7 @@ mod test {
 
         assert_eq!(
             s.memory_cost(ET),
-            S::SIZE + 4 /* b */ + 0 /* v */ + E::SIZE * 10 /* ev buffer */ + 4 /* E::B */
+            size_of::<S>() + 4 /* b */ + 0 /* v */ + size_of::<E>() * 10 /* ev buffer */ + 4 /* E::B */
         );
     }
 }
