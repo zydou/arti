@@ -45,20 +45,12 @@ pub trait HasMemoryCostStructural {
     fn indirect_memory_cost(&self, _: EnabledToken) -> usize;
 }
 
-/// (Internal) wrapper for to help implement `MemoryCostStructural` for `Copy` types and fields
+/// Compile-time check for `Copy + 'static` - helper for macros
 ///
-/// So instead, when we have `Copy` types or fields, we wrap them in this.
-///
-/// (We could just hardcode a `0` at the use sites of this struct,
-/// but that wouldn't prove that our preconditions - `Copy + 'static` - were met.
-#[allow(clippy::exhaustive_structs)]
-pub struct MemoryCostStructuralCopy<'r, T: Copy + 'static>(pub &'r T);
-
-impl<'r, T: Copy + 'static> HasMemoryCostStructural for MemoryCostStructuralCopy<'r, T> {
-    fn indirect_memory_cost(&self, _: EnabledToken) -> usize {
-        0
-    }
-}
+/// Used by `#[deftly(has_memory_cost(copy))]`
+/// and `memory_cost_structural_copy!`
+/// to check that the type really is suitable.
+pub fn assert_copy_static<T: Copy + 'static>(_: &T) {}
 
 impl<T: HasMemoryCostStructural> HasMemoryCost for T {
     fn memory_cost(&self, et: EnabledToken) -> usize {
@@ -94,11 +86,9 @@ impl<T: HasMemoryCostStructural> HasMemoryCost for T {
 #[macro_export]
 macro_rules! memory_cost_structural_copy { { $($ty:ty),* $(,)? } => { $(
     impl $crate::HasMemoryCostStructural for $ty {
-        fn indirect_memory_cost(&self, et: $crate::EnabledToken) -> usize {
-            $crate::HasMemoryCostStructural::indirect_memory_cost(
-                &$crate::MemoryCostStructuralCopy(self),
-                et,
-            )
+        fn indirect_memory_cost(&self, _et: $crate::EnabledToken) -> usize {
+	    $crate::assert_copy_static::<$ty>(self);
+	    0
         }
     }
 )* } }
@@ -258,10 +248,10 @@ define_derive_deftly! {
             ${define F_INDIRECT_COST {
                 ${select1
                     fmeta(has_memory_cost(copy)) {
-                        $crate::HasMemoryCostStructural::indirect_memory_cost(
-                            &$crate::MemoryCostStructuralCopy::<$ftype>(&$fpatname),
-                            et,
-                        )
+                        {
+                            $crate::assert_copy_static::<$ftype>(&$fpatname);
+                            0
+                        }
                     }
                     fmeta(has_memory_cost(indirect_fn)) {
                         ${fmeta(has_memory_cost(indirect_fn)) as expr}(&$fpatname, et)
