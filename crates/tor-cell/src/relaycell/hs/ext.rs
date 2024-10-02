@@ -99,10 +99,9 @@ impl<T: ExtGroup> ExtList<T> {
 /// An unrecognized or unencoded extension for some HS-related message.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(HasMemoryCost)]
-#[deftly(has_memory_cost(bounds = "ID: Copy + 'static"))]
+#[deftly(has_memory_cost(bounds = "ID: HasMemoryCostStructural"))]
 pub struct UnrecognizedExt<ID> {
     /// The field type ID for this extension.
-    #[deftly(has_memory_cost(copy))]
     pub(super) type_id: ID,
     /// The body of this extension.
     pub(super) body: Vec<u8>,
