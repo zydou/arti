@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+#
+# Usage:
+#   maint/forbid-hard-tabs [GIT-FILE-SPECIFICATIONS ...]
+#
+# Requires that source code files contain no hard tabs.
+#
+# GIT-FILE-SPECIFICATIONS are arguments to git grep (after --).
+#
+# If not specified, the default is
+#     :*.c :*.py :*.rs :*.toml :*.yaml :*.yml
+
+set -euo pipefail
+
+# this include stanza is automatically maintained by update-shell-includes
+common_dir=$(realpath "$0")
+common_dir=$(dirname "$common_dir")
+# shellcheck source=maint/common/bash-utils.sh
+. "$common_dir"/bash-utils.sh
+
+reject_options
+
+if [ $# = 0 ]; then
+    set :\*.{c,py,rs,toml,yaml,yml}
+fi
+
+set +e
+git --no-pager grep '	' -- "$@"
+st=$?
+set -e
+
+case "$st" in
+    0)
+	echo "Hard tabs found.  Please use spaces for indentation."
+	exit 1
+	;;
+    1)
+	echo "Everything seems ok"
+	exit 0
+	;;
+    *)
+	echo "ERROR - status $st"
+	exit 16
+	;;
+esac
