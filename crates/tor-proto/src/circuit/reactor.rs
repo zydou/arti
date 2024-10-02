@@ -35,6 +35,7 @@ use crate::crypto::cell::{
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::{NtorV3Client, NtorV3PublicKey};
+use crate::memquota::CircuitAccount;
 use crate::stream::{AnyCmdChecker, StreamStatus};
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::util::sometimes_unbounded_sink::SometimesUnboundedSink;
@@ -730,6 +731,9 @@ pub struct Reactor {
     /// A handler for incoming stream requests.
     #[cfg(feature = "hs-service")]
     incoming_stream_req_handler: Option<IncomingStreamRequestHandler>,
+    /// Memory quota account
+    #[allow(dead_code)] // Partly here to keep it alive as long as the circuit
+    memquota: CircuitAccount,
 }
 
 /// Information about an incoming stream request.
@@ -784,6 +788,7 @@ impl Reactor {
         channel_id: CircId,
         unique_id: UniqId,
         input: mpsc::Receiver<ClientCircChanMsg>,
+        memquota: CircuitAccount,
     ) -> (
         Self,
         mpsc::UnboundedSender<CtrlMsg>,
@@ -815,6 +820,7 @@ impl Reactor {
             #[cfg(feature = "hs-service")]
             incoming_stream_req_handler: None,
             mutable: mutable.clone(),
+            memquota,
         };
 
         (reactor, control_tx, reactor_closed_rx, mutable)

@@ -60,6 +60,7 @@ pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
+use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
@@ -186,6 +187,8 @@ pub struct ClientCirc {
     /// For testing purposes: the CircId, for use in peek_circid().
     #[cfg(test)]
     circid: CircId,
+    /// Memory quota account
+    memquota: CircuitAccount,
 }
 
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
@@ -378,6 +381,11 @@ impl ClientCirc {
     /// path.
     pub fn channel(&self) -> &Channel {
         &self.channel
+    }
+
+    /// Return a reference to this circuit's memory quota account
+    pub fn mq_account(&self) -> &CircuitAccount {
+        &self.memquota
     }
 
     /// Return the cryptographic material used to prove knowledge of a shared
@@ -1032,8 +1040,10 @@ impl PendingClientCirc {
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
     ) -> Result<(PendingClientCirc, reactor::Reactor)> {
+        let memquota = CircuitAccount::new(channel.mq_account())?;
+
         let (reactor, control_tx, reactor_closed_rx, mutable) =
-            Reactor::new(channel.clone(), id, unique_id, input);
+            Reactor::new(channel.clone(), id, unique_id, input, memquota.clone());
 
         let circuit = ClientCirc {
             mutable,
@@ -1043,6 +1053,7 @@ impl PendingClientCirc {
             channel,
             #[cfg(test)]
             circid: id,
+            memquota,
         };
 
         let pending = PendingClientCirc {
