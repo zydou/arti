@@ -738,6 +738,14 @@ mod test {
         }
     }
 
+    #[derive(Debug)]
+    struct Gigantic;
+    impl HasMemoryCost for Gigantic {
+        fn memory_cost(&self, _et: EnabledToken) -> usize {
+            mbytes(100)
+        }
+    }
+
     impl Setup {
         /// Check that claims and releases have balanced out
         ///
@@ -881,6 +889,8 @@ mod test {
             fn close_receiver<T: Debug + Send + 'static>(_rx: &mut Self::Receiver<T>) {}
         }
 
+        use ErasedSinkTrySendError as ESTSE;
+
         MockRuntime::test_with_various(|rt| async move {
             let error = BustedError {
                 is_disconnected: true,
@@ -897,8 +907,52 @@ mod test {
             // item should have been destroyed
             assert_eq!(s.itrk.lock().existing, 0);
 
+            // ---- Test try_send error handling ----
+
+            fn error_is_other_of<E>(e: ESTSE) -> Result<(), impl Debug>
+            where
+                E: std::error::Error + 'static,
+            {
+                match e {
+                    ESTSE::Other(e) if e.is::<E>() => Ok(()),
+                    other => Err(other),
+                }
+            }
+
+            let item = s.itrk.new_item();
+
+            // Test try_send failure due to BustedError, is_disconnected: true
+
+            let (e, item) = Pin::new(&mut tx).try_send_or_return(item).unwrap_err();
+            assert!(matches!(e, ESTSE::Disconnected), "{e:?}");
+
+            // Test try_send failure due to BustedError, is_disconnected: false (ie, Other)
+
+            let error = BustedError {
+                is_disconnected: false,
+            };
+            let (mut tx, _rx) = BustedQueueSpec { error }
+                .new_mq(s.dtp.clone(), &s.acct)
+                .unwrap();
+            let (e, item) = Pin::new(&mut tx).try_send_or_return(item).unwrap_err();
+            error_is_other_of::<BustedError>(e).unwrap();
+
             // no memory should be claimed
             s.check_zero_claimed(1);
+
+            // Test try_send failure due to memory quota collapse
+
+            // cause reclaim
+            {
+                let (mut tx, _rx) = MpscUnboundedSpec.new_mq(s.dtp.clone(), &s.acct).unwrap();
+                tx.send(Gigantic).await.unwrap();
+                rt.advance_until_stalled().await;
+            }
+
+            let (e, item) = Pin::new(&mut tx).try_send_or_return(item).unwrap_err();
+            error_is_other_of::<crate::Error>(e).unwrap();
+
+            drop::<Item>(item);
         });
     }
 }
