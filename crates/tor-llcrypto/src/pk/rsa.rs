@@ -19,6 +19,9 @@ use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
 use std::fmt;
 use subtle::{Choice, ConstantTimeEq};
 
+#[cfg(feature = "memquota")]
+use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+
 use crate::util::ct::CtByteArray;
 
 /// How many bytes are in an "RSA ID"?  (This is a legacy tor
@@ -38,6 +41,7 @@ pub const RSA_ID_LEN: usize = 20;
 /// its [`Ed25519Identity`](crate::pk::ed25519::Ed25519Identity) instead of by
 /// this kind of identity key.
 #[derive(Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[cfg_attr(feature = "memquota", derive(Deftly), derive_deftly(HasMemoryCost))]
 pub struct RsaIdentity {
     /// SHA1 digest of a DER encoded public key.
     id: CtByteArray<RSA_ID_LEN>,

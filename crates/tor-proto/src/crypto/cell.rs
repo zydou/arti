@@ -31,8 +31,10 @@
 //! The current Tor protocols are instantiated in a `tor1` submodule.
 
 use crate::{Error, Result};
+use derive_deftly::Deftly;
 use tor_cell::chancell::BoxedCellBody;
 use tor_error::internal;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use digest::generic_array::GenericArray;
 
@@ -118,7 +120,8 @@ pub(crate) trait InboundClientLayer {
 /// Type to store hop indices on a circuit.
 ///
 /// Hop indices are zero-based: "0" denotes the first hop on the circuit.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct HopNum(u8);
 
 impl HopNum {

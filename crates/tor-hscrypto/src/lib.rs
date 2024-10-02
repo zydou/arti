@@ -51,6 +51,9 @@ pub mod time;
 
 use macros::define_bytes;
 
+#[cfg(feature = "memquota")]
+use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
+
 define_bytes! {
 /// A value to identify an onion service during a given period. (`N_hs_subcred`)
 ///
@@ -106,6 +109,11 @@ define_bytes! {
 /// `ESTABLISH_RENDEZVOUS` message; the service later provides the same value in its
 /// `RENDEZVOUS1` message.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "memquota",
+    derive(Deftly),
+    derive_deftly(HasMemoryCost),
+)]
 pub struct RendCookie([u8; REND_COOKIE_LEN]);
 }
 

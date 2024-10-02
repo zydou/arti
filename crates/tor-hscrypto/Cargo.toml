@@ -13,8 +13,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+memquota = ["derive-deftly", "tor-memquota", "tor-units/memquota", "tor-llcrypto/memquota"]
 ope = ["cipher", "zeroize"]
 full = [
+    "memquota",
     "ope",
     "safelog/full",
     "tor-basic-utils/full",
@@ -27,6 +29,7 @@ full = [
 [dependencies]
 cipher = { version = "0.4.1", features = ["zeroize"], optional = true }
 data-encoding = "2.3.1"                                                                                    # want MSVC i686 build fix, data-encoding/issues/33
+derive-deftly = { version = "0.14.2", optional = true }
 derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 itertools = "0.13.0"
@@ -40,6 +43,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
 tor-bytes = { version = "0.23.0", path = "../tor-bytes" }
 tor-error = { version = "0.23.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.23.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
+tor-memquota = { version = "0.23.0", path = "../tor-memquota", no_default_features = true, optional = true }
 tor-units = { path = "../tor-units", version = "0.23.0" }
 zeroize = { version = "1", optional = true }
 

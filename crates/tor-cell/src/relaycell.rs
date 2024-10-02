@@ -3,10 +3,12 @@
 use std::num::NonZeroU16;
 
 use crate::chancell::{BoxedCellBody, CELL_DATA_LEN};
+use derive_deftly::Deftly;
 use smallvec::{smallvec, SmallVec};
 use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Reader, Writer};
 use tor_error::internal;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use caret::caret_int;
 use rand::{CryptoRng, Rng};
@@ -20,6 +22,8 @@ pub mod udp;
 
 caret_int! {
     /// A command that identifies the type of a relay cell
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct RelayCmd(u8) {
         /// Start a new stream
         BEGIN = 1,
@@ -149,7 +153,8 @@ impl RelayCmd {
 /// These identifiers are local to each hop on a circuit.
 /// This can't be zero; if you need something that can be zero in the protocol,
 /// use `Option<StreamId>`.
-#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug, Hash, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct StreamId(NonZeroU16);
 
 impl From<NonZeroU16> for StreamId {
@@ -380,7 +385,8 @@ impl IncompleteRelayMsgInfo {
 }
 
 /// Internal representation of an `UnparsedRelayMsg`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 enum UnparsedRelayMsgInternal {
     /// For `RelayCellFormat::V0` we can avoid copying data around by just
     /// storing the original cell body here.
@@ -395,7 +401,8 @@ enum UnparsedRelayMsgInternal {
 
 /// An enveloped relay message that has not yet been fully parsed, but where we
 /// have access to the command and stream ID, for dispatching purposes.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct UnparsedRelayMsg {
     /// The internal representation.
     internal: UnparsedRelayMsgInternal,

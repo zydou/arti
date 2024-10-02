@@ -5,10 +5,12 @@
 
 use super::msg;
 use crate::chancell::CELL_DATA_LEN;
+use derive_deftly::Deftly;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use tor_bytes::{EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 /// Indicates the payload is a hostname.
 const T_HOSTNAME: u8 = 0x01;
@@ -22,7 +24,8 @@ const MAX_HOSTNAME_LEN: usize = u8::MAX as usize;
 
 /// Address contained in a ConnectUdp and ConnectedUdp cell which can
 /// represent a hostname, IPv4 or IPv6 along a port number.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct AddressPort {
     /// Address.
     addr: Address,
@@ -60,7 +63,8 @@ impl TryFrom<(&str, u16)> for AddressPort {
 }
 
 /// Address representing either a hostname, IPv4 or IPv6.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 #[non_exhaustive]
 pub enum Address {
     /// Hostname
@@ -164,7 +168,8 @@ impl From<IpAddr> for Address {
 /// an End message.
 ///
 /// Clients should reject these messages.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct ConnectUdp {
     /// Same as Begin flags.
     flags: msg::BeginFlags,
@@ -206,7 +211,8 @@ impl msg::Body for ConnectUdp {
 }
 
 /// A ConnectedUdp cell sent in response to a ConnectUdp.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct ConnectedUdp {
     /// The address that the relay has bound locally of a ConnectUdp. Note
     /// that this might not be the relay address from the descriptor.
@@ -255,7 +261,8 @@ impl msg::Body for ConnectedUdp {
 /// exit sends that data onto the associated UDP connection.
 ///
 /// These messages hold between 1 and [Datagram::MAXLEN] bytes of data each.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct Datagram {
     /// Contents of the cell, to be sent on a specific stream
     body: Vec<u8>,

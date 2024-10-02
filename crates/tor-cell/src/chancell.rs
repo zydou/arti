@@ -12,6 +12,8 @@ pub mod msg;
 use std::num::NonZeroU32;
 
 use caret::caret_int;
+use derive_deftly::Deftly;
+use tor_memquota::{derive_deftly_template_HasMemoryCost, HasMemoryCostStructural};
 
 /// The amount of data sent in a fixed-length cell.
 ///
@@ -74,6 +76,8 @@ impl CircId {
 caret_int! {
     /// A ChanCmd is the type of a channel cell.  The value of the ChanCmd
     /// indicates the meaning of the cell, and (possibly) its length.
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct ChanCmd(u8) {
         /// A fixed-length cell that will be dropped.
         PADDING = 0,
@@ -192,9 +196,12 @@ pub trait ChanMsg {
 }
 
 /// A decoded channel cell, to be sent or received on a channel.
-#[derive(Debug)]
+#[derive(Debug, Deftly)]
+#[derive_deftly(HasMemoryCost)]
+#[deftly(has_memory_cost(bounds = "M: HasMemoryCostStructural"))]
 pub struct ChanCell<M> {
     /// Circuit ID associated with this cell, if any.
+    #[deftly(has_memory_cost(copy))]
     circid: Option<CircId>,
     /// Underlying message in this cell
     msg: M,

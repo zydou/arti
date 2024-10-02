@@ -6,15 +6,18 @@
 use std::net::{IpAddr, SocketAddr};
 
 use caret::caret_int;
+use derive_deftly::Deftly;
 use tor_bytes::{EncodeResult, Readable, Reader, Result, Writeable, Writer};
 use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 use crate::RelayId;
 
 /// A piece of information about a relay and how to connect to it.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub enum LinkSpec {
     /// The TCP address of an OR Port for a relay
     OrPort(IpAddr, u16),
@@ -28,6 +31,8 @@ pub enum LinkSpec {
 
 caret_int! {
     /// A numeric identifier for the type of a [`LinkSpec`].
+    #[derive(Deftly)]
+    #[derive_deftly(HasMemoryCost)]
     pub struct LinkSpecType(u8) {
         /// Indicates an IPv4 ORPORT link specifier.
         ORPORT_V4 = 0,
@@ -183,7 +188,8 @@ impl LinkSpec {
 /// An unparsed piece of information about a relay and how to connect to it.
 ///
 /// Unlike [`LinkSpec`], this can't be used directly; we only pass it on.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deftly)]
+#[derive_deftly(HasMemoryCost)]
 pub struct EncodedLinkSpec {
     /// The link specifier type.
     lstype: LinkSpecType,
