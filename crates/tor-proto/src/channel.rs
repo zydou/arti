@@ -185,6 +185,26 @@ impl ChannelType {
     }
 }
 
+/// A channel cell frame used for sending and receiving cells on a channel. The handler takes care
+/// of the cell codec transition depending in which state the channel is.
+///
+/// ChannelFrame is used to basically handle all in and outbound cells on a channel for its entire
+/// lifetime.
+pub(crate) type ChannelFrame<T> = asynchronous_codec::Framed<T, handler::ChannelCellHandler>;
+
+/// Helper: Return a new channel frame [ChannelFrame] from an object implementing AsyncRead + AsyncWrite. In the
+/// tor context, it is always a TLS stream.
+///
+/// The ty (type) argument needs to be able to transform into a [handler::ChannelCellHandler] which would
+/// generally be a [ChannelType].
+pub(crate) fn new_frame<T, I>(tls: T, ty: I) -> ChannelFrame<T>
+where
+    T: AsyncRead + AsyncWrite,
+    I: Into<handler::ChannelCellHandler>,
+{
+    asynchronous_codec::Framed::new(tls, ty.into())
+}
+
 /// A channel cell that we allot to be sent on an open channel from
 /// a server to a client.
 pub(crate) type OpenChanCellS2C = ChanCell<OpenChanMsgS2C>;
