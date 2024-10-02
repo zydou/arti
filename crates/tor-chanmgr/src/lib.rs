@@ -62,6 +62,7 @@ use tor_error::error_report;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_proto::channel::Channel;
+use tor_proto::memquota::ToplevelAccount;
 use tracing::debug;
 use void::{ResultVoidErrExt, Void};
 
@@ -188,6 +189,9 @@ pub enum ChannelUsage {
 impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
     ///
+    /// A new `ChannelAccount` will be made from `memquota`, for each Channel.
+    // XXXX ^ this is not yet true
+    ///
     /// # Usage note
     ///
     /// For the manager to work properly, you will need to call `ChanMgr::launch_background_tasks`.
@@ -196,6 +200,7 @@ impl<R: Runtime> ChanMgr<R> {
         config: &ChannelConfig,
         dormancy: Dormancy,
         netparams: &NetParameters,
+        memquota: ToplevelAccount,
     ) -> Self
     where
         R: 'static,
@@ -211,7 +216,7 @@ impl<R: Runtime> ChanMgr<R> {
             None,
         );
         let mgr =
-            mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter);
+            mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter, memquota);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,

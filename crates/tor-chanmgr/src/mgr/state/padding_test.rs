@@ -28,6 +28,7 @@ use tor_config::PaddingLevel;
 use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
+use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
 
 use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
 use crate::ChannelUsage;
@@ -189,6 +190,7 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
         dormancy,
         &netparams,
         BootstrapReporter::fake(),
+        ToplevelAccount::new_noop(),
     );
 
     let (channel, _prov) = chanmgr.get_or_launch(relay_ids, usage).await.unwrap();

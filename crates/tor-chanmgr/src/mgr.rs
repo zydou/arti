@@ -15,6 +15,7 @@ use tor_error::internal;
 use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
+use tor_proto::memquota::ToplevelAccount;
 
 mod select;
 mod state;
@@ -102,6 +103,10 @@ pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
 
     /// A bootstrap reporter to give out when building channels.
     pub(crate) reporter: BootstrapReporter,
+
+    /// The memory quota account that every channel will be a child of
+    #[allow(dead_code)] // XXXX
+    pub(crate) memquota: ToplevelAccount,
 }
 
 /// Type alias for a future that we wait on to see when a pending
@@ -120,10 +125,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         dormancy: Dormancy,
         netparams: &NetParameters,
         reporter: BootstrapReporter,
+        memquota: ToplevelAccount,
     ) -> Self {
         AbstractChanMgr {
             channels: state::MgrState::new(connector, config.clone(), dormancy, netparams),
             reporter,
+            memquota,
         }
     }
 
@@ -580,6 +587,7 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     use crate::ChannelUsage as CU;
+    use tor_proto::memquota::SpecificAccount as _;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
 
     #[derive(Clone)]
@@ -651,6 +659,7 @@ mod test {
             Default::default(),
             &Default::default(),
             BootstrapReporter::fake(),
+            ToplevelAccount::new_noop(),
         )
     }
 

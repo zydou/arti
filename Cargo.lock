@@ -347,6 +347,7 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-keymgr",
+ "tor-memquota",
  "tor-netdir",
  "tor-netdoc",
  "tor-proto",
