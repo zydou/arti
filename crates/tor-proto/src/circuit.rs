@@ -790,8 +790,8 @@ impl ClientCirc {
         let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
             .new_mq(time_prov.clone(), memquota.as_raw_account())?;
         let (tx, rx) = oneshot::channel();
-        let (msg_tx, msg_rx) = MpscSpec::new(CIRCUIT_BUFFER_SIZE)
-            .new_mq(time_prov, memquota.as_raw_account())?;
+        let (msg_tx, msg_rx) =
+            MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(time_prov, memquota.as_raw_account())?;
 
         self.control
             .unbounded_send(CtrlMsg::BeginStream {
