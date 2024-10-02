@@ -25,7 +25,7 @@ pub trait SinkTrySend<T>: Sink<T> {
     /// If the send fails, `item` is dropped.
     /// If you need it back, use [`try_send_or_return`](SinkTrySend::try_send_or_return),
     ///
-    /// (When implementing the trait, implement this method.)
+    /// (When implementing the trait, implement `try_send_or_return`, *not* this method.)
     fn try_send(self: Pin<&mut Self>, item: T) -> Result<(), <Self as SinkTrySend<T>>::Error> {
         self.try_send_or_return(item)
             .map_err(|(error, _item)| error)
