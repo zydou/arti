@@ -210,7 +210,8 @@ impl<R: Runtime> ChanMgr<R> {
             #[cfg(feature = "pt-client")]
             None,
         );
-        let mgr = mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter);
+        let mgr =
+            mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
