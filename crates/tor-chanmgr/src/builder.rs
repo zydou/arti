@@ -336,7 +336,10 @@ mod test {
                 async {
                     // client-side: build a channel!
                     builder
-                        .build_channel(&target, BootstrapReporter::fake())
+                        .build_channel(
+                            &target,
+                            BootstrapReporter::fake(),
+                        )
                         .await
                 },
                 async {
