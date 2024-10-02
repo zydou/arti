@@ -165,6 +165,11 @@
 //! a Participant, or a whole Account, or the whole MemoryQuotaTracker,
 //! may become unuseable,
 //! in which case methods will return errors with kind [`tor_error::ErrorKind::Internal`].
+//
+// TODO MEMQUOTA: We ought to account for the fixed overhead of each stream, circuit, and
+// channel.  For example, DataWriterImpl holds a substantial fixed-length buffer.  A
+// complication is that we want to know the "data age", which is possibly the time this stream
+// was last used.
 
 // @@ begin lint list maintained by maint/add_warning @@
 #![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
