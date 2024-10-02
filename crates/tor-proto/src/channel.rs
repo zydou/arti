@@ -330,7 +330,6 @@ impl ChannelSender {
     ///
     /// (This can sometimes be used to avoid having to keep
     /// a separate clone of the time provider.)
-    #[allow(dead_code)] // XXXX
     pub(crate) fn time_provider(&self) -> &DynTimeProvider {
         self.cell_tx.time_provider()
     }

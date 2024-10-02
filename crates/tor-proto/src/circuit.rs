@@ -1043,7 +1043,6 @@ impl PendingClientCirc {
     /// Does not send a CREATE* cell on its own.
     ///
     ///
-    #[allow(clippy::unnecessary_wraps)] // XXXX
     pub(crate) fn new(
         id: CircId,
         channel: Arc<Channel>,
