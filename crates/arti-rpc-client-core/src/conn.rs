@@ -25,6 +25,7 @@ mod stream;
 
 use crate::util::Utf8CString;
 pub use connimpl::RpcConn;
+use serde::{de::DeserializeOwned, Deserialize};
 pub use stream::StreamError;
 
 /// A handle to an open request.
@@ -70,6 +71,20 @@ pub struct RequestHandle {
 #[derive(Clone, Debug, derive_more::AsRef, derive_more::Into)]
 #[as_ref(forward)]
 pub struct SuccessResponse(Utf8CString);
+
+impl SuccessResponse {
+    /// Helper: Decode the `result` field of this response as an instance of D.
+    fn decode<D: DeserializeOwned>(&self) -> Result<D, serde_json::Error> {
+        /// Helper object for decoding the "result" field.
+        #[derive(Deserialize)]
+        struct Response<R> {
+            /// The decoded value.
+            result: R,
+        }
+        let response: Response<D> = serde_json::from_str(self.as_ref())?;
+        Ok(response.result)
+    }
+}
 
 /// An Update Response from Arti, with information about the progress of a request.
 ///
@@ -257,6 +272,53 @@ impl RpcConn {
         let hnd = self.execute_with_handle(cmd)?;
         hnd.wait()
     }
+
+    /// Helper for executing internally-generated requests and decoding their results.
+    ///
+    /// Behaves like `execute`, except on success, where it tries to decode the `result` field
+    /// of the response as a `T`.
+    ///
+    /// Use this method in cases where it's reasonable for Arti to sometimes return an RPC error:
+    /// in other words, where it's not necessarily a programming error or version mismatch.
+    ///
+    /// Don't use this for user-generated requests.
+    pub(crate) fn execute_internal<T: DeserializeOwned>(
+        &self,
+        cmd: &str,
+    ) -> Result<Result<T, ErrorResponse>, ProtoError> {
+        match self.execute(cmd)? {
+            Ok(success) => match success.decode::<T>() {
+                Ok(result) => Ok(Ok(result)),
+                Err(json_error) => Err(ProtoError::InternalRequestFailed(UnexpectedReply {
+                    request: cmd.to_string(),
+                    reply: Utf8CString::from(success).to_string(),
+                    problem: UnexpectedReplyProblem::CannotDecode(Arc::new(json_error)),
+                })),
+            },
+            Err(error) => Ok(Err(error)),
+        }
+    }
+
+    /// Helper for executing internally-generated requests and decoding their results.
+    ///
+    /// Behaves like `execute_internal`, except that it treats any RPC error reply
+    /// as an internal error or version mismatch.
+    ///
+    /// Don't use this for user-generated requests.
+    pub(crate) fn execute_internal_ok<T: DeserializeOwned>(
+        &self,
+        cmd: &str,
+    ) -> Result<T, ProtoError> {
+        match self.execute_internal(cmd)? {
+            Ok(v) => Ok(v),
+            Err(err_response) => Err(ProtoError::InternalRequestFailed(UnexpectedReply {
+                request: cmd.to_string(),
+                reply: err_response.to_string(),
+                problem: UnexpectedReplyProblem::ErrorNotExpected,
+            })),
+        }
+    }
+
     /// Cancel a request by ID.
     pub fn cancel(&self, _id: &AnyRequestId) -> Result<(), ProtoError> {
         todo!()
@@ -404,10 +466,9 @@ pub enum ProtoError {
     #[error("Internal error while encoding request: {0}")]
     CouldNotEncode(#[source] Arc<serde_json::Error>),
 
-    /// We got a response to some internally generated request that we couldn't decode in the
-    /// expected format.
-    #[error("Unexpected response to request: {0}")]
-    CouldNotDecode(#[source] Arc<serde_json::Error>),
+    /// We got a response to some internally generated request that wasn't what we expected.
+    #[error("{0}")]
+    InternalRequestFailed(#[source] UnexpectedReply),
 }
 
 /// An error while trying to connect to the Arti process.
@@ -433,13 +494,43 @@ pub enum ConnectError {
 }
 define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
 
-/// An error occurred while trying to construct or manipulate a
+/// An error occurred while trying to construct or manipulate an [`RpcConnBuilder`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum BuilderError {
     /// We couldn't decode a provided connect string.
     #[error("Invalid connect string.")]
     InvalidConnectString,
+}
+
+/// In response to a request that we generated internally,
+/// Arti gave a reply that we did not understand.
+///
+/// This could be due to a bug in this library, a bug in Arti,
+/// or a compatibility issue between the two.
+#[derive(Clone, Debug, thiserror::Error)]
+#[error(
+    "In response to our request {request:?}, Arti gave the unexpected reply {reply:?}: {problem}"
+)]
+pub struct UnexpectedReply {
+    /// The request we sent.
+    request: String,
+    /// The response we got.
+    reply: String,
+    /// What was wrong with the response.
+    problem: UnexpectedReplyProblem,
+}
+
+/// Underlying reason for an UnexpectedReply
+#[derive(Clone, Debug, thiserror::Error)]
+enum UnexpectedReplyProblem {
+    /// There was a json failure while trying to decode the response:
+    /// the result type was not what we expected.
+    #[error("Cannot decode as correct JSON type")]
+    CannotDecode(Arc<serde_json::Error>),
+    /// Arti replied with an RPC error in a context no error should have been possible.
+    #[error("Unexpected error")]
+    ErrorNotExpected,
 }
 
 #[cfg(test)]
@@ -490,7 +581,9 @@ mod test {
 
         let user_thread = thread::spawn(move || {
             let response1 = conn
-                .execute(r#"{"obj":"fred","method":"arti:x-frob","params":{}}"#)
+                .execute_internal_ok::<JsonMap>(
+                    r#"{"obj":"fred","method":"arti:x-frob","params":{}}"#,
+                )
                 .unwrap();
             (response1, conn)
         });
@@ -509,8 +602,7 @@ mod test {
         });
 
         let _sock = fake_arti_thread.join().unwrap();
-        let (response, _conn) = user_thread.join().unwrap();
-        let map = response.unwrap().deserialize_as::<JsonMap>().unwrap();
+        let (map, _conn) = user_thread.join().unwrap();
         assert_eq!(map.get("xyz"), Some(&serde_json::Value::Number(3.into())));
     }
 
@@ -575,7 +667,7 @@ mod test {
                         );
                     } else {
                         let success = outcome.unwrap();
-                        let map = success.deserialize_as::<JsonMap>().unwrap();
+                        let map = success.decode::<JsonMap>().unwrap();
                         assert_eq!(map.get("echo"), Some(&serde_json::Value::String(s)));
                     }
                     n_completed.fetch_add(1, SeqCst);

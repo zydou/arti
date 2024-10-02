@@ -63,6 +63,13 @@ impl TryFrom<String> for Utf8CString {
     }
 }
 
+impl std::fmt::Display for Utf8CString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s: &str = self.as_ref();
+        std::fmt::Display::fmt(s, f)
+    }
+}
+
 /// An error from trying to convert a byte-slice to a Utf8CString.
 #[derive(Clone, Debug, thiserror::Error)]
 enum Utf8CStringFromBytesError {

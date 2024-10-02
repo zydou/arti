@@ -95,6 +95,10 @@ struct SingleIdResponse {
     id: ObjectId,
 }
 
+/// A response with no data.
+#[derive(Deserialize, Debug)]
+struct EmptyResponse {}
+
 /// Representation of a single proxy, as delivered by the RPC API.
 // TODO RPC: This is duplicated from proxyinfo.rs; decide on our strategy for this stuff.
 #[derive(Deserialize, Clone, Debug)]
@@ -169,9 +173,8 @@ impl RpcConn {
         let new_stream_request =
             Request::new(on_object.clone(), "arti:new_stream_handle", NoParameters {});
         let stream_id = self
-            .execute(&new_stream_request.encode()?)?
+            .execute_internal::<SingleIdResponse>(&new_stream_request.encode()?)?
             .map_err(StreamError::NewStreamRejected)?
-            .deserialize_as::<SingleIdResponse>()?
             .id;
 
         match self.open_stream(Some(&stream_id), target, isolation) {
@@ -223,10 +226,7 @@ impl RpcConn {
 
         let proxy_info_request: Request<NoParameters> =
             Request::new(session_id, "arti:get_rpc_proxy_info", NoParameters {});
-        let proxy_info = self
-            .execute(&proxy_info_request.encode()?)?
-            .map_err(StreamError::ProxyInfoRejected)?
-            .deserialize_as::<ProxyInfo>()?;
+        let proxy_info = self.execute_internal_ok::<ProxyInfo>(&proxy_info_request.encode()?)?;
         let socks_proxy_addr = proxy_info.find_socks_addr().ok_or(StreamError::NoProxy)?;
 
         Ok(socks_proxy_addr)
@@ -249,10 +249,8 @@ impl RpcConn {
     fn release_obj(&self, obj: ObjectId) -> Result<(), StreamError> {
         let session_id = self.session_id_required()?;
         let release_request = Request::new(session_id.clone(), "rpc:release", ReleaseObj { obj });
-        let _ignore_success = self
-            .execute(&release_request.encode()?)?
-            .map_err(StreamError::StreamReleaseRejected)?;
-
+        let _empty_response: EmptyResponse =
+            self.execute_internal_ok(&release_request.encode()?)?;
         Ok(())
     }
 }

@@ -1,30 +1,10 @@
 //! Authentication for RpcConn.
 
-use std::sync::Arc;
-
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::msgs::{request::Request, ObjectId};
 
-use super::{ConnectError, ProtoError, RpcConn};
-
-impl super::SuccessResponse {
-    /// Try to decode the "result" field of a SuccessResponse as an instance of `D`.
-    //
-    // TODO RPC: Move this.  Possibly, make it public.  If we do, it will need a different error type.
-    pub(crate) fn deserialize_as<D: DeserializeOwned>(&self) -> Result<D, ProtoError> {
-        /// Helper object for decoding the "result" field.
-        #[derive(Deserialize)]
-        struct Response<R> {
-            /// The decoded value.
-            result: R,
-        }
-
-        let r: Response<D> = serde_json::from_str(self.as_ref())
-            .map_err(|e| ProtoError::CouldNotDecode(Arc::new(e)))?;
-        Ok(r.result)
-    }
-}
+use super::{ConnectError, RpcConn};
 
 /// Arguments to an `auth:authenticate` request.
 #[derive(Serialize, Debug)]
@@ -56,10 +36,7 @@ impl RpcConn {
                 scheme: scheme_name,
             },
         );
-        let authenticated = self
-            .execute(&r.encode()?)?
-            .map_err(ConnectError::AuthenticationRejected)?
-            .deserialize_as::<Authenticated>()?;
+        let authenticated: Authenticated = self.execute_internal_ok(&r.encode()?)?;
 
         Ok(authenticated.session)
     }
