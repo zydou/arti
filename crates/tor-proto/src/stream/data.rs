@@ -350,12 +350,19 @@ impl DataStream {
     ///
     /// This is used by hidden services, exit relays, and directory servers to accept streams.
     #[cfg(feature = "hs-service")]
-    pub(crate) fn new_connected(reader: StreamReader, target: StreamTarget) -> Self {
+    pub(crate) fn new_connected(
+        reader: StreamReader,
+        target: StreamTarget,
+    ) -> Self {
         Self::new_inner(reader, target, true)
     }
 
     /// The shared implementation of the `new*()` functions.
-    fn new_inner(reader: StreamReader, target: StreamTarget, connected: bool) -> Self {
+    fn new_inner(
+        reader: StreamReader,
+        target: StreamTarget,
+        connected: bool,
+    ) -> Self {
         #[cfg(feature = "stream-ctrl")]
         let status = {
             let mut data_stream_status = DataStreamStatus::default();
