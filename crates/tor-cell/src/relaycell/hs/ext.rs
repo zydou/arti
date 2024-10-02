@@ -99,6 +99,8 @@ impl<T: ExtGroup> ExtList<T> {
 /// An unrecognized or unencoded extension for some HS-related message.
 #[derive(Clone, Debug, Deftly)]
 #[derive_deftly(HasMemoryCost)]
+// Use `Copy + 'static` and `#[deftly(has_memory_cost(copy))]` so that we don't
+// need to derive HasMemoryCost for the id types, which are indeed all Copy.
 #[deftly(has_memory_cost(bounds = "ID: Copy + 'static"))]
 pub struct UnrecognizedExt<ID> {
     /// The field type ID for this extension.
