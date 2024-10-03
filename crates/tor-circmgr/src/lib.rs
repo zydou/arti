@@ -406,14 +406,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
         Ok(Self::new_generic(config, runtime, guardmgr, builder))
     }
 
-    /// Return a circuit suitable for sending one-hop BEGINDIR streams,
-    /// launching it if necessary.
-    pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
-        self.expire_circuits();
-        let usage = TargetCircUsage::Dir;
-        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
-    }
-
     /// Return a circuit suitable for exiting to all of the provided
     /// `ports`, launching it if necessary.
     ///
@@ -601,6 +593,14 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         }
 
         Ok(ret)
+    }
+
+    /// Return a circuit suitable for sending one-hop BEGINDIR streams,
+    /// launching it if necessary.
+    pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<B::Circ>> {
+        self.expire_circuits();
+        let usage = TargetCircUsage::Dir;
+        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
 
     /// Try to change our configuration settings to `new_config`.
