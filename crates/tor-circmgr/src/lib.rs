@@ -503,17 +503,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
             .guardmgr()
             .note_external_success(target, external_activity);
     }
-
-    /// Return a stream of events about our estimated clock skew; these events
-    /// are `None` when we don't have enough information to make an estimate,
-    /// and `Some(`[`SkewEstimate`]`)` otherwise.
-    ///
-    /// Note that this stream can be lossy: if the estimate changes more than
-    /// one before you read from the stream, you might only get the most recent
-    /// update.
-    pub(crate) fn skew_events(&self) -> ClockSkewEvents {
-        self.mgr.peek_builder().guardmgr().skew_events()
-    }
 }
 
 impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
@@ -1064,6 +1053,17 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// keeping track of, don't give it out for any future requests.
     pub(crate) fn retire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id) {
         let _ = self.mgr.take_circ(circ_id);
+    }
+
+    /// Return a stream of events about our estimated clock skew; these events
+    /// are `None` when we don't have enough information to make an estimate,
+    /// and `Some(`[`SkewEstimate`]`)` otherwise.
+    ///
+    /// Note that this stream can be lossy: if the estimate changes more than
+    /// one before you read from the stream, you might only get the most recent
+    /// update.
+    pub(crate) fn skew_events(&self) -> ClockSkewEvents {
+        self.mgr.peek_builder().guardmgr().skew_events()
     }
 }
 
