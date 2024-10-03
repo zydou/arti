@@ -406,51 +406,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
         Ok(Self::new_generic(config, runtime, guardmgr, builder))
     }
 
-    /// Return a circuit suitable for exiting to all of the provided
-    /// `ports`, launching it if necessary.
-    ///
-    /// If the list of ports is empty, then the chosen circuit will
-    /// still end at _some_ exit.
-    pub(crate) async fn get_or_launch_exit(
-        &self,
-        netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
-        ports: &[TargetPort],
-        isolation: StreamIsolation,
-        // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
-        //             additive. The function should be refactored to be builder-like.
-        #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
-    ) -> Result<Arc<ClientCirc>> {
-        self.expire_circuits();
-        let time = Instant::now();
-        {
-            let mut predictive = self.predictor.lock().expect("preemptive lock poisoned");
-            if ports.is_empty() {
-                predictive.note_usage(None, time);
-            } else {
-                for port in ports.iter() {
-                    predictive.note_usage(Some(*port), time);
-                }
-            }
-        }
-        let require_stability = ports.iter().any(|p| {
-            self.mgr
-                .peek_builder()
-                .path_config()
-                .long_lived_ports
-                .contains(&p.port)
-        });
-        let ports = ports.iter().map(Clone::clone).collect();
-        #[cfg(not(feature = "geoip"))]
-        let country_code = None;
-        let usage = TargetCircUsage::Exit {
-            ports,
-            isolation,
-            country_code,
-            require_stability,
-        };
-        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
-    }
-
     /// Return a circuit to a specific relay, suitable for using for direct
     /// (one-hop) directory downloads.
     ///
@@ -600,6 +555,51 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<B::Circ>> {
         self.expire_circuits();
         let usage = TargetCircUsage::Dir;
+        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
+    }
+
+    /// Return a circuit suitable for exiting to all of the provided
+    /// `ports`, launching it if necessary.
+    ///
+    /// If the list of ports is empty, then the chosen circuit will
+    /// still end at _some_ exit.
+    pub(crate) async fn get_or_launch_exit(
+        &self,
+        netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
+        ports: &[TargetPort],
+        isolation: StreamIsolation,
+        // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
+        //             additive. The function should be refactored to be builder-like.
+        #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
+    ) -> Result<Arc<B::Circ>> {
+        self.expire_circuits();
+        let time = Instant::now();
+        {
+            let mut predictive = self.predictor.lock().expect("preemptive lock poisoned");
+            if ports.is_empty() {
+                predictive.note_usage(None, time);
+            } else {
+                for port in ports.iter() {
+                    predictive.note_usage(Some(*port), time);
+                }
+            }
+        }
+        let require_stability = ports.iter().any(|p| {
+            self.mgr
+                .peek_builder()
+                .path_config()
+                .long_lived_ports
+                .contains(&p.port)
+        });
+        let ports = ports.iter().map(Clone::clone).collect();
+        #[cfg(not(feature = "geoip"))]
+        let country_code = None;
+        let usage = TargetCircUsage::Exit {
+            ports,
+            isolation,
+            country_code,
+            require_stability,
+        };
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
 
