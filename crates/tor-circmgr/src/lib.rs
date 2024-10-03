@@ -477,12 +477,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
             .map(|(c, _)| c)
     }
 
-    /// If `circ_id` is the unique identifier for a circuit that we're
-    /// keeping track of, don't give it out for any future requests.
-    pub(crate) fn retire_circ(&self, circ_id: &UniqId) {
-        let _ = self.mgr.take_circ(circ_id);
-    }
-
     /// Record that a failure occurred on a circuit with a given guard, in a way
     /// that makes us unwilling to use that guard for future circuits.
     ///
@@ -1064,6 +1058,12 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// be very clear that you don't want to use it haphazardly.
     pub(crate) fn retire_all_circuits(&self) {
         self.mgr.retire_all_circuits();
+    }
+
+    /// If `circ_id` is the unique identifier for a circuit that we're
+    /// keeping track of, don't give it out for any future requests.
+    pub(crate) fn retire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id) {
+        let _ = self.mgr.take_circ(circ_id);
     }
 }
 
