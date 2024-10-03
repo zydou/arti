@@ -787,19 +787,6 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &TargetCircUsage,
         dir: DirInfo<'_>,
     ) -> Result<(Arc<B::Circ>, CircProvenance)> {
-        /// Return CEIL(a/b).
-        ///
-        /// Requires that a+b is less than usize::MAX.
-        ///
-        /// This can be removed once the MSRV is >= 1.73.0, which is the version
-        /// that stabilized `std::usize::div_ceil`.
-        ///
-        /// # Panics
-        ///
-        /// Panics if b is 0.
-        fn div_ceil(a: usize, b: usize) -> usize {
-            (a + b - 1) / b
-        }
         /// Largest number of "resets" that we will accept in this attempt.
         ///
         /// A "reset" is an internally generated error that does not represent a
@@ -821,7 +808,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         // We compute the maximum number of failures by dividing the maximum
         // number of circuits to attempt by the number that will be launched in
         // parallel for each iteration.
-        let max_failures = div_ceil(
+        let max_failures = usize::div_ceil(
             max_tries as usize,
             std::cmp::max(1, self.builder.launch_parallelism(usage)),
         );
