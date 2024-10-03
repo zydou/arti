@@ -124,6 +124,35 @@ hosts:
         HOME: ./home
       start_time: 15m
       expected_final_state: running
+  # Like fileserver-onion-arti, except it reads its identity keys from a C Tor
+  # keystore.
+  fileserver-onion-arti-auth-ctor:
+    network_node_id: 0
+    processes:
+    # tgen server process
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.onionserver.graphml.xml
+      start_time: 1
+      expected_final_state: running
+      # Currently need the arti-extra binary for HS-server functionality
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+      args:
+      - proxy
+      - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti-onion-auth-ctor.toml
+      - -o=proxy.socks_listen="127.0.0.1:9000"
+      - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
+      - -p=0
+      - -d=0
+      - --disable-fs-permission-checks
+      - -l=debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 900
+      expected_final_state: running
   fileserver-onion-auth:
     network_node_id: 0
     processes:
@@ -454,6 +483,29 @@ hosts:
       # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
       environment: { OPENBLAS_NUM_THREADS: "1" }
       args: ../../../conf/tgen.toronionclient-auth.graphml.xml
+      start_time: 1500
+  # A client that stores its restricted discovery keys in a C Tor keystore.
+  articlient-onion-artiserver-auth-ctor:
+    network_node_id: 0
+    processes:
+    # Use the version of arti built with keymgr and experimental-api support:
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti-extra
+      args:
+      - proxy
+      - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti-auth-ctor.onion.toml
+      - -o=proxy.socks_listen="127.0.0.1:9000"
+      - --disable-fs-permission-checks
+      - -l=debug,tor_proto=trace
+      environment:
+        RUST_BACKTRACE: "1"
+        HOME: ./home
+      start_time: 15m
+      expected_final_state: running
+    - path: tgen
+      # See https://shadow.github.io/docs/guide/compatibility_notes.html#libopenblas
+      environment: { OPENBLAS_NUM_THREADS: "1" }
+      args: ../../../conf/tgen.artionionclient-auth-ctor-store.graphml.xml
       start_time: 1500
   torclient-onion-artiserver:
     network_node_id: 0
