@@ -30,7 +30,7 @@ pub(super) const HS_DESC_AUTH_TYPE: &str = "x25519";
 pub(super) struct HsDescMiddle {
     /// A public key used by authorized clients to decrypt the key used to
     /// decrypt the encryption layer and decode the inner document.  This is
-    /// ignored if client authorization is not in use.
+    /// ignored if restricted discovery is not in use.
     ///
     /// This is `KP_hss_desc_enc`, and appears as `desc-auth-ephemeral-key` in
     /// the document format; It is used along with `KS_hsc_desc_enc` to perform

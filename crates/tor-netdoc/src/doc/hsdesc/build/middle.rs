@@ -25,8 +25,8 @@ use rand::{CryptoRng, Rng, RngCore};
 /// The plaintext format of this document is described in section 2.5.1.2. of rend-spec-v3.
 #[derive(Debug)]
 pub(super) struct HsDescMiddle<'a> {
-    /// Client authorization parameters, if client authentication is enabled. If set to `None`,
-    /// client authentication is disabled.
+    /// Restricted discovery parameters, if restricted discovery is enabled. If set to `None`,
+    /// restricted discovery is disabled.
     pub(super) client_auth: Option<&'a ClientAuth<'a>>,
     /// The "subcredential" of the onion service.
     pub(super) subcredential: Subcredential,
@@ -57,12 +57,12 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
             match client_auth {
                 Some(client_auth) if client_auth.auth_clients.is_empty() => {
                     return Err(tor_error::bad_api_usage!(
-                        "client authentication is enabled, but there are no authorized clients"
+                        "restricted discovery is enabled, but there are no authorized clients"
                     )
                     .into());
                 }
                 Some(client_auth) => {
-                    // Client auth is enabled.
+                    // Restricted discovery is enabled.
                     let auth_clients = client_auth.auth_clients.iter().map(|client| {
                         let (client_id, cookie_key) = build_descriptor_cookie_key(
                             client_auth.ephemeral_key.secret.as_ref(),
@@ -94,7 +94,7 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
                         encrypted_cookie: rng.gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(),
                     };
 
-                    // As per section 2.5.1.2. of rend-spec-v3, if client auth is disabled, we need to
+                    // As per section 2.5.1.2. of rend-spec-v3, if restricted discovery is disabled, we need to
                     // generate some fake data for the desc-auth-ephemeral-key and auth-client fields.
                     let secret = EphemeralSecret::random_from_rng(rng);
                     let dummy_ephemeral_key = PublicKey::from(&secret);
@@ -198,7 +198,7 @@ AQIDBA==
         .unwrap_err();
 
         assert!(expect_bug(err)
-            .contains("client authentication is enabled, but there are no authorized clients"));
+            .contains("restricted discovery is enabled, but there are no authorized clients"));
     }
 
     #[test]
