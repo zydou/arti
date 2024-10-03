@@ -15,10 +15,7 @@ use bytes::BytesMut;
 
 use crate::{channel::msg::LinkVersion, util::err::Error as ChanError};
 
-use super::{
-    ChannelType,
-    msg::{MessageFilter},
-};
+use super::{ChannelType, msg::MessageFilter};
 
 /// Channel cell handler which is always in three state.
 ///
@@ -451,6 +448,7 @@ pub(crate) mod test {
     use futures::task::{Context, Poll};
     use hex_literal::hex;
     use std::pin::Pin;
+    use tor_rtcompat::StreamOps;
 
     use crate::channel::ChannelType;
     use crate::channel::msg::LinkVersion;
@@ -490,6 +488,8 @@ pub(crate) mod test {
             Pin::new(&mut self.outbuf).poll_close(cx)
         }
     }
+
+    impl StreamOps for MsgBuf {}
 
     impl MsgBuf {
         pub(crate) fn new<T: Into<Vec<u8>>>(output: T) -> Self {

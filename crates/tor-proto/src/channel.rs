@@ -56,7 +56,6 @@
 pub const CHANNEL_BUFFER_SIZE: usize = 128;
 
 mod circmap;
-mod codec;
 mod handler;
 mod handshake;
 pub mod kist;
@@ -82,9 +81,9 @@ use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
+use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::msg::AnyChanMsg;
 use tor_cell::chancell::{AnyChanCell, CircId, msg::PaddingNegotiate};
-use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
@@ -120,8 +119,6 @@ use tracing::trace;
 
 // reexport
 use crate::channel::unique_id::CircUniqIdContext;
-#[cfg(test)]
-pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
 use kist::KistParams;
@@ -204,15 +201,6 @@ where
 {
     asynchronous_codec::Framed::new(tls, ty.into())
 }
-
-/// A channel cell that we allot to be sent on an open channel from
-/// a server to a client.
-pub(crate) type OpenChanCellS2C = ChanCell<OpenChanMsgS2C>;
-
-/// Type alias: A Sink and Stream that transforms a TLS connection into
-/// a cell-based communication mechanism.
-type CellFrame<T> =
-    asynchronous_codec::Framed<T, crate::channel::codec::ChannelCodec<OpenChanMsgS2C, AnyChanMsg>>;
 
 /// An open client channel, ready to send and receive Tor cells.
 ///
@@ -941,8 +929,8 @@ pub(crate) mod test {
     // reactor code; there are just a few more cases to examine here.
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::channel::codec::test::MsgBuf;
-    pub(crate) use crate::channel::reactor::test::new_reactor;
+    use crate::channel::handler::test::MsgBuf;
+    pub(crate) use crate::channel::reactor::test::{CodecResult, new_reactor};
     use crate::util::fake_mq;
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{AnyChanCell, msg};

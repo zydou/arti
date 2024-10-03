@@ -12,7 +12,7 @@ use tor_error::{ErrorKind, HasKind};
 pub enum Error {
     /// An error that occurred in the tor_bytes crate while decoding an
     /// object.
-    #[error("Error while parsing {parsed}")]
+    #[error("Error while parsing {parsed}: {err}")]
     BytesErr {
         /// The error that occurred.
         #[source]
