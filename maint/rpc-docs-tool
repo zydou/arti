@@ -30,14 +30,16 @@ except ImportError:
     print("Try `pip3 install marko`.", file=sys.stderr)
     sys.exit(1)
 
+# Location of the arti checkout.
+ARTI_ROOT = os.path.split(os.path.dirname(__file__))[0]
+
 # This is part of this crate, so try using the version here if we can't
 # find a system copy.
 try:
     import arti_rpc
 except ImportError:
     print("arti_rpc not installed. Faking it...", file=sys.stderr)
-    my_path = os.path.dirname(sys.argv[0])
-    pypath = os.path.join(my_path, "..", "python", "arti_rpc", "src")
+    pypath = os.path.join(ARTI_ROOT, "python", "arti_rpc", "src")
     sys.path.append(pypath)
     import arti_rpc
 
@@ -69,8 +71,8 @@ def load_methods_via_rpc():
 
 # Where will we find our rustdoc files?
 #
-# (This assumes we're being run from the root of an arti checkout.)
-TARGET_DIR = "./target"
+# (This assumes we're being run from an arti checkout.)
+TARGET_DIR = os.path.join(ARTI_ROOT, "target")
 
 # With respect to where should we generate our links to objects in rustdoc?
 RUSTDOC_ROOT = "https://tpo.pages.torproject.net/core/doc/rust/private/"
