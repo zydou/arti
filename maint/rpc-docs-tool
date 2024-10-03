@@ -36,9 +36,11 @@ MAGIC_HEADING = "In The Arti RPC System"
 
 # HTML that we'll use to decorate our markdown output.
 HTML_HEADER = """\
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="UTF-8"
+<meta charset="UTF-8">
+<title>Arti RPC: methods and objects</title>
 </head>
 """
 HTML_FOOTER = """\
