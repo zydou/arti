@@ -748,8 +748,17 @@ using the "Feature not present" error code.
 
 Feature names are UTF-8 strings.
 
-> At present, we put no other constraints on feature names;
-> once we start designing features, we will define a naming scheme for them.
+A feature that applies only to a single method is
+named with the method name,
+followed by a colon, and then a C identifier.
+(For example, `arti:fetch_consensus:compression`.)
+
+A feature that applies to all or most RPC methods,
+or to the RPC system as a whole,
+has a name beginning with `rpc`, and then _two_ colons,
+and then a C identifier.
+(For example, `rpc::timeout`.)
+
 
 > Note: As a side effect of the above rules,
 > it is correct for an implementation that understands no features to
@@ -776,6 +785,7 @@ Feature names are UTF-8 strings.
 > A client could then pass this feature in the `meta.required` of a request,
 > to indicate that the request should only be processed
 > if one-hop onion services are supported.
+
 
 
 #### Breaking changes
