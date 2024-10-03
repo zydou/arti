@@ -26,11 +26,11 @@ Here is a description of the security levels referenced in this document:
 `rend-spec-v3` with the `KS_` prefix removed)
 
 Note: `hss_desc_enc` (used by hidden services to encrypt the inner part of their
-descriptors when client auth is enabled) is not listed here, because it is the
+descriptors when restricted discovery is enabled) is not listed here, because it is the
 public part of the `(KP_hss_desc_enc, KS_hss_desc_enc)` keypair, and Arti key
 stores do not store public keys.
 
-That being said, when generating client auth keys, the key management CLI will
+That being said, when generating restricted discovery keys, the key management CLI will
 need to provide a convenient way to extract the corresponding `hss_desc_enc`
 key, both in C Tor's `authorized_clients` format, and in the SSH key format used
 by Arti. For example, the command for generating a new descriptor encryption key
