@@ -16,8 +16,8 @@
 // Which public keys are you anticipating storing here?
 //
 // I would like to rule out, at this stage, using the Arti keystore to store the public keys of
-// clients for our HS.  That is, the HS client authentication keys for a particular HS should be
-// stored, for that HS, outside the keystore.  (IIRC C Tor does keep the client auth public keys
+// clients for our HS.  That is, the HS client discovery keys for a particular HS should be
+// stored, for that HS, outside the keystore.  (IIRC C Tor does keep the client discovery public keys
 // for an HS in its keystore, so we need to be compatible with that, but that doesn't necessary
 // have to be done in Arti via the keystore API.  Perhaps the "C Tor keystore" object could
 // implement both the keystore trait and an "HS client public keys" trait.)
@@ -32,9 +32,9 @@
 // Whereas data about who we should trust is totally different.  It can live in normal
 // configuration land; it doesn't need to be associated with HSMs.  It doesn't want or need (the
 // possibility of) privsep.  And the user might want to override/supplement it in totally different
-// ways.  For example, it should be possible for an HS server to look up client authentication keys
+// ways.  For example, it should be possible for an HS server to look up client discovery keys
 // in a database.  But we don't need or want to write a generic "look up stuff in a database" API;
-// that can be (at least for now) a bespoke API just for HS client auth."
+// that can be (at least for now) a bespoke API just for HS restricted discovery."
 
 use ssh_key::private::KeypairData;
 use ssh_key::public::KeyData;
