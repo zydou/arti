@@ -234,7 +234,7 @@ class ArtiRpcError(Exception):
     """
     An error returned by the RPC library.
     """
-    _rc: FfiStatus
+    _rv: FfiStatus
     _err: Ptr[FfiError]
 
     def __init__(self, rv: FfiStatus, err: Ptr[FfiError], rpc):
