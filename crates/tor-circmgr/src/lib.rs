@@ -406,73 +406,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
         Ok(Self::new_generic(config, runtime, guardmgr, builder))
     }
 
-    /// Try to change our configuration settings to `new_config`.
-    ///
-    /// The actual behavior here will depend on the value of `how`.
-    ///
-    /// Returns whether any of the circuit pools should be cleared.
-    pub(crate) fn reconfigure<CFG: CircMgrConfig>(
-        &self,
-        new_config: &CFG,
-        how: tor_config::Reconfigure,
-    ) -> std::result::Result<RetireCircuits, tor_config::ReconfigureError> {
-        let old_path_rules = self.mgr.peek_builder().path_config();
-        let predictor = self.predictor.lock().expect("poisoned lock");
-        let preemptive_circuits = predictor.config();
-        if preemptive_circuits.initial_predicted_ports
-            != new_config.preemptive_circuits().initial_predicted_ports
-        {
-            // This change has no effect, since the list of ports was _initial_.
-            how.cannot_change("preemptive_circuits.initial_predicted_ports")?;
-        }
-
-        if how == tor_config::Reconfigure::CheckAllOrNothing {
-            return Ok(RetireCircuits::None);
-        }
-
-        let retire_because_of_guardmgr =
-            self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
-
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let retire_because_of_vanguardmgr = self
-            .mgr
-            .peek_builder()
-            .vanguardmgr()
-            .reconfigure(new_config.vanguard_config())?;
-
-        let new_reachable = &new_config.path_rules().reachable_addrs;
-        if new_reachable != &old_path_rules.reachable_addrs {
-            let filter = new_config.path_rules().build_guard_filter();
-            self.mgr.peek_builder().guardmgr().set_filter(filter);
-        }
-
-        let discard_all_circuits = !new_config
-            .path_rules()
-            .at_least_as_permissive_as(&old_path_rules)
-            || retire_because_of_guardmgr != tor_guardmgr::RetireCircuits::None;
-
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let discard_all_circuits = discard_all_circuits
-            || retire_because_of_vanguardmgr != tor_guardmgr::RetireCircuits::None;
-
-        self.mgr
-            .peek_builder()
-            .set_path_config(new_config.path_rules().clone());
-        self.mgr
-            .set_circuit_timing(new_config.circuit_timing().clone());
-        predictor.set_config(new_config.preemptive_circuits().clone());
-
-        if discard_all_circuits {
-            // TODO(nickm): Someday, we might want to take a more lenient approach, and only
-            // retire those circuits that do not conform to the new path rules,
-            // or do not conform to the new guard configuration.
-            info!("Path configuration has become more restrictive: retiring existing circuits.");
-            self.retire_all_circuits();
-            return Ok(RetireCircuits::All);
-        }
-        Ok(RetireCircuits::None)
-    }
-
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
     pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
@@ -685,6 +618,73 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         }
 
         Ok(ret)
+    }
+
+    /// Try to change our configuration settings to `new_config`.
+    ///
+    /// The actual behavior here will depend on the value of `how`.
+    ///
+    /// Returns whether any of the circuit pools should be cleared.
+    pub(crate) fn reconfigure<CFG: CircMgrConfig>(
+        &self,
+        new_config: &CFG,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<RetireCircuits, tor_config::ReconfigureError> {
+        let old_path_rules = self.mgr.peek_builder().path_config();
+        let predictor = self.predictor.lock().expect("poisoned lock");
+        let preemptive_circuits = predictor.config();
+        if preemptive_circuits.initial_predicted_ports
+            != new_config.preemptive_circuits().initial_predicted_ports
+        {
+            // This change has no effect, since the list of ports was _initial_.
+            how.cannot_change("preemptive_circuits.initial_predicted_ports")?;
+        }
+
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(RetireCircuits::None);
+        }
+
+        let retire_because_of_guardmgr =
+            self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let retire_because_of_vanguardmgr = self
+            .mgr
+            .peek_builder()
+            .vanguardmgr()
+            .reconfigure(new_config.vanguard_config())?;
+
+        let new_reachable = &new_config.path_rules().reachable_addrs;
+        if new_reachable != &old_path_rules.reachable_addrs {
+            let filter = new_config.path_rules().build_guard_filter();
+            self.mgr.peek_builder().guardmgr().set_filter(filter);
+        }
+
+        let discard_all_circuits = !new_config
+            .path_rules()
+            .at_least_as_permissive_as(&old_path_rules)
+            || retire_because_of_guardmgr != tor_guardmgr::RetireCircuits::None;
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let discard_all_circuits = discard_all_circuits
+            || retire_because_of_vanguardmgr != tor_guardmgr::RetireCircuits::None;
+
+        self.mgr
+            .peek_builder()
+            .set_path_config(new_config.path_rules().clone());
+        self.mgr
+            .set_circuit_timing(new_config.circuit_timing().clone());
+        predictor.set_config(new_config.preemptive_circuits().clone());
+
+        if discard_all_circuits {
+            // TODO(nickm): Someday, we might want to take a more lenient approach, and only
+            // retire those circuits that do not conform to the new path rules,
+            // or do not conform to the new guard configuration.
+            info!("Path configuration has become more restrictive: retiring existing circuits.");
+            self.retire_all_circuits();
+            return Ok(RetireCircuits::All);
+        }
+        Ok(RetireCircuits::None)
     }
 
     /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
