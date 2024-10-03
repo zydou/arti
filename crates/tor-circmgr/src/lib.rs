@@ -550,17 +550,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
         let _ = self.mgr.take_circ(circ_id);
     }
 
-    /// Mark every circuit that we have launched so far as unsuitable for
-    /// any future requests.  This won't close existing circuits that have
-    /// streams attached to them, but it will prevent any future streams from
-    /// being attached.
-    ///
-    /// TODO: we may want to expose this eventually.  If we do, we should
-    /// be very clear that you don't want to use it haphazardly.
-    pub(crate) fn retire_all_circuits(&self) {
-        self.mgr.retire_all_circuits();
-    }
-
     /// Record that a failure occurred on a circuit with a given guard, in a way
     /// that makes us unwilling to use that guard for future circuits.
     ///
@@ -1064,6 +1053,17 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         // spawn_expiration_task.)
         let now = self.mgr.peek_runtime().now();
         self.mgr.expire_circs(now);
+    }
+
+    /// Mark every circuit that we have launched so far as unsuitable for
+    /// any future requests.  This won't close existing circuits that have
+    /// streams attached to them, but it will prevent any future streams from
+    /// being attached.
+    ///
+    /// TODO: we may want to expose this eventually.  If we do, we should
+    /// be very clear that you don't want to use it haphazardly.
+    pub(crate) fn retire_all_circuits(&self) {
+        self.mgr.retire_all_circuits();
     }
 }
 
