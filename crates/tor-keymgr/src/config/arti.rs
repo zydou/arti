@@ -11,9 +11,9 @@ use tor_config::{impl_not_auto_value, impl_standard_builder, BoolOrAuto, Explici
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum ArtiKeystoreKind {
-    /// Use the ArtiNativeKeystore
+    /// Use the [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
     Native,
-    /// Use the ArtiEphemeralKeystore
+    /// Use the [`ArtiEphemeralKeystore`](crate::ArtiEphemeralKeystore).
     #[cfg(feature = "ephemeral-keystore")]
     Ephemeral,
 }
