@@ -128,7 +128,8 @@ impl HsDescMiddle {
 /// service descriptor.
 #[derive(Debug, Clone)]
 pub(super) struct AuthClient {
-    /// A check field that clients can use to see if this [`AuthClient`] entry corresponds to a key they hold.
+    /// A check field that clients can use to see if this [`AuthClient`] entry corresponds
+    /// to a key they hold.
     ///
     /// This is the first part of the `auth-client` line.
     pub(super) client_id: CtByteArray<HS_DESC_CLIENT_ID_LEN>,

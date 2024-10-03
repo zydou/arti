@@ -455,7 +455,8 @@ mod test {
 
         assert_eq!(&*encoded_desc, &*reencoded_desc);
 
-        // The same test, this time with restricted discovery enabled (with a single authorized client):
+        // The same test, this time with restricted discovery enabled
+        // (with a single authorized client):
         let client_kp: HsClientDescEncKeypair = HsClientDescEncKeypair::generate(&mut rng);
         let client_pkey = client_kp.public().as_ref();
         let auth_clients = vec![*client_pkey];

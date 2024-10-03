@@ -94,8 +94,9 @@ impl<'a> NetdocBuilder for HsDescMiddle<'a> {
                         encrypted_cookie: rng.gen::<[u8; HS_DESC_ENC_NONCE_LEN]>(),
                     };
 
-                    // As per section 2.5.1.2. of rend-spec-v3, if restricted discovery is disabled, we need to
-                    // generate some fake data for the desc-auth-ephemeral-key and auth-client fields.
+                    // As per section 2.5.1.2. of rend-spec-v3, if restricted discovery is disabled,
+                    // we need to generate some fake data for the desc-auth-ephemeral-key
+                    // and auth-client fields.
                     let secret = EphemeralSecret::random_from_rng(rng);
                     let dummy_ephemeral_key = PublicKey::from(&secret);
 
