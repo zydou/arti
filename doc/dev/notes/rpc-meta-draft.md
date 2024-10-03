@@ -377,15 +377,25 @@ params
   or to put it another way, every method we define will
   require `params` to be provided,
   even if it is allowed to be empty.)
+  Unrecognized parameters _MUST_ be ignored;
+  see "Methods and forward compatibility" below.
 
 meta
 : A JSON object describing protocol features to enable for this request.
   It is optional.
   Unrecognized fields are ignored.
-  The only recognized field is currently
-  "updates"­: a boolean that indicates whether
+
+The fields in the `meta` object are as follows:
+
+updates
+: A boolean that indicates whether
   updates are acceptable.
-  It defaults to false.
+
+require
+: A list of "features" that must be supported
+  if the request is not to be rejected.
+  (See "Methods and forward compatibility" below.)
+  Defaults to the empty list.
 
 > Note: It is not an error for the client to send
 > multiple concurrent requests with the same `id`.
@@ -583,6 +593,7 @@ code 	message 	meaning
 2	Request error		Some other error occurred.
 3   No method impl      This method isn't available on this object.
 4   Request cancelled   The request was cancelled before it could finish.
+5   Feature not present     A required feature was not available
 ```
 We do not anticipate regularly extending this list of code values.
 
@@ -712,6 +723,104 @@ while concurrently reading arti's replies;
 otherwise deadlock may occur.
 
 (See note on implementation strategies in the appendix.)
+
+### Methods and forward compatibility
+
+All server implementations must ignore unrecognized method parameters,
+to ensure that additional parameters can be added later on.
+
+> As a consequence of the above,
+> we should be very careful when adding new parameters to existing methods,
+> if it is likely that a user who expects those parameters to be interpreted
+> will receive insecure behavior if those parameters are ignored instead.
+>
+> The "feature" mechanism below describes a way for a user
+> to mark some behavior as "must provide".
+
+In the future, as RPC methods gain new parameters or new features,
+clients may want to tell the server that a given request should only be
+processed if a given feature is available.
+To do so, the client may put the name of that feature in the list
+`meta.require` in its request.
+If any feature in that list is not recognized or not supported,
+the server must fail with an error
+using the "Feature not present" error code.
+The `error.data.unsupported_features` field in the reply
+will hold a list of the features that will not supported.
+
+> TODO RPC: The `error.data` field itself is currently badly specified;
+> We must fix that.
+
+Feature names are UTF-8 strings.
+
+A feature that applies only to a single method is
+named with the method name,
+followed by a colon, and then a C identifier.
+(For example, `arti:fetch_consensus:compression`.)
+
+A feature that applies to all or most RPC methods,
+or to the RPC system as a whole,
+has a name beginning with `rpc`, and then _two_ colons,
+and then a C identifier.
+(For example, `rpc::timeout`.)
+
+
+> Note: As a side effect of the above rules,
+> it is correct for an implementation that understands no features to
+> reject every request that has a nonempty `meta.require` field.
+
+
+> Example:
+>
+> Suppose we have an `arti:open-onion-service` method
+> to open an anonymous onion service,
+> and we are thinking of adding a new parameter `onehop` to that method
+> to say that the onion service should be _non-anonymous_.
+>
+> If a user passes this parameter to an old version of Arti,
+> it will get an anonymous onion service, since the older version of Arti
+> doesn't recognize the parameter.
+> This situation is probably okay,
+> since accidentally getting _more_ anonymity than you wanted
+> is not a security hole.
+>
+> We could additionally define a feature
+> (say, `arti:open-onion-service:hs-onehop`)
+> to indicate that the new parameter is understood.
+> A client could then pass this feature in the `meta.required` of a request,
+> to indicate that the request should only be processed
+> if one-hop onion services are supported.
+
+Features are properties of specific requests.
+It is not guaranteed that the set of supported features
+is the same from one request to the next.
+(For example, different methods,
+or the same method on different objects,
+or on the same object in different state(s),
+might support different sets of features.)
+
+Therefore a client MUST indicate its need for features in *every* applicable request.
+A client MUST NOT retain information about features apparently supported
+and then rely on the same feature being supported in future requests.
+
+When trying to work with multiple server implementations,
+a client SHOULD simply try its available strategies in sequence,
+attempting what it considers the "best" approach first,
+tolerating "not supported" errors, and falling back to compatibility code.
+Clients usually SHOULD NOT attempt to optimise this process
+by remembering which method(s) were previously successful
+(and/or which feature(s) were previously supported).
+
+#### Breaking changes
+
+> As a general rule, but not a formal guarantee:
+> at the current level of stability in Arti's RPC system,
+> when we _do_ make a breaking change,
+> we will try to only make breaking changes that cause
+> previously working code to fail with an error.
+> We will try _not_ to make any breaking changes that cause
+> previously working code to behave in a subtly different way.
+
 
 ### Authentication
 
