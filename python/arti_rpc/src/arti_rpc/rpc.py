@@ -288,7 +288,6 @@ class ArtiRpcObject(_RpcBase):
         self._id = object_id
         self._conn = connection
 
-    # TODO better annotation for params; it can be any json-encodable dict
     def invoke(self, method: str, **params):
         """
         Invoke a given RPC method with a given set of parameters,
@@ -299,7 +298,6 @@ class ArtiRpcObject(_RpcBase):
         result = self._conn.execute(json.dumps(request))
         return json.loads(result)["result"]
 
-    # TODO better annotation for params; it can be any json-encodable dict.
     def invoke_with_handle(self, method: str, **params):
         """
         Invoke a given RPC method with a given set of parameters,
