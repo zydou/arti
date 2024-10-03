@@ -9,6 +9,8 @@ we will break them a lot before we declare them stable.
 Don't use them in production.
 """
 
+# mypy: allow-redefinition
+
 from __future__ import annotations
 
 # Design notes:
@@ -193,14 +195,9 @@ class ArtiRpcConn(_RpcBase):
         Caveats: TODO RPC.  Copy-paste the caveats from arti-rpc-client-core,
         once they have stabilized.
         """
-        hostname_b:bytes = hostname.encode("utf-8")
-        isolation_b:bytes = isolation.encode("utf-8")
-        if on_object is None:
-            on_object_b = None
-        elif isinstance(on_object, ArtiRpcObject):
-            on_object_b = on_object._id.encode("utf-8")
-        else:
-            on_object_b = on_object.encode("utf-8")
+        hostname: bytes = hostname.encode("utf-8")
+        isolation: bytes = isolation.encode("utf-8")
+        on_object: Optional[bytes] = _opt_object_id_to_bytes(on_object)
         if want_stream_id:
             stream_id = POINTER(arti_rpc.ffi.ArtiRpcStr)()
             stream_id_ptr = byref(stream_id)
@@ -211,10 +208,10 @@ class ArtiRpcConn(_RpcBase):
 
         rv = self._rpc.arti_rpc_conn_open_stream(
             self._conn,
-            hostname_b,
+            hostname,
             port,
-            on_object_b,
-            isolation_b,
+            on_object,
+            isolation,
             byref(sock_cint),
             stream_id_ptr,
             byref(error),
@@ -274,6 +271,16 @@ class ArtiRpcError(Exception):
         else:
             return response.decode("utf-8")
 
+def _opt_object_id_to_bytes(object_id: Union[ArtiRpcObject, str, None]) -> Optional[bytes]:
+    """
+    Convert `object_id` (if it is present) to a `bytes`.
+    """
+    if object_id is None:
+        return None
+    elif isinstance(object_id, ArtiRpcObject):
+        return object_id.id().encode("UTF-8")
+    else:
+        return object_id.encode("UTF-8")
 
 class ArtiRpcObject(_RpcBase):
     """
@@ -287,6 +294,12 @@ class ArtiRpcObject(_RpcBase):
         _RpcBase.__init__(self, connection._rpc)
         self._id = object_id
         self._conn = connection
+
+    def id(self) -> str:
+        """
+        Return the ObjectId for this object.
+        """
+        return self._id
 
     def invoke(self, method: str, **params):
         """
