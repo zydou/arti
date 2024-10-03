@@ -802,10 +802,9 @@ When trying to work with multiple server implementations,
 a client SHOULD simply try its available strategies in sequence,
 attempting what it considers the "best" approach first,
 tolerating "not supported" errors, and falling back to compatibility code.
-Is is NOT USUALLY RECOMMENDED for a client to attempt to optimise this process
+Clients usually SHOULD NOT attempt to optimise this process
 by remembering which method(s) were previously successful
 (and/or which feature(s) were previously supported).
-
 
 
 #### Breaking changes
