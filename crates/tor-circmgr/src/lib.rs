@@ -405,33 +405,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
 
         Ok(Self::new_generic(config, runtime, guardmgr, builder))
     }
-
-    /// Record that a failure occurred on a circuit with a given guard, in a way
-    /// that makes us unwilling to use that guard for future circuits.
-    ///
-    pub(crate) fn note_external_failure(
-        &self,
-        target: &impl ChanTarget,
-        external_failure: ExternalActivity,
-    ) {
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .note_external_failure(target, external_failure);
-    }
-
-    /// Record that a success occurred on a circuit with a given guard, in a way
-    /// that makes us possibly willing to use that guard for future circuits.
-    pub(crate) fn note_external_success(
-        &self,
-        target: &impl ChanTarget,
-        external_activity: ExternalActivity,
-    ) {
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .note_external_success(target, external_activity);
-    }
 }
 
 impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
@@ -1064,6 +1037,33 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
     /// update.
     pub(crate) fn skew_events(&self) -> ClockSkewEvents {
         self.mgr.peek_builder().guardmgr().skew_events()
+    }
+
+    /// Record that a failure occurred on a circuit with a given guard, in a way
+    /// that makes us unwilling to use that guard for future circuits.
+    ///
+    pub(crate) fn note_external_failure(
+        &self,
+        target: &impl ChanTarget,
+        external_failure: ExternalActivity,
+    ) {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_failure(target, external_failure);
+    }
+
+    /// Record that a success occurred on a circuit with a given guard, in a way
+    /// that makes us possibly willing to use that guard for future circuits.
+    pub(crate) fn note_external_success(
+        &self,
+        target: &impl ChanTarget,
+        external_activity: ExternalActivity,
+    ) {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_success(target, external_activity);
     }
 }
 
