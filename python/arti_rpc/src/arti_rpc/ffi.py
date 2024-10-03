@@ -165,11 +165,6 @@ def _load_library():
     if p is not None:
         return ctypes.cdll.LoadLibrary(p)
 
-    # TODO RPC: On Windows, does this need to be WinDLL wither than cdll?
-    # Do we need to configure Cargo.toml differently
-    #    to get a new object type, or annotate our FFI functions
-    #    with something other than `extern "C"`?
-
     # TODO RPC: Do we need to start versioning this?
     base = "libarti_rpc_client_core"
     if sys.platform == 'darwin':
