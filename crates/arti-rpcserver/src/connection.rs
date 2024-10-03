@@ -41,6 +41,18 @@ use tor_rpcbase::templates::*;
 /// Specifically, the `objects` table in `Inner` hold capabilities
 /// that the client will use to do things,
 /// including an `RpcSession`.
+///
+/// # In the Arti RPC System
+///
+/// A connection to Arti.
+///
+/// This object is available as soon as you open a connection to Arti RPC,
+/// even before you authenticate.  Its ObjectId is always `"connection"`.
+///
+/// Because this object is available before authentication,
+/// it provides only those methods that you need
+/// in order to perform authentication
+/// and receive an `RpcSession`.
 #[derive(Deftly)]
 #[derive_deftly(Object)]
 pub struct Connection {

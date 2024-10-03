@@ -76,6 +76,18 @@ use tracing::{debug, info};
 /// Cloning this object makes a new reference to the same underlying
 /// handles: it's usually better to clone the `TorClient` than it is to
 /// create a new one.
+///
+/// # In the Arti RPC System
+///
+/// An open client on the Tor network.
+///
+/// A `TorClient` can be used to open anonymous connections,
+/// and (eventually) perform other activities.
+///
+/// You can use an `RpcSession` as a `TorClient`, or use the `isolated_client` method
+/// to create a new `TorClient` whose stream will not share circuits with any other Tor client.
+///
+/// This ObjectID for this object can be used as the target of a SOCKS stream.
 // TODO(nickm): This type now has 5 Arcs inside it, and 2 types that have
 // implicit Arcs inside them! maybe it's time to replace much of the insides of
 // this with an Arc<TorClientInner>?
