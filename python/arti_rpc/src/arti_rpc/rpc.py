@@ -33,7 +33,7 @@ from arti_rpc.ffi import (
     ArtiRpcConn as FfiConn,
     _ArtiRpcStatus as FfiStatus,
 )
-from typing import Union,Tuple # needed for Python 3.9, which lacks some syntax.
+from typing import Optional,Tuple,Union # needed for Python 3.9, which lacks some syntax.
 
 if os.name == "nt":
     def _socket_is_valid(sock):
@@ -80,7 +80,7 @@ class ArtiRpcConn(_RpcBase):
     """
     An open connection to Arti.
     """
-    _conn: Union[None,Ptr[FfiConn]]
+    _conn: Optional[Ptr[FfiConn]]
     _session_id: str
 
     def __init__(self, connect_string: str, rpc_lib=None):
@@ -252,7 +252,7 @@ class ArtiRpcError(Exception):
         msg = self._rpc.arti_rpc_err_message(self._err).decode("utf-8")
         return f"{status}: {msg}"
 
-    def os_error_code(self) -> Union[int,None]:
+    def os_error_code(self) -> Optional[int]:
         """
         Return the OS error code (e.g., errno) associated with this error,
         if there is one.
@@ -263,7 +263,7 @@ class ArtiRpcError(Exception):
         else:
             return code
 
-    def response(self) -> Union[int,None]:
+    def response(self) -> Optional[int]:
         """
         Return the error response message associated with this error,
         if there is one.
