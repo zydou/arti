@@ -786,6 +786,26 @@ and then a C identifier.
 > to indicate that the request should only be processed
 > if one-hop onion services are supported.
 
+Features are properties of specific requests.
+It is not guaranteed that the set of supported features
+is the same from one request to the next.
+(For example, different methods,
+or the same method on different objects,
+or on the same object in different state(s),
+might support different sets of features.)
+
+Therefore a client MUST indicate its need for features in *every* applicable request.
+A client MUST NOT retain information about features apparently supported
+and then rely on the same feature being supported in future requests.
+
+When trying to work with multiple server implementations,
+a client SHOULD simply try its available strategies in sequence,
+attempting what it considers the "best" approach first,
+tolerating "not supported" errors, and falling back to compatibility code.
+Is is NOT USUALLY RECOMMENDED for a client to attempt to optimise this process
+by remembering which method(s) were previously successful
+(and/or which feature(s) were previously supported).
+
 
 
 #### Breaking changes
