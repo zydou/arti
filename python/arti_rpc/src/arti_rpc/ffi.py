@@ -80,12 +80,7 @@ else:
 ##########
 # Tell ctypes about the function signatures.
 
-# TODO: What's the right way to type-annotate 'lib'?
-# I think We'll want to define an alias for Union[CDLL or WinDLL].  But:
-#  - WinDLL doesn't exist except on Windows.
-#  - I don't see how to declare a platform-dependent type.
-
-def _annotate_library(lib):
+def _annotate_library(lib: ctypes.CDLL):
     """Helper: annotate a ctypes dll `lib` with appropriate function signatures."""
     lib.arti_rpc_conn_open_stream.restype = _ArtiRpcStatus
     lib.arti_rpc_conn_open_stream.argtypes = [
@@ -127,22 +122,22 @@ def _annotate_library(lib):
     lib.arti_rpc_err_free.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_free.restype = None
 
-    lib.arti_rpc_err_message.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_message.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_message.restype = c_char_p
 
-    lib.arti_rpc_err_os_error_code.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_os_error_code.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_os_error_code.restype = c_int
 
-    lib.arti_rpc_err_response.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_response.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_response.restype = c_char_p
 
-    lib.arti_rpc_err_status.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_status.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_status.restype = _ArtiRpcStatus
 
-    lib.arti_rpc_handle_free.argtype = [POINTER(ArtiRpcHandle)]
+    lib.arti_rpc_handle_free.argtypes = [POINTER(ArtiRpcHandle)]
     lib.arti_rpc_handle_free.restype = None
 
-    lib.arti_rpc_handle_wait.argtype = [
+    lib.arti_rpc_handle_wait.argtypes = [
         POINTER(ArtiRpcHandle),
         _RpcStrOut,
         _ArtiRpcResponseTypeOut,
@@ -150,13 +145,13 @@ def _annotate_library(lib):
     ]
     lib.arti_rpc_handle_wait.restype = _ArtiRpcStatus
 
-    lib.arti_rpc_status_to_str.argtype = [_ArtiRpcStatus]
+    lib.arti_rpc_status_to_str.argtypes = [_ArtiRpcStatus]
     lib.arti_rpc_status_to_str.restype = c_char_p
 
-    lib.arti_rpc_str_free.argtype = [POINTER(ArtiRpcStr)]
+    lib.arti_rpc_str_free.argtypes = [POINTER(ArtiRpcStr)]
     lib.arti_rpc_str_free.restype = None
 
-    lib.arti_rpc_str_get.argtype = [POINTER(ArtiRpcStr)]
+    lib.arti_rpc_str_get.argtypes = [POINTER(ArtiRpcStr)]
     lib.arti_rpc_str_get.restype = c_char_p
 
 def _load_library():
@@ -189,7 +184,7 @@ def _load_library():
 
 _THE_LIBRARY = None
 
-def get_library():
+def get_library() -> ctypes.CDLL:
     """Try to find the shared library, loading it if needed.
 
        By default, we use the ctypes library's notion of the standard
