@@ -32,7 +32,7 @@ use tracing::{debug, trace};
 static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
 /// A raw client channel on which nothing has been done.
-pub struct OutboundClientHandshake<
+pub struct ClientInitiatorHandshake<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
@@ -124,7 +124,7 @@ pub struct VerifiedChannel<
 impl<
     T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
-> OutboundClientHandshake<T, S>
+> ClientInitiatorHandshake<T, S>
 {
     /// Construct a new OutboundClientHandshake.
     pub(crate) fn new(
@@ -676,7 +676,7 @@ pub(super) mod test {
             // netinfo cell -- quite minimal.
             add_padded(&mut buf, NETINFO_PREFIX);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = OutboundClientHandshake::new(mb, None, rt.clone(), fake_mq());
+            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now).await?;
 
             assert_eq!(unverified.link_protocol, 5);
@@ -692,7 +692,7 @@ pub(super) mod test {
             buf.extend_from_slice(VPADDING);
             add_padded(&mut buf, NETINFO_PREFIX_WITH_TIME);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = OutboundClientHandshake::new(mb, None, rt.clone(), fake_mq());
+            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now).await?;
             // Correct timestamp in the NETINFO, so no skew.
             assert_eq!(unverified.clock_skew(), ClockSkew::None);
@@ -700,7 +700,7 @@ pub(super) mod test {
             // Now pretend our clock is fast.
             let now2 = now + Duration::from_secs(3600);
             let mb = MsgBuf::new(&buf[..]);
-            let handshake = OutboundClientHandshake::new(mb, None, rt.clone(), fake_mq());
+            let handshake = ClientInitiatorHandshake::new(mb, None, rt.clone(), fake_mq());
             let unverified = handshake.connect(|| now2).await?;
             assert_eq!(
                 unverified.clock_skew(),
@@ -716,7 +716,7 @@ pub(super) mod test {
         S: CoarseTimeProvider + SleepProvider,
     {
         let mb = MsgBuf::new(input);
-        let handshake = OutboundClientHandshake::new(mb, None, sleep_prov, fake_mq());
+        let handshake = ClientInitiatorHandshake::new(mb, None, sleep_prov, fake_mq());
         handshake.connect(SystemTime::now).await.err().unwrap()
     }
 

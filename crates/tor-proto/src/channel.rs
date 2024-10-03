@@ -15,9 +15,9 @@
 //!
 //!  * Create a TLS connection as an object that implements AsyncRead +
 //!    AsyncWrite + StreamOps, and pass it to a [ChannelBuilder].  This will
-//!    yield an [handshake::OutboundClientHandshake] that represents
+//!    yield an [handshake::ClientInitiatorHandshake] that represents
 //!    the state of the handshake.
-//!  * Call [handshake::OutboundClientHandshake::connect] on the result
+//!  * Call [handshake::ClientInitiatorHandshake::connect] on the result
 //!    to negotiate the rest of the handshake.  This will verify
 //!    syntactic correctness of the handshake, but not its cryptographic
 //!    integrity.
@@ -119,7 +119,7 @@ use tracing::trace;
 
 // reexport
 use crate::channel::unique_id::CircUniqIdContext;
-pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
+pub use handshake::{ClientInitiatorHandshake, UnverifiedChannel, VerifiedChannel};
 
 use kist::KistParams;
 
@@ -476,12 +476,12 @@ impl ChannelBuilder {
         tls: T,
         sleep_prov: S,
         memquota: ChannelAccount,
-    ) -> OutboundClientHandshake<T, S>
+    ) -> ClientInitiatorHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov, memquota)
+        handshake::ClientInitiatorHandshake::new(tls, self.target, sleep_prov, memquota)
     }
 }
 
