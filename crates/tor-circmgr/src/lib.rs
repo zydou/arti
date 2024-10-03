@@ -406,24 +406,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
         Ok(Self::new_generic(config, runtime, guardmgr, builder))
     }
 
-    /// Return a circuit to a specific relay, suitable for using for direct
-    /// (one-hop) directory downloads.
-    ///
-    /// This could be used, for example, to download a descriptor for a bridge.
-    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
-    #[cfg(feature = "specific-relay")]
-    pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
-        &self,
-        target: T,
-    ) -> Result<Arc<ClientCirc>> {
-        self.expire_circuits();
-        let usage = TargetCircUsage::DirSpecificTarget(target.to_owned());
-        self.mgr
-            .get_or_launch(&usage, DirInfo::Nothing)
-            .await
-            .map(|(c, _)| c)
-    }
-
     /// Record that a failure occurred on a circuit with a given guard, in a way
     /// that makes us unwilling to use that guard for future circuits.
     ///
@@ -601,6 +583,24 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
             require_stability,
         };
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
+    }
+
+    /// Return a circuit to a specific relay, suitable for using for direct
+    /// (one-hop) directory downloads.
+    ///
+    /// This could be used, for example, to download a descriptor for a bridge.
+    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
+    #[cfg(feature = "specific-relay")]
+    pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
+        &self,
+        target: T,
+    ) -> Result<Arc<B::Circ>> {
+        self.expire_circuits();
+        let usage = TargetCircUsage::DirSpecificTarget(target.to_owned());
+        self.mgr
+            .get_or_launch(&usage, DirInfo::Nothing)
+            .await
+            .map(|(c, _)| c)
     }
 
     /// Try to change our configuration settings to `new_config`.
