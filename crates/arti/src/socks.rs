@@ -175,9 +175,9 @@ struct AuthInterpretation {
 ///
 /// ## The SOCKS protocol
 ///
-/// See [proposal 351](https://spec.torproject.org/proposals/351-socks-auth-extensions.html) for now.
-/// Once it is merged, see the
-/// [SOCKS extensions spec](https://spec.torproject.org/socks-extensions.html).
+/// See the specification for
+/// [SOCKS extended authentication](https://spec.torproject.org/socks-extensions.html#extended-auth)
+/// for full details.
 ///
 /// ### Further restrictions on Object IDs and isolation
 ///
@@ -285,7 +285,9 @@ mod socks_and_rpc {}
 /// (In no case is it actually SOCKS authentication: it can either be a message
 /// to the stream isolation system or the RPC system.)
 fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
-    /// Interpretation of a SOCKS5 username according to Prop351.
+    /// Interpretation of a SOCKS5 username according to
+    /// the [SOCKS extended authentication](https://spec.torproject.org/socks-extensions.html#extended-auth)
+    /// specification.
     enum Uname<'a> {
         /// This is a legacy username; it's just part of the
         /// isolation information.
@@ -295,14 +297,14 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
         // in a `ProvidedAuthentication::Legacy``.
         // TODO RPC: Find a more idiomatic way to express this data flow.
         Legacy,
-        /// This is using the prop351 socks extension: contains the extension
+        /// This is using the socks extension: contains the extension
         /// format code and the remaining information from the username.
         Extended(u8, &'a [u8]),
     }
     /// Helper: Try to interpret a SOCKS5 username field as indicating the start of a set of
     /// extended socks authentication information.
     ///
-    /// Implements Prop351.
+    /// Implements [SOCKS extended authentication](https://spec.torproject.org/socks-extensions.html#extended-auth).
     ///
     /// If it does indicate that extensions are in use,
     /// return a `Uname::Extended` containing
@@ -313,7 +315,8 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
     ///
     /// If it is badly formatted, return an error.
     fn interpret_socks5_username(username: &[u8]) -> Result<Uname<'_>> {
-        /// 8-byte "magic" sequence from Prop351.
+        /// 8-byte "magic" sequence from
+        /// [SOCKS extended authentication](https://spec.torproject.org/socks-extensions.html#extended-auth).
         /// When it appears at the start of a username,
         /// indicates that the username/password are to be interpreted as
         /// as encoding SOCKS5 extended parameters,
