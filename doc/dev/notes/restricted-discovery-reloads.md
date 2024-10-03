@@ -117,6 +117,9 @@ was designed for watching and loading *TOML files*, so it will require some
 modification if we want to repurpose it for watching `key_dirs`. This is `Option
 2` described below.
 
+> Note: the "client authorization" terminology is deprecated.
+> "Client authorizatio" is now known as "restricted discovery".
+
 #### Option 2: Make each dir in `key_dirs` a `ConfigurationSource`
 
 For this we'll need to extend the configuration watching mechanism to support

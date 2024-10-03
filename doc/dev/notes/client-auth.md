@@ -1,5 +1,8 @@
 # HS client auth
 
+> This document uses deprecated terminology: "client authorization" is
+> now known as "restricted discovery".
+
 This based on our previous discussions from #1028, #1027, #696.
 
 It presents a simplified version of what is proposed in #1028, and an

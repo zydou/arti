@@ -62,6 +62,8 @@ to local port where we should send streams. AF_UNIX addresses are supported
 Client authorization file: Stored on disk. Is a directory full of files
 with the contents: `<auth-type>:<key-type>:<base32-encoded-public-key>`.
 
+> Note: the "client authorization" terminology is deprecated.
+> "Client authorizatio" is now known as "restricted discovery".
 
 These are **nice-to-have** **high-level** options:
 
