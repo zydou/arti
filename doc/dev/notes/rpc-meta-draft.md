@@ -745,6 +745,11 @@ To do so, the client may put the name of that feature in the list
 If any feature in that list is not recognized or not supported,
 the server must fail with an error
 using the "Feature not present" error code.
+The `error.data.unsupported_features` field in the reply
+will hold a list of the features that will not supported.
+
+> TODO RPC: The `error.data` field itself is currently badly specified;
+> We must fix that.
 
 Feature names are UTF-8 strings.
 
@@ -805,7 +810,6 @@ tolerating "not supported" errors, and falling back to compatibility code.
 Clients usually SHOULD NOT attempt to optimise this process
 by remembering which method(s) were previously successful
 (and/or which feature(s) were previously supported).
-
 
 #### Breaking changes
 
