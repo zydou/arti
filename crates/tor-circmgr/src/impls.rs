@@ -205,4 +205,20 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
     fn vanguardmgr(&self) -> &Arc<VanguardMgr<R>> {
         CircuitBuilder::vanguardmgr(self)
     }
+
+    fn upgrade_to_owned_state(&self) -> Result<()> {
+        CircuitBuilder::upgrade_to_owned_state(self)
+    }
+
+    fn reload_state(&self) -> Result<()> {
+        CircuitBuilder::reload_state(self)
+    }
+
+    fn guardmgr(&self) -> &tor_guardmgr::GuardMgr<R> {
+        CircuitBuilder::guardmgr(self)
+    }
+
+    fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters) {
+        CircuitBuilder::update_network_parameters(self, p);
+    }
 }

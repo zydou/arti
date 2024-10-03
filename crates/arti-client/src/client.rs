@@ -863,7 +863,7 @@ impl<R: Runtime> TorClient<R> {
                 statemgr.clone(),
                 &runtime,
                 Arc::clone(&chanmgr),
-                guardmgr.clone(),
+                &guardmgr,
             )
             .map_err(ErrorDetail::CircMgrSetup)?,
         );

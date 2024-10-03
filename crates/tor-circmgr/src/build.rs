@@ -445,6 +445,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         self.guardmgr.upgrade_to_owned_persistent_state()?;
         Ok(())
     }
+
     /// Reload persistent state from disk, if we don't have storage permission.
     pub(crate) fn reload_state(&self) -> Result<()> {
         if !self.storage.can_store() {

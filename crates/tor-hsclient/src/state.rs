@@ -872,7 +872,7 @@ pub(crate) mod test {
                 tor_persist::TestingStateMgr::new(),
                 &runtime,
                 Arc::new(chanmgr),
-                guardmgr,
+                &guardmgr,
             )
             .unwrap(),
         );

@@ -3,7 +3,9 @@ use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 
 #[cfg(feature = "vanguards")]
 use tor_guardmgr::vanguards::VanguardMgr;
+use tor_guardmgr::{GuardMgr, TestConfig, VanguardConfig};
 use tor_linkspec::CircTarget;
+use tor_persist::StateMgr;
 use tor_proto::circuit::{CircParameters, Path, UniqId};
 use tor_rtcompat::Runtime;
 
@@ -78,9 +80,11 @@ pub(crate) struct FakePlan {
     op: FakeOp,
 }
 
-#[derive(Debug)]
 pub(crate) struct FakeBuilder<RT: Runtime> {
     runtime: RT,
+    guardmgr: GuardMgr<RT>,
+    #[cfg(feature = "vanguards")]
+    vanguardmgr: Arc<VanguardMgr<RT>>,
     pub(crate) script: sync::Mutex<Vec<(TargetCircUsage, FakeOp)>>,
 }
 
@@ -139,6 +143,8 @@ impl<RT: Runtime> AbstractCircBuilder<RT> for FakeBuilder<RT> {
                 country_code: *country_code,
                 all_relays_stable: *require_stability,
             },
+            #[cfg(feature = "hs-common")]
+            TargetCircUsage::HsCircBase { .. } => SupportedCircUsage::HsOnly,
             _ => unimplemented!(),
         };
         let plan = FakePlan {
@@ -179,7 +185,8 @@ impl<RT: Runtime> AbstractCircBuilder<RT> for FakeBuilder<RT> {
     }
 
     fn save_state(&self) -> Result<bool> {
-        todo!()
+        // We don't actually store persistent state since this is a test, just pretend we do.
+        Ok(true)
     }
 
     fn path_config(&self) -> Arc<PathConfig> {
@@ -196,14 +203,40 @@ impl<RT: Runtime> AbstractCircBuilder<RT> for FakeBuilder<RT> {
 
     #[cfg(feature = "vanguards")]
     fn vanguardmgr(&self) -> &Arc<VanguardMgr<RT>> {
+        &self.vanguardmgr
+    }
+
+    fn upgrade_to_owned_state(&self) -> Result<()> {
+        todo!()
+    }
+
+    fn reload_state(&self) -> Result<()> {
+        todo!()
+    }
+
+    fn guardmgr(&self) -> &tor_guardmgr::GuardMgr<RT> {
+        &self.guardmgr
+    }
+
+    fn update_network_parameters(&self, _p: &tor_netdir::params::NetParameters) {
         todo!()
     }
 }
 
 impl<RT: Runtime> FakeBuilder<RT> {
-    pub(crate) fn new(rt: &RT) -> Self {
+    pub(crate) fn new<S>(rt: &RT, state_mgr: S, guard_config: &TestConfig) -> Self
+    where
+        S: StateMgr + Send + Sync + 'static,
+    {
         FakeBuilder {
             runtime: rt.clone(),
+            guardmgr: GuardMgr::new(rt.clone(), state_mgr.clone(), guard_config)
+                .expect("Create GuardMgr"),
+            #[cfg(feature = "vanguards")]
+            vanguardmgr: Arc::new(
+                VanguardMgr::new(&VanguardConfig::default(), rt.clone(), state_mgr, false)
+                    .expect("Create VanguardMgr"),
+            ),
             script: sync::Mutex::new(vec![]),
         }
     }

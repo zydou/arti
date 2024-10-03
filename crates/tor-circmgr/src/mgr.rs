@@ -248,6 +248,21 @@ pub(crate) trait AbstractCircBuilder<R: Runtime>: Send + Sync {
     /// Return a reference to this builder's `VanguardMgr`.
     #[cfg(feature = "vanguards")]
     fn vanguardmgr(&self) -> &Arc<VanguardMgr<R>>;
+
+    /// Replace our state with a new owning state, assuming we have
+    /// storage permission.
+    fn upgrade_to_owned_state(&self) -> Result<()>;
+
+    /// Reload persistent state from disk, if we don't have storage permission.
+    fn reload_state(&self) -> Result<()>;
+
+    /// Return a reference to this builder's `GuardMgr`.
+    fn guardmgr(&self) -> &tor_guardmgr::GuardMgr<R>;
+
+    /// Reconfigure this builder using the latest set of network parameters.
+    ///
+    /// (NOTE: for now, this only affects circuit timeout estimation.)
+    fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters);
 }
 
 /// Enumeration to track the expiration state of a circuit.
@@ -1528,8 +1543,10 @@ mod test {
     use crate::{Error, IsolationToken, StreamIsolation, TargetCircUsage, TargetPort, TargetPorts};
     use once_cell::sync::Lazy;
     use tor_guardmgr::fallback::FallbackList;
+    use tor_guardmgr::TestConfig;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
+    use tor_persist::TestingStateMgr;
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::{MockRuntime, MockSleepRuntime};
 
@@ -1572,12 +1589,18 @@ mod test {
         }
     }
 
+    fn make_builder<R: Runtime>(runtime: &R) -> FakeBuilder<R> {
+        let state_mgr = TestingStateMgr::new();
+        let guard_config = TestConfig::default();
+        FakeBuilder::new(runtime, state_mgr, &guard_config)
+    }
+
     #[test]
     fn basic_tests() {
         MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
 
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
 
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
@@ -1663,7 +1686,7 @@ mod test {
 
             // This will fail once, and then completely time out.  The
             // result will be a failure.
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::Fail, FakeOp::Timeout]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -1689,7 +1712,7 @@ mod test {
             // that we wait for a little over our predicted time because
             // of our wait-for-next-action logic.
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             builder.set(
                 &ports,
                 vec![
@@ -1720,7 +1743,7 @@ mod test {
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail a the planning stages, a lot.
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::NoPlan; 2000]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -1741,7 +1764,7 @@ mod test {
             let ports = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
             // This will fail 1000 times, which is above the retry limit.
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::Fail; 1000]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -1764,7 +1787,7 @@ mod test {
             // The first time this is called, it will build a circuit
             // with the wrong spec.  (A circuit builder should never
             // actually _do_ that, but it's something we code for.)
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             builder.set(
                 &ports,
                 vec![FakeOp::WrongSpec(target_to_spec(
@@ -1791,7 +1814,7 @@ mod test {
 
             // This will fail twice, and then succeed. The result will be
             // a success.
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             builder.set(&ports, vec![FakeOp::Fail, FakeOp::Fail]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -1821,7 +1844,7 @@ mod test {
     fn isolated() {
         MockRuntime::test_with_various(|rt| async move {
             let rt = MockSleepRuntime::new(rt);
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
@@ -1912,7 +1935,7 @@ mod test {
             let ports1 = TargetCircUsage::new_from_ipv4_ports(&[80]);
             let ports2 = TargetCircUsage::new_from_ipv4_ports(&[80, 443]);
 
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             builder.set(&ports1, vec![FakeOp::Timeout]);
 
             let mgr = Arc::new(AbstractCircMgr::new(
@@ -1948,7 +1971,7 @@ mod test {
             // sure that a circuit gets built, and then launch two
             // other circuits that will use it.
             let rt = MockSleepRuntime::new(rt);
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
@@ -1991,7 +2014,7 @@ mod test {
             // Now let's make some circuits -- one dirty, one clean, and
             // make sure that one expires and one doesn't.
             let rt = MockSleepRuntime::new(rt);
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
 
             let circuit_timing = CircuitTimingBuilder::default()
                 .max_dirtiness(Duration::from_secs(15))
@@ -2197,7 +2220,7 @@ mod test {
             let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let dirinfo = DirInfo::Directory(&netdir);
 
-            let builder = FakeBuilder::new(&rt);
+            let builder = make_builder(&rt);
 
             for circs in [2, 8].iter() {
                 let mut circlist = CircList::<FakeBuilder<MockRuntime>, MockRuntime>::new();
