@@ -19,6 +19,32 @@ import os
 import subprocess
 import sys
 
+# Location of the arti checkout.
+ARTI_ROOT = os.path.split(os.path.dirname(__file__))[0]
+
+# Where will we find our rustdoc files?
+#
+# (This assumes we're being run from an arti checkout.)
+TARGET_DIR = os.path.join(ARTI_ROOT, "target")
+
+# With respect to where should we generate our links to objects in rustdoc?
+RUSTDOC_ROOT = "https://tpo.pages.torproject.net/core/doc/rust/private/"
+
+# A string we'll use to identify RPC-specific sections in a markdown document.
+# (Case-insensitive.)
+MAGIC_HEADING = "In The Arti RPC System"
+
+# HTML that we'll use to decorate our markdown output.
+HTML_HEADER = """\
+<html>
+<head>
+<meta charset="UTF-8"
+</head>
+"""
+HTML_FOOTER = """\
+</html>
+"""
+
 # This isn't installed by default, so try to give a helpful message.
 try:
     import marko, marko.md_renderer
@@ -29,9 +55,6 @@ except ImportError:
     )
     print("Try `pip3 install marko`.", file=sys.stderr)
     sys.exit(1)
-
-# Location of the arti checkout.
-ARTI_ROOT = os.path.split(os.path.dirname(__file__))[0]
 
 # This is part of this crate, so try using the version here if we can't
 # find a system copy.
@@ -69,15 +92,6 @@ def load_methods_via_rpc():
     return methods
 
 
-# Where will we find our rustdoc files?
-#
-# (This assumes we're being run from an arti checkout.)
-TARGET_DIR = os.path.join(ARTI_ROOT, "target")
-
-# With respect to where should we generate our links to objects in rustdoc?
-RUSTDOC_ROOT = "https://tpo.pages.torproject.net/core/doc/rust/private/"
-
-
 def mdheader(s, anchor):
     """
     Return Text for a markdown header with
@@ -106,13 +120,8 @@ def doc_subject(doc):
     except ValueError:
         return " ".join(lines)
 
-
 # An object to parse and render markdown
 MD = marko.Markdown(renderer=marko.md_renderer.MarkdownRenderer)
-
-# A string we'll use to identify RPC-specific sections in a markdown document.
-# (Case-insensitive.)
-MAGIC_HEADING = "In The Arti RPC System"
 
 def heading_matches(h, s):
     """
@@ -585,15 +594,6 @@ def build_rustdoc_json(crate):
     ]
     subprocess.run(args, check=True)
 
-HTML_HEADER = """\
-<html>
-<head>
-<meta charset="UTF-8"
-</head>
-"""
-HTML_FOOTER = """\
-</html>
-"""
 
 def run(output, fmt="md"):
     """Process input from arti and rustdoc, and write a combined document
