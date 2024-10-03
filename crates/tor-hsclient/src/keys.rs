@@ -18,7 +18,7 @@ use derive_deftly::Deftly;
 use derive_more::Constructor;
 use tor_keymgr::KeySpecifier;
 
-/// Keys (if any) to use when connecting to a specific onion service.
+/// Service discovery keys (if any) to use when connecting to a specific onion service.
 ///
 /// Represents a possibly empty subset of the following keys:
 ///  * `KS_hsc_desc_enc`, [`HsClientDescEncKeypair`]
@@ -82,11 +82,12 @@ impl Hash for HsClientSecretKeys {
 }
 
 impl HsClientSecretKeys {
-    /// Create a new `HsClientSecretKeys`, for making unauthenticated connections
+    /// Create a new `HsClientSecretKeys`, for making connections to services
+    /// that are not running in restricted discovery mode.
     ///
     /// Creates a `HsClientSecretKeys` which has no actual keys,
-    /// so will make connections to hidden services
-    /// without any Tor-protocol-level client authentication.
+    /// so will not use a descriptor cookie when decrypting the second layer
+    /// of descriptor encryption.
     pub fn none() -> Self {
         Self::default()
     }

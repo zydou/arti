@@ -136,7 +136,7 @@ const RETAIN_DATA_AFTER_LAST_USE: Duration = Duration::from_secs(48 * 3600 /*hou
 /// In other words,
 ///  * Two HS connection requests cannot share state and effort
 ///    (descriptor downloads, descriptors, intro pt history)
-///    unless the client authg keys to be used are the same.
+///    unless the restricted discovery keys to be used are the same.
 ///  * This criterion is checked before looking at isolations,
 ///    which may further restrict sharing:
 ///    Two HS connection requests will only share state subject to isolations.
