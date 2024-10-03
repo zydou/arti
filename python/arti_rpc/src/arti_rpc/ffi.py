@@ -4,6 +4,8 @@ ctypes-based wrappers for the functions exposed by arti-rpc-client-core.
 These wrappers deliberately do as little as possible.
 """
 
+from __future__ import annotations
+
 import ctypes
 from ctypes import (
     POINTER,
@@ -15,6 +17,7 @@ from ctypes import (
     c_uint32,
     Structure,
 )
+from typing import TypeAlias
 
 import os
 import sys
@@ -26,25 +29,25 @@ import sys
 class ArtiRpcStr(Structure):
     """FFI type: String returned by the RPC protocol."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 class ArtiRpcConn(Structure):
     """FFI type: Connection to Arti via the RPC protocol."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 class ArtiRpcError(Structure):
     """FFI type: Error from the RPC library."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 class ArtiRpcHandle(Structure):
     """FFI type: Handle to an open RPC request."""
 
-    _fields_ = []
+    _fields_:list = []
 
 
 ArtiRpcResponseType = c_int
@@ -57,7 +60,7 @@ _ArtiRpcResponseTypeOut = POINTER(ArtiRpcResponseType)
 
 _ArtiRpcStatus = c_uint32
 
-
+_ArtiRpcRawSocket: type
 if os.name == "nt":
     # Alas, SOCKET on win32 is defined as UINT_PTR_T,
     # which ctypes doesn't know about.
@@ -77,7 +80,7 @@ else:
 ##########
 # Tell ctypes about the function signatures.
 
-def _annotate_library(lib):
+def _annotate_library(lib: ctypes.CDLL):
     """Helper: annotate a ctypes dll `lib` with appropriate function signatures."""
     lib.arti_rpc_conn_open_stream.restype = _ArtiRpcStatus
     lib.arti_rpc_conn_open_stream.argtypes = [
@@ -119,22 +122,22 @@ def _annotate_library(lib):
     lib.arti_rpc_err_free.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_free.restype = None
 
-    lib.arti_rpc_err_message.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_message.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_message.restype = c_char_p
 
-    lib.arti_rpc_err_os_error_code.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_os_error_code.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_os_error_code.restype = c_int
 
-    lib.arti_rpc_err_response.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_response.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_response.restype = c_char_p
 
-    lib.arti_rpc_err_status.argtype = [POINTER(ArtiRpcError)]
+    lib.arti_rpc_err_status.argtypes = [POINTER(ArtiRpcError)]
     lib.arti_rpc_err_status.restype = _ArtiRpcStatus
 
-    lib.arti_rpc_handle_free.argtype = [POINTER(ArtiRpcHandle)]
+    lib.arti_rpc_handle_free.argtypes = [POINTER(ArtiRpcHandle)]
     lib.arti_rpc_handle_free.restype = None
 
-    lib.arti_rpc_handle_wait.argtype = [
+    lib.arti_rpc_handle_wait.argtypes = [
         POINTER(ArtiRpcHandle),
         _RpcStrOut,
         _ArtiRpcResponseTypeOut,
@@ -142,13 +145,13 @@ def _annotate_library(lib):
     ]
     lib.arti_rpc_handle_wait.restype = _ArtiRpcStatus
 
-    lib.arti_rpc_status_to_str.argtype = [_ArtiRpcStatus]
+    lib.arti_rpc_status_to_str.argtypes = [_ArtiRpcStatus]
     lib.arti_rpc_status_to_str.restype = c_char_p
 
-    lib.arti_rpc_str_free.argtype = [POINTER(ArtiRpcStr)]
+    lib.arti_rpc_str_free.argtypes = [POINTER(ArtiRpcStr)]
     lib.arti_rpc_str_free.restype = None
 
-    lib.arti_rpc_str_get.argtype = [POINTER(ArtiRpcStr)]
+    lib.arti_rpc_str_get.argtypes = [POINTER(ArtiRpcStr)]
     lib.arti_rpc_str_get.restype = c_char_p
 
 def _load_library():
@@ -161,11 +164,6 @@ def _load_library():
     p = os.environ.get("LIBARTI_RPC_CLIENT_CORE")
     if p is not None:
         return ctypes.cdll.LoadLibrary(p)
-
-    # TODO RPC: On Windows, does this need to be WinDLL wither than cdll?
-    # Do we need to configure Cargo.toml differently
-    #    to get a new object type, or annotate our FFI functions
-    #    with something other than `extern "C"`?
 
     # TODO RPC: Do we need to start versioning this?
     base = "libarti_rpc_client_core"
@@ -181,7 +179,7 @@ def _load_library():
 
 _THE_LIBRARY = None
 
-def get_library():
+def get_library() -> ctypes.CDLL:
     """Try to find the shared library, loading it if needed.
 
        By default, we use the ctypes library's notion of the standard
