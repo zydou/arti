@@ -1,5 +1,8 @@
 # Key management backend
 
+> This document uses deprecated terminology: "client authorization" is
+> now known as "restricted discovery".
+
 ## Motivation
 Arti will need to be able to manage various types of keys, including:
    * HS client authorization keys (`KS_hsd_desc_enc`, `KS_hsc_intro_auth`)

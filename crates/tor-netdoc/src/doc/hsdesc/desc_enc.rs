@@ -191,7 +191,7 @@ impl<'a> HsDescEncryption<'a> {
 #[error("Unable to decrypt onion service descriptor.")]
 pub struct DecryptionError {}
 
-/// Create the CLIENT-ID and COOKIE-KEY required for hidden service client auth.
+/// Create the CLIENT-ID and COOKIE-KEY required for hidden service restricted discovery.
 ///
 /// This is used by HS clients to decrypt the descriptor cookie from the onion service descriptor,
 /// and by HS services to build the client-auth sections of descriptors.

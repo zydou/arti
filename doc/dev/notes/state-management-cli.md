@@ -1,5 +1,8 @@
 # State and key management CLI
 
+> This document uses deprecated terminology: "client authorization" is
+> now known as "restricted discovery".
+
 Arti will need the following new subcommands:
 
   * `arti-keys`, porcelain key management commands, for general key management

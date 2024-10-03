@@ -51,7 +51,7 @@ The corresponding public keys are published in the service descriptor:
   * A signing key associated with each active introduction point.
     (`KS_hs_intro_auth`)
 
-For client authorization, the onion service needs to have:
+For restricted discovery, the onion service needs to have:
   * **a list of authorized keys**  (`KS_hs_client_desc_auth` or
     `KS_hs_client_intro_auth`)
 

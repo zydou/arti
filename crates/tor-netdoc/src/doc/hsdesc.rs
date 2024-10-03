@@ -255,7 +255,7 @@ impl HsDesc {
     ///   * decrypts both layers of encryption in the onion service descriptor. If `hsc_desc_enc`
     ///     is provided, we use it to decrypt the inner encryption layer;
     ///     otherwise, we require that
-    ///     the inner document is encrypted using the "no client authorization" method.
+    ///     the inner document is encrypted using the "no restricted discovery" method.
     ///   * checks if both layers are valid at the `valid_at` timestamp
     ///   * validates the signatures on both layers
     ///
@@ -448,7 +448,7 @@ impl EncryptedHsDesc {
     ///
     /// If `hsc_desc_enc` is provided, we use it to decrypt the inner encryption layer;
     /// otherwise, we require that the inner document is encrypted using the "no
-    /// client authorization" method.
+    /// restricted discovery" method.
     //
     // TODO: Someday we _might_ want to allow a list of keypairs in place of
     // `hs_desc_enc`.  For now, though, we always know a single key that we want

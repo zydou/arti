@@ -18,7 +18,7 @@ use tor_error::warn_report;
 use tor_hscrypto::pk::HsClientDescEncKeyParseError;
 use tor_persist::slug::BadSlug;
 
-/// A static mapping from [`HsClientNickname`] to client authorization keys.
+/// A static mapping from [`HsClientNickname`] to client discovery keys.
 #[serde_with::serde_as]
 #[derive(Default, Debug, Clone, Eq, PartialEq)] //
 #[derive(Into, From, AsRef, Serialize, Deserialize)]

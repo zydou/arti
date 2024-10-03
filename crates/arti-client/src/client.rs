@@ -207,8 +207,8 @@ pub struct InertTorClient {
     /// The key manager.
     ///
     /// This is used for retrieving private keys, certificates, and other sensitive data (for
-    /// example, for retrieving the keys necessary for connecting to hidden services that require
-    /// client authentication).
+    /// example, for retrieving the keys necessary for connecting to hidden services that are
+    /// running in restricted discovery mode).
     ///
     /// If this crate is compiled _with_ the `keymgr` feature, [`TorClient`] will use a functional
     /// key manager implementation.

@@ -79,7 +79,7 @@ use state::{Config, MockableConnectorData, Services};
 /// An object that negotiates connections with onion services
 ///
 /// This can be used by multiple requests on behalf of different clients,
-/// with potentially different HS client authentication (`KS_hsc_*`)
+/// with potentially different HS service discovery keys (`KS_hsc_*`)
 /// and potentially different circuit isolation.
 ///
 /// The principal entrypoint is
@@ -145,8 +145,9 @@ impl<R: Runtime> HsClientConnector<R, connect::Data> {
     /// onion service. To do so, call [`ClientCirc::begin_stream`] on it.
     ///
     /// Each HS connection request must provide the appropriate
-    /// client authentication keys to use -
-    /// or [`default`](HsClientSecretKeys::default) if client auth is not required.
+    /// service discovery keys to use -
+    /// or [`default`](HsClientSecretKeys::default)
+    /// if the hidden service is not running in restricted discovery mode.
     //
     // This returns an explicit `impl Future` so that we can write the `Send` bound.
     // Without this, it is possible for `Services::get_or_launch_connection`

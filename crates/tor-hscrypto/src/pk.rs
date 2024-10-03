@@ -513,7 +513,7 @@ mod hs_client_intro_auth {
 }
 
 define_pk_keypair! {
-/// Second type of client authorization key, used for onion descriptor
+/// Client service discovery key, used for onion descriptor
 /// decryption. (`KP_hsc_desc_enc`)
 ///
 /// Any client who knows the secret key corresponding to this key can decrypt

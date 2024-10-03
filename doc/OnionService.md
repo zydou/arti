@@ -122,6 +122,8 @@ to let you enable client authorization.
 
 > (This is #1028.)
 
+> Note: "client authorization" is now known as "restricted discovery".
+
 ### Missing security features; deanonymisation risks
 
 There are a *ton* of missing security features.
