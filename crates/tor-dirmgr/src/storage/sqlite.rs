@@ -21,7 +21,7 @@ use tor_netdoc::doc::routerdesc::RdDigest;
 #[cfg(feature = "bridge-client")]
 pub(crate) use {crate::storage::CachedBridgeDescriptor, tor_guardmgr::bridge::BridgeConfig};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -446,8 +446,27 @@ impl Store for SqliteStore {
         #[cfg(feature = "bridge-client")]
         tx.execute(DROP_OLD_BRIDGEDESCS, [now, now])?;
 
+        // Find all consensus blobs that are no longer referenced,
+        // and delete their entries from extdocs.
+        let remove_consensus_blobs = {
+            let mut stmt = tx.prepare(FIND_UNREFERENCED_CONSENSUS_EXTDOCS)?;
+            let filenames: Vec<String> = stmt
+                .query_map([], |row| row.get::<_, String>(0))?
+                .filter_map(std::result::Result::ok)
+                .collect();
+            drop(stmt);
+            let mut stmt = tx.prepare(DELETE_EXTDOC_BY_FILENAME)?;
+            for fname in filenames.iter() {
+                stmt.execute([fname])?;
+            }
+            filenames
+        };
+
         tx.commit()?;
-        for name in expired_blobs {
+        let mut remove_blob_files: HashSet<_> = expired_blobs.iter().collect();
+        remove_blob_files.extend(remove_consensus_blobs.iter());
+
+        for name in remove_blob_files {
             let fname = self.blob_dir.join(name);
             if let Ok(fname) = fname {
                 let _ignore = std::fs::remove_file(fname);
@@ -1072,6 +1091,15 @@ const INSERT_BRIDGEDESC: &str = "
 #[allow(dead_code)]
 const DELETE_BRIDGEDESC: &str = "DELETE FROM BridgeDescs WHERE bridge_line = ?;";
 
+/// Query: Find all consensus extdocs that are not referenced in the consensus table.
+///
+/// Note: use of `sha3-256` is a synonym for `con_%` is a workaround.
+const FIND_UNREFERENCED_CONSENSUS_EXTDOCS: &str = "
+    SELECT filename FROM ExtDocs WHERE
+         (type LIKE 'con_%' OR type = 'sha3-256')
+    AND NOT EXISTS
+         (SELECT digest FROM Consensuses WHERE Consensuses.digest = ExtDocs.digest);";
+
 /// Query: Discard every expired extdoc.
 ///
 /// External documents aren't exposed through [`Store`].
@@ -1507,6 +1535,44 @@ pub(crate) mod test {
 
         store.remove_unreferenced_blobs(now, &EXPIRATION_DEFAULTS)?;
         assert_eq!(store.blob_dir.read_directory(".")?.count(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn unreferenced_consensus_blob() -> Result<()> {
+        let (_tmp_dir, mut store) = new_empty()?;
+
+        let now = OffsetDateTime::now_utc();
+        let one_week = 1.weeks();
+
+        // Make a blob that claims to be a consensus, and which has not yet expired, but which is
+        // not listed in the consensus table.  It should get removed.
+        let fname = store.save_blob(
+            b"pretend this is a consensus",
+            "con_fake",
+            "sha1",
+            &hex!("803e5a45eea7766a62a735e051a25a50ffb9b1cf"),
+            now + one_week,
+        )?;
+
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 1);
+        assert_eq!(
+            &std::fs::read(store.blob_dir.join(&fname)?).unwrap()[..],
+            b"pretend this is a consensus"
+        );
+        let n: u32 = store
+            .conn
+            .query_row("SELECT COUNT(filename) FROM ExtDocs", [], |row| row.get(0))?;
+        assert_eq!(n, 1);
+
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
+        assert_eq!(store.blob_dir.read_directory(".")?.count(), 0);
+
+        let n: u32 = store
+            .conn
+            .query_row("SELECT COUNT(filename) FROM ExtDocs", [], |row| row.get(0))?;
+        assert_eq!(n, 0);
 
         Ok(())
     }
