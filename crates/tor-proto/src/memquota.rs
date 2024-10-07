@@ -59,22 +59,24 @@ define_derive_deftly! {
 
     ${define ACCOUNT { $crate::tor_memquota::Account }}
 
-    ${defcond HAS_PARENT not(tmeta(account_newtype(toplevel)))}
-    ${define CONSTRUCTED_FROM { ${if HAS_PARENT {
-        ${tmeta(account_newtype(parent)) as ty}
-    } else {
-        std::sync::Arc<$crate::tor_memquota::MemoryQuotaTracker>
-    }}}}
+    ${defcond HAS_PARENT  tmeta(account_newtype(parent))}
+    ${defcond IS_TOPLEVEL tmeta(account_newtype(toplevel))}
+
+    ${define CONSTRUCTED_FROM {
+        ${select1
+          HAS_PARENT  { ${tmeta(account_newtype(parent)) as ty} }
+          IS_TOPLEVEL { std::sync::Arc<$crate::tor_memquota::MemoryQuotaTracker> }
+        }
+    }}
 
     impl SpecificAccount for $ttype {
         type ConstructedFrom = $CONSTRUCTED_FROM;
 
         fn new(src: &Self::ConstructedFrom) -> Result<Self, tor_memquota::Error> {
-            ${if HAS_PARENT {
-                $crate::memquota::SpecificAccount::as_raw_account(src).new_child()
-            } else {
-                src.new_account(None)
-            }}
+          ${select1
+            HAS_PARENT  { $crate::memquota::SpecificAccount::as_raw_account(src).new_child() }
+            IS_TOPLEVEL { src.new_account(None) }
+          }
                 .map(Self::from_raw_account)
         }
 
