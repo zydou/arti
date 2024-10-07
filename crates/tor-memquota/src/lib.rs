@@ -70,7 +70,7 @@
 //!    I.e. the system has a hysteresis.
 //!
 //!    The only currently implemented higher-level Participant is
-//!    a queue which responds to a reclamation request
+//!    [mq_queue], a queue which responds to a reclamation reques
 //!    by completely destroying itself and freeing all its data.
 //!
 //!  * <div id="is-approximate">
