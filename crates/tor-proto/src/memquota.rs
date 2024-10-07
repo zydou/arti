@@ -164,24 +164,36 @@ define_derive_deftly! {
 }
 
 /// [`Account`] for the whole system (eg, for a channel manager from `tor-chanmgr`)
+///
+/// Use via the [`SpecificAccount`] impl.
+/// See the [`memquota`](self) module documentation.
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(SpecificAccount)]
 #[deftly(account_newtype(toplevel))]
 pub struct ToplevelAccount(Account);
 
 /// [`Account`] for a Tor Channel
+///
+/// Use via the [`SpecificAccount`] impl.
+/// See the [`memquota`](self) module documentation.
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(SpecificAccount)]
 #[deftly(account_newtype(parent = "ToplevelAccount"))]
 pub struct ChannelAccount(Account);
 
 /// [`Account`] for a Tor Circuit
+///
+/// Use via the [`SpecificAccount`] impl.
+/// See the [`memquota`](self) module documentation.
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(SpecificAccount)]
 #[deftly(account_newtype(parent = "ChannelAccount"))]
 pub struct CircuitAccount(Account);
 
 /// [`Account`] for a Tor Stream
+///
+/// Use via the [`SpecificAccount`] impl.
+/// See the [`memquota`](self) module documentation.
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(SpecificAccount)]
 #[deftly(account_newtype(parent = "CircuitAccount"))]
