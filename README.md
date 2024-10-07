@@ -99,35 +99,6 @@ for more information.
 If you run into any trouble building the program, please have a
 look at [the troubleshooting guide](doc/TROUBLESHOOTING.md).
 
-### Hidden service (`.onion` service) client support
-
-Arti has support for connecting to Onion Services aka Tor Hidden Services.
-
-However, currently it is disabled by default.
-
-This is because Arti currently lacks the
-"vanguards" feature that Tor uses to prevent guard discovery attacks over time.
-As such, you should probably stick with C Tor if you need to make a large
-number of onion service connections, or if you are using the Tor protocol
-in a way that lets an attacker control how many onion services connections that you make -
-for example, when using Arti's SOCKS support from a web browser such as Tor Browser.
-
-We plan to improve the security, and will then enable `.onion` connections by default.
-
-In the meantime, if you would like to try it out,
-you can
-enable it on the command line (`cargo run -p arti -- -o address_filter.allow_onion_addrs=true proxy`).
-or
-edit your config file (set `allow_onion_addrs = true` in the section `[address_filter]`)
-
-Then you can make a connection to a `.onion` service, via Arti.
-For example, to try it out from the command line:
-```
-target/release/arti -o address_filter.allow_onion_addrs=true proxy
-# and in another window:
-curl --socks5-hostname localhost:9150 https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ | head | cat -v
-```
-
 ### Custom compile-time options
 
 Arti has a number of configurable

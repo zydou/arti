@@ -88,7 +88,7 @@ pub struct ClientAddrConfig {
     ///
     /// This option is on by default.
     #[cfg(feature = "onion-service-client")]
-    #[builder(default = "false")]
+    #[builder(default = "true")]
     pub(crate) allow_onion_addrs: bool,
 }
 impl_standard_builder! { ClientAddrConfig }
