@@ -51,6 +51,9 @@
 //!    When a tracker requests memory reclamation from a Parent,
 //!    it will also request it of all that Parent's Children (but not vice versa).
 //!
+//!    The account structure and reclamation strategy for Arti is defined in
+//!    `tor-proto`, and documented in `tor_proto::memquota`.
+//!
 //!  * **Data age**:
 //!    Each Participant must be able to say what the oldest data is, that it is storing.
 //!    The reclamation policy is to try to free the oldest data.

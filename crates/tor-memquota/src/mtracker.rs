@@ -112,6 +112,11 @@ pub struct MemoryQuotaTracker {
 /// An `Account` is a handle.  All clones refer to the same underlying conceptual Account.
 ///
 /// `Account`s are created using [`MemoryQuotaTracker::new_account`].
+///
+/// # Use in Arti
+///
+/// In Arti, we usually use a newtype around `Account`, rather than a bare `Account`.
+/// See `tor_proto::memquota`.
 #[derive(Educe)]
 #[educe(Debug)]
 pub struct Account(IfEnabled<AccountInner>);
