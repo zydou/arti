@@ -52,7 +52,7 @@ define_derive_deftly! {
     ///
     ///  * **`#[deftly(account_newtype(parent = "PARENT_ACCOUNT"))]`**:
     ///    `type ConstructedFrom = PARENT_ACCOUNT`
-    ///    (and PARENT_ACCOUNT must itself impl `SpecificAccount`.
+    ///    (and PARENT_ACCOUNT must itself impl `SpecificAccount`).
     ///
     /// Applicable to newtype tuple structs, containing an [`Account`], only.
     export SpecificAccount for struct, expect items:
