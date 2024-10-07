@@ -131,6 +131,7 @@ work.
   Note that this is not yet as secure as C-Tor and shouldn't
   be used for security-sensitive purposes.
 * `pt-client` (default) -- Build with support for pluggable transports.
+* `vanguards` (default) -- Build with support for [Vanguards](https://spec.torproject.org/vanguards-spec/).
 
 * `full` -- Build with all features above, along with all stable additive
   features from other arti crates.  (This does not include experimental
@@ -182,9 +183,8 @@ correct changes, then you cannot enable these features.
 
 ## Limitations
 
-There are many missing features.  Among them: there's no onion service
-support yet. There's no anti-censorship support.  You can't be a relay.
-There isn't any kind of proxy besides SOCKS.
+There are many missing features.  Among them: There's no anti-censorship
+support.  You can't be a relay. There isn't any kind of proxy besides SOCKS.
 
 See the [repository README
 file](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md) for
