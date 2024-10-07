@@ -56,6 +56,8 @@
 //!   * [`ToplevelAccount`]:
 //!     In a single Arti instance there will be one of these,
 //!     used for all memory tracking.
+//!     This is held (shared) by the chanmgr and the circmgr.
+//!
 //!     We do not claim memory directly from it, so it won't be subject to reclaim.
 //      This is silly.  We don't want anyone to make a Participant from this account.
 //      TODO #351 make `ToplevelAccount` a type alias or wrapper for `Arc<MemoryQuotaTracker>`.
@@ -163,7 +165,7 @@ define_derive_deftly! {
 
 }
 
-/// [`Account`] for the whole system (eg, for a channel manager from `tor-chanmgr`)
+/// [`Account`] for the whole system
 ///
 /// Use via the [`SpecificAccount`] impl.
 /// See the [`memquota`](self) module documentation.
