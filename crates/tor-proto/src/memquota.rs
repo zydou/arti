@@ -5,27 +5,77 @@
 //!
 //! # Memory tracking architecture in Arti
 //!
-//! Here are some things that have queued data:
+//! ## Queues
 //!
-//!   * Each Tor stream has a queue or two.
-//!   * Each circuit also has one or more queues _not_ associated with a single stream.
-//!   * Tor channels themselves also can have one or more queues.
-//!   * Each TLS connection can itself have internal buffers.  We can also consider these queues.
-//!   * Each TCP socket can also be buffered.  We can also consider these buffers to be queues.
+//! The following queues in Arti participate in the memory quota system:
 //!
-//! When we run out of memory, we find the queues above that have the oldest data.
-//! When we find one, we will kill it.
+//!   * Tor streams ([`StreamAccount`])
+//!     - inbound data, on its way from the circuit to the stream's user
+//!     - outbound data, on its way from the stream's user to the circuit
+//!   * Tor circuits ([`CircuitAccount`])
+//!     - inbound stream requests, on their way from the circuit to the handling code
+//!   * Tor channels ([`ChannelAccount`])
+//!     - outbound data, on its way from a circuit to the upstream
+//!       (this ought to be accounted to the circuit, TODO #1652)
 //!
-//! If we kill a stream, we will also kill the circuit that it is on.
-//! Killing a circuit queue kills every queue associated with that circuit,
-//! and every queue associated with every one of its Tor streams.
-//! Killing a channel kills every queue associated with that channel,
-//! as well as every circuit associated with that channel,
-//! and every Tor stream associated with one of those circuits.
+//! The following data buffers do *not* participate:
+//!
+//!   * Our TLS implementation(s) may have internal buffers.
+//!     We hope that these buffers will be kept reasonably small,
+//!     and hooking into them would in any case going be quite hard.
+//!
+//!   * TCP sockets will also buffer data, in the operating system.
+//!     Hooking into this is not trivial.
+//!     
+//!   * Our pluggable transport driver can buffer some data.
+//!     This should be kept to a minimum for several reasons,
+//!     so we hope that the buffers are small.
+//!     
+//!   * The actual pluggable transport might buffer data.
+//!     Again, this should be kept to a minimum.
+//!
+//! ## Overview
+//!
+//! See the [tor_memquota] crate-level docs for an overview of the memquota system.
+//! To summarise:
+//!
+//! When too much memory is in use, the queue with the oldest data is selected for reclaim.
+//! The whole Account relating to the victim queue is torn down.
+//! When the victim Account collapses, all its queues collapse too:
+//! reading ends give EOF, and writing ends give errors.
+//! This will tear down the associated Tor protocol association.
+//!
+//! All the children Accounts of the victim Account are torn down too.
+//! This propagates the collapse to dependent Tor protocol associations.
+//!
+//! ## Accounting
+//!
+//! Within Arti we maintain a hierarchy of [`Account`]s.
+//! These are wrapped in newtypes, here in `tor_proto::memquota`.
+//!
+//!   * [`ToplevelAccount`]:
+//!     In a single Arti instance there will be one of these,
+//!     used for all memory tracking.
+//!     We do not claim memory directly from it, so it won't be subject to reclaim.
+//      This is silly.  We don't want anyone to make a Participant from this account.
+//      TODO #351 make `ToplevelAccount` a type alias or wrapper for `Arc<MemoryQuotaTracker>`.
+//      (but doing this before we have merged !2505/!2508 will just generate conflicts.)
+//!
+//!   * [`ChannelAccount`].
+//!     Contains (via parentage) everything that goes via a particular Channel.
+//!
+//!   * [`CircuitAccount`].
+//!     Has the `ChannelAccount` as its parent.
+//!     So if a queue accounted to a channel is selected for reclaim,
+//!     that channel, and all of its circuits, will collapse.
+//!     
+//!   * [`StreamAccount`].
+//!     Is a *clone* of the `CircuitAccount`.
+//!     If a queue associated with any stream of a circuit is selected for reclaim,
+//!     the whole circuit, including all of its other streams, will collapse.
+//      TODO #351 this is true after #1661/!2505.
 //!
 //! Thus, killing a single queue will reclaim the memory associated with several other queues.
-//!
-//! **TODO - this is not yet actually implemented**
 
 use derive_deftly::{define_derive_deftly, Deftly};
 use tor_memquota::Account;
