@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use super::*;
 
-#[cfg(feature = "backtrace")]
+#[cfg(all(feature = "backtrace", not(miri)))]
 /// Backtrace implementation for when the feature is enabled
 mod ie_backtrace {
     use super::*;
@@ -28,7 +28,7 @@ mod ie_backtrace {
     }
 }
 
-#[cfg(not(feature = "backtrace"))]
+#[cfg(any(not(feature = "backtrace"), miri))]
 /// Backtrace implementation for when the feature is disabled
 mod ie_backtrace {
     use super::*;
