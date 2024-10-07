@@ -41,6 +41,9 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// TODO #1645 (either remove this, or decide to have it everywhere)
+#![cfg_attr(any(not(all(feature = "full")), miri), allow(unused))]
+
 extern crate core;
 
 #[macro_use]
