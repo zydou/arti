@@ -280,7 +280,7 @@ impl SqliteStore {
             })?;
 
         let tx = self.conn.unchecked_transaction()?;
-        tx.execute(INSERT_EXTDOC, params![digeststr, expires, dtype, fname])?;
+        tx.execute(INSERT_EXTDOC, params![digeststr, expires, doctype, fname])?;
 
         Ok(SavedBlobHandle {
             tx,
@@ -863,7 +863,10 @@ const INSTALL_V0_SCHEMA: &str = "
     created DATE NOT NULL,
     -- After what time will this file definitely be useless?
     expires DATE NOT NULL,
-    -- What is the type of this file? Currently supported are 'con:<flavor>'.
+    -- What is the type of this file? Currently supported are 'con_<flavor>'.
+    --   (Before tor-dirmgr 0.24.0, we would erroneously record 'con_flavor' as 'sha3-256';
+    --   Nothing depended on this yet, but will be used in the future
+    --   as we add more large-document types.)
     type TEXT NOT NULL,
     -- Filename for this file within our blob directory.
     filename TEXT NOT NULL
