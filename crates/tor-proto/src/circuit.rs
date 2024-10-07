@@ -2160,7 +2160,7 @@ mod test {
 
     #[test]
     fn accept_valid_sendme() {
-        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let (circ, _stream, mut sink, streamid, cells_received, _rx, _sink2) =
                 setup_incoming_sendme_case(&rt, 300 * 498 + 3).await;
 
@@ -2211,9 +2211,8 @@ mod test {
 
             let _sink = reply_with_sendme_fut.await;
 
-            // FIXME(eta): this is a hacky way of waiting for the reactor to run before doing the below
-            //             query; should find some way to properly synchronize to avoid flakiness
-            rt.sleep(Duration::from_millis(100)).await;
+            rt.advance_until_stalled().await;
+
             // Now make sure that the circuit is still happy, and its
             // window is updated.
             {
