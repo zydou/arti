@@ -571,7 +571,6 @@ kinds
   so a client must be prepared to receive unknown values from Arti,
   and fall back to some kind of default processing.
 
-
 code
 : A Number that indicates the error type that occurred according
   to the following table.
@@ -787,7 +786,7 @@ and then a C identifier.
 > We could additionally define a feature
 > (say, `arti:open-onion-service:hs-onehop`)
 > to indicate that the new parameter is understood.
-> A client could then pass this feature in the `meta.required` of a request,
+> A client could then pass this feature in the `meta.require` of a request,
 > to indicate that the request should only be processed
 > if one-hop onion services are supported.
 
