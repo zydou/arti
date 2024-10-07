@@ -55,9 +55,6 @@ pub(crate) struct Request {
     /// The method to actually execute.
     ///
     /// Using "flatten" here will make it expand to "method" and "params".
-    ///
-    /// TODO RPC: Note that our spec says that "params" can be omitted, but I
-    /// don't think we support that right now.
     #[serde(flatten)]
     pub(crate) method: Box<dyn rpc::DeserMethod>,
 }
