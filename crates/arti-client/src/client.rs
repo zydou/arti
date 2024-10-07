@@ -43,11 +43,10 @@ use {
     tor_netdir::DirEvent,
 };
 
+#[cfg(all(feature = "onion-service-service", feature = "experimental-api"))]
+use tor_hsservice::HsIdKeypairSpecifier;
 #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
-use {
-    tor_hscrypto::pk::HsId, tor_hscrypto::pk::HsIdKeypair, tor_hsservice::HsIdKeypairSpecifier,
-    tor_keymgr::KeystoreSelector,
-};
+use {tor_hscrypto::pk::HsId, tor_hscrypto::pk::HsIdKeypair, tor_keymgr::KeystoreSelector};
 
 use tor_keymgr::{config::arti::ArtiKeystoreKind, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 
