@@ -391,7 +391,6 @@ mod test {
     }
 
     #[test]
-    #[ignore] // TODO(#1607): Re-enable
     fn watch_single_file() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             let temp_dir = test_temp_dir!();
@@ -422,8 +421,19 @@ mod test {
             config_builder.logging().log_sensitive_information(true);
             let _: PathBuf = write_config(&temp_dir, CONFIG_NAME1, &config_builder);
             sighup_tx.send(()).await.unwrap();
+
             // The reconfigurable modules should've been reloaded in response to sighup
-            let config = rx.next().await.unwrap();
+            let mut config = rx.next().await.unwrap();
+
+            // However, there is a race: the file watcher may have chosen to re-read the file
+            // before this, sending a event with the old config. If this is the case, the next
+            // event will be the one caused by the SIGHUP, so just wait for that one.
+            //
+            // This feels like a bit of a hack, but it seems alright.
+            if config.0 != config_builder.build().unwrap() {
+                config = rx.next().await.unwrap();
+            }
+
             assert_eq!(config.0, config_builder.build().unwrap());
 
             // Overwrite the config
