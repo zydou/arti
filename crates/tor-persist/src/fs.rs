@@ -1,5 +1,7 @@
 //! Filesystem + JSON implementation of StateMgr.
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 mod clean;
 
 use crate::err::{Action, ErrorSource, Resource};
@@ -261,7 +263,7 @@ impl StateMgr for FsStateMgr {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri) /* filesystem access */))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
