@@ -68,10 +68,10 @@
 //!    To avoid too-frequent reclamation, once reclamation has started,
 //!    it will continue until a low-water mark is reached, significantly lower than the quota.
 //!    I.e. the system has a hysteresis.
-// TODO we haven't implemented the queue wrapper yet
-// !    The only currently implemented higher-level Participant is
-// !    a queue which responds to a reclamation request
-// !    by completely destroying itself and freeing all its data.
+//!
+//!    The only currently implemented higher-level Participant is
+//!    a queue which responds to a reclamation request
+//!    by completely destroying itself and freeing all its data.
 //!
 //!  * <div id="is-approximate">
 //!
