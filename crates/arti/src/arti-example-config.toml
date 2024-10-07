@@ -378,16 +378,7 @@
 #allow_local_addrs = false
 
 # Should Arti make connections to hidden services (.onion services) ?
-#
-# As of this implementation, Arti's onion service support lacks the
-# "vanguards" feature that Tor uses to prevent guard discovery attacks over time.
-# As such, you should probably stick with C Tor if you need to make a large
-# number of onion service connections, or if you are using the Tor protocol
-# in a way that lets an attacker control how many onion services connections that you make -
-# for example, when using Arti's SOCKS support from a web browser such as Tor Browser.
-#
-# Therefore, the onion service client support  is currently disabled by default.
-#allow_onion_addrs = false
+#allow_onion_addrs = true
 
 # Rules for how long streams should wait when connecting to host or performing a
 # DNS lookup.

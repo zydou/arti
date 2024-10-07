@@ -806,8 +806,8 @@ mod test {
                     prefs.connect_to_onion_services(yn);
                     prefs
                 };
-                check_stream(prefs_def(), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
-                check_stream(prefs_of(B::Auto), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
+                check_stream(prefs_def(), Ok(()));
+                check_stream(prefs_of(B::Auto), Ok(()));
                 check_stream(prefs_of(B::Explicit(true)), Ok(()));
                 check_stream(prefs_of(B::Explicit(false)), Err((EDD::OnionAddressDisabled, EK::ForbiddenStreamTarget)));
 
