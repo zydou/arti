@@ -66,6 +66,10 @@ enum RpcCode {
     RpcRequestError = 2,
     /// This method exists, but wasn't implemented on this object.
     RpcMethodNotImpl = 3,
+    /// This request was cancelled before it could finish.
+    RpcRequestCancelled = 4,
+    /// This request listed a required feature that doesn't exist.
+    RpcFeatureNotPresent = 5,
 }
 
 /// Helper: Return an error code (for backward compat with json-rpc) for an
@@ -81,6 +85,8 @@ fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
         EK::RpcInvalidMethodParameters => RpcCode::RpcInvalidParams,
         EK::Internal | EK::BadApiUsage => RpcCode::RpcInternalError,
         EK::RpcObjectNotFound => RpcCode::RpcObjectError,
+        EK::RpcRequestCancelled => RpcCode::RpcRequestCancelled,
+        EK::RpcFeatureNotPresent => RpcCode::RpcFeatureNotPresent,
         _ => RpcCode::RpcRequestError, // (This is our catch-all "request error.")
     }
 }
