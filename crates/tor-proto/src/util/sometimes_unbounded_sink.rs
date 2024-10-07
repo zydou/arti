@@ -159,7 +159,6 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
     /// This method should be used with a little care, since it bypasses the wrapper.
     /// For example, if `S` has interior mutability, and this method is used to
     /// modify it, the `SometimesUnboundedSink` may malfunction.
-    #[allow(dead_code)] // TODO #351.  Or, if this type becomes pub, removes the allow
     pub(crate) fn as_inner(&self) -> &S {
         &self.inner
     }

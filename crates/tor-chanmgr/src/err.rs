@@ -123,6 +123,10 @@ pub enum Error {
     #[error("Pluggable transport error: {0}")]
     Pt(#[source] Arc<dyn AbstractPtError>),
 
+    /// Memory quota error
+    #[error("memory quota error")]
+    Memquota(#[from] tor_memquota::Error),
+
     /// An internal error of some kind that should never occur.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
@@ -168,6 +172,7 @@ impl tor_error::HasKind for Error {
             E::ChannelBuild { .. } => EK::TorAccessFailed,
             E::RequestCancelled => EK::TransientFailure,
             E::Proxy(e) => e.kind(),
+            E::Memquota(e) => e.kind(),
             E::Pt(e) => e.kind(),
         }
     }
@@ -210,6 +215,9 @@ impl tor_error::HasRetryTime for Error {
             E::NoSuchTransport(_) => RT::Never,
 
             E::RequestCancelled => RT::Never,
+
+            // Hopefully the problem will pass!
+            E::Memquota { .. } => RT::AfterWaiting,
 
             // These aren't recoverable at all.
             E::Spawn { .. } | E::MissingId | E::Internal(_) => RT::Never,

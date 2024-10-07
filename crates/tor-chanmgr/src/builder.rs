@@ -11,6 +11,7 @@ use std::time::Duration;
 use tor_error::internal;
 use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
+use tor_proto::memquota::ChannelAccount;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
 
 use async_trait::async_trait;
@@ -64,6 +65,7 @@ where
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         use tor_rtcompat::SleepProviderExt;
 
@@ -74,7 +76,7 @@ where
             std::time::Duration::new(10, 0)
         };
 
-        let connect_future = self.connect_no_timeout(target, reporter.0);
+        let connect_future = self.connect_no_timeout(target, reporter.0, memquota);
         self.runtime
             .timeout(delay, connect_future)
             .await
@@ -97,6 +99,7 @@ where
         &self,
         peer: std::net::SocketAddr,
         stream: Self::Stream,
+        _memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         let map_ioe = |ioe, action| Error::Io {
             action,
@@ -125,6 +128,7 @@ where
         &self,
         target: &OwnedChanTarget,
         event_sender: Arc<Mutex<ChanMgrEventSender>>,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         use tor_proto::channel::ChannelBuilder;
         use tor_rtcompat::tls::CertifiedConn;
@@ -190,6 +194,7 @@ where
             .launch(
                 tls,
                 self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
+                memquota,
             )
             .connect(|| self.runtime.wallclock())
             .await
@@ -280,6 +285,7 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_proto::channel::Channel;
+    use tor_proto::memquota::{ChannelAccount, SpecificAccount as _};
     use tor_rtcompat::{test_with_one_runtime, NetStreamListener};
     use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
 
@@ -336,7 +342,11 @@ mod test {
                 async {
                     // client-side: build a channel!
                     builder
-                        .build_channel(&target, BootstrapReporter::fake())
+                        .build_channel(
+                            &target,
+                            BootstrapReporter::fake(),
+                            ChannelAccount::new_noop(),
+                        )
                         .await
                 },
                 async {

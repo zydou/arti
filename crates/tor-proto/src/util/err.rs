@@ -145,6 +145,9 @@ pub enum Error {
     /// that the relay doesn't have.
     #[error("Relay has no {0} identity")]
     MissingId(RelayIdType),
+    /// Memory quota error
+    #[error("memory quota error")]
+    Memquota(#[from] tor_memquota::Error),
 }
 
 /// Error which indicates that the channel was closed.
@@ -220,6 +223,8 @@ impl From<Error> for std::io::Error {
 
             CircuitClosed => ErrorKind::ConnectionReset,
 
+            Memquota { .. } => ErrorKind::OutOfMemory,
+
             BytesErr { .. }
             | BadCellAuth
             | BadCircHandshakeAuth
@@ -286,6 +291,7 @@ impl HasKind for Error {
             E::MissingId(_) => EK::BadApiUsage,
             E::IdUnavailable(_) => EK::BadApiUsage,
             E::StreamIdZero => EK::BadApiUsage,
+            E::Memquota(err) => err.kind(),
             E::Bug(e) => e.kind(),
         }
     }

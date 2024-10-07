@@ -748,6 +748,7 @@ pub(crate) mod test {
     use std::task::Poll::{self, *};
     use tokio::pin;
     use tokio_crate as tokio;
+    use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
     use tor_rtcompat::{test_with_one_runtime, SleepProvider};
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;
@@ -858,6 +859,7 @@ pub(crate) mod test {
             &Default::default(),
             tor_chanmgr::Dormancy::Dormant,
             &Default::default(),
+            ToplevelAccount::new_noop(),
         );
         let guardmgr = tor_guardmgr::GuardMgr::new(
             runtime.clone(),

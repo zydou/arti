@@ -572,6 +572,7 @@ mod test {
     use std::sync::{Arc, Mutex};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
+    use tor_proto::memquota::ChannelAccount;
 
     fn new_test_state() -> MgrState<FakeChannelFactory> {
         MgrState::new(
@@ -598,6 +599,7 @@ mod test {
             &self,
             _target: &Self::BuildSpec,
             _reporter: BootstrapReporter,
+            _memquota: ChannelAccount,
         ) -> Result<Arc<FakeChannel>> {
             unimplemented!()
         }
@@ -607,6 +609,7 @@ mod test {
             &self,
             _peer: std::net::SocketAddr,
             _stream: Self::Stream,
+            _memquota: ChannelAccount,
         ) -> Result<Arc<Self::Channel>> {
             unimplemented!()
         }

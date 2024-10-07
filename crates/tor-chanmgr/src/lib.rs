@@ -62,6 +62,7 @@ use tor_error::error_report;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_proto::channel::Channel;
+use tor_proto::memquota::{ChannelAccount, ToplevelAccount};
 use tracing::debug;
 use void::{ResultVoidErrExt, Void};
 
@@ -188,6 +189,20 @@ pub enum ChannelUsage {
 impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
     ///
+    /// A new `ChannelAccount` will be made from `memquota`, for each Channel.
+    ///
+    /// The `ChannelAccount` is used for data associated with this channel.
+    ///
+    /// This does *not* (currently) include downstream outbound data
+    /// (ie, data processed by the channel implementation here,
+    /// awaiting TLS processing and actual transmission).
+    /// In any case we try to keep those buffers small.
+    ///
+    /// The ChannelAccount *does* track upstream outbound data
+    /// (ie, data processed by a circuit, but not yet by the channel),
+    /// even though that data relates to a specific circuit.
+    /// TODO #1652 use `CircuitAccount` for circuit->channel queue.
+    ///
     /// # Usage note
     ///
     /// For the manager to work properly, you will need to call `ChanMgr::launch_background_tasks`.
@@ -196,6 +211,7 @@ impl<R: Runtime> ChanMgr<R> {
         config: &ChannelConfig,
         dormancy: Dormancy,
         netparams: &NetParameters,
+        memquota: ToplevelAccount,
     ) -> Self
     where
         R: 'static,
@@ -210,7 +226,8 @@ impl<R: Runtime> ChanMgr<R> {
             #[cfg(feature = "pt-client")]
             None,
         );
-        let mgr = mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter);
+        let mgr =
+            mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter, memquota);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
@@ -349,6 +366,7 @@ impl<R: Runtime> ChanMgr<R> {
     pub async fn build_unmanaged_channel(
         &self,
         target: impl tor_linkspec::IntoOwnedChanTarget,
+        memquota: ChannelAccount,
     ) -> Result<Arc<Channel>> {
         use factory::ChannelFactory as _;
         let target = target.to_owned();
@@ -356,7 +374,7 @@ impl<R: Runtime> ChanMgr<R> {
         self.mgr
             .channels
             .builder()
-            .connect_via_transport(&target, self.mgr.reporter.clone())
+            .connect_via_transport(&target, self.mgr.reporter.clone(), memquota)
             .await
     }
 

@@ -603,6 +603,7 @@ mod test {
     use tor_chanmgr::ChannelUsage as CU;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
+    use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
     use tor_rtcompat::SleepProvider;
     use tracing::trace;
 
@@ -932,6 +933,7 @@ mod test {
             &ChannelConfig::default(),
             Default::default(),
             &Default::default(),
+            ToplevelAccount::new_noop(),
         ));
         // always has 3 second timeout, 100 second abandon.
         let timeouts = match advance_on_timeout {

@@ -12,6 +12,7 @@ use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
 };
 use tor_netdir::params::NetParameters;
+use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
 use tor_relay_crypto::pk::{RelayIdentityKeySpecifier, RelayIdentityKeypair};
 use tor_rtcompat::Runtime;
 use tracing::info;
@@ -74,6 +75,7 @@ impl<R: Runtime> TorRelay<R> {
             &config.channel,
             Dormancy::Active,
             &NetParameters::from_map(&config.override_net_params),
+            ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
         ));
         Ok(Self {
             runtime,

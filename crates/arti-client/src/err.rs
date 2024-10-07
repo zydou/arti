@@ -124,6 +124,10 @@ enum ErrorDetail {
     #[error("Error setting up the memory quota tracker")]
     MemquotaSetup(#[from] tor_memquota::StartupError),
 
+    /// Memory quota error while starting up Arti
+    #[error("Memory quota error during startup")]
+    MemquotaDuringStartup(#[from] tor_memquota::Error),
+
     /// Error setting up the channel manager
     // TODO: should "chanmgr setup error" be its own type in tor-chanmgr
     #[error("Error setting up the channel manager")]
@@ -392,6 +396,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::MemquotaSetup(e) => e.kind(),
+            E::MemquotaDuringStartup(e) => e.kind(),
             E::GuardMgrSetup(e) => e.kind(),
             #[cfg(all(
                 feature = "vanguards",

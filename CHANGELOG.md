@@ -3,6 +3,15 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# UNRELEASED
+
+### Breaking changes
+
+ * Several methods in (mostly in `tor-chanmgr` and `tor-proto`)
+   take new memory quota tracking arguments.
+   If memory tracking is not required, you can create a no-op memory
+   quota account with `SpecificAccount::new_noop()` or `Account::new_noop().
+
 # Arti 1.2.8 — 1 October 2024
 
 Arti 1.2.8 continues development on onion services,

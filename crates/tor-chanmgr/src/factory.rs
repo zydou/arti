@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use tor_error::{internal, HasKind, HasRetryTime};
 use tor_linkspec::{HasChanMethod, OwnedChanTarget, PtTransportName};
 use tor_proto::channel::Channel;
+use tor_proto::memquota::ChannelAccount;
 use tracing::debug;
 
 /// An opaque type that lets a `ChannelFactory` update the `ChanMgr` about bootstrap progress.
@@ -56,6 +57,7 @@ pub trait ChannelFactory: Send + Sync {
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<Channel>>;
 }
 
@@ -75,6 +77,7 @@ pub trait IncomingChannelFactory: Send + Sync {
         &self,
         peer: std::net::SocketAddr,
         stream: Self::Stream,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<Channel>>;
 }
 
@@ -91,9 +94,10 @@ where
         &self,
         target: &Self::BuildSpec,
         reporter: BootstrapReporter,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<Self::Channel>> {
         debug!("Attempting to open a new channel to {target}");
-        self.connect_via_transport(target, reporter).await
+        self.connect_via_transport(target, reporter, memquota).await
     }
 
     #[cfg(feature = "relay")]
@@ -101,9 +105,10 @@ where
         &self,
         peer: std::net::SocketAddr,
         stream: Self::Stream,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
         debug!("Attempting to open a new channel from {peer}");
-        self.accept_from_transport(peer, stream).await
+        self.accept_from_transport(peer, stream, memquota).await
     }
 }
 
@@ -168,6 +173,7 @@ impl<CF: ChannelFactory> ChannelFactory for CompoundFactory<CF> {
         &self,
         target: &OwnedChanTarget,
         reporter: BootstrapReporter,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<Channel>> {
         use tor_linkspec::ChannelMethod::*;
         let factory = match target.chan_method() {
@@ -189,7 +195,9 @@ impl<CF: ChannelFactory> ChannelFactory for CompoundFactory<CF> {
             }
         };
 
-        factory.connect_via_transport(target, reporter).await
+        factory
+            .connect_via_transport(target, reporter, memquota)
+            .await
     }
 }
 
@@ -202,9 +210,10 @@ impl<CF: IncomingChannelFactory> IncomingChannelFactory for CompoundFactory<CF> 
         &self,
         peer: std::net::SocketAddr,
         stream: Self::Stream,
+        memquota: ChannelAccount,
     ) -> crate::Result<Arc<Channel>> {
         self.default_factory
-            .accept_from_transport(peer, stream)
+            .accept_from_transport(peer, stream, memquota)
             .await
     }
 }

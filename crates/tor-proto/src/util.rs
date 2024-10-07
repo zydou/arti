@@ -31,3 +31,12 @@ pub(crate) trait SinkExt<T>: Sink<T> {
     }
 }
 impl<T, S: Sink<T>> SinkExt<T> for S {}
+
+/// Convenience alias for
+/// [`memquota::SpecificAccount::new_noop()`](crate::memquota::SpecificAccount::new_noop())
+///
+/// Available only in tests, which makes diff hunks which call this more obviously correct.
+#[cfg(any(test, feature = "testing"))]
+pub(crate) fn fake_mq<A: crate::memquota::SpecificAccount>() -> A {
+    A::new_noop()
+}

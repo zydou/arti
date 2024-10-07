@@ -60,6 +60,8 @@ pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
 #[cfg(feature = "ntor_v3")]
 use crate::crypto::handshake::ntor_v3::NtorV3PublicKey;
+pub use crate::memquota::StreamAccount;
+use crate::memquota::{CircuitAccount, SpecificAccount as _};
 use crate::stream::{
     AnyCmdChecker, DataCmdChecker, DataStream, ResolveCmdChecker, ResolveStream, StreamParameters,
     StreamReader,
@@ -91,6 +93,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use tor_async_utils::SinkCloseChannel as _;
 use tor_cell::relaycell::StreamId;
+use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 // use std::time::Duration;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -111,9 +114,9 @@ pub use {
 };
 
 /// MPSC queue relating to a stream (either inbound or outbound), sender
-pub(crate) type StreamMpscSender<T> = mpsc::Sender<T>;
+pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
 /// MPSC queue relating to a stream (either inbound or outbound), receiver
-pub(crate) type StreamMpscReceiver<T> = mpsc::Receiver<T>;
+pub(crate) type StreamMpscReceiver<T> = mq_queue::Receiver<T, MpscSpec>;
 
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
@@ -186,6 +189,8 @@ pub struct ClientCirc {
     /// For testing purposes: the CircId, for use in peek_circid().
     #[cfg(test)]
     circid: CircId,
+    /// Memory quota account
+    memquota: CircuitAccount,
 }
 
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
@@ -380,6 +385,11 @@ impl ClientCirc {
         &self.channel
     }
 
+    /// Return a reference to this circuit's memory quota account
+    pub fn mq_account(&self) -> &CircuitAccount {
+        &self.memquota
+    }
+
     /// Return the cryptographic material used to prove knowledge of a shared
     /// secret with with `hop`.
     ///
@@ -567,8 +577,10 @@ impl ClientCirc {
         /// The size of the channel receiving IncomingStreamRequestContexts.
         const INCOMING_BUFFER: usize = STREAM_READER_BUFFER;
 
+        let time_prov = self.channel().time_provider().clone();
         let cmd_checker = IncomingCmdChecker::new_any(allow_commands);
-        let (incoming_sender, incoming_receiver) = mpsc::channel(INCOMING_BUFFER);
+        let (incoming_sender, incoming_receiver) =
+            MpscSpec::new(INCOMING_BUFFER).new_mq(time_prov, self.memquota.as_raw_account())?;
         let (tx, rx) = oneshot::channel();
 
         self.control
@@ -594,6 +606,7 @@ impl ClientCirc {
                 hop_num,
                 receiver,
                 msg_tx,
+                memquota,
             } = req_ctx;
 
             // We already enforce this in handle_incoming_stream_request; this
@@ -616,7 +629,7 @@ impl ClientCirc {
                 ended: false,
             };
 
-            IncomingStream::new(req, target, reader)
+            IncomingStream::new(req, target, reader, memquota)
         }))
     }
 
@@ -765,6 +778,8 @@ impl ClientCirc {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
+        let time_prov = self.channel().time_provider().clone();
+
         let hop_num = self
             .mutable
             .lock()
@@ -773,9 +788,12 @@ impl ClientCirc {
             .last_hop_num()
             .ok_or_else(|| Error::from(internal!("Can't begin a stream at the 0th hop")))?;
 
-        let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
+        let memquota = StreamAccount::new(self.mq_account())?;
+        let (sender, receiver) = MpscSpec::new(STREAM_READER_BUFFER)
+            .new_mq(time_prov.clone(), memquota.as_raw_account())?;
         let (tx, rx) = oneshot::channel();
-        let (msg_tx, msg_rx) = mpsc::channel(CIRCUIT_BUFFER_SIZE);
+        let (msg_tx, msg_rx) =
+            MpscSpec::new(CIRCUIT_BUFFER_SIZE).new_mq(time_prov, memquota.as_raw_account())?;
 
         self.control
             .unbounded_send(CtrlMsg::BeginStream {
@@ -814,10 +832,11 @@ impl ClientCirc {
         msg: AnyRelayMsg,
         optimistic: bool,
     ) -> Result<DataStream> {
+        let memquota = StreamAccount::new(self.mq_account())?;
         let (reader, target) = self
             .begin_stream_impl(msg, DataCmdChecker::new_any())
             .await?;
-        let mut stream = DataStream::new(reader, target);
+        let mut stream = DataStream::new(reader, target, memquota);
         if !optimistic {
             stream.wait_for_connection().await?;
         }
@@ -1030,9 +1049,11 @@ impl PendingClientCirc {
         createdreceiver: oneshot::Receiver<CreateResponse>,
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
-    ) -> (PendingClientCirc, reactor::Reactor) {
+    ) -> Result<(PendingClientCirc, reactor::Reactor)> {
+        let memquota = CircuitAccount::new(channel.mq_account())?;
+
         let (reactor, control_tx, reactor_closed_rx, mutable) =
-            Reactor::new(channel.clone(), id, unique_id, input);
+            Reactor::new(channel.clone(), id, unique_id, input, memquota.clone());
 
         let circuit = ClientCirc {
             mutable,
@@ -1042,13 +1063,14 @@ impl PendingClientCirc {
             channel,
             #[cfg(test)]
             circid: id,
+            memquota,
         };
 
         let pending = PendingClientCirc {
             recvcreated: createdreceiver,
             circ: Arc::new(circuit),
         };
-        (pending, reactor)
+        Ok((pending, reactor))
     }
 
     /// Extract the process-unique identifier for this pending circuit.
@@ -1363,6 +1385,7 @@ mod test {
         msg as relaymsg, AnyRelayMsgOuter, RelayCellFormat, RelayCmd, RelayMsg as _, StreamId,
     };
     use tor_linkspec::OwnedCircTarget;
+    use tor_memquota::HasMemoryCost;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
@@ -1398,10 +1421,10 @@ mod test {
 
     /// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
     #[cfg(test)]
-    pub(crate) fn fake_mpsc<T: Debug + Send>(
+    pub(crate) fn fake_mpsc<T: HasMemoryCost + Debug + Send>(
         buffer: usize,
     ) -> (StreamMpscSender<T>, StreamMpscReceiver<T>) {
-        mpsc::channel(buffer)
+        crate::fake_mpsc(buffer)
     }
 
     /// return an example OwnedCircTarget that can get used for an ntor handshake.
@@ -1470,7 +1493,7 @@ mod test {
         let unique_id = UniqId::new(23, 17);
 
         let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id);
+            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id).unwrap();
 
         rt.spawn(async {
             let _ignore = reactor.run().await;
@@ -1640,7 +1663,7 @@ mod test {
         let unique_id = UniqId::new(23, 17);
 
         let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id);
+            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id).unwrap();
 
         rt.spawn(async {
             let _ignore = reactor.run().await;

@@ -66,6 +66,7 @@ mod unique_id;
 pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
+use crate::memquota::{ChannelAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
@@ -80,7 +81,8 @@ use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
-use tor_rtcompat::{CoarseTimeProvider, SleepProvider};
+use tor_memquota::mq_queue::{self, ChannelSpec as _};
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
@@ -184,7 +186,7 @@ pub struct Channel {
     /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
-    cell_tx: mpsc::Sender<AnyChanCell>,
+    cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
 
     /// A unique identifier for this channel.
     unique_id: UniqId,
@@ -227,6 +229,12 @@ pub(crate) struct ChannelDetails {
     /// Set by reactor when a circuit is added or removed.
     /// Read from `Channel::duration_unused`.
     unused_since: AtomicOptTimestamp,
+    /// Memory quota account
+    ///
+    /// This is here partly because we need to ensure it lives as long as the channel,
+    /// as otherwise the memquota system will tear the account down.
+    #[allow(dead_code)]
+    memquota: ChannelAccount,
 }
 
 /// Mutable details (state) used by the `Channel` (frontend)
@@ -291,7 +299,7 @@ use PaddingControlState as PCS;
 #[derive(Debug)]
 pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
-    cell_tx: mpsc::Sender<AnyChanCell>,
+    cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
     /// Unique ID for this channel. For logging.
     unique_id: UniqId,
     /// Details shared with reactor and channel.
@@ -316,6 +324,14 @@ impl ChannelSender {
             ))),
             _ => Ok(()),
         }
+    }
+
+    /// Obtain a reference to the `ChannelSender`'s [`DynTimeProvider`]
+    ///
+    /// (This can sometimes be used to avoid having to keep
+    /// a separate clone of the time provider.)
+    pub(crate) fn time_provider(&self) -> &DynTimeProvider {
+        self.cell_tx.time_provider()
     }
 }
 
@@ -408,12 +424,17 @@ impl ChannelBuilder {
     /// authentication info from the relay: call `check()` on the result
     /// to check that.  Finally, to finish the handshake, call `finish()`
     /// on the result of _that_.
-    pub fn launch<T, S>(self, tls: T, sleep_prov: S) -> OutboundClientHandshake<T, S>
+    pub fn launch<T, S>(
+        self,
+        tls: T,
+        sleep_prov: S,
+        memquota: ChannelAccount,
+    ) -> OutboundClientHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
-        handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov)
+        handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov, memquota)
     }
 }
 
@@ -423,6 +444,7 @@ impl Channel {
     /// Internal method, called to finalize the channel when we've
     /// sent our netinfo cell, received the peer's netinfo cell, and
     /// we're finally ready to create circuits.
+    #[allow(clippy::too_many_arguments)] // TODO consider if we want a builder
     fn new<S>(
         link_protocol: u16,
         sink: BoxedChannelSink,
@@ -431,15 +453,18 @@ impl Channel {
         peer_id: OwnedChanTarget,
         clock_skew: ClockSkew,
         sleep_prov: S,
-    ) -> (Arc<Self>, reactor::Reactor<S>)
+        memquota: ChannelAccount,
+    ) -> Result<(Arc<Self>, reactor::Reactor<S>)>
     where
         S: CoarseTimeProvider + SleepProvider,
     {
         use circmap::{CircIdRange, CircMap};
         let circmap = CircMap::new(CircIdRange::High);
+        let dyn_time = DynTimeProvider::new(sleep_prov.clone());
 
         let (control_tx, control_rx) = mpsc::unbounded();
-        let (cell_tx, cell_rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
+        let (cell_tx, cell_rx) = mq_queue::MpscSpec::new(CHANNEL_BUFFER_SIZE)
+            .new_mq(dyn_time.clone(), memquota.as_raw_account())?;
         let closed = AtomicBool::new(false);
         let unused_since = AtomicOptTimestamp::new();
         unused_since.update();
@@ -452,6 +477,7 @@ impl Channel {
             closed,
             unused_since,
             reactor_closed_rx,
+            memquota,
         };
         let details = Arc::new(details);
 
@@ -484,12 +510,25 @@ impl Channel {
             special_outgoing: Default::default(),
         };
 
-        (channel, reactor)
+        Ok((channel, reactor))
     }
 
     /// Return a process-unique identifier for this channel.
     pub fn unique_id(&self) -> UniqId {
         self.unique_id
+    }
+
+    /// Return a reference to the memory tracking account for this Channel
+    pub fn mq_account(&self) -> &ChannelAccount {
+        &self.details.memquota
+    }
+
+    /// Obtain a reference to the `Channel`'s [`DynTimeProvider`]
+    ///
+    /// (This can sometimes be used to avoid having to keep
+    /// a separate clone of the time provider.)
+    pub fn time_provider(&self) -> &DynTimeProvider {
+        self.cell_tx.time_provider()
     }
 
     /// Return an OwnedChanTarget representing the actual handshake used to
@@ -650,13 +689,7 @@ impl Channel {
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
-        Ok(circuit::PendingClientCirc::new(
-            id,
-            self.clone(),
-            createdreceiver,
-            receiver,
-            circ_unique_id,
-        ))
+        circuit::PendingClientCirc::new(id, self.clone(), createdreceiver, receiver, circ_unique_id)
     }
 
     /// Shut down this channel immediately, along with all circuits that
@@ -714,7 +747,7 @@ impl Channel {
 
         let channel = Channel {
             control,
-            cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            cell_tx: fake_mpsc().0,
             unique_id,
             peer_id,
             clock_skew: ClockSkew::None,
@@ -777,7 +810,17 @@ fn fake_channel_details() -> Arc<ChannelDetails> {
         closed: AtomicBool::new(false),
         reactor_closed_rx: rx.shared(),
         unused_since,
+        memquota: crate::util::fake_mq(),
     })
+}
+
+/// Make an MPSC queue, of the type we use in Channels, but a fake one for testing
+#[cfg(any(test, feature = "testing"))] // Used by Channel::new_fake which is also feature=testing
+pub(crate) fn fake_mpsc() -> (
+    mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
+    mq_queue::Receiver<AnyChanCell, mq_queue::MpscSpec>,
+) {
+    crate::fake_mpsc(CHANNEL_BUFFER_SIZE)
 }
 
 #[cfg(test)]
@@ -788,6 +831,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::codec::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::new_reactor;
+    use crate::util::fake_mq;
     use tor_cell::chancell::msg::HandshakeType;
     use tor_cell::chancell::{msg, AnyChanCell};
     use tor_rtcompat::PreferredRuntime;
@@ -802,7 +846,7 @@ pub(crate) mod test {
             .expect("Couldn't construct peer id");
         Channel {
             control: mpsc::unbounded().0,
-            cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            cell_tx: fake_mpsc().0,
             unique_id,
             peer_id,
             clock_skew: ClockSkew::None,
@@ -849,7 +893,7 @@ pub(crate) mod test {
             .parse()
             .unwrap()]));
         let tls = MsgBuf::new(&b""[..]);
-        let _outbound = builder.launch(tls, rt);
+        let _outbound = builder.launch(tls, rt, fake_mq());
     }
 
     #[test]

@@ -28,6 +28,7 @@ use tor_config::PaddingLevel;
 use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
+use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount};
 
 use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
 use crate::ChannelUsage;
@@ -135,6 +136,7 @@ impl AbstractChannelFactory for FakeChannelFactory {
         &self,
         _target: &Self::BuildSpec,
         _reporter: BootstrapReporter,
+        _memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>> {
         Ok(self.channel.clone())
     }
@@ -144,6 +146,7 @@ impl AbstractChannelFactory for FakeChannelFactory {
         &self,
         _peer: std::net::SocketAddr,
         _stream: Self::Stream,
+        _memquota: ChannelAccount,
     ) -> Result<Arc<Self::Channel>> {
         unimplemented!()
     }
@@ -189,6 +192,7 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
         dormancy,
         &netparams,
         BootstrapReporter::fake(),
+        ToplevelAccount::new_noop(),
     );
 
     let (channel, _prov) = chanmgr.get_or_launch(relay_ids, usage).await.unwrap();

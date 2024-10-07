@@ -1021,6 +1021,7 @@ mod test {
     #[cfg(all(feature = "vanguards", feature = "hs-common"))]
     use tor_guardmgr::VanguardConfigBuilder;
     use tor_guardmgr::VanguardMode;
+    use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
     use tor_rtmock::MockRuntime;
 
     use super::*;
@@ -1036,6 +1037,7 @@ mod test {
             &Default::default(),
             tor_chanmgr::Dormancy::Dormant,
             &Default::default(),
+            ToplevelAccount::new_noop(),
         );
         let guardmgr = tor_guardmgr::GuardMgr::new(
             runtime.clone(),

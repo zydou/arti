@@ -32,6 +32,7 @@ use educe::Educe;
 use crate::circuit::ClientCirc;
 
 use crate::circuit::StreamTarget;
+use crate::memquota::StreamAccount;
 use crate::stream::StreamReader;
 use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::Data;
@@ -135,6 +136,10 @@ pub struct DataStream {
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
     ctrl: std::sync::Arc<DataStreamCtrl>,
+
+    /// The memory quota account that should be used for this stream's data
+    #[allow(dead_code)] // Exists partly to keep the account alive
+    memquota: StreamAccount,
 }
 
 /// An object used to control and monitor a data stream.
@@ -339,8 +344,8 @@ impl DataStream {
     ///
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
-    pub(crate) fn new(reader: StreamReader, target: StreamTarget) -> Self {
-        Self::new_inner(reader, target, false)
+    pub(crate) fn new(reader: StreamReader, target: StreamTarget, memquota: StreamAccount) -> Self {
+        Self::new_inner(reader, target, false, memquota)
     }
 
     /// Wrap raw stream reader and target parts as a connected DataStream.
@@ -350,12 +355,21 @@ impl DataStream {
     ///
     /// This is used by hidden services, exit relays, and directory servers to accept streams.
     #[cfg(feature = "hs-service")]
-    pub(crate) fn new_connected(reader: StreamReader, target: StreamTarget) -> Self {
-        Self::new_inner(reader, target, true)
+    pub(crate) fn new_connected(
+        reader: StreamReader,
+        target: StreamTarget,
+        memquota: StreamAccount,
+    ) -> Self {
+        Self::new_inner(reader, target, true, memquota)
     }
 
     /// The shared implementation of the `new*()` functions.
-    fn new_inner(reader: StreamReader, target: StreamTarget, connected: bool) -> Self {
+    fn new_inner(
+        reader: StreamReader,
+        target: StreamTarget,
+        connected: bool,
+        memquota: StreamAccount,
+    ) -> Self {
         #[cfg(feature = "stream-ctrl")]
         let status = {
             let mut data_stream_status = DataStreamStatus::default();
@@ -401,6 +415,7 @@ impl DataStream {
             circuit,
             #[cfg(feature = "stream-ctrl")]
             ctrl,
+            memquota,
         }
     }
 
