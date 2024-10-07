@@ -37,6 +37,7 @@ pub(crate) enum RequestId {
 pub(crate) struct ReqMeta {
     /// If true, the client will accept intermediate Updates other than the
     /// final Request or Response.
+    #[serde(default)]
     pub(crate) updates: bool,
 }
 
