@@ -342,16 +342,16 @@ deb-binary-arm64:
 cargo-miri:
   stage: test
   # for local testing,
-  #   rustup toolchain add nightly-2024-06-05
-  #   rustup component add --toolchain nightly-2024-06-05 miri
-  #   cargo +nightly-2024-06-05 miri setup
-  #   cargo +nightly-2024-06-05 miri test ...
+  #   rustup toolchain add nightly-2024-10-08
+  #   rustup component add --toolchain nightly-2024-10-08 miri
+  #   cargo +nightly-2024-10-08 miri setup
+  #   cargo +nightly-2024-10-08 miri test ...
   # to update this
   #  1. choose a new Nightly version, for example according to these instructions
   #      https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/blob/main/macros/HACKING.md?ref_type=heads#choosing-which-nightly-rust-version-to-update-to
   #  2. insert the new image hash, and corresponding nightly date, above
-  image: rustlang/rust@sha256:aaee57e8fa29c2809494ec71ffab6fcfa241b765c2a78d781e4de17fe38f060e
-  # ^ this is from tags.2024-06-06T13:08+00:00.gz (see HACKING.md)
+  image: rustlang/rust@sha256:b68e38306c8c67d7c95b88e99e75aeef3610e533ea69f64749e1adce818cf2e1
+  # ^ this is from tags.2024-10-08T13:08+00:00.gz (see HACKING.md)
   script:
     - rustup component add miri
     # TOOD use miri test more of our crates-containing-unsafe
