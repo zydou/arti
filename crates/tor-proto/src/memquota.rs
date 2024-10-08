@@ -11,12 +11,14 @@ use tor_memquota::Account;
 // Making this a trait rather than ad-hoc output from the derive macro
 // makes things more regular, and the documentation easier.
 pub trait SpecificAccount: Sized {
-    /// The parent [`Account`], or, for a standalone account type,
+    /// The type that this `Account` can be constructed from.
+    ///
+    /// The progenitor [`Account`], or, for a standalone account type,
     /// [`Arc<MemoryQuotaTracker>`](tor_memquota::MemoryQuotaTracker).
-    type Parent;
+    type ConstructedFrom;
 
-    /// Create a new Account at this layer, given the parent
-    fn new(within: &Self::Parent) -> Result<Self, tor_memquota::Error>;
+    /// Create a new Account at this layer, given the progenitor
+    fn new(progenitor: &Self::ConstructedFrom) -> Result<Self, tor_memquota::Error>;
 
     /// Access the underlying raw [`Account`]
     ///
@@ -46,33 +48,35 @@ define_derive_deftly! {
     ///
     ///  * **`#[deftly(account_newtype(toplevel)]`**:
     ///    Standalone Account, without a parent Account.
-    ///    `type Parent = Arc<MemoryQuotaTracker>`.
+    ///    `type ConstructedFrom = Arc<MemoryQuotaTracker>`.
     ///
     ///  * **`#[deftly(account_newtype(parent = "PARENT_ACCOUNT"))]`**:
-    ///    `type Parent = PARENT_ACCOUNT`
-    ///    (and PARENT_ACCOUNT must itself impl `SpecificAccount`.
+    ///    `type ConstructedFrom = PARENT_ACCOUNT`
+    ///    (and PARENT_ACCOUNT must itself impl `SpecificAccount`).
     ///
     /// Applicable to newtype tuple structs, containing an [`Account`], only.
     export SpecificAccount for struct, expect items:
 
     ${define ACCOUNT { $crate::tor_memquota::Account }}
 
-    ${defcond HAS_PARENT not(tmeta(account_newtype(toplevel)))}
-    ${define PARENT_TY { ${if HAS_PARENT {
-        ${tmeta(account_newtype(parent)) as ty}
-    } else {
-        std::sync::Arc<$crate::tor_memquota::MemoryQuotaTracker>
-    }}}}
+    ${defcond HAS_PARENT  tmeta(account_newtype(parent))}
+    ${defcond IS_TOPLEVEL tmeta(account_newtype(toplevel))}
+
+    ${define CONSTRUCTED_FROM {
+        ${select1
+          HAS_PARENT  { ${tmeta(account_newtype(parent)) as ty} }
+          IS_TOPLEVEL { std::sync::Arc<$crate::tor_memquota::MemoryQuotaTracker> }
+        }
+    }}
 
     impl SpecificAccount for $ttype {
-        type Parent = $PARENT_TY;
+        type ConstructedFrom = $CONSTRUCTED_FROM;
 
-        fn new(within: &Self::Parent) -> Result<Self, tor_memquota::Error> {
-            ${if HAS_PARENT {
-                $crate::memquota::SpecificAccount::as_raw_account(within).new_child()
-            } else {
-                within.new_account(None)
-            }}
+        fn new(src: &Self::ConstructedFrom) -> Result<Self, tor_memquota::Error> {
+          ${select1
+            HAS_PARENT  { $crate::memquota::SpecificAccount::as_raw_account(src).new_child() }
+            IS_TOPLEVEL { src.new_account(None) }
+          }
                 .map(Self::from_raw_account)
         }
 
