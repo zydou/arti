@@ -1700,7 +1700,7 @@ impl<R: Runtime> TorClient<R> {
     /// The specified `HsIdKeypair` will be inserted in the primary keystore.
     ///
     /// **Important**: depending on the configuration of your
-    /// [primary keystore](tor_keymgr::config::arti::PrimaryKeystoreConfig),
+    /// [primary keystore](tor_keymgr::config::PrimaryKeystoreConfig),
     /// the `HsIdKeypair` **may** get persisted to disk.
     /// By default, Arti's primary keystore is the [native](ArtiKeystoreKind::Native),
     /// disk-based keystore.
