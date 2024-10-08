@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+
+"""
+Build arti and rpc client library, and run RPC integration tests.
+
+ENVIRONMENT VARIABLES:
+
+- CARGO: the cargo binary to use.  Defaults to "cargo".
+- PYTHON3: path to a python binary to use.  Defaults to `sys.executable`
+- ARTI_RPC_TEST_DIR: A location in which to store .
+  Defaults to ".arti_rpc_test" at the top level of this git repo.
+
+ARGUMENTS:
+
+None yet.
+
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import subprocess
+
+
+def parent(path: str, n: int = 1):
+    """
+    Return the parent of (the parent of (... the directory of path)).
+
+    The number of "parent of"s is controlled by "n"
+    """
+    for _ in range(n):
+        path = os.path.split(path)[0]
+    return path
+
+
+def cargo_build(packages: list[str], extra_flags: list[str] = []):
+    """
+    Use cargo to build all of the rust packages in `packages`,
+    passing `extra_flags` on the command line.
+    """
+    args = [
+        CARGO,
+        "build",
+        "--profile",
+        CARGO_PROFILE,
+    ]
+    for p in packages:
+        args.extend(["-p", p])
+    args.extend(extra_flags)
+
+    outcome = subprocess.run(args, cwd=TOPLEVEL)
+    outcome.check_returncode()
+
+
+######
+# Set up locations and paths from the environment.
+
+CARGO_PROFILE = "quicktest"
+TOPLEVEL = os.path.abspath(parent(os.path.dirname(__file__), n=3))
+CARGO = os.environ.get("CARGO", "cargo")
+PYTHON3 = os.environ.get("PYTHON3", sys.executable)
+
+lib_extension = {"win32": "dll", "darwin": "dylib"}.get(sys.platform, "so")
+
+ARTI = os.path.join(TOPLEVEL, "target", CARGO_PROFILE, "arti")
+LIBRPC = os.path.join(
+    TOPLEVEL, "target", CARGO_PROFILE, "libarti_rpc_client_core." + lib_extension
+)
+PYRPC = os.path.join(TOPLEVEL, "python", "arti_rpc", "src")
+PYRPC_TESTS = os.path.join(TOPLEVEL, "python", "arti_rpc_tests", "src")
+
+ARTI_RPC_TEST_DIR = os.environ.get(
+    "ARTI_RPC_TEST_DIR", os.path.join(TOPLEVEL, ".arti_rpc_test")
+)
+os.makedirs(ARTI_RPC_TEST_DIR, mode=0o700, exist_ok=True)
+
+#####
+# Build Arti, and make sure it is there.
+
+cargo_build(["arti", "arti-rpc-client-core"], ["--all-features"])
+
+if not os.path.exists(ARTI):
+    print("whoops no arti at", ARTI)
+    sys.exit(1)
+if not os.path.exists(ARTI):
+    print("whoops no librpc at", LIBRPC)
+    sys.exit(1)
+
+#####
+# Set up the environment expected by `arti_rpc_tests`.
+
+os.environ["ARTI"] = ARTI
+os.environ["LIBARTI_RPC_CLIENT_CORE"] = LIBRPC
+os.environ["ARTI_RPC_TEST_DIR"] = ARTI_RPC_TEST_DIR
+
+# Note that we're prepending these locations to PYTHONPATH.
+# We want to use these versions, not ones that might happen to be installed.
+pathelts = [PYRPC, PYRPC_TESTS]
+try:
+    pathelts.append(os.environ["PYTHONPATH"])
+except KeyError:
+    pass
+os.environ["PYTHONPATH"] = os.pathsep.join(pathelts)
+
+# Run `arti_rpc_tests` and wait for it to finish.
+outcome = subprocess.run([PYTHON3, "-m", "arti_rpc_tests"])
+# Give an error if it failed.
+outcome.check_returncode()
