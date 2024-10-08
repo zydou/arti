@@ -344,8 +344,8 @@ cargo-miri:
   # for local testing,
   #   rustup toolchain add nightly-2024-06-05
   #   rustup component add --toolchain nightly-2024-06-05 miri
-  #   rustup +nightly-2024-06-05 miri setup
-  #   rustup +nightly-2024-06-05 miri test ...
+  #   cargo +nightly-2024-06-05 miri setup
+  #   cargo +nightly-2024-06-05 miri test ...
   # to update this
   #  1. choose a new Nightly version, for example according to these instructions
   #      https://gitlab.torproject.org/Diziet/rust-derive-deftly/-/blob/main/macros/HACKING.md?ref_type=heads#choosing-which-nightly-rust-version-to-update-to
