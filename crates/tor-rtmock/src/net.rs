@@ -569,7 +569,6 @@ fn err(k: ErrorKind) -> IoError {
 }
 
 #[cfg(all(test, not(miri)))] // miri cannot simulate the networking
-#[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

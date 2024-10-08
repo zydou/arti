@@ -42,7 +42,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 // TODO #1645 (either remove this, or decide to have it everywhere)
-#![cfg_attr(any(not(all(feature = "full")), miri), allow(unused))]
+#![cfg_attr(any(not(feature = "full"), miri), allow(unused))]
 
 extern crate core;
 
