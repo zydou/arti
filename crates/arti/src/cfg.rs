@@ -654,8 +654,9 @@ mod test {
             None,
             FeatureDependent,
             &[
-                "storage.keystore.ctor_services",
-                "storage.keystore.ctor_clients",
+                "storage.keystore.ctor",
+                "storage.keystore.ctor.services",
+                "storage.keystore.ctor.clients",
             ],
         );
 

@@ -54,20 +54,27 @@ pub struct ArtiKeystoreConfig {
     ///
     /// Each C Tor keystore **must** have a unique identifier.
     /// It is an error to configure multiple keystores with the same [`KeystoreId`].
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    ctor: CTorKeystoreConfig,
+}
+
+/// [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
+#[derive(Debug, Clone, Builder, Eq, PartialEq, Serialize, Deserialize, Getters)]
+#[builder(derive(Serialize, Deserialize, Debug))]
+#[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
+#[non_exhaustive]
+#[builder_struct_attr(non_exhaustive)]
+pub struct CTorKeystoreConfig {
+    /// C Tor hidden service keystores.
     #[builder(default, sub_builder(fn_name = "build"), setter(custom))]
     #[builder_field_attr(serde(default))]
-    ctor_services: CTorServiceKeystoreConfigMap,
+    services: CTorServiceKeystoreConfigMap,
 
-    /// Optionally configure C Tor client keystores for arti to use.
-    /// Note: The keystores listed here are read-only (keys are only
-    /// ever written to the primary keystore, configured in
-    /// `storage.keystore.primary`).
-    ///
-    /// Each C Tor keystore **must** have a unique identifier.
-    /// It is an error to configure multiple keystores with the same [`KeystoreId`].
+    /// C Tor hidden service client keystores.
     #[builder(default, sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
-    ctor_clients: CTorClientKeystoreConfigList,
+    clients: CTorClientKeystoreConfigList,
 }
 
 /// Primary [`ArtiNativeKeystore`](crate::ArtiNativeKeystore) configuration
@@ -295,12 +302,12 @@ impl ArtiKeystoreConfig {
 
     /// The ctor keystore configs
     pub fn ctor_svc_stores(&self) -> impl Iterator<Item = &CTorServiceKeystoreConfig> {
-        self.ctor_services.values()
+        self.ctor.services.values()
     }
 
     /// The ctor client keystore configs
     pub fn ctor_client_stores(&self) -> impl Iterator<Item = &CTorClientKeystoreConfig> {
-        self.ctor_clients.iter()
+        self.ctor.clients.iter()
     }
 }
 
@@ -331,8 +338,6 @@ impl ArtiKeystoreConfigBuilder {
             }),
         }?;
 
-        self.validate_ctor_keystores()?;
-
         Ok(())
     }
 
@@ -340,36 +345,44 @@ impl ArtiKeystoreConfigBuilder {
     #[cfg(feature = "keymgr")]
     #[allow(clippy::unnecessary_wraps)]
     fn validate(&self) -> Result<(), ConfigBuildError> {
-        self.validate_ctor_keystores()
+        Ok(())
     }
 
+    /// Add a `CTorServiceKeystoreConfigBuilder` to this builder.
+    pub fn ctor_service(&mut self, builder: CTorServiceKeystoreConfigBuilder) -> &mut Self {
+        self.ctor.ctor_service(builder);
+        self
+    }
+}
+
+impl CTorKeystoreConfigBuilder {
     /// Ensure no C Tor keystores are configured.
     /// (C Tor keystores are only supported if the `ctor-keystore` is enabled).
     #[cfg(not(feature = "ctor-keystore"))]
-    fn validate_ctor_keystores(&self) -> Result<(), ConfigBuildError> {
+    fn validate(&self) -> Result<(), ConfigBuildError> {
         let no_compile_time_support = |field: &str| ConfigBuildError::NoCompileTimeSupport {
             field: field.into(),
             problem: format!("{field} configured but ctor-keystore feature not enabled"),
         };
 
         if self
-            .ctor_services
+            .services
             .stores
             .as_ref()
             .map(|s| !s.is_empty())
             .unwrap_or_default()
         {
-            return Err(no_compile_time_support("ctor_services"));
+            return Err(no_compile_time_support("C Tor service keystores"));
         }
 
         if self
-            .ctor_clients
+            .clients
             .stores
             .as_ref()
             .map(|s| !s.is_empty())
             .unwrap_or_default()
         {
-            return Err(no_compile_time_support("ctor_clients"));
+            return Err(no_compile_time_support("C Tor client keystores"));
         }
 
         Ok(())
@@ -377,19 +390,17 @@ impl ArtiKeystoreConfigBuilder {
 
     /// Validate the configured C Tor keystores.
     #[cfg(feature = "ctor-keystore")]
-    fn validate_ctor_keystores(&self) -> Result<(), ConfigBuildError> {
+    fn validate(&self) -> Result<(), ConfigBuildError> {
         use itertools::chain;
         use itertools::Itertools as _;
 
         let Self {
-            enabled: _,
-            primary: _,
-            ref ctor_services,
-            ref ctor_clients,
+            ref services,
+            ref clients,
         } = self;
         let mut ctor_store_ids = chain![
-            ctor_services.stores.iter().flatten().map(|s| &s.id),
-            ctor_clients.stores.iter().flatten().map(|s| &s.id)
+            services.stores.iter().flatten().map(|s| &s.id),
+            clients.stores.iter().flatten().map(|s| &s.id)
         ];
 
         // This is also validated by the KeyMgrBuilder (but it's a good idea to catch this sort of
@@ -406,10 +417,10 @@ impl ArtiKeystoreConfigBuilder {
 
     /// Add a `CTorServiceKeystoreConfigBuilder` to this builder.
     pub fn ctor_service(&mut self, builder: CTorServiceKeystoreConfigBuilder) -> &mut Self {
-        if let Some(ref mut stores) = self.ctor_services.stores {
+        if let Some(ref mut stores) = self.services.stores {
             stores.push(builder);
         } else {
-            self.ctor_services.stores = Some(vec![builder]);
+            self.services.stores = Some(vec![builder]);
         }
 
         self
@@ -465,12 +476,12 @@ mod test {
         let mut builder = ArtiKeystoreConfigBuilder::default();
         // Push two clients with the same (default) ID:
         builder
-            .ctor_clients()
+            .ctor().clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/foo"));
 
         builder
-            .ctor_clients()
+            .ctor().clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/bar"));
         let err = builder.build().unwrap_err();
@@ -513,7 +524,7 @@ mod test {
     fn invalid_config() {
         let mut builder = ArtiKeystoreConfigBuilder::default();
         builder
-            .ctor_clients()
+            .ctor().clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/foo"));
         let err = builder.build().unwrap_err();
@@ -521,7 +532,7 @@ mod test {
         assert_config_error!(
             err,
             NoCompileTimeSupport,
-            "ctor_clients configured but ctor-keystore feature not enabled"
+            "C Tor client keystores configured but ctor-keystore feature not enabled"
         );
 
         let mut builder = ArtiKeystoreConfigBuilder::default();
@@ -531,7 +542,7 @@ mod test {
         assert_config_error!(
             err,
             NoCompileTimeSupport,
-            "ctor_services configured but ctor-keystore feature not enabled"
+            "C Tor service keystores configured but ctor-keystore feature not enabled"
         );
     }
 
@@ -554,11 +565,11 @@ mod test {
     fn valid_config() {
         let mut builder = ArtiKeystoreConfigBuilder::default();
         builder
-            .ctor_clients()
+            .ctor().clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/foo"));
         builder
-            .ctor_clients()
+            .ctor().clients()
             .access()
             .push(client_config_builder("bar", "/var/lib/bar"));
 

@@ -153,7 +153,7 @@
 #
 # For example:
 #
-# [storage.keystore.ctor_services."allium-cepa"]
+# [storage.keystore.ctor.services."allium-cepa"]
 #
 # This should be set to the `HiddenServiceDirectory` of your hidden service.
 # Arti will read `HiddenServiceDirectory/hostname`
@@ -166,7 +166,7 @@
 # The identifier of this keystore.
 # id = "foo"
 
-# [[storage.keystore.ctor_clients]]
+# [[storage.keystore.ctor.clients]]
 #
 # The identifier of this keystore.
 # id = "bar"
