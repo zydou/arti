@@ -183,8 +183,8 @@ correct changes, then you cannot enable these features.
 
 ## Limitations
 
-There are many missing features.  Among them: There's no anti-censorship
-support.  You can't be a relay. There isn't any kind of proxy besides SOCKS.
+There are many missing features.  Among them: You can't be a relay. There isn't
+any kind of proxy besides SOCKS.
 
 See the [repository README
 file](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md) for
