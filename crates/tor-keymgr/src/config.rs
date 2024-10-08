@@ -476,12 +476,14 @@ mod test {
         let mut builder = ArtiKeystoreConfigBuilder::default();
         // Push two clients with the same (default) ID:
         builder
-            .ctor().clients()
+            .ctor()
+            .clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/foo"));
 
         builder
-            .ctor().clients()
+            .ctor()
+            .clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/bar"));
         let err = builder.build().unwrap_err();
@@ -524,7 +526,8 @@ mod test {
     fn invalid_config() {
         let mut builder = ArtiKeystoreConfigBuilder::default();
         builder
-            .ctor().clients()
+            .ctor()
+            .clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/foo"));
         let err = builder.build().unwrap_err();
@@ -565,11 +568,13 @@ mod test {
     fn valid_config() {
         let mut builder = ArtiKeystoreConfigBuilder::default();
         builder
-            .ctor().clients()
+            .ctor()
+            .clients()
             .access()
             .push(client_config_builder("foo", "/var/lib/foo"));
         builder
-            .ctor().clients()
+            .ctor()
+            .clients()
             .access()
             .push(client_config_builder("bar", "/var/lib/bar"));
 
