@@ -726,6 +726,9 @@ static RAW_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
 //---------- Sleep location tracking and dumping ----------
 
 /// We record "where a future went to sleep" as (just) a backtrace
+///
+/// This type alias allows us to mock `Backtrace` for miri.
+/// (It also insulates from future choices about sleep location representation.0
 #[cfg(not(miri))]
 type SleepLocation = Backtrace;
 
@@ -965,6 +968,9 @@ impl Debug for Data {
     }
 }
 
+/// Mock `Backtrace` for miri
+///
+/// See also the not-miri `type SleepLocation`, alias above.
 #[cfg(miri)]
 mod miri_sleep_location {
     #[derive(Debug, derive_more::Display)]
