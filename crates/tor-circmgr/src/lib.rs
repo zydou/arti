@@ -405,199 +405,6 @@ impl<R: Runtime> CircMgrInner<CircuitBuilder<R>, R> {
 
         Ok(Self::new_generic(config, runtime, guardmgr, builder))
     }
-
-    /// Try to change our configuration settings to `new_config`.
-    ///
-    /// The actual behavior here will depend on the value of `how`.
-    ///
-    /// Returns whether any of the circuit pools should be cleared.
-    pub(crate) fn reconfigure<CFG: CircMgrConfig>(
-        &self,
-        new_config: &CFG,
-        how: tor_config::Reconfigure,
-    ) -> std::result::Result<RetireCircuits, tor_config::ReconfigureError> {
-        let old_path_rules = self.mgr.peek_builder().path_config();
-        let predictor = self.predictor.lock().expect("poisoned lock");
-        let preemptive_circuits = predictor.config();
-        if preemptive_circuits.initial_predicted_ports
-            != new_config.preemptive_circuits().initial_predicted_ports
-        {
-            // This change has no effect, since the list of ports was _initial_.
-            how.cannot_change("preemptive_circuits.initial_predicted_ports")?;
-        }
-
-        if how == tor_config::Reconfigure::CheckAllOrNothing {
-            return Ok(RetireCircuits::None);
-        }
-
-        let retire_because_of_guardmgr =
-            self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
-
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let retire_because_of_vanguardmgr = self
-            .mgr
-            .peek_builder()
-            .vanguardmgr()
-            .reconfigure(new_config.vanguard_config())?;
-
-        let new_reachable = &new_config.path_rules().reachable_addrs;
-        if new_reachable != &old_path_rules.reachable_addrs {
-            let filter = new_config.path_rules().build_guard_filter();
-            self.mgr.peek_builder().guardmgr().set_filter(filter);
-        }
-
-        let discard_all_circuits = !new_config
-            .path_rules()
-            .at_least_as_permissive_as(&old_path_rules)
-            || retire_because_of_guardmgr != tor_guardmgr::RetireCircuits::None;
-
-        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
-        let discard_all_circuits = discard_all_circuits
-            || retire_because_of_vanguardmgr != tor_guardmgr::RetireCircuits::None;
-
-        self.mgr
-            .peek_builder()
-            .set_path_config(new_config.path_rules().clone());
-        self.mgr
-            .set_circuit_timing(new_config.circuit_timing().clone());
-        predictor.set_config(new_config.preemptive_circuits().clone());
-
-        if discard_all_circuits {
-            // TODO(nickm): Someday, we might want to take a more lenient approach, and only
-            // retire those circuits that do not conform to the new path rules,
-            // or do not conform to the new guard configuration.
-            info!("Path configuration has become more restrictive: retiring existing circuits.");
-            self.retire_all_circuits();
-            return Ok(RetireCircuits::All);
-        }
-        Ok(RetireCircuits::None)
-    }
-
-    /// Return a circuit suitable for sending one-hop BEGINDIR streams,
-    /// launching it if necessary.
-    pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
-        self.expire_circuits();
-        let usage = TargetCircUsage::Dir;
-        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
-    }
-
-    /// Return a circuit suitable for exiting to all of the provided
-    /// `ports`, launching it if necessary.
-    ///
-    /// If the list of ports is empty, then the chosen circuit will
-    /// still end at _some_ exit.
-    pub(crate) async fn get_or_launch_exit(
-        &self,
-        netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
-        ports: &[TargetPort],
-        isolation: StreamIsolation,
-        // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
-        //             additive. The function should be refactored to be builder-like.
-        #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
-    ) -> Result<Arc<ClientCirc>> {
-        self.expire_circuits();
-        let time = Instant::now();
-        {
-            let mut predictive = self.predictor.lock().expect("preemptive lock poisoned");
-            if ports.is_empty() {
-                predictive.note_usage(None, time);
-            } else {
-                for port in ports.iter() {
-                    predictive.note_usage(Some(*port), time);
-                }
-            }
-        }
-        let require_stability = ports.iter().any(|p| {
-            self.mgr
-                .peek_builder()
-                .path_config()
-                .long_lived_ports
-                .contains(&p.port)
-        });
-        let ports = ports.iter().map(Clone::clone).collect();
-        #[cfg(not(feature = "geoip"))]
-        let country_code = None;
-        let usage = TargetCircUsage::Exit {
-            ports,
-            isolation,
-            country_code,
-            require_stability,
-        };
-        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
-    }
-
-    /// Return a circuit to a specific relay, suitable for using for direct
-    /// (one-hop) directory downloads.
-    ///
-    /// This could be used, for example, to download a descriptor for a bridge.
-    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
-    #[cfg(feature = "specific-relay")]
-    pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
-        &self,
-        target: T,
-    ) -> Result<Arc<ClientCirc>> {
-        self.expire_circuits();
-        let usage = TargetCircUsage::DirSpecificTarget(target.to_owned());
-        self.mgr
-            .get_or_launch(&usage, DirInfo::Nothing)
-            .await
-            .map(|(c, _)| c)
-    }
-
-    /// If `circ_id` is the unique identifier for a circuit that we're
-    /// keeping track of, don't give it out for any future requests.
-    pub(crate) fn retire_circ(&self, circ_id: &UniqId) {
-        let _ = self.mgr.take_circ(circ_id);
-    }
-
-    /// Mark every circuit that we have launched so far as unsuitable for
-    /// any future requests.  This won't close existing circuits that have
-    /// streams attached to them, but it will prevent any future streams from
-    /// being attached.
-    ///
-    /// TODO: we may want to expose this eventually.  If we do, we should
-    /// be very clear that you don't want to use it haphazardly.
-    pub(crate) fn retire_all_circuits(&self) {
-        self.mgr.retire_all_circuits();
-    }
-
-    /// Record that a failure occurred on a circuit with a given guard, in a way
-    /// that makes us unwilling to use that guard for future circuits.
-    ///
-    pub(crate) fn note_external_failure(
-        &self,
-        target: &impl ChanTarget,
-        external_failure: ExternalActivity,
-    ) {
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .note_external_failure(target, external_failure);
-    }
-
-    /// Record that a success occurred on a circuit with a given guard, in a way
-    /// that makes us possibly willing to use that guard for future circuits.
-    pub(crate) fn note_external_success(
-        &self,
-        target: &impl ChanTarget,
-        external_activity: ExternalActivity,
-    ) {
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .note_external_success(target, external_activity);
-    }
-
-    /// Return a stream of events about our estimated clock skew; these events
-    /// are `None` when we don't have enough information to make an estimate,
-    /// and `Some(`[`SkewEstimate`]`)` otherwise.
-    ///
-    /// Note that this stream can be lossy: if the estimate changes more than
-    /// one before you read from the stream, you might only get the most recent
-    /// update.
-    pub(crate) fn skew_events(&self) -> ClockSkewEvents {
-        self.mgr.peek_builder().guardmgr().skew_events()
-    }
 }
 
 impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
@@ -696,6 +503,144 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         }
 
         Ok(ret)
+    }
+
+    /// Return a circuit suitable for sending one-hop BEGINDIR streams,
+    /// launching it if necessary.
+    pub(crate) async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<B::Circ>> {
+        self.expire_circuits();
+        let usage = TargetCircUsage::Dir;
+        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
+    }
+
+    /// Return a circuit suitable for exiting to all of the provided
+    /// `ports`, launching it if necessary.
+    ///
+    /// If the list of ports is empty, then the chosen circuit will
+    /// still end at _some_ exit.
+    pub(crate) async fn get_or_launch_exit(
+        &self,
+        netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
+        ports: &[TargetPort],
+        isolation: StreamIsolation,
+        // TODO GEOIP: this cannot be stabilised like this, since Cargo features need to be
+        //             additive. The function should be refactored to be builder-like.
+        #[cfg(feature = "geoip")] country_code: Option<CountryCode>,
+    ) -> Result<Arc<B::Circ>> {
+        self.expire_circuits();
+        let time = Instant::now();
+        {
+            let mut predictive = self.predictor.lock().expect("preemptive lock poisoned");
+            if ports.is_empty() {
+                predictive.note_usage(None, time);
+            } else {
+                for port in ports.iter() {
+                    predictive.note_usage(Some(*port), time);
+                }
+            }
+        }
+        let require_stability = ports.iter().any(|p| {
+            self.mgr
+                .peek_builder()
+                .path_config()
+                .long_lived_ports
+                .contains(&p.port)
+        });
+        let ports = ports.iter().map(Clone::clone).collect();
+        #[cfg(not(feature = "geoip"))]
+        let country_code = None;
+        let usage = TargetCircUsage::Exit {
+            ports,
+            isolation,
+            country_code,
+            require_stability,
+        };
+        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
+    }
+
+    /// Return a circuit to a specific relay, suitable for using for direct
+    /// (one-hop) directory downloads.
+    ///
+    /// This could be used, for example, to download a descriptor for a bridge.
+    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
+    #[cfg(feature = "specific-relay")]
+    pub(crate) async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
+        &self,
+        target: T,
+    ) -> Result<Arc<B::Circ>> {
+        self.expire_circuits();
+        let usage = TargetCircUsage::DirSpecificTarget(target.to_owned());
+        self.mgr
+            .get_or_launch(&usage, DirInfo::Nothing)
+            .await
+            .map(|(c, _)| c)
+    }
+
+    /// Try to change our configuration settings to `new_config`.
+    ///
+    /// The actual behavior here will depend on the value of `how`.
+    ///
+    /// Returns whether any of the circuit pools should be cleared.
+    pub(crate) fn reconfigure<CFG: CircMgrConfig>(
+        &self,
+        new_config: &CFG,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<RetireCircuits, tor_config::ReconfigureError> {
+        let old_path_rules = self.mgr.peek_builder().path_config();
+        let predictor = self.predictor.lock().expect("poisoned lock");
+        let preemptive_circuits = predictor.config();
+        if preemptive_circuits.initial_predicted_ports
+            != new_config.preemptive_circuits().initial_predicted_ports
+        {
+            // This change has no effect, since the list of ports was _initial_.
+            how.cannot_change("preemptive_circuits.initial_predicted_ports")?;
+        }
+
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(RetireCircuits::None);
+        }
+
+        let retire_because_of_guardmgr =
+            self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let retire_because_of_vanguardmgr = self
+            .mgr
+            .peek_builder()
+            .vanguardmgr()
+            .reconfigure(new_config.vanguard_config())?;
+
+        let new_reachable = &new_config.path_rules().reachable_addrs;
+        if new_reachable != &old_path_rules.reachable_addrs {
+            let filter = new_config.path_rules().build_guard_filter();
+            self.mgr.peek_builder().guardmgr().set_filter(filter);
+        }
+
+        let discard_all_circuits = !new_config
+            .path_rules()
+            .at_least_as_permissive_as(&old_path_rules)
+            || retire_because_of_guardmgr != tor_guardmgr::RetireCircuits::None;
+
+        #[cfg(all(feature = "vanguards", feature = "hs-common"))]
+        let discard_all_circuits = discard_all_circuits
+            || retire_because_of_vanguardmgr != tor_guardmgr::RetireCircuits::None;
+
+        self.mgr
+            .peek_builder()
+            .set_path_config(new_config.path_rules().clone());
+        self.mgr
+            .set_circuit_timing(new_config.circuit_timing().clone());
+        predictor.set_config(new_config.preemptive_circuits().clone());
+
+        if discard_all_circuits {
+            // TODO(nickm): Someday, we might want to take a more lenient approach, and only
+            // retire those circuits that do not conform to the new path rules,
+            // or do not conform to the new guard configuration.
+            info!("Path configuration has become more restrictive: retiring existing circuits.");
+            self.retire_all_circuits();
+            return Ok(RetireCircuits::All);
+        }
+        Ok(RetireCircuits::None)
     }
 
     /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
@@ -1064,6 +1009,61 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> CircMgrInner<B, R> {
         // spawn_expiration_task.)
         let now = self.mgr.peek_runtime().now();
         self.mgr.expire_circs(now);
+    }
+
+    /// Mark every circuit that we have launched so far as unsuitable for
+    /// any future requests.  This won't close existing circuits that have
+    /// streams attached to them, but it will prevent any future streams from
+    /// being attached.
+    ///
+    /// TODO: we may want to expose this eventually.  If we do, we should
+    /// be very clear that you don't want to use it haphazardly.
+    pub(crate) fn retire_all_circuits(&self) {
+        self.mgr.retire_all_circuits();
+    }
+
+    /// If `circ_id` is the unique identifier for a circuit that we're
+    /// keeping track of, don't give it out for any future requests.
+    pub(crate) fn retire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id) {
+        let _ = self.mgr.take_circ(circ_id);
+    }
+
+    /// Return a stream of events about our estimated clock skew; these events
+    /// are `None` when we don't have enough information to make an estimate,
+    /// and `Some(`[`SkewEstimate`]`)` otherwise.
+    ///
+    /// Note that this stream can be lossy: if the estimate changes more than
+    /// one before you read from the stream, you might only get the most recent
+    /// update.
+    pub(crate) fn skew_events(&self) -> ClockSkewEvents {
+        self.mgr.peek_builder().guardmgr().skew_events()
+    }
+
+    /// Record that a failure occurred on a circuit with a given guard, in a way
+    /// that makes us unwilling to use that guard for future circuits.
+    ///
+    pub(crate) fn note_external_failure(
+        &self,
+        target: &impl ChanTarget,
+        external_failure: ExternalActivity,
+    ) {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_failure(target, external_failure);
+    }
+
+    /// Record that a success occurred on a circuit with a given guard, in a way
+    /// that makes us possibly willing to use that guard for future circuits.
+    pub(crate) fn note_external_success(
+        &self,
+        target: &impl ChanTarget,
+        external_activity: ExternalActivity,
+    ) {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_success(target, external_activity);
     }
 }
 
