@@ -409,22 +409,9 @@ mod test {
     use std::ops::Index;
 
     use tor_basic_utils::test_rng::Config;
+    use tor_config::assert_config_error;
     use tor_config::CfgPath;
     use tor_hscrypto::pk::HsClientDescEncKeypair;
-
-    /// Assert that the specified error is the specified `kind` of [`ConfigBuildError`].
-    macro_rules! assert_config_error {
-        ($err:expr, $kind:tt, $expect_problem:expr) => {
-            match $err {
-                ConfigBuildError::$kind { problem, .. } => {
-                    assert_eq!(problem, $expect_problem);
-                }
-                _ => {
-                    panic!("unexpected error {:?}", $err);
-                }
-            }
-        };
-    }
 
     /// A helper for creating a test (`HsClientNickname`, `HsClientDescEncKey`) pair.
     fn make_authorized_client(nickname: &str) -> (HsClientNickname, HsClientDescEncKey) {

@@ -648,6 +648,18 @@ mod test {
             ],
         );
 
+        // These are commented-out by default
+        declare_exceptions(
+            None,
+            None,
+            FeatureDependent,
+            &[
+                "storage.keystore.ctor",
+                "storage.keystore.ctor.services",
+                "storage.keystore.ctor.clients",
+            ],
+        );
+
         out.sort();
 
         let dupes = out.iter().map(|exc| &exc.key).duplicates().collect_vec();

@@ -4,18 +4,16 @@
 
 pub(crate) mod err;
 pub(crate) mod ssh;
-#[macro_use]
-mod rel_path;
 
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
+use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
 use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result};
-use err::{ArtiNativeKeystoreError, FilesystemAction};
-use rel_path::RelKeyPath;
+use err::ArtiNativeKeystoreError;
 use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
@@ -70,11 +68,12 @@ impl ArtiNativeKeystore {
             .verifier()
             .check_content()
             .make_secure_dir(&keystore_dir)
-            .map_err(|e| ArtiNativeKeystoreError::FsMistrust {
+            .map_err(|e| FilesystemError::FsMistrust {
                 action: FilesystemAction::Init,
                 path: keystore_dir.as_ref().into(),
                 err: e.into(),
-            })?;
+            })
+            .map_err(ArtiNativeKeystoreError::Filesystem)?;
 
         // TODO: load the keystore ID from config.
         let id = KeystoreId::from_str("arti")?;
@@ -88,7 +87,7 @@ impl ArtiNativeKeystore {
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> StdResult<RelKeyPath, ArtiPathUnavailableError> {
-        RelKeyPath::new(&self.keystore_dir, key_spec, key_type)
+        RelKeyPath::arti(&self.keystore_dir, key_spec, key_type)
     }
 }
 
@@ -121,12 +120,12 @@ impl Keystore for ArtiNativeKeystore {
             Ok(meta) => meta,
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(false),
             Err(e) => {
-                return Err(ArtiNativeKeystoreError::FsMistrust {
+                return Err(FilesystemError::FsMistrust {
                     action: FilesystemAction::Read,
                     path: path.rel_path_unchecked().into(),
                     err: e.into(),
-                }
-                .into())
+                })
+                .map_err(|e| ArtiNativeKeystoreError::Filesystem(e).into());
             }
         };
 
@@ -134,7 +133,12 @@ impl Keystore for ArtiNativeKeystore {
         if meta.is_file() {
             Ok(true)
         } else {
-            Err(ArtiNativeKeystoreError::NotARegularFile(path.rel_path_unchecked().into()).into())
+            Err(
+                ArtiNativeKeystoreError::Filesystem(FilesystemError::NotARegularFile(
+                    path.rel_path_unchecked().into(),
+                ))
+                .into(),
+            )
         }
     }
 
@@ -143,14 +147,18 @@ impl Keystore for ArtiNativeKeystore {
 
         let inner = match checked_op!(read_to_string, path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
-            res => res.map_err(|err| ArtiNativeKeystoreError::FsMistrust {
-                action: FilesystemAction::Read,
-                path: path.rel_path_unchecked().into(),
-                err: err.into(),
-            })?,
+            res => res
+                .map_err(|err| FilesystemError::FsMistrust {
+                    action: FilesystemAction::Read,
+                    path: path.rel_path_unchecked().into(),
+                    err: err.into(),
+                })
+                .map_err(ArtiNativeKeystoreError::Filesystem)?,
         };
 
-        let abs_path = path.checked_path()?;
+        let abs_path = path
+            .checked_path()
+            .map_err(ArtiNativeKeystoreError::Filesystem)?;
         UnparsedOpenSshKey::new(inner, abs_path)
             .parse_ssh_format_erased(key_type)
             .map(Some)
@@ -169,13 +177,14 @@ impl Keystore for ArtiNativeKeystore {
 
         // Create the parent directories as needed
         if let Some(parent) = unchecked_path.parent() {
-            self.keystore_dir.make_directory(parent).map_err(|err| {
-                ArtiNativeKeystoreError::FsMistrust {
+            self.keystore_dir
+                .make_directory(parent)
+                .map_err(|err| FilesystemError::FsMistrust {
                     action: FilesystemAction::Write,
                     path: parent.to_path_buf(),
                     err: err.into(),
-                }
-            })?;
+                })
+                .map_err(ArtiNativeKeystoreError::Filesystem)?;
         }
 
         let key = key.as_ssh_key_data()?;
@@ -184,15 +193,13 @@ impl Keystore for ArtiNativeKeystore {
 
         let openssh_key = key.to_openssh_string(comment)?;
 
-        Ok(
-            checked_op!(write_and_replace, path, openssh_key).map_err(|err| {
-                ArtiNativeKeystoreError::FsMistrust {
-                    action: FilesystemAction::Write,
-                    path: unchecked_path.into(),
-                    err: err.into(),
-                }
-            })?,
-        )
+        Ok(checked_op!(write_and_replace, path, openssh_key)
+            .map_err(|err| FilesystemError::FsMistrust {
+                action: FilesystemAction::Write,
+                path: unchecked_path.into(),
+                err: err.into(),
+            })
+            .map_err(ArtiNativeKeystoreError::Filesystem)?)
     }
 
     fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>> {
@@ -203,12 +210,13 @@ impl Keystore for ArtiNativeKeystore {
         match checked_op!(remove_file, rel_path) {
             Ok(()) => Ok(Some(())),
             Err(fs_mistrust::Error::NotFound(_)) => Ok(None),
-            Err(e) => Err(ArtiNativeKeystoreError::FsMistrust {
-                action: FilesystemAction::Remove,
-                path: rel_path.rel_path_unchecked().into(),
-                err: e.into(),
-            }
-            .into()),
+            Err(e) => Err(ArtiNativeKeystoreError::Filesystem(
+                FilesystemError::FsMistrust {
+                    action: FilesystemAction::Remove,
+                    path: rel_path.rel_path_unchecked().into(),
+                    err: e.into(),
+                },
+            ))?,
         }
     }
 
@@ -216,17 +224,21 @@ impl Keystore for ArtiNativeKeystore {
         WalkDir::new(self.keystore_dir.as_path())
             .into_iter()
             .map(|entry| {
-                let entry = entry.map_err(|e| {
-                    let msg = e.to_string();
-                    ArtiNativeKeystoreError::Filesystem {
-                        action: FilesystemAction::Read,
-                        path: self.keystore_dir.as_path().into(),
-                        err: e
-                            .into_io_error()
-                            .unwrap_or_else(|| io::Error::new(ErrorKind::Other, msg.to_string()))
-                            .into(),
-                    }
-                })?;
+                let entry = entry
+                    .map_err(|e| {
+                        let msg = e.to_string();
+                        FilesystemError::Io {
+                            action: FilesystemAction::Read,
+                            path: self.keystore_dir.as_path().into(),
+                            err: e
+                                .into_io_error()
+                                .unwrap_or_else(|| {
+                                    io::Error::new(ErrorKind::Other, msg.to_string())
+                                })
+                                .into(),
+                        }
+                    })
+                    .map_err(ArtiNativeKeystoreError::Filesystem)?;
 
                 let path = entry.path();
 
@@ -251,13 +263,14 @@ impl Keystore for ArtiNativeKeystore {
                 if let Some(parent) = path.parent() {
                     // Check the properties of the parent directory by attempting to list its
                     // contents.
-                    self.keystore_dir.read_directory(parent).map_err(|e| {
-                        ArtiNativeKeystoreError::FsMistrust {
+                    self.keystore_dir
+                        .read_directory(parent)
+                        .map_err(|e| FilesystemError::FsMistrust {
                             action: FilesystemAction::Read,
                             path: parent.into(),
                             err: e.into(),
-                        }
-                    })?;
+                        })
+                        .map_err(ArtiNativeKeystoreError::Filesystem)?;
                 }
 
                 let malformed_err = |path: &Path, err| ArtiNativeKeystoreError::MalformedPath {
@@ -308,8 +321,9 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::test_utils::ssh_keys::*;
-    use crate::test_utils::TestSpecifier;
+    use crate::test_utils::{assert_found, TestSpecifier};
     use crate::{ArtiPath, KeyPath};
+    use std::cmp::Ordering;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::{tempdir, TempDir};
@@ -317,6 +331,21 @@ mod tests {
 
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
+
+    impl Ord for KeyPath {
+        fn cmp(&self, other: &Self) -> Ordering {
+            match (self, other) {
+                (KeyPath::Arti(path1), KeyPath::Arti(path2)) => path1.cmp(path2),
+                _ => unimplemented!("not supported"),
+            }
+        }
+    }
+
+    impl PartialOrd for KeyPath {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
 
     fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
         let rel_key_path = key_store
@@ -347,19 +376,6 @@ mod tests {
         }
 
         (key_store, keystore_dir)
-    }
-
-    macro_rules! assert_found {
-        ($key_store:expr, $key_spec:expr, $key_type:expr, $found:expr) => {{
-            let res = $key_store.get($key_spec, $key_type).unwrap();
-            if $found {
-                assert!(res.is_some());
-                // Ensure contains() agrees with get()
-                assert!($key_store.contains($key_spec, $key_type).unwrap());
-            } else {
-                assert!(res.is_none());
-            }
-        }};
     }
 
     macro_rules! assert_contains_arti_paths {

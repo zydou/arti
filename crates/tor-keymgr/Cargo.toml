@@ -30,14 +30,17 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["ephemeral-keystore", "testing"]
+experimental = ["ephemeral-keystore", "ctor-keystore", "testing"]
 ephemeral-keystore = ["__is_experimental"]
+ctor-keystore = ["data-encoding", "__is_experimental"]
 testing = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }
 arrayvec = "0.7.3"
+cfg-if = "1.0.0"
+data-encoding = { version = "2.3.1", optional = true }
 derive-deftly = "0.14"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
@@ -50,6 +53,7 @@ inventory = "0.3.13"
 itertools = "0.13.0"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
+signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
@@ -67,6 +71,7 @@ zeroize = "1"
 serde_json = "1.0.104"
 tempfile = "3"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
+tor-config = { path = "../tor-config", version = "0.23.0", features = ["testing"] }
 
 [package.metadata.docs.rs]
 all-features = true

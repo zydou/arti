@@ -21,6 +21,7 @@ use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{error_report, internal, Bug};
 use tor_guardmgr::{GuardMgr, RetireCircuits};
+use tor_keymgr::Keystore;
 use tor_memquota::MemoryQuotaTracker;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 #[cfg(feature = "onion-service-service")]
@@ -48,10 +49,13 @@ use tor_hsservice::HsIdKeypairSpecifier;
 #[cfg(all(feature = "onion-service-client", feature = "experimental-api"))]
 use {tor_hscrypto::pk::HsId, tor_hscrypto::pk::HsIdKeypair, tor_keymgr::KeystoreSelector};
 
-use tor_keymgr::{config::arti::ArtiKeystoreKind, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
+use tor_keymgr::{config::ArtiKeystoreKind, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder};
 
 #[cfg(feature = "ephemeral-keystore")]
 use tor_keymgr::ArtiEphemeralKeystore;
+
+#[cfg(feature = "ctor-keystore")]
+use tor_keymgr::{CTorClientKeystore, CTorServiceKeystore};
 
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
@@ -233,41 +237,63 @@ impl InertTorClient {
     /// Returns `Ok(None)` if keystore use is disabled.
     fn create_keymgr(config: &TorClientConfig) -> StdResult<Option<Arc<KeyMgr>>, ErrorDetail> {
         let keystore = config.storage.keystore();
-        match keystore.primary_kind() {
+        let permissions = config.storage.permissions();
+        let primary_store: Box<dyn Keystore> = match keystore.primary_kind() {
             Some(ArtiKeystoreKind::Native) => {
                 let (state_dir, _mistrust) = config.state_dir()?;
                 let key_store_dir = state_dir.join("keystore");
-                let permissions = config.storage.permissions();
 
                 let native_store =
                     ArtiNativeKeystore::from_path_and_mistrust(&key_store_dir, permissions)?;
                 info!("Using keystore from {key_store_dir:?}");
 
-                let keymgr = KeyMgrBuilder::default()
-                    .primary_store(Box::new(native_store))
-                    .build()
-                    .map_err(|_| internal!("failed to build keymgr"))?;
-
-                // TODO #858: add support for the C Tor key store
-                Ok(Some(Arc::new(keymgr)))
+                Box::new(native_store)
             }
             #[cfg(feature = "ephemeral-keystore")]
             Some(ArtiKeystoreKind::Ephemeral) => {
                 // TODO: make the keystore ID somehow configurable
                 let ephemeral_store: ArtiEphemeralKeystore =
                     ArtiEphemeralKeystore::new("ephemeral".to_string());
-                let keymgr = KeyMgrBuilder::default()
-                    .primary_store(Box::new(ephemeral_store))
-                    .build()
-                    .map_err(|_| internal!("failed to build keymgr"))?;
-                Ok(Some(Arc::new(keymgr)))
+                Box::new(ephemeral_store)
             }
             None => {
                 info!("Running without a keystore");
-                Ok(None)
+                return Ok(None);
             }
-            ty => Err(internal!("unrecognized keystore type {ty:?}").into()),
+            ty => return Err(internal!("unrecognized keystore type {ty:?}").into()),
+        };
+
+        let mut builder = KeyMgrBuilder::default().primary_store(primary_store);
+
+        #[cfg(feature = "ctor-keystore")]
+        for config in config.storage.keystore().ctor_svc_stores() {
+            let store: Box<dyn Keystore> = Box::new(CTorServiceKeystore::from_path_and_mistrust(
+                config.path(),
+                permissions,
+                config.id().clone(),
+                // TODO: these nicknames should be cross-checked with configured
+                // svc nicknames as part of config validation!!!
+                config.nickname().clone(),
+            )?);
+
+            builder.secondary_stores().push(store);
         }
+
+        #[cfg(feature = "ctor-keystore")]
+        for config in config.storage.keystore().ctor_client_stores() {
+            let store: Box<dyn Keystore> = Box::new(CTorClientKeystore::from_path_and_mistrust(
+                config.path(),
+                permissions,
+                config.id().clone(),
+            )?);
+
+            builder.secondary_stores().push(store);
+        }
+
+        let keymgr = builder
+            .build()
+            .map_err(|_| internal!("failed to build keymgr"))?;
+        Ok(Some(Arc::new(keymgr)))
     }
 
     /// Generate a service discovery keypair for connecting to a hidden service running in
@@ -1674,7 +1700,7 @@ impl<R: Runtime> TorClient<R> {
     /// The specified `HsIdKeypair` will be inserted in the primary keystore.
     ///
     /// **Important**: depending on the configuration of your
-    /// [primary keystore](tor_keymgr::config::arti::PrimaryKeystoreConfig),
+    /// [primary keystore](tor_keymgr::config::PrimaryKeystoreConfig),
     /// the `HsIdKeypair` **may** get persisted to disk.
     /// By default, Arti's primary keystore is the [native](ArtiKeystoreKind::Native),
     /// disk-based keystore.

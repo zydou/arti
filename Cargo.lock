@@ -5729,6 +5729,8 @@ version = "0.23.0"
 dependencies = [
  "amplify",
  "arrayvec",
+ "cfg-if",
+ "data-encoding",
  "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
@@ -5742,6 +5744,7 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
+ "signature",
  "ssh-key",
  "tempfile",
  "thiserror",

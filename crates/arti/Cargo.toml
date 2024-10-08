@@ -69,6 +69,7 @@ onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "t
 vanguards = ["arti-client/vanguards"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 relay = ["arti-relay", "__is_experimental"]
+ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
 
 # This is not nonadditive from a software POV, but we mark it as such because it
 # includes code licensed under the old OpenSSL license (which was 4-clause BSD),

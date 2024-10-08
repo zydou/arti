@@ -13,7 +13,7 @@ use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_config::{impl_standard_builder, mistrust::BuilderExt, CfgPath};
-use tor_keymgr::config::arti::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
+use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
 pub use tor_config::ConfigBuildError;
 

@@ -29,7 +29,7 @@ pub use tor_guardmgr::bridge::BridgeConfigBuilder;
 pub use tor_guardmgr::bridge::BridgeParseError;
 
 use tor_guardmgr::bridge::BridgeConfig;
-use tor_keymgr::config::arti::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
+use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {

@@ -138,6 +138,50 @@
 # feature is disabled is a configuration error.
 #kind = "auto"
 
+# Optionally configure C Tor keystores for arti to use.
+#
+# Note: The keystores listed here are read-only (keys are only
+# ever written to the primary keystore, configured in
+# `storage.keystore.primary`).
+#
+# Each C Tor keystore **must**:
+#
+#   * have a unique identifier. It is an error to configure multiple keystores
+#     with the same ID.
+#   * have a corresponding arti hidden service configured in the
+#   `[onion_services]` section with the same nickname
+#
+# For example:
+#
+# [storage.keystore.ctor.services."allium-cepa"]
+#
+# This should be set to the `HiddenServiceDirectory` of your hidden service.
+# Arti will read `HiddenServiceDirectory/hostname`
+# and `HiddenServiceDirectory/private_key`.
+# (Note: if your service is running in restricted discovery mode, you must also set the
+# `[[onion_services."<the nickname of your svc>".restricted_discovery.key_dirs]]`
+# to `HiddenServiceDirectory/client_keys`).
+# path = "/var/lib/tor/allium_cepa"
+#
+# The identifier of this keystore.
+# id = "foo"
+
+# [[storage.keystore.ctor.clients]]
+#
+# The identifier of this keystore.
+# id = "bar"
+#
+# This should be set to the `ClientOnionAuthDir` of your client.
+# If Arti is configured to run as a client (i.e. if it runs in SOCKS proxy mode),
+# it will read the client restricted discovery keys from this path.
+#
+# The key files are expected to have the `.auth_private` extension,
+# and their content **must** be of the form:
+# `<56-char-onion-addr-without-.onion-part>:descriptor:x25519:<x25519 private key in base32>`.
+#
+# Malformed files, and files that don't have the `.auth_private` extension, will be ignored.
+# path = "/var/lib/tor/onion_auth"
+
 # Describe how to enforce permissions on the filesystem when accessing the cache
 # and state directories.  (This does not apply to configuration files)
 [storage.permissions]
@@ -435,7 +479,7 @@
 # A description of what to do with incoming connections to different ports.
 # This is given as a list of rules; the first matching rule applies.
 #
-#    proxy_ports = [ 
+#    proxy_ports = [
 #        # Forward port 80 on the service to localhost:10080.
 #        ["80", "127.0.0.1:10080"],
 #        # Tear down the circuit on attempts to connect to port 22.

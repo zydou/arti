@@ -81,9 +81,6 @@ macro_rules! declare_key_type {
 
         impl KeyType {
             /// The file extension for a key of this type.
-            //
-            // TODO: this is subject to change (i.e. we might also need a `KeySpecifier` argument here
-            // to decide the file extension should be).
             pub fn arti_extension(&self) -> String {
                 use KeyType::*;
 
@@ -93,14 +90,6 @@ macro_rules! declare_key_type {
                     )*
                     Unknown { arti_extension } => arti_extension.clone(),
                 }
-            }
-
-            /// The file extension for a key of this type, for use in a C Tor key store.
-            //
-            // TODO (#858): this is subject to change (i.e. we might also need a `KeySpecifier` argument here
-            // to decide the file extension should be).
-            pub fn ctor_extension(&self) -> &'static str {
-                todo!() // TODO (#858)
             }
         }
 

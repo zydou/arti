@@ -12,7 +12,7 @@ use std::sync::Arc;
 #[allow(deprecated)]
 use tor_hscrypto::pk::HsClientIntroAuthKeypair;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
-use tor_keymgr::derive_deftly_template_KeySpecifier;
+use tor_keymgr::{derive_deftly_template_KeySpecifier, CTorPath};
 
 use derive_deftly::Deftly;
 use derive_more::Constructor;
@@ -151,8 +151,15 @@ impl HsClientSecretKeysBuilder {
 #[deftly(prefix = "client")]
 #[deftly(role = "KS_hsc_desc_enc")]
 #[deftly(summary = "Descriptor decryption key")]
+#[deftly(ctor_path = "client_desc_enc_keypair_key_specifier_ctor_path")]
 /// A key for deriving keys for decrypting HS descriptors (KS_hsc_desc_enc).
 pub struct HsClientDescEncKeypairSpecifier {
     /// The hidden service this authorization key is for.
     pub(crate) hs_id: HsId,
+}
+/// The `CTorPath` of HsClientDescEncKeypairSpecifier
+fn client_desc_enc_keypair_key_specifier_ctor_path(
+    spec: &HsClientDescEncKeypairSpecifier,
+) -> CTorPath {
+    CTorPath::ClientHsDescEncKey(spec.hs_id)
 }

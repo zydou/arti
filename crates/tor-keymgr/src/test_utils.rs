@@ -123,7 +123,78 @@ mod specifier {
             None
         }
     }
+
+    /// A test client key specifiier
+    #[derive(Debug, Clone)]
+    pub(crate) struct TestCTorSpecifier(pub(crate) CTorPath);
+
+    impl KeySpecifier for TestCTorSpecifier {
+        fn arti_path(&self) -> Result<ArtiPath, ArtiPathUnavailableError> {
+            unimplemented!()
+        }
+
+        fn ctor_path(&self) -> Option<CTorPath> {
+            Some(self.0.clone())
+        }
+
+        fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
+            unimplemented!()
+        }
+    }
+}
+
+/// A module exporting key implementations used for testing.
+#[cfg(test)]
+mod key {
+    use crate::{EncodableKey, KeyType};
+    use tor_key_forge::SshKeyData;
+
+    /// A dummy key.
+    ///
+    /// Used as an argument placeholder for calling functions that require an [`EncodableKey`].
+    ///
+    /// Panics if its `EncodableKey` implementation is called.
+    pub(crate) struct DummyKey;
+
+    impl EncodableKey for DummyKey {
+        fn key_type() -> KeyType
+        where
+            Self: Sized,
+        {
+            todo!()
+        }
+
+        fn as_ssh_key_data(&self) -> tor_key_forge::Result<SshKeyData> {
+            todo!()
+        }
+    }
 }
 
 #[cfg(test)]
 pub(crate) use specifier::*;
+
+#[cfg(test)]
+pub(crate) use key::*;
+
+#[cfg(test)]
+pub(crate) use internal::assert_found;
+
+/// Private module for reexporting test helper macros macro.
+#[cfg(test)]
+mod internal {
+    /// Assert that the specified key can be found (or not) in `key_store`.
+    macro_rules! assert_found {
+        ($key_store:expr, $key_spec:expr, $key_type:expr, $found:expr) => {{
+            let res = $key_store.get($key_spec, $key_type).unwrap();
+            if $found {
+                assert!(res.is_some());
+                // Ensure contains() agrees with get()
+                assert!($key_store.contains($key_spec, $key_type).unwrap());
+            } else {
+                assert!(res.is_none());
+            }
+        }};
+    }
+
+    pub(crate) use assert_found;
+}

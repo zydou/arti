@@ -1,10 +1,10 @@
 //! An error type for [`ArtiNativeKeystore`](crate::ArtiNativeKeystore).
 
+use crate::keystore::fs_utils::FilesystemError;
 use crate::{ArtiPathSyntaxError, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
 use tor_key_forge::{KeyType, SshKeyAlgorithm};
 
-use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -13,28 +13,8 @@ use std::sync::Arc;
 #[derive(thiserror::Error, Debug, Clone)]
 pub(crate) enum ArtiNativeKeystoreError {
     /// An error that occurred while accessing the filesystem.
-    #[error("IO error on {path} while attempting to {action}")]
-    Filesystem {
-        /// The action we were trying to perform.
-        action: FilesystemAction,
-        /// The path of the key we were trying to fetch.
-        path: PathBuf,
-        /// The underlying error.
-        #[source]
-        err: Arc<io::Error>,
-    },
-
-    /// Encountered an inaccessible path or invalid permissions.
-    #[error("Inaccessible path or bad permissions on {path} while attempting to {action}")]
-    FsMistrust {
-        /// The action we were trying to perform.
-        action: FilesystemAction,
-        /// The path of the key we were trying to fetch.
-        path: PathBuf,
-        /// The underlying error.
-        #[source]
-        err: Arc<fs_mistrust::Error>,
-    },
+    #[error("{0}")]
+    Filesystem(#[from] FilesystemError),
 
     /// Found a key with an invalid path.
     #[error("Key has invalid path: {path}")]
@@ -49,10 +29,6 @@ pub(crate) enum ArtiNativeKeystoreError {
     /// An error due to encountering an unsupported [`KeyType`].
     #[error("{0}")]
     UnknownKeyType(#[from] UnknownKeyTypeError),
-
-    /// An error due to encountering a directory or symlink at a key path.
-    #[error("File at {0} is not a regular file")]
-    NotARegularFile(PathBuf),
 
     /// Failed to parse an OpenSSH key
     #[error("Failed to parse OpenSSH with type {key_type:?}")]
@@ -82,20 +58,6 @@ pub(crate) enum ArtiNativeKeystoreError {
     Bug(#[from] tor_error::Bug),
 }
 
-/// The action that caused an [`ArtiNativeKeystoreError::Filesystem`] or
-/// [`ArtiNativeKeystoreError::FsMistrust`] error.
-#[derive(Copy, Clone, Debug, derive_more::Display)]
-pub(crate) enum FilesystemAction {
-    /// Filesystem key store initialization.
-    Init,
-    /// Filesystem read
-    Read,
-    /// Filesystem write
-    Write,
-    /// Filesystem remove
-    Remove,
-}
-
 /// The keystore contained a file whose name syntactically improper
 ///
 /// Keys are supposed to have pathnames consisting of an `ArtiPath`
@@ -121,15 +83,12 @@ impl KeystoreError for ArtiNativeKeystoreError {}
 
 impl HasKind for ArtiNativeKeystoreError {
     fn kind(&self) -> ErrorKind {
-        use tor_persist::FsMistrustErrorExt as _;
         use ArtiNativeKeystoreError as KE;
 
         match self {
-            KE::Filesystem { .. } => ErrorKind::KeystoreAccessFailed,
-            KE::FsMistrust { err, .. } => err.keystore_error_kind(),
+            KE::Filesystem(e) => e.kind(),
             KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
             KE::UnknownKeyType(_) => ErrorKind::KeystoreAccessFailed,
-            KE::NotARegularFile(_) => ErrorKind::KeystoreCorrupted,
             KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } => {
                 ErrorKind::KeystoreCorrupted
             }

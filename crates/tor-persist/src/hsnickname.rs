@@ -1,6 +1,13 @@
 //! `HsNickname` module itself is private, but `HsNickname` etc. are re-exported
 
-use crate::internal_prelude::*;
+use std::fmt::{self, Display};
+use std::str::FromStr;
+
+use derive_more::{From, Into};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use crate::slug::Slug;
 
 /// Nickname (local identifier) for a Tor hidden service
 ///
@@ -9,7 +16,7 @@ use crate::internal_prelude::*;
 /// and distinguish them from other services.
 ///
 /// An `HsNickname` must be a valid [`Slug`].
-/// See [slug](tor_persist::slug) for the syntactic requirements.
+/// See [slug](crate::slug) for the syntactic requirements.
 //
 // NOTE: if at some point we decide HsNickname should have a more restrictive syntax/charset than
 // Slug, we should remember to also update `KeySpecifierComponent::from_component` (it
@@ -27,8 +34,6 @@ impl FromStr for HsNickname {
         Self::new(s.to_string())
     }
 }
-
-impl KeySpecifierComponentViaDisplayFromStr for HsNickname {}
 
 /// Local nickname for Tor Hidden Service (`.onion` service) was syntactically invalid
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Error)]
@@ -64,7 +69,8 @@ impl AsRef<str> for HsNickname {
     }
 }
 
-impl tor_persist::state_dir::InstanceIdentity for HsNickname {
+#[cfg(feature = "state-dir")]
+impl crate::state_dir::InstanceIdentity for HsNickname {
     fn kind() -> &'static str {
         "hss"
     }

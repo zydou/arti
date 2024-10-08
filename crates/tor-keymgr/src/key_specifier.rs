@@ -6,11 +6,12 @@ use std::ops::Range;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use derive_more::{Deref, DerefMut, From, Into};
+use derive_more::{From, Into};
 use thiserror::Error;
 use tor_error::{internal, into_internal, Bug};
 use tor_hscrypto::pk::{HsId, HsIdParseError, HSID_ONION_SUFFIX};
 use tor_hscrypto::time::TimePeriod;
+use tor_persist::hsnickname::HsNickname;
 use tor_persist::slug::Slug;
 
 use crate::{ArtiPath, ArtiPathSyntaxError};
@@ -20,7 +21,7 @@ use crate::{ArtiPath, ArtiPathSyntaxError};
 pub mod derive;
 
 /// The identifier of a key.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, From, derive_more::Display)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, From, derive_more::Display)]
 #[non_exhaustive]
 pub enum KeyPath {
     /// An Arti key path.
@@ -31,22 +32,21 @@ pub enum KeyPath {
 
 /// A range specifying a substring of a [`KeyPath`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash, From)]
-pub struct KeyPathRange(pub(crate) Range<usize>);
+pub struct ArtiPathRange(pub(crate) Range<usize>);
 
-impl KeyPath {
-    /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
+impl ArtiPath {
+    /// Check whether this `ArtiPath` matches the specified [`KeyPathPattern`].
     ///
-    /// If the `KeyPath` matches the pattern, this returns the ranges that match its dynamic parts.
+    /// If the `ArtiPath` matches the pattern, this returns the ranges that match its dynamic parts.
     ///
     /// ### Example
     /// ```
     /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathSyntaxError};
     /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
-    /// let path = KeyPath::Arti(ArtiPath::new("foo_bar_baz_1".into())?);
+    /// let path = ArtiPath::new("foo_bar_baz_1".into())?;
     /// let pattern = KeyPathPattern::Arti("*_bar_baz_*".into());
     /// let matches = path.matches(&pattern).unwrap();
     ///
-    /// let path = path.arti().unwrap();
     /// assert_eq!(matches.len(), 2);
     /// assert_eq!(path.substring(&matches[0]), Some("foo"));
     /// assert_eq!(path.substring(&matches[1]), Some("1"));
@@ -55,17 +55,44 @@ impl KeyPath {
     /// #
     /// # demo().unwrap();
     /// ```
-    pub fn matches(&self, pat: &KeyPathPattern) -> Option<Vec<KeyPathRange>> {
+    pub fn matches(&self, pat: &KeyPathPattern) -> Option<Vec<ArtiPathRange>> {
         use KeyPathPattern::*;
 
-        let (pattern, path): (&str, &str) = match (self, pat) {
-            (KeyPath::Arti(p), Arti(pat)) => (pat.as_ref(), p.as_ref()),
-            (KeyPath::CTor(p), CTor(pat)) => (pat.as_ref(), p.as_ref()),
+        let pattern: &str = match pat {
+            Arti(pat) => pat.as_ref(),
             _ => return None,
         };
 
-        glob_match::glob_match_with_captures(pattern, path)
+        glob_match::glob_match_with_captures(pattern, self.as_ref())
             .map(|res| res.into_iter().map(|r| r.into()).collect())
+    }
+}
+
+impl KeyPath {
+    /// Check whether this `KeyPath` matches the specified [`KeyPathPattern`].
+    ///
+    /// Returns `true` if the `KeyPath` matches the pattern.
+    ///
+    /// ### Example
+    /// ```
+    /// # use tor_keymgr::{ArtiPath, KeyPath, KeyPathPattern, ArtiPathSyntaxError};
+    /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
+    /// let path = KeyPath::Arti(ArtiPath::new("foo_bar_baz_1".into())?);
+    /// let pattern = KeyPathPattern::Arti("*_bar_baz_*".into());
+    /// assert!(path.matches(&pattern));
+    /// # Ok(())
+    /// # }
+    /// #
+    /// # demo().unwrap();
+    /// ```
+    pub fn matches(&self, pat: &KeyPathPattern) -> bool {
+        use KeyPathPattern::*;
+
+        match (self, pat) {
+            (KeyPath::Arti(p), Arti(_)) => p.matches(pat).is_some(),
+            (KeyPath::CTor(p), CTor(pat)) if p == pat => true,
+            _ => false,
+        }
     }
 
     // TODO: rewrite these getters using derive_adhoc if KeyPath grows more variants.
@@ -297,14 +324,54 @@ pub enum KeyPathPattern {
     /// A pattern for matching [`ArtiPath`]s.
     Arti(String),
     /// A pattern for matching [`CTorPath`]s.
-    CTor(String),
+    CTor(CTorPath),
 }
 
 /// The path of a key in the C Tor key store.
-#[derive(
-    Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Deref, DerefMut, Into, derive_more::Display,
-)]
-pub struct CTorPath(String);
+#[derive(Clone, Debug, PartialEq, Eq, Hash, derive_more::Display)] //
+#[non_exhaustive]
+pub enum CTorPath {
+    /// A client descriptor encryption key, to be looked up in ClientOnionAuthDir.
+    ///
+    /// Represents an entry in C Tor's `ClientOnionAuthDir`.
+    ///
+    /// We can't statically know exactly *which* entry has the key for this `HsId`
+    /// (we'd need to read and parse each file from `ClientOnionAuthDir` to find out).
+    #[display("ClientHsDescEncKey({})", _0)]
+    ClientHsDescEncKey(HsId),
+    /// A service key path.
+    #[display("{path}")]
+    Service {
+        /// The nickname of the service,
+        nickname: HsNickname,
+        /// The relative path of this key.
+        path: CTorServicePath,
+    },
+}
+
+/// The relative path in a C Tor key store.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, derive_more::Display)] //
+#[non_exhaustive]
+pub enum CTorServicePath {
+    /// C Tor's `HiddenServiceDirectory/hs_ed25519_public_key`.
+    #[display("hs_ed25519_public_key")]
+    PublicKey,
+    /// C Tor's `HiddenServiceDirectory/hs_ed25519_secret_key`.
+    #[display("hs_ed25519_secret_key")]
+    PrivateKey,
+}
+
+impl CTorPath {
+    /// Create a CTorPath that represents a service key.
+    pub fn service(nickname: HsNickname, path: CTorServicePath) -> Self {
+        Self::Service { nickname, path }
+    }
+
+    /// Create a CTorPath that represents a client authorization key.
+    pub fn client(hsid: HsId) -> Self {
+        Self::ClientHsDescEncKey(hsid)
+    }
+}
 
 /// The "specifier" of a key, which identifies an instance of a key.
 ///
@@ -494,6 +561,8 @@ impl<T: KeySpecifierComponentViaDisplayFromStr> KeySpecifierComponent for T {
         Display::fmt(self, f)
     }
 }
+
+impl KeySpecifierComponentViaDisplayFromStr for HsNickname {}
 
 impl KeySpecifierComponent for HsId {
     fn to_slug(&self) -> StdResult<Slug, Bug> {
@@ -1005,9 +1074,10 @@ KeyPathInfo {
 
         impl TestSpecifier {
             fn ctp(&self) -> CTorPath {
-                // TODO this ought to use CTorPath's public constructor
-                // but it doesn't have one
-                CTorPath(self.i.to_string())
+                CTorPath::Service {
+                    nickname: HsNickname::from_str("allium-cepa").unwrap(),
+                    path: CTorServicePath::PublicKey,
+                }
             }
         }
 
@@ -1015,7 +1085,13 @@ KeyPathInfo {
 
         check_key_specifier(&spec, "p/42/r");
 
-        assert_eq!(spec.ctor_path(), Some(CTorPath("42".into())),);
+        assert_eq!(
+            spec.ctor_path(),
+            Some(CTorPath::Service {
+                nickname: HsNickname::from_str("allium-cepa").unwrap(),
+                path: CTorServicePath::PublicKey,
+            }),
+        );
     }
 
     #[test]
