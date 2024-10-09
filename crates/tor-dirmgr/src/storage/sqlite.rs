@@ -24,6 +24,7 @@ pub(crate) use {crate::storage::CachedBridgeDescriptor, tor_guardmgr::bridge::Br
 use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
+use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -422,10 +423,9 @@ impl Store for SqliteStore {
         #[allow(clippy::let_and_return)]
         let expired_blobs: Vec<String> = {
             let mut stmt = tx.prepare(FIND_EXPIRED_EXTDOCS)?;
-            let names = stmt
+            let names: Vec<String> = stmt
                 .query_map([], |row| row.get::<_, String>(0))?
-                .filter_map(std::result::Result::ok)
-                .collect();
+                .collect::<StdResult<Vec<String>, _>>()?;
             names
         };
 
@@ -452,8 +452,7 @@ impl Store for SqliteStore {
             let mut stmt = tx.prepare(FIND_UNREFERENCED_CONSENSUS_EXTDOCS)?;
             let filenames: Vec<String> = stmt
                 .query_map([], |row| row.get::<_, String>(0))?
-                .filter_map(std::result::Result::ok)
-                .collect();
+                .collect::<StdResult<Vec<String>, _>>()?;
             drop(stmt);
             let mut stmt = tx.prepare(DELETE_EXTDOC_BY_FILENAME)?;
             for fname in filenames.iter() {
