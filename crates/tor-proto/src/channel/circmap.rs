@@ -249,7 +249,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use futures::channel::mpsc;
+    use crate::fake_mpsc;
     use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
@@ -264,7 +264,7 @@ mod test {
 
         for _ in 0..128 {
             let (csnd, _) = oneshot::channel();
-            let (snd, _) = mpsc::channel(8);
+            let (snd, _) = fake_mpsc(8);
             let id_low = map_low.add_ent(&mut rng, csnd, snd).unwrap();
             assert!(u32::from(id_low) > 0);
             assert!(u32::from(id_low) < 0x80000000);
@@ -277,7 +277,7 @@ mod test {
             ));
 
             let (csnd, _) = oneshot::channel();
-            let (snd, _) = mpsc::channel(8);
+            let (snd, _) = fake_mpsc(8);
             let id_high = map_high.add_ent(&mut rng, csnd, snd).unwrap();
             assert!(u32::from(id_high) >= 0x80000000);
             assert!(!ids_high.iter().any(|x| *x == id_high));
