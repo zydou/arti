@@ -18,7 +18,7 @@ use futures::{
 };
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
-use tor_async_utils::SinkExt as _;
+use tor_async_utils::{mpsc_channel_no_memquota, SinkExt as _};
 
 use crate::{
     cancel::{Cancel, CancelHandle},
@@ -278,7 +278,10 @@ impl Connection {
         // Note that the blocking behavior here is deliberate: We want _all_ of
         // these reads to start blocking when response_sink.send is blocked.
 
-        let (tx_response, mut rx_response) = mpsc::channel::<BoxedResponse>(UPDATE_CHAN_SIZE);
+        // TODO RPC should this queue participate in memquota?
+        let (tx_response, mut rx_response) =
+            mpsc_channel_no_memquota::<BoxedResponse>(UPDATE_CHAN_SIZE);
+
         let mut finished_requests = FuturesUnordered::new();
         finished_requests.push(futures::future::pending().boxed());
 
