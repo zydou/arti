@@ -1,6 +1,6 @@
 //! Abstract implementation of a channel manager
 
-use crate::mgr::state::{OpenEntry, PendingEntry};
+use crate::mgr::state::{ChannelState, OpenEntry, PendingEntry};
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use crate::factory::BootstrapReporter;
@@ -155,12 +155,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     fn setup_launch<C>(
         &self,
         ids: RelayIds,
-    ) -> (state::ChannelState<C>, Sending, state::UniqPendingChanId) {
+    ) -> (ChannelState<C>, Sending, state::UniqPendingChanId) {
         let (snd, rcv) = oneshot::channel();
         let pending = rcv.shared();
         let unique_id = state::UniqPendingChanId::new();
         (
-            state::ChannelState::Building(state::PendingEntry {
+            ChannelState::Building(PendingEntry {
                 ids,
                 pending,
                 unique_id,
@@ -317,7 +317,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         target: &CF::BuildSpec,
         final_attempt: bool,
     ) -> Result<Option<Action<CF::Channel>>> {
-        use state::ChannelState::*;
+        use ChannelState::*;
 
         // The idea here is to choose the channel in two steps:
         //
@@ -528,7 +528,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     where
         T: Into<tor_linkspec::RelayIdRef<'a>>,
     {
-        use state::ChannelState::*;
+        use ChannelState::*;
         self.channels
             .with_channels(|channel_map| {
                 channel_map
