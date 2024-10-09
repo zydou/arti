@@ -255,6 +255,15 @@ rust-recent-async-std-rustls:
     - rustup component add clippy
     - cd crates/arti-client && cargo clippy --no-default-features --features=async-std,rustls
 
+rust-clippy-nontest:
+  stage: test
+  image: $RECENT_RUST_IMAGE
+  script:
+    - rustup show
+    - rustup component add clippy
+    - mv -f clippy-nontest.toml clippy.toml
+    - cargo clippy --all-features --workspace -- -D warnings
+
 rust-nightly:
   stage: test
   image: rustlang/rust:nightly
