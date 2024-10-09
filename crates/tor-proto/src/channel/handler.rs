@@ -442,16 +442,21 @@ impl futures_codec::Decoder for OpenChannelHandler {
 #[cfg(test)]
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
+    use bytes::BytesMut;
+    use digest::Digest;
     use futures::io::{AsyncRead, AsyncWrite, Cursor, Result};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
     use futures::task::{Context, Poll};
     use hex_literal::hex;
     use std::pin::Pin;
+
+    use tor_bytes::Writer;
+    use tor_llcrypto as ll;
     use tor_rtcompat::StreamOps;
 
-    use crate::channel::ChannelType;
     use crate::channel::msg::LinkVersion;
+    use crate::channel::{ChannelType, new_frame};
 
     use super::{ChannelCellHandler, OpenChannelHandler, futures_codec};
     use tor_cell::chancell::{AnyChanCell, ChanCmd, ChanMsg, CircId, msg};
@@ -556,6 +561,107 @@ pub(crate) mod test {
             assert_eq!(destroy.msg().cmd(), ChanCmd::DESTROY);
 
             assert!(framed.into_inner().all_consumed());
+        });
+    }
+
+    #[test]
+    fn handler_transition() {
+        // Start as a client initiating a channel to a relay.
+        let mut handler: ChannelCellHandler = ChannelType::ClientInitiator.into();
+        assert!(matches!(handler, ChannelCellHandler::New(_)));
+
+        // Set the link version protocol. Should transition to Handshake.
+        let r = handler.set_link_version(5);
+        assert!(r.is_ok());
+        assert!(matches!(handler, ChannelCellHandler::Handshake(_)));
+
+        // Set the link version protocol.
+        let r = handler.set_open();
+        assert!(r.is_ok());
+        assert!(matches!(handler, ChannelCellHandler::Open(_)));
+    }
+
+    #[test]
+    fn clog_digest() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            let mut our_clog = ll::d::Sha256::new();
+            let mbuf = MsgBuf::new(*b"");
+            let mut frame = new_frame(mbuf, ChannelType::RelayInitiator);
+
+            // This is a VERSIONS cell with value 5 in it.
+            our_clog.update(hex!("0000 07 0002 0005"));
+            let version_cell = AnyChanCell::new(
+                None,
+                msg::Versions::new(vec![5]).expect("Fail VERSIONS").into(),
+            );
+            let _ = frame.send(version_cell).await.unwrap();
+
+            frame
+                .codec_mut()
+                .set_link_version(5)
+                .expect("Fail link version set");
+
+            // This is what an empty CERTS cell looks like.
+            our_clog.update(hex!("0000 0000 81 0001 00"));
+            let certs_cell = msg::Certs::new_empty();
+            frame
+                .send(AnyChanCell::new(None, certs_cell.into()))
+                .await
+                .unwrap();
+
+            // Final CLOG should match.
+            let clog_hash: [u8; 32] = our_clog.finalize().into();
+            assert_eq!(frame.codec_mut().get_clog_digest().unwrap(), clog_hash);
+        });
+    }
+
+    #[test]
+    fn slog_digest() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            let mut our_slog = ll::d::Sha256::new();
+
+            // Build a VERSIONS cell to start with.
+            let mut data = BytesMut::new();
+            data.extend_from_slice(
+                msg::Versions::new(vec![5])
+                    .unwrap()
+                    .encode_for_handshake()
+                    .expect("Fail VERSIONS encoding")
+                    .as_slice(),
+            );
+            our_slog.update(&data);
+
+            let mbuf = MsgBuf::new(data);
+            let mut frame = new_frame(mbuf, ChannelType::RelayInitiator);
+
+            // Receive the VERSIONS
+            let _ = frame.next().await.transpose().expect("Fail to get cell");
+            // Set the link version which will move the handler to Handshake state and then we'll be
+            // able to decode the AUTH_CHALLENGE.
+            frame
+                .codec_mut()
+                .set_link_version(5)
+                .expect("Fail link version set");
+
+            // Setup a new buffer for the next cell.
+            let mut data = BytesMut::new();
+            // This is a variable length cell with a wide circ ID of 0.
+            data.write_u32(0);
+            data.write_u8(ChanCmd::AUTH_CHALLENGE.into());
+            data.write_u16(36); // This is the length of the payload.
+            msg::AuthChallenge::new([42_u8; 32], vec![3])
+                .encode_onto(&mut data)
+                .expect("Fail AUTH_CHALLENGE encoding");
+            our_slog.update(&data);
+
+            // Change the I/O part of the Framed with this new buffer containing our new cell.
+            *frame = MsgBuf::new(data);
+            // Receive the AUTH_CHALLENGE
+            let _ = frame.next().await.transpose().expect("Fail to get cell");
+
+            // Final SLOG should match.
+            let slog_hash: [u8; 32] = our_slog.finalize().into();
+            assert_eq!(frame.codec_mut().get_slog_digest().unwrap(), slog_hash);
         });
     }
 }
