@@ -15,7 +15,7 @@
 //!   * Tor circuits ([`CircuitAccount`])
 //!     - inbound stream requests, on their way from the circuit to the handling code
 //!   * Tor channels ([`ChannelAccount`])
-//!     - outbound data, on its way from a circuit to the upstream
+//!     - outbound data, on its way from a circuit to the channel
 //!       (this ought to be accounted to the circuit, TODO #1652)
 //!
 //! The following data buffers do *not* participate:
