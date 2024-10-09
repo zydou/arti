@@ -290,13 +290,8 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     let _ignore_err = send.send(status.clone().map(|_| ()));
 
                     match status {
-                        Ok(Some(chan)) => {
+                        Ok(chan) => {
                             return Ok((chan, ChanProvenance::NewlyCreated));
-                        }
-                        Ok(None) => {
-                            final_attempt = true;
-                            provenance = ChanProvenance::NewlyCreated;
-                            last_err.get_or_insert(Error::RequestCancelled);
                         }
                         Err(e) => last_err = Some(e),
                     }
@@ -412,15 +407,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
     /// We just tried to build a channel: Handle the outcome and decide what to
     /// do.
-    ///
-    /// Return `Ok(None)` if we have a transient error that we expect will be
-    /// cleaned up by one final call to `choose_action`.
     fn handle_build_outcome(
         &self,
         target: &CF::BuildSpec,
         pending_id: state::UniqPendingChanId,
         outcome: Result<Arc<CF::Channel>>,
-    ) -> Result<Option<Arc<CF::Channel>>> {
+    ) -> Result<Arc<CF::Channel>> {
         use state::ChannelState::{self, *};
 
         /// Remove the pending channel with `pending_id` and a `relay_id` from `channel_map`.
@@ -475,7 +467,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                             ),
                         });
                         channel_map.insert(new_entry);
-                        Ok(Some(chan))
+                        Ok(chan)
                     })?
             }
             Err(e) => {
