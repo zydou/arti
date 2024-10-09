@@ -25,6 +25,9 @@ use std::{
     net,
 };
 
+#[cfg(any(target_os = "android", target_os = "linux"))]
+use std::os::linux::net::SocketAddrExt as _;
+
 /// Any address that Arti can listen on or connect to.
 ///
 /// We use this type when we want to make streams
@@ -169,6 +172,42 @@ pub enum AddrParseError {
 impl From<IoError> for AddrParseError {
     fn from(e: IoError) -> Self {
         Self::InvalidUnixAddress(Arc::new(e))
+    }
+}
+
+impl PartialEq for SocketAddr {
+    /// Return true if two `SocketAddr`s are equal.
+    ///
+    /// For `Inet` addresses, delegates to `std::net::SocketAddr::eq`.
+    ///
+    /// For `Unix` addresses, treats two addresses as equal if any of the following is true:
+    ///   - Both addresses have the same path.
+    ///   - Both addresses are unnamed.
+    ///   - (Linux only) Both addresses have the same abstract name.
+    ///
+    /// Addresses of different types are always unequal.
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Inet(l0), Self::Inet(r0)) => l0 == r0,
+            #[cfg(unix)]
+            (Self::Unix(l0), Self::Unix(r0)) => {
+                // Sadly, std::os::unix::net::SocketAddr doesn't implement PartialEq.
+                //
+                // This requires us to make our own, and prevents us from providing Eq.
+                if l0.is_unnamed() && r0.is_unnamed() {
+                    return true;
+                }
+                if let (Some(a), Some(b)) = (l0.as_pathname(), r0.as_pathname()) {
+                    return a == b;
+                }
+                #[cfg(any(target_os = "android", target_os = "linux"))]
+                if let (Some(a), Some(b)) = (l0.as_abstract_name(), r0.as_abstract_name()) {
+                    return a == b;
+                }
+                false
+            }
+            _ => false,
+        }
     }
 }
 
