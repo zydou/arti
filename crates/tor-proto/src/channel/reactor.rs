@@ -35,7 +35,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
-use crate::circuit::{CircuitRxSender, celltypes::CreateResponse};
+use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.

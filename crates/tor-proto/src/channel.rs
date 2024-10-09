@@ -81,7 +81,7 @@ use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
-use tor_memquota::mq_queue::{self, MpscSpec, ChannelSpec as _};
+use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 /// Imports that are re-exported pub if feature `testing` is enabled

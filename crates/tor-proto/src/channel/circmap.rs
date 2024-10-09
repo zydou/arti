@@ -7,8 +7,8 @@ use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
 
-use crate::circuit::{CircuitRxSender, celltypes::CreateResponse};
 use crate::circuit::halfcirc::HalfCirc;
+use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 
 use oneshot_fused_workaround as oneshot;
 
@@ -60,10 +60,7 @@ pub(super) enum CircEnt {
     ///
     /// Once that's done, the mpsc sender will be used to send subsequent
     /// cells to the circuit.
-    Opening(
-        oneshot::Sender<CreateResponse>,
-        CircuitRxSender,
-    ),
+    Opening(oneshot::Sender<CreateResponse>, CircuitRxSender),
 
     /// A circuit that is open and can be given relay cells.
     Open(CircuitRxSender),

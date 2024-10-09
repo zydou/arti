@@ -1702,10 +1702,7 @@ mod test {
 
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
-    async fn newcirc<R: Runtime>(
-        rt: &R,
-        chan: Arc<Channel>,
-    ) -> (Arc<ClientCirc>, CircuitRxSender) {
+    async fn newcirc<R: Runtime>(rt: &R, chan: Arc<Channel>) -> (Arc<ClientCirc>, CircuitRxSender) {
         newcirc_ext(rt, chan, 2.into()).await
     }
 

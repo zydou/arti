@@ -25,8 +25,8 @@ use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
-    sendme, streammap, CircParameters, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
-    CircuitRxReceiver,
+    sendme, streammap, CircParameters, CircuitRxReceiver, Create2Wrap, CreateFastWrap,
+    CreateHandshakeWrap,
 };
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
