@@ -51,6 +51,9 @@
 //!    When a tracker requests memory reclamation from a Parent,
 //!    it will also request it of all that Parent's Children (but not vice versa).
 //!
+//!    The account structure and reclamation strategy for Arti is defined in
+//!    `tor-proto`, and documented in `tor_proto::memquota`.
+//!
 //!  * **Data age**:
 //!    Each Participant must be able to say what the oldest data is, that it is storing.
 //!    The reclamation policy is to try to free the oldest data.
@@ -68,10 +71,11 @@
 //!    To avoid too-frequent reclamation, once reclamation has started,
 //!    it will continue until a low-water mark is reached, significantly lower than the quota.
 //!    I.e. the system has a hysteresis.
-// TODO we haven't implemented the queue wrapper yet
-// !    The only currently implemented higher-level Participant is
-// !    a queue which responds to a reclamation request
-// !    by completely destroying itself and freeing all its data.
+//!
+//!    The only currently implemented higher-level Participant is
+//!    [`mq_queue`], a queue which responds to a reclamation request
+//!    by completely destroying itself, freeing all its data,
+//!    and reporting it has been closed.
 //!
 //!  * <div id="is-approximate">
 //!
