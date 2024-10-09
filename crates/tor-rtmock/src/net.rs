@@ -9,6 +9,7 @@
 
 use super::io::{stream_pair, LocalStream};
 use super::MockNetRuntime;
+use crate::util::mpsc_channel;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
 use tor_rtcompat::{CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, TlsProvider};
@@ -246,7 +247,7 @@ impl MockNetwork {
             return Err(err(ErrorKind::AddrInUse));
         }
 
-        let (send, recv) = mpsc::channel(16);
+        let (send, recv) = mpsc_channel(16);
 
         let entry = ListenerEntry { send, tls_cert };
 
