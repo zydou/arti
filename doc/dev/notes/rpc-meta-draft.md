@@ -640,6 +640,17 @@ instead let us know, so we can extend the Error format.
 > a `data.rpc:serialized_error` field or something similar to any returned error.
 > In such a case, we would have to include warnings in our documentation
 > that these serialized errors were not a stable part of the RPC API.)
+>
+> If we want to change a stable `data.error.foo` that's generated
+> in some particular circumstances,
+> when possible we will usually take one of these two approaches:
+>
+> - *extend* the value provided for `foo`, or
+> - provide both the old `data.error.foo`
+>   and a new `data.error.foo-updated` (naming TBD).
+>
+> This will provides compatibility with older clients
+> that expect the old error data.
 
 ##### Example error response JSON document
 
