@@ -104,7 +104,7 @@ pub struct CTorServiceKeystoreConfig {
     ///   * have a unique identifier. It is an error to configure multiple keystores
     ///     with the same [`KeystoreId`].
     ///   * have a corresponding arti hidden service configured in the
-    ///   `[onion_services]` section with the same nickname
+    ///    `[onion_services]` section with the same nickname
     id: KeystoreId,
 
     /// The root directory of this keystore.
