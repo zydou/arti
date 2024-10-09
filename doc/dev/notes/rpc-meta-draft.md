@@ -571,6 +571,22 @@ kinds
   so a client must be prepared to receive unknown values from Arti,
   and fall back to some kind of default processing.
 
+data
+: An optional JSON object containing additional error information.
+  An application may use this to handle certain known errors,
+  but must always be prepared to receive unknown errors.
+
+  When `data` is present, its keys will always be namespaced strings.
+  The type and interpretation of the values of these strings will depend
+  on the keys.
+
+  The semantics and stability for a field in `data` will be defined
+  by the method documentation for the method that it generated it,
+  or by this documentation.
+
+  See "Anticipated use of error.data" below for more on how we
+  plan to use this field.
+
 code
 : A Number that indicates the error type that occurred according
   to the following table.
@@ -598,6 +614,8 @@ We do not anticipate regularly extending this list of code values.
 
 [`tor_error::ErrorKind`]: https://docs.rs/tor-error/latest/tor_error/enum.ErrorKind.html
 
+
+
 ##### Future extensions to the Error type.
 
 We're aware that the Error type above
@@ -607,36 +625,32 @@ If you find that you need more data,
 **please** do not start parsing the message strings:
 instead let us know, so we can extend the Error format.
 
+##### Anticipated use of error.data
 
-##### Unimplemented extension: "data"
+> We intend that an error's `data` should be used in cases
+> where a method intends to deliberately expose
+> a specific piece of data on failure,
+> and that piece of data can become part of the method's API.
 
-We **do not** currently implement this field in the Error type:
-It was originally part of our design, but we are leaving it out
-as under-specified.
-
-data
-: A JSON value containing additional error information.
-  An application may use this to handle certain known errors,
-  but must always be prepared to receive unknown errors.
-
-  The value of `data` will be one of the following:
-    * a string, being the error data type name
-    * an object with a single field; the field name is the error data type name;
-      the meaning of the value of that field depends on the error data type name.
-
-  Each method type name defines the format of the associated value.
-  (Note: this is the "externally tagged" serde serialisation format for a Rust enum.)
-
-  The error data type names are in a global namespace,
-  like method names.
-  The `data` can be parsed without knowing the method that generated the error,
-  although obviously the meaning will depend on what operation was being attempted.
-
-  Improved error handling in Arti may make Arti generate
-  different error `data` for particular situations in the future,
-  so clients should avoid relying on the precise contents,
-  other than for non-critical functions such as reporting.
-
+> We do _not_ anticipate having `data` be present-by-default for all errors:
+> for example, we don't plan to have an on-by-default `data` member that serializes
+> an entire Rust error.
+> If we were to add such a mechanism,
+> it would likely be via a new flag in `request.meta` that would add
+> a `data.rpc:serialized_error` field or something similar to any returned error.
+> In such a case, we would have to include warnings in our documentation
+> that these serialized errors were not a stable part of the RPC API.)
+>
+> If we want to change a stable `data.error.foo` that's generated
+> in some particular circumstances,
+> when possible we will usually take one of these two approaches:
+>
+> - *extend* the value provided for `foo`, or
+> - provide both the old `data.error.foo`
+>   and a new `data.error.foo-updated` (naming TBD).
+>
+> This will provides compatibility with older clients
+> that expect the old error data.
 
 ##### Example error response JSON document
 
@@ -650,11 +664,8 @@ to conform to jsonlines framing.
    "error" : {
       "message" : "Cannot connect to a local-only address without enabling allow_local_addrs",
       "kinds" : [
-         "ForbiddenStreamTarget"
+         "arti:ForbiddenStreamTarget"
       ],
-      "data" : {
-         "arti::ErrorDetail::Address" : "BadOnion",
-      },
       "code" : -32001
    }
 }
@@ -744,11 +755,8 @@ To do so, the client may put the name of that feature in the list
 If any feature in that list is not recognized or not supported,
 the server must fail with an error
 using the "Feature not present" error code.
-The `error.data.unsupported_features` field in the reply
+The `error.data['rpc:unsupported_features']` field in the reply
 will hold a list of the features that will not supported.
-
-> TODO RPC: The `error.data` field itself is currently badly specified;
-> We must fix that.
 
 Feature names are UTF-8 strings.
 
