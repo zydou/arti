@@ -91,6 +91,8 @@
 //!
 //! **TODO - this is not yet actually implemented**
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use tor_async_utils::peekable_stream::UnobtrusivePeekableStream;
 
 use crate::internal_prelude::*;
@@ -655,7 +657,7 @@ impl From<CollapsedDueToReclaim> for CollapseReason {
     }
 }
 
-#[cfg(all(test, feature = "memquota"))]
+#[cfg(all(test, feature = "memquota", not(miri) /* coarsetime */))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

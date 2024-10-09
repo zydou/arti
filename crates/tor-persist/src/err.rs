@@ -1,5 +1,7 @@
 //! Error types for `tor-persist.
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use std::sync::Arc;
 
 use crate::slug::BadSlug;
@@ -213,7 +215,7 @@ impl From<fs_mistrust::Error> for ErrorSource {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri) /* fs-mistrust home directory lookup */))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

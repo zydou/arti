@@ -39,6 +39,8 @@ And it tests the function against your mocked server,
 without making any actual network connections.
 
 ```rust
+# #[cfg(miri)] // miri cannot do CLOCK_REALTIME
+# return;
 use tor_rtcompat::{Runtime, SleepProviderExt as _n};
 use std::{io, net::{IpAddr, SocketAddr}, time::Duration};
 use futures::{channel::oneshot, io::{AsyncReadExt as _, AsyncWriteExt as _}, poll};

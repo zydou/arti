@@ -165,6 +165,8 @@
 //!    Use `#[cfg]` at call sites to replace the `raw_subdir`
 //!    with whatever is appropriate for the platform.
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
@@ -1101,7 +1103,7 @@ pub struct InstanceRawSubdir {
     flock_guard: Arc<LockFileGuard>,
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri) /* filesystem access */))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

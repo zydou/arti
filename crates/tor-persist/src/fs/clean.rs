@@ -98,7 +98,7 @@ pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf>
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri) /* filesystem access */))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

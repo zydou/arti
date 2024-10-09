@@ -1,5 +1,7 @@
 //! `HasMemoryCost` and typed memory cost tracking
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use crate::internal_prelude::*;
 
 /// Types whose memory usage is known (and stable)
@@ -225,7 +227,7 @@ impl<T> TypedMemoryCost<T> {
     }
 }
 
-#[cfg(all(test, feature = "memquota"))]
+#[cfg(all(test, feature = "memquota", not(miri) /* coarsetime */))]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

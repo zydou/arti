@@ -67,6 +67,8 @@
 // For key internal documentation about the data structure, see the doc comment for
 // `struct State` (down in the middle of the file).
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use crate::internal_prelude::*;
 
 use IfEnabled::*;
@@ -75,7 +77,7 @@ mod bookkeeping;
 mod reclaim;
 mod total_qty_notifier;
 
-#[cfg(all(test, feature = "memquota"))]
+#[cfg(all(test, feature = "memquota", not(miri) /* coarsetime */))]
 pub(crate) mod test;
 
 use bookkeeping::{BookkeepableQty, ClaimedQty, ParticipQty, TotalQty};

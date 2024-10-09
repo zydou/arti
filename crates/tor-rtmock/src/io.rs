@@ -3,6 +3,8 @@
 //! Note that some of this code might be of general use, but for now
 //! we're only trying it for testing.
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use futures::channel::mpsc;
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::{Sink, SinkExt};
@@ -180,7 +182,7 @@ impl LocalStream {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri)))] // These tests are very slow under miri
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

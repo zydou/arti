@@ -5,6 +5,8 @@
 // exists for writing unit tests.  Let's resist the temptation to add
 // things we don't need.
 
+#![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
+
 use super::io::{stream_pair, LocalStream};
 use super::MockNetRuntime;
 use core::fmt;
@@ -566,7 +568,7 @@ fn err(k: ErrorKind) -> IoError {
     IoError::new(k, MockNetError::BadOp)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(miri)))] // miri cannot simulate the networking
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]

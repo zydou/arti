@@ -1,5 +1,7 @@
 //! Example: tests for the timing features in tor-rtcompat.
 
+#![cfg(not(miri))] // miri cannot do CLOCK_REALTIME
+
 use tor_rtcompat::test_with_all_runtimes;
 use tor_rtcompat::{SleepProvider, SleepProviderExt, Timeout, TimeoutError};
 
