@@ -67,6 +67,7 @@
 //!
 //!   * [`ChannelAccount`].
 //!     Contains (via parentage) everything that goes via a particular Channel.
+//!     This includes all circuits on the channel, and those circuits' streams.
 //!
 //!   * [`CircuitAccount`].
 //!     Has the `ChannelAccount` as its parent.
