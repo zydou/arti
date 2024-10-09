@@ -37,7 +37,13 @@ pub(crate) enum RequestId {
 pub(crate) struct ReqMeta {
     /// If true, the client will accept intermediate Updates other than the
     /// final Request or Response.
+    #[serde(default)]
     pub(crate) updates: bool,
+
+    /// A list of features which must be implemented in order to understand the request.
+    /// If any feature in this list is not available, the request must be rejected.
+    #[serde(default)]
+    pub(crate) require: Vec<String>,
 }
 
 /// A single Request received from an RPC client.
