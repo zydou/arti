@@ -18,9 +18,9 @@ digest = { version = "0.10.0", features = ["subtle", "mac"] }
 educe = "0.4.6"
 safelog = { path = "../safelog", version = "0.4.0" }
 thiserror = "1"
-tor-error = { path = "../tor-error", version = "0.23.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.23.0" }
-zeroize = "1"
+tor-error = { path = "../tor-error", version = "0.23.0", default-features = false }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.23.0", optional = true }
+zeroize = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 hex-literal = "0.4"
@@ -29,6 +29,8 @@ hex-literal = "0.4"
 getrandom = { version = "0.2.3", features = ["js"] }
 
 [features]
+default = ["tor-llcrypto"]
 full = ["tor-error/full", "tor-llcrypto/full", "safelog/full"]
+
 [package.metadata.docs.rs]
 all-features = true

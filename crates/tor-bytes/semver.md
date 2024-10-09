@@ -1,0 +1,1 @@
+- Support for tor-llcrypto types is now gated on a default feature.

@@ -161,6 +161,7 @@ mod net_impls {
 }
 
 /// Implement [`Readable`] and [`Writeable`] for Ed25519 types.
+#[cfg(feature = "tor-llcrypto")]
 mod ed25519_impls {
     use super::*;
     use tor_llcrypto::pk::ed25519;
@@ -206,6 +207,7 @@ mod ed25519_impls {
 }
 
 /// Implement Readable and Writeable for Curve25519 types.
+#[cfg(feature = "tor-llcrypto")]
 mod curve25519_impls {
     use super::*;
     use tor_llcrypto::pk::curve25519::{PublicKey, SharedSecret};
@@ -231,6 +233,7 @@ mod curve25519_impls {
 }
 
 /// Implement readable and writeable for the RsaIdentity type.
+#[cfg(feature = "tor-llcrypto")]
 mod rsa_impls {
     use super::*;
     use tor_llcrypto::pk::rsa::*;
@@ -291,6 +294,7 @@ mod u8_array_impls {
 }
 
 /// Implement Readable and Writeable for `CtByteArray`
+#[cfg(feature = "tor-llcrypto")]
 mod ctbytearray_impls {
     use super::*;
     use tor_llcrypto::util::ct::CtByteArray;
@@ -312,7 +316,9 @@ mod ctbytearray_impls {
 mod tests {
     #![allow(clippy::unwrap_used)]
     use crate::{Reader, Writer};
+    #[cfg(feature = "tor-llcrypto")]
     use hex_literal::hex;
+
     macro_rules! check_encode {
         ($e:expr, $e2:expr) => {
             let mut w = Vec::new();
@@ -334,6 +340,7 @@ mod tests {
             check_decode!($t, $e2, $e);
         };
     }
+    #[cfg(feature = "tor-llcrypto")]
     macro_rules! check_bad {
         ($t:ty, $e:expr) => {
             let mut b = Reader::from_slice_for_test(&$e[..]);
@@ -388,6 +395,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "tor-llcrypto")]
     #[test]
     fn ed25519() {
         use tor_llcrypto::pk::ed25519;
@@ -429,6 +437,7 @@ mod tests {
         // check_bad!(ed25519::Signature, sig);
     }
 
+    #[cfg(feature = "tor-llcrypto")]
     #[test]
     fn curve25519() {
         use tor_llcrypto::pk::curve25519;
@@ -437,6 +446,7 @@ mod tests {
         check_roundtrip!(curve25519::PublicKey, pk, b);
     }
 
+    #[cfg(feature = "tor-llcrypto")]
     #[test]
     fn rsa_id() {
         use tor_llcrypto::pk::rsa::RsaIdentity;
