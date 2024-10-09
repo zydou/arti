@@ -676,6 +676,7 @@ impl Channel {
         }
 
         // TODO: blocking is risky, but so is unbounded.
+        // TODO #1682 should be an mq_queue
         let (sender, receiver) = mpsc::channel(128);
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
 

@@ -14,6 +14,8 @@
 //!     - outbound data, on its way from the stream's user to the circuit
 //!   * Tor circuits ([`CircuitAccount`])
 //!     - inbound stream requests, on their way from the circuit to the handling code
+//!     - inbound data, on its way from the channel
+//!       (TODO #1682 this is not currently an mq_queue, so this is a lie)
 //!   * Tor channels ([`ChannelAccount`])
 //!     - outbound data, on its way from a circuit to the channel
 //!       (this ought to be accounted to the circuit, TODO #1652)
