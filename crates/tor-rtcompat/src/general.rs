@@ -142,7 +142,7 @@ impl std::str::FromStr for SocketAddr {
         } else if let Some((schema, remainder)) = s.split_once(':') {
             match schema {
                 "unix" => Ok(unix::SocketAddr::from_pathname(remainder)?.into()),
-                "tcp" => Ok(s.parse::<net::SocketAddr>()?.into()),
+                "tcp" => Ok(remainder.parse::<net::SocketAddr>()?.into()),
                 _ => Err(AddrParseError::UnrecognizedSchema(schema.to_string())),
             }
         } else {
@@ -343,56 +343,89 @@ mod test {
     use super::AddrParseError;
     use crate::general;
     use assert_matches::assert_matches;
-    use std::net;
     #[cfg(unix)]
     use std::os::unix::net as unix;
+    use std::{net, str::FromStr as _};
+
+    /// Parse `s` as a `net::SocketAddr`, and build a `general::SocketAddr` from it.
+    ///
+    /// Testing only. Panics on error.
+    fn from_inet(s: &str) -> general::SocketAddr {
+        let a: net::SocketAddr = s.parse().unwrap();
+        a.into()
+    }
 
     #[test]
     fn ok_tcp() {
-        let a1: net::SocketAddr = "127.0.0.1:9999".parse().unwrap();
-        let a2: net::SocketAddr = "[::1]:9999".parse().unwrap();
+        assert_eq!(
+            from_inet("127.0.0.1:9999"),
+            general::SocketAddr::from_str("127.0.0.1:9999").unwrap()
+        );
+        assert_eq!(
+            from_inet("127.0.0.1:9999"),
+            general::SocketAddr::from_str("tcp:127.0.0.1:9999").unwrap()
+        );
 
-        let ga1: general::SocketAddr = a1.into();
-        let ga2: general::SocketAddr = a2.into();
+        assert_eq!(
+            from_inet("[::1]:9999"),
+            general::SocketAddr::from_str("[::1]:9999").unwrap()
+        );
+        assert_eq!(
+            from_inet("[::1]:9999"),
+            general::SocketAddr::from_str("tcp:[::1]:9999").unwrap()
+        );
 
-        let ga3: general::SocketAddr = "127.0.0.1:9999".parse().unwrap();
-        let ga4: general::SocketAddr = "[::1]:9999".parse().unwrap();
-        let ga5: general::SocketAddr = "tcp:127.0.0.1:9999".parse().unwrap();
-        let ga6: general::SocketAddr = "tcp:[::1]:9999".parse().unwrap();
+        assert_ne!(
+            general::SocketAddr::from_str("127.0.0.1:9999").unwrap(),
+            general::SocketAddr::from_str("[::1]:9999").unwrap()
+        );
 
-        assert_eq!(ga1, ga3);
-        assert_eq!(ga1, ga5);
-
-        assert_eq!(ga2, ga4);
-        assert_eq!(ga2, ga6);
-
-        assert_ne!(ga1, ga2);
-
+        let ga1 = from_inet("127.0.0.1:9999");
         assert_eq!(ga1.display_lossy().to_string(), "tcp:127.0.0.1:9999");
         assert_eq!(ga1.try_to_string().unwrap(), "tcp:127.0.0.1:9999");
+
+        let ga2 = from_inet("[::1]:9999");
         assert_eq!(ga2.display_lossy().to_string(), "tcp:[::1]:9999");
         assert_eq!(ga2.try_to_string().unwrap(), "tcp:[::1]:9999");
     }
 
+    /// Treat `s` as a unix path, and build a `general::SocketAddr` from it.
+    ///
+    /// Testing only. Panics on error.
+    #[cfg(unix)]
+    fn from_pathname(s: impl AsRef<std::path::Path>) -> general::SocketAddr {
+        let a = unix::SocketAddr::from_pathname(s).unwrap();
+        a.into()
+    }
     #[test]
     #[cfg(unix)]
     fn ok_unix() {
-        let a1 = unix::SocketAddr::from_pathname("/some/path").unwrap();
-        let a2 = unix::SocketAddr::from_pathname("/another/path").unwrap();
+        assert_eq!(
+            from_pathname("/some/path"),
+            general::SocketAddr::from_str("unix:/some/path").unwrap()
+        );
+        assert_eq!(
+            from_pathname("/another/path"),
+            general::SocketAddr::from_str("unix:/another/path").unwrap()
+        );
+        assert_eq!(
+            from_pathname("/path/with spaces"),
+            general::SocketAddr::from_str("unix:/path/with spaces").unwrap()
+        );
+        assert_ne!(
+            general::SocketAddr::from_str("unix:/some/path").unwrap(),
+            general::SocketAddr::from_str("unix:/another/path").unwrap()
+        );
+        assert_eq!(
+            from_pathname(""),
+            general::SocketAddr::from_str("unix:").unwrap()
+        );
 
-        let ga1: general::SocketAddr = a1.into();
-        let ga2: general::SocketAddr = a2.into();
-
-        let ga3: general::SocketAddr = "unix:/some/path".parse().unwrap();
-        let ga4: general::SocketAddr = "unix:/another/path".parse().unwrap();
-
-        assert_eq!(ga1, ga3);
-        assert_eq!(ga2, ga4);
-
-        assert_ne!(ga1, ga2);
-
+        let ga1 = general::SocketAddr::from_str("unix:/some/path").unwrap();
         assert_eq!(ga1.display_lossy().to_string(), "unix:/some/path");
         assert_eq!(ga1.try_to_string().unwrap(), "unix:/some/path");
+
+        let ga2 = general::SocketAddr::from_str("unix:/another/path").unwrap();
         assert_eq!(ga2.display_lossy().to_string(), "unix:/another/path");
         assert_eq!(ga2.try_to_string().unwrap(), "unix:/another/path");
     }
@@ -449,16 +482,14 @@ mod test {
     fn display_unix_weird() {
         use std::ffi::OsStr;
         use std::os::unix::ffi::OsStrExt as _;
-        let odd_path = &OsStr::from_bytes(&[255, 255, 255, 255]);
 
-        let a1 = general::SocketAddr::from(unix::SocketAddr::from_pathname(odd_path).unwrap());
-        let a2 = general::SocketAddr::from(unix::SocketAddr::from_pathname("").unwrap());
-
+        let a1 = from_pathname(OsStr::from_bytes(&[255, 255, 255, 255]));
         assert!(a1.try_to_string().is_none());
-        assert!(a2.try_to_string().is_none());
+        assert_eq!(a1.display_lossy().to_string(), "unix:���� [lossy]");
 
-        assert_eq!(a1.display_lossy().to_string(), "unix:����");
-        assert_eq!(a2.display_lossy().to_string(), "unix:----");
+        let a2 = from_pathname("");
+        assert_eq!(a2.try_to_string().unwrap(), "unix:");
+        assert_eq!(a2.display_lossy().to_string(), "unix:");
     }
 
     #[test]
