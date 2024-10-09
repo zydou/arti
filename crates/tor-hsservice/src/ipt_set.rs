@@ -219,7 +219,9 @@ pub(crate) fn ipts_channel(
     //   and on top of that there are buffer “first come, first serve” slots
     // We only have one sender and only ever want one outstanding,
     // since we can (and would like to) coalesce notifications.
-    let (tx, rx) = mpsc::channel(0);
+    //
+    // Internally-generated instructions, no need for mq.
+    let (tx, rx) = mpsc_channel_no_memquota(0);
     let r = (
         IptsManagerView {
             shared: shared.clone(),

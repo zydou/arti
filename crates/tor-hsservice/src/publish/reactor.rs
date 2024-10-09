@@ -555,8 +555,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         /// each sender will send exactly one message.
         const UPLOAD_CHAN_BUF_SIZE: usize = 0;
 
+        // Internally-generated instructions, no need for mq.
         let (upload_task_complete_tx, upload_task_complete_rx) =
-            mpsc::channel(UPLOAD_CHAN_BUF_SIZE);
+            mpsc_channel_no_memquota(UPLOAD_CHAN_BUF_SIZE);
 
         let (publish_status_tx, publish_status_rx) = watch::channel();
         // Setting the buffer size to zero here is OK,

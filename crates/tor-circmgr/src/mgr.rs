@@ -26,6 +26,7 @@ use crate::usage::{SupportedCircUsage, TargetCircUsage};
 use crate::{timeouts, DirInfo, Error, PathConfig, Result};
 
 use retry_error::RetryError;
+use tor_async_utils::mpsc_channel_no_memquota;
 use tor_basic_utils::retry::RetryDelay;
 use tor_config::MutCfg;
 use tor_error::{debug_report, info_report, internal, warn_report, AbsRetryTime, HasRetryTime};
@@ -1065,7 +1066,11 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> AbstractCircMgr<B, R> {
         // stream for us to listen on for notification from pending circuits
         // other than those we are pending on.
         let (pending_request, additional_stream) = {
-            let (send, recv) = mpsc::channel(8);
+            // We don't want this queue to participate in memory quota tracking.
+            // There isn't any circuit yet, so there wouldn't be anything to account it to.
+            // If this queue has the oldest data, probably the whole system is badly broken.
+            // Tearing down the whole circuit manager won't help.
+            let (send, recv) = mpsc_channel_no_memquota(8);
             let pending = Arc::new(PendingRequest {
                 usage: usage.clone(),
                 notify: send,

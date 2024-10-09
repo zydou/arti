@@ -548,7 +548,7 @@ impl MemoryQuotaTracker {
             return Ok(MemoryQuotaTracker::new_noop());
         };
 
-        let (reclaim_tx, reclaim_rx) = mpsc::channel(0 /* plus num_senders, ie 1 */);
+        let (reclaim_tx, reclaim_rx) = mpsc_channel_no_memquota(0 /* plus num_senders, ie 1 */);
         let total_used = TotalQtyNotifier::new_zero(reclaim_tx);
 
         let global = Global {

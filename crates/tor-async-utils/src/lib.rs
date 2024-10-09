@@ -65,3 +65,20 @@ pub use sink_try_send::{SinkTrySend, SinkTrySendError};
 pub use watch::{DropNotifyEofSignallable, DropNotifyWatchSender, PostageWatchSenderExt};
 
 pub use oneshot_fused_workaround as oneshot;
+
+use futures::channel::mpsc;
+
+/// Precisely [`futures::channel::mpsc::channel`]
+///
+/// In `arti.git` we disallow this method, because we want to ensure
+/// that all our queues participate in our memory quota system
+/// (see `tor-memquota` and `tor_proto::memquota`).y
+///
+/// Use this method to make an `mpsc::channel` when you know that's not appropriate.
+///
+/// (`#[allow]` on an expression is unstable Rust, so this is needed to avoid
+/// decorating whole functions with the allow.)
+#[allow(clippy::disallowed_methods)] // We don't care about mq tracking in this test code
+pub fn mpsc_channel_no_memquota<T>(buffer: usize) -> (mpsc::Sender<T>, mpsc::Receiver<T>) {
+    mpsc::channel(buffer)
+}
