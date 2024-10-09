@@ -398,9 +398,10 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
             // Great, nothing interfered at all.
             let (new_state, send, pending_id) = self.setup_launch(RelayIds::from_relay_ids(target));
             channel_map.try_insert(new_state)?;
-            // TODO: Later code could return with an error before the code that eventually removes
-            // this entry, and then this entry would then be left in the map forever. We should have
-            // a better cleanup procedure for channels.
+            // TODO arti#1654: Later code could return with an error before the code that eventually
+            // removes this entry, and then this entry would then be left in the map forever. If
+            // this happened, no callers would be able to build channels to this target anymore. We
+            // should have a better cleanup procedure for channels.
             Ok(Some(Action::Launch((send, pending_id))))
         })?
     }

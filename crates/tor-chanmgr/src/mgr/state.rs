@@ -281,6 +281,10 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     ///
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
+    ///
+    /// # Deadlock
+    ///
+    /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
     pub(crate) fn with_channels<F, T>(&self, func: F) -> Result<T>
     where
         F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>) -> T,
@@ -299,6 +303,10 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     }
 
     /// Run a function to modify the builder stored in this state.
+    ///
+    /// # Deadlock
+    ///
+    /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
     #[allow(dead_code)]
     pub(crate) fn with_mut_builder<F>(&self, func: F)
     where
@@ -314,6 +322,10 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     ///
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
+    ///
+    /// # Deadlock
+    ///
+    /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
     pub(crate) fn with_channels_and_params<F, T>(&self, func: F) -> Result<T>
     where
         F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>, &ChannelPaddingInstructions) -> T,
