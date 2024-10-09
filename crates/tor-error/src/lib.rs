@@ -769,6 +769,7 @@ pub trait HasKind {
     fn kind(&self) -> ErrorKind;
 }
 
+#[cfg(feature = "futures")]
 impl HasKind for futures::task::SpawnError {
     fn kind(&self) -> ErrorKind {
         use ErrorKind as EK;

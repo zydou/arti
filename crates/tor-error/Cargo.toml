@@ -12,8 +12,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 categories = ["rust-patterns"]
 
 [features]
-default = ["backtrace"]
-full = ["backtrace", "tracing", "retry-error/full"]
+default = ["backtrace", "futures"]
+full = ["backtrace", "futures", "tracing", "retry-error/full"]
 
 experimental = ["experimental-api", "rpc"]
 experimental-api = ["rpc", "__is_experimental"]
@@ -28,7 +28,7 @@ backtrace = []
 
 [dependencies]
 derive_more = { version = "1.0.0", features = ["full"] }
-futures = "0.3"
+futures = { version = "0.3", optional = true }
 once_cell = "1"
 paste = "1"
 retry-error = { path = "../retry-error", version = "0.6.0" } # WRONG should be 0.4.3
