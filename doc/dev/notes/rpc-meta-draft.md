@@ -755,7 +755,7 @@ To do so, the client may put the name of that feature in the list
 If any feature in that list is not recognized or not supported,
 the server must fail with an error
 using the "Feature not present" error code.
-The `error.data.rpc:unsupported_features` field in the reply
+The `error.data['rpc:unsupported_features']` field in the reply
 will hold a list of the features that will not supported.
 
 Feature names are UTF-8 strings.
