@@ -26,6 +26,7 @@ use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
     sendme, streammap, CircParameters, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
+    CircuitRxReceiver,
 };
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
@@ -714,7 +715,7 @@ pub struct Reactor {
     /// Input stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
     // TODO: could use a SPSC channel here instead.
-    input: mpsc::Receiver<ClientCircChanMsg>,
+    input: CircuitRxReceiver,
     /// The cryptographic state for this circuit for inbound cells.
     /// This object is divided into multiple layers, each of which is
     /// shared with one hop of the circuit.
@@ -797,7 +798,7 @@ impl Reactor {
         channel: Arc<Channel>,
         channel_id: CircId,
         unique_id: UniqId,
-        input: mpsc::Receiver<ClientCircChanMsg>,
+        input: CircuitRxReceiver,
         memquota: CircuitAccount,
     ) -> (
         Self,

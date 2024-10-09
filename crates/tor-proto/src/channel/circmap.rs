@@ -7,10 +7,9 @@ use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
 
-use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::circuit::{CircuitRxSender, celltypes::CreateResponse};
 use crate::circuit::halfcirc::HalfCirc;
 
-use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
 use rand::distributions::Distribution;
@@ -63,11 +62,11 @@ pub(super) enum CircEnt {
     /// cells to the circuit.
     Opening(
         oneshot::Sender<CreateResponse>,
-        mpsc::Sender<ClientCircChanMsg>,
+        CircuitRxSender,
     ),
 
     /// A circuit that is open and can be given relay cells.
-    Open(mpsc::Sender<ClientCircChanMsg>),
+    Open(CircuitRxSender),
 
     /// A circuit where we have sent a DESTROY, but the other end might
     /// not have gotten a DESTROY yet.
@@ -141,7 +140,7 @@ impl CircMap {
         &mut self,
         rng: &mut R,
         createdsink: oneshot::Sender<CreateResponse>,
-        sink: mpsc::Sender<ClientCircChanMsg>,
+        sink: CircuitRxSender,
     ) -> Result<CircId> {
         /// How many times do we probe for a random circuit ID before
         /// we assume that the range is fully populated?

@@ -118,6 +118,11 @@ pub(crate) type StreamMpscSender<T> = mq_queue::Sender<T, MpscSpec>;
 /// MPSC queue relating to a stream (either inbound or outbound), receiver
 pub(crate) type StreamMpscReceiver<T> = mq_queue::Receiver<T, MpscSpec>;
 
+/// MPSC queue for inbound data on its way from channel to circuit, sender
+pub(crate) type CircuitRxSender = mpsc::Sender<ClientCircChanMsg>;
+/// MPSC queue for inbound data on its way from channel to circuit, receiver
+pub(crate) type CircuitRxReceiver = mpsc::Receiver<ClientCircChanMsg>;
+
 #[derive(Debug)]
 /// A circuit that we have constructed over the Tor network.
 ///
@@ -1047,7 +1052,7 @@ impl PendingClientCirc {
         id: CircId,
         channel: Arc<Channel>,
         createdreceiver: oneshot::Receiver<CreateResponse>,
-        input: mpsc::Receiver<ClientCircChanMsg>,
+        input: CircuitRxReceiver,
         unique_id: UniqId,
     ) -> Result<(PendingClientCirc, reactor::Reactor)> {
         let memquota = CircuitAccount::new(channel.mq_account())?;
@@ -1656,7 +1661,7 @@ mod test {
         rt: &R,
         chan: Arc<Channel>,
         next_msg_from: HopNum,
-    ) -> (Arc<ClientCirc>, mpsc::Sender<ClientCircChanMsg>) {
+    ) -> (Arc<ClientCirc>, CircuitRxSender) {
         let circid = CircId::new(128).unwrap();
         let (_created_send, created_recv) = oneshot::channel();
         let (circmsg_send, circmsg_recv) = mpsc::channel(64);
@@ -1700,7 +1705,7 @@ mod test {
     async fn newcirc<R: Runtime>(
         rt: &R,
         chan: Arc<Channel>,
-    ) -> (Arc<ClientCirc>, mpsc::Sender<ClientCircChanMsg>) {
+    ) -> (Arc<ClientCirc>, CircuitRxSender) {
         newcirc_ext(rt, chan, 2.into()).await
     }
 
@@ -2079,7 +2084,7 @@ mod test {
     ) -> (
         Arc<ClientCirc>,
         DataStream,
-        mpsc::Sender<ClientCircChanMsg>,
+        CircuitRxSender,
         Option<StreamId>,
         usize,
         Receiver<AnyChanCell>,

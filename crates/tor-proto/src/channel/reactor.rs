@@ -35,7 +35,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
-use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::circuit::{CircuitRxSender, celltypes::CreateResponse};
 use tracing::{debug, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -74,7 +74,7 @@ pub enum CtrlMsg {
         /// Channel to send the circuit's `CreateResponse` down.
         created_sender: oneshot::Sender<CreateResponse>,
         /// Channel to send other messages from this circuit down.
-        sender: mpsc::Sender<ClientCircChanMsg>,
+        sender: CircuitRxSender,
         /// Oneshot channel to send the new circuit's identifiers down.
         tx: ReactorResultChannel<(CircId, crate::circuit::UniqId)>,
     },
