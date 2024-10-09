@@ -167,6 +167,8 @@ define_derive_deftly! {
 
 /// [`Account`] for the whole system
 ///
+/// (There will typically be only one of these for an entire Arti client or relay.)
+///
 /// Use via the [`SpecificAccount`] impl.
 /// See the [`memquota`](self) module documentation.
 #[derive(Deftly, Clone, Debug)]
