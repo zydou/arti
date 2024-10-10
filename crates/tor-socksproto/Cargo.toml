@@ -28,8 +28,8 @@ educe = "0.4.6"
 safelog = { path = "../safelog", version = "0.4.0" }
 subtle = "2"
 thiserror = "1"
-tor-bytes = { path = "../tor-bytes", version = "0.23.0" }
-tor-error = { path = "../tor-error", version = "0.23.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.23.0", default-features = false }
+tor-error = { path = "../tor-error", version = "0.23.0", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.75"
