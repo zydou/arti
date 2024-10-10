@@ -52,12 +52,12 @@ def cargo_build(packages: list[str], extra_flags: list[str] = []):
     outcome = subprocess.run(args, cwd=TOPLEVEL)
     outcome.check_returncode()
 
+
 ######
 # Parse the command line.
 
 parser = argparse.ArgumentParser(
-    prog="run",
-    description="Invoke Arti RPC integration tests"
+    prog="run", description="Invoke Arti RPC integration tests"
 )
 parser.add_argument("--arti-dir", help="Location for Arti proxy storage and config")
 parser.add_argument("remainder", nargs="*", help="Passed directly to arti_rpc_tests")

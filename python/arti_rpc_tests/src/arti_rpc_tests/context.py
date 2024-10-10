@@ -26,6 +26,7 @@ class TestContext:
 
     Includes a running arti instance, and the ability to get an RPC connection.
     """
+
     arti_binary: Path
     conf_file: Path
     socket_path: Path
@@ -84,7 +85,7 @@ class TestContext:
         connect_string = f"unix:{self.socket_path}"
         return arti_rpc.ArtiRpcConn(connect_string)
 
-    def _wait_for_rpc(self, timeout:float =3.0) -> None:
+    def _wait_for_rpc(self, timeout: float = 3.0) -> None:
         """
         Wait up to `timeout` seconds until an Arti RPC connection succeeds.
 
@@ -110,6 +111,7 @@ class ArtiProcess:
 
     Shuts down the process when dropped.
     """
+
     process: Optional[subprocess.Popen]
 
     def __init__(self, process: subprocess.Popen):

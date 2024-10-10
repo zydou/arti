@@ -40,7 +40,9 @@ from pathlib import Path
 # Find arguments and environment.
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--arti-dir", help="Location for Arti proxy storage and config", type=Path)
+parser.add_argument(
+    "--arti-dir", help="Location for Arti proxy storage and config", type=Path
+)
 args = parser.parse_args()
 
 arti_binary = Path(os.environ["ARTI"])

@@ -19,6 +19,7 @@ _TEST_MODS = [
     "basic",
 ]
 
+
 # Return a list of all the python modules that we should search for tests.
 def all_modules() -> list[ModuleType]:
     return [
@@ -26,7 +27,9 @@ def all_modules() -> list[ModuleType]:
     ]
 
 
-def run_tests(testfilter:TestFilter, modules: list[ModuleType], context: TestContext) -> bool:
+def run_tests(
+    testfilter: TestFilter, modules: list[ModuleType], context: TestContext
+) -> bool:
     """
     Run every test listed by `testfilter` in the provided `modules`,
     using the facilities in `context`.
@@ -62,16 +65,17 @@ class TestFilter:
     """
     Selects one or more tests that we should run.
     """
+
     def __init__(self):
         # No features supported yet
         pass
 
-    def list_tests(self, module:ModuleType) -> Generator[TestCase]:
+    def list_tests(self, module: ModuleType) -> Generator[TestCase]:
         """
         Yield every test in `module` that this filter permits.
         """
         for name in sorted(dir(module)):
-            obj = getattr(module,name)
+            obj = getattr(module, name)
 
             if callable(obj) and getattr(obj, "arti_rpc_test", False):
                 sname = name.removeprefix("test_")
@@ -82,6 +86,7 @@ class TestCase:
     """
     A single test case.
     """
+
     def __init__(self, name, function):
         self.name = name
         self.function = function
@@ -107,7 +112,7 @@ class TestCase:
             traceback.print_exc()
             return False
 
-    def run_inner(self, context:TestContext) -> None:
+    def run_inner(self, context: TestContext) -> None:
         """
         Run this test; raise an exception on failure.
 

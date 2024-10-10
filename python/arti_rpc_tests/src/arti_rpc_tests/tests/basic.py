@@ -1,5 +1,5 @@
-
 from arti_rpc_tests import *
+
 
 @arti_test
 def test_trivial(context):
