@@ -31,11 +31,13 @@ import os
 import sys
 import time
 
+from pathlib import Path
+
 ######
 # Find arguments and environment.
 
-arti_binary = os.environ["ARTI"]
-test_dir = os.environ["ARTI_RPC_TEST_DIR"]
+arti_binary = Path(os.environ["ARTI"])
+test_dir = Path(os.environ["ARTI_RPC_TEST_DIR"])
 
 # TODO: Take this from the command line once it has arguments
 testfilter = runner.TestFilter()

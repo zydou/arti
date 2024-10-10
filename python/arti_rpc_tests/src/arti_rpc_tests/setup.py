@@ -14,6 +14,7 @@ import time
 
 from arti_rpc_tests import FatalException
 
+from pathlib import Path
 from typing import Optional
 
 
@@ -23,24 +24,24 @@ class TestContext:
 
     Includes a running arti instance, and the ability to get an RPC connection.
     """
-    arti_binary: str
-    conf_file: str
-    socket_path: str
+    arti_binary: Path
+    conf_file: Path
+    socket_path: Path
     arti_process: Optional[ArtiProcess]
 
     @staticmethod
-    def initialize(arti_binary: str, path: str) -> TestContext:
+    def initialize(arti_binary: Path, path: Path) -> TestContext:
         """
         Create a new TestContext using the arti binary at `arti_binary`,
         storing all of its files at `path`.
 
         Does not launch arti.
         """
-        path = os.path.abspath(path)
-        conf_file = os.path.join(path, "arti.toml")
-        cache_dir = os.path.join(path, "cache")
-        state_dir = os.path.join(path, "state")
-        socket_path = os.path.join(path, "arti_rpc.socket")
+        path = path.absolute()
+        conf_file = path.joinpath("arti.toml")
+        cache_dir = path.joinpath("cache")
+        state_dir = path.joinpath("state")
+        socket_path = path.joinpath("arti_rpc.socket")
         socks_port = 15986  # "chosen by fair dice roll. guaranteed to be random."
 
         output = _CONF_TEMPLATE.format(**locals())
@@ -49,7 +50,7 @@ class TestContext:
 
         return TestContext(arti_binary, conf_file, socket_path)
 
-    def __init__(self, arti_binary: str, conf_file: str, socket_path: str):
+    def __init__(self, arti_binary: Path, conf_file: Path, socket_path: Path):
         self.arti_binary = arti_binary
         self.conf_file = conf_file
         self.socket_path = socket_path
