@@ -35,7 +35,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
-use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
+use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
@@ -74,7 +74,7 @@ pub enum CtrlMsg {
         /// Channel to send the circuit's `CreateResponse` down.
         created_sender: oneshot::Sender<CreateResponse>,
         /// Channel to send other messages from this circuit down.
-        sender: mpsc::Sender<ClientCircChanMsg>,
+        sender: CircuitRxSender,
         /// Oneshot channel to send the new circuit's identifiers down.
         tx: ReactorResultChannel<(CircId, crate::circuit::UniqId)>,
     },
@@ -475,6 +475,7 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::UniqId;
     use crate::circuit::CircParameters;
+    use crate::fake_mpsc;
     use crate::util::fake_mq;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
@@ -697,12 +698,12 @@ pub(crate) mod test {
 
             let (_circ_stream_7, mut circ_stream_13) = {
                 let (snd1, _rcv1) = oneshot::channel();
-                let (snd2, rcv2) = mpsc::channel(64);
+                let (snd2, rcv2) = fake_mpsc(64);
                 reactor
                     .circs
                     .put_unchecked(CircId::new(7).unwrap(), CircEnt::Opening(snd1, snd2));
 
-                let (snd3, rcv3) = mpsc::channel(64);
+                let (snd3, rcv3) = fake_mpsc(64);
                 reactor
                     .circs
                     .put_unchecked(CircId::new(13).unwrap(), CircEnt::Open(snd3));
@@ -786,12 +787,12 @@ pub(crate) mod test {
 
             let (circ_oneshot_7, mut circ_stream_13) = {
                 let (snd1, rcv1) = oneshot::channel();
-                let (snd2, _rcv2) = mpsc::channel(64);
+                let (snd2, _rcv2) = fake_mpsc(64);
                 reactor
                     .circs
                     .put_unchecked(CircId::new(7).unwrap(), CircEnt::Opening(snd1, snd2));
 
-                let (snd3, rcv3) = mpsc::channel(64);
+                let (snd3, rcv3) = fake_mpsc(64);
                 reactor
                     .circs
                     .put_unchecked(CircId::new(13).unwrap(), CircEnt::Open(snd3));

@@ -7,10 +7,9 @@ use crate::{Error, Result};
 use tor_basic_utils::RngExt;
 use tor_cell::chancell::CircId;
 
-use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::halfcirc::HalfCirc;
+use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 
-use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
 use rand::distributions::Distribution;
@@ -61,13 +60,10 @@ pub(super) enum CircEnt {
     ///
     /// Once that's done, the mpsc sender will be used to send subsequent
     /// cells to the circuit.
-    Opening(
-        oneshot::Sender<CreateResponse>,
-        mpsc::Sender<ClientCircChanMsg>,
-    ),
+    Opening(oneshot::Sender<CreateResponse>, CircuitRxSender),
 
     /// A circuit that is open and can be given relay cells.
-    Open(mpsc::Sender<ClientCircChanMsg>),
+    Open(CircuitRxSender),
 
     /// A circuit where we have sent a DESTROY, but the other end might
     /// not have gotten a DESTROY yet.
@@ -141,7 +137,7 @@ impl CircMap {
         &mut self,
         rng: &mut R,
         createdsink: oneshot::Sender<CreateResponse>,
-        sink: mpsc::Sender<ClientCircChanMsg>,
+        sink: CircuitRxSender,
     ) -> Result<CircId> {
         /// How many times do we probe for a random circuit ID before
         /// we assume that the range is fully populated?
@@ -250,7 +246,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use futures::channel::mpsc;
+    use crate::fake_mpsc;
     use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
@@ -265,7 +261,7 @@ mod test {
 
         for _ in 0..128 {
             let (csnd, _) = oneshot::channel();
-            let (snd, _) = mpsc::channel(8);
+            let (snd, _) = fake_mpsc(8);
             let id_low = map_low.add_ent(&mut rng, csnd, snd).unwrap();
             assert!(u32::from(id_low) > 0);
             assert!(u32::from(id_low) < 0x80000000);
@@ -278,7 +274,7 @@ mod test {
             ));
 
             let (csnd, _) = oneshot::channel();
-            let (snd, _) = mpsc::channel(8);
+            let (snd, _) = fake_mpsc(8);
             let id_high = map_high.add_ent(&mut rng, csnd, snd).unwrap();
             assert!(u32::from(id_high) >= 0x80000000);
             assert!(!ids_high.iter().any(|x| *x == id_high));

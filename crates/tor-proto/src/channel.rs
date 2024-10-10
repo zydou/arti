@@ -66,7 +66,7 @@ mod unique_id;
 pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
-use crate::memquota::{ChannelAccount, SpecificAccount as _};
+use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
@@ -81,7 +81,7 @@ use tor_cell::chancell::{ChanCell, ChanMsg};
 use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
-use tor_memquota::mq_queue::{self, ChannelSpec as _};
+use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
 use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
@@ -675,9 +675,11 @@ impl Channel {
             return Err(ChannelClosed.into());
         }
 
+        let time_prov = self.cell_tx.time_provider().clone();
+        let memquota = CircuitAccount::new(&self.details.memquota)?;
+
         // TODO: blocking is risky, but so is unbounded.
-        // TODO #1682 should be an mq_queue
-        let (sender, receiver) = mpsc::channel(128);
+        let (sender, receiver) = MpscSpec::new(128).new_mq(time_prov, memquota.as_raw_account())?;
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
 
         let (tx, rx) = oneshot::channel();

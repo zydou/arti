@@ -5,11 +5,13 @@
 //! so that Rust's typesafety can help enforce protocol properties.
 
 use crate::{Error, Result};
+use derive_deftly::Deftly;
 use std::fmt::{self, Display};
 use tor_cell::chancell::{
     msg::{self as chanmsg, AnyChanMsg},
     ChanMsg,
 };
+use tor_memquota::derive_deftly_template_HasMemoryCost;
 
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
@@ -55,8 +57,9 @@ impl TryFrom<AnyChanMsg> for CreateResponse {
 
 /// A subclass of ChanMsg that can correctly arrive on a live client
 /// circuit (one where a CREATED* has been received).
-#[derive(Debug)]
+#[derive(Debug, Deftly)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+#[derive_deftly(HasMemoryCost)]
 pub enum ClientCircChanMsg {
     /// A relay cell telling us some kind of remote command from some
     /// party on the circuit.
