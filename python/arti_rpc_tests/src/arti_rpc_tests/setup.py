@@ -8,9 +8,11 @@ import arti_rpc
 import math
 import os
 import signal
+import string
 import subprocess
 import sys
 import time
+import tomli_w
 
 from arti_rpc_tests import FatalException
 
@@ -44,9 +46,20 @@ class TestContext:
         socket_path = path.joinpath("arti_rpc.socket")
         socks_port = 15986  # "chosen by fair dice roll. guaranteed to be random."
 
-        output = _CONF_TEMPLATE.format(**locals())
-        with open(conf_file, "w", encoding="utf-8") as f:
-            f.write(output)
+        configuration = {
+            "rpc": {
+                "rpc_listen": str(socket_path),
+            },
+            "storage": {
+                "cache_dir": str(cache_dir),
+                "state_dir": str(state_dir),
+            },
+            "proxy": {
+                "socks_listen": socks_port,
+            },
+        }
+        with open(conf_file, "wb") as f:
+            tomli_w.dump(configuration, f)
 
         return TestContext(arti_binary, conf_file, socket_path)
 
@@ -93,19 +106,6 @@ class TestContext:
                 waited += interval
 
         raise FatalException("Arti not reachable after {timeout} seconds.")
-
-
-_CONF_TEMPLATE = """
-[rpc]
-rpc_listen = {socket_path!r}
-
-[storage]
-cache_dir = {cache_dir!r}
-state_dir = {state_dir!r}
-
-[proxy]
-socks_listen = {socks_port}
-"""
 
 
 class ArtiProcess:
