@@ -17,7 +17,6 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 
-c_str_macro = { version = "1", optional = true }
 caret = { path = "../caret", version = "0.5.0" }
 cfg-if = "1.0.0"
 derive_more = { version = "1.0.0", features = ["full"] }
@@ -40,7 +39,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
 
 [features]
 full = ["ffi", "caret/full", "tor-socksproto/full"]
-ffi = ["c_str_macro", "paste"]
+ffi = ["paste"]
 
 [package.metadata.docs.rs]
 all-features = true

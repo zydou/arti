@@ -360,7 +360,6 @@ dependencies = [
 name = "arti-rpc-client-core"
 version = "0.23.0"
 dependencies = [
- "c_str_macro",
  "caret",
  "cfg-if",
  "derive_more",
@@ -1010,12 +1009,6 @@ name = "bytes"
 version = "1.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "428d9aa8fbc0670b7b8d6030a7fadd0f86151cae55e4dbbece15f3780a3dfaf3"
-
-[[package]]
-name = "c_str_macro"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6d44951c469019e225e7667d799052f67fb8ea358d086878f3582b39f0de5e5"
 
 [[package]]
 name = "caret"
