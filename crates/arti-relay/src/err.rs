@@ -17,7 +17,7 @@ use tor_error::{ErrorKind, HasKind};
 /// the specific output of `Display`, `Debug`, or `Error::source()` when run on
 /// this type; it may change between patch versions without notification.
 #[derive(Error, Clone, Debug)]
-pub struct Error {
+pub(crate) struct Error {
     /// The actual error.
     #[source]
     detail: Box<ErrorDetail>,

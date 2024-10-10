@@ -12,7 +12,7 @@ use crate::relay::TorRelay;
 #[derive(Clone)]
 #[must_use]
 #[allow(unused)] // XXX: Remove me when used.
-pub struct TorRelayBuilder<R: Runtime> {
+pub(crate) struct TorRelayBuilder<R: Runtime> {
     /// The runtime for the client to use
     runtime: R,
     /// The configuration.
@@ -30,7 +30,7 @@ impl<R: Runtime> TorRelayBuilder<R> {
     }
 
     /// Return a newly created TorRelay object.
-    pub fn create(&self) -> Result<TorRelay<R>, Error> {
+    pub(crate) fn create(&self) -> Result<TorRelay<R>, Error> {
         TorRelay::create_inner(self.runtime.clone(), &self.config).map_err(Into::into)
     }
 }
