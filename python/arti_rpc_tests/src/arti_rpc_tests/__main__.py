@@ -44,7 +44,7 @@ testfilter = runner.TestFilter()
 
 #####
 # Build a test process
-context = setup.TestContext.initialize(arti_binary, test_dir)
+context = setup.TestContext(arti_binary, test_dir)
 context.launch_arti()
 
 #####

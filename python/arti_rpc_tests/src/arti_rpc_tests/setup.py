@@ -31,8 +31,7 @@ class TestContext:
     socket_path: Path
     arti_process: Optional[ArtiProcess]
 
-    @staticmethod
-    def initialize(arti_binary: Path, path: Path) -> TestContext:
+    def __init__(self, arti_binary: Path, path: Path):
         """
         Create a new TestContext using the arti binary at `arti_binary`,
         storing all of its files at `path`.
@@ -61,9 +60,6 @@ class TestContext:
         with open(conf_file, "wb") as f:
             tomli_w.dump(configuration, f)
 
-        return TestContext(arti_binary, conf_file, socket_path)
-
-    def __init__(self, arti_binary: Path, conf_file: Path, socket_path: Path):
         self.arti_binary = arti_binary
         self.conf_file = conf_file
         self.socket_path = socket_path
