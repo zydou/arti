@@ -1,0 +1,7 @@
+# Enable onion addresses
+[address_filter]
+allow_onion_addrs=true
+
+[[storage.keystore.ctor.clients]]
+path = "./ctor-store/"
+id = "alice"

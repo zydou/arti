@@ -13,6 +13,8 @@ export RUST_BACKTRACE=1
 chmod 700 shadow.data.template/hosts/fileserver-onion/hs
 chmod 700 shadow.data.template/hosts/fileserver-onion-auth/hs
 chmod 700 shadow.data.template/hosts/fileserver-onion-arti-auth/authorized_clients
+chmod 700 shadow.data.template/hosts/fileserver-onion-arti-auth-ctor/ctor-store
+chmod 700 shadow.data.template/hosts/articlient-onion-artiserver-auth-ctor/ctor-store
 
 # Run the simulation
 shadow \
@@ -62,6 +64,7 @@ HOSTS=(
   articlient-onion-artiserver-full-vanguards
   articlient-onion-artiserver-auth
   articlient-onion-artiserver-auth-2
+  articlient-onion-artiserver-auth-ctor
   torclient-onion-artiserver
   torclient-onion-artiserver-full-vanguards
 )
@@ -89,9 +92,11 @@ HOSTS=(
   articlient-onion-artiserver
   articlient-onion-artiserver-full-vanguards
   articlient-onion-auth
+  articlient-onion-artiserver-auth-ctor
   fileserver-onion-arti
   fileserver-onion-arti-full-vanguards
   fileserver-onion-arti-auth
+  fileserver-onion-arti-auth-ctor
 )
 
 for HOST in "${HOSTS[@]}"; do
