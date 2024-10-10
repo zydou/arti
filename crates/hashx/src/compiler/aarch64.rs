@@ -111,7 +111,7 @@ fn emit_init_locals<A: DynasmApi>(asm: &mut A) {
 #[inline(always)]
 fn emit_load_input<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
-        dynasm!(asm; ldr X(reg.x()), [register_file_ptr, #(reg.offset())]);
+        dynasm!(asm; ldr X(reg.x()), [register_file_ptr, #reg.offset()]);
     }
 }
 
@@ -120,7 +120,7 @@ fn emit_load_input<A: DynasmApi>(asm: &mut A) {
 #[inline(always)]
 fn emit_store_output<A: DynasmApi>(asm: &mut A) {
     for reg in RegisterId::all() {
-        dynasm!(asm; str X(reg.x()), [register_file_ptr, #(reg.offset())]);
+        dynasm!(asm; str X(reg.x()), [register_file_ptr, #reg.offset()]);
     }
 }
 
