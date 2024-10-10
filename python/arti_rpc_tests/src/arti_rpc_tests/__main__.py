@@ -20,13 +20,16 @@ ENVIRONMENT VARIABLES:
   and look for cache.  (This is reused across runs unless
   explicitly deleted.)
 
-ARGUMENTS: None yet.
+ARGUMENTS:
+
+ -- --arti-dir=DIR: override ARTI_RPC_TEST_DIR.
 """
 
 from arti_rpc_tests import context, runner
 
 import arti_rpc
 
+import argparse
 import os
 import sys
 import time
@@ -36,8 +39,15 @@ from pathlib import Path
 ######
 # Find arguments and environment.
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--arti-dir", help="Location for Arti proxy storage and config", type=Path)
+args = parser.parse_args()
+
 arti_binary = Path(os.environ["ARTI"])
-test_dir = Path(os.environ["ARTI_RPC_TEST_DIR"])
+if args.arti_dir is not None:
+    test_dir = args.arti_dir
+else:
+    test_dir = Path(os.environ["ARTI_RPC_TEST_DIR"])
 
 # TODO: Take this from the command line once it has arguments
 testfilter = runner.TestFilter()

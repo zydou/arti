@@ -7,17 +7,17 @@ ENVIRONMENT VARIABLES:
 
 - CARGO: the cargo binary to use.  Defaults to "cargo".
 - PYTHON3: path to a python binary to use.  Defaults to `sys.executable`
-- ARTI_RPC_TEST_DIR: A location in which to store .
+- ARTI_RPC_TEST_DIR: A location in which to store arti's state and config.
   Defaults to ".arti_rpc_test" at the top level of this git repo.
 
 ARGUMENTS:
 
-None yet.
-
+- `--arti-dir=DIR`: Override ARTI_RPC_TEST_DIR.
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import subprocess
@@ -52,6 +52,16 @@ def cargo_build(packages: list[str], extra_flags: list[str] = []):
     outcome = subprocess.run(args, cwd=TOPLEVEL)
     outcome.check_returncode()
 
+######
+# Parse the command line.
+
+parser = argparse.ArgumentParser(
+    prog="run",
+    description="Invoke Arti RPC integration tests"
+)
+parser.add_argument("--arti-dir", help="Location for Arti proxy storage and config")
+parser.add_argument("remainder", nargs="*", help="Passed directly to arti_rpc_tests")
+args = parser.parse_args()
 
 ######
 # Set up locations and paths from the environment.
@@ -70,9 +80,12 @@ LIBRPC = os.path.join(
 PYRPC = os.path.join(TOPLEVEL, "python", "arti_rpc", "src")
 PYRPC_TESTS = os.path.join(TOPLEVEL, "python", "arti_rpc_tests", "src")
 
-ARTI_RPC_TEST_DIR = os.environ.get(
-    "ARTI_RPC_TEST_DIR", os.path.join(TOPLEVEL, ".arti_rpc_test")
-)
+if args.arti_dir is not None:
+    ARTI_RPC_TEST_DIR = args.arti_dir
+else:
+    ARTI_RPC_TEST_DIR = os.environ.get(
+        "ARTI_RPC_TEST_DIR", os.path.join(TOPLEVEL, ".arti_rpc_test")
+    )
 os.makedirs(ARTI_RPC_TEST_DIR, mode=0o700, exist_ok=True)
 
 #####
@@ -104,6 +117,6 @@ except KeyError:
 os.environ["PYTHONPATH"] = os.pathsep.join(pathelts)
 
 # Run `arti_rpc_tests` and wait for it to finish.
-outcome = subprocess.run([PYTHON3, "-m", "arti_rpc_tests"])
+outcome = subprocess.run([PYTHON3, "-m", "arti_rpc_tests"] + args.remainder)
 # Give an error if it failed.
 outcome.check_returncode()
