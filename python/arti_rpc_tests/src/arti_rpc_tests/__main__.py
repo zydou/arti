@@ -23,7 +23,7 @@ ENVIRONMENT VARIABLES:
 ARGUMENTS: None yet.
 """
 
-from arti_rpc_tests import setup, runner
+from arti_rpc_tests import context, runner
 
 import arti_rpc
 
@@ -44,25 +44,25 @@ testfilter = runner.TestFilter()
 
 #####
 # Build a test process
-context = setup.TestContext(arti_binary, test_dir)
-context.launch_arti()
+test_context = context.TestContext(arti_binary, test_dir)
+test_context.launch_arti()
 
 #####
 # Run the selected tests.
 
-okay = runner.run_tests(testfilter, runner.all_modules(), context)
+okay = runner.run_tests(testfilter, runner.all_modules(), test_context)
 
 #####
 # Wait a bit, then shut down arti.
 #
 # (We'll remove the delay once we have a few more tests.)
 
-if context.arti_process is not None:
+if test_context.arti_process is not None:
     SHUTDOWN_DELAY = 3
     print(f"Waiting {SHUTDOWN_DELAY} seconds...")
     time.sleep(SHUTDOWN_DELAY)  # TODO: remove this once the tests are nontrivial.
     print("Shutting down...")
-    context.arti_process.close(gently=True)
+    test_context.arti_process.close(gently=True)
 
 if not okay:
     sys.exit(1)

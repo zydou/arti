@@ -10,7 +10,7 @@ from types import ModuleType
 from typing import Generator
 
 from arti_rpc_tests import FatalException
-from arti_rpc_tests.setup import TestContext
+from arti_rpc_tests.context import TestContext
 
 # Is this the right way to do this?
 #
