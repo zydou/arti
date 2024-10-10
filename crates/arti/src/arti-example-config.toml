@@ -510,6 +510,10 @@
 #
 #    max_concurrent_streams_per_circuit = 65535
 
+# Whether to enable proof-of-work based DOS mitigation when under high load.
+#
+#    enable_pow = false
+
 #    [onion_services."allium-cepa".restricted_discovery]
 # Whether to enable restricted discovery mode.
 #
