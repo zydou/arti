@@ -33,10 +33,10 @@ impl From<ErrorDetail> for Error {
 
 /// Represents errors that can occur while doing Tor operations.
 ///
-/// This enumeration is the inner view of a [`arti_relay::Error`](crate::Error).
+/// This enumeration is the inner view of an Error.
 ///
 /// Instead of looking at the type, you should try to use the [`kind`](`tor_error::HasKind::kind`)
-/// trait method to distinguish among different kinds of [`Error`](struct@crate::Error).
+/// trait method to distinguish among different kinds of Error.
 #[cfg_attr(test, derive(strum::EnumDiscriminants))]
 #[cfg_attr(test, strum_discriminants(vis(pub(crate))))]
 #[derive(Error, Clone, Debug)]

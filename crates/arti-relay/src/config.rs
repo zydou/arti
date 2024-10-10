@@ -15,7 +15,7 @@ use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_config::{impl_standard_builder, mistrust::BuilderExt, CfgPath, ConfigBuildError};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
-/// A configuration used by a [`TorRelay`](crate::TorRelay).
+/// A configuration used by a TorRelay.
 ///
 /// Most users will create a TorRelayConfig by running
 /// [`TorRelayConfig::default`].
