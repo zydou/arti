@@ -12,12 +12,10 @@ use derive_more::AsRef;
 use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
-use tor_config::{impl_standard_builder, mistrust::BuilderExt, CfgPath};
+use tor_config::{impl_standard_builder, mistrust::BuilderExt, CfgPath, ConfigBuildError};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
-pub use tor_config::ConfigBuildError;
-
-/// A configuration used by a [`TorRelay`](crate::TorRelay).
+/// A configuration used by a TorRelay.
 ///
 /// Most users will create a TorRelayConfig by running
 /// [`TorRelayConfig::default`].
@@ -32,7 +30,7 @@ pub use tor_config::ConfigBuildError;
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[non_exhaustive]
-pub struct TorRelayConfig {
+pub(crate) struct TorRelayConfig {
     /// Directories for storing information on disk
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
@@ -57,13 +55,13 @@ pub struct TorRelayConfig {
 }
 impl_standard_builder! { TorRelayConfig }
 
+#[allow(unused)] // TODO RELAY remove
 impl TorRelayConfigBuilder {
     /// Returns a `TorRelayConfigBuilder` using the specified state and cache directories.
     ///
     /// All other configuration options are set to their defaults, except `storage.keystore.path`,
     /// which is derived from the specified state directory.
-    #[allow(unused)] // TODO RELAY remove
-    pub fn from_directories<P, Q>(state_dir: P, cache_dir: Q) -> Self
+    pub(crate) fn from_directories<P, Q>(state_dir: P, cache_dir: Q) -> Self
     where
         P: AsRef<Path>,
         Q: AsRef<Path>,
@@ -105,7 +103,7 @@ fn default_extend<T: Default + Extend<X>, X>(to_add: impl IntoIterator<Item = X>
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
-pub struct StorageConfig {
+pub(crate) struct StorageConfig {
     /// Location on disk for cached information.
     ///
     /// This follows the rules for `/var/cache`: "sufficiently old" filesystem objects

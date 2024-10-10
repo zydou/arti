@@ -21,11 +21,13 @@ full = [
     "fs-mistrust/full",
     "tor-chanmgr/full",
     "tor-config/full",
+    "tor-error/full",
     "tor-keymgr/full",
     "tor-netdir/full",
     "tor-netdoc/full",
     "tor-proto/full",
-    "tor-rtcompat/full", "tor-error/full", "tor-relay-crypto/full",
+    "tor-relay-crypto/full",
+    "tor-rtcompat/full",
 ]
 
 async-std = ["tor-rtcompat/async-std"]
