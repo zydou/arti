@@ -2,14 +2,16 @@
 
 use tor_rtcompat::Runtime;
 
+use crate::config::TorRelayConfig;
 use crate::err::Error;
-use crate::{config::TorRelayConfig, TorRelay};
+use crate::relay::TorRelay;
 
 /// An object for constructing a [`TorRelay`].
 ///
 /// Returned by [`TorRelay::builder()`].
 #[derive(Clone)]
 #[must_use]
+#[allow(unused)] // XXX: Remove me when used.
 pub struct TorRelayBuilder<R: Runtime> {
     /// The runtime for the client to use
     runtime: R,
@@ -17,6 +19,7 @@ pub struct TorRelayBuilder<R: Runtime> {
     config: TorRelayConfig,
 }
 
+#[allow(unused)] // XXX: Remove me when used.
 impl<R: Runtime> TorRelayBuilder<R> {
     /// Construct a new TorClientBuilder with the given runtime.
     pub(crate) fn new(runtime: R) -> Self {
