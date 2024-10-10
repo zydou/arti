@@ -1,4 +1,4 @@
-from arti_rpc_tests import *
+from arti_rpc_tests import arti_test
 
 
 @arti_test
