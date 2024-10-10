@@ -71,11 +71,11 @@ class TestFilter:
         Yield every test in `module` that this filter permits.
         """
         for name in sorted(dir(module)):
-            if not name.startswith("test_"):
-                continue
+            obj = getattr(module,name)
 
-            sname = name.removeprefix("test_")
-            yield TestCase(f"{module.__name__}.{sname}", getattr(module, name))
+            if callable(obj) and getattr(obj, "arti_rpc_test", False):
+                sname = name.removeprefix("test_")
+                yield TestCase(f"{module.__name__}.{sname}", obj)
 
 
 class TestCase:
