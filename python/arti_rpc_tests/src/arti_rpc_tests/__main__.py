@@ -27,8 +27,6 @@ ARGUMENTS:
 
 from arti_rpc_tests import context, runner
 
-import arti_rpc
-
 import argparse
 import os
 import sys

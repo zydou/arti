@@ -6,9 +6,7 @@ from __future__ import annotations
 
 import arti_rpc
 import math
-import os
 import signal
-import string
 import subprocess
 import sys
 import time
@@ -95,7 +93,7 @@ class TestContext:
         waited = 0.0
         for _ in range(math.ceil(timeout / interval)):
             try:
-                rpc_conn = self.open_rpc_connection()
+                _ = self.open_rpc_connection()
                 print(f"Waited {waited} seconds for Arti RPC to be reachable.")
                 return
             except arti_rpc.ArtiRpcError:

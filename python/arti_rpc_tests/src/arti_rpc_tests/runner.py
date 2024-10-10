@@ -107,7 +107,7 @@ class TestCase:
         except FatalException:
             print("FATAL EXCEPTION")
             raise
-        except Exception as ex:
+        except Exception:
             print("FAILED")
             traceback.print_exc()
             return False
