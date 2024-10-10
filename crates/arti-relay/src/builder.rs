@@ -11,7 +11,7 @@ use crate::relay::TorRelay;
 /// Returned by [`TorRelay::builder()`].
 #[derive(Clone)]
 #[must_use]
-#[allow(unused)] // XXX: Remove me when used.
+#[allow(unused)] // TODO: Remove me when used.
 pub(crate) struct TorRelayBuilder<R: Runtime> {
     /// The runtime for the client to use
     runtime: R,
@@ -19,7 +19,7 @@ pub(crate) struct TorRelayBuilder<R: Runtime> {
     config: TorRelayConfig,
 }
 
-#[allow(unused)] // XXX: Remove me when used.
+#[allow(unused)] // TODO: Remove me when used.
 impl<R: Runtime> TorRelayBuilder<R> {
     /// Construct a new TorClientBuilder with the given runtime.
     pub(crate) fn new(runtime: R) -> Self {
