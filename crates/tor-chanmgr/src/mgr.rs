@@ -1,6 +1,6 @@
 //! Abstract implementation of a channel manager
 
-use crate::mgr::state::{OpenEntry, PendingEntry};
+use crate::mgr::state::{ChannelState, OpenEntry, PendingEntry};
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use crate::factory::BootstrapReporter;
@@ -155,12 +155,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     fn setup_launch<C>(
         &self,
         ids: RelayIds,
-    ) -> (state::ChannelState<C>, Sending, state::UniqPendingChanId) {
+    ) -> (ChannelState<C>, Sending, state::UniqPendingChanId) {
         let (snd, rcv) = oneshot::channel();
         let pending = rcv.shared();
         let unique_id = state::UniqPendingChanId::new();
         (
-            state::ChannelState::Building(state::PendingEntry {
+            ChannelState::Building(PendingEntry {
                 ids,
                 pending,
                 unique_id,
@@ -290,13 +290,8 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     let _ignore_err = send.send(status.clone().map(|_| ()));
 
                     match status {
-                        Ok(Some(chan)) => {
+                        Ok(chan) => {
                             return Ok((chan, ChanProvenance::NewlyCreated));
-                        }
-                        Ok(None) => {
-                            final_attempt = true;
-                            provenance = ChanProvenance::NewlyCreated;
-                            last_err.get_or_insert(Error::RequestCancelled);
                         }
                         Err(e) => last_err = Some(e),
                     }
@@ -322,7 +317,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         target: &CF::BuildSpec,
         final_attempt: bool,
     ) -> Result<Option<Action<CF::Channel>>> {
-        use state::ChannelState::*;
+        use ChannelState::*;
 
         // The idea here is to choose the channel in two steps:
         //
@@ -403,24 +398,22 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
             // Great, nothing interfered at all.
             let (new_state, send, pending_id) = self.setup_launch(RelayIds::from_relay_ids(target));
             channel_map.try_insert(new_state)?;
-            // TODO: Later code could return with an error before the code that eventually removes
-            // this entry, and then this entry would then be left in the map forever. We should have
-            // a better cleanup procedure for channels.
+            // TODO arti#1654: Later code could return with an error before the code that eventually
+            // removes this entry, and then this entry would then be left in the map forever. If
+            // this happened, no callers would be able to build channels to this target anymore. We
+            // should have a better cleanup procedure for channels.
             Ok(Some(Action::Launch((send, pending_id))))
         })?
     }
 
     /// We just tried to build a channel: Handle the outcome and decide what to
     /// do.
-    ///
-    /// Return `Ok(None)` if we have a transient error that we expect will be
-    /// cleaned up by one final call to `choose_action`.
     fn handle_build_outcome(
         &self,
         target: &CF::BuildSpec,
         pending_id: state::UniqPendingChanId,
         outcome: Result<Arc<CF::Channel>>,
-    ) -> Result<Option<Arc<CF::Channel>>> {
+    ) -> Result<Arc<CF::Channel>> {
         use state::ChannelState::{self, *};
 
         /// Remove the pending channel with `pending_id` and a `relay_id` from `channel_map`.
@@ -475,7 +468,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                             ),
                         });
                         channel_map.insert(new_entry);
-                        Ok(Some(chan))
+                        Ok(chan)
                     })?
             }
             Err(e) => {
@@ -536,7 +529,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     where
         T: Into<tor_linkspec::RelayIdRef<'a>>,
     {
-        use state::ChannelState::*;
+        use ChannelState::*;
         self.channels
             .with_channels(|channel_map| {
                 channel_map

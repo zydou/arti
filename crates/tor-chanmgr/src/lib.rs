@@ -62,7 +62,9 @@ use tor_error::error_report;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_proto::channel::Channel;
-use tor_proto::memquota::{ChannelAccount, ToplevelAccount};
+#[cfg(feature = "experimental-api")]
+use tor_proto::memquota::ChannelAccount;
+use tor_proto::memquota::ToplevelAccount;
 use tracing::debug;
 use void::{ResultVoidErrExt, Void};
 
