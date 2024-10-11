@@ -301,6 +301,7 @@ class ArtiRpcObject(_RpcBase):
         """
         return self._id
 
+    # TODO RPC BREAKING: This needs some way to take a 'meta' field
     def invoke(self, method: str, **params):
         """
         Invoke a given RPC method with a given set of parameters,
@@ -311,6 +312,7 @@ class ArtiRpcObject(_RpcBase):
         result = self._conn.execute(json.dumps(request))
         return json.loads(result)["result"]
 
+    # TODO RPC BREAKING: This needs some way to take a 'meta' field
     def invoke_with_handle(self, method: str, **params):
         """
         Invoke a given RPC method with a given set of parameters,
