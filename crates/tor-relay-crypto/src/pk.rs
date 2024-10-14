@@ -29,6 +29,8 @@ define_ed25519_keypair!(
     pub RelaySigning
 );
 
+// TODO(#1692): reinstate this specifier
+/*
 #[non_exhaustive]
 #[derive(Deftly, PartialEq, Debug, Constructor)]
 #[derive_deftly(KeySpecifier)]
@@ -37,6 +39,7 @@ define_ed25519_keypair!(
 #[deftly(summary = "Relay medium-term signing keypair")]
 /// The key sepcifier of the relay medium-term signing key (RelaySigningKeypair)
 pub struct RelaySigningKeySpecifier;
+*/
 
 define_ed25519_keypair!(
     /// [KP_link_ed] Short-term signing keypair for link authentication. Rotated frequently.
