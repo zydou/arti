@@ -136,7 +136,10 @@ define_derive_deftly! {
     }
 
     impl $crate::macro_deps::ed25519::Signer<$crate::macro_deps::ed25519::Signature> for $ttype {
-        fn try_sign(&self, msg: &[u8]) -> Result<$crate::macro_deps::ed25519::Signature, $crate::macro_deps::signature::Error> {
+        fn try_sign(
+            &self,
+            msg: &[u8])
+        -> Result<$crate::macro_deps::ed25519::Signature, $crate::macro_deps::signature::Error> {
             self.0.try_sign(msg)
         }
     }
