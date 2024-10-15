@@ -359,8 +359,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
         match outcome {
             Ok(chan) => {
-                // The channel got built: remember it, tell the
-                // others, and return it.
+                // The channel got built: remember it and return it.
                 self.channels
                     .with_channels_and_params(|channel_map, channels_params| {
                         // Remove the pending channel.
@@ -392,8 +391,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     })?
             }
             Err(e) => {
-                // The channel failed. Make it non-pending, tell the
-                // others, and set the error.
+                // The channel failed. Make it non-pending and set the error.
                 self.channels.with_channels(|channel_map| {
                     // Remove the pending channel.
                     remove_pending_chan(channel_map, relay_id, pending_id);

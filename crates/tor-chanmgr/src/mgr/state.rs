@@ -277,7 +277,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         }
     }
 
-    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
+    /// Run a function on the [`ListByRelayIds`] that implements the map in this `MgrState`.
     ///
     /// This function grabs a mutex: do not provide a slow function.
     ///
