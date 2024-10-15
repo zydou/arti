@@ -3,12 +3,14 @@
 use std::time::Duration;
 
 use super::AbstractChannelFactory;
-use super::{AbstractChannel, Pending};
-use crate::{ChannelConfig, Dormancy, Result};
+use super::{select, AbstractChannel, Pending, Sending};
+use crate::{ChannelConfig, Dormancy, Error, Result};
 
+use futures::FutureExt;
 use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use tor_async_utils::oneshot;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
@@ -352,6 +354,96 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         Ok(())
     }
 
+    /// Request an open or pending channel to `target`. If `add_new_entry_if_not_found` is true and
+    /// an open or pending channel isn't found, a new pending entry will be added and
+    /// [`ChannelForTarget::NewEntry`] will be returned. This is all done as part of the same method
+    /// so that all operations are performed under the same lock acquisition.
+    pub(crate) fn request_channel(
+        &self,
+        target: &C::BuildSpec,
+        add_new_entry_if_not_found: bool,
+    ) -> Result<Option<ChannelForTarget<C::Channel>>> {
+        use ChannelState::*;
+
+        // The idea here is to choose the channel in two steps:
+        //
+        // - Eligibility: Get channels from the channel map and filter them down to only channels
+        //   which are eligible to be returned.
+        // - Ranking: From the eligible channels, choose the best channel.
+        //
+        // Another way to choose the channel could be something like: first try all canonical open
+        // channels, then all non-canonical open channels, then all pending channels with all
+        // matching relay ids, then remaining pending channels, etc. But this ends up being hard to
+        // follow and inflexible (what if you want to prioritize pending channels over non-canonical
+        // open channels?).
+
+        self.with_channels(|channel_map| {
+            // Open channels which are allowed for requests to `target`.
+            let open_channels = channel_map
+                // channels with all target relay identifiers
+                .by_all_ids(target)
+                .filter(|entry| match entry {
+                    Open(x) => select::open_channel_is_allowed(x, target),
+                    Building(_) => false,
+                });
+
+            // Pending channels which will *probably* be allowed for requests to `target` once they
+            // complete.
+            let pending_channels = channel_map
+                // channels that have a subset of the relay ids of `target`
+                .all_subset(target)
+                .into_iter()
+                .filter(|entry| match entry {
+                    Open(_) => false,
+                    Building(x) => select::pending_channel_maybe_allowed(x, target),
+                });
+
+            match select::choose_best_channel(open_channels.chain(pending_channels), target) {
+                Some(Open(OpenEntry { channel, .. })) => {
+                    // This entry is a perfect match for the target keys: we'll return the open
+                    // entry.
+                    return Ok(Some(ChannelForTarget::Open(Arc::clone(channel))));
+                }
+                Some(Building(PendingEntry { pending, .. })) => {
+                    // This entry is potentially a match for the target identities: we'll return the
+                    // pending entry. (We don't know for sure if it will match once it completes,
+                    // since we might discover additional keys beyond those listed for this pending
+                    // entry.)
+                    return Ok(Some(ChannelForTarget::Pending(pending.clone())));
+                }
+                None => {}
+            }
+
+            // It's possible we know ahead of time that building a channel would be unsuccessful.
+            if channel_map
+                // channels with at least one id in common with `target`
+                .all_overlapping(target)
+                .into_iter()
+                // but not channels which completely satisfy the id requirements of `target`
+                .filter(|entry| !entry.has_all_relay_ids_from(target))
+                .any(|entry| matches!(entry, Open(OpenEntry{ channel, ..}) if channel.is_usable()))
+            {
+                // At least one *open, usable* channel has been negotiated that overlaps only
+                // partially with our target: it has proven itself to have _one_ of our target
+                // identities, but not all.
+                //
+                // Because this channel exists, we know that our target cannot succeed, since relays
+                // are not allowed to share _any_ identities.
+                //return Ok(Some(Action::Return(Err(Error::IdentityConflict))));
+                return Err(Error::IdentityConflict);
+            }
+
+            if !add_new_entry_if_not_found {
+                return Ok(None);
+            }
+
+            // Great, nothing interfered at all.
+            let (new_state, send, pending_id) = setup_launch(RelayIds::from_relay_ids(target));
+            channel_map.try_insert(ChannelState::Building(new_state))?;
+            Ok(Some(ChannelForTarget::NewEntry((send, pending_id))))
+        })?
+    }
+
     /// Reconfigure all channels as necessary
     ///
     /// (By reparameterizing channels as needed)
@@ -428,6 +520,30 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             .retain(|chan| !chan.ready_to_expire(&mut ret));
         ret
     }
+}
+
+/// A channel for a given target relay.
+pub(crate) enum ChannelForTarget<C> {
+    /// A channel that is open.
+    Open(Arc<C>),
+    /// A channel that is building.
+    Pending(Pending),
+    /// Information about a new pending channel entry.
+    NewEntry((Sending, UniqPendingChanId)),
+}
+
+/// Helper: return the objects used to inform pending tasks about a newly open or failed channel.
+fn setup_launch(ids: RelayIds) -> (PendingEntry, Sending, UniqPendingChanId) {
+    let (snd, rcv) = oneshot::channel();
+    let pending = rcv.shared();
+    let unique_id = UniqPendingChanId::new();
+    let entry = PendingEntry {
+        ids,
+        pending,
+        unique_id,
+    };
+
+    (entry, snd, unique_id)
 }
 
 /// Converts config, dormancy, and netdir, into parameter updates
