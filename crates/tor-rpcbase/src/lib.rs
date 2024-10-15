@@ -49,7 +49,7 @@ mod obj;
 use std::{convert::Infallible, sync::Arc};
 
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
-pub use err::RpcError;
+pub use err::{RpcError, RpcErrorKind};
 pub use method::{
     check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod,
     InvalidMethodName, Method, NoUpdates, RpcMethod,

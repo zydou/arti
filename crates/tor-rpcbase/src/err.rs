@@ -57,7 +57,8 @@ fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S
 /// each of these codes has a unique numeric ID.
 #[derive(Clone, Debug, Eq, PartialEq, serde_repr::Serialize_repr)]
 #[repr(i32)]
-enum RpcErrorKind {
+#[non_exhaustive]
+pub enum RpcErrorKind {
     /// "The JSON sent is not a valid Request object."
     InvalidRequest = -32600,
     /// "The method does not exist."
