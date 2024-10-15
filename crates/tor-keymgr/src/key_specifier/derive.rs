@@ -510,7 +510,9 @@ define_derive_deftly! {
 
         fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
             ${if tmeta(keypair_specifier) {
-                Some(Box::new(std::convert::Into::<${tmeta(keypair_specifier) as token_stream}>::into(self)))
+                Some(Box::new(std::convert::Into::<
+                    ${tmeta(keypair_specifier) as token_stream}
+                >::into(self)))
             } else {
                 None
             }}
