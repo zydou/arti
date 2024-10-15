@@ -386,6 +386,18 @@ define_derive_deftly! {
     ///    (Can be even used before a denotator component,
     ///    to add a final fixed path component.)
     ///
+    ///  * **`#[deftly(key_specifier = "type")]`** (field):
+    ///    If this is the specifier for a public key, the specifier for
+    ///    the corresponding keypair type.
+    ///
+    ///    If not specified, the generated [`KeySpecifier::keypair_specifier`]
+    ///    implementation will always return `None`.
+    //
+    //     NOTE: The `KeySpecifier::keypair_specifier` implementation
+    //     of the `ArtiPath` of a public key will always return `None`,
+    //     even if the public key specifier it represents has a keypair specifier.
+    //
+    ///
     export KeySpecifier for struct:
 
     // A condition that evaluates to `true` for path fields.
@@ -498,7 +510,9 @@ define_derive_deftly! {
 
         fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
             ${if tmeta(keypair_specifier) {
-                Some(Box::new(std::convert::Into::<${tmeta(keypair_specifier) as token_stream}>::into(self)))
+                Some(Box::new(std::convert::Into::<
+                    ${tmeta(keypair_specifier) as token_stream}
+                >::into(self)))
             } else {
                 None
             }}
