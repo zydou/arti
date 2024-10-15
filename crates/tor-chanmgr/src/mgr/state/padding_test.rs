@@ -26,9 +26,10 @@ use itertools::{zip_eq, Itertools};
 use tor_cell::chancell::msg::PaddingNegotiateCmd;
 use tor_config::PaddingLevel;
 use tor_linkspec::{HasRelayIds, RelayIds};
+use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
-use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount};
+use tor_proto::memquota::{ChannelAccount, ToplevelAccount};
 
 use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
 use crate::ChannelUsage;

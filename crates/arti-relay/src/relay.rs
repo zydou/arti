@@ -7,8 +7,9 @@ use tor_error::internal;
 use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
 };
+use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::params::NetParameters;
-use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
+use tor_proto::memquota::ToplevelAccount;
 use tor_relay_crypto::pk::{RelayIdentityKeySpecifier, RelayIdentityKeypair};
 use tor_rtcompat::Runtime;
 use tracing::info;

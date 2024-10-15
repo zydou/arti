@@ -748,7 +748,8 @@ pub(crate) mod test {
     use std::task::Poll::{self, *};
     use tokio::pin;
     use tokio_crate as tokio;
-    use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
+    use tor_memquota::ArcMemoryQuotaTrackerExt as _;
+    use tor_proto::memquota::ToplevelAccount;
     use tor_rtcompat::{test_with_one_runtime, SleepProvider};
     use tor_rtmock::MockRuntime;
     use tracing_test::traced_test;

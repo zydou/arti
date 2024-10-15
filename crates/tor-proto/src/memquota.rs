@@ -58,11 +58,9 @@
 //!     In a single Arti instance there will be one of these,
 //!     used for all memory tracking.
 //!     This is held (shared) by the chanmgr and the circmgr.
-//!
-//!     We do not claim memory directly from it, so it won't be subject to reclaim.
-//      This is silly.  We don't want anyone to make a Participant from this account.
-//      TODO #351 make `ToplevelAccount` a type alias or wrapper for `Arc<MemoryQuotaTracker>`.
-//      (but doing this before we have merged !2505/!2508 will just generate conflicts.)
+//!     Unlike the other layer-specific accounts,
+//!     this is just a type alias for [`MemoryQuotaTracker`].
+//!     It doesn't support claiming memory directly from it, so it won't be subject to reclaim.
 //!
 //!   * [`ChannelAccount`].
 //!     Contains (via parentage) everything that goes via a particular Channel.
@@ -84,7 +82,8 @@
 //! Thus, killing a single queue will reclaim the memory associated with several other queues.
 
 use derive_deftly::{define_derive_deftly, Deftly};
-use tor_memquota::Account;
+use std::sync::Arc;
+use tor_memquota::{Account, MemoryQuotaTracker};
 
 /// An [`Account`], whose type indicates which layer of the stack it's for
 //
@@ -173,16 +172,18 @@ define_derive_deftly! {
 
 }
 
-/// [`Account`] for the whole system
+/// Account for the whole system
 ///
-/// (There will typically be only one of these for an entire Arti client or relay.)
+/// There will typically be only one of these for an entire Arti client or relay.
 ///
-/// Use via the [`SpecificAccount`] impl.
+/// This is not really an [`Account`].
+/// We don't want anyone to make a Participant from this,
+/// because if that Participant were reclaimed, *everything* would be torn down.
+///
+/// We provide the type alias for consistency/readability at call sites.
+///
 /// See the [`memquota`](self) module documentation.
-#[derive(Deftly, Clone, Debug)]
-#[derive_deftly(SpecificAccount)]
-#[deftly(account_newtype(toplevel))]
-pub struct ToplevelAccount(Account);
+pub type ToplevelAccount = Arc<MemoryQuotaTracker>;
 
 /// [`Account`] for a Tor Channel
 ///
@@ -190,7 +191,7 @@ pub struct ToplevelAccount(Account);
 /// See the [`memquota`](self) module documentation.
 #[derive(Deftly, Clone, Debug)]
 #[derive_deftly(SpecificAccount)]
-#[deftly(account_newtype(parent = "ToplevelAccount"))]
+#[deftly(account_newtype(toplevel))]
 pub struct ChannelAccount(Account);
 
 /// [`Account`] for a Tor Circuit
