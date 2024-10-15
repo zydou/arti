@@ -505,7 +505,7 @@ mod test {
         let e = r.next().unwrap();
         match e {
             Err(Error::NotFound(p)) => assert_eq!(p, root.join("a/xxx")),
-            _ => panic!(),
+            other => panic!("{:?}", other),
         }
         let (start, rest) = r.into_result();
         assert_eq!(start, d.path("a").canonicalize().unwrap());

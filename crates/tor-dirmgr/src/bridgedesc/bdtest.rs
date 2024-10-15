@@ -44,7 +44,7 @@ fn example_validity() -> (SystemTime, SystemTime) {
         .dangerously_into_parts();
     let ret = |tb| match tb {
         Bound::Included(t) | Bound::Excluded(t) => t,
-        _ => panic!(),
+        other => panic!("{:?}", other),
     };
     (ret(t), ret(u))
 }
