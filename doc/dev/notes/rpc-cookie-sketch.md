@@ -14,7 +14,8 @@ a given secure cookie file on the filesystem.
 Let P be the 32-byte non-terminated string
 "====== arti-rpc-cookie-v1 ======".
 
-Let TupleHash(a,b,c,...) be the Keccak-based digest function
+Let MAC(a,b,c,...) be TupleHash,
+the Keccak-based cryptographic digest function
 described in Section 5 of [NIST SP 800-185],
 using the output length `L = 256 bits`,
 and the customization string `S = "arti-rpc-cookie-v1"`
@@ -58,17 +59,17 @@ The client additionally knows:
 2. The client sends `CN`.
 
 3. The server computes
-   `S_MAC = TupleHash(COOKIE, "Server", SADDR_CANONICAL, CN)`
+   `S_MAC = MAC(COOKIE, "Server", SADDR_CANONICAL, CN)`
    and sends (`S_MAC`, `SADDR_CANONICAL`, `SN`).
 
 4. The client computes `S_MAC`, and verifies that its value matches the one
    provided by the server.  If it does not match, it aborts the protocol.
    If it does match, the client computes
-   `C_MAC = TupleHash(COOKIE, "Client", SADDR_CANONICAL, SN)`,
+   `C_MAC = MAC(COOKIE, "Client", SADDR_CANONICAL, SN)`,
    and sends `C_MAC` to the server.
 
-5. The client computes `C_MAC`, and verifies that its value matches the one
-   provided by the server.  If it does not match, it aborts the protocol.
+5. The server computes `C_MAC`, and verifies that its value matches the one
+   provided by the client.  If it does not match, it aborts the protocol.
    Otherwise, the parties are authenticated.
 
 ## In Arti-RPC.
@@ -76,15 +77,20 @@ The client additionally knows:
 This protocol is selected from an RPC connect string as discussed
 in `rpc-connect-sketch.md` (see !2439 if it isn't merged yet.)
 
-The client's message in step 2 is embedded in a `cookie_challenge` field in the client's
-`auth:query` message.
+The client's message in step 2 is sent as an `auth:cookie_begin` command.
+It returns a single-use object that can be used in step 3.
 
 The server's message in step 3 is embedded in the server's response to that
-method, in a pair of fields `cookie_challenge` and `cookie_id`.
+method, in a set of fields. `server_addr`, `server_mac`, and `server_nonce.`
 
-The client's method in step 3 is embedded in the client's authentication
-message, in a field called `auth`.
+The client's method in step 3 is sent as a client's followup
+`auth:cookie_continue` message, in a field called `client_mac`.
 
 All binary strings are encoded in hexadecimal before sending in JSON.
 
+## Amendment to connect strings
 
+When cookie authentication is in use, we must also specify `addr_canonical`
+in the `cookie` object in the connect string.
+
+> (We'll merge this there once the dust has settled on arti!2439)
