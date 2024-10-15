@@ -18,6 +18,7 @@ operations not used by the rest of Tor.  These include:
   * A set of operations to divide time into different "periods".  These periods
     are used as inputs to the DHT-style hash ring, and to the key-blinding
     operations.
+  * Proof of work schemes for resisting denial of service attacks
 
 This crate implements those operations, along with a set of wrapper types to
 keep us from getting confused about the numerous keys and nonces used for the
@@ -25,3 +26,4 @@ onion services.
 
 License: MIT OR Apache-2.0
 
+When the `pow` feature is used, we link with LGPL licensed dependencies.

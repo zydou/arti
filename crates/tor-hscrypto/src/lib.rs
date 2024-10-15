@@ -47,6 +47,7 @@ mod macros;
 pub mod ope;
 pub mod ops;
 pub mod pk;
+pub mod pow;
 pub mod time;
 
 use macros::define_bytes;

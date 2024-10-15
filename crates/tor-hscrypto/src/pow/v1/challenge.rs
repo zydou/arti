@@ -1,10 +1,13 @@
-//! Implement the `v1` protocol's challenge string format
+//! Implement the `v1` scheme's challenge string format
 //!
 //! This is a packed byte-string which encodes our puzzle's parameters
 //! as inputs for Equi-X. We need to construct challenge strings both to
 //! solve and to verify puzzles.
 
-use crate::v1::{Effort, Instance, Nonce, Seed, SolutionError, NONCE_LEN, SEED_LEN};
+use crate::pow::v1::{
+    err::SolutionErrorV1, types::Effort, types::Instance, types::Nonce, types::Seed,
+    types::NONCE_LEN, types::SEED_LEN,
+};
 use arrayvec::{ArrayVec, CapacityError};
 use blake2::{digest::consts::U4, Blake2b, Digest};
 
@@ -120,18 +123,18 @@ impl Challenge {
     /// Equi-X solution, and tests the result against the effort encoded
     /// in the challenge string.
     ///
-    /// Used by both the [`crate::v1::Solver`] and the [`crate::v1::Verifier`].
+    /// Used by both the [`crate::pow::v1::Solver`] and the [`crate::pow::v1::Verifier`].
     pub(super) fn check_effort(
         &self,
         proof: &equix::SolutionByteArray,
-    ) -> Result<(), SolutionError> {
+    ) -> Result<(), SolutionErrorV1> {
         let mut hasher = Blake2b::<U4>::new();
         hasher.update(self.as_ref());
         hasher.update(proof.as_ref());
         let value = u32::from_be_bytes(hasher.finalize().into());
         match value.checked_mul(*self.effort().as_ref()) {
             Some(_) => Ok(()),
-            None => Err(SolutionError::Effort),
+            None => Err(SolutionErrorV1::Effort),
         }
     }
 }

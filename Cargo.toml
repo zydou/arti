@@ -36,7 +36,6 @@ members = [
     "crates/tor-bytes",
     "crates/tor-hscrypto",
     "crates/tor-key-forge",
-    "crates/tor-hspow",
     "crates/tor-socksproto",
     "crates/tor-checkable",
     "crates/tor-cert",

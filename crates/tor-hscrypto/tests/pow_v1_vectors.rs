@@ -1,4 +1,4 @@
-//! Test vectors from the C tor implementation
+//! PoW v1 test vectors from the C tor implementation
 //!
 //! Includes short-running 'verify' tests and longer-running 'solve' tests,
 //! with vectors from C tor.
@@ -9,19 +9,21 @@
 
 use hex_literal::hex;
 use tor_hscrypto::pk::HsBlindId;
-use tor_hspow::v1::{Effort, Instance, Nonce, Seed, Solution, SolutionByteArray, SolutionError};
-use tor_hspow::Error;
+use tor_hscrypto::pow::v1::{
+    Effort, Instance, Nonce, Seed, Solution, SolutionByteArray, SolutionErrorV1, SolverInput,
+    Verifier,
+};
+use tor_hscrypto::pow::{Error, SolutionError};
 
 #[test]
 fn verify_seed0_effort1_hash_err() {
     // All zero, but only claims an effort of 1.
     // Expect it will last until hash sum checks before failing.
     assert!(matches!(
-        Instance::new(
+        Verifier::new(Instance::new(
             hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
             hex!("0000000000000000000000000000000000000000000000000000000000000000").into(),
-        )
-        .verifier()
+        ))
         .check(
             &Solution::try_from_bytes(
                 hex!("00000000000000000000000000000000").into(),
@@ -31,8 +33,8 @@ fn verify_seed0_effort1_hash_err() {
             )
             .unwrap(),
         ),
-        Err(Error::BadSolution(tor_hspow::SolutionError::V1(
-            SolutionError::HashSum
+        Err(Error::BadSolution(SolutionError::V1(
+            SolutionErrorV1::HashSum
         )))
     ));
 }
@@ -41,11 +43,10 @@ fn verify_seed0_effort1_hash_err() {
 fn verify_seed0_effort10_effort_err() {
     // All zero, but a higher effort claim. Should fail the effort check.
     assert!(matches!(
-        Instance::new(
+        Verifier::new(Instance::new(
             hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
             hex!("0000000000000000000000000000000000000000000000000000000000000000").into(),
-        )
-        .verifier()
+        ))
         .check(
             &Solution::try_from_bytes(
                 hex!("00000000000000000000000000000000").into(),
@@ -55,8 +56,8 @@ fn verify_seed0_effort10_effort_err() {
             )
             .unwrap(),
         ),
-        Err(Error::BadSolution(tor_hspow::SolutionError::V1(
-            SolutionError::Effort
+        Err(Error::BadSolution(SolutionError::V1(
+            SolutionErrorV1::Effort
         )))
     ));
 }
@@ -65,11 +66,10 @@ fn verify_seed0_effort10_effort_err() {
 fn verify_seed0_effort0_seed_err() {
     // Seed head mismatch
     assert!(matches!(
-        Instance::new(
+        Verifier::new(Instance::new(
             hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
             hex!("0000000000000000000000000000000000000000000000000000000000000000").into(),
-        )
-        .verifier()
+        ))
         .check(
             &Solution::try_from_bytes(
                 hex!("00000000000000000000000000000000").into(),
@@ -79,20 +79,17 @@ fn verify_seed0_effort0_seed_err() {
             )
             .unwrap(),
         ),
-        Err(Error::BadSolution(tor_hspow::SolutionError::V1(
-            SolutionError::Seed
-        )))
+        Err(Error::BadSolution(SolutionError::V1(SolutionErrorV1::Seed)))
     ));
 }
 
 #[test]
 fn verify_effort0_ok() {
     // Valid zero-effort solution
-    assert!(Instance::new(
+    assert!(Verifier::new(Instance::new(
         hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
         hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").into()
-    )
-    .verifier()
+    ))
     .check(
         &Solution::try_from_bytes(
             hex!("55555555555555555555555555555555").into(),
@@ -108,11 +105,10 @@ fn verify_effort0_ok() {
 #[test]
 fn verify_effort1m_ok() {
     // Valid high-effort solution
-    assert!(Instance::new(
+    assert!(Verifier::new(Instance::new(
         hex!("1111111111111111111111111111111111111111111111111111111111111111").into(),
         hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").into()
-    )
-    .verifier()
+    ))
     .check(
         &Solution::try_from_bytes(
             hex!("59217255555555555555555555555555").into(),
@@ -131,11 +127,10 @@ fn verify_effort100k_effort_err() {
     // when the Equi-X proof was created, or it will fail either the
     // Effort or HashSum checks.
     assert!(matches!(
-        Instance::new(
+        Verifier::new(Instance::new(
             hex!("bfd298428562e530c52bdb36d81a0e293ef4a0e94d787f0f8c0c611f4f9e78ed").into(),
             hex!("86fb0acf4932cda44dbb451282f415479462dd10cb97ff5e7e8e2a53c3767a7f").into()
-        )
-        .verifier()
+        ))
         .check(
             &Solution::try_from_bytes(
                 hex!("2eff9fdbc34326d9d2f18ed277469c63").into(),
@@ -145,8 +140,8 @@ fn verify_effort100k_effort_err() {
             )
             .unwrap()
         ),
-        Err(Error::BadSolution(tor_hspow::SolutionError::V1(
-            SolutionError::Effort
+        Err(Error::BadSolution(SolutionError::V1(
+            SolutionErrorV1::Effort
         )))
     ));
 }
@@ -156,11 +151,10 @@ fn verify_seed86_effort100k_effort_err() {
     // Otherwise good solution but with a corrupted nonce. This may fail
     // either the Effort or HashSum checks.
     assert!(matches!(
-        Instance::new(
+        Verifier::new(Instance::new(
             hex!("bfd298428562e530c52bdb36d81a0e293ef4a0e94d787f0f8c0c611f4f9e78ed").into(),
             hex!("86fb0acf4932cda44dbb451282f415479462dd10cb97ff5e7e8e2a53c3767a7f").into()
-        )
-        .verifier()
+        ))
         .check(
             &Solution::try_from_bytes(
                 hex!("2eff9fdbc34326d9a2f18ed277469c63").into(),
@@ -170,19 +164,18 @@ fn verify_seed86_effort100k_effort_err() {
             )
             .unwrap()
         ),
-        Err(Error::BadSolution(tor_hspow::SolutionError::V1(
-            SolutionError::Effort
+        Err(Error::BadSolution(SolutionError::V1(
+            SolutionErrorV1::Effort
         )))
     ));
 }
 
 #[test]
 fn verify_seed86_effort100k_ok() {
-    assert!(Instance::new(
+    assert!(Verifier::new(Instance::new(
         hex!("bfd298428562e530c52bdb36d81a0e293ef4a0e94d787f0f8c0c611f4f9e78ed").into(),
         hex!("86fb0acf4932cda44dbb451282f415479462dd10cb97ff5e7e8e2a53c3767a7f").into()
-    )
-    .verifier()
+    ))
     .check(
         &Solution::try_from_bytes(
             hex!("2eff9fdbc34326d9d2f18ed277469c63").into(),
@@ -205,9 +198,7 @@ fn solve_and_verify(
     expected_proof: SolutionByteArray,
 ) {
     let instance = Instance::new(service, seed);
-    let solution = instance
-        .clone()
-        .with_effort(effort)
+    let solution = SolverInput::new(instance.clone(), effort)
         .solve_with_nonce(&first_nonce)
         .run()
         .unwrap();
@@ -222,7 +213,7 @@ fn solve_and_verify(
         &expected_proof
     )
     .is_ok());
-    assert!(instance.verifier().check(&solution).is_ok());
+    assert!(Verifier::new(instance).check(&solution).is_ok());
 }
 
 #[test]

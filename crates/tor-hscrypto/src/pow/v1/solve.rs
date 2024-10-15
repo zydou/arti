@@ -1,8 +1,11 @@
 //! Solver implementation for v1 client puzzles
 
-use crate::v1::challenge::Challenge;
-use crate::v1::{Effort, Instance, Nonce, RuntimeError, RuntimeOption, Solution, NONCE_LEN};
-use equix::{EquiXBuilder, HashError, SolverMemory};
+use crate::pow::v1::challenge::Challenge;
+use crate::pow::v1::{
+    err::RuntimeErrorV1, types::Effort, types::Instance, types::Nonce, types::Solution,
+    types::NONCE_LEN,
+};
+use equix::{EquiXBuilder, HashError, RuntimeOption, SolverMemory};
 use rand::{CryptoRng, Rng, RngCore};
 
 /// All inputs necessary to run the [`Solver`]
@@ -18,9 +21,6 @@ pub struct SolverInput {
 
 impl SolverInput {
     /// Construct a [`SolverInput`] by wrapping an [`Instance`].
-    ///
-    /// This is a lower-level constructor.
-    /// Prefer [`Instance::with_effort()`].
     pub fn new(instance: Instance, effort: Effort) -> Self {
         SolverInput {
             instance,
@@ -79,7 +79,7 @@ impl Solver {
     /// This takes a random amount of time to finish, with no possibility
     /// to cancel early. If you need cancellation, use [`Self::run_step()`]
     /// instead.
-    pub fn run(&mut self) -> Result<Solution, RuntimeError> {
+    pub fn run(&mut self) -> Result<Solution, RuntimeErrorV1> {
         loop {
             if let Some(solution) = self.run_step()? {
                 return Ok(solution);
@@ -105,7 +105,7 @@ impl Solver {
     /// It's possible to call this again after a solution has already
     /// been returned, but the resulting solutions will have nearby [`Nonce`]
     /// values so this is not recommended except for benchmarking.
-    pub fn run_step(&mut self) -> Result<Option<Solution>, RuntimeError> {
+    pub fn run_step(&mut self) -> Result<Option<Solution>, RuntimeErrorV1> {
         match self.equix.build(self.challenge.as_ref()) {
             Ok(equix) => {
                 for candidate in equix.solve_with_memory(&mut self.mem) {

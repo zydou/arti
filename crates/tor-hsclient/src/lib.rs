@@ -45,6 +45,7 @@ mod connect;
 mod err;
 mod isol_map;
 mod keys;
+mod pow;
 mod proto_oneshot;
 mod relay_info;
 mod state;

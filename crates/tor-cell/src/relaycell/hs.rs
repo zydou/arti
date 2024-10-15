@@ -14,6 +14,7 @@ use tor_memquota::derive_deftly_template_HasMemoryCost;
 pub mod est_intro;
 mod ext;
 pub mod intro_payload;
+pub mod pow;
 
 pub use ext::UnrecognizedExt;
 

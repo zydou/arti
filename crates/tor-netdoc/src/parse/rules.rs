@@ -150,7 +150,8 @@ impl<T: Keyword> TokenFmtBuilder<T> {
             ..self.0
         })
     }
-    /// Indicate that this Item is required.
+
+    /// Indicate that this Item may appear more than once.
     ///
     /// By default, items may not repeat.
     pub(crate) fn may_repeat(self) -> Self {

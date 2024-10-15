@@ -3,7 +3,7 @@
 /// Protocol-specific ways a solution can fail verification
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum SolutionError {
+pub enum SolutionErrorV1 {
     /// Mismatch between [`super::SeedHead`] and [`super::Instance`]
     #[error("Solution has an unrecognized Seed value")]
     Seed,
@@ -26,7 +26,7 @@ pub enum SolutionError {
 /// Protocol-specific runtime errors
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum RuntimeError {
+pub enum RuntimeErrorV1 {
     /// Unexpected error or runtime compiler error from the Equi-X layer
     #[error("Equi-X error, {0}")]
     EquiX(#[from] equix::Error),

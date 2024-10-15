@@ -4,7 +4,8 @@
 //! rend-spec-v3.txt.  It tells the onion service how to find the rendezvous
 //! point, and how to handshake with the client there.)
 
-use super::ext::{decl_extension_group, ExtGroup, ExtList, UnrecognizedExt};
+use super::ext::{decl_extension_group, Ext, ExtGroup, ExtList, UnrecognizedExt};
+use super::pow::ProofOfWork;
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
 use tor_hscrypto::RendCookie;
@@ -14,15 +15,17 @@ caret_int! {
     /// Type code for an extension in an [`IntroduceHandshakePayload`].
     #[derive(Ord,PartialOrd)]
     pub struct IntroPayloadExtType(u8) {
+        /// The extension to provide a completed proof-of-work solution for denial of service
+        /// mitigation
+        PROOF_OF_WORK = 2,
     }
 }
 
 decl_extension_group! {
     /// An extension to an [`IntroduceHandshakePayload`].
-    ///
-    /// (Currently, no extensions of this type are recognized.)
     #[derive(Debug,Clone)]
     enum IntroPayloadExt [ IntroPayloadExtType ] {
+        ProofOfWork,
     }
 }
 
@@ -159,8 +162,12 @@ impl IntroduceHandshakePayload {
         cookie: RendCookie,
         onion_key: OnionKey,
         link_specifiers: Vec<EncodedLinkSpec>,
+        proof_of_work: Option<ProofOfWork>,
     ) -> Self {
-        let extensions = ExtList::default();
+        let mut extensions = ExtList::default();
+        if let Some(proof_of_work) = proof_of_work {
+            extensions.push(proof_of_work.into());
+        }
         Self {
             cookie,
             extensions,

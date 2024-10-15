@@ -1,9 +1,9 @@
 //! Verifier implementation for v1 client puzzles
 
-use crate::v1::challenge::Challenge;
-use crate::v1::{Instance, RuntimeError, RuntimeOption, Solution, SolutionError};
-use crate::Error;
-use equix::{EquiXBuilder, HashError};
+use crate::pow::err::Error;
+use crate::pow::v1::challenge::Challenge;
+use crate::pow::v1::{err::RuntimeErrorV1, err::SolutionErrorV1, types::Instance, types::Solution};
+use equix::{EquiXBuilder, HashError, RuntimeOption};
 
 /// Checker for potential [`Solution`]s to a particular puzzle [`Instance`]
 ///
@@ -35,7 +35,7 @@ impl Verifier {
 
     /// Check whether a solution is valid for this puzzle instance.
     ///
-    /// May return a [`SolutionError`] or a [`RuntimeError`]
+    /// May return a [`SolutionErrorV1`] or a [`RuntimeErrorV1`]
     pub fn check(&self, solution: &Solution) -> Result<(), Error> {
         match self.check_seed(solution) {
             Err(e) => Err(Error::BadSolution(e.into())),
@@ -46,12 +46,12 @@ impl Verifier {
                     Ok(()) => match self.equix.verify(challenge.as_ref(), solution.proof()) {
                         Ok(()) => Ok(()),
                         Err(equix::Error::HashSum) => {
-                            Err(Error::BadSolution(SolutionError::HashSum.into()))
+                            Err(Error::BadSolution(SolutionErrorV1::HashSum.into()))
                         }
                         Err(equix::Error::Hash(HashError::ProgramConstraints)) => Err(
-                            Error::BadSolution(SolutionError::ChallengeConstraints.into()),
+                            Error::BadSolution(SolutionErrorV1::ChallengeConstraints.into()),
                         ),
-                        Err(e) => Err(Error::VerifyRuntime(RuntimeError::EquiX(e).into())),
+                        Err(e) => Err(Error::VerifyRuntime(RuntimeErrorV1::EquiX(e).into())),
                     },
                 }
             }
@@ -62,11 +62,11 @@ impl Verifier {
     ///
     /// This is a very cheap test, this should come first so a service
     /// can verify every [`Solution`] against its last two [`Instance`]s.
-    fn check_seed(&self, solution: &Solution) -> Result<(), SolutionError> {
+    fn check_seed(&self, solution: &Solution) -> Result<(), SolutionErrorV1> {
         if solution.seed_head() == self.instance.seed().head() {
             Ok(())
         } else {
-            Err(SolutionError::Seed)
+            Err(SolutionErrorV1::Seed)
         }
     }
 }
