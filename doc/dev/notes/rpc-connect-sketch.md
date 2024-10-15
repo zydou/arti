@@ -194,8 +194,23 @@ The members of the associated object are:
 - `socket` - The IP address and port of the listening socket.
   The IP address MUST be `127.0.0.1` or `[::1]`.
 - `cookie-path` - The location of a secret cookie file on disk.
-  Arti writes a secret to this file; during the authentication,
+  Arti writes a secret to this file; during authentication,
   the application and arti both prove that they know this secret.
+
+  It is the responsibility of the person defining the connect string
+  to select an appropriate `cookie-path` and ensure that the file
+  has the correct accessibility.
+  It must be writeable by Arti, and readable only by suitably authorized
+  programs.
+  Arti *should* check these permissions.
+
+  Arti will *not* install new data in this file by renaming;
+  rather, it will write a fresh secret to the file by truncating/overwriting
+  *before* it starts listening on the associated socket.
+  The client MUST read the file only *after*
+  successfully establishing the transport connection.
+
+  (TODO RPC: Move some of the above into the cookie-authentication spec.)
 
 An example connect string of this type is:
 
