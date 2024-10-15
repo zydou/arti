@@ -77,16 +77,17 @@ enum RpcCode {
 /// These are not especially helpful and nobody should really use them.
 fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
     use tor_error::ErrorKind as EK;
+    use RpcCode as RC;
     match kind {
-        EK::RpcInvalidRequest => RpcCode::InvalidRequest,
-        EK::RpcMethodNotFound => RpcCode::NoSuchMethod,
-        EK::RpcMethodNotImpl => RpcCode::MethodNotImpl,
-        EK::RpcInvalidMethodParameters => RpcCode::InvalidParams,
-        EK::Internal | EK::BadApiUsage => RpcCode::InternalError,
-        EK::RpcObjectNotFound => RpcCode::ObjectError,
-        EK::RpcRequestCancelled => RpcCode::RequestCancelled,
-        EK::RpcFeatureNotPresent => RpcCode::FeatureNotPresent,
-        _ => RpcCode::RequestError, // (This is our catch-all "request error.")
+        EK::RpcInvalidRequest => RC::InvalidRequest,
+        EK::RpcMethodNotFound => RC::NoSuchMethod,
+        EK::RpcMethodNotImpl => RC::MethodNotImpl,
+        EK::RpcInvalidMethodParameters => RC::InvalidParams,
+        EK::Internal | EK::BadApiUsage => RC::InternalError,
+        EK::RpcObjectNotFound => RC::ObjectError,
+        EK::RpcRequestCancelled => RC::RequestCancelled,
+        EK::RpcFeatureNotPresent => RC::FeatureNotPresent,
+        _ => RC::RequestError, // (This is our catch-all "request error.")
     }
 }
 
