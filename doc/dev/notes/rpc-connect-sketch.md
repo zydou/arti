@@ -220,6 +220,16 @@ then the Arti RPC client must abort the search process.
 Any other value for the `builtin` field is an error,
 and causes the entry to decline.
 
+> Note/TODO: Embedded client operation is not yet completely specified
+> here.  In particular, we have not yet decided:
+>   - Whether it is an error to try to launch two embedded Arti instances
+>     in the same process, or whether subsequent attempts give connections
+>     to the existing embedded arti.
+>   - Whether an embedded arti will need to have the ability to take
+>     command line arguments to override its storage and cache defaults.
+
+> These issues will apply to owned arti instances as well.
+
 ### Regular connect strings.
 
 A regular connect string is a JSON object with these members.
