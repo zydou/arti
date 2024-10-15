@@ -155,9 +155,6 @@ We *do not tolerate* these failures;
 The connect string is a JSON object with these members.
 (Unrecognized members should be ignored.)
 
-- `arti-rpc-connect-string`: The string `"arti-rpc-2024"`.
-  Indicates that this object is indeed a connect string.
-  (Required.)
 - `connect`: A connect object, described below. (Required.)
 
 A connect object is an JSON object with a single name/value pair.
