@@ -67,63 +67,97 @@ to keep consistency in the Arti RPC ecosystem.
 
 ### Details and options
 
-> Note: These names aren't final!  Please help me refine them.
 
-The `arti_rpc_connect()` API will have additional options:
- - `connect_search_path` — To override the default search path for connect string files.
- - `use_embedded` — To support an internal, embedded copy of arti.
- - `force_connect_string` — To force a specific connect string. (not recommended)
- - `force_connect_string_file` — To force a specific connect string
-   file. (not recommended. Mutually exclusive with `force_connect_string`.)
+To find a working connect string,
+an Arti RPC client proceeds over a "search path",
+trying each entry in sequence.
 
-The `arti_rpc_connect()` function will support environment variables:
- - `ARTI_RPC_CONNECT_PATH` — To override the search path for connect string files.
+Each entry in the search path must be one of the following:
+  * a literal connect string, which can be:
+    - A description for how to connect to an Arti RPC server.
+    - An instruction to use an embedded copy of Arti, if there is one.
+    - An instruction to abort (q.v.) the search process
+  * An absolute path on disk,
+    to a file that should contain a connect string.
+
+Any attempt to use a single entry will "succeed", "decline", or "abort":
+  - If an attempt succeeds, the search ends immediately with success.
+  - If an attempt aborts, the search ends immediately with failure.
+  - If an attempt declines, the search continues to the next entry.
+
+By default, there is a single default embedded search path.
+Developers can extend this path via the RPC client API;
+users can extend this path via environment variables.
+
+> Note: Below we describe several methods
+> that _prepend_ to a search path, but none that _replace_ a search path.
+> To effectively replace a search path,
+> a user or developer can add an "abort" instruction
+> at the end of their prepended entries,
+> causing the RPC client not to search any subsequent entries.
+
+The connection Builder API methods are as follows:
+ - `prepend_search_path` — Prepends additional entries before the start
+   of the client's search path.
+
+The environment variables are as follows:
+ - `ARTI_RPC_CONNECT_PATH` — Additional entries to override the Arti
+   client's defaults.
+ - `ARTI_RPC_CONNECT_PATH_OVERRIDE` — Additional entries to override
+   the application's defaults.
  - `ARTI_RPC_FORCE_SYSTEM_ARTI` — To force use of a system Arti,
    even when an embedded Arti is present.
+   (Must be one of: `0`, `1`, or unset.
+   If it is unset, it is treated as `0`.
+   Only inspected when attempting to connect to an embedded Arti.
+   If it is any value other than listed here when it is inspected,
+   then the attempt to connect to arti *aborts* (q.v.))
 
-When specifying a filename, we'll use syntax similar to
-[`tor_config::CfgPath`].
+The path is built as follows:
+ 1. We start with the default path.
+ 2. We prepend the contents of `ARTI_RPC_CONNECT_PATH`, if it is set.
+ 3. We prepend any elements set with `prepend_search_path`.
+ 4. We prepend the contents of `ARTI_RPC_CONNECT_PATH_OVERRIDE`, if it is set.
+
+Path expansion is supported everywhere,
+using syntax similar to [`tor_config::CfgPath`].
+
+> TODO RPC: _How_ similar?
 
 When specifying a set of paths as an environment variable,
-we'll use colon-separated paths on Unix,
+we use colon-separated paths on Unix,
 and semicolon-separated paths on Windows.
 
-The precedence order for connect strings is as follows:
-
-- The value of `force_connect_string` if present.  (Note A)
-- The value of `force_connect_string_file` if present. (Note A)
-- An internal copy of Arti, if present and `use_embeded` is set,
-  and if `ARTI_RPC_FORCE_SYSTEM_ARTI` is not set.  (Note A)
-- Each element of the search path in order.
-  The search path is defined to be the first one of these options that is set:
-    - The `ARTI_RPC_CONNECT_PATH` environment variable.
-    - The `connect_search_path` option.
-    - The default search path.
-- A default connect string.
+When including a literal connect string in a search path,
+we use URL-encoding.
+Additional particular we require:
+ - The first character of the unencoded string *must* be `{`.
+   (Thus, the first character of the encoded string must be `{` or `%`,
+   which is never the first character of a valid absolute path.)
+ - All path-separating characters (`;` on windows, `:` elsewhere)
+   *must* be escaped.
+   (RPC client implementations *may* operate by first splitting the
+   string on the path-seprating character, and then by decoding
+   the individual entries.)
 
 The default search path is:
   - `${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json`.  (Note B)
   - `/etc/arti-rpc/arti-rpc-connect.json` (unix and mac only)
 
-> Note A: If any of the options marked with "Note A" above
-> is attempted but fails,
-> then `rpc_connect()` exits without trying any subsequent options.
-
-> Note B: `$ARTI_LOCAL_DATA` above expands to:
+> Note A: `$ARTI_LOCAL_DATA` above expands to:
 >  - `$XDG_DATA_HOME/arti/` on Unix if  `$XDG_DATA_HOME` is set.
 >  - `$HOME/.local/arti/` on Unix otherwise.
 >  - `$HOME/Library/Application Support/org.torproject.arti` on MacOS.
 >  - `{FOLDERID_LocalAppData}/arti/` on Windows.
 >    (This is typically `\Users\<USERNAME>\AppData\Local\arti`.)
 
-> Note C: The library should detect whether it is running in a setuid
+> Note B: The library should detect whether it is running in a setuid
 > environment, and refuse to connect if so.
 > (Nice-to-have but not necessary to implement in the first version.)
 
-When processing elements from a search path,
-the `arti_rpc_connect()` function has limited tolerance for failures.
-Specifically, we *tolerate* these failures if we encounter them in the search
-path, and continue to the next element of the search path:
+The following errors are all tolerated;
+when an Arti RPC client encounters encounter them,
+the corresponding entry is *declined*.
 
  - A connect string file is absent.
  - A connect string file is present
@@ -136,8 +170,9 @@ path, and continue to the next element of the search path:
  - A connect string file is present and readable,
    but no Arti process is listening at the location it describes.
 
-We *do not tolerate* these failures;
-`arti_rpc_connect()` returns immediately if any of these are encountered.
+We do not tolerate these failures:
+when an Arti RPC client encounters any of them,
+the corresponding entry *aborts* the entire search process.
 
  - A connect string file is present, but cannot be parsed
    (either because it isn't JSON, or because it represents a recognized
@@ -149,6 +184,10 @@ We *do not tolerate* these failures;
    but we cannot read it due to an error other than `EACCES`, `ENOENT`,
    etc.
 
+TODO RPC These are still TBD; are they "decline" or "abort"?
+
+ - A filename contains a `${VARIABLE}` that cannot be expanded.
+ - A filename is not absolute.
 
 ## Interpreting connect strings.
 
@@ -360,4 +399,3 @@ What does the cookie authentication look like?
 [XDG-user]: https://www.freedesktop.org/wiki/Software/xdg-user-dirs/
 [`tor_config::CfgPath`]: https://docs.rs/tor-config/latest/tor_config/struct.CfgPath.html
 [arti#1521]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1521
-
