@@ -9,7 +9,7 @@ use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
 /// The numerical value is roughly the expected number of times we will
 /// need to invoke the underlying solver (Equi-X) for the v1 proof-of-work
 /// protocol to find a solution.
-#[derive(derive_more::AsRef, derive_more::From)] //
+#[derive(derive_more::AsRef, derive_more::From, derive_more::Into)] //
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Effort(u32);
 
