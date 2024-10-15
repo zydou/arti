@@ -209,7 +209,7 @@ The members of the associated object are:
   *before* it starts listening on the associated socket.
   The client MUST read the file only *after*
   successfully establishing the transport connection.
-
+  
   (TODO RPC: Move some of the above into the cookie-authentication spec.)
 
 An example connect string of this type is:
@@ -309,6 +309,39 @@ To harden these forms of RPC protection so that they apply to SOCKS as well,
 we could implement an option in Arti
 so that only RPC users can actually use the SOCKS port.
 
+## Security concerns
+
+RPC connect strings can contain instructions to read and write files,
+and possibly, in the future, perform other security-relevant actions.
+RPC connect strings (and paths to them)
+should be handled the same way as other critical configuration.
+
+> For example, a future connect string variant might
+> specify a *program to execute*.
+
+RPC connect strings, and connect string paths,
+MUST ONLY be obtained from trusted sources
+(such as environment variables, and trustworthy parts of the filesystem).
+
+Arti RPC connect strings from untrusted sources MUST NOT be used
+(neither by RPC clients, nor by the Arti RPC server).
+A client application MUST NOT allow software that it does not trust completely
+to supply RPC connect strings.
+
+> For example, an Android app providing Tor services
+> MUST NOT provide RPC connect strings to other apps,
+> since (per the Android security model)
+> those other apps MUST NOT completely trust the Tor provider app.
+>
+> Allowing the Tor servce to supply the connect string,
+> might allow the Tor service to completely take over the client app.
+> While the Tor service can inevitably, by its nature,
+> subvert client apps' use of Tor,
+> the service is not supposed to have total control over the clients.
+>
+> (Instead, the Tor service might proxy the RPC requests,
+> or, when supported in the future by Arti RPC, provide an RPC connection
+> which has seen a "drop privileges" call restricting the clients' use.)
 
 
 ## Still unspecified
