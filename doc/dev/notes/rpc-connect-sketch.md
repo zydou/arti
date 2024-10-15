@@ -169,6 +169,8 @@ the corresponding entry is *declined*.
    or platform-specific equivalents.
  - A connect string file is present and readable,
    but no Arti process is listening at the location it describes.
+ - The connect string tells us to try an embedded
+   Arti client, but no embedded client is available.
 
 We do not tolerate these failures:
 when an Arti RPC client encounters any of them,
@@ -183,6 +185,7 @@ the corresponding entry *aborts* the entire search process.
  - A connect string file is present,
    but we cannot read it due to an error other than `EACCES`, `ENOENT`,
    etc.
+ - The connect string explicitly tells us to abort.
 
 TODO RPC These are still TBD; are they "decline" or "abort"?
 
@@ -191,126 +194,135 @@ TODO RPC These are still TBD; are they "decline" or "abort"?
 
 ## Interpreting connect strings.
 
-The connect string is a JSON object with these members.
+Two variations of connect strings are currently defined:
+"builtin" and regular.
+
+(Note that it is possible to construct a single JSON object
+that could be interpreted as both
+a built-in connect string and as a regular connect string.
+Such objects are invalid
+and cause the search process to abort.)
+
+
+### "Builtin" connect strings.
+
+A "builtin" connect string is a JSON object with these members.
 (Unrecognized members should be ignored.)
 
-- `connect`: A connect object, described below. (Required.)
+ - `builtin`: One of `"embedded"` or `"abort"`.
 
-A connect object is an JSON object with a single name/value pair.
-The name indicates the type of connection and authentication to make.
-The value is in turn JSON object specific to the name.
+If the `builtin` field is `embedded`,
+then the Arti RPC client should try to launch an embedded Arti client,
+if possible.
+If the `builtin` field is `abort`,
+then the Arti RPC client must abort the search process.
 
-We describe two types of connection:
+Any other value for the `builtin` field is an error
+and causes the search process to abort.
 
-- `inherent:unix` - Connect to Arti RPC via an AF_UNIX socket,
-  and authenticate by proving ability to connect to that socket.
-- `cookie:tcp-localhost` - Connect to Arti RPC via a localhost TCP socket,
-  and authenticate by proving the ability to read a given filename.
+### Regular connect strings.
 
-### `inherent:unix`
+A regular connect string is a JSON object with these members.
+(Unrecognized members should be ignored.)
 
-The members of the associated object are:
+  - `connect`: a socket-connection object, described below.
 
-- `socket` — A path to the unix socket on the filesystem.
+A socket-connection object is a JSON object with these members.
+(Unrecognized members should be ignored.)
 
-An example connect string of this type is:
+ - `socket`: a string or JSON object describing
+   how to open a connection to the Arti RPC server.
+   (Required.)
 
-```json
-{
-    "arti-rpc-connect-string" : "arti-rpc-2024",
-    "connect" : {
-       "inherent:unix" : {
-          "socket" : "/home/username/.local/run/arti/SOCKET"
-       }
-    }
-}
-```
+ - `auth`: a json value describing how to authenticate to the Arti RPC server.
+   (Required.)
 
-### `cookie:tcp-localhost`
 
-The members of the associated object are:
+Currently recognized `socket` members are in these forms:
+  - A TCP socket address, optionally prefixed with `tcp:`.
+    (Examples: `127.0.0.1:9999`, `[::1]:9999`, `tcp:[::1]:9999`.)
+  - An AF_UNIX socket address, prefixed with `unix:`.
+    (Example: `unix:/var/run/arti/rpc_socket`)
+If the `socket` member is a JSON object,
+or if it has a schema prefix other than `tcp:` or `unix:`,
+then the connection attempt is *declined*.
 
-- `socket` - The IP address and port of the listening socket.
-  The IP address MUST be `127.0.0.1` or `[::1]`.
-- `cookie-path` - The location of a secret cookie file on disk.
-  Arti writes a secret to this file; during authentication,
-  the application and arti both prove that they know this secret.
+Currently recognized `auth` memebers are in one of these forms:
+  - The JSON string `"none"`.
+  - A TCP coookie authentication object.
+Each is explained below.
+If the `auth` member is in some other unsupported format,
+the connection attempt is *declined*.
 
-  It is the responsibility of the person defining the connect string
-  to select an appropriate `cookie-path` and ensure that the file
-  has the correct accessibility.
-  It must be writeable by Arti, and readable only by suitably authorized
-  programs.
-  Arti *should* check these permissions.
+#### Authentication type "none"
 
-  Arti will *not* install new data in this file by renaming;
-  rather, it will write a fresh secret to the file by truncating/overwriting
-  *before* it starts listening on the associated socket.
-  The client MUST read the file only *after*
-  successfully establishing the transport connection.
-  
-  (TODO RPC: Move some of the above into the cookie-authentication spec.)
+When the `auth` member of a regular connect string is "none",
+the connect string is claiming that no real authentication is necessary.
 
-An example connect string of this type is:
+> The "none" method is appropriate in cases where
+> the client's ability to connect to the specified socket
+> is sufficient proof of its identity.
+>
+> (The RPC client must still send an `auth:none` command in this case
+> to get an RPC session object.)
 
-```json
-{
-    "arti-rpc-connect-string" : "arti-rpc-2024",
-    "connect" : {
-       "cookie:tcp-localhost" : {
-          "socket" : "[::1]:9191",
-          "cookie-path" : "/home/username/local/run/arti/rpc-cookie"
-       }
-    }
-}
-```
+It is invalid to specify `none` authentication
+for any socket address type other than:
+ - AF_UNIX sockets
 
-The actual authentication protocol will be described elsewhere.
+> (We may describe other types in the future.)
 
-### Default connect strings
 
-> Note: These aren't final, but we _do_ need to specify what the
-> defaults actually are.
+#### Cookie authentication
 
-The default connect string on Unix is:
+When the `auth` member of a regular connect string is in this format,
+cookie authentication is in use.
 
-```json
-{
-    "arti-rpc-connect-string" : "arti-rpc-2024",
-    "connect" : {
-       "inherent:unix" : {
-          "socket" : "$HOME/.local/run/arti/SOCKET"
-       }
-    }
-}
-```
+> With cookie authentication, the RPC client proves that it is authorized
+> by demonstrating knowledge of a secret cookie generated by the RPC server.
+> It is suitable for use over local transports
+> which an adversary cannot eavesdrop.
+>
+> Cookie authentication is described more fully elsewhere.
+> (TODO RPC say where once all the documentation is merged.)
 
-The default connect string on OSX is:
+The format is a JSON object, containing the fields:
+  - `cookie`: a JSON object, containing the field:
+    - `cookie-path`: A path to an absolute location on disk containing a
+      secret cookie.
 
-```json
-{
-    "arti-rpc-connect-string" : "arti-rpc-2024",
-    "connect" : {
-       "inherent:unix" : {
-          "socket" : "$HOME/Library/Application Support/org.torproject.arti/run"
-       }
-    }
-}
-```
+It is invalid to specify cookie authentication
+for any socket address type other than:
+ - AF_UNIX sockets
+ - TCP sockets to localhost.
 
-The default connect string on Windows is:
+> TODO: We might later decide to allow non-localhost cookie authentication
+> for use when communicating among VMs or containers.
+> On the other hand, we might instead specify a TLS-based socket and
+> authentication method.
 
-```json
-{
-    "arti-rpc-connect-string" : "arti-rpc-2024",
-    "connect" : {
-       "cookie:tcp-localhost" : {
-          "socket" : "[::1]:9191",
-          "cookie-path" : "/Users/<USERNAME>/AppData/Local/arti/rpc/rpc-cookie
-       }
-    }
-}
-```
+### "Owned" connect strings
+
+> This section is sketch only,
+> exploring ideas about how we might implement owned connections.
+>
+> An RPC client could have the ability to start an "owned" connection,
+> in which it launches an external Arti RPC server process,
+> with which only it can communicate,
+> and which exits whenever the RPC client no longer needs it.
+>
+> This would likely be a third kind of connect string,
+> likely looking for `arti` in the default search `$PATH`,
+> with option to override the location of `arti`.
+>
+> It would likely work internally creating a socketpair,
+> and telling the launched copy of arti to use its half
+> of that socketpair alone for its connection.
+
+> We do not plan to implement functionality for
+> starting a shared system Arti on demand:
+> we think that this does not belong in an RPC client code.
+
 
 ## Restricting access
 
