@@ -88,6 +88,14 @@ pub enum KeystoreCorruptionError {
     /// A keystore contains a key that has an invalid [`KeyPath`](crate::KeyPath).
     #[error("{0}")]
     KeyPath(#[from] KeyPathError),
+
+    /// Missing certificate for key.
+    #[error("Missing certificate for key")]
+    MissingCertificate,
+
+    /// Missing signing key for certificate.
+    #[error("Missing signing key for certificate")]
+    MissingSigningKey,
 }
 
 /// An error that happens when we encounter an unknown key type.
