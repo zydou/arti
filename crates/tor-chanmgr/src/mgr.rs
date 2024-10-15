@@ -1,16 +1,15 @@
 //! Abstract implementation of a channel manager
 
-use crate::mgr::state::{ChannelForTarget, OpenEntry};
+use crate::mgr::state::ChannelForTarget;
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
-use futures::future::{FutureExt, Shared};
+use futures::future::Shared;
 use oneshot_fused_workaround as oneshot;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
-use tor_basic_utils::RngExt as _;
 use tor_error::internal;
 use tor_linkspec::HasRelayIds;
 use tor_netdir::params::NetParameters;
@@ -334,24 +333,6 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         pending_id: state::UniqPendingChanId,
         outcome: Result<Arc<CF::Channel>>,
     ) -> Result<Arc<CF::Channel>> {
-        use state::ChannelState::{self, *};
-
-        /// Remove the pending channel with `pending_id` and a `relay_id` from `channel_map`.
-        fn remove_pending_chan<C: AbstractChannel>(
-            channel_map: &mut tor_linkspec::ListByRelayIds<ChannelState<C>>,
-            relay_id: tor_linkspec::RelayIdRef<'_>,
-            pending_id: state::UniqPendingChanId,
-        ) {
-            // we need only one relay id to locate it, even if it has multiple relay ids
-            let removed = channel_map.remove_by_id(relay_id, |c| {
-                let Building(c) = c else {
-                    return false;
-                };
-                c.unique_id == pending_id
-            });
-            debug_assert_eq!(removed.len(), 1, "expected to remove exactly one channel");
-        }
-
         let relay_id = target
             .identities()
             .next()
@@ -361,41 +342,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
             Ok(chan) => {
                 // The channel got built: remember it and return it.
                 self.channels
-                    .with_channels_and_params(|channel_map, channels_params| {
-                        // Remove the pending channel.
-                        remove_pending_chan(channel_map, relay_id, pending_id);
-
-                        // This isn't great.  We context switch to the newly-created
-                        // channel just to tell it how and whether to do padding.  Ideally
-                        // we would pass the params at some suitable point during
-                        // building.  However, that would involve the channel taking a
-                        // copy of the params, and that must happen in the same channel
-                        // manager lock acquisition span as the one where we insert the
-                        // channel into the table so it will receive updates.  I.e.,
-                        // here.
-                        let update = channels_params.initial_update();
-                        if let Some(update) = update {
-                            chan.reparameterize(update.into())
-                                .map_err(|_| internal!("failure on new channel"))?;
-                        }
-                        let new_entry = Open(OpenEntry {
-                            channel: chan.clone(),
-                            max_unused_duration: Duration::from_secs(
-                                rand::thread_rng()
-                                    .gen_range_checked(180..270)
-                                    .expect("not 180 < 270 !"),
-                            ),
-                        });
-                        channel_map.insert(new_entry);
-                        Ok(chan)
-                    })?
+                    .replace_pending_channel(relay_id, pending_id, Arc::clone(&chan))?;
+                Ok(chan)
             }
             Err(e) => {
                 // The channel failed. Make it non-pending and set the error.
-                self.channels.with_channels(|channel_map| {
-                    // Remove the pending channel.
-                    remove_pending_chan(channel_map, relay_id, pending_id);
-                })?;
+                self.channels.remove_pending_channel(relay_id, pending_id)?;
                 Err(e)
             }
         }

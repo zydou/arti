@@ -11,6 +11,7 @@ use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tor_async_utils::oneshot;
+use tor_basic_utils::RngExt as _;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
@@ -284,9 +285,12 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
     ///
+    /// This is only `cfg(test)` since it can deadlock.
+    ///
     /// # Deadlock
     ///
     /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
+    #[cfg(test)]
     pub(crate) fn with_channels<F, T>(&self, func: F) -> Result<T>
     where
         F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>) -> T,
@@ -316,31 +320,6 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     {
         let mut inner = self.inner.lock().expect("lock poisoned");
         func(&mut inner.builder);
-    }
-
-    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
-    ///
-    /// This function grabs a mutex: do not provide a slow function.
-    ///
-    /// We provide this function rather than exposing the channels set directly,
-    /// to make sure that the calling code doesn't await while holding the lock.
-    ///
-    /// # Deadlock
-    ///
-    /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
-    pub(crate) fn with_channels_and_params<F, T>(&self, func: F) -> Result<T>
-    where
-        F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>, &ChannelPaddingInstructions) -> T,
-    {
-        let mut inner = self.inner.lock()?;
-        // We need this silly destructuring syntax so that we don't seem to be
-        // borrowing the structure mutably and immutably at the same time.
-        let Inner {
-            ref mut channels,
-            ref channels_params,
-            ..
-        } = &mut *inner;
-        Ok(func(channels, channels_params))
     }
 
     /// Remove every unusable state from the map in this state.
@@ -449,6 +428,57 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         Ok(Some(ChannelForTarget::NewEntry((send, pending_id))))
     }
 
+    /// Remove the pending channel identified by `pending_id` and `relay_id`.
+    pub(crate) fn remove_pending_channel(
+        &self,
+        relay_id: tor_linkspec::RelayIdRef<'_>,
+        pending_id: UniqPendingChanId,
+    ) -> Result<()> {
+        let mut inner = self.inner.lock()?;
+        remove_pending(&mut inner.channels, relay_id, pending_id);
+        Ok(())
+    }
+
+    /// Replace the pending channel identified by `pending_id` and `relay_id` with a new open
+    /// `channel`.
+    pub(crate) fn replace_pending_channel(
+        &self,
+        relay_id: tor_linkspec::RelayIdRef<'_>,
+        pending_id: UniqPendingChanId,
+        channel: Arc<C::Channel>,
+    ) -> Result<()> {
+        // Do all operations under the same lock acquisition.
+        let mut inner = self.inner.lock()?;
+
+        remove_pending(&mut inner.channels, relay_id, pending_id);
+
+        // This isn't great.  We context switch to the newly-created
+        // channel just to tell it how and whether to do padding.  Ideally
+        // we would pass the params at some suitable point during
+        // building.  However, that would involve the channel taking a
+        // copy of the params, and that must happen in the same channel
+        // manager lock acquisition span as the one where we insert the
+        // channel into the table so it will receive updates.  I.e.,
+        // here.
+        let update = inner.channels_params.initial_update();
+        if let Some(update) = update {
+            channel
+                .reparameterize(update.into())
+                .map_err(|_| internal!("failure on new channel"))?;
+        }
+        let new_entry = ChannelState::Open(OpenEntry {
+            channel,
+            max_unused_duration: Duration::from_secs(
+                rand::thread_rng()
+                    .gen_range_checked(180..270)
+                    .expect("not 180 < 270 !"),
+            ),
+        });
+        inner.channels.insert(new_entry);
+
+        Ok(())
+    }
+
     /// Reconfigure all channels as necessary
     ///
     /// (By reparameterizing channels as needed)
@@ -549,6 +579,22 @@ fn setup_launch(ids: RelayIds) -> (PendingEntry, Sending, UniqPendingChanId) {
     };
 
     (entry, snd, unique_id)
+}
+
+/// Helper: remove the pending channel with `pending_id` and a `relay_id` from `channel_map`.
+fn remove_pending<C: AbstractChannel>(
+    channel_map: &mut tor_linkspec::ListByRelayIds<ChannelState<C>>,
+    relay_id: tor_linkspec::RelayIdRef<'_>,
+    pending_id: UniqPendingChanId,
+) {
+    // we need only one relay id to locate it, even if it has multiple relay ids
+    let removed = channel_map.remove_by_id(relay_id, |c| {
+        let ChannelState::Building(c) = c else {
+            return false;
+        };
+        c.unique_id == pending_id
+    });
+    debug_assert_eq!(removed.len(), 1, "expected to remove exactly one channel");
 }
 
 /// Converts config, dormancy, and netdir, into parameter updates
