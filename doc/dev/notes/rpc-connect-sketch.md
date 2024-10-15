@@ -118,6 +118,7 @@ The default search path is:
 
 > Note C: The library should detect whether it is running in a setuid
 > environment, and refuse to connect if so.
+> (Nice-to-have but not necessary to implement in the first version.)
 
 When processing elements from a search path,
 the `arti_rpc_connect()` function has limited tolerance for failures.
