@@ -113,7 +113,7 @@ use clap::{value_parser, Arg, ArgAction, Command};
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
-#[cfg(any(feature = "hsc", feature = "onion-service-service", feature = "relay"))]
+#[cfg(any(feature = "hsc", feature = "onion-service-service"))]
 use clap::Subcommand as _;
 
 #[cfg(feature = "experimental-api")]
@@ -296,12 +296,6 @@ where
         }
     }
 
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "relay")] {
-            let clap_app = subcommands::relay::RelaySubcommands::augment_subcommands(clap_app);
-        }
-    }
-
     // Tracing doesn't log anything when there is no subscriber set.  But we want to see
     // logging messages from config parsing etc.  We can't set the global default subscriber
     // because we can only set it once.  The other ways involve a closure.  So we have a
@@ -405,15 +399,6 @@ where
         if #[cfg(feature = "hsc")] {
             if let Some(hsc_matches) = matches.subcommand_matches("hsc") {
                 return subcommands::hsc::run(runtime, hsc_matches, &client_config);
-            }
-        }
-    }
-
-    // Check for the optional "relay" subcommand.
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "relay")] {
-            if let Some(relay_matches) = matches.subcommand_matches("relay") {
-                return subcommands::relay::run(runtime, relay_matches, &config);
             }
         }
     }

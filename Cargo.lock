@@ -194,7 +194,6 @@ version = "1.2.8"
 dependencies = [
  "anyhow",
  "arti-client",
- "arti-relay",
  "arti-rpcserver",
  "async-ctrlc",
  "cfg-if",
