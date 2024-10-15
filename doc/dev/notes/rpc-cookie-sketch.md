@@ -14,16 +14,15 @@ a given secure cookie file on the filesystem.
 Let P be the 32-byte non-terminated string
 "====== arti-rpc-cookie-v1 ======".
 
-We assume a secure `MAC(key, value)`, personalized with the string P
-to prevent inter-protocol attacks
+Let TupleHash(a,b,c,...) be the Keccak-based digest function
+described in Section 5 of [NIST SP 800-185],
+using the output length `L = 256 bits`,
+and the customization string `S = "arti-rpc-cookie-v1"`
 
-Let `Enc(S)` be the encoding of a byte string `S` formed by
-prepending the length of `S` as a two-byte big-endian integer to S.
-
-> (For example, Enc("hello") is `[00 05 68 65 6c 6c 6f]`,
-> and Enc("") is `[00 00]`.)
-
-Let `A | B` indicate the concatenation of the strings A and B.
+> NOTE: Do not substitute any other hash function without cryptographic
+> analysis!  In particular, we rely on TupleHash(K,a,b,c,d,...)
+> instantiating a proper message-authentication-code over a unique
+> encoding of the tuple `(a,b,c,d,...)`.
 
 The client and server begin by knowing the location of a "cookie file."
 That file contains a 32-byte fixed string P, followed by a 32-byte secret
@@ -35,6 +34,8 @@ and determines the value of `COOKIE`.
 > untrusted user.  This is out-of-scope for this document.
 
 Nothing here is NUL terminated unless explicitly specified otherwise.
+
+[NIST SP 800-185]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
 
 ## The protocol
 
@@ -57,16 +58,16 @@ The client additionally knows:
 2. The client sends `CN`.
 
 3. The server computes
-   `CID = MAC(COOKIE, Enc("Server") | Enc(PORTS) | CN)`,
-   and sends (`CID`, `SN`).
+   `S_MAC = TupleHash(COOKIE, "Server", SADDR_CANONICAL, CN)`
+   and sends (`S_MAC`, `SADDR_CANONICAL`, `SN`).
 
-4. The client computes CID, and verifies that its value matches the one
+4. The client computes `S_MAC`, and verifies that its value matches the one
    provided by the server.  If it does not match, it aborts the protocol.
    If it does match, the client computes
-   `AUTH = MAC(COOKIE, Enc("Server") | Enc(PORTS) | SN)`.
-   and sends `AUTH` to the server.
+   `C_MAC = TupleHash(COOKIE, "Client", SADDR_CANONICAL, SN)`,
+   and sends `C_MAC` to the server.
 
-5. The client computes AUTH, and verifies that its value matches the one
+5. The client computes `C_MAC`, and verifies that its value matches the one
    provided by the server.  If it does not match, it aborts the protocol.
    Otherwise, the parties are authenticated.
 
@@ -85,4 +86,5 @@ The client's method in step 3 is embedded in the client's authentication
 message, in a field called `auth`.
 
 All binary strings are encoded in hexadecimal before sending in JSON.
+
 
