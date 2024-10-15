@@ -208,7 +208,7 @@ dependencies = [
  "hickory-proto",
  "humantime",
  "humantime-serde",
- "itertools 0.13.0",
+ "itertools",
  "libc",
  "notify",
  "paste",
@@ -293,7 +293,7 @@ dependencies = [
  "rand",
  "safelog",
  "serde",
- "strum 0.26.3",
+ "strum",
  "tempfile",
  "thiserror",
  "tokio",
@@ -341,7 +341,7 @@ dependencies = [
  "fs-mistrust",
  "rand",
  "serde",
- "strum 0.26.3",
+ "strum",
  "thiserror",
  "tor-chanmgr",
  "tor-config",
@@ -1090,7 +1090,7 @@ version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn 2.0.79",
@@ -1452,40 +1452,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive-adhoc"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5283ac2881753c76c0892406705553f0d9ab30649f81e18964d3408f4501edb8"
-dependencies = [
- "derive-adhoc-macros",
- "heck 0.4.1",
-]
-
-[[package]]
-name = "derive-adhoc-macros"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c21b673a9b8c78c34908e6fcb42b922e11c4df2de5237f1c3f58d3285904a84b"
-dependencies = [
- "heck 0.4.1",
- "itertools 0.11.0",
- "proc-macro-crate 1.3.1",
- "proc-macro2",
- "quote",
- "sha3",
- "strum 0.25.0",
- "syn 1.0.109",
- "void",
-]
-
-[[package]]
 name = "derive-deftly"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f9bc3564f74be6c35d49a7efee54380d7946ccc631323067f33fabb9246027"
 dependencies = [
  "derive-deftly-macros",
- "heck 0.5.0",
+ "heck",
 ]
 
 [[package]]
@@ -1494,14 +1467,14 @@ version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1b84d32b18d9a256d81e4fec2e4cfd0ab6dde5e5ff49be1713ae0adbd0060c2"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "indexmap 2.5.0",
- "itertools 0.13.0",
- "proc-macro-crate 3.2.0",
+ "itertools",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "sha3",
- "strum 0.26.3",
+ "strum",
  "syn 2.0.79",
  "void",
 ]
@@ -1798,7 +1771,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1e6a265c649f3f5979b601d26f1d05ada116434c87741c9493cb56218f76cbc"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "syn 2.0.79",
@@ -1975,9 +1948,9 @@ name = "fixup-features"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools",
  "pico-args",
- "toml_edit 0.22.22",
+ "toml_edit",
 ]
 
 [[package]]
@@ -2366,12 +2339,6 @@ dependencies = [
 
 [[package]]
 name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
-
-[[package]]
-name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
@@ -2731,15 +2698,6 @@ name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
-
-[[package]]
-name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
 
 [[package]]
 name = "itertools"
@@ -3225,7 +3183,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 2.0.79",
@@ -3662,21 +3620,11 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
-dependencies = [
- "once_cell",
- "toml_edit 0.19.15",
-]
-
-[[package]]
-name = "proc-macro-crate"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecf48c7ca261d60b74ab1a7b20da18bede46776b2e55535cb958eb595c5fa7b"
 dependencies = [
- "toml_edit 0.22.22",
+ "toml_edit",
 ]
 
 [[package]]
@@ -3732,11 +3680,11 @@ dependencies = [
 
 [[package]]
 name = "pwd-grp"
-version = "0.1.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6955c41fd7e4283bdf6ff3e7218b7e3f8ef24c4236b31d22be050f4cfd5e2a2c"
+checksum = "b94fdf3867b7f2889a736f0022ea9386766280d2cca4bdbe41629ada9e4f3b8f"
 dependencies = [
- "derive-adhoc",
+ "derive-deftly",
  "libc",
  "paste",
  "thiserror",
@@ -4738,33 +4686,11 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "290d54ea6f91c969195bdbcd7442c8c2a2ba87da8bf60a7ee86a235d4bc1e125"
-dependencies = [
- "strum_macros 0.25.3",
-]
-
-[[package]]
-name = "strum"
 version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 dependencies = [
- "strum_macros 0.26.4",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.25.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23dc1fa9ac9c169a78ba62f0b841814b7abae11bdd047b9c58f893439e309ea0"
-dependencies = [
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn 2.0.79",
+ "strum_macros",
 ]
 
 [[package]]
@@ -4773,7 +4699,7 @@ version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -5049,7 +4975,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "toml_edit 0.22.22",
+ "toml_edit",
 ]
 
 [[package]]
@@ -5063,17 +4989,6 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.19.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
-dependencies = [
- "indexmap 2.5.0",
- "toml_datetime",
- "winnow 0.5.40",
-]
-
-[[package]]
-name = "toml_edit"
 version = "0.22.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ae48d6208a266e853d946088ed816055e556cc6028c5e8e2b84d9fa5dd7c7f5"
@@ -5082,7 +4997,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow 0.6.20",
+ "winnow",
 ]
 
 [[package]]
@@ -5111,7 +5026,7 @@ dependencies = [
  "derive_more",
  "educe",
  "hex",
- "itertools 0.13.0",
+ "itertools",
  "libc",
  "paste",
  "rand",
@@ -5200,7 +5115,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex-literal",
- "itertools 0.13.0",
+ "itertools",
  "oneshot-fused-workaround",
  "postage",
  "rand",
@@ -5252,7 +5167,7 @@ dependencies = [
  "futures-await-test",
  "hex",
  "humantime-serde",
- "itertools 0.13.0",
+ "itertools",
  "once_cell",
  "oneshot-fused-workaround",
  "pin-project",
@@ -5300,7 +5215,7 @@ dependencies = [
  "figment",
  "fs-mistrust",
  "futures",
- "itertools 0.13.0",
+ "itertools",
  "notify",
  "once_cell",
  "paste",
@@ -5312,7 +5227,7 @@ dependencies = [
  "serde_ignored",
  "serde_json",
  "shellexpand",
- "strum 0.26.3",
+ "strum",
  "tempfile",
  "test-temp-dir",
  "thiserror",
@@ -5359,7 +5274,7 @@ dependencies = [
  "http",
  "httparse",
  "httpdate",
- "itertools 0.13.0",
+ "itertools",
  "memchr",
  "thiserror",
  "tor-circmgr",
@@ -5395,7 +5310,7 @@ dependencies = [
  "hex-literal",
  "humantime",
  "humantime-serde",
- "itertools 0.13.0",
+ "itertools",
  "memmap2 0.9.5",
  "once_cell",
  "oneshot-fused-workaround",
@@ -5407,7 +5322,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "signature",
- "strum 0.26.3",
+ "strum",
  "tempfile",
  "thiserror",
  "time",
@@ -5444,7 +5359,7 @@ dependencies = [
  "paste",
  "retry-error",
  "static_assertions",
- "strum 0.26.3",
+ "strum",
  "thiserror",
  "tracing",
  "tracing-test",
@@ -5490,7 +5405,7 @@ dependencies = [
  "futures",
  "humantime",
  "humantime-serde",
- "itertools 0.13.0",
+ "itertools",
  "num_enum",
  "oneshot-fused-workaround",
  "pin-project",
@@ -5499,7 +5414,7 @@ dependencies = [
  "safelog",
  "serde",
  "serde_json",
- "strum 0.26.3",
+ "strum",
  "tempfile",
  "thiserror",
  "toml",
@@ -5532,14 +5447,14 @@ dependencies = [
  "either",
  "futures",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "oneshot-fused-workaround",
  "postage",
  "rand",
  "retry-error",
  "safelog",
  "slotmap",
- "strum 0.26.3",
+ "strum",
  "thiserror",
  "tokio",
  "tor-async-utils",
@@ -5583,7 +5498,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "paste",
  "rand",
  "safelog",
@@ -5645,7 +5560,7 @@ dependencies = [
  "growable-bloom-filter",
  "hex",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "k12",
  "libc",
  "once_cell",
@@ -5660,7 +5575,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "slotmap",
- "strum 0.26.3",
+ "strum",
  "tempfile",
  "test-temp-dir",
  "thiserror",
@@ -5727,7 +5642,7 @@ dependencies = [
  "glob-match",
  "humantime",
  "inventory",
- "itertools 0.13.0",
+ "itertools",
  "rand",
  "serde",
  "serde_json",
@@ -5759,12 +5674,12 @@ dependencies = [
  "derive_more",
  "hex",
  "hex-literal",
- "itertools 0.13.0",
+ "itertools",
  "safelog",
  "serde",
  "serde_test",
  "serde_with",
- "strum 0.26.3",
+ "strum",
  "thiserror",
  "tor-basic-utils",
  "tor-bytes",
@@ -5836,7 +5751,7 @@ dependencies = [
  "dyn-clone",
  "educe",
  "futures",
- "itertools 0.13.0",
+ "itertools",
  "paste",
  "pin-project",
  "rand",
@@ -5871,13 +5786,13 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "num_enum",
  "postage",
  "rand",
  "serde",
  "static_assertions",
- "strum 0.26.3",
+ "strum",
  "thiserror",
  "time",
  "tor-basic-utils",
@@ -5910,7 +5825,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "once_cell",
  "phf",
  "rand",
@@ -5954,7 +5869,7 @@ dependencies = [
  "fslock",
  "fslock-guard",
  "futures",
- "itertools 0.13.0",
+ "itertools",
  "oneshot-fused-workaround",
  "paste",
  "sanitize-filename",
@@ -5991,7 +5906,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "oneshot-fused-workaround",
  "pin-project",
  "rand",
@@ -6044,7 +5959,7 @@ dependencies = [
  "derive_builder_fork_arti",
  "fs-mistrust",
  "futures",
- "itertools 0.13.0",
+ "itertools",
  "oneshot-fused-workaround",
  "serde",
  "thiserror",
@@ -6152,13 +6067,13 @@ dependencies = [
  "futures",
  "futures-await-test",
  "humantime",
- "itertools 0.13.0",
+ "itertools",
  "oneshot-fused-workaround",
  "pin-project",
  "priority-queue",
  "rand",
  "slotmap",
- "strum 0.26.3",
+ "strum",
  "thiserror",
  "tor-basic-utils",
  "tor-error",
@@ -6352,7 +6267,7 @@ dependencies = [
  "serde",
  "shlex",
  "snapbox",
- "toml_edit 0.22.22",
+ "toml_edit",
 ]
 
 [[package]]
@@ -6873,15 +6788,6 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
-
-[[package]]
-name = "winnow"
-version = "0.5.40"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "winnow"
