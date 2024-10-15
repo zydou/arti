@@ -341,7 +341,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         &self,
         target: &C::BuildSpec,
         add_new_entry_if_not_found: bool,
-    ) -> Result<Option<ChannelForTarget<C::Channel>>> {
+    ) -> Result<Option<ChannelForTarget<C>>> {
         use ChannelState::*;
 
         let mut inner = self.inner.lock()?;
@@ -421,36 +421,44 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         }
 
         // Great, nothing interfered at all.
-        let (new_state, send, pending_id) = setup_launch(RelayIds::from_relay_ids(target));
+        let any_relay_id = target
+            .identities()
+            .next()
+            .ok_or(internal!("relay target had no id"))?
+            .to_owned();
+        let (new_state, send, unique_id) = setup_launch(RelayIds::from_relay_ids(target));
         inner
             .channels
             .try_insert(ChannelState::Building(new_state))?;
-        Ok(Some(ChannelForTarget::NewEntry((send, pending_id))))
+        let handle = PendingChannelHandle::new(self, any_relay_id, unique_id);
+        Ok(Some(ChannelForTarget::NewEntry((handle, send))))
     }
 
-    /// Remove the pending channel identified by `pending_id` and `relay_id`.
-    pub(crate) fn remove_pending_channel(
-        &self,
-        relay_id: tor_linkspec::RelayIdRef<'_>,
-        pending_id: UniqPendingChanId,
-    ) -> Result<()> {
+    /// Remove the pending channel identified by its `handle`.
+    pub(crate) fn remove_pending_channel(&self, handle: PendingChannelHandle<C>) -> Result<()> {
         let mut inner = self.inner.lock()?;
-        remove_pending(&mut inner.channels, relay_id, pending_id);
+        remove_pending(
+            &mut inner.channels,
+            handle.relay_id.as_ref(),
+            handle.unique_id,
+        );
         Ok(())
     }
 
-    /// Replace the pending channel identified by `pending_id` and `relay_id` with a new open
-    /// `channel`.
+    /// Replace the pending channel identified by its `handle` with a new open `channel`.
     pub(crate) fn replace_pending_channel(
         &self,
-        relay_id: tor_linkspec::RelayIdRef<'_>,
-        pending_id: UniqPendingChanId,
+        handle: PendingChannelHandle<C>,
         channel: Arc<C::Channel>,
     ) -> Result<()> {
         // Do all operations under the same lock acquisition.
         let mut inner = self.inner.lock()?;
 
-        remove_pending(&mut inner.channels, relay_id, pending_id);
+        remove_pending(
+            &mut inner.channels,
+            handle.relay_id.as_ref(),
+            handle.unique_id,
+        );
 
         // This isn't great.  We context switch to the newly-created
         // channel just to tell it how and whether to do padding.  Ideally
@@ -558,13 +566,39 @@ impl<C: AbstractChannelFactory> MgrState<C> {
 }
 
 /// A channel for a given target relay.
-pub(crate) enum ChannelForTarget<C> {
+pub(crate) enum ChannelForTarget<'a, CF: AbstractChannelFactory> {
     /// A channel that is open.
-    Open(Arc<C>),
+    Open(Arc<CF::Channel>),
     /// A channel that is building.
     Pending(Pending),
     /// Information about a new pending channel entry.
-    NewEntry((Sending, UniqPendingChanId)),
+    NewEntry((PendingChannelHandle<'a, CF>, Sending)),
+}
+
+/// A handle for a pending channel.
+pub(crate) struct PendingChannelHandle<'a, CF: AbstractChannelFactory> {
+    /// The channel manager state, which we'll use to access the channel map.
+    // TODO: this will be used in the next commit
+    _mgr: &'a MgrState<CF>,
+    /// Any relay ID for this pending channel.
+    relay_id: tor_linkspec::RelayId,
+    /// The unique ID for this pending channel.
+    unique_id: UniqPendingChanId,
+}
+
+impl<'a, CF: AbstractChannelFactory> PendingChannelHandle<'a, CF> {
+    /// Create a new [`PendingChannelHandle`].
+    fn new(
+        mgr: &'a MgrState<CF>,
+        relay_id: tor_linkspec::RelayId,
+        unique_id: UniqPendingChanId,
+    ) -> Self {
+        Self {
+            _mgr: mgr,
+            relay_id,
+            unique_id,
+        }
+    }
 }
 
 /// Helper: return the objects used to inform pending tasks about a newly open or failed channel.

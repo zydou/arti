@@ -1,6 +1,6 @@
 //! Abstract implementation of a channel manager
 
-use crate::mgr::state::ChannelForTarget;
+use crate::mgr::state::{ChannelForTarget, PendingChannelHandle};
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use crate::factory::BootstrapReporter;
@@ -256,13 +256,13 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     }
                 }
                 // We need to launch a channel.
-                Some(Action::Launch((send, pending_id))) => {
+                Some(Action::Launch((handle, send))) => {
                     let connector = self.channels.builder();
                     let memquota = ChannelAccount::new(&self.memquota)?;
                     let outcome = connector
                         .build_channel(&target, self.reporter.clone(), memquota)
                         .await;
-                    let status = self.handle_build_outcome(&target, pending_id, outcome);
+                    let status = self.handle_build_outcome(handle, outcome);
 
                     // It's okay if all the receivers went away:
                     // that means that nobody was waiting for this channel.
@@ -295,7 +295,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         &self,
         target: &CF::BuildSpec,
         final_attempt: bool,
-    ) -> Result<Option<Action<CF::Channel>>> {
+    ) -> Result<Option<Action<CF>>> {
         // don't create new channels on the final attempt
         let response = self.channels.request_channel(
             target,
@@ -312,12 +312,12 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     Ok(None)
                 }
             }
-            Ok(Some(ChannelForTarget::NewEntry((send, pending_id)))) => {
+            Ok(Some(ChannelForTarget::NewEntry((handle, send)))) => {
                 // TODO arti#1654: Later code could return with an error before the code that
                 // eventually removes this entry, and then this entry would then be left in the map
                 // forever. If this happened, no callers would be able to build channels to this
                 // target anymore. We should have a better cleanup procedure for channels.
-                Ok(Some(Action::Launch((send, pending_id))))
+                Ok(Some(Action::Launch((handle, send))))
             }
             Ok(None) => Ok(None),
             Err(e @ Error::IdentityConflict) => Ok(Some(Action::Return(Err(e)))),
@@ -329,25 +329,19 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     /// do.
     fn handle_build_outcome(
         &self,
-        target: &CF::BuildSpec,
-        pending_id: state::UniqPendingChanId,
+        handle: PendingChannelHandle<CF>,
         outcome: Result<Arc<CF::Channel>>,
     ) -> Result<Arc<CF::Channel>> {
-        let relay_id = target
-            .identities()
-            .next()
-            .ok_or(internal!("relay target had no id"))?;
-
         match outcome {
             Ok(chan) => {
                 // The channel got built: remember it and return it.
                 self.channels
-                    .replace_pending_channel(relay_id, pending_id, Arc::clone(&chan))?;
+                    .replace_pending_channel(handle, Arc::clone(&chan))?;
                 Ok(chan)
             }
             Err(e) => {
                 // The channel failed. Make it non-pending and set the error.
-                self.channels.remove_pending_channel(relay_id, pending_id)?;
+                self.channels.remove_pending_channel(handle)?;
                 Err(e)
             }
         }
@@ -416,15 +410,15 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
 /// Possible actions that we'll decide to take when asked for a channel.
 #[allow(clippy::large_enum_variant)]
-enum Action<C> {
+enum Action<'a, CF: AbstractChannelFactory> {
     /// We found no channel.  We're going to launch a new one,
     /// then tell everybody about it.
-    Launch((Sending, state::UniqPendingChanId)),
+    Launch((PendingChannelHandle<'a, CF>, Sending)),
     /// We found an in-progress attempt at making a channel.
     /// We're going to wait for it to finish.
     Wait(Pending),
     /// We found a usable channel.  We're going to return it.
-    Return(Result<Arc<C>>),
+    Return(Result<Arc<CF::Channel>>),
 }
 
 #[cfg(test)]
