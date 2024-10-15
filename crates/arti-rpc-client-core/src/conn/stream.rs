@@ -346,7 +346,7 @@ mod test {
             } => {
                 assert_eq!(address.unwrap(), "127.0.0.1:9090".parse().unwrap());
             }
-            _ => panic!(),
+            ref other => panic!("{:?}", other),
         };
 
         let p: ProxyInfo = serde_json::from_str(

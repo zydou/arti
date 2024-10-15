@@ -222,7 +222,7 @@ mod test {
     fn valid_requests() {
         let parse_request = |s| match serde_json::from_str::<FlexibleRequest>(s) {
             Ok(FlexibleRequest::Valid(req)) => req,
-            _ => panic!(),
+            other => panic!("{:?}", other),
         };
 
         let r =
