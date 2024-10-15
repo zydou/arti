@@ -34,14 +34,21 @@ and determines the value of `COOKIE`.
 > Both parties need to make sure that the file isn't writeable by any
 > untrusted user.  This is out-of-scope for this document.
 
+Nothing here is NUL terminated unless explicitly specified otherwise.
+
 ## The protocol
 
-1. The client connects to the server on localhost.
+At the start of the process, the client and server have the following inputs:
+  - `SADDR_CANONICAL`: The address at which the server is listening.
+    This must be exactly the same as it appears in the connect string.
+  - `COOKIE`: The value of the cookie.
 
-   Both the client and the server generate PORTS,
-   a string consisting of the client's address and the server's address,
-   both encoded in ASCII, and separated by a comma.
-   (E.g., `[::1]:41364,[::1]:9191`)
+The client additionally knows:
+  - `SADDR_USE`: The address at which to connect to the server.
+    (It may be different from `SADDR_CANONICAL`
+    if e.g. the client is running in a container.)
+
+1. The client connects to the server at `SADDR_USE`.
 
    The client generates a random 32-byte nonce CN,
    and the server generates a random 32-byte nonce SN.
