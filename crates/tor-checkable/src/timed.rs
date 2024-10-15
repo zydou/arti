@@ -67,6 +67,15 @@ impl<T> TimerangeBound<T> {
         Self { obj, start, end }
     }
 
+    /// Construct a new TimerangeBound object from a given object, start time, and end time.
+    pub fn new_from_start_end(
+        obj: T,
+        start: Option<time::SystemTime>,
+        end: Option<time::SystemTime>,
+    ) -> Self {
+        Self { obj, start, end }
+    }
+
     /// Adjust this time-range bound to tolerate an expiration time farther
     /// in the future.
     #[must_use]
@@ -110,7 +119,9 @@ impl<T> TimerangeBound<T> {
     ///
     /// The caller takes responsibility for making sure that the bounds are
     /// actually checked.
-    pub fn dangerously_into_parts(self) -> (T, (Bound<time::SystemTime>, Bound<time::SystemTime>)) {
+    pub fn dangerously_into_parts(
+        self,
+    ) -> (T, (Option<time::SystemTime>, Option<time::SystemTime>)) {
         let bounds = self.bounds();
 
         (self.obj, bounds)
@@ -147,8 +158,8 @@ impl<T> TimerangeBound<T> {
     }
 
     /// Return the underlying time bounds of this object.
-    pub fn bounds(&self) -> (Bound<time::SystemTime>, Bound<time::SystemTime>) {
-        (self.start_bound().cloned(), self.end_bound().cloned())
+    pub fn bounds(&self) -> (Option<time::SystemTime>, Option<time::SystemTime>) {
+        (self.start, self.end)
     }
 }
 
@@ -315,8 +326,8 @@ mod test {
 
         let (a, b) = tr.dangerously_into_parts();
         assert_eq!(a, "cups of coffee");
-        assert_eq!(b.0, Bound::Included(t1));
-        assert_eq!(b.1, Bound::Included(t2));
+        assert_eq!(b.0, Some(t1));
+        assert_eq!(b.1, Some(t2));
     }
 
     #[test]
