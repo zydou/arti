@@ -259,16 +259,29 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 Some(Action::Launch((handle, send))) => {
                     let connector = self.channels.builder();
                     let memquota = ChannelAccount::new(&self.memquota)?;
-                    let outcome = connector
-                        .build_channel(&target, self.reporter.clone(), memquota)
-                        .await;
-                    let status = self.handle_build_outcome(handle, outcome);
+
+                    // Use an IIFE (IAABE? — immediately awaited async block expression) here so
+                    // that the '?' doesn't return the error from the outer function, and 'outcome'
+                    // captures the 'Result' instead.
+                    let outcome = async {
+                        // Build the channel.
+                        let chan = connector
+                            .build_channel(&target, self.reporter.clone(), memquota)
+                            .await?;
+
+                        // Replace the pending channel with the newly built channel.
+                        self.channels
+                            .replace_pending_channel(handle, Arc::clone(&chan))?;
+
+                        Ok(chan)
+                    }
+                    .await;
 
                     // It's okay if all the receivers went away:
                     // that means that nobody was waiting for this channel.
-                    let _ignore_err = send.send(status.clone().map(|_| ()));
+                    let _ignore_err = send.send(outcome.clone().map(|_| ()));
 
-                    match status {
+                    match outcome {
                         Ok(chan) => {
                             return Ok((chan, ChanProvenance::NewlyCreated));
                         }
@@ -318,28 +331,6 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
             Ok(None) => Ok(None),
             Err(e @ Error::IdentityConflict) => Ok(Some(Action::Return(Err(e)))),
             Err(e) => Err(e),
-        }
-    }
-
-    /// We just tried to build a channel: Handle the outcome and decide what to
-    /// do.
-    fn handle_build_outcome(
-        &self,
-        handle: PendingChannelHandle<CF>,
-        outcome: Result<Arc<CF::Channel>>,
-    ) -> Result<Arc<CF::Channel>> {
-        match outcome {
-            Ok(chan) => {
-                // The channel got built: remember it and return it.
-                self.channels
-                    .replace_pending_channel(handle, Arc::clone(&chan))?;
-                Ok(chan)
-            }
-            Err(e) => {
-                // The channel failed. Set the error. The pending channel will be removed here when
-                // its handle is dropped.
-                Err(e)
-            }
         }
     }
 
