@@ -6,16 +6,21 @@ pub struct RpcError {
     /// A human-readable message.
     message: String,
     /// An error code inspired by json-rpc.
+    #[serde(serialize_with = "ser_code")]
     code: RpcErrorKind,
     /// The ErrorKind(s) of this error.
     #[serde(serialize_with = "ser_kind")]
-    kinds: tor_error::ErrorKind,
+    kinds: AnyErrorKind,
 }
 
 impl RpcError {
     /// Return true if this is an internal error.
     pub fn is_internal(&self) -> bool {
-        matches!(self.kinds, tor_error::ErrorKind::Internal)
+        matches!(
+            self.kinds,
+            AnyErrorKind::Tor(tor_error::ErrorKind::Internal)
+                | AnyErrorKind::Rpc(RpcErrorKind::InternalError)
+        )
     }
 }
 
@@ -27,7 +32,7 @@ where
         use tor_error::ErrorReport as _;
         let message = value.report().to_string();
         let code = kind_to_code(value.kind());
-        let kinds = value.kind();
+        let kinds = AnyErrorKind::Tor(value.kind());
         RpcError {
             message,
             code,
@@ -36,15 +41,33 @@ where
     }
 }
 
-/// Helper: Serialize an ErrorKind in RpcError.
-fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S::Ok, S::Error> {
-    // Our spec says that `kinds` is a list, and that each kind we
-    // define will be prefixed by arti:.
+/// Helper: Serialize an AnyErrorKind in RpcError.
+fn ser_kind<S: serde::Serializer>(kind: &AnyErrorKind, s: S) -> Result<S::Ok, S::Error> {
+    // Our spec says that `kinds` is a list.  Any tor_error::ErrorKind is prefixed with `arti:`,
+    // and any RpcErrorKind is prefixed with `rpc:`
 
     use serde::ser::SerializeSeq;
-    let mut seq = s.serialize_seq(Some(1))?;
-    seq.serialize_element(&format!("arti:{:?}", kind))?;
+    let mut seq = s.serialize_seq(None)?;
+    match kind {
+        AnyErrorKind::Tor(kind) => seq.serialize_element(&format!("arti:{:?}", kind))?,
+        AnyErrorKind::Rpc(kind) => seq.serialize_element(&format!("rpc:{:?}", kind))?,
+    }
     seq.end()
+}
+
+/// Helper: Serialize an RpcErrorKind as a numeric code.
+fn ser_code<S: serde::Serializer>(kind: &RpcErrorKind, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_i32(*kind as i32)
+}
+
+/// An ErrorKind as held by an `RpcError`
+#[derive(Clone, Copy, Debug)]
+enum AnyErrorKind {
+    /// An ErrorKind representing a non-RPC problem.
+    Tor(tor_error::ErrorKind),
+    /// An ErrorKind originating within the RPC system.
+    #[allow(unused)] //XXXX
+    Rpc(RpcErrorKind),
 }
 
 /// Error kinds for RPC errors.
@@ -55,7 +78,7 @@ fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S
 ///
 /// For backward compatibility with json-rpc,
 /// each of these codes has a unique numeric ID.
-#[derive(Clone, Debug, Eq, PartialEq, serde_repr::Serialize_repr)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
 #[non_exhaustive]
 pub enum RpcErrorKind {
