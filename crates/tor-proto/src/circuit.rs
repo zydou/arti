@@ -1514,7 +1514,7 @@ mod test {
                 HandshakeType::Fast => {
                     let cf = match create_cell.msg() {
                         AnyChanMsg::CreateFast(cf) => cf,
-                        _ => panic!(),
+                        other => panic!("{:?}", other),
                     };
                     let (_, rep) = CreateFastServer::server(
                         &mut rng,
@@ -1528,7 +1528,7 @@ mod test {
                 HandshakeType::Ntor => {
                     let c2 = match create_cell.msg() {
                         AnyChanMsg::Create2(c2) => c2,
-                        _ => panic!(),
+                        other => panic!("{:?}", other),
                     };
                     let (_, rep) = NtorServer::server(
                         &mut rng,
@@ -1543,7 +1543,7 @@ mod test {
                 HandshakeType::NtorV3 => {
                     let c2 = match create_cell.msg() {
                         AnyChanMsg::Create2(c2) => c2,
-                        _ => panic!(),
+                        other => panic!("{:?}", other),
                     };
                     let (_, rep) = NtorV3Server::server(
                         &mut rng,
@@ -1730,7 +1730,7 @@ mod test {
                     AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                         .unwrap()
                 }
-                _ => panic!(),
+                other => panic!("{:?}", other),
             };
             assert!(matches!(m.msg(), AnyRelayMsg::BeginDir(_)));
         });
@@ -1764,11 +1764,11 @@ mod test {
                     AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                         .unwrap()
                 }
-                _ => panic!(),
+                other => panic!("{:?}", other),
             };
             let e2 = match rmsg.msg() {
                 AnyRelayMsg::Extend2(e2) => e2,
-                _ => panic!(),
+                other => panic!("{:?}", other),
             };
             let mut rng = testing_rng();
             let reply = match handshake_type {
@@ -1902,7 +1902,7 @@ mod test {
                     err: tor_bytes::Error::InvalidMessage(_),
                     object: "extended2 message",
                 } => {}
-                _ => panic!(),
+                other => panic!("{:?}", other),
             }
         });
     }
@@ -1914,7 +1914,7 @@ mod test {
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             match error {
                 Error::CircuitClosed => {}
-                _ => panic!(),
+                other => panic!("{:?}", other),
             }
         });
     }
@@ -1959,7 +1959,7 @@ mod test {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                             .unwrap()
                     }
-                    _ => panic!(),
+                    other => panic!("{:?}", other),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
                 assert!(matches!(rmsg, AnyRelayMsg::BeginDir(_)));
@@ -1976,7 +1976,7 @@ mod test {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                             .unwrap()
                     }
-                    _ => panic!(),
+                    other => panic!("{:?}", other),
                 };
                 let (streamid_2, rmsg) = rmsg.into_streamid_and_msg();
                 assert_eq!(streamid_2, streamid);
@@ -2035,7 +2035,7 @@ mod test {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                             .unwrap()
                     }
-                    _ => panic!(),
+                    other => panic!("{:?}", other),
                 };
                 let (streamid, rmsg) = rmsg.into_streamid_and_msg();
                 assert_eq!(rmsg.cmd(), RelayCmd::BEGIN);
@@ -2052,7 +2052,7 @@ mod test {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                             .unwrap()
                     }
-                    _ => panic!(),
+                    other => panic!("{:?}", other),
                 };
                 let (_, rmsg) = rmsg.into_streamid_and_msg();
                 assert_eq!(rmsg.cmd(), RelayCmd::END);
@@ -2119,7 +2119,7 @@ mod test {
                     AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                         .unwrap()
                 }
-                _ => panic!(),
+                other => panic!("{:?}", other),
             };
             let (streamid, rmsg) = rmsg.into_streamid_and_msg();
             assert!(matches!(rmsg, AnyRelayMsg::Begin(_)));
@@ -2139,7 +2139,7 @@ mod test {
                         AnyRelayMsgOuter::decode_singleton(RelayCellFormat::V0, r.into_relay_body())
                             .unwrap()
                     }
-                    _ => panic!(),
+                    other => panic!("{:?}", other),
                 };
                 let (streamid2, rmsg) = rmsg.into_streamid_and_msg();
                 assert_eq!(streamid2, streamid);
