@@ -5,7 +5,8 @@ use std::hash::Hash;
 
 use derive_more::{Deref, DerefMut};
 use educe::Educe;
-use slotmap::dense::DenseSlotMap;
+
+use slotmap_careful::{DenseSlotMap, Key};
 
 use tor_circmgr::isolation::Isolation;
 
@@ -44,7 +45,7 @@ use tor_circmgr::isolation::Isolation;
 #[educe(Default)]
 pub(crate) struct MultikeyIsolatedMap<I, K1, K2, V>
 where
-    I: slotmap::Key,
+    I: Key,
     K1: Hash + Eq,
     K2: Eq,
 {
@@ -101,7 +102,7 @@ where
 
 impl<I, K1, K2, V> MultikeyIsolatedMap<I, K1, K2, V>
 where
-    I: slotmap::Key,
+    I: Key,
     K1: Hash + Eq,
     K2: Eq,
 {
@@ -201,14 +202,14 @@ where
     /// If it is found not to be.
     #[cfg(test)]
     fn check_or_panic(&self) {
-        let mut referenced = slotmap::SecondaryMap::default();
+        let mut referenced = slotmap_careful::SecondaryMap::default();
 
         for indices in self.index.values() {
             assert!(!indices.is_empty(), "empty Vec not GC'd");
             for (vi1, &ti1) in indices.iter().enumerate() {
                 let rec1 = self.table.get(ti1).expect("dangling index");
                 match referenced.entry(ti1) {
-                    Some(slotmap::secondary::Entry::Vacant(ve)) => ve.insert(()),
+                    Some(slotmap_careful::secondary::Entry::Vacant(ve)) => ve.insert(()),
                     _ => panic!("colliding references or something {ti1:?}"),
                 };
                 for &ti2 in &indices[vi1 + 1..] {
@@ -246,7 +247,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
-    slotmap::new_key_type! {
+    slotmap_careful::new_key_type! {
         struct Idx;
     }
 

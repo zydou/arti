@@ -27,7 +27,7 @@ use tor_rtcompat::Runtime;
 use crate::isol_map;
 use crate::{ConnError, HsClientConnector, HsClientSecretKeys};
 
-slotmap::new_key_type! {
+slotmap_careful::new_key_type! {
     struct TableIndex;
 }
 

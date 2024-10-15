@@ -44,7 +44,7 @@ pub(crate) use {
     paste::paste,
     pin_project::pin_project,
     serde::{Deserialize, Serialize},
-    slotmap::SlotMap,
+    slotmap_careful::SlotMap,
     static_assertions::assert_not_impl_any,
     thiserror::Error,
     tracing::{debug, error, info},

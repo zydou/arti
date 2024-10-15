@@ -43,7 +43,9 @@
 
 mod key_data;
 
-pub use slotmap::{new_key_type, DefaultKey, Key, KeyData, SecondaryMap, SparseSecondaryMap};
+pub use slotmap::{
+    new_key_type, secondary, DefaultKey, Key, KeyData, SecondaryMap, SparseSecondaryMap,
+};
 
 use key_data::key_version_serde as key_version;
 
@@ -128,7 +130,6 @@ macro_rules! define_implementation {
         /// cause a slot-map to render approximately `4+sizeof(V)` bytes unusable.)
         ///
         /// This type does not include implementations for:
-        ///   * `drain()`,
         ///   * `get_unchecked_mut()`
         ///   * `get_disjoint_unchecked_mut()`
         ///   * `IntoIterator`.
@@ -431,6 +432,17 @@ macro_rules! define_implementation {
             /// Does not return a named type.
             pub fn iter(&self) -> impl Iterator<Item = (K, &V)> + '_ {
                 self.base.iter().filter_map(|(k, v)| match v {
+                    Entry::Present(v) => Some((k, v)),
+                    Entry::Unusable => None,
+                })
+            }
+
+            /// Remove every element of this map.
+            ///
+            /// See
+            #[doc= concat!("[`slotmap::", stringify!($mapname), "::drain()`].")]
+            pub fn drain(&mut self) -> impl Iterator<Item = (K, V)> + '_ {
+                self.base.drain().filter_map(|(k, v)| match v {
                     Entry::Present(v) => Some((k, v)),
                     Entry::Unusable => None,
                 })

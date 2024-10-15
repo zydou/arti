@@ -61,7 +61,7 @@ pub(crate) struct Count<K> {
     marker: PhantomData<K>,
 }
 
-/// An copy of a [`slotmap::Key`] `K`, which is counted by a `RefCount`
+/// An copy of a [`slotmap_careful::Key`] `K`, which is counted by a `RefCount`
 ///
 /// Ie, a key of type `K` with the property that it
 /// keeps the refcounted data structure alive.
@@ -73,7 +73,7 @@ pub(crate) struct Count<K> {
 /// and is fine to drop.
 #[derive(Deref, Educe)]
 #[educe(Debug, Default, Ord, Eq, PartialEq)]
-pub(crate) struct Ref<K: slotmap::Key> {
+pub(crate) struct Ref<K: slotmap_careful::Key> {
     /// Actual key (without generics)
     #[deref]
     raw_key: K,
@@ -89,7 +89,7 @@ pub(crate) struct Ref<K: slotmap::Key> {
 }
 
 // educe's Ord is open-coded and triggers clippy::non_canonical_partial_ord_impl
-impl<K: slotmap::Key> PartialOrd for Ref<K> {
+impl<K: slotmap_careful::Key> PartialOrd for Ref<K> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -149,7 +149,7 @@ fn dec_raw(c: &mut RawCount) -> Option<Garbage<()>> {
     (*c == 0).then_some(Garbage(()))
 }
 
-impl<K: slotmap::Key> Ref<K> {
+impl<K: slotmap_careful::Key> Ref<K> {
     /// Create a refcounted reference `Ref` from an un-counted key, incrementing the count
     pub(crate) fn new(key: K, count: &mut Count<K>) -> Result<Self, Overflow> {
         inc_raw(&mut count.count)?;
@@ -191,7 +191,7 @@ impl<K: slotmap::Key> Ref<K> {
     }
 }
 
-impl<K: slotmap::Key> DefaultExtTake for Ref<K> {}
+impl<K: slotmap_careful::Key> DefaultExtTake for Ref<K> {}
 
 /// Insert a new entry into a slotmap using refcounted keys
 ///
@@ -203,7 +203,7 @@ impl<K: slotmap::Key> DefaultExtTake for Ref<K> {}
 ///
 /// There is no corresponding `slotmap_remove` in this module.
 /// Use [`Ref::dispose`] and handle any [`Garbage`] it returns.
-pub(crate) fn slotmap_insert<K: slotmap::Key, V>(
+pub(crate) fn slotmap_insert<K: slotmap_careful::Key, V>(
     slotmap: &mut SlotMap<K, V>,
     value_maker: impl FnOnce(Count<K>) -> V,
 ) -> Ref<K> {
@@ -222,7 +222,7 @@ pub(crate) fn slotmap_insert<K: slotmap::Key, V>(
 ///
 /// On successful return, the entry will be in the map, and
 /// the new `Ref` is returned along with the data `D`.
-pub(crate) fn slotmap_try_insert<K: slotmap::Key, V, E, RD>(
+pub(crate) fn slotmap_try_insert<K: slotmap_careful::Key, V, E, RD>(
     slotmap: &mut SlotMap<K, V>,
     value_maker: impl FnOnce(Count<K>) -> Result<(V, RD), E>,
 ) -> Result<(Ref<K>, RD), E> {
@@ -240,7 +240,7 @@ pub(crate) fn slotmap_try_insert<K: slotmap::Key, V, E, RD>(
 /// Unconditionally remove en entry from the slotmap, given a strong ref
 ///
 /// Other references to this entry will become dangling.
-pub(crate) fn slotmap_remove_early<K: slotmap::Key, V>(
+pub(crate) fn slotmap_remove_early<K: slotmap_careful::Key, V>(
     slotmap: &mut SlotMap<K, V>,
     key: Ref<K>,
 ) -> Option<V> {
@@ -251,7 +251,7 @@ pub(crate) fn slotmap_remove_early<K: slotmap::Key, V>(
 }
 
 #[cfg(test)]
-impl<K: slotmap::Key> Drop for Ref<K> {
+impl<K: slotmap_careful::Key> Drop for Ref<K> {
     fn drop(&mut self) {
         drop_bomb_disarm_assert!(self.bomb, self.raw_key.is_null(),);
     }
@@ -282,7 +282,7 @@ mod test {
 
     use super::*;
 
-    slotmap::new_key_type! {
+    slotmap_careful::new_key_type! {
         struct Id;
     }
     #[derive(Eq, PartialEq, Debug)]

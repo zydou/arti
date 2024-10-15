@@ -159,7 +159,7 @@ impl Reclaiming {
 
         // Build heap of participants we might want to reclaim from
         // (and, while we're at it, tear down broken participants)
-        for (aid, arecord) in &mut state.accounts {
+        for (aid, arecord) in state.accounts.iter_mut() {
             arecord.ps.retain(|_pid, precord| {
                 match analyse_particip(precord, deferred_drop) {
                     PStatus::Candidate(age) => {
