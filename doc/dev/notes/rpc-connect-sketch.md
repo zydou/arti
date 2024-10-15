@@ -128,14 +128,14 @@ When specifying a set of paths as an environment variable,
 we use colon-separated paths on Unix,
 and semicolon-separated paths on Windows.
 
-When including a literal connect string in a search path,
-we use URL-encoding.
+When including a literal connect string _in an environment variable_,
+we must URL-encoding.
 Additional particular we require:
- - The first character of the unencoded string *must* be `{`.
+ - The first character of the unencoded literal connect string *must* be `{`.
    (Thus, the first character of the encoded string must be `{` or `%`,
    which is never the first character of a valid absolute path.)
  - All path-separating characters (`;` on windows, `:` elsewhere)
-   *must* be escaped.
+   *must* be escaped when URL-encoding.
    (RPC client implementations *may* operate by first splitting the
    string on the path-seprating character, and then by decoding
    the individual entries.)
@@ -322,7 +322,6 @@ for any socket address type other than:
 > We do not plan to implement functionality for
 > starting a shared system Arti on demand:
 > we think that this does not belong in an RPC client code.
-
 
 ## Restricting access
 
