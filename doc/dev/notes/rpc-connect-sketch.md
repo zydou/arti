@@ -266,9 +266,11 @@ the connect string is claiming that no real authentication is necessary.
 > (The RPC client must still send an `auth:none` command in this case
 > to get an RPC session object.)
 
-It is invalid to specify `none` authentication
+As a matter of policy we do not support `none` authentication
 for any socket address type other than:
  - AF_UNIX sockets
+Any such connect string is declined by the client library
+(and Arti would reject such an authentication attempt).
 
 > (We may describe other types in the future.)
 
@@ -291,10 +293,11 @@ The format is a JSON object, containing the fields:
     - `cookie-path`: A path to an absolute location on disk containing a
       secret cookie.
 
-It is invalid to specify cookie authentication
+As a matter of policy we do not support cookie authentication
 for any socket address type other than:
  - AF_UNIX sockets
- - TCP sockets to localhost.
+ - TCP sockets to localhost IP addresses.
+Any such connect string is declined (as with the policy for `none` above).
 
 > TODO: We might later decide to allow non-localhost cookie authentication
 > for use when communicating among VMs or containers.
