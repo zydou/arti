@@ -43,9 +43,9 @@ and determines the value of `COOKIE`.
    both encoded in ASCII, and separated by a comma.
    (E.g., `[::1]:41364,[::1]:9191`)
 
-   The client generates a random 32-byte secret CN,
-   and the server generates a random 32-byte secret SN.
-   These secrets MUST NOT be reused.
+   The client generates a random 32-byte nonce CN,
+   and the server generates a random 32-byte nonce SN.
+   These nonces MUST NOT be reused.
 
 2. The client sends `CN`.
 
