@@ -300,7 +300,7 @@ cookie authentication is in use.
 
 The format is a JSON object, containing the fields:
   - `cookie`: a JSON object, containing the field:
-    - `cookie-path`: A path to an absolute location on disk containing a
+    - `cookie_path`: A path to an absolute location on disk containing a
       secret cookie.
 
 As a matter of policy we do not support cookie authentication
@@ -335,6 +335,37 @@ Any such connect string is declined (as with the policy for `none` above).
 > We do not plan to implement functionality for
 > starting a shared system Arti on demand:
 > we think that this does not belong in an RPC client code.
+
+### Example connect strings
+
+Here are some examples of connect strings.
+
+```json
+{ "builtin": "abort" }
+```
+
+```json
+{
+  "connect" : {
+      "socket" : "unix:/var/run/arti/rpc_socket",
+      "auth" : "none",
+  }
+}
+```
+
+```json
+{
+  "connect": {
+     "socket" : "tcp:[::1]:9191",
+     "auth" : {
+        "cookie" : {
+           "cookie_path" : "/home/user/.arti_rpc/cookie",
+           "canonical_addr": "tcp:[::1]:2020",
+        }
+     }
+  }
+}
+```
 
 ## Restricting access
 
