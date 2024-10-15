@@ -93,4 +93,17 @@ All binary strings are encoded in hexadecimal before sending in JSON.
 When cookie authentication is in use, we must also specify `addr_canonical`
 in the `cookie` object in the connect string.
 
+This is an optional field.
+When it is present, it is what the RPC client uses
+in place of the `socket` address
+during cookie authentication.
+
+The RPC server ignores this field; it always binds to the address
+in the `socket` field.
+
+**Security concerns**: Do not construct a connect string with an
+`addr_canonical` field unless you have some way to guarantee
+that an attacker cannot bind to the address specified in the `socket`
+field.
+
 > (We'll merge this there once the dust has settled on arti!2439)
