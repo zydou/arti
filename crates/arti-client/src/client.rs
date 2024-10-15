@@ -28,7 +28,6 @@ use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::state_dir::StateDirectory;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
-use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
@@ -863,7 +862,7 @@ impl<R: Runtime> TorClient<R> {
             &config.channel,
             dormant.into(),
             &NetParameters::from_map(&config.override_net_params),
-            ToplevelAccount::new(&memquota).map_err(ErrorDetail::MemquotaDuringStartup)?,
+            memquota.clone(),
         ));
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), config)
             .map_err(ErrorDetail::GuardMgrSetup)?;

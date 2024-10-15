@@ -75,6 +75,7 @@ tor-hscrypto = { version = "0.23.0", path = "../tor-hscrypto" }
 tor-keymgr = { version = "0.23.0", path = "../tor-keymgr", default-features = false }
 tor-linkspec = { version = "0.23.0", path = "../tor-linkspec", features = ["decode", "verbatim"] }
 tor-llcrypto = { version = "0.23.0", path = "../tor-llcrypto" }
+tor-memquota = { version = "0.23.0", path = "../tor-memquota", default-features = false }
 tor-netdir = { version = "0.23.0", path = "../tor-netdir", features = ["hs-client"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.23.0", features = ["hs-client"] }
 tor-persist = { path = "../tor-persist", version = "0.23.0" }

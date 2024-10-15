@@ -581,6 +581,7 @@ mod test {
     use std::time::Duration;
     use tor_error::bad_api_usage;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
+    use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 
     use crate::ChannelUsage as CU;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};

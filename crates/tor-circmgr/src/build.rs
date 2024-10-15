@@ -603,7 +603,8 @@ mod test {
     use tor_chanmgr::ChannelUsage as CU;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
-    use tor_proto::memquota::{SpecificAccount as _, ToplevelAccount};
+    use tor_memquota::ArcMemoryQuotaTrackerExt as _;
+    use tor_proto::memquota::ToplevelAccount;
     use tor_rtcompat::SleepProvider;
     use tracing::trace;
 
