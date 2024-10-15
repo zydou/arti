@@ -217,8 +217,8 @@ if possible.
 If the `builtin` field is `abort`,
 then the Arti RPC client must abort the search process.
 
-Any other value for the `builtin` field is an error
-and causes the search process to abort.
+Any other value for the `builtin` field is an error,
+and causes the entry to decline.
 
 ### Regular connect strings.
 
