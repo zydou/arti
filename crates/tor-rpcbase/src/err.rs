@@ -50,26 +50,25 @@ fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S
 /// Error codes for backward compatibility with json-rpc.
 #[derive(Clone, Debug, Eq, PartialEq, serde_repr::Serialize_repr)]
 #[repr(i32)]
-#[allow(clippy::enum_variant_names)]
 enum RpcCode {
     /// "The JSON sent is not a valid Request object."
-    RpcInvalidRequest = -32600,
+    InvalidRequest = -32600,
     /// "The method does not exist."
-    RpcNoSuchMethod = -32601,
+    NoSuchMethod = -32601,
     /// "Invalid method parameter(s)."
-    RpcInvalidParams = -32602,
+    InvalidParams = -32602,
     /// "The server suffered some kind of internal problem"
-    RpcInternalError = -32603,
+    InternalError = -32603,
     /// "Some requested object was not valid"
-    RpcObjectError = 1,
+    ObjectError = 1,
     /// "Some other error occurred"
-    RpcRequestError = 2,
+    RequestError = 2,
     /// This method exists, but wasn't implemented on this object.
-    RpcMethodNotImpl = 3,
+    MethodNotImpl = 3,
     /// This request was cancelled before it could finish.
-    RpcRequestCancelled = 4,
+    RequestCancelled = 4,
     /// This request listed a required feature that doesn't exist.
-    RpcFeatureNotPresent = 5,
+    FeatureNotPresent = 5,
 }
 
 /// Helper: Return an error code (for backward compat with json-rpc) for an
@@ -79,15 +78,15 @@ enum RpcCode {
 fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
     use tor_error::ErrorKind as EK;
     match kind {
-        EK::RpcInvalidRequest => RpcCode::RpcInvalidRequest,
-        EK::RpcMethodNotFound => RpcCode::RpcNoSuchMethod,
-        EK::RpcMethodNotImpl => RpcCode::RpcMethodNotImpl,
-        EK::RpcInvalidMethodParameters => RpcCode::RpcInvalidParams,
-        EK::Internal | EK::BadApiUsage => RpcCode::RpcInternalError,
-        EK::RpcObjectNotFound => RpcCode::RpcObjectError,
-        EK::RpcRequestCancelled => RpcCode::RpcRequestCancelled,
-        EK::RpcFeatureNotPresent => RpcCode::RpcFeatureNotPresent,
-        _ => RpcCode::RpcRequestError, // (This is our catch-all "request error.")
+        EK::RpcInvalidRequest => RpcCode::InvalidRequest,
+        EK::RpcMethodNotFound => RpcCode::NoSuchMethod,
+        EK::RpcMethodNotImpl => RpcCode::MethodNotImpl,
+        EK::RpcInvalidMethodParameters => RpcCode::InvalidParams,
+        EK::Internal | EK::BadApiUsage => RpcCode::InternalError,
+        EK::RpcObjectNotFound => RpcCode::ObjectError,
+        EK::RpcRequestCancelled => RpcCode::RequestCancelled,
+        EK::RpcFeatureNotPresent => RpcCode::FeatureNotPresent,
+        _ => RpcCode::RequestError, // (This is our catch-all "request error.")
     }
 }
 
@@ -164,7 +163,7 @@ mod test {
             why: "worse things happen at C".into(),
         };
         let err = RpcError::from(err);
-        assert_eq!(err.code, RpcCode::RpcRequestError);
+        assert_eq!(err.code, RpcCode::RequestError);
         let serialized = serde_json::to_string(&err).unwrap();
         let expected_json = r#"
           {
