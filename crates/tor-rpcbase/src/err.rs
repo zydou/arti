@@ -6,7 +6,7 @@ pub struct RpcError {
     /// A human-readable message.
     message: String,
     /// An error code inspired by json-rpc.
-    code: RpcCode,
+    code: RpcErrorKind,
     /// The ErrorKind(s) of this error.
     #[serde(serialize_with = "ser_kind")]
     kinds: tor_error::ErrorKind,
@@ -47,10 +47,17 @@ fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S
     seq.end()
 }
 
-/// Error codes for backward compatibility with json-rpc.
+/// Error kinds for RPC errors.
+///
+/// Unlike `tor_error::ErrorKind`,
+/// these codes do not represent a problem in an Arti function per se:
+/// they are only visible to the RPC system, and should only be reported there.
+///
+/// For backward compatibility with json-rpc,
+/// each of these codes has a unique numeric ID.
 #[derive(Clone, Debug, Eq, PartialEq, serde_repr::Serialize_repr)]
 #[repr(i32)]
-enum RpcCode {
+enum RpcErrorKind {
     /// "The JSON sent is not a valid Request object."
     InvalidRequest = -32600,
     /// "The method does not exist."
@@ -75,9 +82,9 @@ enum RpcCode {
 /// ErrorKind.
 ///
 /// These are not especially helpful and nobody should really use them.
-fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
+fn kind_to_code(kind: tor_error::ErrorKind) -> RpcErrorKind {
     use tor_error::ErrorKind as EK;
-    use RpcCode as RC;
+    use RpcErrorKind as RC;
     match kind {
         EK::RpcInvalidRequest => RC::InvalidRequest,
         EK::RpcMethodNotFound => RC::NoSuchMethod,
@@ -164,7 +171,7 @@ mod test {
             why: "worse things happen at C".into(),
         };
         let err = RpcError::from(err);
-        assert_eq!(err.code, RpcCode::RequestError);
+        assert_eq!(err.code, RpcErrorKind::RequestError);
         let serialized = serde_json::to_string(&err).unwrap();
         let expected_json = r#"
           {
