@@ -313,10 +313,6 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
             }
             Ok(Some(ChannelForTarget::NewEntry((handle, send)))) => {
-                // TODO arti#1654: Later code could return with an error before the code that
-                // eventually removes this entry, and then this entry would then be left in the map
-                // forever. If this happened, no callers would be able to build channels to this
-                // target anymore. We should have a better cleanup procedure for channels.
                 Ok(Some(Action::Launch((handle, send))))
             }
             Ok(None) => Ok(None),
@@ -340,8 +336,8 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 Ok(chan)
             }
             Err(e) => {
-                // The channel failed. Make it non-pending and set the error.
-                self.channels.remove_pending_channel(handle)?;
+                // The channel failed. Set the error. The pending channel will be removed here when
+                // its handle is dropped.
                 Err(e)
             }
         }
