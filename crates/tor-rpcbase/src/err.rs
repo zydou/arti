@@ -14,6 +14,20 @@ pub struct RpcError {
 }
 
 impl RpcError {
+    /// Construct a new `RpcError` with the provided message and error code.
+    pub fn new(message: String, code: RpcErrorKind) -> Self {
+        Self {
+            message,
+            code,
+            kinds: AnyErrorKind::Rpc(code),
+        }
+    }
+
+    /// Change the declared kind of this error to `kind`.
+    pub fn set_kind(&mut self, kind: tor_error::ErrorKind) {
+        self.kinds = AnyErrorKind::Tor(kind);
+    }
+
     /// Return true if this is an internal error.
     pub fn is_internal(&self) -> bool {
         matches!(
