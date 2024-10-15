@@ -130,6 +130,11 @@ path, and continue to the next element of the search path:
    but the _type_ of its connect string is not recognized.
    (This likely indicates the presence of a version of Arti
    that is newer than our library.)
+ - A connect string file is present,
+   but we cannot read it due to `EACCES`, `ENOENT`,
+   or platform-specific equivalents.
+ - A connect string file is present and readable,
+   but no Arti process is listening at the location it describes.
 
 We *do not tolerate* these failures;
 `arti_rpc_connect()` returns immediately if any of these are encountered.
@@ -137,16 +142,12 @@ We *do not tolerate* these failures;
  - A connect string file is present, but cannot be parsed
    (either because it isn't JSON, or because it represents a recognized
    type of connect string with invalid options).
-
-TODO: Decide what to do with these cases.  Should we tolerate them or not?
-
  - A connect string file is present, but its permissions
    (or the permissions on its parent directory, etc)
    indicate that it is writable by untrusted users.
  - A connect string file is present,
-   but we cannot read it (due to `EACCES` or similar).
- - A connect string file is present and readable,
-   but no Arti process is listening at the location it describes.
+   but we cannot read it due to an error other than `EACCES`, `ENOENT`,
+   etc.
 
 
 ## Interpreting connect strings.
