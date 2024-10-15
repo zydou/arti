@@ -119,7 +119,7 @@ impl EncodableKey for curve25519::StaticKeypair {
         );
         let keypair = OpaqueKeypair::new(self.secret.to_bytes().to_vec(), ssh_public);
 
-        SshKeyData::try_from_keypair_data(ssh_key::private::KeypairData::Other(keypair))
+        SshKeyData::try_from_keypair_data(KeypairData::Other(keypair))
     }
 }
 
@@ -214,7 +214,7 @@ impl EncodableKey for ed25519::ExpandedKeypair {
 
         let keypair = OpaqueKeypair::new(self.to_secret_key_bytes().to_vec(), ssh_public);
 
-        SshKeyData::try_from_keypair_data(ssh_key::private::KeypairData::Other(keypair))
+        SshKeyData::try_from_keypair_data(KeypairData::Other(keypair))
     }
 }
 
