@@ -136,7 +136,7 @@ Additional particular we require:
    which is never the first character of a valid absolute path.)
  - All path-separating characters (`;` on windows, `:` elsewhere)
    *must* be escaped when URL-encoding.
-   (RPC client implementations *may* operate by first splitting the
+   (RPC client implementations *must* operate by first splitting the
    string on the path-seprating character, and then by decoding
    the individual entries.)
 
