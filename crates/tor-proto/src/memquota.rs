@@ -74,10 +74,12 @@
 //!     that channel, and all of its circuits, will collapse.
 //!     
 //!   * [`StreamAccount`].
-//!     Is a *clone* of the `CircuitAccount`.
-//!     If a queue associated with any stream of a circuit is selected for reclaim,
-//!     the whole circuit, including all of its other streams, will collapse.
-//      TODO #351 this is true after #1661/!2505.
+//!     Has the `CircuitAccount` as its parent.
+//!     So if a queue accounted to a circuit is selected for reclaim,
+//!     that circuit, and all of its streams, will collapse.
+//!     If a stream's queue is selected for reclaim, only that stream will collapse.
+//!     (See [#1661](https://gitlab.torproject.org/tpo/core/arti/-/issues/1661)
+//!     for discussion of this behaviour.)
 //!
 //! Thus, killing a single queue will reclaim the memory associated with several other queues.
 
