@@ -52,6 +52,7 @@ pub(crate) use {
 };
 
 pub(crate) use {
+    tor_async_utils::mpsc_channel_no_memquota,
     tor_async_utils::stream_peek::StreamUnobtrusivePeeker,
     tor_basic_utils::ByteQty as Qty,
     tor_config::{ConfigBuildError, ReconfigureError},

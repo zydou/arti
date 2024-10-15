@@ -7,7 +7,6 @@
 use crate::err;
 use crate::err::PtError;
 use crate::PtClientMethod;
-use futures::channel::mpsc;
 use futures::channel::mpsc::Receiver;
 use futures::StreamExt;
 use itertools::Itertools;
@@ -387,8 +386,8 @@ pub(crate) mod sealed {
                     PtError::Internal(internal!("Created child process without stdout pipe"))
                 })?,
             );
-            // TODO RELAY #1648 We don't use a tor_memquota::mq_queue here yet
-            let (mut tx, rx) = mpsc::channel(PT_STDIO_BUFFER);
+            // TODO RELAY #1649 We don't use a tor_memquota::mq_queue here yet
+            let (mut tx, rx) = tor_async_utils::mpsc_channel_no_memquota(PT_STDIO_BUFFER);
             let ident = identifier.clone();
             #[allow(clippy::cognitive_complexity)]
             thread::spawn(move || {

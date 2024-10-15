@@ -622,7 +622,9 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
 
         // We don't need buffering; since this is written to by dedicated tasks which
         // are reading watches.
-        let (status_send, status_recv) = mpsc::channel(0);
+        //
+        // Internally-generated status updates (hopefully rate limited?), no need for mq.
+        let (status_send, status_recv) = mpsc_channel_no_memquota(0);
 
         let storage = state_handle
             .storage_handle("ipts")

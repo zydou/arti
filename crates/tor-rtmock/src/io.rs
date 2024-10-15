@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)] // if you remove this, enable (or write) miri tests (git grep miri)
 
+use crate::util::mpsc_channel;
 use futures::channel::mpsc;
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::{Sink, SinkExt};
@@ -33,8 +34,8 @@ const CHUNKSZ: usize = 213;
 /// Note that this implementation is intended for testing only, and
 /// isn't optimized.
 pub fn stream_pair() -> (LocalStream, LocalStream) {
-    let (w1, r2) = mpsc::channel(CAPACITY);
-    let (w2, r1) = mpsc::channel(CAPACITY);
+    let (w1, r2) = mpsc_channel(CAPACITY);
+    let (w2, r1) = mpsc_channel(CAPACITY);
     let s1 = LocalStream {
         w: w1,
         r: r1,

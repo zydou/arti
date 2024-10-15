@@ -71,6 +71,7 @@ pub(crate) use {
     oneshot_fused_workaround as oneshot,
     retry_error::RetryError,
     safelog::{sensitive, Redactable as _},
+    tor_async_utils::mpsc_channel_no_memquota,
     tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt as _},
     tor_basic_utils::{impl_debug_hex, retry::RetryDelay, PathExt as _, RngExt as _},
     tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg as _},

@@ -285,7 +285,10 @@ impl OnionService {
             .storage_handle("iptpub")
             .map_err(StartupError::StateDirectoryInaccessible)?;
 
-        let (rend_req_tx, rend_req_rx) = mpsc::channel(32);
+        // If the HS implementation is stalled somehow, this is a local problem.
+        // We shouldn't kill the HS even if this is the oldest data in the system.
+        let (rend_req_tx, rend_req_rx) = mpsc_channel_no_memquota(32);
+
         let (shutdown_tx, shutdown_rx) = broadcast::channel(0);
         let (config_tx, config_rx) = postage::watch::channel_with(Arc::new(config));
 

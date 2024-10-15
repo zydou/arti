@@ -1,0 +1,11 @@
+disallowed-types = [
+]
+disallowed-methods = [
+    # Disallow non-memquota bounded queues
+    # (It is hopefully obvious to programmers working on Arti that unbounded queues
+    # shouldn't be used in circumstances where an attacker can cause them to grow without bound,
+    # so we avoid having to wrap/annotate all of those.)
+    { path = "futures::channel::mpsc::channel", reason = "Consider whether to use tor_memquota::mq_queue, or mpsc_channel_no_memquota" },
+    { path = "crossbeam_channel::bounded", reason = "Consider whether to use tor_memquota::mq_queue, or mpsc_channel_no_memquota" },
+    { path = "postage::mpsc::channel", reason = "Consider whether to use tor_memquota::mq_queue, or mpsc_channel_no_memquota" },
+]

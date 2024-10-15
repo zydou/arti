@@ -350,7 +350,7 @@ impl ChannelSpec for MpscSpec {
     type SendError = mpsc::SendError;
 
     fn raw_channel<T: Debug + Send + 'static>(self) -> (mpsc::Sender<T>, mpsc::Receiver<T>) {
-        mpsc::channel(self.buffer)
+        mpsc_channel_no_memquota(self.buffer)
     }
 
     fn close_receiver<T: Debug + Send + 'static>(rx: &mut Self::Receiver<T>) {

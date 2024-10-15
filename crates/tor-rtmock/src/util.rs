@@ -1,6 +1,7 @@
 //! Internal utilities for `tor_rtmock`
 
 use derive_deftly::define_derive_deftly;
+use futures::channel::mpsc;
 
 define_derive_deftly! {
 /// Implements `Runtime` for a struct made of multiple sub-providers
@@ -153,4 +154,15 @@ pub(crate) mod impl_runtime_prelude {
         unimpl::FakeListener, unimpl::FakeStream, BlockOn, CoarseInstant, CoarseTimeProvider,
         NetStreamProvider, Runtime, SleepProvider, TlsProvider, UdpProvider,
     };
+}
+
+/// Wrapper for `futures::channel::mpsc::channel` that embodies the `#[allow]`
+///
+/// We don't care about mq tracking in this test crate.
+///
+/// Exactly like `tor_async_utils::mpsc_channel_no_memquota`,
+/// but we can't use that here for crate hierarchy reasons.
+#[allow(clippy::disallowed_methods)]
+pub(crate) fn mpsc_channel<T>(buffer: usize) -> (mpsc::Sender<T>, mpsc::Receiver<T>) {
+    mpsc::channel(buffer)
 }
