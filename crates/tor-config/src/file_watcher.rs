@@ -23,7 +23,10 @@ use futures::{SinkExt as _, Stream, StreamExt as _};
 /// `Result` whose `Err` is [`FileWatcherBuildError`].
 pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
 
-/// A wrapper around `notify::RecommendedWatcher` to watch a set of parent
+/// The concrete type of the underlying watcher.
+type NotifyWatcher = notify::RecommendedWatcher;
+
+/// A wrapper around a `notify::Watcher` to watch a set of parent
 /// directories in order to learn about changes in some specific files that they
 /// contain.
 ///
@@ -41,7 +44,7 @@ pub struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
     // this field is kept only so the watcher is not dropped
     #[getter(skip)]
-    _watcher: notify::RecommendedWatcher,
+    _watcher: NotifyWatcher,
     /// The list of directories that we're currently watching.
     watching_dirs: HashSet<PathBuf>,
 }
@@ -216,7 +219,7 @@ impl<R: Runtime> FileWatcherBuilder<R> {
             }
         };
 
-        let mut watcher = notify::RecommendedWatcher::new(event_sender, notify::Config::default())
+        let mut watcher = NotifyWatcher::new(event_sender, notify::Config::default())
             .map_err(Arc::new)?;
 
         let watching_dirs: HashSet<_> = self.watching_dirs.keys().cloned().collect();
