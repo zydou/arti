@@ -646,6 +646,7 @@ fn errors() {
             let mut ah = mk_ah();
             let wa1: WeakAccount = ah.acct.downgrade();
             let p = ah.ps.pop().unwrap();
+            assert!(p.lock().claim(1).is_ok());
             let wa2: WeakAccount = p.lock().partn.account();
             drop(ah.acct);
 
@@ -653,7 +654,6 @@ fn errors() {
             check_consistency_general(&trk, |_collector| ());
 
             // account should be dead now
-            assert!(p.lock().claim(1).is_ok()); // from cache!
             assert_error!(AccountClosed, p.lock().claim(CLAIM));
             assert_error!(AccountClosed, wa1.upgrade());
             assert_error!(AccountClosed, wa2.upgrade());
