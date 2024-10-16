@@ -17,4 +17,12 @@ In particular, it provides:
     to divide by 100.
   * a SendMeVersion which can be compared only.
 
+## Compile-time features
+
+ * `memquota-memcost` -- implement `tor_memquota::HasMemoryCost` for many types.
+   (Does not actually force compiling in memory quota tracking;
+   that's `memquota` in `tor-memquota` and higher-level crates.)
+
+ * `full` -- Enable all features above.
+
 License: MIT OR Apache-2.0
