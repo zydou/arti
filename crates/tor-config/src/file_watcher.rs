@@ -219,8 +219,8 @@ impl<R: Runtime> FileWatcherBuilder<R> {
             }
         };
 
-        let mut watcher = NotifyWatcher::new(event_sender, notify::Config::default())
-            .map_err(Arc::new)?;
+        let mut watcher =
+            NotifyWatcher::new(event_sender, notify::Config::default()).map_err(Arc::new)?;
 
         let watching_dirs: HashSet<_> = self.watching_dirs.keys().cloned().collect();
         for dir in &watching_dirs {
