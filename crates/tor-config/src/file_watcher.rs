@@ -226,8 +226,23 @@ impl<R: Runtime> FileWatcherBuilder<R> {
             }
         };
 
-        let mut watcher =
-            NotifyWatcher::new(event_sender, notify::Config::default()).map_err(Arc::new)?;
+        cfg_if::cfg_if! {
+            if #[cfg(any(target_os = "linux", target_os = "android", target_os = "windows"))] {
+                let config = notify::Config::default();
+            } else {
+                /// The polling frequency, for use with the `PollWatcher`.
+                #[cfg(not(any(test, feature = "testing")))]
+                const WATCHER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
+                #[cfg(any(test, feature = "testing"))]
+                const WATCHER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(10);
+
+                let config = notify::Config::default()
+                    .with_poll_interval(WATCHER_POLL_INTERVAL);
+            }
+        }
+
+        let mut watcher = NotifyWatcher::new(event_sender, config).map_err(Arc::new)?;
 
         let watching_dirs: HashSet<_> = self.watching_dirs.keys().cloned().collect();
         for dir in &watching_dirs {
