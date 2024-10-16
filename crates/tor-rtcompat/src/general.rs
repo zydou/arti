@@ -69,6 +69,38 @@ use std::os::linux::net::SocketAddrExt as _;
 /// If we do, any new schema will begin with an ascii alphabetical character,
 /// and will consist only of ascii alphanumeric characters,
 /// the character `-`, and the character `_`.
+///
+/// ### TCP address representation
+///
+/// When representing a TCP address as a string,
+/// we use the formats implemented by [`std::net::SocketAddr`]'s
+/// `FromStr` implementation.  In contrast with the textual representations of
+/// [`Ipv4Addr`](std::net::Ipv4Addr) and [`Ipv6Addr`](std::net::Ipv6Addr),
+/// these formats are not currently very well specified by Rust.
+/// Therefore we describe them here:
+///   * A IPv4 TCP address is encoded as:
+///     - an [IPv4 address],
+///     - a colon (`:`),
+///     - a 16-bit decimal integer.
+///   * An IPv6 TCP address is encoded as:
+///     - a left square bracket (`[`),
+///     - an [IPv6 address],
+///     - optionally, a percent sign (`%`) and a 32-bit decimal integer
+///     - a right square bracket (`]`),
+///     - a colon (`:`),
+///     - a 16-bit decimal integer.
+///
+/// Note that the above TCP implementation does not provide any way
+/// to encode the [`flowinfo`](std::net::SocketAddrV6::flowinfo) member
+/// of a `SocketAddrV6`.
+/// Any `flowinfo` information set in an address
+/// will therefore be lost when the address is encoded.
+///
+/// [IPv4 address]: https://doc.rust-lang.org/std/net/struct.Ipv4Addr.html#textual-representation
+/// [IPv6 address]: https://doc.rust-lang.org/std/net/struct.Ipv6Addr.html#textual-representation
+///
+/// TODO: We should try to get Rust's stdlib specify these formats, so we don't have to.
+/// There is an open PR at <https://github.com/rust-lang/rust/pull/131790>.
 #[derive(Clone, Debug, derive_more::From, derive_more::TryInto)]
 #[non_exhaustive]
 pub enum SocketAddr {
