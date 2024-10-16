@@ -134,7 +134,7 @@ async fn watch_client_status<R: Runtime>(
 /// with streams crated with any other `TorClient`.
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
-#[deftly(rpc(method_name = "arti:isolated_client"))]
+#[deftly(rpc(method_name = "arti:new_isolated_client"))]
 #[non_exhaustive]
 pub struct IsolatedClient {}
 

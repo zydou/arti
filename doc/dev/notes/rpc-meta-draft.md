@@ -534,6 +534,20 @@ Method names starting with `x_` indicate
 experimental or unstable status:
 any code using them should expect to be unstable.
 
+##### Method naming conventions
+
+> By convention,
+> the identifier part of each method begins with a verb.
+> (We count "new" as a verb.)
+>
+> For example, a method might be called `arti:get_circuit`
+> (but not `arti:circuit`)
+> or `arti:new_isolated_client`
+> (but not `arti:isolated_client`).
+>
+> The verb `get` should only be used
+> for methods that return pre-existing objects,
+> not for methods that construct new objects.
 
 #### Errors
 
