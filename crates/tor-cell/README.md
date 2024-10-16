@@ -43,4 +43,31 @@ This crate is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 implement [Tor](https://www.torproject.org/) in Rust.
 
+## Compile-time features
+
+* `hs` -- Types relating to Tor Hidden Services (`.onion` services).
+* `hs-pow-v1` -- Types relating to Tor Hidden Services Proof of Work (`v1` scheme only)
+* `hs-pow-full` -- Types relating to Tor Hidden Services Proof of Work
+  (metafeature, enables all non-experimental schemes: currently, implies only `hs-pow-v1`).
+
+* `full` -- Enable all features above.
+
+### Experimental and unstable features
+
+Note that the APIs enabled by these features are NOT covered by
+semantic versioning[^1] guarantees: we might break them or remove
+them between patch versions.
+
+* `experimental-udp`: Types for conveying UDP over Tor.
+
+* `testing`: Additional APIs for testing,
+  used in our whole-workspace tests.
+
+* `experimental`: Enable all the above experimental features.
+
+[^1]: Remember, semantic versioning is what makes various `cargo`
+features work reliably. To be explicit: if you want `cargo update`
+to _only_ make safe changes, then you cannot enable these
+features.
+
 License: MIT OR Apache-2.0
