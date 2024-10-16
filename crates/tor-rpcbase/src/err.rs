@@ -101,11 +101,11 @@ pub enum RpcErrorKind {
     /// "The method does not exist."
     NoSuchMethod = -32601,
     /// "Invalid method parameter(s)."
-    InvalidParams = -32602,
+    InvalidMethodParameters = -32602,
     /// "The server suffered some kind of internal problem"
     InternalError = -32603,
     /// "Some requested object was not valid"
-    ObjectError = 1,
+    ObjectNotFound = 1,
     /// "Some other error occurred"
     RequestError = 2,
     /// This method exists, but wasn't implemented on this object.
@@ -127,9 +127,9 @@ fn kind_to_code(kind: tor_error::ErrorKind) -> RpcErrorKind {
         EK::RpcInvalidRequest => RC::InvalidRequest,
         EK::RpcMethodNotFound => RC::NoSuchMethod,
         EK::RpcMethodNotImpl => RC::MethodNotImpl,
-        EK::RpcInvalidMethodParameters => RC::InvalidParams,
+        EK::RpcInvalidMethodParameters => RC::InvalidMethodParameters,
         EK::Internal | EK::BadApiUsage => RC::InternalError,
-        EK::RpcObjectNotFound => RC::ObjectError,
+        EK::RpcObjectNotFound => RC::ObjectNotFound,
         EK::RpcRequestCancelled => RC::RequestCancelled,
         EK::RpcFeatureNotPresent => RC::FeatureNotPresent,
         _ => RC::RequestError, // (This is our catch-all "request error.")
