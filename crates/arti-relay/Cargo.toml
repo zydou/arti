@@ -46,7 +46,8 @@ tor-chanmgr = { path = "../tor-chanmgr", version = "0.23.0" }
 tor-config = { path = "../tor-config", version = "0.23.0" }
 tor-error = { path = "../tor-error", version = "0.23.0" }
 tor-keymgr = { path = "../tor-keymgr", version = "0.23.0", features = ["keymgr", "ephemeral-keystore"] }
-tor-memquota = { version = "0.23.0", path = "../tor-memquota" }
+# TODO RELAY compile in memquota tracking by default?  with a calculated limit maybe, even?
+tor-memquota = { version = "0.23.0", path = "../tor-memquota", default-features = false }
 tor-netdir = { path = "../tor-netdir", version = "0.23.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.23.0" }
 tor-proto = { path = "../tor-proto", version = "0.23.0" }

@@ -88,7 +88,7 @@ tor-hscrypto = { path = "../tor-hscrypto", version = "0.23.0", features = ["memq
 tor-linkspec = { path = "../tor-linkspec", version = "0.23.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.23.0", features = ["memquota"] }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.23.0" }
-tor-memquota = { version = "0.23.0", path = "../tor-memquota" }
+tor-memquota = { version = "0.23.0", path = "../tor-memquota", default-features = false }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.23.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.23.0" }
 tor-units = { path = "../tor-units", version = "0.23.0", features = ["memquota"] }
