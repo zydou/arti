@@ -1097,6 +1097,14 @@ impl Participation {
 
     /// Record that some memory has been (or will be) allocated (using `Qty`)
     pub(crate) fn claim_qty(&mut self, want: Qty) -> crate::Result<()> {
+        self.claim_qty_inner(want)
+            .inspect_err(|e| trace_report!(e, "claim {}", want))
+    }
+
+    /// Record that some memory has been (or will be) allocated - core implementation
+    ///
+    /// Caller must handles trace logging.
+    fn claim_qty_inner(&mut self, want: Qty) -> crate::Result<()> {
         let Enabled(self_, enabled) = &mut self.0 else {
             return Ok(());
         };
