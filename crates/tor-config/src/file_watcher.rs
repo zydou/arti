@@ -239,6 +239,13 @@ impl<R: Runtime> FileWatcherBuilder<R> {
 
                 let config = notify::Config::default()
                     .with_poll_interval(WATCHER_POLL_INTERVAL);
+
+                // When testing, compare the contents of the files too, not just their mtime
+                // Otherwise, because the polling backend detects changes based on mtime,
+                // if the test creates/writes files too fast,
+                // it will fail to notice changes (this can happen, for example, on a tmpfs).
+                #[cfg(any(test, feature = "testing"))]
+                let config = config.with_compare_contents(true);
             }
         }
 
