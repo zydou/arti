@@ -87,7 +87,11 @@ pub enum Error {
 // [TODO: If you need a Bounded* for some type other than i32, ask nickm:
 // he has an implementation kicking around.]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "memquota-memcost", derive(Deftly), derive_deftly(HasMemoryCost))]
+#[cfg_attr(
+    feature = "memquota-memcost",
+    derive(Deftly),
+    derive_deftly(HasMemoryCost)
+)]
 pub struct BoundedInt32<const LOWER: i32, const UPPER: i32> {
     /// Interior Value
     value: i32,

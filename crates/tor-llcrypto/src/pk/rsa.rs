@@ -41,7 +41,11 @@ pub const RSA_ID_LEN: usize = 20;
 /// its [`Ed25519Identity`](crate::pk::ed25519::Ed25519Identity) instead of by
 /// this kind of identity key.
 #[derive(Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "memquota-memcost", derive(Deftly), derive_deftly(HasMemoryCost))]
+#[cfg_attr(
+    feature = "memquota-memcost",
+    derive(Deftly),
+    derive_deftly(HasMemoryCost)
+)]
 pub struct RsaIdentity {
     /// SHA1 digest of a DER encoded public key.
     id: CtByteArray<RSA_ID_LEN>,
