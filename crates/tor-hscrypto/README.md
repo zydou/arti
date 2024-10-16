@@ -24,6 +24,23 @@ This crate implements those operations, along with a set of wrapper types to
 keep us from getting confused about the numerous keys and nonces used for the
 onion services.
 
-License: MIT OR Apache-2.0
+## Compile-time features
+
+* `memquota-memcost` -- implement `tor_memquota::HasMemoryCost` for many types.
+  (Does not actually force compiling in memory quota tracking;
+  that's `memquota` in `tor-memquota` and higher-level crates.)
+
+* `ope` -- support for Order Preserving Encryption
+
+* `pow-v1` -- Tor Hidden Services Proof of Work (`v1` scheme only)
+
+* `pow-full` -- Tor Hidden Services Proof of Work
+  (metafeature, enables all non-experimental schemes: currently, implies only `pow-v1`).
+
+* `full` -- Enable all features above.
+
+## License
+
+MIT OR Apache-2.0
 
 When the `pow` feature is used, we link with LGPL licensed dependencies.
