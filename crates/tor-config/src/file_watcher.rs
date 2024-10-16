@@ -23,8 +23,15 @@ use futures::{SinkExt as _, Stream, StreamExt as _};
 /// `Result` whose `Err` is [`FileWatcherBuildError`].
 pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
 
-/// The concrete type of the underlying watcher.
-type NotifyWatcher = notify::RecommendedWatcher;
+cfg_if::cfg_if! {
+    if #[cfg(any(target_os = "linux", target_os = "android", target_os = "windows"))] {
+        /// The concrete type of the underlying watcher.
+        type NotifyWatcher = notify::RecommendedWatcher;
+    } else {
+        /// The concrete type of the underlying watcher.
+        type NotifyWatcher = notify::PollWatcher;
+    }
+}
 
 /// A wrapper around a `notify::Watcher` to watch a set of parent
 /// directories in order to learn about changes in some specific files that they
