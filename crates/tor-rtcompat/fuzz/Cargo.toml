@@ -1,0 +1,25 @@
+[package]
+name = "tor-rtcompat-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.tor-rtcompat]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "general_addr"
+path = "fuzz_targets/general_addr.rs"
+test = false
+doc = false
+bench = false
