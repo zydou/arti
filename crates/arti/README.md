@@ -133,6 +133,9 @@ work.
 * `pt-client` (default) -- Build with support for pluggable transports.
 * `vanguards` (default) -- Build with support for [Vanguards](https://spec.torproject.org/vanguards-spec/).
 
+* `default-runtime` (default): Use a default async runtime and TLS provider.
+  Convenience alias for `tokio` and `native-tls`.
+
 * `full` -- Build with all features above, along with all stable additive
   features from other arti crates.  (This does not include experimental
   features. It also does not include features that select a particular
