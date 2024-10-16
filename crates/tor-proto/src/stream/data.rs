@@ -136,10 +136,6 @@ pub struct DataStream {
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
     ctrl: std::sync::Arc<DataStreamCtrl>,
-
-    /// The memory quota account that should be used for this stream's data
-    #[allow(dead_code)] // Exists partly to keep the account alive
-    memquota: StreamAccount,
 }
 
 /// An object used to control and monitor a data stream.
@@ -169,6 +165,10 @@ pub struct DataStreamCtrl {
     /// similar, if and when it stops moving around.
     #[cfg(feature = "stream-ctrl")]
     status: Arc<Mutex<DataStreamStatus>>,
+
+    /// The memory quota account that should be used for this stream's data
+    #[allow(dead_code)] // Exists to keep the account alive
+    memquota: StreamAccount,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
@@ -213,6 +213,11 @@ pub struct DataWriter {
     /// and we should refactor if so.
     state: Option<DataWriterState>,
 
+    /// The memory quota account that should be used for this stream's data
+    #[allow(dead_code)] // Exists to keep the account alive
+    // If we liked, we could make this conditional; see DataReader.memquota
+    memquota: StreamAccount,
+
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
     #[cfg(feature = "stream-ctrl")]
@@ -242,6 +247,12 @@ pub struct DataReader {
     /// poll_read().  It might be possible to do better here, and we
     /// should refactor if so.
     state: Option<DataReaderState>,
+
+    /// The memory quota account that should be used for this stream's data
+    #[allow(dead_code)] // Exists to keep the account alive
+    // If we liked, we could make this conditional on not(cfg(feature = "stream-ctrl"))
+    // since, DataStreamCtrl contains a StreamAccount clone too.  But that seems fragile.
+    memquota: StreamAccount,
 
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
@@ -382,6 +393,7 @@ impl DataStream {
         let ctrl = Arc::new(DataStreamCtrl {
             circuit: Arc::downgrade(target.circuit()),
             status: status.clone(),
+            memquota: memquota.clone(),
         });
         #[cfg(feature = "experimental-api")]
         let circuit = target.circuit().clone();
@@ -394,6 +406,7 @@ impl DataStream {
                 #[cfg(feature = "stream-ctrl")]
                 status: status.clone(),
             })),
+            memquota: memquota.clone(),
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };
@@ -405,6 +418,7 @@ impl DataStream {
                 #[cfg(feature = "stream-ctrl")]
                 status,
             })),
+            memquota,
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };
@@ -415,7 +429,6 @@ impl DataStream {
             circuit,
             #[cfg(feature = "stream-ctrl")]
             ctrl,
-            memquota,
         }
     }
 
