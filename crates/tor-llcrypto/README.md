@@ -67,7 +67,13 @@ onion service client.
 
  * `keymgr` -- enable cryptography that's only needed for key management
 
+ * `memquota-memcost` -- implement `tor_memquota::HasMemoryCost` for many types.
+   (Does not actually force compiling in memory quota tracking;
+   that's `memquota` in `tor-memquota` and higher-level crates.)
+
  * `relay` -- enable cryptography that's only used on relays.
+
+ * `full` -- Enable all features above.
 
 ### Acceleration features
 
