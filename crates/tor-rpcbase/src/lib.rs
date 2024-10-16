@@ -94,14 +94,15 @@ pub enum LookupError {
     WrongType(ObjectId),
 }
 
-impl tor_error::HasKind for LookupError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
+impl From<LookupError> for RpcError {
+    fn from(err: LookupError) -> Self {
         use LookupError as E;
-        match self {
-            E::NoObject(_) => EK::RpcObjectNotFound,
-            E::WrongType(_) => EK::RpcInvalidRequest,
-        }
+        use RpcErrorKind as EK;
+        let kind = match &err {
+            E::NoObject(_) => EK::ObjectNotFound,
+            E::WrongType(_) => EK::InvalidRequest,
+        };
+        RpcError::new(err.to_string(), kind)
     }
 }
 

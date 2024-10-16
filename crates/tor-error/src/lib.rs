@@ -700,46 +700,6 @@ pub enum ErrorKind {
     #[display("possible clock skew detected")]
     ClockSkew,
 
-    /// An RPC operation failed because a request could not be parsed or was
-    /// otherwise invalid.
-    #[display("invalid RPC request")]
-    #[cfg(feature = "rpc")]
-    RpcInvalidRequest,
-
-    /// An RPC operation failed because a method type could not be found,
-    /// or is not available on a given object.
-    #[display("RPC method not found")]
-    #[cfg(feature = "rpc")]
-    RpcMethodNotFound,
-
-    /// An RPC operation failed because a method type was not implemented
-    /// on the given object.
-    #[display("RPC method not implemented on this object")]
-    #[cfg(feature = "rpc")]
-    RpcMethodNotImpl,
-
-    /// An RPC operation failed because the method type's parameters were not
-    /// correct for it.
-    #[display("RPC invalid parameters")]
-    #[cfg(feature = "rpc")]
-    RpcInvalidMethodParameters,
-
-    /// An RPC operation failed because a given object could not be found.
-    #[display("RPC object not found")]
-    #[cfg(feature = "rpc")]
-    RpcObjectNotFound,
-
-    /// An RPC request was cancelled before it could finish.
-    #[display("RPC request cancelled")]
-    #[cfg(feature = "rpc")]
-    RpcRequestCancelled,
-
-    /// An RPC request failed because a user listed a required feature
-    /// that is not implemented by the subsystem, or the invoked method.
-    #[display("Requested RPC feature is not implemented")]
-    #[cfg(feature = "rpc")]
-    RpcFeatureNotPresent,
-
     /// Internal error (bug) in Arti.
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in

@@ -80,7 +80,7 @@ enum AnyErrorKind {
     /// An ErrorKind representing a non-RPC problem.
     Tor(tor_error::ErrorKind),
     /// An ErrorKind originating within the RPC system.
-    #[allow(unused)] //XXXX
+    #[allow(unused)]
     Rpc(RpcErrorKind),
 }
 
@@ -124,14 +124,7 @@ fn kind_to_code(kind: tor_error::ErrorKind) -> RpcErrorKind {
     use tor_error::ErrorKind as EK;
     use RpcErrorKind as RC;
     match kind {
-        EK::RpcInvalidRequest => RC::InvalidRequest,
-        EK::RpcMethodNotFound => RC::NoSuchMethod,
-        EK::RpcMethodNotImpl => RC::MethodNotImpl,
-        EK::RpcInvalidMethodParameters => RC::InvalidMethodParameters,
         EK::Internal | EK::BadApiUsage => RC::InternalError,
-        EK::RpcObjectNotFound => RC::ObjectNotFound,
-        EK::RpcRequestCancelled => RC::RequestCancelled,
-        EK::RpcFeatureNotPresent => RC::FeatureNotPresent,
         _ => RC::RequestError, // (This is our catch-all "request error.")
     }
 }
@@ -183,7 +176,7 @@ mod test {
         fn kind(&self) -> tor_error::ErrorKind {
             match self {
                 Self::SomethingExploded { .. } => tor_error::ErrorKind::Other,
-                Self::SomethingWasHidden(_, _) => tor_error::ErrorKind::RpcObjectNotFound,
+                Self::SomethingWasHidden(_, _) => tor_error::ErrorKind::RemoteHostNotFound,
                 Self::SomethingWasMissing(_) => tor_error::ErrorKind::FeatureDisabled,
                 Self::ProgramUnwilling => tor_error::ErrorKind::Internal,
             }
@@ -229,8 +222,8 @@ mod test {
         let expected = r#"
         {
             "message": "error: I'm hiding the zircon-encrusted tweezers in my chrome dinette",
-            "code": 1,
-            "kinds": ["arti:RpcObjectNotFound"]
+            "code": 2,
+            "kinds": ["arti:RemoteHostNotFound"]
          }
         "#;
         assert_json_eq!(&serialized, expected);

@@ -29,8 +29,8 @@ use crate::{
     RpcMgr,
 };
 
-use tor_rpcbase as rpc;
 use tor_rpcbase::templates::*;
+use tor_rpcbase::{self as rpc, RpcError};
 
 /// An open connection from an RPC client.
 ///
@@ -476,9 +476,12 @@ struct MissingFeaturesError(
     Vec<String>,
 );
 
-impl tor_error::HasKind for MissingFeaturesError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        tor_error::ErrorKind::RpcFeatureNotPresent
+impl From<MissingFeaturesError> for RpcError {
+    fn from(err: MissingFeaturesError) -> Self {
+        RpcError::new(
+            err.to_string(),
+            tor_rpcbase::RpcErrorKind::FeatureNotPresent,
+        )
     }
 }
 

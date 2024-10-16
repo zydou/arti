@@ -742,13 +742,14 @@ pub enum InvokeError {
     Bug(#[from] tor_error::Bug),
 }
 
-impl tor_error::HasKind for InvokeError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
-        match self {
-            InvokeError::NoImpl => EK::RpcMethodNotFound,
-            InvokeError::Bug(e) => e.kind(),
-        }
+impl From<InvokeError> for RpcError {
+    fn from(err: InvokeError) -> Self {
+        use crate::RpcErrorKind as EK;
+        let kind = match &err {
+            InvokeError::NoImpl => EK::MethodNotImpl,
+            InvokeError::Bug(_) => EK::InternalError,
+        };
+        RpcError::new(err.to_string(), kind)
     }
 }
 
@@ -768,12 +769,11 @@ pub(crate) mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use crate::{method::RpcMethod, templates::*, DispatchTable, Method, NoUpdates};
+    use crate::{method::RpcMethod, templates::*, DispatchTable, InvokeError, Method, NoUpdates};
     use derive_deftly::Deftly;
     use futures::SinkExt;
     use futures_await_test::async_test;
     use std::sync::{Arc, RwLock};
-    use tor_error::{ErrorKind, HasKind as _};
 
     use super::UpdateSink;
 
@@ -1160,6 +1160,10 @@ pub(crate) mod test {
 
     #[test]
     fn invoke_poorly() {
+        fn is_internal_invoke_err<T>(val: Result<T, InvokeError>) -> bool {
+            matches!(val, Err(InvokeError::Bug(_)))
+        }
+
         // Make sure that our invoker function invocations return plausible bugs warnings on
         // misuse.
         let ctx: Arc<dyn crate::Context> = Arc::new(Ctx::from(DispatchTable::from_inventory()));
@@ -1175,7 +1179,7 @@ pub(crate) mod test {
             Arc::clone(&ctx),
             discard(),
         );
-        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+        assert!(is_internal_invoke_err(bug));
 
         // Wrong object type
         let bug = ent.invoke(
@@ -1184,14 +1188,14 @@ pub(crate) mod test {
             Arc::clone(&ctx),
             discard(),
         );
-        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+        assert!(is_internal_invoke_err(bug));
 
         // Special: Wrong method.
         let bug = ent.invoke_special(Arc::new(Swan), Box::new(GetName), Arc::clone(&ctx));
-        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+        assert!(is_internal_invoke_err(bug));
         // Special: Wrong object type
         let bug = ent.invoke_special(Arc::new(Wombat), Box::new(GetKids), Arc::clone(&ctx));
-        assert!(bug.err().unwrap().kind() == ErrorKind::Internal);
+        assert!(is_internal_invoke_err(bug));
     }
 
     #[test]
