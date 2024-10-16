@@ -779,7 +779,7 @@ impl ClientCirc {
         self: &Arc<ClientCirc>,
         begin_msg: AnyRelayMsg,
         cmd_checker: AnyCmdChecker,
-    ) -> Result<(StreamReader, StreamTarget)> {
+    ) -> Result<(StreamReader, StreamTarget, StreamAccount)> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
@@ -827,7 +827,7 @@ impl ClientCirc {
             ended: false,
         };
 
-        Ok((reader, target))
+        Ok((reader, target, memquota))
     }
 
     /// Start a DataStream (anonymized connection) to the given
@@ -837,8 +837,7 @@ impl ClientCirc {
         msg: AnyRelayMsg,
         optimistic: bool,
     ) -> Result<DataStream> {
-        let memquota = StreamAccount::new(self.mq_account())?;
-        let (reader, target) = self
+        let (reader, target, memquota) = self
             .begin_stream_impl(msg, DataCmdChecker::new_any())
             .await?;
         let mut stream = DataStream::new(reader, target, memquota);
@@ -931,10 +930,10 @@ impl ClientCirc {
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
     async fn try_resolve(self: &Arc<ClientCirc>, msg: Resolve) -> Result<Resolved> {
-        let (reader, _) = self
+        let (reader, _target, memquota) = self
             .begin_stream_impl(msg.into(), ResolveCmdChecker::new_any())
             .await?;
-        let mut resolve_stream = ResolveStream::new(reader);
+        let mut resolve_stream = ResolveStream::new(reader, memquota);
         resolve_stream.read_msg().await
     }
 
