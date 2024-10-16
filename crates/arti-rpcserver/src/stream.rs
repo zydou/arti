@@ -8,6 +8,7 @@ use std::{
     net::IpAddr,
     sync::{Arc, Mutex},
 };
+use tor_error::into_internal;
 use tor_proto::stream::DataStreamCtrl;
 use tor_rpcbase::{self as rpc, templates::*};
 
@@ -164,7 +165,7 @@ async fn rpcdatastream_connect_with_prefs(
     let stream: Result<arti_client::DataStream, _> =
         *rpc::invoke_special_method(ctx, connector, method)
             .await
-            .map_err(|e| Box::new(e) as _)?;
+            .map_err(|e| Box::new(into_internal!("unable to delegate to connector")(e)) as _)?;
 
     // Pick the new state for this object, and install it.
     let new_obj = match &stream {
@@ -202,7 +203,7 @@ async fn rpcdatastream_resolve_with_prefs(
 
     let result = rpc::invoke_special_method(ctx, connector, method)
         .await
-        .map_err(|e| Box::new(e) as _)?;
+        .map_err(|e| Box::new(into_internal!("unable to delegate to connector")(e)) as _)?;
 
     *result
 }
@@ -219,7 +220,7 @@ async fn rpcdatastream_resolve_ptr_with_prefs(
 
     let result = rpc::invoke_special_method(ctx, connector, method)
         .await
-        .map_err(|e| Box::new(e) as _)?;
+        .map_err(|e| Box::new(into_internal!("unable to delegate to connector")(e)) as _)?;
 
     *result
 }
