@@ -1109,6 +1109,19 @@ impl Participation {
             return Ok(());
         };
 
+        // In debug builds, check that the Account is still live, to detect lifetime trouble
+        // (we repeat this later, which is OK in a debug build)
+        #[cfg(debug_assertions)]
+        {
+            find_in_tracker! {
+            enabled;
+            self_.tracker => + tracker, state;
+            self_.aid => _arecord;
+            *self_.pid => _precord;
+            ?Error
+            };
+        }
+
         if let Some(got) = self_.cache.split_off(want) {
             return got.claim_return_to_participant();
         }
