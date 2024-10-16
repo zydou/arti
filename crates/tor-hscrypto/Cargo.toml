@@ -13,7 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-memquota = ["derive-deftly", "tor-memquota", "tor-units/memquota", "tor-llcrypto/memquota"]
+memquota-memcost = ["derive-deftly", "tor-memquota", "tor-units/memquota-memcost", "tor-llcrypto/memquota-memcost"]
 ope = ["cipher", "zeroize"]
 
 # Onion service proof of work schemes
@@ -21,7 +21,7 @@ pow-v1 = ["arrayvec", "blake2", "equix"]
 pow-full = ["pow-v1"]
 
 full = [
-    "memquota",
+    "memquota-memcost",
     "ope",
     "safelog/full",
     "tor-basic-utils/full",

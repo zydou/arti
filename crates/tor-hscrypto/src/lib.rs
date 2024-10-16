@@ -52,7 +52,7 @@ pub mod time;
 
 use macros::define_bytes;
 
-#[cfg(feature = "memquota")]
+#[cfg(feature = "memquota-memcost")]
 use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
 
 define_bytes! {
@@ -111,7 +111,7 @@ define_bytes! {
 /// `RENDEZVOUS1` message.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(
-    feature = "memquota",
+    feature = "memquota-memcost",
     derive(Deftly),
     derive_deftly(HasMemoryCost),
 )]

@@ -22,8 +22,8 @@ tor-memquota = { version = "0.23.0", path = "../tor-memquota", default-features 
 float-cmp = "0.10.0"
 
 [features]
-full = ["memquota"]
-memquota = ["derive-deftly", "tor-memquota"]
+full = ["memquota-memcost"]
+memquota-memcost = ["derive-deftly", "tor-memquota"]
 
 # [derive_more]
 # default-features = false
