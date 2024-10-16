@@ -74,8 +74,6 @@ impl MacKey {
 impl GlobalId {
     /// The number of bytes used to encode a `GlobalId` in binary form.
     const ENCODED_LEN: usize = MAC_LEN + ConnectionId::LEN + GenIdx::BYTE_LEN;
-    /// The number of bytes used to encode a `GlobalId` in base-64 form.
-    pub(crate) const B64_ENCODED_LEN: usize = (Self::ENCODED_LEN * 8).div_ceil(6);
 
     /// Create a new GlobalId from its parts.
     pub(crate) fn new(connection: ConnectionId, local_id: GenIdx) -> GlobalId {
@@ -164,6 +162,8 @@ mod test {
 
     use super::*;
 
+    const B64_ENCODED_LEN: usize = (GlobalId::ENCODED_LEN * 8).div_ceil(6);
+
     #[test]
     fn roundtrip() {
         use crate::objmap::{StrongIdx, WeakIdx};
@@ -194,8 +194,8 @@ mod test {
         assert_eq!(gid2, gid2_decoded);
         assert_ne!(gid1_decoded, gid2_decoded);
 
-        assert_eq!(enc1.as_ref().len(), GlobalId::B64_ENCODED_LEN);
-        assert_eq!(enc2.as_ref().len(), GlobalId::B64_ENCODED_LEN);
+        assert_eq!(enc1.as_ref().len(), B64_ENCODED_LEN);
+        assert_eq!(enc2.as_ref().len(), B64_ENCODED_LEN);
     }
 
     #[test]

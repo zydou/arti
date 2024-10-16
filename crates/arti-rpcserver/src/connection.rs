@@ -171,9 +171,13 @@ impl Connection {
     /// If possible, convert an `ObjectId` into a `GenIdx` that can be used in
     /// this connection's ObjMap.
     fn id_into_local_idx(&self, id: &rpc::ObjectId) -> Result<GenIdx, rpc::LookupError> {
-        // TODO RPC: Use a tag byte instead of a magic length.
-
-        if id.as_ref().len() == GlobalId::B64_ENCODED_LEN {
+        if *id
+            .as_ref()
+            .as_bytes()
+            .last()
+            .expect("can't reference global ID")
+            == b'='
+        {
             // This is the right length to be a GlobalId; let's see if it really
             // is one.
             //
