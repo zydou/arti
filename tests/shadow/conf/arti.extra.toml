@@ -1,0 +1,2 @@
+# Configuration that is passed only to `arti-extra`, the build with extra features enabled.
+# See `.rust-recent-arti-extra-features-template:` in `.gitlab-ci.yml`.

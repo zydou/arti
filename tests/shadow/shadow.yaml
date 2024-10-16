@@ -58,6 +58,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
       - -p=0
@@ -84,6 +85,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -c=./arti.d/arti.onion-auth.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
@@ -112,6 +114,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
       - -o=vanguards.mode="full"
@@ -141,6 +144,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -c=./arti.d/arti-onion-auth-ctor.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - -o=onion_services.tgen_hs.proxy_ports=[["80", "127.0.0.1:8080"]]
@@ -273,6 +277,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
       - -l=debug,tor_proto=trace
@@ -418,6 +423,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -c=./arti.d/arti.onion.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
@@ -448,6 +454,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -c=./arti.d/arti.onion.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
@@ -470,6 +477,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -c=./arti.d/arti.onion.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
@@ -493,6 +501,7 @@ hosts:
       args:
       - proxy
       - -c=./arti.d/arti.common.toml
+      - -c=./arti.d/arti.extra.toml
       - -c=./arti.d/arti-auth-ctor.onion.toml
       - -o=proxy.socks_listen="127.0.0.1:9000"
       - --disable-fs-permission-checks
