@@ -240,7 +240,7 @@ A regular connect string is a JSON object with these members.
 A socket-connection object is a JSON object with these members.
 (Unrecognized members should be ignored.)
 
- - `socket`: a string or JSON object describing
+ - `socket`: a string describing
    how to open a connection to the Arti RPC server.
    (Required.)
 
@@ -248,14 +248,22 @@ A socket-connection object is a JSON object with these members.
    (Required.)
 
 
-Currently recognized `socket` members are in these forms:
-  - A TCP socket address, optionally prefixed with `tcp:`.
-    (Examples: `127.0.0.1:9999`, `[::1]:9999`, `tcp:[::1]:9999`.)
-  - An AF_UNIX socket address, prefixed with `unix:`.
-    (Example: `unix:/var/run/arti/rpc_socket`)
-If the `socket` member is a JSON object,
-or if it has a schema prefix other than `tcp:` or `unix:`,
+The `socket` members must be in a form accepted by
+[`general::SocketAddr::from_str`](https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2519).
+
+> TODO: Fix that above link once !2519 is merged.
+
+> These formats are, roughly:
+>  - A TCP socket address, optionally prefixed with `tcp:`.
+>    (Examples: `127.0.0.1:9999`, `[::1]:9999`, `tcp:[::1]:9999`.)
+>  - An AF_UNIX socket address, prefixed with `unix:`.
+>    (Example: `unix:/var/run/arti/rpc_socket`)
+
+If the `socket` member
+has a schema prefix other than `tcp:` or `unix:`,
+or if it is a relative `unix:` path,
 then the connection attempt is *declined*.
+
 
 Currently recognized `auth` memebers are in one of these forms:
   - The JSON string `"none"`.
