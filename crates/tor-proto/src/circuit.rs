@@ -1054,9 +1054,8 @@ impl PendingClientCirc {
         createdreceiver: oneshot::Receiver<CreateResponse>,
         input: CircuitRxReceiver,
         unique_id: UniqId,
+        memquota: CircuitAccount,
     ) -> Result<(PendingClientCirc, reactor::Reactor)> {
-        let memquota = CircuitAccount::new(channel.mq_account())?;
-
         let (reactor, control_tx, reactor_closed_rx, mutable) =
             Reactor::new(channel.clone(), id, unique_id, input, memquota.clone());
 
@@ -1498,7 +1497,7 @@ mod test {
         let unique_id = UniqId::new(23, 17);
 
         let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id).unwrap();
+            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id, CircuitAccount::new_noop()).unwrap();
 
         rt.spawn(async {
             let _ignore = reactor.run().await;
@@ -1668,7 +1667,7 @@ mod test {
         let unique_id = UniqId::new(23, 17);
 
         let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id).unwrap();
+            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id, CircuitAccount::new_noop()).unwrap();
 
         rt.spawn(async {
             let _ignore = reactor.run().await;
