@@ -49,6 +49,8 @@ use std::os::linux::net::SocketAddrExt as _;
 ///    Examples: `unix:/path/to/socket`, `tcp:127.0.0.1:9999`,
 ///    `tcp:[::1]:9999`.
 ///
+///    The "unnamed" unix address is represented as `unix:`.
+///
 /// 2. A _unqualified_ representation,
 ///    consisting of a TCP address represented as a string.
 ///
@@ -57,7 +59,7 @@ use std::os::linux::net::SocketAddrExt as _;
 /// Note that not every `general::SocketAddr` has a string representation!
 /// Currently, the ones that might not be representable are:
 ///
-///  - AF_UNIX addresses without a path name.
+///  - "Abstract" AF_UNIX addresses (a Linux feature)
 ///  - AF_UNIX addresses whose path name is not UTF-8.
 ///
 /// Note also that string representations may contain whitespace
@@ -131,10 +133,15 @@ impl SocketAddr {
         use SocketAddr::*;
         match self {
             Inet(sa) => Some(format!("tcp:{}", sa)),
-            Unix(sa) => sa
-                .as_pathname()
-                .and_then(Path::to_str)
-                .map(|p| format!("unix:{}", p)),
+            Unix(sa) => {
+                if sa.is_unnamed() {
+                    Some("unix:".to_string())
+                } else {
+                    sa.as_pathname()
+                        .and_then(Path::to_str)
+                        .map(|p| format!("unix:{}", p))
+                }
+            }
         }
     }
 }
