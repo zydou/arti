@@ -46,7 +46,7 @@ use derive_more::{Add, Display, Div, From, FromStr, Mul};
 use std::time::Duration;
 use thiserror::Error;
 
-#[cfg(feature = "memquota")]
+#[cfg(feature = "memquota-memcost")]
 use {derive_deftly::Deftly, tor_memquota::derive_deftly_template_HasMemoryCost};
 
 /// Conversion errors from converting a value into a [`BoundedInt32`].
@@ -87,7 +87,11 @@ pub enum Error {
 // [TODO: If you need a Bounded* for some type other than i32, ask nickm:
 // he has an implementation kicking around.]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "memquota", derive(Deftly), derive_deftly(HasMemoryCost))]
+#[cfg_attr(
+    feature = "memquota-memcost",
+    derive(Deftly),
+    derive_deftly(HasMemoryCost)
+)]
 pub struct BoundedInt32<const LOWER: i32, const UPPER: i32> {
     /// Interior Value
     value: i32,

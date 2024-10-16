@@ -169,7 +169,7 @@ tor-keymgr = { path = "../tor-keymgr", version = "0.23.0", default-features = fa
 tor-linkspec = { path = "../tor-linkspec", version = "0.23.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.23.0" }
 # tor-memquota dependency is unconditional, but most of the code is behind tor-memquota/memquota
-tor-memquota = { path = "../tor-memquota", version = "0.23.0" }
+tor-memquota = { path = "../tor-memquota", version = "0.23.0", default-features = false }
 tor-netdir = { path = "../tor-netdir", version = "0.23.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.23.0" }
 tor-persist = { path = "../tor-persist", version = "0.23.0" }

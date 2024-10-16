@@ -13,8 +13,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-memquota = ["tor-memquota", "derive-deftly"]
-full = ["memquota", "safelog/full"]
+memquota-memcost = ["tor-memquota", "derive-deftly"]
+full = ["memquota-memcost", "safelog/full"]
 
 with-openssl = ["openssl", "typenum", "cipher", "__is_nonadditive"]
 with-sha1-asm = ["sha1/asm", "__is_nonadditive"]
