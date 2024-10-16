@@ -46,6 +46,15 @@ cfg_if::cfg_if! {
 /// For more background on the issues with `notify`, see
 /// <https://github.com/notify-rs/notify/issues/165> and
 /// <https://github.com/notify-rs/notify/pull/166>.
+///
+/// ## Limitations
+///
+/// On backends using kqueue, this uses a polling watcher
+/// to work around a bug in the `notify` crate[^1].
+/// This introduces a perceivable delay,
+/// and can be very expensive for large file trees.
+///
+/// [^1]: See <https://github.com/notify-rs/notify/issues/644>
 #[derive(Getters)]
 pub struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.

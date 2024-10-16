@@ -52,6 +52,8 @@ pub(crate) trait ReconfigurableModule: Send + Sync {
 ///
 /// The modules are `Weak` references to prevent this background task
 /// from keeping them alive.
+///
+/// See the [`FileWatcher`](FileWatcher#Limitations) docs for limitations.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
     runtime: &R,
