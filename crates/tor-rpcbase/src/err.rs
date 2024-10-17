@@ -1,5 +1,10 @@
 //! Error-related functionality for RPC functions.
 
+use std::collections::HashMap;
+
+/// Alias for a type-erased value used in an error's `data` field
+type ErrorDatum = Box<dyn erased_serde::Serialize + Send + 'static>;
+
 /// An error type returned by failing RPC methods.
 #[derive(serde::Serialize)]
 pub struct RpcError {
@@ -11,6 +16,9 @@ pub struct RpcError {
     /// The ErrorKind(s) of this error.
     #[serde(serialize_with = "ser_kind")]
     kinds: AnyErrorKind,
+    /// Map from namespaced keyword to related data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<HashMap<String, ErrorDatum>>,
 }
 
 impl RpcError {
@@ -20,12 +28,27 @@ impl RpcError {
             message,
             code,
             kinds: AnyErrorKind::Rpc(code),
+            data: None,
         }
     }
 
     /// Change the declared kind of this error to `kind`.
     pub fn set_kind(&mut self, kind: tor_error::ErrorKind) {
         self.kinds = AnyErrorKind::Tor(kind);
+    }
+
+    /// Replace the `data` field named `keyword`, if any, with the object `datum`.
+    ///
+    /// Note that to conform with the spec, keyword must be a C identifier prefixed with a
+    /// namespace, as in `rpc:missing_features`
+    pub fn set_datum<D>(&mut self, keyword: String, datum: D)
+    where
+        D: serde::Serialize + Send + 'static,
+    {
+        // TODO RPC : enforce validity on `keyword`.
+        self.data
+            .get_or_insert_with(HashMap::new)
+            .insert(keyword, Box::new(datum) as _);
     }
 
     /// Return true if this is an internal error.
@@ -51,6 +74,7 @@ where
             message,
             code,
             kinds,
+            data: None,
         }
     }
 }
@@ -194,9 +218,6 @@ mod test {
 
     #[test]
     fn serialize_error() {
-        // TODO: Since we do not expose `data`, these error formats are now more or less useless.
-        // We should revisit them if we decide to reintroduce error data.
-
         let err = ExampleError::SomethingExploded {
             what: "previous implementation".into(),
             why: "worse things happen at C".into(),
@@ -249,6 +270,25 @@ mod test {
             "code": -32603,
             "kinds": ["arti:Internal"]
          }
+        "#;
+        assert_json_eq!(&serialized, expected);
+    }
+
+    #[test]
+    fn create_error() {
+        let mut e = RpcError::new("Example error".to_string(), RpcErrorKind::RequestError);
+        e.set_kind(tor_error::ErrorKind::CacheCorrupted);
+        e.set_datum("rpc:example".to_string(), "Hello world".to_string());
+        let serialized = serde_json::to_string(&e).unwrap();
+        let expected = r#"
+        {
+            "message": "Example error",
+            "code": 2,
+            "kinds": ["arti:CacheCorrupted"],
+            "data": {
+                "rpc:example": "Hello world"
+            }
+        }
         "#;
         assert_json_eq!(&serialized, expected);
     }
