@@ -551,6 +551,7 @@ impl MemoryQuotaTracker {
         let (reclaim_tx, reclaim_rx) =
             mpsc_channel_no_memquota(0 /* plus num_senders, ie 1 */);
         let total_used = TotalQtyNotifier::new_zero(reclaim_tx);
+        let ConfigInner { max, low_water } = config; // for logging
 
         let global = Global {
             total_used,
@@ -566,6 +567,8 @@ impl MemoryQuotaTracker {
 
         let for_task = Arc::downgrade(&tracker);
         runtime.spawn(reclaim::task(for_task, reclaim_rx, enabled))?;
+
+        info!(%max, %low_water, "memory quota tracking initialised");
 
         Ok(tracker)
     }
