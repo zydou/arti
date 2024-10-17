@@ -11,7 +11,7 @@ a given secure cookie file on the filesystem.
 
 ## Preliminaries
 
-Let P be the 32-byte non-terminated string
+Let P be the 32-byte string
 "====== arti-rpc-cookie-v1 ======".
 
 Let MAC(a,b,c,...) be TupleHash,
@@ -34,7 +34,7 @@ and determines the value of `COOKIE`.
 > Both parties need to make sure that the file isn't writeable by any
 > untrusted user.  This is out-of-scope for this document.
 
-Nothing here is NUL terminated unless explicitly specified otherwise.
+Strings are represented in UTF-8 without a trailing NUL byte.
 
 [NIST SP 800-185]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
 
@@ -42,7 +42,7 @@ Nothing here is NUL terminated unless explicitly specified otherwise.
 
 At the start of the process, the client and server have the following inputs:
   - `SADDR_CANONICAL`: The address at which the server is listening.
-    This must be exactly the same as it appears in the connect string.
+    This must be exactly the same string as the `socket` in the connect string.
   - `COOKIE`: The value of the cookie.
 
 The client additionally knows:
@@ -61,6 +61,7 @@ The client additionally knows:
 3. The server computes
    `S_MAC = MAC(COOKIE, "Server", SADDR_CANONICAL, CN)`
    and sends (`S_MAC`, `SADDR_CANONICAL`, `SN`).
+   (See below for the encoding.)
 
 4. The client computes `S_MAC`, and verifies that its value matches the one
    provided by the server.  If it does not match, it aborts the protocol.
@@ -69,7 +70,7 @@ The client additionally knows:
    and sends `C_MAC` to the server.
 
 5. The server computes `C_MAC`, and verifies that its value matches the one
-   provided by the client.  If it does not match, it aborts the protocol.
+   provided by the client.  If it does not match, this connection attempt aborts.
    Otherwise, the parties are authenticated.
 
 ## In Arti-RPC.
@@ -86,11 +87,11 @@ method, in a set of fields. `server_addr`, `server_mac`, and `server_nonce.`
 The client's method in step 3 is sent as a client's followup
 `auth:cookie_continue` message, in a field called `client_mac`.
 
-All binary strings are encoded in hexadecimal before sending in JSON.
+All binary values are encoded as hexadecimal strings before sending in JSON.
 
 ## Amendment to connect strings
 
-When cookie authentication is in use, we must also specify `addr_canonical`
+When cookie authentication is in use, we may also specify `addr_canonical`
 in the `cookie` object in the connect string.
 
 This is an optional field.
