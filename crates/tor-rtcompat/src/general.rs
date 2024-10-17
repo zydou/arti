@@ -25,7 +25,9 @@ use std::{
     net,
 };
 
-#[cfg(any(target_os = "android", target_os = "linux"))]
+#[cfg(target_os = "android")]
+use std::os::android::net::SocketAddrExt as _;
+#[cfg(target_os = "linux")]
 use std::os::linux::net::SocketAddrExt as _;
 
 /// Any address that Arti can listen on or connect to.
