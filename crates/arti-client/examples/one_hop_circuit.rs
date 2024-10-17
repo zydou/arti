@@ -1,3 +1,6 @@
+// TODO #1645 (either remove this, or decide to have it everywhere)
+#![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
+
 use anyhow::Result;
 use std::ops::Deref;
 use std::sync::Arc;

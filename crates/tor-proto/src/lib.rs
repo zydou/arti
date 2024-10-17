@@ -42,7 +42,10 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 // TODO #1645 (either remove this, or decide to have it everywhere)
-#![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
+#![cfg_attr(
+    not(all(feature = "full", feature = "experimental")),
+    allow(unused, unreachable_pub)
+)]
 
 pub mod channel;
 pub mod circuit;
