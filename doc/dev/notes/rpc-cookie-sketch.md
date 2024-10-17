@@ -78,14 +78,20 @@ The client additionally knows:
 This protocol is selected from an RPC connect string as discussed
 in `rpc-connect-sketch.md` (see !2439 if it isn't merged yet.)
 
-The client's message in step 2 is sent as an `auth:cookie_begin` command.
-It returns a single-use object that can be used in step 3.
+The client's message in step 2 is sent by invoking the `auth:cookie_begin` method,
+implemented on the connection object.
+It expects a single `client_nonce` parameter.
 
 The server's message in step 3 is embedded in the server's response to that
-method, in a set of fields. `server_addr`, `server_mac`, and `server_nonce.`
+method, in a set of fields: `server_addr`, `server_mac`, and `server_nonce.`
+Additionally, the response includes an object ID in a `cookie_auth` field
+This object holds the in-progress authentication state, and can be used
+for a single `auth:cookie_continue` command.
 
-The client's method in step 3 is sent as a client's followup
-`auth:cookie_continue` message, in a field called `client_mac`.
+The client's message in step 4 is sent by invoking the
+`auth:cookie_continue` method,
+directed to the object ID received in the `cookie_auth` field.
+The `C_MAC` value is sent in a field called `client_mac`.
 
 All binary values are encoded as hexadecimal strings before sending in JSON.
 
