@@ -30,6 +30,24 @@ pub(crate) fn pending_channel_maybe_allowed(
     /// An empty [`RelayIds`].
     const EMPTY_IDS: RelayIds = RelayIds::empty();
 
+    // TODO RELAY: The comments and behaviour below assume that it's better to create a new channel
+    // than to wait around for a channel which may or may not end up being usable for `target`. This
+    // has the benefit that malicious circuit extension requests won't delay legitimate circuit
+    // extension requests, but also means that we could end up creating more channels than
+    // necessary. This is different from C-tor, which will wait for a channel even if that channel
+    // might not end up being usable for `target`. For example in tor's `channel_get_for_extend`,
+    // tor will wait for an "in progress" channel if all of the following are true:
+    //
+    // - The requested ids are a subset of the channel's ids. (Note that in the comments below we
+    //   require it to be a superset, not a subset.)
+    // - The requested IPv4 or IPv6 address matches either the channel's IPv4 or IPv6 address. (Note
+    //   that in the comments below, we require `target`s addresses to exactly match.)
+    //
+    // It might be good to re-evaluate what behaviour we want as we implement more channel code.
+    //
+    // NOTE (opara): It has been decided that C-tor's approach would be better. See the thread at:
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2544#note_3094696
+
     // We want to avoid returning pending channels that were initially created from malicious
     // channel requests (for example from malicious relay-extend requests) that build channels which
     // will never complete successfully. Two cases where this can happen are:
@@ -59,6 +77,13 @@ pub(crate) fn pending_channel_maybe_allowed(
         .filter(|entry| target.has_all_relay_ids_from(&entry.ids))
         // TODO: Only channels which have the exact same address list as `target` (the two sets of
         // addresses must match exactly).
+        // - While an EXTEND2 message usually only contains one IPv4 and IPv6 address, `target`
+        //   (which is a `HasAddrs`) may have more addresses. According to tor-spec, an EXTEND2
+        //   message can contain multiple IPv4 and IPv6 addresses:
+        //   > Nodes MUST ignore unrecognized specifiers, and MUST accept multiple instances of
+        //   > specifiers other than 'legacy identity' and 'Ed25519 identity'. (Nodes SHOULD reject
+        //   > link specifier lists that include multiple instances of either one of those
+        //   > specifiers.)
         // - (Addressing 2. above) By only returning pending channels that have exactly the same
         //   addresses, we ensure that the returned pending channel does not have any incorrect
         //   addresses that will cause the pending channel to stall.
