@@ -467,21 +467,23 @@ impl Connection {
     }
 }
 
-/// An error returned when an RPC request lists some feature as required, but we don't have that
-/// feature.
+/// An error returned when an RPC request lists some feature as required,
+/// but we don't have every such feature.
 #[derive(Clone, Debug, thiserror::Error)]
 #[error("Required features not available")]
 struct MissingFeaturesError(
-    // TODO RPC: We need a way to put this into the error's "data" field.  But first we need to specify that.
+    /// A list of the features that were requested but not available.
     Vec<String>,
 );
 
 impl From<MissingFeaturesError> for RpcError {
     fn from(err: MissingFeaturesError) -> Self {
-        RpcError::new(
+        let mut e = RpcError::new(
             err.to_string(),
             tor_rpcbase::RpcErrorKind::FeatureNotPresent,
-        )
+        );
+        e.set_datum("rpc:unsupported_features".to_string(), err.0);
+        e
     }
 }
 
