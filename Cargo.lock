@@ -5211,6 +5211,7 @@ name = "tor-config"
 version = "0.23.0"
 dependencies = [
  "amplify",
+ "cfg-if",
  "derive-deftly",
  "derive_builder_fork_arti",
  "directories",

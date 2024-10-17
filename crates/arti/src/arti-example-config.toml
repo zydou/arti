@@ -9,6 +9,13 @@
 # paths to the directory holding the configuration files, if you
 # remove and recreate those directories, or if those directories
 # change for some other reason.)
+#
+# **Warning**: on platforms other than Windows, Linux, and Android,
+# the files are watched using a polling watcher,
+# which introduces a perceivable delay in configuration reloading,
+# and can be very expensive for large file trees.
+# This is due to a limitation in our file watching code,
+# which we hope to lift someday.
 #watch_configuration = false
 
 # If true, we should allow other processes run by the same user to inspect this

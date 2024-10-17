@@ -23,7 +23,17 @@ use futures::{SinkExt as _, Stream, StreamExt as _};
 /// `Result` whose `Err` is [`FileWatcherBuildError`].
 pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
 
-/// A wrapper around `notify::RecommendedWatcher` to watch a set of parent
+cfg_if::cfg_if! {
+    if #[cfg(any(target_os = "linux", target_os = "android", target_os = "windows"))] {
+        /// The concrete type of the underlying watcher.
+        type NotifyWatcher = notify::RecommendedWatcher;
+    } else {
+        /// The concrete type of the underlying watcher.
+        type NotifyWatcher = notify::PollWatcher;
+    }
+}
+
+/// A wrapper around a `notify::Watcher` to watch a set of parent
 /// directories in order to learn about changes in some specific files that they
 /// contain.
 ///
@@ -36,12 +46,21 @@ pub type Result<T> = std::result::Result<T, FileWatcherBuildError>;
 /// For more background on the issues with `notify`, see
 /// <https://github.com/notify-rs/notify/issues/165> and
 /// <https://github.com/notify-rs/notify/pull/166>.
+///
+/// ## Limitations
+///
+/// On backends using kqueue, this uses a polling watcher
+/// to work around a bug in the `notify` crate[^1].
+/// This introduces a perceivable delay,
+/// and can be very expensive for large file trees.
+///
+/// [^1]: See <https://github.com/notify-rs/notify/issues/644>
 #[derive(Getters)]
 pub struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
     // this field is kept only so the watcher is not dropped
     #[getter(skip)]
-    _watcher: notify::RecommendedWatcher,
+    _watcher: NotifyWatcher,
     /// The list of directories that we're currently watching.
     watching_dirs: HashSet<PathBuf>,
 }
@@ -216,8 +235,30 @@ impl<R: Runtime> FileWatcherBuilder<R> {
             }
         };
 
-        let mut watcher = notify::RecommendedWatcher::new(event_sender, notify::Config::default())
-            .map_err(Arc::new)?;
+        cfg_if::cfg_if! {
+            if #[cfg(any(target_os = "linux", target_os = "android", target_os = "windows"))] {
+                let config = notify::Config::default();
+            } else {
+                /// The polling frequency, for use with the `PollWatcher`.
+                #[cfg(not(any(test, feature = "testing")))]
+                const WATCHER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
+                #[cfg(any(test, feature = "testing"))]
+                const WATCHER_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(10);
+
+                let config = notify::Config::default()
+                    .with_poll_interval(WATCHER_POLL_INTERVAL);
+
+                // When testing, compare the contents of the files too, not just their mtime
+                // Otherwise, because the polling backend detects changes based on mtime,
+                // if the test creates/writes files too fast,
+                // it will fail to notice changes (this can happen, for example, on a tmpfs).
+                #[cfg(any(test, feature = "testing"))]
+                let config = config.with_compare_contents(true);
+            }
+        }
+
+        let mut watcher = NotifyWatcher::new(event_sender, config).map_err(Arc::new)?;
 
         let watching_dirs: HashSet<_> = self.watching_dirs.keys().cloned().collect();
         for dir in &watching_dirs {

@@ -171,6 +171,7 @@ serde_json = "1.0.50"
 tempfile = "3"
 test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
 tor-async-utils = { version = "0.23.0", path = "../tor-async-utils" }
+tor-config = { path = "../tor-config", version = "0.23.0", features = ["testing"] }
 tor-memquota = { version = "0.23.0", path = "../tor-memquota", default-features = false, features = ["testing"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.23.0" }
 trycmd = "0.15.4"
