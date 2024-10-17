@@ -260,7 +260,7 @@ class ArtiRpcError(Exception):
         else:
             return code
 
-    def response(self) -> Optional[int]:
+    def response(self) -> Optional[str]:
         """
         Return the error response message associated with this error,
         if there is one.
