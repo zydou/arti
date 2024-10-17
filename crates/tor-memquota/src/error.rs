@@ -13,13 +13,13 @@ pub enum Error {
     /// The Account has been torn down
     ///
     /// This can happen if the account or participant has Collapsed due to reclamation
-    #[error("memory pressure (attempted to use closed memory tracking account)")]
+    #[error("memquota - attempted to use closed memory tracking account")]
     AccountClosed,
 
     /// The Participant has been torn down
     ///
     /// This can happen if the account or participant has Collapsed due to reclamation
-    #[error("memory pressure (attempt to allocate by torn-down memory tracking participant)")]
+    #[error("memquota - attempt to allocate by torn-down memory tracking participant")]
     ParticipantShutdown,
 
     /// Previous bug, memory quota tracker is corrupted
