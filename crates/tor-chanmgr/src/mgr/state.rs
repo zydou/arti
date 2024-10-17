@@ -3,12 +3,15 @@
 use std::time::Duration;
 
 use super::AbstractChannelFactory;
-use super::{AbstractChannel, Pending};
-use crate::{ChannelConfig, Dormancy, Result};
+use super::{select, AbstractChannel, Pending, Sending};
+use crate::{ChannelConfig, Dormancy, Error, Result};
 
+use futures::FutureExt;
 use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use tor_async_utils::oneshot;
+use tor_basic_utils::RngExt as _;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
@@ -275,16 +278,19 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         }
     }
 
-    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
+    /// Run a function on the [`ListByRelayIds`] that implements the map in this `MgrState`.
     ///
     /// This function grabs a mutex: do not provide a slow function.
     ///
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
     ///
+    /// This is only `cfg(test)` since it can deadlock.
+    ///
     /// # Deadlock
     ///
     /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
+    #[cfg(test)]
     pub(crate) fn with_channels<F, T>(&self, func: F) -> Result<T>
     where
         F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>) -> T,
@@ -316,31 +322,6 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         func(&mut inner.builder);
     }
 
-    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
-    ///
-    /// This function grabs a mutex: do not provide a slow function.
-    ///
-    /// We provide this function rather than exposing the channels set directly,
-    /// to make sure that the calling code doesn't await while holding the lock.
-    ///
-    /// # Deadlock
-    ///
-    /// Calling a method on [`MgrState`] from within `func` may cause a deadlock.
-    pub(crate) fn with_channels_and_params<F, T>(&self, func: F) -> Result<T>
-    where
-        F: FnOnce(&mut ListByRelayIds<ChannelState<C::Channel>>, &ChannelPaddingInstructions) -> T,
-    {
-        let mut inner = self.inner.lock()?;
-        // We need this silly destructuring syntax so that we don't seem to be
-        // borrowing the structure mutably and immutably at the same time.
-        let Inner {
-            ref mut channels,
-            ref channels_params,
-            ..
-        } = &mut *inner;
-        Ok(func(channels, channels_params))
-    }
-
     /// Remove every unusable state from the map in this state.
     #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
@@ -349,6 +330,149 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             ChannelState::Open(ent) => ent.channel.is_usable(),
             ChannelState::Building(_) => true,
         });
+        Ok(())
+    }
+
+    /// Request an open or pending channel to `target`. If `add_new_entry_if_not_found` is true and
+    /// an open or pending channel isn't found, a new pending entry will be added and
+    /// [`ChannelForTarget::NewEntry`] will be returned. This is all done as part of the same method
+    /// so that all operations are performed under the same lock acquisition.
+    pub(crate) fn request_channel(
+        &self,
+        target: &C::BuildSpec,
+        add_new_entry_if_not_found: bool,
+    ) -> Result<Option<ChannelForTarget<C>>> {
+        use ChannelState::*;
+
+        let mut inner = self.inner.lock()?;
+
+        // The idea here is to choose the channel in two steps:
+        //
+        // - Eligibility: Get channels from the channel map and filter them down to only channels
+        //   which are eligible to be returned.
+        // - Ranking: From the eligible channels, choose the best channel.
+        //
+        // Another way to choose the channel could be something like: first try all canonical open
+        // channels, then all non-canonical open channels, then all pending channels with all
+        // matching relay ids, then remaining pending channels, etc. But this ends up being hard to
+        // follow and inflexible (what if you want to prioritize pending channels over non-canonical
+        // open channels?).
+
+        // Open channels which are allowed for requests to `target`.
+        let open_channels = inner
+            .channels
+            // channels with all target relay identifiers
+            .by_all_ids(target)
+            .filter(|entry| match entry {
+                Open(x) => select::open_channel_is_allowed(x, target),
+                Building(_) => false,
+            });
+
+        // Pending channels which will *probably* be allowed for requests to `target` once they
+        // complete.
+        let pending_channels = inner
+            .channels
+            // channels that have a subset of the relay ids of `target`
+            .all_subset(target)
+            .into_iter()
+            .filter(|entry| match entry {
+                Open(_) => false,
+                Building(x) => select::pending_channel_maybe_allowed(x, target),
+            });
+
+        match select::choose_best_channel(open_channels.chain(pending_channels), target) {
+            Some(Open(OpenEntry { channel, .. })) => {
+                // This entry is a perfect match for the target keys: we'll return the open
+                // entry.
+                return Ok(Some(ChannelForTarget::Open(Arc::clone(channel))));
+            }
+            Some(Building(PendingEntry { pending, .. })) => {
+                // This entry is potentially a match for the target identities: we'll return the
+                // pending entry. (We don't know for sure if it will match once it completes,
+                // since we might discover additional keys beyond those listed for this pending
+                // entry.)
+                return Ok(Some(ChannelForTarget::Pending(pending.clone())));
+            }
+            None => {}
+        }
+
+        // It's possible we know ahead of time that building a channel would be unsuccessful.
+        if inner
+            .channels
+            // channels with at least one id in common with `target`
+            .all_overlapping(target)
+            .into_iter()
+            // but not channels which completely satisfy the id requirements of `target`
+            .filter(|entry| !entry.has_all_relay_ids_from(target))
+            .any(|entry| matches!(entry, Open(OpenEntry{ channel, ..}) if channel.is_usable()))
+        {
+            // At least one *open, usable* channel has been negotiated that overlaps only
+            // partially with our target: it has proven itself to have _one_ of our target
+            // identities, but not all.
+            //
+            // Because this channel exists, we know that our target cannot succeed, since relays
+            // are not allowed to share _any_ identities.
+            //return Ok(Some(Action::Return(Err(Error::IdentityConflict))));
+            return Err(Error::IdentityConflict);
+        }
+
+        if !add_new_entry_if_not_found {
+            return Ok(None);
+        }
+
+        // Great, nothing interfered at all.
+        let any_relay_id = target
+            .identities()
+            .next()
+            .ok_or(internal!("relay target had no id"))?
+            .to_owned();
+        let (new_state, send, unique_id) = setup_launch(RelayIds::from_relay_ids(target));
+        inner
+            .channels
+            .try_insert(ChannelState::Building(new_state))?;
+        let handle = PendingChannelHandle::new(self, any_relay_id, unique_id);
+        Ok(Some(ChannelForTarget::NewEntry((handle, send))))
+    }
+
+    /// Replace the pending channel identified by its `handle` with a new open `channel`.
+    pub(crate) fn replace_pending_channel(
+        &self,
+        handle: PendingChannelHandle<C>,
+        channel: Arc<C::Channel>,
+    ) -> Result<()> {
+        // Do all operations under the same lock acquisition.
+        let mut inner = self.inner.lock()?;
+
+        // WARNING: The handle acquires the mutex at `self.inner` when dropped normally, but not
+        // when passed the channel map directly as is done here. Make sure we always drop the handle
+        // first using `drop_with_channels` before we do anything else so that we don't accidentally
+        // deadlock.
+        handle.drop_with_channels(&mut inner.channels)?;
+
+        // This isn't great.  We context switch to the newly-created
+        // channel just to tell it how and whether to do padding.  Ideally
+        // we would pass the params at some suitable point during
+        // building.  However, that would involve the channel taking a
+        // copy of the params, and that must happen in the same channel
+        // manager lock acquisition span as the one where we insert the
+        // channel into the table so it will receive updates.  I.e.,
+        // here.
+        let update = inner.channels_params.initial_update();
+        if let Some(update) = update {
+            channel
+                .reparameterize(update.into())
+                .map_err(|_| internal!("failure on new channel"))?;
+        }
+        let new_entry = ChannelState::Open(OpenEntry {
+            channel,
+            max_unused_duration: Duration::from_secs(
+                rand::thread_rng()
+                    .gen_range_checked(180..270)
+                    .expect("not 180 < 270 !"),
+            ),
+        });
+        inner.channels.insert(new_entry);
+
         Ok(())
     }
 
@@ -428,6 +552,116 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             .retain(|chan| !chan.ready_to_expire(&mut ret));
         ret
     }
+}
+
+/// A channel for a given target relay.
+pub(crate) enum ChannelForTarget<'a, CF: AbstractChannelFactory> {
+    /// A channel that is open.
+    Open(Arc<CF::Channel>),
+    /// A channel that is building.
+    Pending(Pending),
+    /// Information about a new pending channel entry.
+    NewEntry((PendingChannelHandle<'a, CF>, Sending)),
+}
+
+/// A handle for a pending channel.
+///
+/// The pending channel will be removed from the channel map when this handle is dropped. This is
+/// meant to help avoid bugs where we add a pending channel to the channel map, and then an early
+/// return (for example with `?`) causes us to forget about the pending channel and leave it in the
+/// map forever. This would cause us to be unable to build new channels to the same target, since
+/// there would be an existing "pending" channel that would never complete. Instead, this handle
+/// should guarantee that the pending channel is removed at some point.
+// Since this object acquires the `MgrState::inner` lock when dropped, it will cause a deadlock if
+// it's dropped while the lock is already held. Since we don't expose the lock outside of this
+// module, there's no risk of external code causing a deadlock.
+pub(crate) struct PendingChannelHandle<'a, CF: AbstractChannelFactory> {
+    /// The channel manager state, which we'll use to access the channel map.
+    mgr: &'a MgrState<CF>,
+    /// Any relay ID for this pending channel.
+    relay_id: tor_linkspec::RelayId,
+    /// The unique ID for this pending channel.
+    unique_id: Option<UniqPendingChanId>,
+}
+
+impl<'a, CF: AbstractChannelFactory> PendingChannelHandle<'a, CF> {
+    /// Create a new [`PendingChannelHandle`].
+    fn new(
+        mgr: &'a MgrState<CF>,
+        relay_id: tor_linkspec::RelayId,
+        unique_id: UniqPendingChanId,
+    ) -> Self {
+        Self {
+            mgr,
+            relay_id,
+            unique_id: Some(unique_id),
+        }
+    }
+
+    /// Drop this handle and removing the pending channel from `channels`. This is useful when you
+    /// have already acquired the manager's lock.
+    fn drop_with_channels(
+        mut self,
+        channels: &mut ListByRelayIds<ChannelState<CF::Channel>>,
+    ) -> Result<()> {
+        // Take the unique id so that the drop impl won't try to remove it a second time. An error
+        // here can never happen, but returning an error anyways since `expect` isn't allowed.
+        let unique_id = self.unique_id.take().ok_or(Error::Internal(internal!(
+            "unique_id has already been used"
+        )))?;
+
+        remove_pending(channels, self.relay_id.as_ref(), unique_id);
+        Ok(())
+    }
+}
+
+impl<'a, CF: AbstractChannelFactory> std::ops::Drop for PendingChannelHandle<'a, CF> {
+    fn drop(&mut self) {
+        if let Some(unique_id) = self.unique_id.take() {
+            match self.mgr.inner.lock() {
+                Ok(mut inner) => {
+                    remove_pending(&mut inner.channels, self.relay_id.as_ref(), unique_id);
+                }
+                Err(e) => {
+                    // Our options are to either log or panic. It's not the end of the world if we
+                    // can't remove the pending channel, so let's just log an error. This is only an
+                    // error if the lock is poisoned, which is essentially unrecoverable so arti is
+                    // probably unusable at this point anyways.
+                    tracing::error!("Could not remove a pending channel: {e}");
+                }
+            }
+        }
+    }
+}
+
+/// Helper: return the objects used to inform pending tasks about a newly open or failed channel.
+fn setup_launch(ids: RelayIds) -> (PendingEntry, Sending, UniqPendingChanId) {
+    let (snd, rcv) = oneshot::channel();
+    let pending = rcv.shared();
+    let unique_id = UniqPendingChanId::new();
+    let entry = PendingEntry {
+        ids,
+        pending,
+        unique_id,
+    };
+
+    (entry, snd, unique_id)
+}
+
+/// Helper: remove the pending channel with `pending_id` and a `relay_id` from `channel_map`.
+fn remove_pending<C: AbstractChannel>(
+    channel_map: &mut tor_linkspec::ListByRelayIds<ChannelState<C>>,
+    relay_id: tor_linkspec::RelayIdRef<'_>,
+    pending_id: UniqPendingChanId,
+) {
+    // we need only one relay id to locate it, even if it has multiple relay ids
+    let removed = channel_map.remove_by_id(relay_id, |c| {
+        let ChannelState::Building(c) = c else {
+            return false;
+        };
+        c.unique_id == pending_id
+    });
+    debug_assert_eq!(removed.len(), 1, "expected to remove exactly one channel");
 }
 
 /// Converts config, dormancy, and netdir, into parameter updates
