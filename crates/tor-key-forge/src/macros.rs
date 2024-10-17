@@ -85,7 +85,8 @@ define_derive_deftly! {
 
     /// Public key component of this keypair. Useful if we move the public key around,
     /// it then keeps it semantic with the name and less prone to errors.
-    #[derive(Clone, Debug, $crate::macro_deps::derive_more::From, $crate::macro_deps::derive_more::Into, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive($crate::macro_deps::derive_more::From, $crate::macro_deps::derive_more::Into)]
     #[non_exhaustive]
     $tvis struct $PK_NAME ($tvis $crate::macro_deps::ed25519::PublicKey);
 
@@ -136,7 +137,10 @@ define_derive_deftly! {
     }
 
     impl $crate::macro_deps::ed25519::Signer<$crate::macro_deps::ed25519::Signature> for $ttype {
-        fn try_sign(&self, msg: &[u8]) -> Result<$crate::macro_deps::ed25519::Signature, $crate::macro_deps::signature::Error> {
+        fn try_sign(
+            &self,
+            msg: &[u8])
+        -> Result<$crate::macro_deps::ed25519::Signature, $crate::macro_deps::signature::Error> {
             self.0.try_sign(msg)
         }
     }
@@ -254,7 +258,8 @@ define_derive_deftly! {
 
     /// Public key component of this keypair. Useful if we move the public key around,
     /// it then keeps it semantic with the name and less prone to errors.
-    #[derive(Clone, Debug, $crate::macro_deps::derive_more::From, $crate::macro_deps::derive_more::Into, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive($crate::macro_deps::derive_more::From, $crate::macro_deps::derive_more::Into)]
     #[non_exhaustive]
     $tvis struct $PK_NAME ($crate::macro_deps::curve25519::PublicKey);
 
