@@ -12,6 +12,7 @@ libfuzzer-sys = "0.4"
 
 [dependencies.tor-rtcompat]
 path = ".."
+features = ["arbitrary"]
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -20,6 +21,14 @@ members = ["."]
 [[bin]]
 name = "general_addr"
 path = "fuzz_targets/general_addr.rs"
+test = false
+doc = false
+bench = false
+
+
+[[bin]]
+name = "roundtrip_addr"
+path = "fuzz_targets/roundtrip_addr.rs"
 test = false
 doc = false
 bench = false

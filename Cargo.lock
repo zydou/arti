@@ -6122,6 +6122,7 @@ dependencies = [
 name = "tor-rtcompat"
 version = "0.23.0"
 dependencies = [
+ "arbitrary",
  "assert_matches",
  "async-io 2.3.4",
  "async-native-tls",

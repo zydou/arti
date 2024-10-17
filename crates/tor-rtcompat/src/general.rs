@@ -250,6 +250,54 @@ impl PartialEq for SocketAddr {
     }
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for SocketAddr {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        /// Simple enumeration to select an address type.
+        #[allow(clippy::missing_docs_in_private_items)]
+        #[derive(arbitrary::Arbitrary)]
+        enum Kind {
+            V4,
+            V6,
+            #[cfg(unix)]
+            Unix,
+            #[cfg(any(target_os = "android", target_os = "linux"))]
+            UnixAbstract,
+        }
+        match u.arbitrary()? {
+            Kind::V4 => Ok(SocketAddr::Inet(
+                net::SocketAddrV4::new(u.arbitrary()?, u.arbitrary()?).into(),
+            )),
+            Kind::V6 => Ok(SocketAddr::Inet(
+                net::SocketAddrV6::new(
+                    u.arbitrary()?,
+                    u.arbitrary()?,
+                    u.arbitrary()?,
+                    u.arbitrary()?,
+                )
+                .into(),
+            )),
+            #[cfg(unix)]
+            Kind::Unix => {
+                let pathname: std::ffi::OsString = u.arbitrary()?;
+                Ok(SocketAddr::Unix(
+                    unix::SocketAddr::from_pathname(pathname)
+                        .map_err(|_| arbitrary::Error::IncorrectFormat)?,
+                ))
+            }
+            #[cfg(any(target_os = "android", target_os = "linux"))]
+            Kind::UnixAbstract => {
+                use std::os::linux::net::SocketAddrExt as _;
+                let name: &[u8] = u.arbitrary()?;
+                Ok(SocketAddr::Unix(
+                    unix::SocketAddr::from_abstract_name(name)
+                        .map_err(|_| arbitrary::Error::IncorrectFormat)?,
+                ))
+            }
+        }
+    }
+}
+
 /// Helper trait to allow us to create a type-erased stream.
 ///
 /// (Rust doesn't allow "dyn AsyncRead + AsyncWrite")
