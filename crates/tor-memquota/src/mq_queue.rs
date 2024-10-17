@@ -566,6 +566,7 @@ impl<T: HasMemoryCost + Debug + Send + 'static, C: ChannelSpec> IsParticipant
             let mut state_guard = self.lock();
             let state = mem::replace(&mut *state_guard, Err(reason));
             drop::<MutexGuard<_>>(state_guard);
+            #[allow(clippy::single_match)] // pattern is intentional.
             match state {
                 Ok(mut state) => {
                     for call in state.collapse_callbacks.drain(..) {
