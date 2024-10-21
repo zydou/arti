@@ -141,8 +141,10 @@ Additional particular we require:
    the individual entries.)
 
 The default search path is:
-  - `${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json`.  (Note B)
+  - `${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json`.  (Notes A,B)
   - `/etc/arti-rpc/arti-rpc-connect.json` (unix and mac only)
+  - The "USER\_DEFAULT" connect string. (Note C)
+  - The "SYSTEM\_DEFAULT" connect string. (Note C)
 
 > Note A: `$ARTI_LOCAL_DATA` above expands to:
 >  - `$XDG_DATA_HOME/arti/` on Unix if  `$XDG_DATA_HOME` is set.
@@ -154,6 +156,23 @@ The default search path is:
 > Note B: The library should detect whether it is running in a setuid
 > environment, and refuse to connect if so.
 > (Nice-to-have but not necessary to implement in the first version.)
+>
+> Note C:
+> The USER\_DEFAULT and SYSTEM\_DEFAULT connect strings
+> are defined as follows on Unix and Mac:
+>
+> ```
+> USER_DEFAULT =
+> { "connect" : { "socket" : "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket",
+>                 "auth" : "none" } }
+> ```
+>
+> ```
+> SYSTEM\_DEFAULT =
+> { "connect" : { "socket" : "/var/run/arti-rpc/arti_rpc_socket",
+>                 "auth" : "none" } }
+> ```
+
 
 The following errors are all tolerated;
 when an Arti RPC client encounters encounter them,
