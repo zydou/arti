@@ -437,12 +437,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     /// Remove the pending channel identified by its `handle`.
     pub(crate) fn remove_pending_channel(&self, handle: PendingChannelHandle) -> Result<()> {
         let mut inner = self.inner.lock()?;
-        remove_pending(
-            &mut inner.channels,
-            handle.relay_id.as_ref(),
-            handle.unique_id,
-        );
-        handle.chan_has_been_removed();
+        remove_pending(&mut inner.channels, handle);
         Ok(())
     }
 
@@ -455,13 +450,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         // Do all operations under the same lock acquisition.
         let mut inner = self.inner.lock()?;
 
-        remove_pending(
-            &mut inner.channels,
-            handle.relay_id.as_ref(),
-            handle.unique_id,
-        );
-
-        handle.chan_has_been_removed();
+        remove_pending(&mut inner.channels, handle);
 
         // This isn't great.  We context switch to the newly-created
         // channel just to tell it how and whether to do padding.  Ideally
@@ -642,20 +631,21 @@ fn setup_launch(ids: RelayIds) -> (PendingEntry, Sending, UniqPendingChanId) {
     (entry, snd, unique_id)
 }
 
-/// Helper: remove the pending channel with `pending_id` and a `relay_id` from `channel_map`.
+/// Helper: remove the pending channel identified by `handle` from `channel_map`.
 fn remove_pending<C: AbstractChannel>(
     channel_map: &mut tor_linkspec::ListByRelayIds<ChannelState<C>>,
-    relay_id: tor_linkspec::RelayIdRef<'_>,
-    pending_id: UniqPendingChanId,
+    handle: PendingChannelHandle,
 ) {
     // we need only one relay id to locate it, even if it has multiple relay ids
-    let removed = channel_map.remove_by_id(relay_id, |c| {
+    let removed = channel_map.remove_by_id(&handle.relay_id, |c| {
         let ChannelState::Building(c) = c else {
             return false;
         };
-        c.unique_id == pending_id
+        c.unique_id == handle.unique_id
     });
     debug_assert_eq!(removed.len(), 1, "expected to remove exactly one channel");
+
+    handle.chan_has_been_removed();
 }
 
 /// Converts config, dormancy, and netdir, into parameter updates
