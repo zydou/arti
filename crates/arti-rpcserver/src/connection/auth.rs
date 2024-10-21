@@ -42,7 +42,7 @@ mod get_rpc_protocol {
         /// Alpha version of the protocol.  Things might break between here and the
         /// stable protocol.
         ///
-        /// TODO RPC: CHange this to v0.
+        /// TODO RPC: Change this to v0.
         #[serde(rename = "alpha")]
         Alpha,
     }
