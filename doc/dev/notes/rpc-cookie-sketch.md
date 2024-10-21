@@ -53,15 +53,22 @@ Strings are represented in UTF-8 without a trailing NUL byte.
 
 ## The protocol
 
-At the start of the process, the client knows:
-  - `SADDR_USE`: The address at which to connect to the server.
+At the start of the process,
+the client knows this value from the connect string:
+  - `socket`: The address at which to connect to the server.
 
-At the start of the process, the client and server additionally know:
-  - `SADDR_CANONICAL`: The address at which the server is actually listening.
-    This must be exactly the same string as the `socket` value
-    in the connect string.
-    (It may be different from `SADDR_USE`
-    if e.g. the client is running in a container.)
+At the start of the process,
+the client and server additionally know this value from the connect string:
+  - `socket_canonical`:
+     The address at which the server is actually listening.
+     If absent, defaults to the value of `socket` from the connect string.
+
+> Note that this protocol will only succeed
+> if the value of `socket_canonical` seen by the client
+> is exactly the same string as
+> the value of `socket_canonical` seen by the server.
+
+The client and server know this value from the cookie field:
   - `COOKIE`: The value of the cookie.
 
 1. The client connects to the server at `SADDR_USE`.
@@ -73,14 +80,14 @@ At the start of the process, the client and server additionally know:
 2. The client sends `client_nonce`.
 
 3. The server computes
-   `server_mac = MAC(COOKIE, "Server", SADDR_CANONICAL, client_nonce)`
-   and sends (`server_mac`, `SADDR_CANONICAL`, `server_nonce`).
+   `server_mac = MAC(COOKIE, "Server", socket_canonical, client_nonce)`
+   and sends (`server_mac`, `socket_canonical`, `server_nonce`).
    (See below for the encoding.)
 
 4. The client computes `S_MAC`, and verifies that its value matches the one
    provided by the server.  If it does not match, it aborts the protocol.
    If it does match, the client computes
-   `client_mac = MAC(COOKIE, "Client", SADDR_CANONICAL, server_nonce)`,
+   `client_mac = MAC(COOKIE, "Client", socket_canonincal, server_nonce)`,
    and sends `client_mac` to the server.
 
 5. The server computes `client_mac`, and verifies that its value matches the one
@@ -108,22 +115,3 @@ directed to the object ID received in the `cookie_auth` field.
 
 All binary values are encoded as hexadecimal strings before sending in JSON.
 
-## Amendment to connect strings
-
-When cookie authentication is in use, we may also specify `addr_canonical`
-in the `cookie` object in the connect string.
-
-This is an optional field.
-When it is present, it is what the RPC client uses
-in place of the `socket` address
-during cookie authentication.
-
-The RPC server ignores this field; it always binds to the address
-in the `socket` field.
-
-**Security concerns**: Do not construct a connect string with an
-`addr_canonical` field unless you have some way to guarantee
-that an attacker cannot bind to the address specified in the `socket`
-field.
-
-> (We'll merge this there once the dust has settled on arti!2439)
