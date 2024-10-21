@@ -318,11 +318,13 @@ class ArtiRpcObject(_RpcBase):
     """
     _id: str
     _conn: ArtiRpcConn
+    _meta: Optional[dict]
 
     def __init__(self, object_id: str, connection: ArtiRpcConn):
         _RpcBase.__init__(self, connection._rpc)
         self._id = object_id
         self._conn = connection
+        self._meta = None
 
     def id(self) -> str:
         """
@@ -330,7 +332,6 @@ class ArtiRpcObject(_RpcBase):
         """
         return self._id
 
-    # TODO RPC BREAKING: This needs some way to take a 'meta' field
     def invoke(self, method: str, **params) -> dict:
         """
         Invoke a given RPC method with a given set of parameters,
@@ -338,16 +339,35 @@ class ArtiRpcObject(_RpcBase):
         and return its result as a json object.
         """
         request = {"obj": self._id, "method": method, "params": params}
+        if self._meta is not None:
+            request["meta"] = self._meta
         return self._conn.execute(json.dumps(request))
 
-    # TODO RPC BREAKING: This needs some way to take a 'meta' field
     def invoke_with_handle(self, method: str, **params):
         """
         Invoke a given RPC method with a given set of parameters,
         and return an RpcHandle that can be used to check its progress.
         """
         request = {"obj": self._id, "method": method, "params": params}
+        if self._meta is not None:
+            request["meta"] = self._meta
         return self._conn.execute_with_handle(json.dumps(request))
+
+    def with_meta(self, **params) -> ArtiRpcObject:
+        """
+        Return a helper that can be used to set meta-parameters
+        on a request made with this object.
+
+        The wrapper will support `invoke` and `invoke_with_handle`,
+        and will pass them any provided `params` given as an argument
+        to this function as meta-request parameters.
+        """
+        new_obj = ArtiRpcObject(self._id, self._conn)
+        if params:
+            new_obj._meta = params
+        else:
+            new_obj._meta = None
+        return new_obj
 
 
 class ArtiRpcResponseKind(Enum):
