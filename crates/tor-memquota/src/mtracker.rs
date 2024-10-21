@@ -289,7 +289,7 @@ pub enum Reclaimed {
 
 //---------- principal data structure ----------
 
-slotmap::new_key_type! {
+slotmap_careful::new_key_type! {
     /// Identifies an Account
     ///
     /// After an account is torn down, the `AId` becomes invalid

@@ -19,7 +19,7 @@ use futures::FutureExt as _;
 use educe::Educe;
 use itertools::Either;
 use itertools::{chain, izip};
-use slotmap::DenseSlotMap;
+use slotmap_careful::DenseSlotMap;
 use std::backtrace::Backtrace;
 use strum::EnumIter;
 use tracing::trace;
@@ -75,7 +75,7 @@ struct ArcMutexData(Arc<Mutex<Data>>);
 
 /// Task id, module to hide `Ti` alias
 mod task_id {
-    slotmap::new_key_type! {
+    slotmap_careful::new_key_type! {
         /// Task ID, usually called `TaskId`
         ///
         /// Short name in special `task_id` module so that [`Debug`] is nice
@@ -735,7 +735,7 @@ type SleepLocation = Backtrace;
 impl Data {
     /// Dump tasks and their sleep location backtraces
     fn dump_backtraces(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (id, task) in &self.tasks {
+        for (id, task) in self.tasks.iter() {
             let prefix = |f: &mut fmt::Formatter| write!(f, "{id:?}={task:?}: ");
             match &task.state {
                 Awake => {

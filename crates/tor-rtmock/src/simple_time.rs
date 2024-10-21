@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use derive_more::AsMut;
 use priority_queue::priority_queue::PriorityQueue;
-use slotmap::DenseSlotMap;
+use slotmap_careful::DenseSlotMap;
 
 use tor_rtcompat::CoarseInstant;
 use tor_rtcompat::CoarseTimeProvider;
@@ -45,7 +45,7 @@ pub struct SimpleMockTimeProvider {
 pub(crate) use SimpleMockTimeProvider as Provider;
 
 /// Identifier of a [`SleepFuture`]
-type Id = slotmap::DefaultKey;
+type Id = slotmap_careful::DefaultKey;
 
 /// Future for `sleep`
 ///

@@ -24,7 +24,7 @@ use std::time::Duration;
 
 use itertools::Itertools;
 use rand::Rng;
-use slotmap::Key as _;
+use slotmap_careful::Key;
 use tracing_test::traced_test;
 
 use tor_basic_utils::RngExt as _;
@@ -143,9 +143,9 @@ mod consistency {
             let mut gc = 0;
             let mut acs = BTreeMap::new();
             let mut pcs = BTreeMap::new();
-            for (aid, arecord) in &state.accounts {
+            for (aid, arecord) in state.accounts.iter() {
                 acs.insert(aid, *arecord.refcount);
-                for (pid, precord) in &arecord.ps {
+                for (pid, precord) in arecord.ps.iter() {
                     let used = *precord.used.as_raw();
                     gc += used;
                     pcs.insert((aid, pid), (*precord.refcount, used));
