@@ -121,6 +121,7 @@ work.
   DNS queries over the Tor network.
 * `harden` (default) -- Build with support for hardening the Arti process by
   disabling debugger attachment and other local memory-inspection vectors.
+* `memquota` -- Build with support for memory use tracking and limiting.
 * `compression` (default) -- Build support for downloading compressed
   documents. Requires a C compiler.
 * `bridge-client` (default) -- Build with support for bridges.
