@@ -34,6 +34,19 @@ and determines the value of `COOKIE`.
 > Both parties need to make sure that the file isn't writeable by any
 > untrusted user.  This is out-of-scope for this document.
 
+> The RPC client treats failures to read a cookie file
+> the same as a failure to read a connect string:
+> If the client cannot read the cookie file because of `EACCESS` or `ENOENT`
+> or local equivalent,
+> then the client *declines* the connect string entry.
+> If the client fails to read the cookie file for some other reason,
+> then the client *aborts* its connection to RPC.
+> If the cookie file is malformed, the client also *aborts*.
+>
+> If the RPC server cannot write the cookie file,
+> it is a fatal error regardless of the reason.
+
+
 Strings are represented in UTF-8 without a trailing NUL byte.
 
 [NIST SP 800-185]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
