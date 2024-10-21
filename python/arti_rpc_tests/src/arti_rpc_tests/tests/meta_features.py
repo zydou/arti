@@ -1,5 +1,5 @@
 from arti_rpc_tests import arti_test
-from arti_rpc import ArtiRpcError
+from arti_rpc import ArtiRpcError, ArtiRpcErrorStatus
 
 @arti_test
 def missing_features(context):
@@ -16,6 +16,7 @@ def missing_features(context):
         out = connection.execute(request)
         assert False
     except ArtiRpcError as e:
+        assert e.status_code() == ArtiRpcErrorStatus.REQUEST_FAILED
         err = e.response_obj()
         assert err["data"]["rpc:unsupported_features"] == ["arti:does_not_exist"]
 
@@ -30,6 +31,7 @@ def missing_features_2(context):
                .invoke("arti:get_rpc_proxy_info"))
         assert False
     except ArtiRpcError as e:
+        assert e.status_code() == ArtiRpcErrorStatus.REQUEST_FAILED
         err = e.response_obj()
         assert err["data"]["rpc:unsupported_features"] == ["arti:does_not_exist"]
 

@@ -1,5 +1,5 @@
 from arti_rpc_tests import arti_test
-from arti_rpc import ArtiRpcError, ArtiRpcResponseKind
+from arti_rpc import ArtiRpcError, ArtiRpcResponseKind, ArtiRpcErrorStatus
 
 import json
 
@@ -48,4 +48,5 @@ def test_execute_with_handle(context):
         response = handle.wait()
         assert False
     except ArtiRpcError as e:
+        assert e.status_code() == ArtiRpcErrorStatus.REQUEST_COMPLETED
         assert str(e) == "Request has already completed (or failed)"
