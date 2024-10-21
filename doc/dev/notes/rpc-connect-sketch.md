@@ -161,16 +161,16 @@ The default search path is:
 > The USER\_DEFAULT and SYSTEM\_DEFAULT connect strings
 > are defined as follows on Unix and Mac:
 >
-> ```
+> ```json
 > USER_DEFAULT =
-> { "connect" : { "socket" : "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket",
->                 "auth" : "none" } }
+> { "connect": { "socket": "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket",
+>                 "auth": "none" } }
 > ```
 >
-> ```
+> ```json
 > SYSTEM\_DEFAULT =
-> { "connect" : { "socket" : "/var/run/arti-rpc/arti_rpc_socket",
->                 "auth" : "none" } }
+> { "connect": { "socket": "/var/run/arti-rpc/arti_rpc_socket",
+>                 "auth": "none" } }
 > ```
 
 
