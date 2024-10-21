@@ -14,7 +14,7 @@ use tor_async_utils::oneshot;
 use tor_basic_utils::RngExt as _;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
-use tor_error::{internal, into_internal};
+use tor_error::{error_report, internal, into_internal};
 use tor_linkspec::{HasRelayIds, ListByRelayIds, RelayIds};
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
@@ -430,25 +430,26 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         inner
             .channels
             .try_insert(ChannelState::Building(new_state))?;
-        let handle = PendingChannelHandle::new(self, any_relay_id, unique_id);
+        let handle = PendingChannelHandle::new(any_relay_id, unique_id);
         Ok(Some(ChannelForTarget::NewEntry((handle, send))))
     }
 
     /// Remove the pending channel identified by its `handle`.
-    pub(crate) fn remove_pending_channel(&self, handle: PendingChannelHandle<C>) -> Result<()> {
+    pub(crate) fn remove_pending_channel(&self, handle: PendingChannelHandle) -> Result<()> {
         let mut inner = self.inner.lock()?;
         remove_pending(
             &mut inner.channels,
             handle.relay_id.as_ref(),
             handle.unique_id,
         );
+        handle.chan_has_been_removed();
         Ok(())
     }
 
     /// Replace the pending channel identified by its `handle` with a new open `channel`.
     pub(crate) fn replace_pending_channel(
         &self,
-        handle: PendingChannelHandle<C>,
+        handle: PendingChannelHandle,
         channel: Arc<C::Channel>,
     ) -> Result<()> {
         // Do all operations under the same lock acquisition.
@@ -459,6 +460,8 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             handle.relay_id.as_ref(),
             handle.unique_id,
         );
+
+        handle.chan_has_been_removed();
 
         // This isn't great.  We context switch to the newly-created
         // channel just to tell it how and whether to do padding.  Ideally
@@ -566,37 +569,61 @@ impl<C: AbstractChannelFactory> MgrState<C> {
 }
 
 /// A channel for a given target relay.
-pub(crate) enum ChannelForTarget<'a, CF: AbstractChannelFactory> {
+pub(crate) enum ChannelForTarget<CF: AbstractChannelFactory> {
     /// A channel that is open.
     Open(Arc<CF::Channel>),
     /// A channel that is building.
     Pending(Pending),
     /// Information about a new pending channel entry.
-    NewEntry((PendingChannelHandle<'a, CF>, Sending)),
+    NewEntry((PendingChannelHandle, Sending)),
 }
 
 /// A handle for a pending channel.
-pub(crate) struct PendingChannelHandle<'a, CF: AbstractChannelFactory> {
-    /// The channel manager state, which we'll use to access the channel map.
-    // TODO: this will be used in the next commit
-    _mgr: &'a MgrState<CF>,
+///
+/// WARNING: This handle should never be dropped, and should always be passed back into
+/// [`MgrState::remove_pending_channel`] or [`MgrState::replace_pending_channel`], otherwise the
+/// pending channel may be left in the channel map forever.
+///
+/// This handle must only be used with the `MgrState` from which it was given.
+pub(crate) struct PendingChannelHandle {
     /// Any relay ID for this pending channel.
     relay_id: tor_linkspec::RelayId,
     /// The unique ID for this pending channel.
     unique_id: UniqPendingChanId,
+    /// The pending channel has been removed from the channel map.
+    chan_has_been_removed: bool,
 }
 
-impl<'a, CF: AbstractChannelFactory> PendingChannelHandle<'a, CF> {
+impl PendingChannelHandle {
     /// Create a new [`PendingChannelHandle`].
-    fn new(
-        mgr: &'a MgrState<CF>,
-        relay_id: tor_linkspec::RelayId,
-        unique_id: UniqPendingChanId,
-    ) -> Self {
+    fn new(relay_id: tor_linkspec::RelayId, unique_id: UniqPendingChanId) -> Self {
         Self {
-            _mgr: mgr,
             relay_id,
             unique_id,
+            chan_has_been_removed: false,
+        }
+    }
+
+    /// This should be called when the pending channel has been removed from the pending channel
+    /// map. Not calling this will result in an error log message (and panic in debug builds) when
+    /// this handle is dropped.
+    fn chan_has_been_removed(mut self) {
+        self.chan_has_been_removed = true;
+    }
+}
+
+impl std::ops::Drop for PendingChannelHandle {
+    fn drop(&mut self) {
+        if !self.chan_has_been_removed {
+            // log, and also panic in debug builds
+            #[allow(clippy::missing_docs_in_private_items)]
+            const MSG: &str = "Dropped the 'PendingChannelHandle' without removing the channel";
+            error_report!(
+                internal!("{MSG}"),
+                "'PendingChannelHandle' dropped unexpectedly",
+            );
+            #[cfg(debug_assertions)]
+            panic!("{MSG}");
         }
     }
 }
