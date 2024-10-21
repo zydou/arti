@@ -434,6 +434,17 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         Ok(Some(ChannelForTarget::NewEntry((handle, send))))
     }
 
+    /// Remove the pending channel identified by its `handle`.
+    pub(crate) fn remove_pending_channel(&self, handle: PendingChannelHandle<C>) -> Result<()> {
+        let mut inner = self.inner.lock()?;
+        remove_pending(
+            &mut inner.channels,
+            handle.relay_id.as_ref(),
+            handle.unique_id,
+        );
+        Ok(())
+    }
+
     /// Replace the pending channel identified by its `handle` with a new open `channel`.
     pub(crate) fn replace_pending_channel(
         &self,
@@ -443,11 +454,11 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         // Do all operations under the same lock acquisition.
         let mut inner = self.inner.lock()?;
 
-        // WARNING: The handle acquires the mutex at `self.inner` when dropped normally, but not
-        // when passed the channel map directly as is done here. Make sure we always drop the handle
-        // first using `drop_with_channels` before we do anything else so that we don't accidentally
-        // deadlock.
-        handle.drop_with_channels(&mut inner.channels)?;
+        remove_pending(
+            &mut inner.channels,
+            handle.relay_id.as_ref(),
+            handle.unique_id,
+        );
 
         // This isn't great.  We context switch to the newly-created
         // channel just to tell it how and whether to do padding.  Ideally
@@ -565,23 +576,14 @@ pub(crate) enum ChannelForTarget<'a, CF: AbstractChannelFactory> {
 }
 
 /// A handle for a pending channel.
-///
-/// The pending channel will be removed from the channel map when this handle is dropped. This is
-/// meant to help avoid bugs where we add a pending channel to the channel map, and then an early
-/// return (for example with `?`) causes us to forget about the pending channel and leave it in the
-/// map forever. This would cause us to be unable to build new channels to the same target, since
-/// there would be an existing "pending" channel that would never complete. Instead, this handle
-/// should guarantee that the pending channel is removed at some point.
-// Since this object acquires the `MgrState::inner` lock when dropped, it will cause a deadlock if
-// it's dropped while the lock is already held. Since we don't expose the lock outside of this
-// module, there's no risk of external code causing a deadlock.
 pub(crate) struct PendingChannelHandle<'a, CF: AbstractChannelFactory> {
     /// The channel manager state, which we'll use to access the channel map.
-    mgr: &'a MgrState<CF>,
+    // TODO: this will be used in the next commit
+    _mgr: &'a MgrState<CF>,
     /// Any relay ID for this pending channel.
     relay_id: tor_linkspec::RelayId,
     /// The unique ID for this pending channel.
-    unique_id: Option<UniqPendingChanId>,
+    unique_id: UniqPendingChanId,
 }
 
 impl<'a, CF: AbstractChannelFactory> PendingChannelHandle<'a, CF> {
@@ -592,44 +594,9 @@ impl<'a, CF: AbstractChannelFactory> PendingChannelHandle<'a, CF> {
         unique_id: UniqPendingChanId,
     ) -> Self {
         Self {
-            mgr,
+            _mgr: mgr,
             relay_id,
-            unique_id: Some(unique_id),
-        }
-    }
-
-    /// Drop this handle and removing the pending channel from `channels`. This is useful when you
-    /// have already acquired the manager's lock.
-    fn drop_with_channels(
-        mut self,
-        channels: &mut ListByRelayIds<ChannelState<CF::Channel>>,
-    ) -> Result<()> {
-        // Take the unique id so that the drop impl won't try to remove it a second time. An error
-        // here can never happen, but returning an error anyways since `expect` isn't allowed.
-        let unique_id = self.unique_id.take().ok_or(Error::Internal(internal!(
-            "unique_id has already been used"
-        )))?;
-
-        remove_pending(channels, self.relay_id.as_ref(), unique_id);
-        Ok(())
-    }
-}
-
-impl<'a, CF: AbstractChannelFactory> std::ops::Drop for PendingChannelHandle<'a, CF> {
-    fn drop(&mut self) {
-        if let Some(unique_id) = self.unique_id.take() {
-            match self.mgr.inner.lock() {
-                Ok(mut inner) => {
-                    remove_pending(&mut inner.channels, self.relay_id.as_ref(), unique_id);
-                }
-                Err(e) => {
-                    // Our options are to either log or panic. It's not the end of the world if we
-                    // can't remove the pending channel, so let's just log an error. This is only an
-                    // error if the lock is poisoned, which is essentially unrecoverable so arti is
-                    // probably unusable at this point anyways.
-                    tracing::error!("Could not remove a pending channel: {e}");
-                }
-            }
+            unique_id,
         }
     }
 }

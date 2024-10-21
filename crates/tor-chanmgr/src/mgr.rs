@@ -265,9 +265,16 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                     // captures the 'Result' instead.
                     let outcome = async {
                         // Build the channel.
-                        let chan = connector
+                        let chan = match connector
                             .build_channel(&target, self.reporter.clone(), memquota)
-                            .await?;
+                            .await
+                        {
+                            Ok(chan) => chan,
+                            Err(e) => {
+                                self.channels.remove_pending_channel(handle)?;
+                                return Err(e);
+                            }
+                        };
 
                         // Replace the pending channel with the newly built channel.
                         self.channels
@@ -326,6 +333,10 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
             }
             Ok(Some(ChannelForTarget::NewEntry((handle, send)))) => {
+                // TODO arti#1654: Later code could return with an error before the code that
+                // eventually removes this entry, and then this entry would then be left in the map
+                // forever. If this happened, no callers would be able to build channels to this
+                // target anymore. We should have a better cleanup procedure for channels.
                 Ok(Some(Action::Launch((handle, send))))
             }
             Ok(None) => Ok(None),
