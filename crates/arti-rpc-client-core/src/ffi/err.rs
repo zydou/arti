@@ -135,11 +135,8 @@ pub(crate) enum FfiStatus {
     RequestFailed = 8,
 
     /// Tried to check the status of a request and found that it was no longer running.
-    ///
-    /// TODO RPC: We should make sure that this is the actual semantics we want for this
-    /// error!  Revisit after we have implemented real cancellation.
-    [c"Request was cancelled"]
-    RequestCancelled = 9,
+    [c"Request has already completed (or failed)"]
+    RequestCompleted = 9,
 
     /// An IO error occurred while trying to negotiate a data stream
     /// using Arti as a proxy.
@@ -337,7 +334,7 @@ impl IntoFfiError for crate::ProtoError {
             E::Shutdown(_) => F::Shutdown,
             E::InvalidRequest(_) => F::InvalidInput,
             E::RequestIdInUse => F::InvalidInput,
-            E::RequestCancelled => F::RequestCancelled,
+            E::RequestCompleted => F::RequestCompleted,
             E::DuplicateWait => F::Internal,
             E::CouldNotEncode(_) => F::Internal,
             E::InternalRequestFailed(_) => F::PeerProtocolViolation,

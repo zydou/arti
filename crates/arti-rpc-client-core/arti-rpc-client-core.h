@@ -300,11 +300,8 @@ typedef int ArtiRpcResponseType;
 
 /**
  * Tried to check the status of a request and found that it was no longer running.
- *
- * TODO RPC: We should make sure that this is the actual semantics we want for this
- * error!  Revisit after we have implemented real cancellation.
  */
-#define ARTI_RPC_STATUS_REQUEST_CANCELLED 9
+#define ARTI_RPC_STATUS_REQUEST_COMPLETED 9
 
 /**
  * An IO error occurred while trying to negotiate a data stream
