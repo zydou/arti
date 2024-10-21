@@ -424,6 +424,9 @@ The RPC server also has an option `rpc.enabled`
 that can be used to turn off RPC entirely.
 If it is set to `false`, then the server don't listen on any RPC ports.
 
+Connect strings or their locations can be given in an option `rpc.listen`.
+There is also an `rpc.listen_superuser`, described below.
+
 Specifically:
 
 1. If `rpc.enabled` is false, the server binds to no RPC ports.
@@ -453,6 +456,28 @@ Specifically:
 > of SYSTEM\_DEFAULT, or of storing a special connect string in
 > the system default location
 > (`/etc/arti-rpc/arti-rpc-connect.json` on Unix).
+
+### Servers and privileged access
+
+> This section is not going to be implemented in v0 of the protocol.
+
+RPC servers can be configured to support privileged access.
+This is done with a separate option,
+`rpc.listen_superuser`.
+A server binds to these connect strings,
+and gives any client that connects and authenticates to them
+a "privileged session" (q.v.).
+
+> Not all connect strings types will necessarily be supported
+> for superuser access.
+> For example, we may institute a rule that cookie authentication
+> is only permitted for superuser access
+> on systems with meaningful filesystem restrictions.
+
+> We _may_ later specify default superuser connect strings
+> or their locations.
+> We do not currently plan to have any by default
+> in our first releases.
 
 ## Restricting access
 
