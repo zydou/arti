@@ -410,6 +410,50 @@ Here are some examples of connect strings.
 }
 ```
 
+## RPC server behavior
+
+An Arti RPC server uses connect strings
+to decide where to listen for incoming RPC connections.
+
+Unlike an RPC client, an RPC server tries to listen using
+_every_ configured connect string.
+If any connect string fails, it treats the error as fatal,
+and stops searching.
+
+The RPC server also has an option `rpc.enabled`
+that can be used to turn off RPC entirely.
+If it is set to `false`, then the server don't listen on any RPC ports.
+
+Specifically:
+
+1. If `rpc.enabled` is false, the server binds to no RPC ports.
+2. Otherwise, the server looks for the locations of connect strings
+   (or for the strings themselves)
+   in its `arti.toml` configuration,
+   treating all errors as fatal.
+3. If no connect strings are listed in the configuration,
+   it searches for a connect string
+   in the default client location
+   (`${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json`).
+   If it is present, then it tries to use that string,
+   treating all errors as fatal.
+   as fatal.
+3. Finally,
+   if there are no connect strings in arti.toml or in the default location,
+   the server tries to bind at USER\_DEFAULT connect string
+   (see above), treating an error as fatal.
+
+> The behavior above will, by default, capture the "user Arti" case,
+> where an Arti process is running on behalf of a single user and shared
+> by that user's applications.
+>
+> For the "system arti" case, where Arti is to be shared by many users,
+> the integrator or sysadmin needs to specify an alternative connect string
+> in Arti's configuration.  Our documentation should recommend the use
+> of SYSTEM\_DEFAULT, or of storing a special connect string in
+> the system default location
+> (`/etc/arti-rpc/arti-rpc-connect.json` on Unix).
+
 ## Restricting access
 
 Some developers have requested the ability to ensure
