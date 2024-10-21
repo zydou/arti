@@ -16,7 +16,6 @@ def test_trivial(context):
 @arti_test
 def missing_features(context):
     connection = context.open_rpc_connection()
-    # TODO : having to encode this is unpleasant.
     request = {
         "obj": connection.session()._id,
         "method": "arti:get_rpc_proxy_info",
@@ -26,7 +25,7 @@ def missing_features(context):
         },
     }
     try:
-        out = connection.execute(json.dumps(request))
+        out = connection.execute(request)
         assert False
     except ArtiRpcError as e:
         # TODO : having to decode this is unpleasant.

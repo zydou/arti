@@ -78,6 +78,17 @@ class _RpcBase:
             # This should be impossible; it indicates misbehavior on arti's part.
             raise ArtiRpcError(rv, error_ptr, self._rpc)
 
+def _into_json_str(o: Union[str, dict]) -> str:
+    """
+    If 'o' is a dict, convert it into a json string.
+
+    Otherwise return it as-is.
+    """
+    if isinstance(o, dict):
+        return json.dumps(o)
+    else:
+        return o
+
 class ArtiRpcConn(_RpcBase):
     """
     An open connection to Arti.
@@ -135,7 +146,7 @@ class ArtiRpcConn(_RpcBase):
         """
         return self.make_object(self._session_id)
 
-    def execute(self, msg: str) -> str:
+    def execute(self, request: Union[str, dict]) -> str:
         """
         Run an RPC request on this connection.
 
@@ -144,7 +155,11 @@ class ArtiRpcConn(_RpcBase):
 
         You may (and probably should) omit the `id` field from your request.
         If you do, a new id will be automatically generated.
+
+        The request may be a string, or a dist that will be encoded
+        as a json objet.
         """
+        msg = _into_json_str(request)
         response = POINTER(arti_rpc.ffi.ArtiRpcStr)()
         error = POINTER(arti_rpc.ffi.ArtiRpcError)()
         rv = self._rpc.arti_rpc_conn_execute(
@@ -153,7 +168,7 @@ class ArtiRpcConn(_RpcBase):
         self._handle_error(rv, error)
         return self._consume_rpc_str(response)
 
-    def execute_with_handle(self, msg: str) -> ArtiRequestHandle:
+    def execute_with_handle(self, request: Union[str,dict]) -> ArtiRequestHandle:
         """
         Launch an RPC request on this connection, and return a ArtiRequestHandle
         to the open request.
@@ -161,6 +176,7 @@ class ArtiRpcConn(_RpcBase):
         This API is suitable for use when you want incremental updates
         about the request status.
         """
+        msg = _into_json_str(request)
         handle = POINTER(arti_rpc.ffi.ArtiRpcHandle)()
         error = POINTER(arti_rpc.ffi.ArtiRpcError)()
         rv = self._rpc.arti_rpc_conn_execute_with_handle(
