@@ -187,7 +187,7 @@ class ArtiRpcConn(_RpcBase):
         self._handle_error(rv, error)
         return ArtiRequestHandle(handle, self._rpc)
 
-    def connect(
+    def open_stream(
         self,
         hostname: str,
         port: int,
