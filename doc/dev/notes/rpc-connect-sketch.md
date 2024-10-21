@@ -239,15 +239,6 @@ then the Arti RPC client must abort the search process.
 Any other value for the `builtin` field is an error,
 and causes the entry to decline.
 
-> Note/TODO: Embedded client operation is not yet completely specified
-> here.  In particular, we have not yet decided:
->   - Whether it is an error to try to launch two embedded Arti instances
->     in the same process, or whether subsequent attempts give connections
->     to the existing embedded arti.
->   - Whether an embedded arti will need to have the ability to take
->     command line arguments to override its storage and cache defaults.
-
-> These issues will apply to owned arti instances as well.
 
 ### Regular connect strings.
 
@@ -362,6 +353,31 @@ Any such connect string is declined (as with the policy for `none` above).
 > We do not plan to implement functionality for
 > starting a shared system Arti on demand:
 > we think that this does not belong in an RPC client code.
+
+### "Embedded" connect strings
+
+> This section is a sketch only, to capture ideas and open issues.
+>
+> When we implement support for embedded Arti,
+> the connect string format may involve
+> using a pre-built socketpair,
+> and giving one end of the socketpair to the Arti process.
+>
+> A connect string for such a case could be something like
+> `{ "connect" : { "controlling-fd" : 732 } }`
+>
+> (We might say "pre-established" instead of "connect", for strict accuracy.)
+
+> Note/TODO: Embedded client operation is not yet completely specified
+> here.  In particular, we have not yet decided:
+>   - Whether it is an error to try to launch two embedded Arti instances
+>     in the same process, or whether subsequent attempts give connections
+>     to the existing embedded arti.
+>   - Whether an embedded arti will need to have the ability to take
+>     command line arguments to override its storage and cache defaults.
+
+> These issues will apply to owned arti instances as well.
+
 
 ### Example connect strings
 
