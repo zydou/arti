@@ -28,15 +28,12 @@ def missing_features(context):
         out = connection.execute(request)
         assert False
     except ArtiRpcError as e:
-        # TODO : having to decode this is unpleasant.
-        x = json.loads(e.response())
-        assert x["error"]["data"]["rpc:unsupported_features"] == ["arti:does_not_exist"]
-
+        err = e.response_obj()
+        assert err["data"]["rpc:unsupported_features"] == ["arti:does_not_exist"]
 
 @arti_test
 def empty_features_list(context):
     connection = context.open_rpc_connection()
-    # TODO : having to encode this is unpleasant.
     request = {
         "obj": connection.session()._id,
         "method": "arti:get_rpc_proxy_info",
@@ -46,5 +43,5 @@ def empty_features_list(context):
         },
     }
 
-    out = connection.execute(json.dumps(request))
+    out = connection.execute(request)
     # No exception raised; we're fine.

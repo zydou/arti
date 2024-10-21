@@ -146,11 +146,11 @@ class ArtiRpcConn(_RpcBase):
         """
         return self.make_object(self._session_id)
 
-    def execute(self, request: Union[str, dict]) -> str:
+    def execute(self, request: Union[str, dict]) -> dict:
         """
         Run an RPC request on this connection.
 
-        On success, return a string containing the RPC reply.
+        On success, return the "response" from the RPC reply.
         Otherwise, raise an error.
 
         You may (and probably should) omit the `id` field from your request.
@@ -166,7 +166,9 @@ class ArtiRpcConn(_RpcBase):
             self._conn, msg.encode("utf-8"), byref(response), byref(error)
         )
         self._handle_error(rv, error)
-        return self._consume_rpc_str(response)
+        r = ArtiRpcResponse(self._consume_rpc_str(response))
+        assert r.kind() == ArtiRpcResponseKind.RESULT
+        return r['result']
 
     def execute_with_handle(self, request: Union[str,dict]) -> ArtiRequestHandle:
         """
@@ -276,16 +278,27 @@ class ArtiRpcError(Exception):
         else:
             return code
 
-    def response(self) -> Optional[str]:
+    def response_str(self) -> Optional[str]:
         """
-        Return the error response message associated with this error,
-        if there is one.
+        Return the RPC response string associated with this error,
+        if this error represents an error message from the RPC server.
         """
         response = self._rpc.arti_rpc_err_response(self._err)
         if response is None:
             return None
         else:
             return response.decode("utf-8")
+
+    def response_obj(self) -> Optional[dict]:
+        """
+        Return the RPC error object associated with this error,
+        if this error represents an error message from the RPC server.
+        """
+        response = self.response_str()
+        if response is None:
+            return None
+        else:
+            return json.loads(response)['error']
 
 def _opt_object_id_to_bytes(object_id: Union[ArtiRpcObject, str, None]) -> Optional[bytes]:
     """
@@ -318,15 +331,14 @@ class ArtiRpcObject(_RpcBase):
         return self._id
 
     # TODO RPC BREAKING: This needs some way to take a 'meta' field
-    def invoke(self, method: str, **params):
+    def invoke(self, method: str, **params) -> dict:
         """
         Invoke a given RPC method with a given set of parameters,
         wait for it to complete,
         and return its result as a json object.
         """
         request = {"obj": self._id, "method": method, "params": params}
-        result = self._conn.execute(json.dumps(request))
-        return json.loads(result)["result"]
+        return self._conn.execute(json.dumps(request))
 
     # TODO RPC BREAKING: This needs some way to take a 'meta' field
     def invoke_with_handle(self, method: str, **params):
@@ -338,15 +350,71 @@ class ArtiRpcObject(_RpcBase):
         return self._conn.execute_with_handle(json.dumps(request))
 
 
-class ArtiResponseTypeCode(Enum):
+class ArtiRpcResponseKind(Enum):
     """
     Value to indiate the type of a response to an RPC request.
 
-    Returned by `ArtiRequestHandle::wait_raw`.
+    Returned by ArtiRpcResponse.kind().
     """
     RESULT = 1
     UPDATE = 2
     ERROR = 3
+
+class ArtiRpcResponse:
+    """
+    A response from the RPC server.
+
+    May be a successful result;
+    an incremental update;
+    or an error.
+    """
+    _kind: ArtiRpcResponseKind
+    _response: str
+    _obj: dict
+
+    def __init__(self, response: str):
+        self._response = response
+        self._obj = json.loads(response)
+        if 'result' in self._obj:
+            self._kind = ArtiRpcResponseKind.RESULT
+        elif 'error' in self._obj:
+            self._kind = ArtiRpcResponseKind.ERROR
+        elif 'update' in self._obj:
+            self._kind = ArtiRpcResponseKind.UPDATE
+        else:
+            assert False
+
+    def __str__(self):
+        return self._response
+
+    def __getitem__(self, key: str):
+        return self._obj[key]
+
+    def kind(self) -> ArtiRpcResponseKind:
+        """Return the kind of response that this is."""
+        return self._kind
+
+    def error(self) -> Optional[dict]:
+        """
+        If this is an error response, return its `error` member.
+        Otherwise return `None`.
+        """
+        return self._obj.get('error')
+
+    def result(self) -> Optional[dict]:
+        """
+        If this is a successful result, return its 'result' member.
+        Otherwise return `None`.
+        """
+        return self._obj.get('result')
+
+    def update(self) -> Optional[dict]:
+        """
+        If this is an incremental update, return its 'update' member.
+        Otherwise return `None`.
+        """
+        return self._obj.get('update')
+
 
 class ArtiRequestHandle(_RpcBase):
     """
@@ -361,16 +429,12 @@ class ArtiRequestHandle(_RpcBase):
     def __del__(self):
         self._rpc.arti_rpc_handle_free(self._handle)
 
-    def wait_raw(self) -> Tuple[ArtiResponseTypeCode, str]:
+    def wait(self) -> ArtiRpcResponse:
         """
         Wait for a response (update, error, or final result)
         on this handle.
 
-        Return a tuple of (responsetype, response),
-        where responsetype is a ArtiResponseTypeCode.
-
-        TODO RPC: Add a wrapper for this type that returns a more useful
-        result.
+        Return the response received.
         """
         response = POINTER(arti_rpc.ffi.ArtiRpcStr)()
         responsetype = arti_rpc.ffi.ArtiRpcResponseType(0)
@@ -379,6 +443,9 @@ class ArtiRequestHandle(_RpcBase):
             self._handle, byref(response), byref(responsetype), byref(error)
         )
         self._handle_error(rv, error)
-        response_str = self._consume_rpc_str(response)
-        return (ArtiResponseTypeCode(responsetype.value), response_str)
+        response_obj = ArtiRpcResponse(self._consume_rpc_str(response))
+        expected_kind = ArtiRpcResponseKind(responsetype.value)
+        assert response_obj.kind() == expected_kind
+        return response_obj
+
 
