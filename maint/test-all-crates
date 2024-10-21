@@ -10,7 +10,7 @@ import subprocess
 import sys
 import list_crates
 
-def test_crate(c):
+def test_crate(args, c):
     for l in open(c.subdir + '/Cargo.toml'):
 
         # TODO do something more formal here
@@ -35,7 +35,7 @@ def test_crate(c):
 
     command_l = [
         'sh', '-ec', ': "${CARGO:=cargo --locked}"; ' + command_sh, 'x', c.name,
-    ] + sys.argv[1:];
+    ] + args.cargo_option;
 
     child = subprocess.run(command_l)
 
@@ -47,8 +47,12 @@ failed to test crate %s''' % (repr(command_l), child.returncode, c.name),
         sys.exit(1)
 
 def main():
+    parser = argparse.ArgumentParser(prog="test-all-crates")
+    parser.add_argument('cargo-option', nargs='*')
+    args = parser.parse_args()
+
     for crate in list_crates.list_crates():
-        test_crate(crate)
+        test_crate(args, crate)
 
 
 main()
