@@ -266,7 +266,10 @@ class ArtiRpcError(Exception):
             self._rpc.arti_rpc_err_status(self._err)
         ).decode("utf-8")
         msg = self._rpc.arti_rpc_err_message(self._err).decode("utf-8")
-        return f"{status}: {msg}"
+        if status == msg:
+            return status
+        else:
+            return f"{status}: {msg}"
 
     def os_error_code(self) -> Optional[int]:
         """
