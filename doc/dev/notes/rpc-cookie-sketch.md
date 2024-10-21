@@ -66,24 +66,24 @@ At the start of the process, the client and server additionally know:
 
 1. The client connects to the server at `SADDR_USE`.
 
-   The client generates a random 32-byte nonce CN,
-   and the server generates a random 32-byte nonce SN.
+   The client generates a random 32-byte nonce `client_nonce`,
+   and the server generates a random 32-byte nonce `server_nonce`.
    These nonces MUST NOT be reused.
 
-2. The client sends `CN`.
+2. The client sends `client_nonce`.
 
 3. The server computes
-   `S_MAC = MAC(COOKIE, "Server", SADDR_CANONICAL, CN)`
-   and sends (`S_MAC`, `SADDR_CANONICAL`, `SN`).
+   `server_mac = MAC(COOKIE, "Server", SADDR_CANONICAL, client_nonce)`
+   and sends (`server_mac`, `SADDR_CANONICAL`, `server_nonce`).
    (See below for the encoding.)
 
 4. The client computes `S_MAC`, and verifies that its value matches the one
    provided by the server.  If it does not match, it aborts the protocol.
    If it does match, the client computes
-   `C_MAC = MAC(COOKIE, "Client", SADDR_CANONICAL, SN)`,
-   and sends `C_MAC` to the server.
+   `client_mac = MAC(COOKIE, "Client", SADDR_CANONICAL, server_nonce)`,
+   and sends `client_mac` to the server.
 
-5. The server computes `C_MAC`, and verifies that its value matches the one
+5. The server computes `client_mac`, and verifies that its value matches the one
    provided by the client.  If it does not match, this connection attempt aborts.
    Otherwise, the parties are authenticated.
 
@@ -105,7 +105,6 @@ for a single `auth:cookie_continue` command.
 The client's message in step 4 is sent by invoking the
 `auth:cookie_continue` method,
 directed to the object ID received in the `cookie_auth` field.
-The `C_MAC` value is sent in a field called `client_mac`.
 
 All binary values are encoded as hexadecimal strings before sending in JSON.
 
