@@ -1585,10 +1585,7 @@ mod test {
         let _circ = circ.unwrap();
 
         // pfew!  We've build a circuit!  Let's make sure it has one hop.
-        /* TODO: reinstate this.
-        let inner = Arc::get_mut(&mut circuit).unwrap().c.into_inner();
-        assert_eq!(inner.hops.len(), 1);
-         */
+        assert_eq!(_circ.n_hops(), 1);
     }
 
     #[test]
