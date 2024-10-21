@@ -53,15 +53,16 @@ Strings are represented in UTF-8 without a trailing NUL byte.
 
 ## The protocol
 
-At the start of the process, the client and server have the following inputs:
-  - `SADDR_CANONICAL`: The address at which the server is listening.
-    This must be exactly the same string as the `socket` in the connect string.
-  - `COOKIE`: The value of the cookie.
-
-The client additionally knows:
+At the start of the process, the client knows:
   - `SADDR_USE`: The address at which to connect to the server.
-    (It may be different from `SADDR_CANONICAL`
+
+At the start of the process, the client and server additionally know:
+  - `SADDR_CANONICAL`: The address at which the server is actually listening.
+    This must be exactly the same string as the `socket` value
+    in the connect string.
+    (It may be different from `SADDR_USE`
     if e.g. the client is running in a container.)
+  - `COOKIE`: The value of the cookie.
 
 1. The client connects to the server at `SADDR_USE`.
 
