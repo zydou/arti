@@ -1,5 +1,7 @@
 //!  Error types used in by `arti-rpcserver`].
 
+use tor_rpcbase::RpcError;
+
 /// An error encountered while parsing an RPC request,
 /// that we will report to the client.
 ///
@@ -50,21 +52,22 @@ pub enum RequestParseError {
     MissingParams,
 }
 
-impl tor_error::HasKind for RequestParseError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
-
-        match self {
-            Self::IdMissing
-            | Self::IdType
-            | Self::ObjMissing
-            | Self::ObjType
-            | Self::MethodMissing
-            | Self::MethodType
-            | Self::MetaType
-            | Self::MissingParams => EK::RpcInvalidRequest,
-            Self::MethodNotFound => EK::RpcMethodNotFound,
-            Self::ParamType => EK::RpcInvalidMethodParameters,
-        }
+impl From<RequestParseError> for RpcError {
+    fn from(err: RequestParseError) -> Self {
+        use tor_rpcbase::RpcErrorKind as EK;
+        use RequestParseError as E;
+        let kind = match err {
+            E::IdMissing
+            | E::IdType
+            | E::ObjMissing
+            | E::ObjType
+            | E::MethodMissing
+            | E::MethodType
+            | E::MetaType
+            | E::MissingParams => EK::InvalidRequest,
+            E::MethodNotFound => EK::NoSuchMethod,
+            E::ParamType => EK::InvalidMethodParameters,
+        };
+        RpcError::new(err.to_string(), kind)
     }
 }

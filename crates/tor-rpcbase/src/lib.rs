@@ -49,7 +49,7 @@ mod obj;
 use std::{convert::Infallible, sync::Arc};
 
 pub use dispatch::{DispatchTable, InvokeError, UpdateSink};
-pub use err::RpcError;
+pub use err::{RpcError, RpcErrorKind};
 pub use method::{
     check_method_names, is_method_name, iter_method_names, DeserMethod, DynMethod,
     InvalidMethodName, Method, NoUpdates, RpcMethod,
@@ -94,14 +94,15 @@ pub enum LookupError {
     WrongType(ObjectId),
 }
 
-impl tor_error::HasKind for LookupError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
+impl From<LookupError> for RpcError {
+    fn from(err: LookupError) -> Self {
         use LookupError as E;
-        match self {
-            E::NoObject(_) => EK::RpcObjectNotFound,
-            E::WrongType(_) => EK::RpcInvalidRequest,
-        }
+        use RpcErrorKind as EK;
+        let kind = match &err {
+            E::NoObject(_) => EK::ObjectNotFound,
+            E::WrongType(_) => EK::InvalidRequest,
+        };
+        RpcError::new(err.to_string(), kind)
     }
 }
 

@@ -1,21 +1,63 @@
 //! Error-related functionality for RPC functions.
 
+use std::collections::HashMap;
+
+/// Alias for a type-erased value used in an error's `data` field
+type ErrorDatum = Box<dyn erased_serde::Serialize + Send + 'static>;
+
 /// An error type returned by failing RPC methods.
 #[derive(serde::Serialize)]
 pub struct RpcError {
     /// A human-readable message.
     message: String,
     /// An error code inspired by json-rpc.
-    code: RpcCode,
+    #[serde(serialize_with = "ser_code")]
+    code: RpcErrorKind,
     /// The ErrorKind(s) of this error.
     #[serde(serialize_with = "ser_kind")]
-    kinds: tor_error::ErrorKind,
+    kinds: AnyErrorKind,
+    /// Map from namespaced keyword to related data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<HashMap<String, ErrorDatum>>,
 }
 
 impl RpcError {
+    /// Construct a new `RpcError` with the provided message and error code.
+    pub fn new(message: String, code: RpcErrorKind) -> Self {
+        Self {
+            message,
+            code,
+            kinds: AnyErrorKind::Rpc(code),
+            data: None,
+        }
+    }
+
+    /// Change the declared kind of this error to `kind`.
+    pub fn set_kind(&mut self, kind: tor_error::ErrorKind) {
+        self.kinds = AnyErrorKind::Tor(kind);
+    }
+
+    /// Replace the `data` field named `keyword`, if any, with the object `datum`.
+    ///
+    /// Note that to conform with the spec, keyword must be a C identifier prefixed with a
+    /// namespace, as in `rpc:missing_features`
+    pub fn set_datum<D>(&mut self, keyword: String, datum: D)
+    where
+        D: serde::Serialize + Send + 'static,
+    {
+        // TODO RPC : enforce validity on `keyword`.
+        self.data
+            .get_or_insert_with(HashMap::new)
+            .insert(keyword, Box::new(datum) as _);
+    }
+
     /// Return true if this is an internal error.
     pub fn is_internal(&self) -> bool {
-        matches!(self.kinds, tor_error::ErrorKind::Internal)
+        matches!(
+            self.kinds,
+            AnyErrorKind::Tor(tor_error::ErrorKind::Internal)
+                | AnyErrorKind::Rpc(RpcErrorKind::InternalError)
+        )
     }
 }
 
@@ -27,67 +69,87 @@ where
         use tor_error::ErrorReport as _;
         let message = value.report().to_string();
         let code = kind_to_code(value.kind());
-        let kinds = value.kind();
+        let kinds = AnyErrorKind::Tor(value.kind());
         RpcError {
             message,
             code,
             kinds,
+            data: None,
         }
     }
 }
 
-/// Helper: Serialize an ErrorKind in RpcError.
-fn ser_kind<S: serde::Serializer>(kind: &tor_error::ErrorKind, s: S) -> Result<S::Ok, S::Error> {
-    // Our spec says that `kinds` is a list, and that each kind we
-    // define will be prefixed by arti:.
+/// Helper: Serialize an AnyErrorKind in RpcError.
+fn ser_kind<S: serde::Serializer>(kind: &AnyErrorKind, s: S) -> Result<S::Ok, S::Error> {
+    // Our spec says that `kinds` is a list.  Any tor_error::ErrorKind is prefixed with `arti:`,
+    // and any RpcErrorKind is prefixed with `rpc:`
 
     use serde::ser::SerializeSeq;
-    let mut seq = s.serialize_seq(Some(1))?;
-    seq.serialize_element(&format!("arti:{:?}", kind))?;
+    let mut seq = s.serialize_seq(None)?;
+    match kind {
+        AnyErrorKind::Tor(kind) => seq.serialize_element(&format!("arti:{:?}", kind))?,
+        AnyErrorKind::Rpc(kind) => seq.serialize_element(&format!("rpc:{:?}", kind))?,
+    }
     seq.end()
 }
 
-/// Error codes for backward compatibility with json-rpc.
-#[derive(Clone, Debug, Eq, PartialEq, serde_repr::Serialize_repr)]
+/// Helper: Serialize an RpcErrorKind as a numeric code.
+fn ser_code<S: serde::Serializer>(kind: &RpcErrorKind, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_i32(*kind as i32)
+}
+
+/// An ErrorKind as held by an `RpcError`
+#[derive(Clone, Copy, Debug)]
+enum AnyErrorKind {
+    /// An ErrorKind representing a non-RPC problem.
+    Tor(tor_error::ErrorKind),
+    /// An ErrorKind originating within the RPC system.
+    #[allow(unused)]
+    Rpc(RpcErrorKind),
+}
+
+/// Error kinds for RPC errors.
+///
+/// Unlike `tor_error::ErrorKind`,
+/// these codes do not represent a problem in an Arti function per se:
+/// they are only visible to the RPC system, and should only be reported there.
+///
+/// For backward compatibility with json-rpc,
+/// each of these codes has a unique numeric ID.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
-#[allow(clippy::enum_variant_names)]
-enum RpcCode {
+#[non_exhaustive]
+pub enum RpcErrorKind {
     /// "The JSON sent is not a valid Request object."
-    RpcInvalidRequest = -32600,
+    InvalidRequest = -32600,
     /// "The method does not exist."
-    RpcNoSuchMethod = -32601,
+    NoSuchMethod = -32601,
     /// "Invalid method parameter(s)."
-    RpcInvalidParams = -32602,
+    InvalidMethodParameters = -32602,
     /// "The server suffered some kind of internal problem"
-    RpcInternalError = -32603,
+    InternalError = -32603,
     /// "Some requested object was not valid"
-    RpcObjectError = 1,
+    ObjectNotFound = 1,
     /// "Some other error occurred"
-    RpcRequestError = 2,
+    RequestError = 2,
     /// This method exists, but wasn't implemented on this object.
-    RpcMethodNotImpl = 3,
+    MethodNotImpl = 3,
     /// This request was cancelled before it could finish.
-    RpcRequestCancelled = 4,
+    RequestCancelled = 4,
     /// This request listed a required feature that doesn't exist.
-    RpcFeatureNotPresent = 5,
+    FeatureNotPresent = 5,
 }
 
 /// Helper: Return an error code (for backward compat with json-rpc) for an
 /// ErrorKind.
 ///
 /// These are not especially helpful and nobody should really use them.
-fn kind_to_code(kind: tor_error::ErrorKind) -> RpcCode {
+fn kind_to_code(kind: tor_error::ErrorKind) -> RpcErrorKind {
     use tor_error::ErrorKind as EK;
+    use RpcErrorKind as RC;
     match kind {
-        EK::RpcInvalidRequest => RpcCode::RpcInvalidRequest,
-        EK::RpcMethodNotFound => RpcCode::RpcNoSuchMethod,
-        EK::RpcMethodNotImpl => RpcCode::RpcMethodNotImpl,
-        EK::RpcInvalidMethodParameters => RpcCode::RpcInvalidParams,
-        EK::Internal | EK::BadApiUsage => RpcCode::RpcInternalError,
-        EK::RpcObjectNotFound => RpcCode::RpcObjectError,
-        EK::RpcRequestCancelled => RpcCode::RpcRequestCancelled,
-        EK::RpcFeatureNotPresent => RpcCode::RpcFeatureNotPresent,
-        _ => RpcCode::RpcRequestError, // (This is our catch-all "request error.")
+        EK::Internal | EK::BadApiUsage => RC::InternalError,
+        _ => RC::RequestError, // (This is our catch-all "request error.")
     }
 }
 
@@ -138,7 +200,7 @@ mod test {
         fn kind(&self) -> tor_error::ErrorKind {
             match self {
                 Self::SomethingExploded { .. } => tor_error::ErrorKind::Other,
-                Self::SomethingWasHidden(_, _) => tor_error::ErrorKind::RpcObjectNotFound,
+                Self::SomethingWasHidden(_, _) => tor_error::ErrorKind::RemoteHostNotFound,
                 Self::SomethingWasMissing(_) => tor_error::ErrorKind::FeatureDisabled,
                 Self::ProgramUnwilling => tor_error::ErrorKind::Internal,
             }
@@ -156,15 +218,12 @@ mod test {
 
     #[test]
     fn serialize_error() {
-        // TODO: Since we do not expose `data`, these error formats are now more or less useless.
-        // We should revisit them if we decide to reintroduce error data.
-
         let err = ExampleError::SomethingExploded {
             what: "previous implementation".into(),
             why: "worse things happen at C".into(),
         };
         let err = RpcError::from(err);
-        assert_eq!(err.code, RpcCode::RpcRequestError);
+        assert_eq!(err.code, RpcErrorKind::RequestError);
         let serialized = serde_json::to_string(&err).unwrap();
         let expected_json = r#"
           {
@@ -184,8 +243,8 @@ mod test {
         let expected = r#"
         {
             "message": "error: I'm hiding the zircon-encrusted tweezers in my chrome dinette",
-            "code": 1,
-            "kinds": ["arti:RpcObjectNotFound"]
+            "code": 2,
+            "kinds": ["arti:RemoteHostNotFound"]
          }
         "#;
         assert_json_eq!(&serialized, expected);
@@ -211,6 +270,25 @@ mod test {
             "code": -32603,
             "kinds": ["arti:Internal"]
          }
+        "#;
+        assert_json_eq!(&serialized, expected);
+    }
+
+    #[test]
+    fn create_error() {
+        let mut e = RpcError::new("Example error".to_string(), RpcErrorKind::RequestError);
+        e.set_kind(tor_error::ErrorKind::CacheCorrupted);
+        e.set_datum("rpc:example".to_string(), "Hello world".to_string());
+        let serialized = serde_json::to_string(&e).unwrap();
+        let expected = r#"
+        {
+            "message": "Example error",
+            "code": 2,
+            "kinds": ["arti:CacheCorrupted"],
+            "data": {
+                "rpc:example": "Hello world"
+            }
+        }
         "#;
         assert_json_eq!(&serialized, expected);
     }

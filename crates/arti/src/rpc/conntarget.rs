@@ -5,6 +5,7 @@ use arti_client::{
     DataStream, StreamPrefs, TorAddr, TorClient,
 };
 use std::{net::IpAddr, sync::Arc};
+use tor_error::into_internal;
 use tor_rpcbase as rpc;
 use tor_rtcompat::Runtime;
 
@@ -42,7 +43,9 @@ impl<R: Runtime> ConnTarget<R> {
                 };
                 *rpc::invoke_special_method(context.clone(), obj.clone(), Box::new(method) as _)
                     .await
-                    .map_err(|e| Box::new(e) as _)?
+                    .map_err(|e| {
+                        Box::new(into_internal!("unable to delegate to RPC object")(e)) as _
+                    })?
             }
             ConnTarget::Client(client) => client
                 .connect_with_prefs(target, prefs)
@@ -68,7 +71,9 @@ impl<R: Runtime> ConnTarget<R> {
                 };
                 *rpc::invoke_special_method(context.clone(), obj.clone(), Box::new(method) as _)
                     .await
-                    .map_err(|e| Box::new(e) as _)?
+                    .map_err(|e| {
+                        Box::new(into_internal!("unable to delegate to RPC object")(e)) as _
+                    })?
             }
             ConnTarget::Client(client) => client
                 .resolve_with_prefs(hostname, prefs)
@@ -94,7 +99,9 @@ impl<R: Runtime> ConnTarget<R> {
                 };
                 *rpc::invoke_special_method(context.clone(), obj.clone(), Box::new(method) as _)
                     .await
-                    .map_err(|e| Box::new(e) as _)?
+                    .map_err(|e| {
+                        Box::new(into_internal!("unable to delegate to RPC object")(e)) as _
+                    })?
             }
             ConnTarget::Client(client) => client
                 .resolve_ptr_with_prefs(addr, prefs)

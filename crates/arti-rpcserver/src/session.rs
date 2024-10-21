@@ -9,6 +9,7 @@ use arti_client::{
 };
 use derive_deftly::Deftly;
 use std::{net::IpAddr, sync::Arc};
+use tor_error::into_internal;
 use tor_rtcompat::Runtime;
 
 use tor_rpcbase::{self as rpc, static_rpc_invoke_fn, templates::*};
@@ -199,7 +200,7 @@ async fn session_connect_with_prefs(
 ) -> ClientConnectionResult<arti_client::DataStream> {
     *rpc::invoke_special_method(ctx, session.client_as_object(), method)
         .await
-        .map_err(|e| Box::new(e) as _)?
+        .map_err(|e| Box::new(into_internal!("unable to delegate to TorClient")(e)) as _)?
 }
 
 /// Implement ResolveWithPrefs on an RpcSession
@@ -212,7 +213,7 @@ async fn session_resolve_with_prefs(
 ) -> ClientConnectionResult<Vec<IpAddr>> {
     *rpc::invoke_special_method(ctx, session.client_as_object(), method)
         .await
-        .map_err(|e| Box::new(e) as _)?
+        .map_err(|e| Box::new(into_internal!("unable to delegate to TorClient")(e)) as _)?
 }
 
 /// Implement ResolvePtrWithPrefs on an RpcSession
@@ -225,7 +226,7 @@ async fn session_resolve_ptr_with_prefs(
 ) -> ClientConnectionResult<Vec<String>> {
     *rpc::invoke_special_method(ctx, session.client_as_object(), method)
         .await
-        .map_err(|e| Box::new(e) as _)?
+        .map_err(|e| Box::new(into_internal!("unable to delegate to TorClient")(e)) as _)?
 }
 static_rpc_invoke_fn! {
     rpc_release;
