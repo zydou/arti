@@ -953,19 +953,38 @@ an `rpc:cancel` method, taking parameters of the form:
 { "request_id": id }
 ```
 
-A successful response is the empty JSON object.
-If a successful response is sent,
-then the request was canceled,
-and an error was sent for the canceled request.
+Upon receiving an `rpc:cancel` request targeting
+some pending request
+the RPC server must guarantee
+that the target request and the cancel request both complete "reasonably quickly",
+(with some status)
+without doing "much" more work.
+
+If the target request completes without being cancelled,
+then the target request will return a success
+(or some error other than "request cancelled").
+The cancel request may or may not return an error.
+
+If the target operation is cancelled,
+then the target operation will return a "request cancelled" error,
+and the cancel request will return success.
+
+> Note that in these two cases above,
+> we do not guarantee any relative ordering between the two replies,
+> and we do not guarantee that a "cancel" request
+> will cause the request to actually be cancelled.
+>
+> For further non-guarantees, see
+> <https://gitlab.torproject.org/tpo/core/arti/-/issues/818#note_2998166>.
+
 
 If the request has already completed
 before the "cancel" request is canceled,
 or if there is no such request,
-Arti will return an error.
-(It might not be possible to distinguish these two cases).
-
-> Alternative: we might implement this on the connection
-> object, rather than on the session object?
+the cancellation request will return an error.
+(It might not be possible to distinguish these two cases,
+but in both of these cases, we guarantee that
+the `rpc:cancel` method has had no effect.)
 
 
 ### Authentication
