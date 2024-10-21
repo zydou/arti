@@ -195,7 +195,7 @@ class ArtiRpcConn(_RpcBase):
         on_object:Union[ArtiRpcObject,str,None]=None,
         isolation:str="",
         want_stream_id:bool=False,
-    ) : #TODO returntype is a bit silly. Make it sensible before annotating it.
+    ) -> Tuple[socket.socket, Optional[ArtiRpcObject]]:
         """
         Open an anonymized data stream to `hostname`:`port` over Arti.
 
@@ -240,9 +240,10 @@ class ArtiRpcConn(_RpcBase):
         sock = socket.socket(fileno=sock_cint.value)
 
         if want_stream_id:
-            return (sock, stream_id) # TODO: change stream_id into an Object.
+            stream_id_obj = self.make_object(self._consume_rpc_str(stream_id))
+            return (sock, stream_id_obj)
         else:
-            return sock
+            return (sock, None)
 
 
 class ArtiRpcError(Exception):
