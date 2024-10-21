@@ -1,10 +1,12 @@
 # Storing certificates in the Arti key store
 
 To support running with offline identity keys,
-the `relayid_ed` identity key of a relay is only used for
-signing the `relaysign_ed` medium-term signing key (which must be kept online).
+the `K_relayid_ed` identity key of a relay is only used for
+signing its `K_relaysign_ed` medium-term signing key (which must be kept online).
 The resulting certificate is used in the `CERTS` cell during channel negotiation,
-and needs to be available even if the `relayid_ed` key is not.
+and needs to be available even if the `K_relayid_ed` key
+(or, more specifically, the `KS_relayid_ed` private key)
+is not.
 To that end, we decided to add support for storing certificates in the Arti keystore
 (see #1617).
 
@@ -12,7 +14,7 @@ To that end, we decided to add support for storing certificates in the Arti keys
 
 The certificate of a key will have the same `ArtiPath` as the key it certifies.
 
-For example, the keystore entries for the `relaysign_ed` key are
+For example, the keystore entries for the `K_relaysign_ed` key are
 
 | Key                            | Description                                                  |
 |--------------------------------|--------------------------------------------------------------|
@@ -41,13 +43,13 @@ of the certificate.
 
 ## Storage format
 
-For the `relaysign_ed` cert, the storage format is Tor's
+For the `K_relaysign_ed` cert, the storage format is Tor's
 [certificate format](https://spec.torproject.org/cert-spec.html).
 
 If we choose to support other types of certificates in the future,
 they will likely have a different format (not specified here).
 
-If we ever decide to change the format of the `relaysign_ed` certificate,
+If we ever decide to change the format of the `K_relaysign_ed` certificate,
 we will deprecate the existing `.tor_ed25519_cert` key type,
 and introduce a new one for certificates using the new format.
 
