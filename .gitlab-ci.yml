@@ -623,7 +623,7 @@ minimal-features-test:
   image: $RECENT_RUST_IMAGE
   script:
     - maint/common/apt-install python3-toml
-    - maint/test-all-crates -- --target x86_64-unknown-linux-gnu --no-default-features
+    - maint/test-all-crates --enable-conditional-options=minimal -- --target x86_64-unknown-linux-gnu --no-default-features
 
 matrix-test-cfg:
   stage: test

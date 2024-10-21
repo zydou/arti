@@ -6,11 +6,14 @@
 #     (but it does read some ad-hoc parseable comments from Cargo.toml's).
 #   - it runs `cargo test`
 
+import argparse
 import subprocess
 import sys
 import list_crates
 
 def test_crate(args, c):
+    conditional_options = []
+
     for l in open(c.subdir + '/Cargo.toml'):
 
         # TODO do something more formal here
@@ -25,6 +28,14 @@ def test_crate(args, c):
 )''' % c.name, file=sys.stderr)
             return
 
+        conditional_option_directive = '# @@ test-all-crates conditional-option '
+        # One option per line, so it can contain spaces
+        if l.startswith(conditional_option_directive):
+            (key, option) = l[len(conditional_option_directive):].rstrip().split(maxsplit=1)
+            if key in args.enable_conditional_options:
+                conditional_options.append(option)
+            continue
+
     command_sh = 'p=$1; shift; set -x; $CARGO test -p $p "$@"';
 
     print(''':
@@ -35,7 +46,7 @@ def test_crate(args, c):
 
     command_l = [
         'sh', '-ec', ': "${CARGO:=cargo --locked}"; ' + command_sh, 'x', c.name,
-    ] + args.cargo_option;
+    ] + args.cargo_option + conditional_options;
 
     child = subprocess.run(command_l)
 
@@ -48,7 +59,8 @@ failed to test crate %s''' % (repr(command_l), child.returncode, c.name),
 
 def main():
     parser = argparse.ArgumentParser(prog="test-all-crates")
-    parser.add_argument('cargo-option', nargs='*')
+    parser.add_argument('cargo_option', nargs='*')
+    parser.add_argument('--enable-conditional-options', action='append', default=[])
     args = parser.parse_args()
 
     for crate in list_crates.list_crates():
