@@ -422,7 +422,7 @@ and stops searching.
 
 The RPC server also has an option `rpc.enabled`
 that can be used to turn off RPC entirely.
-If it is set to `false`, then the server don't listen on any RPC ports.
+If it is set to `false`, then the server doesn't listen on any RPC ports.
 
 Connect strings or their locations can be given in an option `rpc.listen`.
 There is also an `rpc.listen_superuser`, described below.

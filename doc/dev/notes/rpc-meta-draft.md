@@ -854,7 +854,7 @@ by remembering which method(s) were previously successful
 >     all privileged functionality is available from an `ArtiRoot`.
 > * A privileged RPC session supports an `rpc:new_unprivileged_session`
 >   method that gives you a new session that _doesn't_ support `rpc:su`.
->   This method is important for dropping capabilities.
+>   This method can be used as part of dropping capabilities.
 
 ### Authentication
 
