@@ -1496,8 +1496,14 @@ mod test {
         let (_circmsg_send, circmsg_recv) = fake_mpsc(64);
         let unique_id = UniqId::new(23, 17);
 
-        let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id, CircuitAccount::new_noop());
+        let (pending, reactor) = PendingClientCirc::new(
+            circid,
+            chan,
+            created_recv,
+            circmsg_recv,
+            unique_id,
+            CircuitAccount::new_noop(),
+        );
 
         rt.spawn(async {
             let _ignore = reactor.run().await;
@@ -1666,8 +1672,14 @@ mod test {
         let (circmsg_send, circmsg_recv) = fake_mpsc(64);
         let unique_id = UniqId::new(23, 17);
 
-        let (pending, reactor) =
-            PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id, CircuitAccount::new_noop());
+        let (pending, reactor) = PendingClientCirc::new(
+            circid,
+            chan,
+            created_recv,
+            circmsg_recv,
+            unique_id,
+            CircuitAccount::new_noop(),
+        );
 
         rt.spawn(async {
             let _ignore = reactor.run().await;
