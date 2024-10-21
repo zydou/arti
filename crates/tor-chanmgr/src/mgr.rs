@@ -257,10 +257,10 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
                 // We need to launch a channel.
                 Some(Action::Launch((handle, send))) => {
-                    // WARNING: do not drop the handle without calling `replace_pending_channel` or
-                    // `remove_pending_channel`. If you don't, then the pending entry will remain in
-                    // the channel map forever, and arti will be unable to build new channels to the
-                    // target relay of that pending channel.
+                    // WARNING: do not drop the handle without calling
+                    // `upgrade_pending_channel_to_open` or `remove_pending_channel`. If you don't,
+                    // then the pending entry will remain in the channel map forever, and arti will
+                    // be unable to build new channels to the target relay of that pending channel.
                     //
                     // This code is ugly since it tries to use IIFE-inspired immediately awaited
                     // async block expressions to prevent the code from returning early (for example
@@ -282,7 +282,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                             Ok(ref chan) => {
                                 // Replace the pending channel with the newly built channel.
                                 self.channels
-                                    .replace_pending_channel(handle, Arc::clone(chan))?;
+                                    .upgrade_pending_channel_to_open(handle, Arc::clone(chan))?;
                             }
                             Err(_) => {
                                 // Remove the pending channel.

@@ -441,8 +441,9 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         Ok(())
     }
 
-    /// Replace the pending channel identified by its `handle` with a new open `channel`.
-    pub(crate) fn replace_pending_channel(
+    /// Upgrade the pending channel identified by its `handle` by replacing it with a new open
+    /// `channel`.
+    pub(crate) fn upgrade_pending_channel_to_open(
         &self,
         handle: PendingChannelHandle,
         channel: Arc<C::Channel>,
@@ -570,8 +571,8 @@ pub(crate) enum ChannelForTarget<CF: AbstractChannelFactory> {
 /// A handle for a pending channel.
 ///
 /// WARNING: This handle should never be dropped, and should always be passed back into
-/// [`MgrState::remove_pending_channel`] or [`MgrState::replace_pending_channel`], otherwise the
-/// pending channel may be left in the channel map forever.
+/// [`MgrState::remove_pending_channel`] or [`MgrState::upgrade_pending_channel_to_open`], otherwise
+/// the pending channel may be left in the channel map forever.
 ///
 /// This handle must only be used with the `MgrState` from which it was given.
 pub(crate) struct PendingChannelHandle {
