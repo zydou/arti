@@ -47,3 +47,24 @@ def drop_misformed_id(context):
     except ArtiRpcError as e:
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
 
+@arti_test
+def drop_connection(context):
+    connection = context.open_rpc_connection()
+
+    # Make sure we can drop the "connection" object ID itself!
+    connection.execute({
+        "obj": "connection",
+        "method": "rpc:release",
+        "params": {}
+    })
+
+    try:
+        connection.execute({
+            "obj": "connection",
+            "method": "rpc:release",
+            "params": {}
+        })
+        assert False
+    except ArtiRpcError as e:
+        assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
+
