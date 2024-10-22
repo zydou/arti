@@ -36,15 +36,6 @@ struct RpcRelease {
     obj: rpc::ObjectId,
 }
 
-/// RPC method to release a single strong reference, creating a weak reference
-/// in its place.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[allow(unused)] //TODO RPC
-struct RpcDowngrade {
-    /// The object to downgrade
-    obj: rpc::ObjectId,
-}
-
 impl rpc::RpcMethod for RpcRelease {
     type Output = rpc::Nil;
     type Update = rpc::NoUpdates;
