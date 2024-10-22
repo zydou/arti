@@ -61,17 +61,17 @@ def main():
     parser = argparse.ArgumentParser(prog="test-all-crates")
     parser.add_argument('cargo_option', nargs='*')
     parser.add_argument('--enable-conditional-options', action='append', default=[])
-    parser.add_argument('--start-from', action='store', default=None)
+    parser.add_argument('--skip-until', action='store', default=None)
     args = parser.parse_args()
 
-    skip_until = args.start_from
+    skip_until = args.skip_until
 
     for crate in list_crates.list_crates():
         if skip_until is not None:
             if skip_until == crate.name:
                 skip_until = None
             else:
-                print('skipping due to --start-from %s: %s' % (skip_until, crate.name),
+                print('skipping due to --skip-until %s: %s' % (skip_until, crate.name),
                       file=sys.stderr)
                 continue
 
