@@ -623,7 +623,7 @@ minimal-features-test:
   image: $RECENT_RUST_IMAGE
   script:
     # See crates/arti/build.rs.  Here, rather than in `variables:`, so it appears in the log.
-    - export RUSTFLAGS='--cfg arti_features_precise'
+    - export RUSTFLAGS="$RUSTFLAGS --cfg arti_features_precise"
     - maint/common/apt-install python3-toml
     - maint/test-all-crates --enable-conditional-options=minimal -- --target x86_64-unknown-linux-gnu --no-default-features
 
