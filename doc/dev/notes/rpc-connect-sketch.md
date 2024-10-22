@@ -254,13 +254,13 @@ The `socket` members must be in a form accepted by
 > TODO: Fix that above link once !2519 is merged.
 
 > These formats are, roughly:
->  - A TCP socket address, optionally prefixed with `tcp:`.
->    (Examples: `127.0.0.1:9999`, `[::1]:9999`, `tcp:[::1]:9999`.)
+>  - A TCP socket address, optionally prefixed with `inet:`.
+>    (Examples: `127.0.0.1:9999`, `[::1]:9999`, `inet:[::1]:9999`.)
 >  - An AF_UNIX socket address, prefixed with `unix:`.
 >    (Example: `unix:/var/run/arti/rpc_socket`)
 
 If the `socket` member
-has a schema prefix other than `tcp:` or `unix:`,
+has a schema prefix other than `inet:` or `unix:`,
 or if it is a relative `unix:` path,
 then the connection attempt is *declined*.
 
@@ -364,11 +364,11 @@ Here are some examples of connect strings.
 ```json
 {
   "connect": {
-     "socket" : "tcp:[::1]:9191",
+     "socket" : "inet:[::1]:9191",
      "auth" : {
         "cookie" : {
            "cookie_path" : "/home/user/.arti_rpc/cookie",
-           "canonical_addr": "tcp:[::1]:2020",
+           "canonical_addr": "inet:[::1]:2020",
         }
      }
   }

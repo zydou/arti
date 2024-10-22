@@ -44,17 +44,17 @@ use std::os::linux::net::SocketAddrExt as _;
 /// Any `general::SocketAddr` has up to two string representations:
 ///
 /// 1. A _qualified_ representation, consisting of a schema
-///    (either "unix" or "tcp"),
+///    (either "unix" or "inet"),
 ///    followed by a single colon,
 ///    followed by the address itself represented as a string.
 ///
-///    Examples: `unix:/path/to/socket`, `tcp:127.0.0.1:9999`,
-///    `tcp:[::1]:9999`.
+///    Examples: `unix:/path/to/socket`, `inet:127.0.0.1:9999`,
+///    `inet:[::1]:9999`.
 ///
 ///    The "unnamed" unix address is represented as `unix:`.
 ///
 /// 2. A _unqualified_ representation,
-///    consisting of a TCP address represented as a string.
+///    consisting of a `net::SocketAddr` address represented as a string.
 ///
 ///    Examples: `127.0.0.1:9999`,  `[::1]:9999`.
 ///
@@ -74,19 +74,19 @@ use std::os::linux::net::SocketAddrExt as _;
 /// and will consist only of ascii alphanumeric characters,
 /// the character `-`, and the character `_`.
 ///
-/// ### TCP address representation
+/// ### Network address representation
 ///
-/// When representing a TCP address as a string,
+/// When representing a `net::Socketaddr` address as a string,
 /// we use the formats implemented by [`std::net::SocketAddr`]'s
 /// `FromStr` implementation.  In contrast with the textual representations of
 /// [`Ipv4Addr`](std::net::Ipv4Addr) and [`Ipv6Addr`](std::net::Ipv6Addr),
 /// these formats are not currently very well specified by Rust.
 /// Therefore we describe them here:
-///   * A IPv4 TCP address is encoded as:
+///   * A `SocketAddrV4` is encoded as:
 ///     - an [IPv4 address],
 ///     - a colon (`:`),
 ///     - a 16-bit decimal integer.
-///   * An IPv6 TCP address is encoded as:
+///   * A `SocketAddrV6` is encoded as:
 ///     - a left square bracket (`[`),
 ///     - an [IPv6 address],
 ///     - optionally, a percent sign (`%`) and a 32-bit decimal integer
@@ -94,7 +94,7 @@ use std::os::linux::net::SocketAddrExt as _;
 ///     - a colon (`:`),
 ///     - a 16-bit decimal integer.
 ///
-/// Note that the above TCP implementation does not provide any way
+/// Note that the above implementation does not provide any way
 /// to encode the [`flowinfo`](std::net::SocketAddrV6::flowinfo) member
 /// of a `SocketAddrV6`.
 /// Any `flowinfo` information set in an address
@@ -134,7 +134,7 @@ impl SocketAddr {
     pub fn try_to_string(&self) -> Option<String> {
         use SocketAddr::*;
         match self {
-            Inet(sa) => Some(format!("tcp:{}", sa)),
+            Inet(sa) => Some(format!("inet:{}", sa)),
             Unix(sa) => {
                 if sa.is_unnamed() {
                     Some("unix:".to_string())
@@ -155,7 +155,7 @@ impl<'a> std::fmt::Display for DisplayLossy<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use SocketAddr::*;
         match self.0 {
-            Inet(sa) => write!(f, "tcp:{}", sa),
+            Inet(sa) => write!(f, "inet:{}", sa),
             Unix(sa) => {
                 if let Some(path) = sa.as_pathname() {
                     if let Some(path_str) = path.to_str() {
@@ -178,12 +178,12 @@ impl std::str::FromStr for SocketAddr {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.starts_with(|c: char| (c.is_ascii_digit() || c == '[')) {
-            // This looks like a tcp address, and cannot be a qualified address.
+            // This looks like an inet address, and cannot be a qualified address.
             Ok(s.parse::<net::SocketAddr>()?.into())
         } else if let Some((schema, remainder)) = s.split_once(':') {
             match schema {
                 "unix" => Ok(unix::SocketAddr::from_pathname(remainder)?.into()),
-                "tcp" => Ok(remainder.parse::<net::SocketAddr>()?.into()),
+                "inet" => Ok(remainder.parse::<net::SocketAddr>()?.into()),
                 _ => Err(AddrParseError::UnrecognizedSchema(schema.to_string())),
             }
         } else {
@@ -199,15 +199,15 @@ pub enum AddrParseError {
     /// Tried to parse an address with an unrecognized schema.
     #[error("Address schema {0:?} unrecognized")]
     UnrecognizedSchema(String),
-    /// Tried to parse a non TCP-address with no schema.
-    #[error("Address did not look like TCP, but had no address schema.")]
+    /// Tried to parse a non inet-address with no schema.
+    #[error("Address did not look like internet, but had no address schema.")]
     NoSchema,
     /// Tried to parse an address as an AF_UNIX address, but failed.
     #[error("Invalid AF_UNIX address")]
     InvalidUnixAddress(#[source] Arc<IoError>),
-    /// Tried to parse an address as a TCP address, but failed.
-    #[error("Invalid TCP address")]
-    InvalidTcpAddress(#[from] std::net::AddrParseError),
+    /// Tried to parse an address as a inet address, but failed.
+    #[error("Invalid internet address")]
+    InvalidInetAddress(#[from] std::net::AddrParseError),
 }
 
 impl From<IoError> for AddrParseError {
@@ -445,14 +445,14 @@ mod test {
     }
 
     #[test]
-    fn ok_tcp() {
+    fn ok_inet() {
         assert_eq!(
             from_inet("127.0.0.1:9999"),
             general::SocketAddr::from_str("127.0.0.1:9999").unwrap()
         );
         assert_eq!(
             from_inet("127.0.0.1:9999"),
-            general::SocketAddr::from_str("tcp:127.0.0.1:9999").unwrap()
+            general::SocketAddr::from_str("inet:127.0.0.1:9999").unwrap()
         );
 
         assert_eq!(
@@ -461,7 +461,7 @@ mod test {
         );
         assert_eq!(
             from_inet("[::1]:9999"),
-            general::SocketAddr::from_str("tcp:[::1]:9999").unwrap()
+            general::SocketAddr::from_str("inet:[::1]:9999").unwrap()
         );
 
         assert_ne!(
@@ -470,12 +470,12 @@ mod test {
         );
 
         let ga1 = from_inet("127.0.0.1:9999");
-        assert_eq!(ga1.display_lossy().to_string(), "tcp:127.0.0.1:9999");
-        assert_eq!(ga1.try_to_string().unwrap(), "tcp:127.0.0.1:9999");
+        assert_eq!(ga1.display_lossy().to_string(), "inet:127.0.0.1:9999");
+        assert_eq!(ga1.try_to_string().unwrap(), "inet:127.0.0.1:9999");
 
         let ga2 = from_inet("[::1]:9999");
-        assert_eq!(ga2.display_lossy().to_string(), "tcp:[::1]:9999");
-        assert_eq!(ga2.try_to_string().unwrap(), "tcp:[::1]:9999");
+        assert_eq!(ga2.display_lossy().to_string(), "inet:[::1]:9999");
+        assert_eq!(ga2.try_to_string().unwrap(), "inet:[::1]:9999");
     }
 
     /// Treat `s` as a unix path, and build a `general::SocketAddr` from it.
@@ -520,33 +520,33 @@ mod test {
     }
 
     #[test]
-    fn parse_err_tcp() {
+    fn parse_err_inet() {
         assert_matches!(
             "1234567890:999".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidTcpAddress(_))
+            Err(AddrParseError::InvalidInetAddress(_))
         );
         assert_matches!(
             "1z".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidTcpAddress(_))
+            Err(AddrParseError::InvalidInetAddress(_))
         );
         assert_matches!(
             "[[77".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidTcpAddress(_))
+            Err(AddrParseError::InvalidInetAddress(_))
         );
 
         assert_matches!(
-            "tcp:fred:9999".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidTcpAddress(_))
+            "inet:fred:9999".parse::<general::SocketAddr>(),
+            Err(AddrParseError::InvalidInetAddress(_))
         );
 
         assert_matches!(
-            "tcp:127.0.0.1".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidTcpAddress(_))
+            "inet:127.0.0.1".parse::<general::SocketAddr>(),
+            Err(AddrParseError::InvalidInetAddress(_))
         );
 
         assert_matches!(
-            "tcp:[::1]".parse::<general::SocketAddr>(),
-            Err(AddrParseError::InvalidTcpAddress(_))
+            "inet:[::1]".parse::<general::SocketAddr>(),
+            Err(AddrParseError::InvalidInetAddress(_))
         );
     }
 
