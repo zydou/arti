@@ -68,3 +68,17 @@ def drop_connection(context):
     except ArtiRpcError as e:
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
 
+@arti_test
+def drop_session(context):
+    connection = context.open_rpc_connection()
+
+    client_1 = connection.session().invoke("arti:new_isolated_client")
+
+    connection.session().release_ownership()
+    connection.session().invoke("rpc:release")
+
+    try:
+        client_2 = connection.session().invoke("arti:new_isolated_client")
+        assert False
+    except ArtiRpcError as e:
+        assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
