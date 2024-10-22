@@ -156,8 +156,8 @@ class ArtiRpcConn(_RpcBase):
         You may (and probably should) omit the `id` field from your request.
         If you do, a new id will be automatically generated.
 
-        The request may be a string, or a dist that will be encoded
-        as a json objet.
+        The request may be a string, or a dict that will be encoded
+        as a json object.
         """
         msg = _into_json_str(request)
         response = POINTER(arti_rpc.ffi.ArtiRpcStr)()
