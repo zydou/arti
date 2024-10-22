@@ -23,8 +23,10 @@ from __future__ import annotations
 # - Exported types start with "Arti", to make imports safer.
 
 import json
+import logging
 import os
 import socket
+import sys
 from ctypes import POINTER, byref, c_int, _Pointer as Ptr
 from enum import Enum
 import arti_rpc.ffi
@@ -47,6 +49,8 @@ else:
     def _socket_is_valid(sock):
         """Return true if `sock` is a valid fd."""
         return sock >= 0
+
+_logger = logging.getLogger(__name__)
 
 class _RpcBase:
     def __init__(self, rpc_lib):
@@ -448,8 +452,7 @@ class ArtiRpcObject(_RpcBase):
             try:
                 self.invoke("rpc:release")
             except ArtiRpcError as e:
-                # TODO: Use logging instead.
-                print(e)
+                _logger.warn("RPC error while deleting object", exc_info=sys.exc_info())
 
 class ArtiRpcResponseKind(Enum):
     """

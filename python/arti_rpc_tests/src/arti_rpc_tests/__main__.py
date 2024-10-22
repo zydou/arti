@@ -28,6 +28,7 @@ ARGUMENTS:
 from arti_rpc_tests import context, runner
 
 import argparse
+import logging
 import os
 import sys
 import time
@@ -51,6 +52,8 @@ else:
 
 # TODO: Take this from the command line once it has arguments
 testfilter = runner.TestFilter()
+
+logging.basicConfig(level=logging.INFO)
 
 #####
 # Build a test process
