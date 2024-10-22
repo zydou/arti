@@ -7,6 +7,12 @@ Script to generate a document about Arti RPC objects and methods.
 - Extracts markdown documentation by running nightly rustdoc to get JSON output.
 
 - Outpus markdown or html.
+
+Requires rustdoc nightly, for json support.
+May require specific versions of rustdoc nightly,
+since the json format is unstable.
+
+Known to work with nightly from 2024-10-22.
 """
 
 # Tricky bits, unsolved
@@ -559,7 +565,7 @@ class Rustdoc:
         """
         Return a URL according to a rustdoc "index".
         """
-        obj = self.doc["paths"][idx]
+        obj = self.doc["paths"][str(idx)]
         kind = obj["kind"]
         path = obj["path"][:]
         path[-1] = f"{kind}.{path[-1]}.html"
