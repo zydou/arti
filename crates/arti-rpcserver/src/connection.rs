@@ -438,11 +438,11 @@ impl Connection {
     async fn run_method_lowlevel(
         self: &Arc<Self>,
         tx_updates: rpc::dispatch::BoxedUpdateSink,
-        obj: rpc::ObjectId,
+        obj_id: rpc::ObjectId,
         method: Box<dyn rpc::DeserMethod>,
         meta: ReqMeta,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
-        let obj = self.lookup_object(&obj)?;
+        let obj = self.lookup_object(&obj_id)?;
 
         if !meta.require.is_empty() {
             // TODO RPC: Eventually, we will need a way to tell which "features" are actually
@@ -452,7 +452,12 @@ impl Connection {
         }
 
         let context: Arc<dyn rpc::Context> = self.clone() as Arc<_>;
-        let invoke_future = rpc::invoke_rpc_method(context, obj, method.upcast_box(), tx_updates)?;
+
+        let invoke_future = if method.bypass_method_dispatch() {
+            method.invoke_without_dispatch(context, &obj_id)?
+        } else {
+            rpc::invoke_rpc_method(context, obj, method.upcast_box(), tx_updates)?
+        };
 
         // Note that we drop the read lock before we await this future!
         invoke_future.await
