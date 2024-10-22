@@ -208,6 +208,12 @@ pub fn invoke_rpc_method(
     method: Box<dyn DynMethod>,
     sink: dispatch::BoxedUpdateSink,
 ) -> Result<dispatch::RpcResultFuture, InvokeError> {
+    if method.bypass_method_dispatch() {
+        return Err(InvokeError::Bug(internal!(
+            "invoke_rpc_method on method with bypass_method_dispatch."
+        )));
+    }
+
     let (obj, invocable) = ctx
         .dispatch_table()
         .read()
@@ -230,6 +236,12 @@ pub async fn invoke_special_method<M: Method>(
     obj: Arc<dyn Object>,
     method: Box<M>,
 ) -> Result<Box<M::Output>, InvokeError> {
+    if method.bypass_method_dispatch() {
+        return Err(InvokeError::Bug(internal!(
+            "special methods cannot set bypass_method_dispatch."
+        )));
+    }
+
     let (obj, invocable) = ctx
         .dispatch_table()
         .read()
