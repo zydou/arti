@@ -3,6 +3,7 @@
 use std::{
     any,
     collections::{HashMap, HashSet},
+    sync::Arc,
 };
 
 use derive_deftly::define_derive_deftly;
@@ -25,7 +26,34 @@ use once_cell::sync::Lazy;
 /// * the crate should only have access to the public Rust methods of the object,
 ///   which is presumably safe to call.
 /// * if you are linking a crate, you are already trusting that crate.
-pub trait DynMethod: std::fmt::Debug + Send + Downcast {}
+pub trait DynMethod: std::fmt::Debug + Send + Downcast {
+    /// Return true if this method has a nonstandard implementation that bypasses
+    /// regular method dispatch system.
+    ///
+    /// See `invoke_without_dispatch` for more information.
+    fn bypass_method_dispatch(&self) -> bool {
+        false
+    }
+    /// Invoke a method while bypassing the regular RPC method dispatch system.
+    ///
+    /// This mechanism is suitable for cases like "rpc:release"
+    /// where the correct behavior for the method
+    /// does not depend at all on the _type_ of the object it's being invoked on,
+    /// but instead the method is meant to manipulate the object reference itself.
+    ///
+    /// Should return an internal error if `bypass_method_dispatch()` is false.
+    fn invoke_without_dispatch(
+        &self,
+        ctx: Arc<dyn crate::Context>,
+        obj_id: &ObjectId,
+    ) -> Result<crate::dispatch::RpcResultFuture, crate::InvokeError> {
+        let _ = ctx;
+        let _ = obj_id;
+        Err(crate::InvokeError::Bug(tor_error::internal!(
+            "Invoke_without_dispatch on regular RPC method!"
+        )))
+    }
+}
 downcast_rs::impl_downcast!(DynMethod);
 
 /// A DynMethod that can be deserialized.
@@ -139,7 +167,9 @@ define_derive_deftly! {
 /// ```
     export DynMethod:
     const _: () = {
-        impl $crate::DynMethod for $ttype {}
+        ${if not(tmeta(rpc(bypass_method_dispatch))) {
+            impl $crate::DynMethod for $ttype {}
+        }}
 
         ${select1 tmeta(rpc(method_name)) {
             // Alas, `typetag does not work correctly when not in scope as `typetag`.
@@ -166,6 +196,8 @@ define_derive_deftly! {
     };
 }
 pub use derive_deftly_template_DynMethod;
+
+use crate::ObjectId;
 
 /// Return true if `name` is the name of some method.
 pub fn is_method_name(name: &str) -> bool {
