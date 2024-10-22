@@ -3,10 +3,6 @@
 //! The memory tracker needs a way to look at the next item of a stream
 //! (if there is one, or there can immediately be one),
 //! *without* getting involved with the async tasks.
-//
-// TODO at some point this should probably be in tor-async-utils
-
-#![allow(dead_code)] // TODO #351
 
 use educe::Educe;
 use futures::stream::FusedStream;
