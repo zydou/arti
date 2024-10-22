@@ -444,13 +444,23 @@ class ArtiRpcResponse:
     def __init__(self, response: str):
         self._response = response
         self._obj = json.loads(response)
-        if 'result' in self._obj:
+
+        have_result = 'result' in self._obj
+        have_error = 'error' in self._obj
+        have_update = 'update' in self._obj
+
+        # Here we (ab)use the property that the booleans True and False
+        # can also be used as the ints 1 and 0.
+        assert have_result + have_error + have_update == 1
+
+        if have_result:
             self._kind = ArtiRpcResponseKind.RESULT
-        elif 'error' in self._obj:
+        elif have_error:
             self._kind = ArtiRpcResponseKind.ERROR
-        elif 'update' in self._obj:
+        elif have_update:
             self._kind = ArtiRpcResponseKind.UPDATE
         else:
+            # Unreachable.
             assert False
 
     def __str__(self):
