@@ -1,5 +1,5 @@
 from arti_rpc_tests import arti_test
-from arti_rpc import ArtiRpcError
+from arti_rpc import ArtiRpcError, ArtiRpcResponseKind, ArtiRpcErrorStatus
 
 import json
 
@@ -9,43 +9,44 @@ def test_trivial(context):
     connection = context.open_rpc_connection()
 
     # Run a method that doesn't actually require anything major to be working.
+    #
+    # TODO: Pick a better method once we have more of the RPC system
+    # working.
     result = connection.session().invoke("arti:get_rpc_proxy_info")
     assert len(result["proxies"]) > 0
 
+@arti_test
+def test_execute(context):
+    connection = context.open_rpc_connection()
+
+    req = {
+        "obj": connection.session().id(),
+        "method": "arti:get_rpc_proxy_info",
+        "params": {}
+    }
+    result = connection.execute(req)
+    assert len(result["proxies"]) > 0
+
+    result = connection.execute(json.dumps(req))
+    assert len(result["proxies"]) > 0
 
 @arti_test
-def missing_features(context):
+def test_execute_with_handle(context):
     connection = context.open_rpc_connection()
-    # TODO : having to encode this is unpleasant.
-    request = {
-        "obj": connection.session()._id,
+    handle = connection.execute_with_handle({
+        "obj": connection.session().id(),
         "method": "arti:get_rpc_proxy_info",
-        "params": {},
-        "meta": {
-            "require": ["arti:does_not_exist"],
-        },
-    }
+        "params": {}
+    })
+
+    response = handle.wait()
+    assert response.kind() == ArtiRpcResponseKind.RESULT
+    assert len(response.result()["proxies"]) > 1
+    assert len(response["result"]["proxies"]) > 1
+
     try:
-        out = connection.execute(json.dumps(request))
+        response = handle.wait()
         assert False
     except ArtiRpcError as e:
-        # TODO : having to decode this is unpleasant.
-        x = json.loads(e.response())
-        assert x["error"]["data"]["rpc:unsupported_features"] == ["arti:does_not_exist"]
-
-
-@arti_test
-def empty_features_list(context):
-    connection = context.open_rpc_connection()
-    # TODO : having to encode this is unpleasant.
-    request = {
-        "obj": connection.session()._id,
-        "method": "arti:get_rpc_proxy_info",
-        "params": {},
-        "meta": {
-            "require": [],
-        },
-    }
-
-    out = connection.execute(json.dumps(request))
-    # No exception raised; we're fine.
+        assert e.status_code() == ArtiRpcErrorStatus.REQUEST_COMPLETED
+        assert str(e) == "Request has already completed (or failed)"

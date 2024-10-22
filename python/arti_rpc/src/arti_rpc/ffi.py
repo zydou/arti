@@ -17,7 +17,6 @@ from ctypes import (
     c_uint32,
     Structure,
 )
-from typing import TypeAlias
 
 import os
 import sys

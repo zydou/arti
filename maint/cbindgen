@@ -45,8 +45,15 @@ Options:
 EOF
 }
 
+if command -v gnu-getopt >/dev/null; then
+    # If gnu-getopt is present, the platform getopt is unlikely to be good.
+    GETOPT=gnu-getopt
+else
+    GETOPT=getopt
+fi
+
 set +e
-options=$(getopt -ohfvc --long help,force,verbose,check -- "$@")
+options=$("$GETOPT" -ohfvc --long help,force,verbose,check -- "$@")
 status="$?"
 set -e
 if test "$status" != 0; then
@@ -158,7 +165,7 @@ for cratedir in $("$TOPLEVEL/maint/list_crates" --subdir); do
 done
 
 if test "$ANY_DIFFERENCES" = 1; then
-    echo "------------------------------"
+    echo "  ------------------------------  "
     echo "At least one file changed; see above for diffs."
     if test "$replace" = 0; then
     	echo "(Running in 'check' mode, so nothing was changed.)"

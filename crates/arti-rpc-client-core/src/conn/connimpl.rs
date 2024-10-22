@@ -347,7 +347,7 @@ impl Receiver {
 
         // Initialize `this_ent` to our own entry in the pending table.
         let Some(mut this_ent) = state.pending.get_mut(id) else {
-            return (Err(ProtoError::RequestCancelled), state_lock, should_alert);
+            return (Err(ProtoError::RequestCompleted), state_lock, should_alert);
         };
 
         let mut reader = loop {
@@ -384,7 +384,7 @@ impl Receiver {
             state = &mut state_lock;
             // Restore `this_ent`...
             let Some(e) = state.pending.get_mut(id) else {
-                return (Err(ProtoError::RequestCancelled), state_lock, should_alert);
+                return (Err(ProtoError::RequestCompleted), state_lock, should_alert);
             };
             this_ent = e;
             // ... And un-register our condvar.

@@ -447,12 +447,9 @@ pub enum ProtoError {
     #[error("Request ID already in use.")]
     RequestIdInUse,
 
-    /// We tried to wait for a request that had already been cancelled.
-    //
-    // TODO RPC: Possibly this should be impossible.  Revisit when I implement
-    // cancellation here.
-    #[error("Request already cancelled.")]
-    RequestCancelled,
+    /// We tried to wait for or inspect a request that had already succeeded or failed.
+    #[error("Request has already completed (or failed)")]
+    RequestCompleted,
 
     /// We tried to wait for the same request more than once.
     ///
