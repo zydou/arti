@@ -1114,11 +1114,11 @@ impl Participation {
         #[cfg(debug_assertions)]
         {
             find_in_tracker! {
-            enabled;
-            self_.tracker => + tracker, state;
-            self_.aid => _arecord;
-            *self_.pid => _precord;
-            ?Error
+                enabled;
+                self_.tracker => + tracker, state;
+                self_.aid => _arecord;
+                *self_.pid => _precord;
+                ?Error
             };
         }
 
