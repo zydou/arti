@@ -12,7 +12,7 @@ categories = ["command-line-utilities", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 #
 # We need a runtime
-# @@ test-all-crates ignore
+# @@ test-all-crates conditional-option minimal --features=default-runtime
 
 [features]
 default = [

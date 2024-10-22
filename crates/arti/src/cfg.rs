@@ -1239,11 +1239,17 @@ example config file {which:?}, uncommented={uncommented:?}
                     .unwrap();
                 let inner_defaulted_low = defaulted_low.inner().unwrap();
                 assert_eq!(inner, inner_defaulted_low);
-            } else {
+            } else if #[cfg(arti_features_precise)] {
                 // Test that requesting memory quota tracking generates a config error
                 // if support is compiled out.
                 let m = result.unwrap_err().report().to_string();
                 assert!(m.contains("cargo feature `memquota` disabled"), "{m:?}");
+            } else {
+                // The `tor-memquota/memquota` feature is enabled by default in tor-memquota,
+                // but the corresponding `memquota` feature is but not enabled here in `arti`.
+                // (TODO #351 ^ it isn't yet, actually, but it will be)
+                // so cargo --workspace enables it in a way we can't tell.  See arti/build.rs.
+                println!("not testing memquota config, cannot figure out if it's enabled");
             }
         }
     }

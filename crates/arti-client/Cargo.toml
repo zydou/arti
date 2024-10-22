@@ -12,7 +12,7 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 #
 # examples call TorClient::create_bootstrapped which needs PreferredRuntime
-# @@ test-all-crates ignore
+# @@ test-all-crates conditional-option minimal --features=tokio,native-tls
 
 [features]
 default = ["tokio", "native-tls", "compression"]
