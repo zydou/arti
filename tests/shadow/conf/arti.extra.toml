@@ -1,0 +1,7 @@
+# Configuration that is passed only to `arti-extra`, the build with extra features enabled.
+# See `.rust-recent-arti-extra-features-template:` in `.gitlab-ci.yml`.
+
+[system]
+# We don't expect to exceed this.  But, setting an actual limit engages the machinery.
+# That lets us detect bugs such as Account being dropped too early.
+memory.max = "1 TiB"

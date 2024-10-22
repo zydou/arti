@@ -56,7 +56,7 @@ pub(crate) use {
     tor_async_utils::stream_peek::StreamUnobtrusivePeeker,
     tor_basic_utils::ByteQty as Qty,
     tor_config::{ConfigBuildError, ReconfigureError},
-    tor_error::{error_report, internal, into_internal, Bug, ErrorKind, HasKind},
+    tor_error::{error_report, internal, into_internal, trace_report, Bug, ErrorKind, HasKind},
     tor_log_ratelim::log_ratelim,
     tor_rtcompat::{CoarseInstant, CoarseTimeProvider, DynTimeProvider},
 };

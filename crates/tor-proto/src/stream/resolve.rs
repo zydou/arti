@@ -1,5 +1,6 @@
 //! Declare a type for streams that do hostname lookups
 
+use crate::memquota::StreamAccount;
 use crate::stream::StreamReader;
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::Resolved;
@@ -13,6 +14,11 @@ use super::AnyCmdChecker;
 pub struct ResolveStream {
     /// The underlying RawCellStream.
     s: StreamReader,
+
+    /// The memory quota account that should be used for this "stream"'s data
+    ///
+    /// Exists to keep the account alive
+    _memquota: StreamAccount,
 }
 
 restricted_msg! {
@@ -27,8 +33,11 @@ impl ResolveStream {
     /// Wrap a RawCellStream into a ResolveStream.
     ///
     /// Call only after sending a RESOLVE cell.
-    pub(crate) fn new(s: StreamReader) -> Self {
-        ResolveStream { s }
+    pub(crate) fn new(s: StreamReader, memquota: StreamAccount) -> Self {
+        ResolveStream {
+            s,
+            _memquota: memquota,
+        }
     }
 
     /// Read a message from this stream telling us the answer to our
