@@ -244,6 +244,14 @@ A socket-connection object is a JSON object with these members.
    how to open a connection to the Arti RPC server.
    (Required.)
 
+ - `socket_canonical`: a string describing
+   the "official" address of the Arti RPC server.
+   Used in some authentication protocols to restrict MITM attacks.
+   Ignored outside of those authentication protocols.
+   If absent, defaults to the value of `socket`.
+   (Optional.
+   Note that nobody actually binds or connects based on the value of this field.)
+
  - `auth`: a json value describing how to authenticate to the Arti RPC server.
    (Required.)
 
@@ -271,6 +279,11 @@ Currently recognized `auth` memebers are in one of these forms:
 Each is explained below.
 If the `auth` member is in some other unsupported format,
 the connection attempt is *declined*.
+
+**Security concerns**: Do not construct a connect string with an
+`socket_canonical` field unless you have some way to guarantee
+that an attacker cannot bind to the address specified in the `socket`
+field.
 
 #### Authentication type "none"
 
