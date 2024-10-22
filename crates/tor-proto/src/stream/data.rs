@@ -167,8 +167,9 @@ pub struct DataStreamCtrl {
     status: Arc<Mutex<DataStreamStatus>>,
 
     /// The memory quota account that should be used for this stream's data
-    #[allow(dead_code)] // Exists to keep the account alive
-    memquota: StreamAccount,
+    ///
+    /// Exists to keep the account alive
+    _memquota: StreamAccount,
 }
 
 /// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
@@ -214,9 +215,10 @@ pub struct DataWriter {
     state: Option<DataWriterState>,
 
     /// The memory quota account that should be used for this stream's data
-    #[allow(dead_code)] // Exists to keep the account alive
+    ///
+    /// Exists to keep the account alive
     // If we liked, we could make this conditional; see DataReader.memquota
-    memquota: StreamAccount,
+    _memquota: StreamAccount,
 
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
@@ -249,10 +251,11 @@ pub struct DataReader {
     state: Option<DataReaderState>,
 
     /// The memory quota account that should be used for this stream's data
-    #[allow(dead_code)] // Exists to keep the account alive
+    ///
+    /// Exists to keep the account alive
     // If we liked, we could make this conditional on not(cfg(feature = "stream-ctrl"))
     // since, DataStreamCtrl contains a StreamAccount clone too.  But that seems fragile.
-    memquota: StreamAccount,
+    _memquota: StreamAccount,
 
     /// A control object that can be used to monitor and control this stream
     /// without needing to own it.
@@ -393,7 +396,7 @@ impl DataStream {
         let ctrl = Arc::new(DataStreamCtrl {
             circuit: Arc::downgrade(target.circuit()),
             status: status.clone(),
-            memquota: memquota.clone(),
+            _memquota: memquota.clone(),
         });
         #[cfg(feature = "experimental-api")]
         let circuit = target.circuit().clone();
@@ -406,7 +409,7 @@ impl DataStream {
                 #[cfg(feature = "stream-ctrl")]
                 status: status.clone(),
             })),
-            memquota: memquota.clone(),
+            _memquota: memquota.clone(),
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };
@@ -418,7 +421,7 @@ impl DataStream {
                 #[cfg(feature = "stream-ctrl")]
                 status,
             })),
-            memquota,
+            _memquota: memquota,
             #[cfg(feature = "stream-ctrl")]
             ctrl: ctrl.clone(),
         };

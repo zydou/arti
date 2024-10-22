@@ -16,8 +16,9 @@ pub struct ResolveStream {
     s: StreamReader,
 
     /// The memory quota account that should be used for this "stream"'s data
-    #[allow(dead_code)] // Exists to keep the account alive
-    memquota: StreamAccount,
+    ///
+    /// Exists to keep the account alive
+    _memquota: StreamAccount,
 }
 
 restricted_msg! {
@@ -33,7 +34,7 @@ impl ResolveStream {
     ///
     /// Call only after sending a RESOLVE cell.
     pub(crate) fn new(s: StreamReader, memquota: StreamAccount) -> Self {
-        ResolveStream { s, memquota }
+        ResolveStream { s, _memquota: memquota }
     }
 
     /// Read a message from this stream telling us the answer to our
