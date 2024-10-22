@@ -105,12 +105,13 @@ class ArtiRpcConn(_RpcBase):
         constructed with `arti_rpc.ffi.get_library`.
         If it's None, we use the default.
         """
+        self._conn = None
+
         if rpc_lib is None:
             rpc_lib = arti_rpc.ffi.get_library()
 
         _RpcBase.__init__(self, rpc_lib)
 
-        self._conn = None
         conn = POINTER(arti_rpc.ffi.ArtiRpcConn)()
         error = POINTER(arti_rpc.ffi.ArtiRpcError)()
         rv = self._rpc.arti_rpc_connect(
@@ -123,9 +124,10 @@ class ArtiRpcConn(_RpcBase):
         self._session_id = s
 
     def __del__(self):
-        if hasattr(self, '_conn'):
+        if self._conn is not None:
             # Note that if _conn is set, then _rpc is necessarily set.
             self._rpc.arti_rpc_conn_free(self._conn)
+            self._conn = None
 
     def make_object(self, object_id:str) -> ArtiRpcObject:
         """
@@ -294,7 +296,9 @@ class ArtiRpcError(Exception):
         self._rpc = rpc
 
     def __del__(self):
-        self._rpc.arti_rpc_err_free(self._err)
+        if self._err is not None:
+            self._rpc.arti_rpc_err_free(self._err)
+            self._err = None
 
     def __str__(self):
         status = self._rpc.arti_rpc_status_to_str(
@@ -506,7 +510,9 @@ class ArtiRequestHandle(_RpcBase):
         self._handle = handle
 
     def __del__(self):
-        self._rpc.arti_rpc_handle_free(self._handle)
+        if self._handle is not None:
+            self._rpc.arti_rpc_handle_free(self._handle)
+            self._handle = None
 
     def wait(self) -> ArtiRpcResponse:
         """
