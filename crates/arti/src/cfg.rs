@@ -1247,7 +1247,7 @@ example config file {which:?}, uncommented={uncommented:?}
             } else {
                 // The `tor-memquota/memquota` feature is enabled by default there, but not here.
                 // (TODO #351 ^ it isn't yet, actually, but it will be)
-                // so cargo --workspace enabless it in a way we can't tell.  See arti/build.rs.
+                // so cargo --workspace enables it in a way we can't tell.  See arti/build.rs.
                 println!("not testing memquota config, cannot figure out if it's enabled");
             }
         }
