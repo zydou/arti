@@ -94,7 +94,7 @@ class ArtiRpcConn(_RpcBase):
     An open connection to Arti.
     """
     _conn: Optional[Ptr[FfiConn]]
-    _session_id: str
+    _session: ArtiRpcObject
 
     def __init__(self, connect_string: str, rpc_lib=None):
         """
@@ -121,7 +121,7 @@ class ArtiRpcConn(_RpcBase):
         assert conn
         self._conn = conn
         s = self._rpc.arti_rpc_conn_get_session_id(self._conn).decode("utf-8")
-        self._session_id = s
+        self._session = self.make_object(s)
 
     def __del__(self):
         if self._conn is not None:
@@ -146,7 +146,7 @@ class ArtiRpcConn(_RpcBase):
         by invoking methods on the session,
         you can get the IDs for other objects.)
         """
-        return self.make_object(self._session_id)
+        return self._session
 
     def execute(self, request: Union[str, dict]) -> dict:
         """
@@ -371,12 +371,14 @@ class ArtiRpcObject(_RpcBase):
     """
     _id: str
     _conn: ArtiRpcConn
+    _owned: bool
     _meta: Optional[dict]
 
     def __init__(self, object_id: str, connection: ArtiRpcConn):
         _RpcBase.__init__(self, connection._rpc)
         self._id = object_id
         self._conn = connection
+        self._owned = True
         self._meta = None
 
     def id(self) -> str:
@@ -414,14 +416,40 @@ class ArtiRpcObject(_RpcBase):
         The wrapper will support `invoke` and `invoke_with_handle`,
         and will pass them any provided `params` given as an argument
         to this function as meta-request parameters.
+
+        The resulting object does not have ownership on the
+        underlying RPC object.
         """
         new_obj = ArtiRpcObject(self._id, self._conn)
+        new_obj._owned = False
         if params:
             new_obj._meta = params
         else:
             new_obj._meta = None
         return new_obj
 
+    def release_ownership(self):
+        """
+        Release ownership of the underlying RPC object.
+
+        By default, when the last reference to an ArtiRpcObject is dropped,
+        we tell the RPC server to release the corresponding RPC ObjectID.
+        After that happens, nothing else can use that ObjectID
+        (and the object may get freed on the server side,
+        if nothing else refers to it.)
+
+        Calling this method releases ownership, such that we will not
+        tell the RPC server to release the ObjectID when this object is dropped.
+        """
+        self._owned = False
+
+    def __del__(self):
+        if self._owned and self._conn._conn is not None:
+            try:
+                self.invoke("rpc:release")
+            except ArtiRpcError as e:
+                # TODO: Use logging instead.
+                print(e)
 
 class ArtiRpcResponseKind(Enum):
     """

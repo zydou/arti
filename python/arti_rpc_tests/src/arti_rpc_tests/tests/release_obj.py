@@ -12,6 +12,7 @@ def obj_not_avail_after_drop(context):
     client_2 = connection.make_object(client_2["id"])
     assert client_1.id() != client_2.id()
 
+    client_1.release_ownership()
     client_1.invoke("rpc:release")
 
     try:
