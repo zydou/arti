@@ -19,6 +19,7 @@ default = ["tokio", "native-tls", "compression"]
 full = [
     "anyhow",
     "keymgr",
+    "memquota",
     "onion-service-client",
     "onion-service-service",
     "vanguards",
@@ -51,7 +52,7 @@ full = [
     "tor-keymgr/full",
     "tor-linkspec/full",
     "tor-geoip?/full",
-    "tor-hsservice?/full", "tor-memquota/full",
+    "tor-hsservice?/full",
 ] # "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
 #   * Features that are experimental or unstable
 #   * Features that are testing-only
@@ -61,7 +62,7 @@ full = [
 
 async-std = ["tor-rtcompat/async-std"]
 bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
-memquota = ["tor-memquota/memquota", "__is_experimental"]
+memquota = ["tor-memquota/memquota"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
@@ -104,7 +105,6 @@ experimental = [
     "error_detail",
     "geoip",
     "hs-pow",
-    "memquota",
     "rpc",
     "testing",
     "tor-proto/experimental",

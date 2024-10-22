@@ -45,6 +45,7 @@ tracing-test = "0.2.4"
 
 [features]
 full = [
+    "memquota",
     "tor-config/full",
     "tor-error/full",
     "tor-log-ratelim/full",
@@ -52,7 +53,8 @@ full = [
     "tor-async-utils/full",
     "tor-basic-utils/full",
 ]
-memquota = ["__is_experimental"]
+default = ["memquota"]
+memquota = []
 testing = ["__is_experimental", "visibility"]
-experimental = ["memquota", "testing"]
+experimental = ["testing"]
 __is_experimental = []

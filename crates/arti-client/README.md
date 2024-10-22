@@ -209,6 +209,7 @@ match tor_client.connect(("example.com", 80)).await {
 * `compression` (default) -- Build support for downloading compressed
   documents. Requires a C compiler.
 * `bridge-client` -- Build with support for bridges.
+* `memquota` -- Build with support for memory use tracking and limiting.
 * `onion-service-client` -- Build with support for connecting to onion 
   services. Note that this is not yet as secure as C-Tor and shouldn't be used
   for security-sensitive purposes.

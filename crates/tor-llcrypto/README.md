@@ -54,22 +54,26 @@ here for _key manipulation_ for the keys used in these symmetric algorithms.
 The [`util`] module has some miscellaneous compatibility utilities for
 manipulating cryptography-related objects and code.
 
-## Features
+## Compile-time features
 
-### API features
+ * `cvt-x25519` -- export functions for converting ed25519 keys to x25519 and
+vice-versa
 
-`relay` -- enable cryptography that's only used on relays.
-
-`hsv3-client` -- enable cryptography that's only needed when running as a v3
+ * `hsv3-client` -- enable cryptography that's only needed when running as a v3
 onion service client.
 
-`hsv3-service` -- enable cryptography that's only needed when running as a v3
-onion service.
+ * `hsv3-service` -- enable cryptography that's only needed when running as a v3
+   onion service.
 
-`keymgr` -- enable cryptography that's only needed for key management
+ * `keymgr` -- enable cryptography that's only needed for key management
 
-`cvt-x25519` -- export functions for converting ed25519 keys to x25519 and
-vice-versa
+ * `memquota-memcost` -- implement `tor_memquota::HasMemoryCost` for many types.
+   (Does not actually force compiling in memory quota tracking;
+   that's `memquota` in `tor-memquota` and higher-level crates.)
+
+ * `relay` -- enable cryptography that's only used on relays.
+
+ * `full` -- Enable all features above.
 
 ### Acceleration features
 
