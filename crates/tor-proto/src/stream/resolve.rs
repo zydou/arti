@@ -34,7 +34,10 @@ impl ResolveStream {
     ///
     /// Call only after sending a RESOLVE cell.
     pub(crate) fn new(s: StreamReader, memquota: StreamAccount) -> Self {
-        ResolveStream { s, _memquota: memquota }
+        ResolveStream {
+            s,
+            _memquota: memquota,
+        }
     }
 
     /// Read a message from this stream telling us the answer to our
