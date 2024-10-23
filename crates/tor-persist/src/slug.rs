@@ -8,6 +8,8 @@
 //! Lowercase ASCII alphanumerics, underscore, hyphen.
 //! We may extend this to allow additional characters in the future,
 //! but /, +, and . (the slug separators) will never be valid slug characters.
+//! Additionally, : will never be a valid slug character,
+//! because Windows does not allow colons in filenames[^1],
 //!
 //! Slugs may not be empty, and they may not start with a hyphen.
 //!
@@ -22,6 +24,8 @@
 //! `con` `prn` `aux` `nul`
 //! `com1` `com2` `com3` `com4` `com5` `com6` `com7` `com8` `com9` `com0`
 //! `lpt1` `lpt2` `lpt3` `lpt4` `lpt5` `lpt6` `lpt7` `lpt8` `lpt9` `lpt0`.
+//!
+//! [^1]: <https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions>
 
 use std::borrow::Borrow;
 use std::ffi::OsStr;
