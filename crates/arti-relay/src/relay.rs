@@ -10,7 +10,7 @@ use tor_keymgr::{
 use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::params::NetParameters;
 use tor_proto::memquota::ToplevelAccount;
-use tor_relay_crypto::pk::{RelayIdentityKeySpecifier, RelayIdentityKeypair};
+use tor_relay_crypto::pk::{RelayIdentityKeypairSpecifier, RelayIdentityKeypair};
 use tor_rtcompat::Runtime;
 use tracing::info;
 
@@ -114,7 +114,7 @@ impl<R: Runtime> TorRelay<R> {
         // Attempt to get the relay long-term identity key from the key manager. If not present,
         // generate it. We need this key to sign the signing certificates.
         let _kp_relay_id = keymgr.get_or_generate::<RelayIdentityKeypair>(
-            &RelayIdentityKeySpecifier::new(),
+            &RelayIdentityKeypairSpecifier::new(),
             KeystoreSelector::default(),
             &mut rng,
         )?;

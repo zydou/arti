@@ -19,10 +19,10 @@ define_ed25519_keypair!(
 #[derive(Deftly, PartialEq, Debug, Constructor)]
 #[derive_deftly(KeySpecifier)]
 #[deftly(prefix = "relay")]
-#[deftly(role = "KP_relayid_ed")]
-#[deftly(summary = "Relay long-term identity key")]
+#[deftly(role = "KS_relayid_ed")]
+#[deftly(summary = "Relay long-term identity keypair")]
 /// The key sepcifier of the relay long-term identity key (RelayIdentityKeypair)
-pub struct RelayIdentityKeySpecifier;
+pub struct RelayIdentityKeypairSpecifier;
 
 define_ed25519_keypair!(
     /// [KP_relaysign_ed] Medium-term signing keypair. Rotated periodically.
