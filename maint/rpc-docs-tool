@@ -7,7 +7,18 @@ Script to generate a document about Arti RPC objects and methods.
 - Extracts markdown documentation by running nightly rustdoc to get JSON output.
 
 - Outpus markdown or html.
+
+Requires rustdoc nightly, for json support.
+May require specific versions of rustdoc nightly,
+since the json format is unstable.
+
+Known to work with nightly from 2024-10-22.
 """
+
+# What version of rustdoc json do we know?
+SUPPORTED_FORMAT_VERSION=35
+# What nightly do we know to provide that version?
+KNOWN_GOOD_NIGHTLY="nightly-2024-10-22"
 
 # Tricky bits, unsolved
 #   - Converting links in the md to be correct.
@@ -16,6 +27,7 @@ Script to generate a document about Arti RPC objects and methods.
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -514,6 +526,23 @@ class RpcUniverse:
         self.emit_object_index(f)
         self.emit_objects(f)
 
+have_warned_about_json_version = False
+def warn_about_json_version(actual_version):
+    """
+    If we haven't previously done so, warn the user that their nightly
+    is generating an unrecognized version of rustdoc json.
+    """
+    global have_warned_about_json_version
+    if not have_warned_about_json_version:
+        have_warned_about_json_version = True
+        msg = f"""
+              WARNING: Rustdoc json is in format version {actual_version},
+              but this tool expects {SUPPORTED_FORMAT_VERSION}.
+              If this fails, you might need to fix the tool,
+              or switch to {KNOWN_GOOD_NIGHTLY}.
+        """
+        msg = re.sub(r'\s+', ' ', msg).strip()
+        print(msg)
 
 class Rustdoc:
     """
@@ -521,6 +550,10 @@ class Rustdoc:
     """
 
     def __init__(self, json_doc):
+        actual_version = json_doc.get("format_version")
+        if actual_version != SUPPORTED_FORMAT_VERSION:
+            warn_about_json_version(actual_version)
+
         self.doc = json_doc
 
         self.idx_by_ident = dict()
@@ -559,7 +592,7 @@ class Rustdoc:
         """
         Return a URL according to a rustdoc "index".
         """
-        obj = self.doc["paths"][idx]
+        obj = self.doc["paths"][str(idx)]
         kind = obj["kind"]
         path = obj["path"][:]
         path[-1] = f"{kind}.{path[-1]}.html"
