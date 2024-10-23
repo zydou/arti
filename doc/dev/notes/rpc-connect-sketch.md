@@ -424,27 +424,65 @@ The RPC server also has an option `rpc.enabled`
 that can be used to turn off RPC entirely.
 If it is set to `false`, then the server doesn't listen on any RPC ports.
 
-Connect strings or their locations can be given in an option `rpc.listen`.
-There is also an `rpc.listen_superuser`, described below.
+Connect strings or their locations can be given in a
+tabular option `rpc.listen`, taking a form something like:
 
-Specifically:
+```
+[rpc]
+enable = true   # (default)
+
+[rpc.listen."my-connect"]
+enable = true   # (default)
+file = "/home/arti-rpc/arti-rpc-connect.json"
+
+[rpc.listen."other"]
+enable = false
+file = "/etc/arti-rpc/arti-rpc-connect.json"
+```
+
+> These sections are given names so that the user
+> can turn them on and off in later config files.
+
+There is a pair of default entries in this table:
+
+```
+[rpc.listen."user-default"]
+enable = true
+allow_missing_file = true
+file = "${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json"
+
+[rpc.listen."system-default"]
+enable = false
+allow_missing_file = true
+file = "/etc/arti-rpc/arti-rpc-connect.json"
+```
+
+Finally, there is be a an option `[rpc.listen-default]`,
+representing a verbatim lists of connect strings.
+Its default would be
+```
+[rpc]
+listen-default = [ "<USER_DEFAULT>" ]
+```
+(where `"<USER_DEFAULT>"` is replaced with the same `USER_DERFAUT`
+value defined above in discussion of client default.)
+
+
+The RPC server behaves as follows.
 
 1. If `rpc.enabled` is false, the server binds to no RPC ports.
-2. Otherwise, the server looks for the locations of connect strings
-   (or for the strings themselves)
-   in its `arti.toml` configuration,
+2. Otherwise, the server looks for the locations of connect files
+   (or for the connect points themselves)
+   among all enabled entries
+   in the `rpc.listen` table in `arti.toml`,
+   and tries to bind to each,
    treating all errors as fatal.
-3. If no connect strings are listed in the configuration,
-   it searches for a connect string
-   in the default client location
-   (`${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json`).
-   If it is present, then it tries to use that string,
+   (As an exception, an EACCESS error when reading the connect file
+   is allowed if an `allow_missing_file` flag is set to True.)
+3. If a fatal error did not occur,
+   but no connect points were bound,
+   the server uses the connect points in `rpc.listen-default`,
    treating all errors as fatal.
-   as fatal.
-3. Finally,
-   if there are no connect strings in arti.toml or in the default location,
-   the server tries to bind at USER\_DEFAULT connect string
-   (see above), treating an error as fatal.
 
 > The behavior above will, by default, capture the "user Arti" case,
 > where an Arti process is running on behalf of a single user and shared
@@ -460,8 +498,12 @@ Specifically:
 > We might also provide a command-line option
 > to override _all_ relevant configuration defaults
 > with ones that make more sense for a "system arti".
+> This option would override both
+> `rpc.listen."system-default".enable` and
+> `rpc.listen-default`.
 > See [#1710](https://gitlab.torproject.org/tpo/core/arti/-/issues/1710)
 > for more information.
+
 
 ### Servers and privileged access
 
