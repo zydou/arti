@@ -510,11 +510,12 @@ The RPC server behaves as follows.
 > This section is not going to be implemented in v0 of the protocol.
 
 RPC servers can be configured to support privileged access.
-This is done with a separate option,
-`rpc.listen_superuser`.
-A server binds to these connect strings,
-and gives any client that connects and authenticates to them
-a "privileged session" (q.v.).
+This is done with a boolean option,
+`rpc.listen.*.superuser`,
+which will be `false` by default.
+
+We might have a separate `rpc.enable_superuser` option
+to turn off _all_ superuser access.
 
 > Not all connect strings types will necessarily be supported
 > for superuser access.
@@ -526,6 +527,17 @@ a "privileged session" (q.v.).
 > or their locations.
 > We do not currently plan to have any by default
 > in our first releases.
+
+### Servers and file permissions
+
+> This section is not going to be implemented in v0 of the protocol.
+
+We may need to alter our default `fs-mistrust` permissions
+or file ownership options for the sockets and cookie files we create.
+If we do so, we will add a new
+`rpc.listen.*.fs_permissions`
+sub-option, or something similar, to be determined.
+
 
 ## Restricting access
 
