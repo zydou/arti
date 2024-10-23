@@ -10,7 +10,7 @@ use tor_keymgr::{
 use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::params::NetParameters;
 use tor_proto::memquota::ToplevelAccount;
-use tor_relay_crypto::pk::{RelayIdentityKeypairSpecifier, RelayIdentityKeypair};
+use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
 use tor_rtcompat::Runtime;
 use tracing::info;
 

@@ -126,7 +126,7 @@ mod test {
 
         assert_eq!(
             VALID_TIMESTAMP,
-            VALID_TIMESTAMP.parse::<Iso8601TimeSlug>().unwrap().to_string()
+            parsed_timestamp.try_into_slug().unwrap().to_string(),
         );
     }
 }

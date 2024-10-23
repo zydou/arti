@@ -6026,9 +6026,12 @@ version = "0.24.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
+ "humantime",
  "tor-cert",
+ "tor-error",
  "tor-key-forge",
  "tor-keymgr",
+ "tor-persist",
 ]
 
 [[package]]

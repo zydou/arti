@@ -18,8 +18,11 @@ full = ["tor-cert/full", "tor-key-forge/full", "tor-keymgr/full"]
 [dependencies]
 derive-deftly = "0.14"
 derive_more = { version = "1.0.0", features = ["full"] }
+humantime = "2"
 tor-cert = { path = "../tor-cert", version = "0.24.0", features = ["encode"] }
+tor-error = { path = "../tor-error", version = "0.24.0" }
 tor-key-forge = { path = "../tor-key-forge", version = "0.24.0" }
 tor-keymgr = { path = "../tor-keymgr", version = "0.24.0" }
+tor-persist = { path = "../tor-persist", version = "0.24.0" }
 
 [dev-dependencies]
