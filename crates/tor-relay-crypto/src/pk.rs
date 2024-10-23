@@ -106,3 +106,57 @@ define_ed25519_keypair!(
     /// [KP_link_ed] Short-term signing keypair for link authentication. Rotated frequently.
     pub RelayLinkSigning
 );
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    use tor_keymgr::test_utils::check_key_specifier;
+
+    #[test]
+    fn relay_signing_key_specifiers() {
+        let ts = SystemTime::UNIX_EPOCH;
+        let key_spec = RelaySigningKeypairSpecifier::new(ts.into());
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "relay/ks_relaysign_ed+19700101000000"
+        );
+
+        check_key_specifier(&key_spec, "relay/ks_relaysign_ed+19700101000000");
+    }
+
+    #[test]
+    fn relay_identity_key_specifiers() {
+        let key_spec = RelayIdentityKeypairSpecifier::new();
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "relay/ks_relayid_ed"
+        );
+
+        check_key_specifier(&key_spec, "relay/ks_relayid_ed");
+
+        let key_spec = RelayIdentityPublicKeySpecifier::new();
+
+        assert_eq!(
+            key_spec.arti_path().unwrap().as_str(),
+            "relay/kp_relayid_ed"
+        );
+
+        check_key_specifier(&key_spec, "relay/kp_relayid_ed");
+    }
+}

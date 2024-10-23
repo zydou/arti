@@ -26,3 +26,4 @@ tor-keymgr = { path = "../tor-keymgr", version = "0.24.0" }
 tor-persist = { path = "../tor-persist", version = "0.24.0" }
 
 [dev-dependencies]
+tor-keymgr = { version = "0.24.0", path = "../tor-keymgr", features = ["testing"] }
