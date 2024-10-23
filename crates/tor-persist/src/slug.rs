@@ -27,6 +27,8 @@
 //!
 //! [^1]: <https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions>
 
+pub mod timestamp;
+
 use std::borrow::Borrow;
 use std::ffi::OsStr;
 use std::fmt::{self, Display};
