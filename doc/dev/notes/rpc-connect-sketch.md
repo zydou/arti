@@ -456,6 +456,12 @@ Specifically:
 > of SYSTEM\_DEFAULT, or of storing a special connect string in
 > the system default location
 > (`/etc/arti-rpc/arti-rpc-connect.json` on Unix).
+>
+> We might also provide a command-line option
+> to override _all_ relevant configuration defaults
+> with ones that make more sense for a "system arti".
+> See [#1710](https://gitlab.torproject.org/tpo/core/arti/-/issues/1710)
+> for more information.
 
 ### Servers and privileged access
 
