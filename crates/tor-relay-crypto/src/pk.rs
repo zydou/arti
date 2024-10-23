@@ -21,7 +21,7 @@ define_ed25519_keypair!(
 #[deftly(prefix = "relay")]
 #[deftly(role = "KS_relayid_ed")]
 #[deftly(summary = "Relay long-term identity keypair")]
-/// The key sepcifier of the relay long-term identity key (RelayIdentityKeypair)
+/// The key specifier of the relay long-term identity key (RelayIdentityKeypair)
 pub struct RelayIdentityKeypairSpecifier;
 
 define_ed25519_keypair!(
