@@ -178,7 +178,7 @@ fn exclude_neighbors<'n, T: HasRelayIds + 'n>(hops: &[T]) -> RelayExclusion<'n> 
 ///   G - L2 - L3 - M
 ///
 /// If full vanguards are enabled, this is also used by [`HsCircPool`](crate::hspool::HsCircPool),
-/// for extending SHORT circuits to become EXTENDED circuits.
+/// for extending NAIVE circuits to become GUARDED circuits.
 pub(crate) fn select_middle_for_vanguard_circ<'n, R: Rng, T: HasRelayIds + 'n>(
     hops: &[T],
     netdir: &'n NetDir,
