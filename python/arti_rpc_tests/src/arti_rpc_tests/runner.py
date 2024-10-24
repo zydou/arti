@@ -121,10 +121,10 @@ class TestCase:
 
         Raise a FatalException if all test execution should stop entirely.
         """
-        if not context.arti_process.is_running():
+        if not context.arti_process_is_running():
             raise FatalException("Arti process not running at start of test!")
 
         self.function(context)
 
-        if not context.arti_process.is_running():
+        if not context.arti_process_is_running():
             raise FatalException("Arti process not running at end of test!")
