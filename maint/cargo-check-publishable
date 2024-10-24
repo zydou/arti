@@ -23,8 +23,9 @@ if not TYPE_CHECKING:
 
 api_call_memo: Dict[str, Any] = {}
 
+
 def crates_io_api_call(endpoint: str, response_expect_key: str) -> Any:
-    '''
+    """
     Queries
         https://crates.io/api/$endpoint
     Expects to receive either
@@ -33,19 +34,21 @@ def crates_io_api_call(endpoint: str, response_expect_key: str) -> Any:
     The fetched JSON is returned, or `None` for 404
 
     Reimplementation in Python of the shell version in `crates-io-utils.sh`
-    '''
+    """
     try:
-        base = os.environ['CRATES_IO_URL_BASE']
+        base = os.environ["CRATES_IO_URL_BASE"]
     except KeyError:
-        base = 'https://crates.io/api'
-    url = base + '/' + endpoint
+        base = "https://crates.io/api"
+    url = base + "/" + endpoint
 
     try:
         json = api_call_memo[url]
 
     except KeyError:
         session = requests.Session()
-        session.headers.update({'User-Agent': 'maint/ scripts for Tor Project CI (python)'})
+        session.headers.update(
+            {"User-Agent": "maint/ scripts for Tor Project CI (python)"}
+        )
         time.sleep(1)
 
         response = session.get(url)
@@ -57,55 +60,67 @@ def crates_io_api_call(endpoint: str, response_expect_key: str) -> Any:
             raise
 
         if response.status_code == 404:
-            if not 'errors' in json:
-                raise(RuntimeError('404 but no `errors` URL %s: %s, %s' %
-                                   (url, response, repr(json))))
+            if not "errors" in json:
+                raise (
+                    RuntimeError(
+                        "404 but no `errors` URL %s: %s, %s"
+                        % (url, response, repr(json))
+                    )
+                )
             api_call_memo[url] = None
             return None
 
         if response.status_code != 200:
-            raise(RuntimeError('error data from URL %s: %s, %s' %
-                               (url, response, repr(response.content))))
+            raise (
+                RuntimeError(
+                    "error data from URL %s: %s, %s"
+                    % (url, response, repr(response.content))
+                )
+            )
 
         api_call_memo[url] = json
 
     if not response_expect_key in json:
-        raise(RuntimeError('unexpected JSON data from URL %s: %s' % (url, json)))
+        raise (RuntimeError("unexpected JSON data from URL %s: %s" % (url, json)))
 
     return json
 
+
 def problem(msg: str) -> None:
-    print('problem: %s' % msg, file=sys.stderr)
+    print("problem: %s" % msg, file=sys.stderr)
     global problems
     problems += 1
+
 
 def prepare() -> None:
     pass
 
+
 def check_crate(crate: Crate) -> None:
-    #if not crate.publish:
+    # if not crate.publish:
     #    return
 
-    print('checking crate %s' % crate.name)
+    print("checking crate %s" % crate.name)
     try:
-        cats = crate.raw_metadata['package']['categories']
+        cats = crate.raw_metadata["package"]["categories"]
     except KeyError:
         cats = []
 
     for spec_cat in cats:
-        if '::' in spec_cat:
-            (cat, subcat) = spec_cat.split('::', 1)
+        if "::" in spec_cat:
+            (cat, subcat) = spec_cat.split("::", 1)
         else:
             cat = spec_cat
             subcat = None
-        info = crates_io_api_call('v1/categories/%s' % cat, 'category')
+        info = crates_io_api_call("v1/categories/%s" % cat, "category")
         if info is None:
-            problem('category %s not known at crates.io!' % repr(cat))
+            problem("category %s not known at crates.io!" % repr(cat))
             continue
-        info = info['category']
+        info = info["category"]
         if subcat is not None:
-            if not(any([s['slug'] == spec_cat for s in info['subcategories']])):
-                problem('subcategory %s not known at crates.io!' % repr(spec_cat))
+            if not (any([s["slug"] == spec_cat for s in info["subcategories"]])):
+                problem("subcategory %s not known at crates.io!" % repr(spec_cat))
+
 
 prepare()
 
@@ -113,7 +128,7 @@ for crate in list_crates():
     check_crate(crate)
 
 if problems:
-    print('%d problems!' % problems, file=sys.stderr)
+    print("%d problems!" % problems, file=sys.stderr)
     sys.exit(1)
 else:
-    print('ok!')
+    print("ok!")

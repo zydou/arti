@@ -33,5 +33,5 @@ for file in document.coverage.packages.findAll("package"):
         else:
             already_seen.add(name)
 
-with open(sys.argv[1], 'w') as out:
+with open(sys.argv[1], "w") as out:
     out.write(document.prettify())

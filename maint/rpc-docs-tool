@@ -16,9 +16,9 @@ Known to work with nightly from 2024-10-22.
 """
 
 # What version of rustdoc json do we know?
-SUPPORTED_FORMAT_VERSION=35
+SUPPORTED_FORMAT_VERSION = 35
 # What nightly do we know to provide that version?
-KNOWN_GOOD_NIGHTLY="nightly-2024-10-22"
+KNOWN_GOOD_NIGHTLY = "nightly-2024-10-22"
 
 # Tricky bits, unsolved
 #   - Converting links in the md to be correct.
@@ -134,8 +134,10 @@ def doc_subject(doc):
     except ValueError:
         return " ".join(lines)
 
+
 # An object to parse and render markdown
 MD = marko.Markdown(renderer=marko.md_renderer.MarkdownRenderer)
+
 
 def heading_matches(h, s):
     """
@@ -219,7 +221,7 @@ def adjust_doc(doc, link_table, outer_h_level=3):
     # We add a bunch of Rustdoc link definitions to the end of the document,
     # since otherwise marko won't know how to handle them.
     parts = [doc, "\n\n"]
-    for k,v in link_table.items():
+    for k, v in link_table.items():
         parts.append(f"[{k}]: {v}\n")
     doc = "".join(parts)
 
@@ -526,7 +528,10 @@ class RpcUniverse:
         self.emit_object_index(f)
         self.emit_objects(f)
 
+
 have_warned_about_json_version = False
+
+
 def warn_about_json_version(actual_version):
     """
     If we haven't previously done so, warn the user that their nightly
@@ -541,8 +546,9 @@ def warn_about_json_version(actual_version):
               If this fails, you might need to fix the tool,
               or switch to {KNOWN_GOOD_NIGHTLY}.
         """
-        msg = re.sub(r'\s+', ' ', msg).strip()
+        msg = re.sub(r"\s+", " ", msg).strip()
         print(msg)
+
 
 class Rustdoc:
     """
@@ -576,7 +582,7 @@ class Rustdoc:
         obj = self.doc["index"][self.idx_by_ident[ident]]
         links = obj["links"]
         table = {}
-        for content,idx in links.items():
+        for content, idx in links.items():
             table[content] = self.get_rustdoc_url_by_idx(idx)
         return table
 
@@ -668,6 +674,7 @@ def run(output, fmt="md"):
         output.write(HTML_HEADER)
         output.write(md_html.render(parsed))
         output.write(HTML_FOOTER)
+
 
 def main(args):
     """Invoke rpc-docs-tool using the command-line arguments in args.

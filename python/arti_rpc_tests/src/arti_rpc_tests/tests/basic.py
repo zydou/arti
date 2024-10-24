@@ -15,6 +15,7 @@ def test_trivial(context):
     result = connection.session().invoke("arti:get_rpc_proxy_info")
     assert len(result["proxies"]) > 0
 
+
 @arti_test
 def test_execute(context):
     connection = context.open_rpc_connection()
@@ -22,7 +23,7 @@ def test_execute(context):
     req = {
         "obj": connection.session().id(),
         "method": "arti:get_rpc_proxy_info",
-        "params": {}
+        "params": {},
     }
     result = connection.execute(req)
     assert len(result["proxies"]) > 0
@@ -30,14 +31,17 @@ def test_execute(context):
     result = connection.execute(json.dumps(req))
     assert len(result["proxies"]) > 0
 
+
 @arti_test
 def test_execute_with_handle(context):
     connection = context.open_rpc_connection()
-    handle = connection.execute_with_handle({
-        "obj": connection.session().id(),
-        "method": "arti:get_rpc_proxy_info",
-        "params": {}
-    })
+    handle = connection.execute_with_handle(
+        {
+            "obj": connection.session().id(),
+            "method": "arti:get_rpc_proxy_info",
+            "params": {},
+        }
+    )
 
     response = handle.wait()
     assert response.kind() == ArtiRpcResponseKind.RESULT

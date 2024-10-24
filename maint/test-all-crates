@@ -11,10 +11,11 @@ import subprocess
 import sys
 import list_crates
 
+
 def test_crate(args, c):
     conditional_options = []
 
-    for l in open(c.subdir + '/Cargo.toml'):
+    for l in open(c.subdir + "/Cargo.toml"):
 
         # TODO do something more formal here
         #
@@ -22,46 +23,68 @@ def test_crate(args, c):
         #
         # Ideally, if the crate doesn't compile without any features selected,
         # the manifest should have a `minimal` feature we can use, or something.
-        if l.startswith('# @@ test-all-crates ignore'):
-            print('''(
+        if l.startswith("# @@ test-all-crates ignore"):
+            print(
+                """(
 (((((((((( skipping %s ))))))))))
-)''' % c.name, file=sys.stderr)
+)"""
+                % c.name,
+                file=sys.stderr,
+            )
             return
 
-        conditional_option_directive = '# @@ test-all-crates conditional-option '
+        conditional_option_directive = "# @@ test-all-crates conditional-option "
         # One option per line, so it can contain spaces
         if l.startswith(conditional_option_directive):
-            (key, option) = l[len(conditional_option_directive):].rstrip().split(maxsplit=1)
+            (key, option) = (
+                l[len(conditional_option_directive) :].rstrip().split(maxsplit=1)
+            )
             if key in args.enable_conditional_options:
                 conditional_options.append(option)
             continue
 
-    command_sh = 'p=$1; shift; set -x; $CARGO test -p $p "$@"';
+    command_sh = 'p=$1; shift; set -x; $CARGO test -p $p "$@"'
 
-    print(''':
+    print(
+        """:
 :::::::::: %s ::::::::::
-:''' % c.name, file=sys.stderr)
+:"""
+        % c.name,
+        file=sys.stderr,
+    )
 
     # We run a separate build command for each one, to defeat cargo feature unification.
 
-    command_l = [
-        'sh', '-ec', ': "${CARGO:=cargo --locked}"; ' + command_sh, 'x', c.name,
-    ] + args.cargo_option + conditional_options;
+    command_l = (
+        [
+            "sh",
+            "-ec",
+            ': "${CARGO:=cargo --locked}"; ' + command_sh,
+            "x",
+            c.name,
+        ]
+        + args.cargo_option
+        + conditional_options
+    )
 
     child = subprocess.run(command_l)
 
     if child.returncode != 0:
-        print('''failed command %s
+        print(
+            """failed command %s
 "return code" %s
-failed to test crate %s''' % (repr(command_l), child.returncode, c.name),
-              file=sys.stderr);
+failed to test crate %s"""
+            % (repr(command_l), child.returncode, c.name),
+            file=sys.stderr,
+        )
         sys.exit(1)
+
 
 def main():
     parser = argparse.ArgumentParser(prog="test-all-crates")
-    parser.add_argument('cargo_option', nargs='*')
-    parser.add_argument('--enable-conditional-options', action='append', default=[])
-    parser.add_argument('--skip-until', action='store', default=None)
+    parser.add_argument("cargo_option", nargs="*")
+    parser.add_argument("--enable-conditional-options", action="append", default=[])
+    parser.add_argument("--skip-until", action="store", default=None)
     args = parser.parse_args()
 
     skip_until = args.skip_until
@@ -71,8 +94,10 @@ def main():
             if skip_until == crate.name:
                 skip_until = None
             else:
-                print('skipping due to --skip-until %s: %s' % (skip_until, crate.name),
-                      file=sys.stderr)
+                print(
+                    "skipping due to --skip-until %s: %s" % (skip_until, crate.name),
+                    file=sys.stderr,
+                )
                 continue
 
         test_crate(args, crate)

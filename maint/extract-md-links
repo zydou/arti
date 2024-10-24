@@ -29,8 +29,9 @@ When run as a program, prints a json document
 
 import mistune
 
+
 class Tracking:
-    '''
+    """
     Data structure which tracks used and defined keys.
 
     You may access the properties `used` and `defined`;
@@ -38,15 +39,19 @@ class Tracking:
     `used` is a map from keys to `True`,
 
     The keys here are *un*normalised, so they have not been lowercased.
-    '''
+    """
+
     defined = {}
     used = {}
 
     def as_json(self):
-        return json.dumps({
-            'used': list(self.used.keys()),
-            'defined': self.defined,
-        })
+        return json.dumps(
+            {
+                "used": list(self.used.keys()),
+                "defined": self.defined,
+            }
+        )
+
 
 class TrackingBlockParser(mistune.BlockParser):
     def __init__(self, track):
@@ -60,6 +65,7 @@ class TrackingBlockParser(mistune.BlockParser):
         self.track.defined[k] = (t, title)
         return super().parse_def_link(m, state)
 
+
 class TrackingInlineParser(mistune.InlineParser):
     def __init__(self, track, renderer):
         self.track = track
@@ -69,6 +75,7 @@ class TrackingInlineParser(mistune.InlineParser):
         k = m.group(2) or m.group(1)
         self.track.used[k] = True
         return super().parse_ref_link(m, state)
+
 
 def extract_links(md_string):
     """
@@ -80,7 +87,7 @@ def extract_links(md_string):
 
     # Our construction is reaching into the mistune innards more than ideal.
     # It works with Debian's python3-mistune 2.0.4-1.
-    renderer = renderer=mistune.AstRenderer();
+    renderer = renderer = mistune.AstRenderer()
     md = mistune.Markdown(
         renderer,
         block=TrackingBlockParser(track),
@@ -89,7 +96,8 @@ def extract_links(md_string):
     md(md_string)
     return track
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # In theory we ought to be able to load file this as a Python module
     # instead of running it as a script.  But this does not work
     # because the Python module loading machinery insists that the filename
@@ -105,13 +113,13 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(prog="extract-md-links")
-    parser.add_argument('filename', nargs='?', default="-")
+    parser.add_argument("filename", nargs="?", default="-")
     args = parser.parse_args()
 
-    if args.filename == '-':
+    if args.filename == "-":
         in_file = sys.stdin
     else:
-        in_file = open(args.filename, 'r')
+        in_file = open(args.filename, "r")
 
     text = in_file.read()
     print(extract_links(text).as_json())

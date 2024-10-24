@@ -1,6 +1,7 @@
 from arti_rpc_tests import arti_test
 from arti_rpc import ArtiRpcError, ArtiRpcResponseKind, ArtiRpcErrorStatus
 
+
 @arti_test
 def obj_not_avail_after_drop(context):
     connection = context.open_rpc_connection()
@@ -38,45 +39,33 @@ def drop_misformed_id(context):
     connection = context.open_rpc_connection()
 
     try:
-        connection.execute({
-            "obj": "zaphodbeeblebrox",
-            "method": "rpc:release",
-            "params": {}
-        })
+        connection.execute(
+            {"obj": "zaphodbeeblebrox", "method": "rpc:release", "params": {}}
+        )
         assert False
     except ArtiRpcError as e:
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
+
 
 @arti_test
 def drop_connection(context):
     connection = context.open_rpc_connection()
 
     # Make sure we can drop the "connection" object ID itself!
-    connection.execute({
-        "obj": "connection",
-        "method": "rpc:release",
-        "params": {}
-    })
+    connection.execute({"obj": "connection", "method": "rpc:release", "params": {}})
 
     try:
-        connection.execute({
-            "obj": "connection",
-            "method": "rpc:release",
-            "params": {}
-        })
+        connection.execute({"obj": "connection", "method": "rpc:release", "params": {}})
         assert False
     except ArtiRpcError as e:
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
 
     # Make sure we can't drop it again!
     try:
-        connection.execute({
-            "obj": "connection",
-            "method": "rpc:release",
-            "params": {}
-        })
+        connection.execute({"obj": "connection", "method": "rpc:release", "params": {}})
     except ArtiRpcError as e:
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
+
 
 @arti_test
 def drop_session(context):
