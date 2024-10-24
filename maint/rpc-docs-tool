@@ -227,10 +227,12 @@ def adjust_doc(doc, link_table, outer_h_level=3):
 
     document = parser.parse(doc)
 
-    #### Pull out the section that's called MAGIC_HEADING, if any.
+    ####
+    # Pull out the section that's called MAGIC_HEADING, if any.
     extract_md_section(document)
 
-    #### Adjust heading levels so that they nest within outer_h_level.
+    ####
+    # Adjust heading levels so that they nest within outer_h_level.
     try:
         min_hlevel = min(
             elt.level for elt in document.children if elt.get_type() == "Heading"
@@ -243,7 +245,8 @@ def adjust_doc(doc, link_table, outer_h_level=3):
         if elt.get_type == "Heading":
             elt.level += adjustment
 
-    #### Make rustdoc links into something better.
+    ####
+    # Make rustdoc links into something better.
     #
     # TODO: decide what to actually do here.
     recursively_fix_links(document, lambda lnk: None)
