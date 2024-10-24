@@ -67,7 +67,7 @@ get information on each other's requests,
 see each other's onion services,
 and so on.
 
-As an exception, a session may have administrative access.
+As an exception, a session may have administrative "superuser" access.
 If it does, it can access information from any session.
 
 > At present (Sep 2024)
@@ -842,6 +842,19 @@ by remembering which method(s) were previously successful
 > We will try _not_ to make any breaking changes that cause
 > previously working code to behave in a subtly different way.
 
+### Superuser / Administrative access
+
+> This section is a sketch, and is not implemented.
+> All names will be probably be changed.
+>
+> * Some RPC Sessions are _privileged_.
+> * Such sessions support an `rpc:su` method
+>   that returns an `ArtiRoot` object.
+>   * Just as all regular arti functionality is available from a Session,
+>     all privileged functionality is available from an `ArtiRoot`.
+> * A privileged RPC session supports an `rpc:new_unprivileged_session`
+>   method that gives you a new session that _doesn't_ support `rpc:su`.
+>   This method can be used as part of dropping capabilities.
 
 ### Authentication
 

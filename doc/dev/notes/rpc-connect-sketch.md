@@ -27,8 +27,8 @@ that describes where Arti is listening for RPC connections.
 These connect strings will be stored at well-known locations
 on disk, depending on operating system.
 (For example, on [XDG][XDG-user]-compliant Unix, a well-known location
-might be `~/.config/arti-rpc/arti-rpc-connect.json` or
-`/etc/arti-rpc/arti-rpc-connect.json`.)
+might be `~/.config/arti-rpc/connect.d/` or
+`/etc/arti-rpc/connect.d/`.)
 
 There will be a default connect string
 to be used when no file is found.
@@ -79,13 +79,21 @@ Each entry in the search path must be one of the following:
     - An instruction to abort (q.v.) the search process
   * An absolute path on disk,
     to a file that should contain a connect string.
+  * An absolute path on disk,
+    to a directory containing one or more files containing connect strings.
+
+When reading a directory,
+an implementation ignores all hidden files,
+and all files that do not have the correct extension (`.json`).
+It considers the files within a directory
+in lexicographical order, by filename.
 
 Any attempt to use a single entry will "succeed", "decline", or "abort":
   - If an attempt succeeds, the search ends immediately with success.
   - If an attempt aborts, the search ends immediately with failure.
   - If an attempt declines, the search continues to the next entry.
 
-By default, there is a single default embedded search path.
+By default, there is a single default built-in search path.
 Developers can extend this path via the RPC client API;
 users can extend this path via environment variables.
 
@@ -141,8 +149,10 @@ Additional particular we require:
    the individual entries.)
 
 The default search path is:
-  - `${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json`.  (Note B)
-  - `/etc/arti-rpc/arti-rpc-connect.json` (unix and mac only)
+  - `${ARTI_LOCAL_DATA}/rpc/connect.d/`.  (Notes A,B)
+  - `/etc/arti-rpc/connect.d/` (unix and mac only)
+  - The "USER\_DEFAULT" connect string. (Note C)
+  - The "SYSTEM\_DEFAULT" connect string. (Note C)
 
 > Note A: `$ARTI_LOCAL_DATA` above expands to:
 >  - `$XDG_DATA_HOME/arti/` on Unix if  `$XDG_DATA_HOME` is set.
@@ -154,6 +164,23 @@ The default search path is:
 > Note B: The library should detect whether it is running in a setuid
 > environment, and refuse to connect if so.
 > (Nice-to-have but not necessary to implement in the first version.)
+>
+> Note C:
+> The USER\_DEFAULT and SYSTEM\_DEFAULT connect strings
+> are defined as follows on Unix and Mac:
+>
+> ```json
+> USER_DEFAULT =
+> { "connect": { "socket": "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket",
+>                 "auth": "none" } }
+> ```
+>
+> ```json
+> SYSTEM\_DEFAULT =
+> { "connect": { "socket": "/var/run/arti-rpc/arti_rpc_socket",
+>                 "auth": "none" } }
+> ```
+
 
 The following errors are all tolerated;
 when an Arti RPC client encounters encounter them,
@@ -220,15 +247,6 @@ then the Arti RPC client must abort the search process.
 Any other value for the `builtin` field is an error,
 and causes the entry to decline.
 
-> Note/TODO: Embedded client operation is not yet completely specified
-> here.  In particular, we have not yet decided:
->   - Whether it is an error to try to launch two embedded Arti instances
->     in the same process, or whether subsequent attempts give connections
->     to the existing embedded arti.
->   - Whether an embedded arti will need to have the ability to take
->     command line arguments to override its storage and cache defaults.
-
-> These issues will apply to owned arti instances as well.
 
 ### Regular connect strings.
 
@@ -357,6 +375,31 @@ Any such connect string is declined (as with the policy for `none` above).
 > starting a shared system Arti on demand:
 > we think that this does not belong in an RPC client code.
 
+### "Embedded" connect strings
+
+> This section is a sketch only, to capture ideas and open issues.
+>
+> When we implement support for embedded Arti,
+> the connect string format may involve
+> using a pre-built socketpair,
+> and giving one end of the socketpair to the Arti process.
+>
+> A connect string for such a case could be something like
+> `{ "connect" : { "controlling-fd" : 732 } }`
+>
+> (We might say "pre-established" instead of "connect", for strict accuracy.)
+
+> Note/TODO: Embedded client operation is not yet completely specified
+> here.  In particular, we have not yet decided:
+>   - Whether it is an error to try to launch two embedded Arti instances
+>     in the same process, or whether subsequent attempts give connections
+>     to the existing embedded arti.
+>   - Whether an embedded arti will need to have the ability to take
+>     command line arguments to override its storage and cache defaults.
+
+> These issues will apply to owned arti instances as well.
+
+
 ### Example connect strings
 
 Here are some examples of connect strings.
@@ -387,6 +430,136 @@ Here are some examples of connect strings.
   }
 }
 ```
+
+## RPC server behavior
+
+An Arti RPC server uses connect strings
+to decide where to listen for incoming RPC connections.
+
+Unlike an RPC client, an RPC server tries to listen using
+_every_ configured connect string.
+If any connect string fails, it treats the error as fatal,
+and stops searching.
+
+The RPC server also has an option `rpc.enabled`
+that can be used to turn off RPC entirely.
+If it is set to `false`, then the server doesn't listen on any RPC ports.
+
+Connect strings or their locations can be given in a
+tabular option `rpc.listen`, taking a form something like:
+
+```
+[rpc]
+enable = true   # (default)
+
+[rpc.listen."my-connect"]
+enable = true   # (default)
+file = "/home/arti-rpc/arti-rpc-connect.json"
+
+[rpc.listen."other"]
+enable = false
+file = "/etc/arti-rpc/arti-rpc-connect.json"
+
+[rpc.listen."a-directory"]
+dir = "/home/arti-rpc/rpc-connect.d/"
+# Override configuration options on individual members
+override = { "experimental.json" : { "enable" : false } }
+```
+
+> These sections are given names so that the user
+> can turn them on and off in later config files.
+
+There is a pair of default entries in this table:
+
+```
+[rpc.listen."user-default"]
+enable = true
+dir = "${ARTI_LOCAL_DATA}/rpc/connect.d"
+
+[rpc.listen."system-default"]
+enable = false
+dir = "/etc/arti-rpc/connect.d"
+```
+
+Finally, there is an option `[rpc.listen-default]`,
+representing a verbatim lists of connect strings.
+Its default is
+```
+[rpc]
+listen-default = [ "<USER_DEFAULT>" ]
+```
+(where `"<USER_DEFAULT>"` is replaced with the same `USER_DERFAUT`
+value defined above in discussion of client default.)
+
+
+The RPC server behaves as follows.
+
+1. If `rpc.enabled` is false, the server binds to no RPC ports.
+2. Otherwise, the server looks for the locations of connect files
+   (or for the connect points themselves)
+   among all enabled entries
+   in the `rpc.listen` table in `arti.toml`,
+   and tries to bind to each,
+   treating all errors as fatal.
+3. If a fatal error did not occur,
+   but no connect points were bound,
+   the server uses the connect points in `rpc.listen-default`,
+   treating all errors as fatal.
+
+> The behavior above will, by default, capture the "user Arti" case,
+> where an Arti process is running on behalf of a single user and shared
+> by that user's applications.
+>
+> For the "system arti" case, where Arti is to be shared by many users,
+> the integrator or sysadmin needs to specify an alternative connect string
+> in Arti's configuration.  Our documentation should recommend the use
+> of SYSTEM\_DEFAULT, or of storing a special connect string in
+> the system default location
+> (`/etc/arti-rpc/arti-rpc-connect.json` on Unix).
+>
+> We might also provide a command-line option
+> to override _all_ relevant configuration defaults
+> with ones that make more sense for a "system arti".
+> This option would override both
+> `rpc.listen."system-default".enable` and
+> `rpc.listen-default`.
+> See [#1710](https://gitlab.torproject.org/tpo/core/arti/-/issues/1710)
+> for more information.
+
+
+### Servers and privileged access
+
+> This section is not going to be implemented in v0 of the protocol.
+
+RPC servers can be configured to support privileged access.
+This is done with a boolean option,
+`rpc.listen.*.superuser`,
+which will be `false` by default.
+
+We might have a separate `rpc.enable_superuser` option
+to turn off _all_ superuser access.
+
+> Not all connect strings types will necessarily be supported
+> for superuser access.
+> For example, we may institute a rule that cookie authentication
+> is only permitted for superuser access
+> on systems with meaningful filesystem restrictions.
+
+> We _may_ later specify default superuser connect strings
+> or their locations.
+> We do not currently plan to have any by default
+> in our first releases.
+
+### Servers and file permissions
+
+> This section is not going to be implemented in v0 of the protocol.
+
+We may need to alter our default `fs-mistrust` permissions
+or file ownership options for the sockets and cookie files we create.
+If we do so, we will add a new
+`rpc.listen.*.fs_permissions`
+sub-option, or something similar, to be determined.
+
 
 ## Restricting access
 
