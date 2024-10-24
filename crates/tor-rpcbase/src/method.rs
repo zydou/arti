@@ -27,14 +27,11 @@ use once_cell::sync::Lazy;
 ///   which is presumably safe to call.
 /// * if you are linking a crate, you are already trusting that crate.
 pub trait DynMethod: std::fmt::Debug + Send + Downcast {
-    /// Return true if this method has a nonstandard implementation that bypasses
-    /// regular method dispatch system.
-    ///
-    /// See `invoke_without_dispatch` for more information.
-    fn bypass_method_dispatch(&self) -> bool {
-        false
-    }
     /// Invoke a method while bypassing the regular RPC method dispatch system.
+    ///
+    /// For nearly all `DynMethod` types, this method will return
+    /// `Err(InvokeError::NoDispatchBypass)`, indicating that the caller should fall through
+    /// and use the regular method dispatch system.
     ///
     /// This mechanism is suitable for cases like "rpc:release"
     /// where the correct behavior for the method
@@ -42,6 +39,9 @@ pub trait DynMethod: std::fmt::Debug + Send + Downcast {
     /// but instead the method is meant to manipulate the object reference itself.
     ///
     /// Should return an internal error if `bypass_method_dispatch()` is false.
+    //
+    // TODO RPC: Having this method tied to `bypass_method_dispatch`` is potentially error-prone.
+    //
     fn invoke_without_dispatch(
         &self,
         ctx: Arc<dyn crate::Context>,
@@ -49,9 +49,7 @@ pub trait DynMethod: std::fmt::Debug + Send + Downcast {
     ) -> Result<crate::dispatch::RpcResultFuture, crate::InvokeError> {
         let _ = ctx;
         let _ = obj_id;
-        Err(crate::InvokeError::Bug(tor_error::internal!(
-            "Invoke_without_dispatch on regular RPC method!"
-        )))
+        Err(crate::InvokeError::NoDispatchBypass)
     }
 }
 downcast_rs::impl_downcast!(DynMethod);
@@ -169,6 +167,8 @@ define_derive_deftly! {
     const _: () = {
         ${if not(tmeta(rpc(bypass_method_dispatch))) {
             impl $crate::DynMethod for $ttype {}
+        } else if tmeta(rpc(no_method_name)) {
+            ${error "no_method_name is incompatible with bypass_method_dispatch."}
         }}
 
         ${select1 tmeta(rpc(method_name)) {

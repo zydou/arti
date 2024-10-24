@@ -458,11 +458,8 @@ impl Connection {
 
         let context: Arc<dyn rpc::Context> = self.clone() as Arc<_>;
 
-        let invoke_future = if method.bypass_method_dispatch() {
-            method.invoke_without_dispatch(context, &obj_id)?
-        } else {
-            rpc::invoke_rpc_method(context, obj, method.upcast_box(), tx_updates)?
-        };
+        let invoke_future =
+            rpc::invoke_rpc_method(context, &obj_id, obj, method.upcast_box(), tx_updates)?;
 
         // Note that we drop the read lock before we await this future!
         invoke_future.await

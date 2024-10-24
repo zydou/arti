@@ -34,10 +34,6 @@ impl rpc::RpcMethod for RpcRelease {
 }
 
 impl rpc::DynMethod for RpcRelease {
-    fn bypass_method_dispatch(&self) -> bool {
-        true
-    }
-
     fn invoke_without_dispatch(
         &self,
         ctx: Arc<dyn rpc::Context>,

@@ -204,14 +204,16 @@ impl<T: Context> ContextExt for T {}
 /// on the dispatch table before invoking the method.
 pub fn invoke_rpc_method(
     ctx: Arc<dyn Context>,
+    obj_id: &ObjectId,
     obj: Arc<dyn Object>,
     method: Box<dyn DynMethod>,
     sink: dispatch::BoxedUpdateSink,
 ) -> Result<dispatch::RpcResultFuture, InvokeError> {
-    if method.bypass_method_dispatch() {
-        return Err(InvokeError::Bug(internal!(
-            "invoke_rpc_method on method with bypass_method_dispatch."
-        )));
+    match method.invoke_without_dispatch(Arc::clone(&ctx), obj_id) {
+        Err(InvokeError::NoDispatchBypass) => {
+            // fall through
+        }
+        other => return other,
     }
 
     let (obj, invocable) = ctx
@@ -236,12 +238,6 @@ pub async fn invoke_special_method<M: Method>(
     obj: Arc<dyn Object>,
     method: Box<M>,
 ) -> Result<Box<M::Output>, InvokeError> {
-    if method.bypass_method_dispatch() {
-        return Err(InvokeError::Bug(internal!(
-            "special methods cannot set bypass_method_dispatch."
-        )));
-    }
-
     let (obj, invocable) = ctx
         .dispatch_table()
         .read()
@@ -298,10 +294,16 @@ mod test {
     async fn invoke() {
         let ctx = Arc::new(Ctx::from(DispatchTable::from_inventory()));
         let discard = || Box::pin(futures::sink::drain().sink_err_into());
-        let r = invoke_rpc_method(ctx.clone(), Arc::new(Swan), Box::new(GetKids), discard())
-            .unwrap()
-            .await
-            .unwrap();
+        let r = invoke_rpc_method(
+            ctx.clone(),
+            &ObjectId::from("Odile"),
+            Arc::new(Swan),
+            Box::new(GetKids),
+            discard(),
+        )
+        .unwrap()
+        .await
+        .unwrap();
         assert_eq!(serde_json::to_string(&r).unwrap(), r#"{"v":"cygnets"}"#);
 
         let r = invoke_special_method(ctx, Arc::new(Swan), Box::new(GetKids))
