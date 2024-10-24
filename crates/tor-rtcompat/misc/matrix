@@ -12,7 +12,7 @@ if sys.argv[1:] == []:
 
 FEATURES = ["tokio", "async-std", "native-tls", "rustls"]
 
-COMBINATIONS = [[]]
+COMBINATIONS: list[list[str]] = [[]]
 
 # Generate all combinations of features.
 for feature in FEATURES:

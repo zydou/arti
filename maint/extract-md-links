@@ -27,7 +27,8 @@ When run as a program, prints a json document
 # instrumentation that spots when link definitions are queried,
 # during processing.
 
-import mistune
+import mistune  # type: ignore
+from typing import Tuple
 
 
 class Tracking:
@@ -41,8 +42,8 @@ class Tracking:
     The keys here are *un*normalised, so they have not been lowercased.
     """
 
-    defined = {}
-    used = {}
+    defined: dict[str, Tuple[str, str]] = {}
+    used: dict[str, bool] = {}
 
     def as_json(self):
         return json.dumps(
