@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+
+# ----------
+# Import everything we need
+
+import importlib.metadata
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Union
+
+MISSING_IMPORTS = []
+try:
+    import flake8.main.cli  # type: ignore
+except ModuleNotFoundError:
+    MISSING_IMPORTS.append("flake8")
+try:
+    import mypy.main
+except ModuleNotFoundError:
+    MISSING_IMPORTS.append("mypy")
+try:
+    import black
+except ModuleNotFoundError:
+    MISSING_IMPORTS.append("black")
+
+
+def check_pkg(pkg: str):
+    try:
+        __import__(pkg)
+        return
+    except ModuleNotFoundError:
+        MISSING_IMPORTS.append(pkg)
+
+
+def check_meta(pkg: str):
+    try:
+        importlib.metadata.version(pkg)
+    except importlib.metadata.PackageNotFoundError:
+        MISSING_IMPORTS.append(pkg)
+
+
+# We don't use these packages, but our dependencies do.
+check_pkg("tomli_w")
+check_pkg("marko")
+# mypy needs the type annotations in these packages.
+check_meta("types-toml")
+check_meta("types-PyYAML")
+check_meta("types-beautifulsoup4")
+check_meta("types-requests")
+
+if MISSING_IMPORTS:
+    missing = ", ".join(MISSING_IMPORTS)
+    print(f"Missing packages: Please install {missing}", file=sys.stderr)
+    sys.exit(1)
+
+# ----------
+# Find the things that we want to format or test.
+
+TOPLEVEL = Path(__file__).resolve().parent.parent
+os.chdir(TOPLEVEL)
+
+# Scripts are files that start with a python shebang
+PYTHON_SHEBANG = re.compile(r"^#!\s*/usr/bin/env\s+python.*")
+
+
+def starts_with_shebang(path: Path) -> bool:
+    """
+    Return true if `path` is a file representing an independent
+    python script.
+    """
+    try:
+        with open(path, "r") as f:
+            line1 = f.readline()
+            return PYTHON_SHEBANG.match(line1) is not None
+    except UnicodeDecodeError:
+        return False
+
+
+class Files:
+    """List of files in the arti repository"""
+
+    files: set[Path]
+
+    def __init__(self):
+        # Requires that we're in the top level of the repository.
+        # (We always chdir there before initializing this class.)
+        output = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", "HEAD"],
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
+        )
+        self.files = [Path(p) for p in output.stdout.split()]
+
+    def package_roots(self) -> list[Path]:
+        """Find every directory that is the root of a package."""
+        return [p.parent for p in self.files if p.name == "pyproject.toml"]
+
+    def scripts(self) -> list[Path]:
+        """
+        Return every python script, including those inside a package.
+
+        (For here, that's defined as a file starting with something like
+        `#!/usr/bin/env python3`)
+        """
+        return [p for p in self.files if p.is_file() and starts_with_shebang(p)]
+
+    def other_python(self) -> list[Path]:
+        """
+        Return every .py file that is not in a package.
+        """
+        packages = self.package_roots()
+        return [
+            p
+            for p in self.files
+            if p.is_file()
+            and p.name.endswith(".py")
+            and not any(p.is_relative_to(pkg) for pkg in packages)
+        ]
+
+
+def argify(args) -> list[str]:
+    """Convert args to a list of strings"""
+    return list(str(s) for s in args)
+
+
+# TODO: Find a mypy annotation that works for `targets` here.
+def run_flake8_ok(targets) -> bool:
+    exit_code = flake8.main.cli.main(
+        argify(["--config", TOPLEVEL / ".flake8"] + targets)
+    )
+    return exit_code == 0
+
+
+def run_mypy_ok(targets, strict=False) -> bool:
+    exitcode: Union[None, int, str] = 0
+    if strict:
+        flags = ["--strict"]
+    else:
+        flags = []
+    try:
+        mypy.main.main(args=argify(flags + targets), clean_exit=True)
+    except SystemExit as e:
+        exitcode = e.code
+    return exitcode in [0, None]
+
+
+def run_black_ok(targets) -> bool:
+    exitcode: Union[None, int, str] = 0
+    try:
+        black.main(["--check"] + argify(targets))
+    except SystemExit as e:
+        exitcode = e.code
+    return exitcode in [0, None]
+
+
+# Some of our scripts require extra dependencies;
+# we list them here.
+EXTRA_DEPS: dict[Path, list[Path]] = {
+    Path("maint/rpc-docs-tool"): [Path("python/arti_rpc")]
+}
+# Some of our scripts support strict type-checking;
+# we list them here.
+#
+# TODO: Get more things to pass with "--strict", and then turn this
+# into a _not_ strict list.
+MYPY_STRICT = set(
+    Path(p)
+    for p in [
+        "maint/update-md-links",
+        "maint/list_crates",
+        "maint/cargo-check-publishable",
+    ]
+)
+
+FILES = Files()
+SCRIPTS = FILES.scripts()
+OTHER_PYTHON = FILES.other_python()
+PACKAGES = FILES.package_roots()
+
+okay = True
+
+okay &= run_flake8_ok(SCRIPTS + OTHER_PYTHON + PACKAGES)
+
+# We need to type-check these items separately, or mypy complains
+# about too many modules called "__main__".
+okay &= run_mypy_ok(PACKAGES)
+for item in SCRIPTS:
+    args = [item]
+    if item not in OTHER_PYTHON:
+        args += OTHER_PYTHON
+    args += EXTRA_DEPS.get(item, [])
+    okay &= run_mypy_ok(args, strict=item in MYPY_STRICT)
+
+okay &= run_black_ok(SCRIPTS + OTHER_PYTHON + PACKAGES)
+
+if okay:
+    print("No warnings!")
+    sys.exit(0)
+else:
+    print("WARNINGS FOUND.")
+    sys.exit(1)
