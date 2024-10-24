@@ -15,6 +15,13 @@ since the json format is unstable.
 Known to work with nightly from 2024-10-22.
 """
 
+import io
+import json
+import os
+import re
+import subprocess
+import sys
+
 # What version of rustdoc json do we know?
 SUPPORTED_FORMAT_VERSION = 35
 # What nightly do we know to provide that version?
@@ -23,13 +30,6 @@ KNOWN_GOOD_NIGHTLY = "nightly-2024-10-22"
 # Tricky bits, unsolved
 #   - Converting links in the md to be correct.
 #   - Extracting only relevant portions of the rustdoc.
-
-import io
-import json
-import os
-import re
-import subprocess
-import sys
 
 # Location of the arti checkout.
 ARTI_ROOT = os.path.split(os.path.dirname(__file__))[0]
