@@ -616,25 +616,29 @@ impl rpc::Context for Connection {
     }
 
     fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
-        if id.as_ref() == Self::CONNECTION_OBJ_ID {
-            self.inner.lock().expect("Lock poisoned").this_connection = None;
-            return Ok(());
-        }
+        let removed_some = if id.as_ref() == Self::CONNECTION_OBJ_ID {
+            self.inner
+                .lock()
+                .expect("Lock poisoned")
+                .this_connection
+                .take()
+                .is_some()
+        } else {
+            let idx = self.id_into_local_idx(id)?;
 
-        let idx = self.id_into_local_idx(id)?;
+            if !idx.is_strong() {
+                return Err(rpc::LookupError::WrongType(id.clone()));
+            }
 
-        if !idx.is_strong() {
-            return Err(rpc::LookupError::WrongType(id.clone()));
-        }
+            self.inner
+                .lock()
+                .expect("Lock poisoned")
+                .objects
+                .remove(idx)
+                .is_some()
+        };
 
-        let removed = self
-            .inner
-            .lock()
-            .expect("Lock poisoned")
-            .objects
-            .remove(idx);
-
-        if removed.is_some() {
+        if removed_some {
             Ok(())
         } else {
             Err(rpc::LookupError::NoObject(id.clone()))

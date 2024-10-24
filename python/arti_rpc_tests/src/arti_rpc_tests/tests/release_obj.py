@@ -68,6 +68,16 @@ def drop_connection(context):
     except ArtiRpcError as e:
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
 
+    # Make sure we can't drop it again!
+    try:
+        connection.execute({
+            "obj": "connection",
+            "method": "rpc:release",
+            "params": {}
+        })
+    except ArtiRpcError as e:
+        assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
+
 @arti_test
 def drop_session(context):
     connection = context.open_rpc_connection()
