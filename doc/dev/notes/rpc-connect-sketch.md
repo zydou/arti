@@ -446,6 +446,11 @@ file = "/home/arti-rpc/arti-rpc-connect.json"
 [rpc.listen."other"]
 enable = false
 file = "/etc/arti-rpc/arti-rpc-connect.json"
+
+[rpc.listen."a-directory"]
+dir = "/home/arti-rpc/rpc-connect.d/"
+# Override configuration options on individual members
+override = { "experimental.json" : { "enable" : false } }
 ```
 
 > These sections are given names so that the user
