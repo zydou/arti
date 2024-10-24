@@ -1,5 +1,5 @@
 from arti_rpc_tests import arti_test
-from arti_rpc import ArtiRpcError, ArtiRpcResponseKind, ArtiRpcErrorStatus
+from arti_rpc import ArtiRpcError, ArtiRpcErrorStatus
 
 import socket
 

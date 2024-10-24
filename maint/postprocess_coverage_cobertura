@@ -7,7 +7,8 @@ import sys
 
 try:
     from bs4 import BeautifulSoup
-    import lxml
+
+    _ = __import__("lxml")
 except ImportError:
     print("Sorry, BeautifulSoup 4 or lxml is not installed.", file=sys.stderr)
     sys.exit(1)
@@ -21,8 +22,23 @@ if len(sys.argv) != 2:
 with open(sys.argv[1]) as f:
     document = BeautifulSoup(f, "lxml")
 
+
+def get_or_fail(obj, field):
+    """
+    Like obj.field, but raise a KeyError if obj.field is None.
+
+    Insisting on an exception in this case helps mypy typecheck this code.
+    """
+    val = getattr(obj, field)
+    if val is None:
+        raise KeyError(field)
+    return val
+
+
 # Iterate over source files
-for file in document.coverage.packages.findAll("package"):
+coverage = get_or_fail(document, "coverage")
+packages = get_or_fail(coverage, "packages")
+for file in packages.findAll("package"):
     already_seen = set()
     # Iterate over function
     for func in file.classes.findChild("class").methods.findAll("method"):

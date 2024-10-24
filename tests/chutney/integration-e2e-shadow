@@ -48,7 +48,8 @@ def gen_shadow_config(**args):
                             "CHUTNEY_ENABLE_CONTROLSOCKET": "no",
                             # ipv6 isn't supported in shadow
                             "CHUTNEY_DISABLE_IPV6": "yes",
-                            # re-export PATH. The test scripts assume that usual shell utilities are on it.
+                            # re-export PATH. The test scripts assume that
+                            # usual shell utilities are on it.
                             "PATH": os.getenv("PATH"),
                             "CHUTNEY_PATH": args["chutney_path"],
                         },

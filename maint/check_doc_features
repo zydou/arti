@@ -4,10 +4,12 @@ import os
 from list_crates import list_crates
 from collections import Counter
 
-# This contains annotations the script think are missing, but actually they don't need to be there
+# This contains annotations the script think are missing,
+# but actually they don't need to be there
 additional_provided = {}
 
-# This contains annotations the script detected and think shouldn't be there, but actually they should
+# This contains annotations the script detected and think shouldn't be there,
+# but actually they should
 additional_required = {}
 
 

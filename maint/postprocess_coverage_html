@@ -50,9 +50,22 @@ def find_crate(s):
 
 
 # Generate a summary of per-crate coverage.
-crate_lines = dict()
+crate_lines: dict[str, list[int]] = dict()
 
-for row in document.table.find_all("tr"):
+
+def get_or_fail(obj, field):
+    """
+    Like obj.field, but raise a KeyError if obj.field is None.
+
+    Insisting on an exception in this case helps mypy typecheck this code.
+    """
+    val = getattr(obj, field)
+    if val is None:
+        raise KeyError(field)
+    return val
+
+
+for row in get_or_fail(document, "table").find_all("tr"):
     path = row.th.text.strip()
     cells = row.find_all("td")
     if not cells or len(cells) < 3:
@@ -74,7 +87,7 @@ for row in document.table.find_all("tr"):
 # Insert a command summary before the main table.
 commands_tag = document.new_tag("pre")
 commands_tag.string = commands
-document.nav.insert_after(commands_tag)
+get_or_fail(document, "nav").insert_after(commands_tag)
 
 # Construct a crate-coverage table to go after the main table.
 #
@@ -117,7 +130,7 @@ for crate, (numerator, denominator) in crate_lines.items():
 table_text.append("</tbody></table>")
 newtable = BeautifulSoup("\n".join(table_text), "html.parser")
 # Insert the table!
-document.table.insert_after(newtable)
+get_or_fail(document, "table").insert_after(newtable)
 
 with open(sys.argv[3], "w") as out:
     out.write(document.prettify())

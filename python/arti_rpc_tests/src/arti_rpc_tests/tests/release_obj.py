@@ -1,5 +1,5 @@
 from arti_rpc_tests import arti_test
-from arti_rpc import ArtiRpcError, ArtiRpcResponseKind, ArtiRpcErrorStatus
+from arti_rpc import ArtiRpcError
 
 
 @arti_test
@@ -31,7 +31,7 @@ def obj_not_avail_after_drop(context):
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]
 
     # Should still be usable
-    client_3 = client_2.invoke("arti:new_isolated_client")
+    _ = client_2.invoke("arti:new_isolated_client")
 
 
 @arti_test
@@ -71,13 +71,13 @@ def drop_connection(context):
 def drop_session(context):
     connection = context.open_rpc_connection()
 
-    client_1 = connection.session().invoke("arti:new_isolated_client")
+    _ = connection.session().invoke("arti:new_isolated_client")
 
     connection.session().release_ownership()
     connection.session().invoke("rpc:release")
 
     try:
-        client_2 = connection.session().invoke("arti:new_isolated_client")
+        _ = connection.session().invoke("arti:new_isolated_client")
         assert False
     except ArtiRpcError as e:
         assert "rpc:ObjectNotFound" in e.response_obj()["kinds"]

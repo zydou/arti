@@ -83,6 +83,15 @@ class TestContext:
         connect_string = f"unix:{self.socket_path}"
         return arti_rpc.ArtiRpcConn(connect_string)
 
+    def arti_process_is_running(self) -> bool:
+        """
+        Return true if we have launched an arti process,
+        and it is still running.
+        """
+        if self.arti_process is None:
+            return False
+        return self.arti_process.is_running()
+
     def _wait_for_rpc(self, timeout: float = 3.0) -> None:
         """
         Wait up to `timeout` seconds until an Arti RPC connection succeeds.

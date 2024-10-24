@@ -5,4 +5,4 @@ from arti_rpc.rpc import (
     ArtiRpcErrorStatus,
 )
 
-__all__ = ["ArtiRpcError", "ArtiRpcConn"]
+__all__ = ["ArtiRpcError", "ArtiRpcConn", "ArtiRpcResponseKind", "ArtiRpcErrorStatus"]

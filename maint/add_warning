@@ -135,7 +135,7 @@ def strip_lints_containing(s):
     """Remove every lint containing 's'."""
 
     def rmv_lints(inp, s):
-        return "\n".join(line for line in inp.split("\n") if not s in line)
+        return "\n".join(line for line in inp.split("\n") if s not in line)
 
     global LINT_LISTS
     LINT_LISTS = dict((k, rmv_lints(v, s)) for (k, v) in LINT_LISTS.items())

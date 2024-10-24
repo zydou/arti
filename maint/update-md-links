@@ -134,14 +134,14 @@ def check_returncode(process: CheckableSubprocess) -> None:
         sys.exit(12)
 
 
-def is_link_def(l: str) -> Optional[Tuple[str, str]]:
+def is_link_def(line: str) -> Optional[Tuple[str, str]]:
     """
-    Is the line `l` in the syntax of a link definition?
+    Is `line` in the syntax of a link definition?
 
     If so returns `(a, t)` where `a` is the anchor and `t` the target.
     Otherwise returns None.
     """
-    g = link_def_re.fullmatch(l)
+    g = link_def_re.fullmatch(line)
     if g is None:
         return None
     # mypy can't see that our regexp has precisely these captures
@@ -194,8 +194,6 @@ def split_input() -> list[Section]:
         sections.append(Section(start, end, {}, {}))
 
     for i, l in enumerate(md):
-        lno = i + 1
-
         g = heading_re.match(l)
         if g and len(g.group(1)) == int(instructions["split-heading-level"]):
             if i != section_start:
@@ -233,8 +231,8 @@ def scan_sections(sections: list[Section]) -> Defs:
 
         for i in range(s.start, s.end):
             lno = i + 1
-            l = md[i]
-            at = is_link_def(l)
+            line = md[i]
+            at = is_link_def(line)
             if at:
                 a, t = at
                 record_link_def(a, t, "%s:%d" % (args.filename, lno), i)
@@ -254,15 +252,15 @@ def scan_sections(sections: list[Section]) -> Defs:
             encoding="utf-8",
         )
         assert gen_links_output.stdout
-        for l in gen_links_output.stdout:
-            l = l.strip()
-            if l == "":
+        for line in gen_links_output.stdout:
+            line = line.strip()
+            if line == "":
                 continue
-            at = is_link_def(l)
+            at = is_link_def(line)
             if at is None:
                 print(
                     "gen_md_links produced bad output line %s (for %s:%d..%d)"
-                    % (repr(l), args.filename, s.start + 1, s.end),
+                    % (repr(line), args.filename, s.start + 1, s.end),
                     file=sys.stderr,
                 )
                 sys.exit(12)
@@ -386,8 +384,8 @@ def write_output() -> None:
     """
     new_filename = "%s.tmp" % args.filename
     output = open(new_filename, "w", buffering=True)
-    for l in md:
-        print(l, file=output, end="")
+    for line in md:
+        print(line, file=output, end="")
     output.close()
 
     if troubles != 0:
