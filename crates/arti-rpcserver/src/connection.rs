@@ -139,6 +139,13 @@ impl ConnectionId {
 }
 
 impl Connection {
+    /// A special object ID that indicates the connection itself.
+    ///
+    /// On a fresh connection, this is the only ObjectId that exists.
+    //
+    // TODO: We might want to move responsibility for tracking this ID and its value into ObjMap.
+    const CONNECTION_OBJ_ID: &'static str = "connection";
+
     /// Create a new connection.
     pub(crate) fn new(
         connection_id: ConnectionId,
@@ -199,7 +206,7 @@ impl Connection {
         &self,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        if id.as_ref() == "connection" {
+        if id.as_ref() == Self::CONNECTION_OBJ_ID {
             let this = self
                 .inner
                 .lock()
@@ -609,7 +616,7 @@ impl rpc::Context for Connection {
     }
 
     fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
-        if id.as_ref() == "connection" {
+        if id.as_ref() == Self::CONNECTION_OBJ_ID {
             self.inner.lock().expect("Lock poisoned").this_connection = None;
             return Ok(());
         }
