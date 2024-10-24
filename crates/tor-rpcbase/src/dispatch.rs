@@ -737,6 +737,11 @@ pub enum InvokeError {
     #[error("No implementation for provided object and method types.")]
     NoImpl,
 
+    /// Tried to call `invoke_without_dispatch` on an RPC method that _does_ support
+    /// regular RPC method dispatch.
+    #[error("Called invoke_without_dispatch on a regular RPC method")]
+    NoDispatchBypass,
+
     /// An internal problem occurred while invoking a method.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -747,6 +752,7 @@ impl From<InvokeError> for RpcError {
         use crate::RpcErrorKind as EK;
         let kind = match &err {
             InvokeError::NoImpl => EK::MethodNotImpl,
+            InvokeError::NoDispatchBypass => EK::InternalError,
             InvokeError::Bug(_) => EK::InternalError,
         };
         RpcError::new(err.to_string(), kind)
@@ -1008,7 +1014,13 @@ pub(crate) mod test {
             let animal: Arc<dyn crate::Object> = Arc::new(obj);
             let request: Box<dyn DynMethod> = Box::new(method);
             let discard = Box::pin(futures::sink::drain().sink_err_into());
-            crate::invoke_rpc_method(Arc::clone(ctx), animal, request, discard)
+            crate::invoke_rpc_method(
+                Arc::clone(ctx),
+                &crate::ObjectId::from("AnimalIdent"),
+                animal,
+                request,
+                discard,
+            )
         }
         async fn invoke_ok<O: crate::Object, M: crate::Method>(
             table: &Arc<dyn Context>,

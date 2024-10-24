@@ -14,6 +14,8 @@ use std::sync::{Arc, Weak};
 use slotmap_careful::{Key as _, KeyData, SlotMap};
 use tor_rpcbase as rpc;
 
+pub(crate) mod methods;
+
 slotmap_careful::new_key_type! {
     pub(crate) struct WeakIdx;
     pub(crate) struct StrongIdx;

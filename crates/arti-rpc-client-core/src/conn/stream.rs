@@ -81,13 +81,6 @@ impl From<IoError> for StreamError {
 #[derive(Serialize, Debug)]
 struct NoParameters {}
 
-/// Arguments to a request to drop an object.
-#[derive(Serialize, Debug)]
-struct ReleaseObj {
-    /// The object to release.
-    obj: ObjectId,
-}
-
 /// A response with a single ID.
 #[derive(Deserialize, Debug)]
 struct SingleIdResponse {
@@ -248,8 +241,7 @@ impl RpcConn {
 
     /// Helper: Tell Arti to release `obj`.
     fn release_obj(&self, obj: ObjectId) -> Result<(), StreamError> {
-        let session_id = self.session_id_required()?;
-        let release_request = Request::new(session_id.clone(), "rpc:release", ReleaseObj { obj });
+        let release_request = Request::new(obj, "rpc:release", NoParameters {});
         let _empty_response: EmptyResponse =
             self.execute_internal_ok(&release_request.encode()?)?;
         Ok(())

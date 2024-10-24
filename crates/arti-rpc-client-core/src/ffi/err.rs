@@ -245,8 +245,8 @@ impl From<void::Void> for FfiError {
 /// Tried to call a ffi function with a not-permitted argument.
 #[derive(Clone, Debug, thiserror::Error)]
 pub(super) enum InvalidInput {
-    /// Tried to convert a NULL pointer to a string.
-    #[error("Provided string was NULL.")]
+    /// Tried to convert a NULL pointer to an FFI object.
+    #[error("Provided argument was NULL.")]
     NullPointer,
 
     /// Tried to convert a non-UTF string.

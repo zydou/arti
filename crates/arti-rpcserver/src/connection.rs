@@ -78,13 +78,6 @@ pub struct Connection {
 
     /// A reference to the manager associated with this session.
     mgr: Weak<RpcMgr>,
-
-    /// A reference to this connection itself.
-    ///
-    /// Used when we're looking up the connection within the RPC system as an object.
-    ///
-    /// TODO RPC: Maybe there is an easier way to do this while keeping `context` object-save?
-    this_connection: Weak<Connection>,
 }
 
 /// The inner, lock-protected part of an RPC connection.
@@ -99,6 +92,13 @@ struct Inner {
     /// An object map used to look up most objects by ID, and keep track of
     /// which objects are owned by this connection.
     objects: ObjMap,
+
+    /// A reference to this connection itself.
+    ///
+    /// Used when we're looking up the connection within the RPC system as an object.
+    ///
+    /// TODO RPC: Maybe there is an easier way to do this while keeping `context` object-save?
+    this_connection: Option<Weak<Connection>>,
 }
 
 /// How many updates can be pending, per connection, before they start to block?
@@ -139,6 +139,13 @@ impl ConnectionId {
 }
 
 impl Connection {
+    /// A special object ID that indicates the connection itself.
+    ///
+    /// On a fresh connection, this is the only ObjectId that exists.
+    //
+    // TODO: We might want to move responsibility for tracking this ID and its value into ObjMap.
+    const CONNECTION_OBJ_ID: &'static str = "connection";
+
     /// Create a new connection.
     pub(crate) fn new(
         connection_id: ConnectionId,
@@ -150,12 +157,12 @@ impl Connection {
             inner: Mutex::new(Inner {
                 inflight: HashMap::new(),
                 objects: ObjMap::new(),
+                this_connection: Some(Weak::clone(this_connection)),
             }),
             dispatch_table,
             connection_id,
             global_id_mac_key,
             mgr,
-            this_connection: Weak::clone(this_connection),
         })
     }
 
@@ -199,11 +206,16 @@ impl Connection {
         &self,
         id: &rpc::ObjectId,
     ) -> Result<Arc<dyn rpc::Object>, rpc::LookupError> {
-        if id.as_ref() == "connection" {
+        if id.as_ref() == Self::CONNECTION_OBJ_ID {
             let this = self
+                .inner
+                .lock()
+                .expect("lock poisoned")
                 .this_connection
+                .as_ref()
+                .ok_or_else(|| rpc::LookupError::NoObject(id.clone()))?
                 .upgrade()
-                .ok_or(rpc::LookupError::NoObject(id.clone()))?;
+                .ok_or_else(|| rpc::LookupError::NoObject(id.clone()))?;
             Ok(this as Arc<_>)
         } else {
             let local_id = self.id_into_local_idx(id)?;
@@ -438,11 +450,11 @@ impl Connection {
     async fn run_method_lowlevel(
         self: &Arc<Self>,
         tx_updates: rpc::dispatch::BoxedUpdateSink,
-        obj: rpc::ObjectId,
+        obj_id: rpc::ObjectId,
         method: Box<dyn rpc::DeserMethod>,
         meta: ReqMeta,
     ) -> Result<Box<dyn erased_serde::Serialize + Send + 'static>, rpc::RpcError> {
-        let obj = self.lookup_object(&obj)?;
+        let obj = self.lookup_object(&obj_id)?;
 
         if !meta.require.is_empty() {
             // TODO RPC: Eventually, we will need a way to tell which "features" are actually
@@ -452,7 +464,9 @@ impl Connection {
         }
 
         let context: Arc<dyn rpc::Context> = self.clone() as Arc<_>;
-        let invoke_future = rpc::invoke_rpc_method(context, obj, method.upcast_box(), tx_updates)?;
+
+        let invoke_future =
+            rpc::invoke_rpc_method(context, &obj_id, obj, method.upcast_box(), tx_updates)?;
 
         // Note that we drop the read lock before we await this future!
         invoke_future.await
@@ -602,20 +616,29 @@ impl rpc::Context for Connection {
     }
 
     fn release_owned(&self, id: &rpc::ObjectId) -> Result<(), rpc::LookupError> {
-        let idx = self.id_into_local_idx(id)?;
+        let removed_some = if id.as_ref() == Self::CONNECTION_OBJ_ID {
+            self.inner
+                .lock()
+                .expect("Lock poisoned")
+                .this_connection
+                .take()
+                .is_some()
+        } else {
+            let idx = self.id_into_local_idx(id)?;
 
-        if !idx.is_strong() {
-            return Err(rpc::LookupError::WrongType(id.clone()));
-        }
+            if !idx.is_strong() {
+                return Err(rpc::LookupError::WrongType(id.clone()));
+            }
 
-        let removed = self
-            .inner
-            .lock()
-            .expect("Lock poisoned")
-            .objects
-            .remove(idx);
+            self.inner
+                .lock()
+                .expect("Lock poisoned")
+                .objects
+                .remove(idx)
+                .is_some()
+        };
 
-        if removed.is_some() {
+        if removed_some {
             Ok(())
         } else {
             Err(rpc::LookupError::NoObject(id.clone()))

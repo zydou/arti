@@ -19,6 +19,7 @@ _TEST_MODS = [
     "basic",
     "connect",
     "meta_features",
+    "release_obj",
 ]
 
 

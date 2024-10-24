@@ -23,8 +23,10 @@ from __future__ import annotations
 # - Exported types start with "Arti", to make imports safer.
 
 import json
+import logging
 import os
 import socket
+import sys
 from ctypes import POINTER, byref, c_int, _Pointer as Ptr
 from enum import Enum
 import arti_rpc.ffi
@@ -47,6 +49,8 @@ else:
     def _socket_is_valid(sock):
         """Return true if `sock` is a valid fd."""
         return sock >= 0
+
+_logger = logging.getLogger(__name__)
 
 class _RpcBase:
     def __init__(self, rpc_lib):
@@ -94,7 +98,7 @@ class ArtiRpcConn(_RpcBase):
     An open connection to Arti.
     """
     _conn: Optional[Ptr[FfiConn]]
-    _session_id: str
+    _session: ArtiRpcObject
 
     def __init__(self, connect_string: str, rpc_lib=None):
         """
@@ -105,12 +109,13 @@ class ArtiRpcConn(_RpcBase):
         constructed with `arti_rpc.ffi.get_library`.
         If it's None, we use the default.
         """
+        self._conn = None
+
         if rpc_lib is None:
             rpc_lib = arti_rpc.ffi.get_library()
 
         _RpcBase.__init__(self, rpc_lib)
 
-        self._conn = None
         conn = POINTER(arti_rpc.ffi.ArtiRpcConn)()
         error = POINTER(arti_rpc.ffi.ArtiRpcError)()
         rv = self._rpc.arti_rpc_connect(
@@ -120,12 +125,13 @@ class ArtiRpcConn(_RpcBase):
         assert conn
         self._conn = conn
         s = self._rpc.arti_rpc_conn_get_session_id(self._conn).decode("utf-8")
-        self._session_id = s
+        self._session = self.make_object(s)
 
     def __del__(self):
-        if hasattr(self, '_conn'):
+        if self._conn is not None:
             # Note that if _conn is set, then _rpc is necessarily set.
             self._rpc.arti_rpc_conn_free(self._conn)
+            self._conn = None
 
     def make_object(self, object_id:str) -> ArtiRpcObject:
         """
@@ -144,7 +150,7 @@ class ArtiRpcConn(_RpcBase):
         by invoking methods on the session,
         you can get the IDs for other objects.)
         """
-        return self.make_object(self._session_id)
+        return self._session
 
     def execute(self, request: Union[str, dict]) -> dict:
         """
@@ -294,7 +300,9 @@ class ArtiRpcError(Exception):
         self._rpc = rpc
 
     def __del__(self):
-        self._rpc.arti_rpc_err_free(self._err)
+        if self._err is not None:
+            self._rpc.arti_rpc_err_free(self._err)
+            self._err = None
 
     def __str__(self):
         status = self._rpc.arti_rpc_status_to_str(
@@ -367,12 +375,14 @@ class ArtiRpcObject(_RpcBase):
     """
     _id: str
     _conn: ArtiRpcConn
+    _owned: bool
     _meta: Optional[dict]
 
     def __init__(self, object_id: str, connection: ArtiRpcConn):
         _RpcBase.__init__(self, connection._rpc)
         self._id = object_id
         self._conn = connection
+        self._owned = True
         self._meta = None
 
     def id(self) -> str:
@@ -410,14 +420,39 @@ class ArtiRpcObject(_RpcBase):
         The wrapper will support `invoke` and `invoke_with_handle`,
         and will pass them any provided `params` given as an argument
         to this function as meta-request parameters.
+
+        The resulting object does not have ownership on the
+        underlying RPC object.
         """
         new_obj = ArtiRpcObject(self._id, self._conn)
+        new_obj._owned = False
         if params:
             new_obj._meta = params
         else:
             new_obj._meta = None
         return new_obj
 
+    def release_ownership(self):
+        """
+        Release ownership of the underlying RPC object.
+
+        By default, when the last reference to an ArtiRpcObject is dropped,
+        we tell the RPC server to release the corresponding RPC ObjectID.
+        After that happens, nothing else can use that ObjectID
+        (and the object may get freed on the server side,
+        if nothing else refers to it.)
+
+        Calling this method releases ownership, such that we will not
+        tell the RPC server to release the ObjectID when this object is dropped.
+        """
+        self._owned = False
+
+    def __del__(self):
+        if self._owned and self._conn._conn is not None:
+            try:
+                self.invoke("rpc:release")
+            except ArtiRpcError as e:
+                _logger.warn("RPC error while deleting object", exc_info=sys.exc_info())
 
 class ArtiRpcResponseKind(Enum):
     """
@@ -506,7 +541,9 @@ class ArtiRequestHandle(_RpcBase):
         self._handle = handle
 
     def __del__(self):
-        self._rpc.arti_rpc_handle_free(self._handle)
+        if self._handle is not None:
+            self._rpc.arti_rpc_handle_free(self._handle)
+            self._handle = None
 
     def wait(self) -> ArtiRpcResponse:
         """
