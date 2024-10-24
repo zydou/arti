@@ -194,8 +194,6 @@ def split_input() -> list[Section]:
         sections.append(Section(start, end, {}, {}))
 
     for i, l in enumerate(md):
-        lno = i + 1
-
         g = heading_re.match(l)
         if g and len(g.group(1)) == int(instructions["split-heading-level"]):
             if i != section_start:

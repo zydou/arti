@@ -12,7 +12,6 @@ Example:
 """
 
 import json
-import re
 import subprocess
 
 

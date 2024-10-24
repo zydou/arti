@@ -469,7 +469,7 @@ class ArtiRpcObject(_RpcBase):
         if self._owned and self._conn._conn is not None:
             try:
                 self.invoke("rpc:release")
-            except ArtiRpcError as e:
+            except ArtiRpcError:
                 _logger.warn("RPC error while deleting object", exc_info=sys.exc_info())
 
 

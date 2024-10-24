@@ -14,7 +14,7 @@ def missing_features(context):
         },
     }
     try:
-        out = connection.execute(request)
+        _ = connection.execute(request)
         assert False
     except ArtiRpcError as e:
         assert e.status_code() == ArtiRpcErrorStatus.REQUEST_FAILED
@@ -28,7 +28,7 @@ def missing_features_2(context):
     connection = context.open_rpc_connection()
 
     try:
-        out = (
+        _ = (
             connection.session()
             .with_meta(require=["arti:does_not_exist"])
             .invoke("arti:get_rpc_proxy_info")
@@ -52,5 +52,5 @@ def empty_features_list(context):
         },
     }
 
-    out = connection.execute(request)
+    _ = connection.execute(request)
     # No exception raised; we're fine.

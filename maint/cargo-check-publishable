@@ -14,7 +14,7 @@ import requests
 import sys
 import time
 from list_crates import list_crates, Crate
-from typing import Any, Callable, Dict, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 problems = 0
 

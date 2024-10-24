@@ -7,7 +7,8 @@ import sys
 
 try:
     from bs4 import BeautifulSoup
-    import lxml
+
+    _ = __import__("lxml")
 except ImportError:
     print("Sorry, BeautifulSoup 4 or lxml is not installed.", file=sys.stderr)
     sys.exit(1)
