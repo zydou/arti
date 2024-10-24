@@ -15,7 +15,7 @@ import list_crates
 def test_crate(args, c):
     conditional_options = []
 
-    for l in open(c.subdir + "/Cargo.toml"):
+    for line in open(c.subdir + "/Cargo.toml"):
 
         # TODO do something more formal here
         #
@@ -23,7 +23,7 @@ def test_crate(args, c):
         #
         # Ideally, if the crate doesn't compile without any features selected,
         # the manifest should have a `minimal` feature we can use, or something.
-        if l.startswith("# @@ test-all-crates ignore"):
+        if line.startswith("# @@ test-all-crates ignore"):
             print(
                 """(
 (((((((((( skipping %s ))))))))))
@@ -35,9 +35,9 @@ def test_crate(args, c):
 
         conditional_option_directive = "# @@ test-all-crates conditional-option "
         # One option per line, so it can contain spaces
-        if l.startswith(conditional_option_directive):
+        if line.startswith(conditional_option_directive):
             (key, option) = (
-                l[len(conditional_option_directive) :].rstrip().split(maxsplit=1)
+                line[len(conditional_option_directive) :].rstrip().split(maxsplit=1)
             )
             if key in args.enable_conditional_options:
                 conditional_options.append(option)
