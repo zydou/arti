@@ -27,8 +27,8 @@ that describes where Arti is listening for RPC connections.
 These connect strings will be stored at well-known locations
 on disk, depending on operating system.
 (For example, on [XDG][XDG-user]-compliant Unix, a well-known location
-might be `~/.config/arti-rpc/arti-rpc-connect.json` or
-`/etc/arti-rpc/arti-rpc-connect.json`.)
+might be `~/.config/arti-rpc/connect.d/` or
+`/etc/arti-rpc/connect.d/`.)
 
 There will be a default connect string
 to be used when no file is found.
@@ -79,6 +79,14 @@ Each entry in the search path must be one of the following:
     - An instruction to abort (q.v.) the search process
   * An absolute path on disk,
     to a file that should contain a connect string.
+  * An absolute path on disk,
+    to a directory containing one or more files containing connect strings.
+
+When reading a directory,
+an implementation ignores all hidden files,
+and all files that do not have the correct extension (`.json`).
+It considers the files within a directory
+in lexicographical order, by filename.
 
 Any attempt to use a single entry will "succeed", "decline", or "abort":
   - If an attempt succeeds, the search ends immediately with success.
@@ -141,8 +149,8 @@ Additional particular we require:
    the individual entries.)
 
 The default search path is:
-  - `${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json`.  (Notes A,B)
-  - `/etc/arti-rpc/arti-rpc-connect.json` (unix and mac only)
+  - `${ARTI_LOCAL_DATA}/rpc/connect.d/`.  (Notes A,B)
+  - `/etc/arti-rpc/connect.d/` (unix and mac only)
   - The "USER\_DEFAULT" connect string. (Note C)
   - The "SYSTEM\_DEFAULT" connect string. (Note C)
 
@@ -448,13 +456,11 @@ There is a pair of default entries in this table:
 ```
 [rpc.listen."user-default"]
 enable = true
-allow_missing_file = true
-file = "${ARTI_LOCAL_DATA}/rpc/arti-rpc-connect.json"
+dir = "${ARTI_LOCAL_DATA}/rpc/connect.d"
 
 [rpc.listen."system-default"]
 enable = false
-allow_missing_file = true
-file = "/etc/arti-rpc/arti-rpc-connect.json"
+dir = "/etc/arti-rpc/connect.d"
 ```
 
 Finally, there is be a an option `[rpc.listen-default]`,
@@ -477,8 +483,6 @@ The RPC server behaves as follows.
    in the `rpc.listen` table in `arti.toml`,
    and tries to bind to each,
    treating all errors as fatal.
-   (As an exception, an EACCESS error when reading the connect file
-   is allowed if an `allow_missing_file` flag is set to True.)
 3. If a fatal error did not occur,
    but no connect points were bound,
    the server uses the connect points in `rpc.listen-default`,
