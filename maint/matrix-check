@@ -10,11 +10,11 @@ from subprocess import run
 TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
 os.chdir(TOPDIR)
 CRATEDIRS = [
-    os.path.join(TOPDIR, 'crates'),
-    os.path.join(TOPDIR, 'maint'),
-    os.path.join(TOPDIR, 'examples/gsoc2023'),
-    os.path.join(TOPDIR, 'examples/hyper'),
-    os.path.join(TOPDIR, 'examples/axum'),
+    os.path.join(TOPDIR, "crates"),
+    os.path.join(TOPDIR, "maint"),
+    os.path.join(TOPDIR, "examples/gsoc2023"),
+    os.path.join(TOPDIR, "examples/hyper"),
+    os.path.join(TOPDIR, "examples/axum"),
 ]
 
 # some tests don't compile on every combination 😐
@@ -22,6 +22,7 @@ CRATEDIRS = [
 KEYWORD = "check"
 
 supplementary_targets = dict()
+
 
 def combination(*args):
     res = None
@@ -41,16 +42,25 @@ def combination(*args):
             res = new_res
     return res
 
-supplementary_targets["tor-rtcompat"] = combination(["async-std", "tokio", "native-tls", "rustls"])
-supplementary_targets["arti-client"] = combination(["async-std", "tokio", "native-tls", "rustls"])
-supplementary_targets["arti"] = combination(["async-std", "tokio"], ["native-tls", "rustls"])
+
+supplementary_targets["tor-rtcompat"] = combination(
+    ["async-std", "tokio", "native-tls", "rustls"]
+)
+supplementary_targets["arti-client"] = combination(
+    ["async-std", "tokio", "native-tls", "rustls"]
+)
+supplementary_targets["arti"] = combination(
+    ["async-std", "tokio"], ["native-tls", "rustls"]
+)
+
 
 def take(dic, key):
     if key in dic:
         res = dic.get(key)
-        del(dic[key])
+        del dic[key]
         return res
     return None
+
 
 def dir_of_crate(crate):
     for d in CRATEDIRS:
@@ -59,39 +69,51 @@ def dir_of_crate(crate):
             return dd
     return None
 
+
 def test_crate_config(crate, features, allow_empty=False):
     if features is None:
         return
     if len(features) == 0 and not allow_empty:
         return
     features = ",".join(features)
-    args = ["cargo", KEYWORD, "-p", crate, "--no-default-features", "--features", features]
+    args = [
+        "cargo",
+        KEYWORD,
+        "-p",
+        crate,
+        "--no-default-features",
+        "--features",
+        features,
+    ]
     print("running:", " ".join(args), file=sys.stderr)
     p = run(args)
     if p.returncode != 0:
-        raise Exception("Failed to test '" + crate + "' with features '" + features + "'")
+        raise Exception(
+            "Failed to test '" + crate + "' with features '" + features + "'"
+        )
+
 
 def test_crate(crate):
-    if crate in ['fs-mistrust', 'tor-config']:
+    if crate in ["fs-mistrust", "tor-config"]:
         # these tests do not pass as of now. Skipping them.
         return
 
     crate_path = dir_of_crate(crate)
-    toml_path = os.path.join(crate_path, 'Cargo.toml')
+    toml_path = os.path.join(crate_path, "Cargo.toml")
     t = toml.decoder.load(toml_path)
-    features = t.get('features') or {}
+    features = t.get("features") or {}
 
     # remove testing features, it makes little sens to test them
-    take(features, 'testing')
+    take(features, "testing")
 
-    default = sorted(take(features, 'default') or [])
-    full = sorted(take(features, 'full') or [])
+    default = sorted(take(features, "default") or [])
+    full = sorted(take(features, "full") or [])
     all_features = sorted([feat for feat in features.keys()])
 
     # no features; don't test if it would already be tested by normal tests
     if len(features) != 0:
         # arti does not work: it requires an executor
-        if not crate in ['arti']:
+        if not crate in ["arti"]:
             test_crate_config(crate, [], True)
     # default
     test_crate_config(crate, default)
@@ -104,9 +126,11 @@ def test_crate(crate):
         test_crate_config(crate, combination)
     # TODO test random combination?
 
+
 def main():
     for crate in list_crates.list_crates():
         test_crate(crate.name)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -12,77 +12,87 @@ additional_required = {}
 
 
 # Not interested in the low-level interfaces we provide only for fuzzing
-additional_provided['equix'] = [
-    ('{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit}', 'feature = "bucket-array"'),
+additional_provided["equix"] = [
+    (
+        "{BucketArray, BucketArrayMemory, BucketArrayPair, Count, Uninit}",
+        'feature = "bucket-array"',
+    ),
 ]
 
 # PreferredRuntime has a somewhat more complexe rule for existing
-additional_provided['tor-rtcompat'] = [
-    ('PreferredRuntime', 'feature = "native-tls"'),
-    ('PreferredRuntime', 'feature = "native-tls"'),
-    ('PreferredRuntime', 'all(feature = "rustls", not(feature = "native-tls"))'),
-    ('PreferredRuntime', 'all(feature = "rustls", not(feature = "native-tls"))'),
-    ('NativeTlsProvider', 'all(feature = "native-tls", any(feature = "tokio", feature = "async-std"))'),
-    ('RustlsProvider', 'all(feature = "rustls", any(feature = "tokio", feature = "async-std"))'),
+additional_provided["tor-rtcompat"] = [
+    ("PreferredRuntime", 'feature = "native-tls"'),
+    ("PreferredRuntime", 'feature = "native-tls"'),
+    ("PreferredRuntime", 'all(feature = "rustls", not(feature = "native-tls"))'),
+    ("PreferredRuntime", 'all(feature = "rustls", not(feature = "native-tls"))'),
+    (
+        "NativeTlsProvider",
+        'all(feature = "native-tls", any(feature = "tokio", feature = "async-std"))',
+    ),
+    (
+        "RustlsProvider",
+        'all(feature = "rustls", any(feature = "tokio", feature = "async-std"))',
+    ),
 ]
 # "unix::SocketAddr" is present unconditionally,
 # though it has different definitions.
-additional_provided['tor-rtcompat'] += [
-    ('SocketAddr', 'unix'),
+additional_provided["tor-rtcompat"] += [
+    ("SocketAddr", "unix"),
 ]
 
 
 # We're not very interested in the testing feature
-additional_provided['tor-guardmgr'] = [
-    ('TestConfig', 'any(test, feature = "testing")'),
+additional_provided["tor-guardmgr"] = [
+    ("TestConfig", 'any(test, feature = "testing")'),
 ]
 
 # Sha1 is present both ways
-additional_provided['tor-llcrypto'] = [
-    ('Sha1', 'feature = "with-openssl"'),
-    ('Sha1', 'not(feature = "with-openssl")'),
+additional_provided["tor-llcrypto"] = [
+    ("Sha1", 'feature = "with-openssl"'),
+    ("Sha1", 'not(feature = "with-openssl")'),
 ]
 
-additional_required['tor-llcrypto']= [
-    ('aes', 'all()'),
-    ('aes', 'all()'),
+additional_required["tor-llcrypto"] = [
+    ("aes", "all()"),
+    ("aes", "all()"),
 ]
 
-additional_required['tor-hsservice'] = [
-    ('restricted_discovery', 'all()'),
+additional_required["tor-hsservice"] = [
+    ("restricted_discovery", "all()"),
 ]
 
 # This is an * include; expended wildcard must be in additional_required
-additional_provided['tor-proto']= [
-    ('*', 'feature = "testing"'),
+additional_provided["tor-proto"] = [
+    ("*", 'feature = "testing"'),
 ]
 
-additional_required['tor-proto']= [
-    ('CtrlMsg', 'feature = "testing"'),
-    ('CreateResponse', 'feature = "testing"'),
+additional_required["tor-proto"] = [
+    ("CtrlMsg", 'feature = "testing"'),
+    ("CreateResponse", 'feature = "testing"'),
     # I have no idea, but empirically this stops the CI complaining -Diziet
-    ('Conversation', 'feature = "send-control-msg"'),
+    ("Conversation", 'feature = "send-control-msg"'),
 ]
 
 # This is detected two times, but only on cfg_attr(docsrs) is enough
-additional_provided['tor-netdoc']= [
-    ('Nickname', 'feature = "dangerous-expose-struct-fields"'),
-    ('NsConsensusRouterStatus', 'feature = "ns_consensus"'),
+additional_provided["tor-netdoc"] = [
+    ("Nickname", 'feature = "dangerous-expose-struct-fields"'),
+    ("NsConsensusRouterStatus", 'feature = "ns_consensus"'),
 ]
 
+
 def extract_feature_pub_use(path):
-    START_CFG = '#[cfg('
-    END_CFG = ')]'
-    PUB_USE = 'pub use '
+    START_CFG = "#[cfg("
+    END_CFG = ")]"
+    PUB_USE = "pub use "
     res = []
     cfg = None
-    with open(path, 'r') as file:
+    with open(path, "r") as file:
         for line in file.readlines():
             if line.find(PUB_USE) != -1 and cfg:
-                # last line was a #[cfg(..)] line and this is a pub use 
+                # last line was a #[cfg(..)] line and this is a pub use
                 pubuse_pos = line.find(PUB_USE)
                 # ignore comments
-                if '//' in line[:pubuse_pos]:
+                if "//" in line[:pubuse_pos]:
                     continue
                 # extract ident
                 #
@@ -90,8 +100,8 @@ def extract_feature_pub_use(path):
                 start = line.rfind(":")
                 if start == -1:
                     start = line.rfind(" ")
-                ident = line[start + 1:]
-                if (pos:= ident.find(';')) != -1:
+                ident = line[start + 1 :]
+                if (pos := ident.find(";")) != -1:
                     ident = ident[:pos]
                 res.append((ident, cfg))
                 cfg = None
@@ -107,19 +117,24 @@ def extract_feature_pub_use(path):
                 cfg = line[start_cfg:end_cfg]
     return res
 
+
 def extract_cfg_attr(path):
-    START_CFG = '#[cfg_attr(docsrs, doc(cfg('
-    END_CFG = ')))]'
+    START_CFG = "#[cfg_attr(docsrs, doc(cfg("
+    END_CFG = ")))]"
     res = []
     cfg = None
-    with open(path, 'r') as file:
+    with open(path, "r") as file:
         for line in file.readlines():
-            pos = max([line.find(kw + ' ') for kw in ['struct', 'enum', 'mod', 'trait']])
+            pos = max(
+                [line.find(kw + " ") for kw in ["struct", "enum", "mod", "trait"]]
+            )
             if pos != -1 and cfg:
                 # last line was a cfg and this is a declaration
                 subline = line[pos:]
-                subline = subline[subline.find(' ') + 1:]
-                end = min(subline.find(pat) for pat in ' (<;' if subline.find(pat) !=-1)
+                subline = subline[subline.find(" ") + 1 :]
+                end = min(
+                    subline.find(pat) for pat in " (<;" if subline.find(pat) != -1
+                )
                 ident = subline[:end]
                 res.append((ident, cfg))
                 cfg = None
@@ -136,6 +151,7 @@ def extract_cfg_attr(path):
                 cfg = None
     return res
 
+
 def for_each_rs(path, fn):
     res = []
     for dir_, _, files in os.walk(path):
@@ -145,13 +161,18 @@ def for_each_rs(path, fn):
             res += fn(os.path.join(dir_, file))
     return res
 
+
 def main():
     for crate_info in list_crates():
         crate = crate_info.name
         print(f"processing {crate}")
         crate_path = f"crates/{crate}/src"
-        required = for_each_rs(crate_path, extract_feature_pub_use) + additional_required.get(crate, [])
-        provided = for_each_rs(crate_path, extract_cfg_attr) + additional_provided.get(crate, [])
+        required = for_each_rs(
+            crate_path, extract_feature_pub_use
+        ) + additional_required.get(crate, [])
+        provided = for_each_rs(crate_path, extract_cfg_attr) + additional_provided.get(
+            crate, []
+        )
         req = Counter(required)
         prov = Counter(provided)
         ok = True
@@ -165,5 +186,6 @@ def main():
             print("Found error, exiting")
             exit(1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

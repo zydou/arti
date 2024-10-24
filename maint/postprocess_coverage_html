@@ -35,7 +35,7 @@ for level in document.find_all("div", class_="level-item"):
 def parse_frac(s):
     "Parse a 'num / den' fraction into a 2-tuple."
     elts = s.split()
-    if len(elts) != 3 or elts[1] != '/':
+    if len(elts) != 3 or elts[1] != "/":
         return (0, 0)
     return (int(elts[0]), int(elts[2]))
 
@@ -44,7 +44,7 @@ def find_crate(s):
     "Extract a crate name from a path string."
     while "/" in s:
         s, rest = os.path.split(s)
-        if s == 'crates':
+        if s == "crates":
             return rest
     return s
 
@@ -62,7 +62,7 @@ for row in document.table.find_all("tr"):
     if pct.endswith("%"):
         pct = pct[:-1]
     pct = float(pct)
-    if abs(pct - (100*numerator/denominator)) > .01:
+    if abs(pct - (100 * numerator / denominator)) > 0.01:
         print(f"Whoops, mismatched percentage for {path}. Am I parsing right?")
 
     crate = find_crate(path)
@@ -79,23 +79,25 @@ document.nav.insert_after(commands_tag)
 # Construct a crate-coverage table to go after the main table.
 #
 # We build this as a string and parse it because it's simpler that way.
-table_text = ["""<table class="table is-fullwidth">
+table_text = [
+    """<table class="table is-fullwidth">
 <thead><tr>
    <th>Crate name</th>
    <th class="has-text-centered" colspan="2">Line coverage</th>
 </tr></thead>
 <tbody>
-"""]
-danger_threshold = .7
-warning_threshold = .9
+"""
+]
+danger_threshold = 0.7
+warning_threshold = 0.9
 # Add a row for each crate...
-for (crate, (numerator, denominator)) in crate_lines.items():
+for crate, (numerator, denominator) in crate_lines.items():
     if denominator == 0:
         frac = 0
         pct = "n/a"
     else:
-        frac = numerator/denominator
-        pct = "%.02f%%" % (100*numerator/denominator)
+        frac = numerator / denominator
+        pct = "%.02f%%" % (100 * numerator / denominator)
     # Choose what class to put the text in
     if frac < danger_threshold:
         bg = "danger"
@@ -104,16 +106,18 @@ for (crate, (numerator, denominator)) in crate_lines.items():
     else:
         bg = "success"
     tclass = f"has-text-centered has-background-{bg} p-2"
-    table_text.append(f'''
+    table_text.append(
+        f"""
 <tr>
   <th>{crate}</th>
   <td class="{tclass}">{pct}</td>
   <td class="{tclass}">{numerator} / {denominator}</td>
-</tr>''')
+</tr>"""
+    )
 table_text.append("</tbody></table>")
 newtable = BeautifulSoup("\n".join(table_text), "html.parser")
 # Insert the table!
 document.table.insert_after(newtable)
 
-with open(sys.argv[3], 'w') as out:
+with open(sys.argv[3], "w") as out:
     out.write(document.prettify())

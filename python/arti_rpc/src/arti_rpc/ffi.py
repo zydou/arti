@@ -28,25 +28,25 @@ import sys
 class ArtiRpcStr(Structure):
     """FFI type: String returned by the RPC protocol."""
 
-    _fields_:list = []
+    _fields_: list = []
 
 
 class ArtiRpcConn(Structure):
     """FFI type: Connection to Arti via the RPC protocol."""
 
-    _fields_:list = []
+    _fields_: list = []
 
 
 class ArtiRpcError(Structure):
     """FFI type: Error from the RPC library."""
 
-    _fields_:list = []
+    _fields_: list = []
 
 
 class ArtiRpcHandle(Structure):
     """FFI type: Handle to an open RPC request."""
 
-    _fields_:list = []
+    _fields_: list = []
 
 
 ArtiRpcResponseType = c_int
@@ -78,6 +78,7 @@ else:
 
 ##########
 # Tell ctypes about the function signatures.
+
 
 def _annotate_library(lib: ctypes.CDLL):
     """Helper: annotate a ctypes dll `lib` with appropriate function signatures."""
@@ -153,11 +154,12 @@ def _annotate_library(lib: ctypes.CDLL):
     lib.arti_rpc_str_get.argtypes = [POINTER(ArtiRpcStr)]
     lib.arti_rpc_str_get.restype = c_char_p
 
+
 def _load_library():
     """Allocate a new shared library.
 
-       First, look in the path in $LIBARTI_RPC_CLIENT_CORE (if it is
-       set).  Otherwise, use the default path from LoadLibrary.
+    First, look in the path in $LIBARTI_RPC_CLIENT_CORE (if it is
+    set).  Otherwise, use the default path from LoadLibrary.
 
     """
     p = os.environ.get("LIBARTI_RPC_CLIENT_CORE")
@@ -166,9 +168,9 @@ def _load_library():
 
     # TODO RPC: Do we need to start versioning this?
     base = "libarti_rpc_client_core"
-    if sys.platform == 'darwin':
+    if sys.platform == "darwin":
         ext = "dylib"
-    elif sys.platform == 'win32':
+    elif sys.platform == "win32":
         ext = "dll"
     else:
         ext = "so"
@@ -176,16 +178,18 @@ def _load_library():
 
     return ctypes.cdll.LoadLibrary(libname)
 
+
 _THE_LIBRARY = None
+
 
 def get_library() -> ctypes.CDLL:
     """Try to find the shared library, loading it if needed.
 
-       By default, we use the ctypes library's notion of the standard
-       search path for shared libraries.
+    By default, we use the ctypes library's notion of the standard
+    search path for shared libraries.
 
-       Users can override the location of the library
-       with the environment variable `LIBARTI_RPC_CLIENT_CORE`.
+    Users can override the location of the library
+    with the environment variable `LIBARTI_RPC_CLIENT_CORE`.
     """
     global _THE_LIBRARY
     if _THE_LIBRARY is not None:

@@ -3,6 +3,7 @@ from arti_rpc import ArtiRpcError, ArtiRpcResponseKind, ArtiRpcErrorStatus
 
 import socket
 
+
 # TODO: Have a way to annotate this test as "requires a live network",
 # and "can't work offline."
 @arti_test
@@ -22,7 +23,7 @@ def connect_simple(context):
         (stream, ident) = connection.open_stream("does-not-exist.torproject.org", 443)
         assert False
     except ArtiRpcError as e:
-        assert(str(e).startswith("Data stream failed"))
+        assert str(e).startswith("Data stream failed")
         assert e.status_code() == ArtiRpcErrorStatus.STREAM_FAILED
 
     # TODO: Isolation, once we can test it.
@@ -31,4 +32,3 @@ def connect_simple(context):
 
     # TODO: Opening the stream on something other than the Session,
     # once we can test it.
-
