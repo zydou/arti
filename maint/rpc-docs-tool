@@ -61,7 +61,8 @@ HTML_FOOTER = """\
 
 # This isn't installed by default, so try to give a helpful message.
 try:
-    import marko, marko.md_renderer
+    import marko
+    import marko.md_renderer
 except ImportError:
     print(
         "You need to install marko so that we can parse and manipulate markdown.",

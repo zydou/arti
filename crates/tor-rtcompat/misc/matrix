@@ -3,7 +3,8 @@
 # Run a provided command over all possible subsets of important
 # tor-rtcompat features.
 
-import sys, subprocess
+import subprocess
+import sys
 
 if sys.argv[1:] == []:
     print("You need to name a program to run with different features")
