@@ -60,7 +60,7 @@ def crates_io_api_call(endpoint: str, response_expect_key: str) -> Any:
             raise
 
         if response.status_code == 404:
-            if not "errors" in json:
+            if "errors" not in json:
                 raise (
                     RuntimeError(
                         "404 but no `errors` URL %s: %s, %s"
@@ -80,7 +80,7 @@ def crates_io_api_call(endpoint: str, response_expect_key: str) -> Any:
 
         api_call_memo[url] = json
 
-    if not response_expect_key in json:
+    if response_expect_key not in json:
         raise (RuntimeError("unexpected JSON data from URL %s: %s" % (url, json)))
 
     return json

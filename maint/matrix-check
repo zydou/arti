@@ -113,7 +113,7 @@ def test_crate(crate):
     # no features; don't test if it would already be tested by normal tests
     if len(features) != 0:
         # arti does not work: it requires an executor
-        if not crate in ["arti"]:
+        if crate not in ["arti"]:
             test_crate_config(crate, [], True)
     # default
     test_crate_config(crate, default)
