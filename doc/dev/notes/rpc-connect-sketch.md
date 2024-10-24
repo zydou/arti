@@ -468,9 +468,9 @@ enable = false
 dir = "/etc/arti-rpc/connect.d"
 ```
 
-Finally, there is be a an option `[rpc.listen-default]`,
+Finally, there is an option `[rpc.listen-default]`,
 representing a verbatim lists of connect strings.
-Its default would be
+Its default is
 ```
 [rpc]
 listen-default = [ "<USER_DEFAULT>" ]
