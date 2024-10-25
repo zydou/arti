@@ -78,20 +78,6 @@ impl RpcSession {
     }
 }
 
-/// A simple temporary method to echo a reply.
-#[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
-#[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "arti:x_echo"))]
-struct Echo {
-    /// A message to echo.
-    msg: String,
-}
-
-impl rpc::RpcMethod for Echo {
-    type Output = Echo;
-    type Update = rpc::NoUpdates;
-}
-
 /// Return the default client for a session.
 ///
 /// Allocates a new ObjectID,
