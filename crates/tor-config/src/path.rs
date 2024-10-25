@@ -79,12 +79,6 @@ pub enum CfgPathError {
     /// We couldn't find our current binary path.
     #[error("Can't find the path to the current binary")]
     NoProgramPath,
-    /// We couldn't convert a variable to UTF-8.
-    ///
-    /// (This is due to a limitation in the shellexpand crate, which should
-    /// be fixed in the future.)
-    #[error("Can't convert value of {0} to UTF-8 in path")]
-    BadUtf8(String),
     /// We couldn't convert a string to a valid path on the OS.
     #[error("Invalid path string: {0:?}")]
     InvalidString(String),
@@ -106,15 +100,6 @@ impl HasKind for CfgPathError {
             E::NoProgramPath => EK::InvalidConfig,
             E::VariableInterpolationNotSupported(_) | E::HomeDirInterpolationNotSupported(_) => {
                 EK::FeatureDisabled
-            }
-            E::BadUtf8(_) => {
-                // Arguably, this should be a new "unsupported config"  type,
-                // since it isn't truly "invalid" to have a string with bad UTF8
-                // when it's going to be used as a filename.
-                //
-                // With luck, however, this error will cease to exist when shellexpand
-                // improves its character-set handling.
-                EK::InvalidConfig
             }
         }
     }
@@ -490,11 +475,7 @@ mod test_serde {
         let mut this_binary = std::env::current_exe().unwrap();
         this_binary.pop();
         this_binary.push("foo");
-        let expanded = match p.path() {
-            Err(CfgPathError::BadUtf8(_)) => return, // Can't test this. :(
-            other => other,
-        }
-        .unwrap();
+        let expanded = p.path().unwrap();
         assert_eq!(expanded, this_binary);
     }
 
