@@ -33,5 +33,4 @@ reject_all_arguments
 
 (
   git_grep_for_shell_script_shebangs
-  git ls-files | grep '\.sh$'
-) | xargs shellcheck
+) | xargs shellcheck -x
