@@ -20,7 +20,7 @@ will not need to use the methods in this document.
 
 ## General sketch
 
-There will be a JSON configuration object,
+There will be a TOML configuration object,
 called a "connect string",
 that describes where Arti is listening for RPC connections.
 
@@ -84,7 +84,7 @@ Each entry in the search path must be one of the following:
 
 When reading a directory,
 an implementation ignores all hidden files,
-and all files that do not have the correct extension (`.json`).
+and all files that do not have the correct extension (`.toml`).
 It considers the files within a directory
 in lexicographical order, by filename.
 
@@ -169,16 +169,18 @@ The default search path is:
 > The USER\_DEFAULT and SYSTEM\_DEFAULT connect strings
 > are defined as follows on Unix and Mac:
 >
-> ```json
-> USER_DEFAULT =
-> { "connect": { "socket": "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket",
->                 "auth": "none" } }
+> USER\_DEFAULT:
+> ```toml
+> [connect]
+> socket = "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket"
+> auth = "none"
 > ```
 >
-> ```json
-> SYSTEM\_DEFAULT =
-> { "connect": { "socket": "/var/run/arti-rpc/arti_rpc_socket",
->                 "auth": "none" } }
+> SYSTEM\_DEFAULT:
+> ```toml
+> [connect]
+> socket = "/var/run/arti-rpc/arti_rpc_socket"
+> auth = "none"
 > ```
 
 
@@ -204,7 +206,7 @@ when an Arti RPC client encounters any of them,
 the corresponding entry *aborts* the entire search process.
 
  - A connect string file is present, but cannot be parsed
-   (either because it isn't JSON, or because it represents a recognized
+   (either because it isn't TOML, or because it represents a recognized
    type of connect string with invalid options).
  - A connect string file is present, but its permissions
    (or the permissions on its parent directory, etc)
@@ -224,7 +226,7 @@ TODO RPC These are still TBD; are they "decline" or "abort"?
 Two variations of connect strings are currently defined:
 "builtin" and regular.
 
-(Note that it is possible to construct a single JSON object
+(Note that it is possible to construct a single TOML object
 that could be interpreted as both
 a built-in connect string and as a regular connect string.
 Such objects are invalid
@@ -233,10 +235,13 @@ and cause the search process to abort.)
 
 ### "Builtin" connect strings.
 
-A "builtin" connect string is a JSON object with these members.
-(Unrecognized members should be ignored.)
+A "builtin" connect string is a TOML object with a `[builtin]` section.
+(Unrecognized sections members should be ignored.)
+
+The `[builtin]` section contains a single member:
 
  - `builtin`: One of `"embedded"` or `"abort"`.
+   (Required)
 
 If the `builtin` field is `embedded`,
 then the Arti RPC client should try to launch an embedded Arti client,
@@ -250,12 +255,12 @@ and causes the entry to decline.
 
 ### Regular connect strings.
 
-A regular connect string is a JSON object with these members.
-(Unrecognized members should be ignored.)
+A regular connect string is a TOML object with a "connect" table.
+(Unrecognized sections and members should be ignored.)
 
-  - `connect`: a socket-connection object, described below.
+  - `connect`: a socket-connection section, described below.
 
-A socket-connection object is a JSON object with these members.
+A socket-connection section has members.
 (Unrecognized members should be ignored.)
 
  - `socket`: a string describing
@@ -270,7 +275,7 @@ A socket-connection object is a JSON object with these members.
    (Optional.
    Note that nobody actually binds or connects based on the value of this field.)
 
- - `auth`: a json value describing how to authenticate to the Arti RPC server.
+ - `auth`: a TOML value describing how to authenticate to the Arti RPC server.
    (Required.)
 
 
@@ -292,7 +297,7 @@ then the connection attempt is *declined*.
 
 
 Currently recognized `auth` memebers are in one of these forms:
-  - The JSON string `"none"`.
+  - The string `"none"`.
   - A TCP coookie authentication object.
 Each is explained below.
 If the `auth` member is in some other unsupported format,
@@ -337,10 +342,12 @@ cookie authentication is in use.
 > Cookie authentication is described more fully elsewhere.
 > (TODO RPC say where once all the documentation is merged.)
 
-The format is a JSON object, containing the fields:
-  - `cookie`: a JSON object, containing the field:
-    - `cookie_path`: A path to an absolute location on disk containing a
-      secret cookie.
+The format is a TOML table, containing:
+  - `cookie`: a TOML table, containing the field:
+    - `path`: A path to an absolute location on disk containing a
+     secret cookie.
+
+> See examples below.
 
 As a matter of policy we do not support cookie authentication
 for any socket address type other than:
@@ -385,7 +392,10 @@ Any such connect string is declined (as with the policy for `none` above).
 > and giving one end of the socketpair to the Arti process.
 >
 > A connect string for such a case could be something like
-> `{ "connect" : { "controlling-fd" : 732 } }`
+> ```toml
+> [connect]
+> controlling_fd = 732
+> ```
 >
 > (We might say "pre-established" instead of "connect", for strict accuracy.)
 
@@ -404,31 +414,32 @@ Any such connect string is declined (as with the policy for `none` above).
 
 Here are some examples of connect strings.
 
-```json
-{ "builtin": "abort" }
+```toml
+[builtin]
+builtin = "abort"
 ```
 
-```json
-{
-  "connect" : {
-      "socket" : "unix:/var/run/arti/rpc_socket",
-      "auth" : "none",
-  }
-}
+```toml
+[connect]
+socket = "unix:/var/run/arti/rpc_socket"
+auth = "none"
 ```
 
-```json
-{
-  "connect": {
-     "socket" : "inet:[::1]:9191",
-     "auth" : {
-        "cookie" : {
-           "cookie_path" : "/home/user/.arti_rpc/cookie",
-           "canonical_addr": "inet:[::1]:2020",
-        }
-     }
-  }
-}
+```toml
+[connect]
+socket = "inet:[::1]:9191"
+socket_canonical = "inet:[::1]:2020"
+
+auth = { "cookie" : { "path" : "/home/user/.arti_rpc/cookie" } }
+```
+
+```toml
+[connect]
+socket = "inet:[::1]:9191"
+socket_canonical = "inet:[::1]:2020"
+
+[connect.auth.cookie]
+path = "/home/user/.arti_rpc/cookie"
 ```
 
 ## RPC server behavior
@@ -454,16 +465,16 @@ enable = true   # (default)
 
 [rpc.listen."my-connect"]
 enable = true   # (default)
-file = "/home/arti-rpc/arti-rpc-connect.json"
+file = "/home/arti-rpc/arti-rpc-connect.toml"
 
 [rpc.listen."other"]
 enable = false
-file = "/etc/arti-rpc/arti-rpc-connect.json"
+file = "/etc/arti-rpc/arti-rpc-connect.toml"
 
 [rpc.listen."a-directory"]
 dir = "/home/arti-rpc/rpc-connect.d/"
 # Override configuration options on individual members
-override = { "experimental.json" : { "enable" : false } }
+override = { "experimental.toml" : { "enable" : false } }
 ```
 
 > These sections are given names so that the user
@@ -515,7 +526,7 @@ The RPC server behaves as follows.
 > in Arti's configuration.  Our documentation should recommend the use
 > of SYSTEM\_DEFAULT, or of storing a special connect string in
 > the system default location
-> (`/etc/arti-rpc/arti-rpc-connect.json` on Unix).
+> (`/etc/arti-rpc/connect.d/` on Unix).
 >
 > We might also provide a command-line option
 > to override _all_ relevant configuration defaults
