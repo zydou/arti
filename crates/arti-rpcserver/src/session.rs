@@ -78,31 +78,6 @@ impl RpcSession {
     }
 }
 
-/// A simple temporary method to echo a reply.
-#[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
-#[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "arti:x_echo"))]
-struct Echo {
-    /// A message to echo.
-    msg: String,
-}
-
-impl rpc::RpcMethod for Echo {
-    type Output = Echo;
-    type Update = rpc::NoUpdates;
-}
-
-/// Implementation for calling "echo" on a Session.
-///
-/// TODO RPC: Remove this. It shouldn't exist.
-async fn echo_on_session(
-    _obj: Arc<RpcSession>,
-    method: Box<Echo>,
-    _ctx: Arc<dyn rpc::Context>,
-) -> Result<Echo, rpc::RpcError> {
-    Ok(*method)
-}
-
 /// Return the default client for a session.
 ///
 /// Allocates a new ObjectID,
@@ -180,7 +155,6 @@ async fn session_resolve_ptr_with_prefs(
         .map_err(|e| Box::new(into_internal!("unable to delegate to TorClient")(e)) as _)?
 }
 static_rpc_invoke_fn! {
-    echo_on_session;
     get_client_on_session;
     isolated_client_on_session;
     @special session_connect_with_prefs;
