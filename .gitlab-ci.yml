@@ -64,15 +64,18 @@ shellcheck:
     - apk add git bash
     - ./maint/common/shellcheck-all
 
-python3-mypy:
+python3-checks:
   stage: check
-  variables:
-    MYPYPATH: maint
   script:
-    - maint/common/apt-install mypy
-    - mypy --strict maint/update-md-links
-    - mypy --strict maint/list_crates
-    - mypy --strict maint/cargo-check-publishable
+    - maint/common/apt-install python3-pip python3-venv mypy flake8 git
+    # AFAICT these python packages do not have debian packages.
+    #
+    # (`black` does have a debian package, but we need the latest version.)
+    - |
+      python3 -m venv lint
+      source lint/bin/activate
+      pip3 install marko tomli_w types-toml types-PyYAML types-beautifulsoup4 types-requests black flake8 mypy
+      ./maint/python-lints
 
 maint-checks:
   stage: check
