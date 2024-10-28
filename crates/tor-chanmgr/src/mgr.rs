@@ -10,7 +10,7 @@ use oneshot_fused_workaround as oneshot;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
-use tor_error::internal;
+use tor_error::{error_report, internal};
 use tor_linkspec::HasRelayIds;
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
@@ -257,23 +257,51 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
                 // We need to launch a channel.
                 Some(Action::Launch((handle, send))) => {
-                    let connector = self.channels.builder();
-                    let memquota = ChannelAccount::new(&self.memquota)?;
-
-                    // Use an IIFE (IAABE? — immediately awaited async block expression) here so
-                    // that the '?' doesn't return the error from the outer function, and 'outcome'
-                    // captures the 'Result' instead.
+                    // WARNING: do not drop the handle without calling
+                    // `upgrade_pending_channel_to_open` or `remove_pending_channel`. If you don't,
+                    // then the pending entry will remain in the channel map forever, and arti will
+                    // be unable to build new channels to the target relay of that pending channel.
+                    //
+                    // This code is ugly since it tries to use IIFE-inspired immediately awaited
+                    // async block expressions to prevent the code from returning early (for example
+                    // due to a `?` operator). When modifying this code, be careful to not add a
+                    // code path that returns early before properly passing `handle` back to
+                    // `MgrState` (see `PendingChannelHandle` for details).
                     let outcome = async {
-                        // Build the channel.
-                        let chan = connector
-                            .build_channel(&target, self.reporter.clone(), memquota)
-                            .await?;
+                        let chan_result = async {
+                            let connector = self.channels.builder();
+                            let memquota = ChannelAccount::new(&self.memquota)?;
 
-                        // Replace the pending channel with the newly built channel.
-                        self.channels
-                            .replace_pending_channel(handle, Arc::clone(&chan))?;
+                            connector
+                                .build_channel(&target, self.reporter.clone(), memquota)
+                                .await
+                        }
+                        .await;
 
-                        Ok(chan)
+                        match chan_result {
+                            Ok(ref chan) => {
+                                // Replace the pending channel with the newly built channel.
+                                self.channels
+                                    .upgrade_pending_channel_to_open(handle, Arc::clone(chan))?;
+                            }
+                            Err(_) => {
+                                // Remove the pending channel.
+                                if let Err(e) = self.channels.remove_pending_channel(handle) {
+                                    // Just log an error if we're unable to remove it, since there's
+                                    // nothing else we can do here, and returning the error would
+                                    // hide the actual error that we care about (the channel build
+                                    // failure). Panic in debug builds so that we catch this error
+                                    // sooner.
+                                    #[allow(clippy::missing_docs_in_private_items)]
+                                    const MSG: &str = "Unable to remove the pending channel";
+                                    error_report!(internal!("{e}"), "{}", MSG);
+                                    #[cfg(debug_assertions)]
+                                    panic!("{MSG}: {e}");
+                                }
+                            }
+                        }
+
+                        chan_result
                     }
                     .await;
 
@@ -308,7 +336,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         &self,
         target: &CF::BuildSpec,
         final_attempt: bool,
-    ) -> Result<Option<Action<CF>>> {
+    ) -> Result<Option<Action<CF::Channel>>> {
         // don't create new channels on the final attempt
         let response = self.channels.request_channel(
             target,
@@ -326,6 +354,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
             }
             Ok(Some(ChannelForTarget::NewEntry((handle, send)))) => {
+                // do not drop the handle if refactoring; see `PendingChannelHandle` for details
                 Ok(Some(Action::Launch((handle, send))))
             }
             Ok(None) => Ok(None),
@@ -397,15 +426,15 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
 
 /// Possible actions that we'll decide to take when asked for a channel.
 #[allow(clippy::large_enum_variant)]
-enum Action<'a, CF: AbstractChannelFactory> {
+enum Action<C: AbstractChannel> {
     /// We found no channel.  We're going to launch a new one,
     /// then tell everybody about it.
-    Launch((PendingChannelHandle<'a, CF>, Sending)),
+    Launch((PendingChannelHandle, Sending)),
     /// We found an in-progress attempt at making a channel.
     /// We're going to wait for it to finish.
     Wait(Pending),
     /// We found a usable channel.  We're going to return it.
-    Return(Result<Arc<CF::Channel>>),
+    Return(Result<Arc<C>>),
 }
 
 #[cfg(test)]
