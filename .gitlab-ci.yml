@@ -450,8 +450,9 @@ build-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    # This commit has not-yet-released support for running scripts directly.
-    JOB_SHADOW_COMMIT: "66bffbe041f6818a8d2fb94ae3ade69924197d92"
+    # This commit has not-yet-released support for running scripts directly and
+    # for improved logging in the CI.
+    JOB_SHADOW_COMMIT: "4a1d8ac8d83266be2afa1f0c34fdc8a486688031"
   artifacts:
     paths:
       - opt/shadow
