@@ -85,8 +85,9 @@ Each entry in the search path must be one of the following:
     to a directory containing one or more connect files.
 
 When reading a directory,
-an implementation ignores all hidden files,
-and all files that do not have the correct extension (`.toml`).
+an implementation ignores
+all files that do not have the correct extension (`.toml`).
+On Unix-like systems, it also ignores all filenames beginning with `.`.
 It considers the files within a directory
 in lexicographical order, by filename.
 
