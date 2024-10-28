@@ -236,14 +236,14 @@ a built-in connect point and as a regular connect point.
 Such objects are invalid
 and cause the search process to abort.)
 
-Unrecognized TOML sections and members in a connect point
+Unrecognized TOML tables and members in a connect point
 must be ignored.
 
 ### "Builtin" connect points.
 
-A "builtin" connect point is a TOML object with a `[builtin]` section.
+A "builtin" connect point is a TOML object with a `[builtin]` table.
 
-The `[builtin]` section contains a single member:
+The `[builtin]` table contains a single member:
 
  - `builtin`: One of `"embedded"` or `"abort"`.
    (Required)
@@ -262,9 +262,9 @@ and causes the entry to decline.
 
 A regular connect point is a TOML object with a "connect" table.
 
-  - `connect`: a socket-connection section, described below.
+  - `connect`: a socket-connection table, described below.
 
-A socket-connection section has members.
+A socket-connection table has the following members.
 (Unrecognized members should be ignored.)
 
  - `socket`: a string describing
