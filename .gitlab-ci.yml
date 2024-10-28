@@ -497,6 +497,10 @@ integration-chutney:
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
+    # TODO: install chutney and its dependencies here?
+    # `integration-e2e` is currently responsible for installing chutney.  I'm
+    # not sure we want to extend it to `pip install` its dependencies though,
+    # since this may be (more) surprising to users trying to run it locally.
     - tests/chutney/integration-e2e
   artifacts:
     paths:
@@ -519,6 +523,7 @@ integration-chutney-shadow:
         dnsutils
         stow
         python3-yaml
+        python3-pip
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
@@ -526,6 +531,9 @@ integration-chutney-shadow:
     # install chutney to prevent the test scripts from trying to install
     # it from inside the shadow simulation, which won't work.
     - git clone https://gitlab.torproject.org/tpo/core/chutney
+    # install chutney's deps by installing chutney.
+    # TODO: use a virtualenv instead.
+    - python3 -m pip install --break-system-packages ./chutney
     - export CHUTNEY_PATH="$(pwd)/chutney"
 
     # Set up shadow, built in build-shadow
