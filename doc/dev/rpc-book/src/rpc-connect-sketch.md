@@ -140,11 +140,16 @@ we use colon-separated paths on Unix,
 and semicolon-separated paths on Windows.
 
 When including a literal connect point _in an environment variable_,
-we must URL-encoding.
-Additional particular we require:
- - The first character of the unencoded literal connect point *must* be `[`.
-   (Thus, the first character of the encoded string must be `[` or `%`,
-   which is never the first character of a valid absolute path.)
+it is percent-encoded as per RFC 3986 s2.1.
+(The percent encoding is of UTF-8, even if the operating system's character set is not.)
+Percent-encoding must be applied to, at least:
+the path delimiter;
+everything other than ASCII graphic characters;
+the first character, unless that character is `[`.
+
+Thus we are able to guarantee:
+ - The first character of the encoded string must be `[` or `%`,
+   which is never the first character of a valid absolute path.
  - All path-separating characters (`;` on windows, `:` elsewhere)
    *must* be escaped when URL-encoding.
    (RPC client implementations *must* operate by first splitting the
