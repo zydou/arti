@@ -79,12 +79,6 @@ pub enum CfgPathError {
     /// We couldn't find our current binary path.
     #[error("Can't find the path to the current binary")]
     NoProgramPath,
-    /// We couldn't convert a variable to UTF-8.
-    ///
-    /// (This is due to a limitation in the shellexpand crate, which should
-    /// be fixed in the future.)
-    #[error("Can't convert value of {0} to UTF-8 in path")]
-    BadUtf8(String),
     /// We couldn't convert a string to a valid path on the OS.
     #[error("Invalid path string: {0:?}")]
     InvalidString(String),
@@ -106,15 +100,6 @@ impl HasKind for CfgPathError {
             E::NoProgramPath => EK::InvalidConfig,
             E::VariableInterpolationNotSupported(_) | E::HomeDirInterpolationNotSupported(_) => {
                 EK::FeatureDisabled
-            }
-            E::BadUtf8(_) => {
-                // Arguably, this should be a new "unsupported config"  type,
-                // since it isn't truly "invalid" to have a string with bad UTF8
-                // when it's going to be used as a filename.
-                //
-                // With luck, however, this error will cease to exist when shellexpand
-                // improves its character-set handling.
-                EK::InvalidConfig
             }
         }
     }
@@ -169,10 +154,9 @@ impl CfgPath {
 /// Helper: expand a directory given as a string.
 #[cfg(feature = "expand-paths")]
 fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
-    Ok(shellexpand::full_with_context(s, get_home, get_env)
+    Ok(shellexpand::path::full_with_context(s, get_home, get_env)
         .map_err(|e| e.cause)?
-        .into_owned()
-        .into())
+        .into_owned())
 }
 
 /// Helper: convert a string to a path without expansion.
@@ -203,52 +187,28 @@ fn expand(input: &str) -> Result<PathBuf, CfgPathError> {
 
 /// Shellexpand helper: return the user's home directory if we can.
 #[cfg(feature = "expand-paths")]
-fn get_home() -> Option<&'static str> {
-    base_dirs()
-        .ok()
-        .map(BaseDirs::home_dir)
-        // If user's home directory contains invalid unicode, fail to substitute it.
-        // This isn't great, but the alternative is to do *everything* with Path rather
-        // than String and that's a total pain.
-        .and_then(Path::to_str)
+fn get_home() -> Option<&'static Path> {
+    base_dirs().ok().map(BaseDirs::home_dir)
 }
 
 /// Shellexpand helper: return the directory holding the currently executing program.
 #[cfg(feature = "expand-paths")]
-fn get_program_dir() -> Result<Option<String>, CfgPathError> {
+fn get_program_dir() -> Result<Option<PathBuf>, CfgPathError> {
     let binary = std::env::current_exe().map_err(|_| CfgPathError::NoProgramPath)?;
-    binary
-        .parent()
-        .map(|parent| {
-            parent
-                .to_str()
-                .map(str::to_owned)
-                .ok_or_else(|| CfgPathError::BadUtf8("PROGRAM_DIR".to_owned()))
-        })
-        .transpose()
+    Ok(binary.parent().map(ToOwned::to_owned))
 }
 
 /// Shellexpand helper: Expand a shell variable if we can.
 #[cfg(feature = "expand-paths")]
-fn get_env(var: &str) -> Result<Option<Cow<'static, str>>, CfgPathError> {
-    let path = match var {
-        "ARTI_CACHE" => project_dirs()?.cache_dir(),
-        "ARTI_CONFIG" => project_dirs()?.config_dir(),
-        "ARTI_SHARED_DATA" => project_dirs()?.data_dir(),
-        "ARTI_LOCAL_DATA" => project_dirs()?.data_local_dir(),
-        "PROGRAM_DIR" => return Ok(get_program_dir()?.map(Cow::from)),
-        "USER_HOME" => base_dirs()?.home_dir(),
-        _ => return Err(CfgPathError::UnknownVar(var.to_owned())),
-    };
-
-    match path.to_str() {
-        // Note that we never return Ok(None) -- an absent variable is
-        // always an error.
-        Some(s) => Ok(Some(s.into())),
-        // Note that this error is necessary because shellexpand
-        // doesn't currently handle OsStr.  In the future, that might
-        // change.
-        None => Err(CfgPathError::BadUtf8(var.to_owned())),
+fn get_env(var: &str) -> Result<Option<Cow<'static, Path>>, CfgPathError> {
+    match var {
+        "ARTI_CACHE" => Ok(Some(Cow::Borrowed(project_dirs()?.cache_dir()))),
+        "ARTI_CONFIG" => Ok(Some(Cow::Borrowed(project_dirs()?.config_dir()))),
+        "ARTI_SHARED_DATA" => Ok(Some(Cow::Borrowed(project_dirs()?.data_dir()))),
+        "ARTI_LOCAL_DATA" => Ok(Some(Cow::Borrowed(project_dirs()?.data_local_dir()))),
+        "PROGRAM_DIR" => Ok(get_program_dir()?.map(Cow::Owned)),
+        "USER_HOME" => Ok(Some(Cow::Borrowed(base_dirs()?.home_dir()))),
+        _ => Err(CfgPathError::UnknownVar(var.to_owned())),
     }
 }
 
@@ -515,11 +475,7 @@ mod test_serde {
         let mut this_binary = std::env::current_exe().unwrap();
         this_binary.pop();
         this_binary.push("foo");
-        let expanded = match p.path() {
-            Err(CfgPathError::BadUtf8(_)) => return, // Can't test this. :(
-            other => other,
-        }
-        .unwrap();
+        let expanded = p.path().unwrap();
         assert_eq!(expanded, this_binary);
     }
 
