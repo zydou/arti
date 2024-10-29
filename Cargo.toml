@@ -21,6 +21,7 @@ members = [
     "crates/safelog",
     "crates/retry-error",
     "crates/tor-error",
+    "crates/tor-general-addr",
     "crates/tor-events",
     "crates/tor-geoip",
     "crates/tor-rtcompat",

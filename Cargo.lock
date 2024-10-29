@@ -5397,6 +5397,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-general-addr"
+version = "0.23.0"
+dependencies = [
+ "arbitrary",
+ "assert_matches",
+ "derive_more",
+ "thiserror",
+ "void",
+]
+
+[[package]]
 name = "tor-geoip"
 version = "0.23.0"
 dependencies = [
@@ -6068,6 +6079,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tor-error",
+ "tor-general-addr",
  "tracing",
  "void",
  "x509-signature",
