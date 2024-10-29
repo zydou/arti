@@ -58,6 +58,7 @@ ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
 tor-config = { path = "../tor-config", version = "0.24.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.24.0" }
 tor-error = { path = "../tor-error", version = "0.24.0", features = ["tracing"] }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.24.0" }
 tor-key-forge = { path = "../tor-key-forge", version = "0.24.0" }

@@ -76,6 +76,7 @@
 use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
+use tor_config_path::CfgPath;
 use tor_netdir::{DirEvent, NetDir};
 
 use crate::config::restricted_discovery::{
@@ -1809,7 +1810,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 }
 
 /// Try to expand a path, logging a warning on failure.
-fn maybe_expand_path(p: &tor_config::CfgPath) -> Option<PathBuf> {
+fn maybe_expand_path(p: &CfgPath) -> Option<PathBuf> {
     // map_err returns unit for clarity
     #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
     p.path()

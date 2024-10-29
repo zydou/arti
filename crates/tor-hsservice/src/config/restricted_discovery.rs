@@ -410,7 +410,7 @@ mod test {
 
     use tor_basic_utils::test_rng::Config;
     use tor_config::assert_config_error;
-    use tor_config::CfgPath;
+    use tor_config_path::CfgPath;
     use tor_hscrypto::pk::HsClientDescEncKeypair;
 
     /// A helper for creating a test (`HsClientNickname`, `HsClientDescEncKey`) pair.

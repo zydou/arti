@@ -12,7 +12,8 @@ use derive_more::AsRef;
 use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
-use tor_config::{impl_standard_builder, mistrust::BuilderExt, CfgPath, ConfigBuildError};
+use tor_config::{impl_standard_builder, mistrust::BuilderExt, ConfigBuildError};
+use tor_config_path::CfgPath;
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
 /// A configuration used by a TorRelay.

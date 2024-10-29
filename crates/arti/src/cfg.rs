@@ -17,9 +17,9 @@ use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]
 use tor_config::define_list_builder_accessors;
 use tor_config::resolve_alternative_specs;
-#[cfg(feature = "rpc")]
-use tor_config::CfgPath;
 pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
+#[cfg(feature = "rpc")]
+use tor_config_path::CfgPath;
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
@@ -1173,7 +1173,7 @@ example config file {which:?}, uncommented={uncommented:?}
         #[cfg(feature = "pt-client")]
         {
             use arti_client::config::{pt::TransportConfig, BridgesConfig};
-            use tor_config::CfgPath;
+            use tor_config_path::CfgPath;
 
             let bridges_got: &BridgesConfig = cfg_got.0.as_ref();
 
@@ -1504,7 +1504,7 @@ example config file {which:?}, uncommented={uncommented:?}
 
     #[test]
     fn builder() {
-        use tor_config::CfgPath;
+        use tor_config_path::CfgPath;
         let sec = std::time::Duration::from_secs(1);
 
         let auth = dir::Authority::builder()
