@@ -41,6 +41,7 @@
 #   Replace the relevant part of the file with the normalised collection
 #   (possibly *adding* the collection)
 
+from __future__ import annotations
 import argparse
 import collections
 import filecmp
@@ -121,7 +122,7 @@ def trouble(m: str) -> None:
     troubles += 1
 
 
-CheckableSubprocess = Union[subprocess.CompletedProcess[Any], subprocess.Popen]
+CheckableSubprocess = Union[subprocess.CompletedProcess[Any], subprocess.Popen[str]]
 
 
 def check_returncode(process: CheckableSubprocess) -> None:

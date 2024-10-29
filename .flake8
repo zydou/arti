@@ -1,0 +1,13 @@
+[flake8]
+
+# This is larger than the default from black.
+#
+# We let black wrap our code to its default width of 88, but
+# we allow comments and strings (which black doesn't touch)
+# to be this wide.
+max-line-length = 99
+
+extend-ignore =
+    # Whitespace before colon in `a[x + 1 :]`
+    # (We allow this for clarity, and so does black.)
+    E203
