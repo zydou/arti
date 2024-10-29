@@ -23,7 +23,7 @@ mod ie_backtrace {
 
     impl Display for Captured {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            Debug::fmt(&self.0, f)
+            Display::fmt(&self.0, f)
         }
     }
 }
