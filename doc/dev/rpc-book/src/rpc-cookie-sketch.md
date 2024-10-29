@@ -35,13 +35,13 @@ and determines the value of `cookie`.
 > untrusted user.  This is out-of-scope for this document.
 
 The RPC client treats failures to read a cookie file
-the same as a failure to read a connect string.
+the same as a failure to read a connect file.
 
 > To recap those rules:
 >
 > If the client cannot read the cookie file because of `EACCESS` or `ENOENT`
 > or local equivalent,
-> then the client *declines* the connect string entry.
+> then the client *declines* the connect point.
 > If the client fails to read the cookie file for some other reason,
 > then the client *aborts* its connection to RPC.
 
@@ -59,14 +59,14 @@ Strings are represented in UTF-8 without a trailing NUL byte.
 ## The protocol
 
 At the start of the process,
-the client knows this value from the connect string:
+the client knows this value from the connect point:
   - `socket`: The address at which to connect to the server.
 
 At the start of the process,
-the client and server additionally know this value from the connect string:
+the client and server additionally know this value from the connect point:
   - `socket_canonical`:
      The address at which the server is actually listening.
-     If absent, defaults to the value of `socket` from the connect string.
+     If absent, defaults to the value of `socket` from the connect point.
 
 > Note that this protocol will only succeed
 > if the value of `socket_canonical` seen by the client
@@ -102,8 +102,8 @@ The client and server know this value from the cookie file:
 
 ## In Arti-RPC.
 
-This protocol is selected from an RPC connect string as discussed
-in `rpc-connect-sketch.md` (see !2439 if it isn't merged yet.)
+This protocol is selected from an RPC connect point as discussed
+in `rpc-connect-sketch.md`.
 
 The client's message in step 2 is sent by invoking the `auth:cookie_begin` method,
 implemented on the connection object.
