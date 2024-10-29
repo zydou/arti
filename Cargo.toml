@@ -26,6 +26,7 @@ members = [
     "crates/tor-rtcompat",
     "crates/tor-rtmock",
     "crates/tor-async-utils",
+    "crates/tor-config-path",
     "crates/tor-config",
     "crates/tor-log-ratelim",
     "crates/tor-rpcbase",

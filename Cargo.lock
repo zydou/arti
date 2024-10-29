@@ -5250,6 +5250,7 @@ dependencies = [
  "thiserror",
  "toml",
  "tor-basic-utils",
+ "tor-config-path",
  "tor-error",
  "tor-rtcompat",
  "tor-rtmock",
@@ -5257,6 +5258,10 @@ dependencies = [
  "tracing-test",
  "void",
 ]
+
+[[package]]
+name = "tor-config-path"
+version = "0.23.0"
 
 [[package]]
 name = "tor-congestion"

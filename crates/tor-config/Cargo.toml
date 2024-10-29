@@ -55,6 +55,7 @@ strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
 toml = "0.8.8"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.23.0" }
 tor-error = { path = "../tor-error", version = "0.23.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.23.0" }
 tracing = "0.1.36"
