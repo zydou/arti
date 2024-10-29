@@ -6,6 +6,11 @@
 #[cfg(not(unix))]
 use std::path::Path;
 
+/// A replacement/re-export [`std::os::unix::net::SocketAddr`].
+///
+/// On Unix platforms, this is just a re-export of [`std::os::unix::net::SocketAddr`].
+///
+/// On non-Unix platforms, this type is an uninhabited placeholder that can never be instantiated.
 #[cfg(unix)]
 pub use std::os::unix::net::SocketAddr;
 
