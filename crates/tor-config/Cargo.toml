@@ -12,9 +12,9 @@ categories = ["config"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = ["expand-paths"]
+default = []
 
-full = ["expand-paths", "fs-mistrust/full", "tor-basic-utils/full", "tor-error/full", "tor-rtcompat/full", "tor-config-path/full"]
+full = ["fs-mistrust/full", "tor-basic-utils/full", "tor-error/full", "tor-rtcompat/full", "tor-config-path/full"]
 
 experimental = ["testing", "experimental-api"]
 # Enable experimental APIs that are not yet officially supported.
@@ -22,7 +22,6 @@ experimental = ["testing", "experimental-api"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental-api = ["__is_experimental"]
-expand-paths = ["shellexpand", "directories"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
