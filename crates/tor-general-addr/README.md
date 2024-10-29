@@ -9,7 +9,7 @@ of [`std::net::SocketAddr`] and [`std::os::unix::net::SocketAddr`]
 for cases where an application to needs to bind or connect 
 to both of them interchangeably.
 
-It also provides a stub, uninhabited version of 
+It also provides a stub, uninhabited version of
 [`std::os::unix::net::SocketAddr`] for platforms that lack it.
 
 ----
