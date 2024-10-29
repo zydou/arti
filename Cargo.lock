@@ -6107,6 +6107,7 @@ dependencies = [
  "thiserror",
  "tor-basic-utils",
  "tor-error",
+ "tor-general-addr",
  "tor-rtcompat",
  "tracing",
  "tracing-test",

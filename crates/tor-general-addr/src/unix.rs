@@ -54,17 +54,3 @@ impl From<NoUnixAddressSupport> for std::io::Error {
         std::io::Error::new(std::io::ErrorKind::Unsupported, value)
     }
 }
-
-/// Error: Tried to perform an operation on an unsupported kind of unix address.
-///
-/// (For example, you can't bind or connect to an unnamed address.)
-#[derive(Clone, Debug, Default, thiserror::Error)]
-#[error("Operation not supported on this kind of AF_UNIX address")]
-#[non_exhaustive]
-pub struct UnsupportedUnixAddressType;
-
-impl From<UnsupportedUnixAddressType> for std::io::Error {
-    fn from(value: UnsupportedUnixAddressType) -> Self {
-        std::io::Error::new(std::io::ErrorKind::Unsupported, value)
-    }
-}

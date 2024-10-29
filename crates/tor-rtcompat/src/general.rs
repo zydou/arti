@@ -1,16 +1,16 @@
 //! Support for streams and listeners on `general::SocketAddr`.
 
-use crate::unix;
 use async_trait::async_trait;
 use futures::{stream, AsyncRead, AsyncWrite, StreamExt as _};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
 use std::net;
 use std::task::Poll;
 use std::{pin::Pin, task::Context};
+use tor_general_addr::unix;
 
 use crate::{NetStreamListener, NetStreamProvider};
 
-// XXXX Remove this re-export.
+// XXXX TODO: See if we want to remove this re-export.
 pub use tor_general_addr::general::*;
 
 /// Helper trait to allow us to create a type-erased stream.

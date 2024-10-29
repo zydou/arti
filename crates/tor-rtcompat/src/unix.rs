@@ -1,14 +1,13 @@
 //! Functionality for working with Unix addresses.
 
-// XXXX TODO: See if we want to remove this re-export.
-pub use tor_general_addr::unix::*;
+use tor_general_addr::unix;
 
 /// Helper: construct an unnamed SocketAddr.
 #[cfg(unix)]
-pub(crate) fn new_unnamed_socketaddr() -> std::io::Result<SocketAddr> {
+pub(crate) fn new_unnamed_socketaddr() -> std::io::Result<unix::SocketAddr> {
     // There SHOULD be a better way to do this in legitimate Rust!
     // But sadly, there isn't.
-    SocketAddr::from_pathname("")
+    unix::SocketAddr::from_pathname("")
 }
 
 /// Error: Tried to perform an operation on an unsupported kind of unix address.
@@ -36,7 +35,7 @@ mod test {
         assert!(u.is_unnamed());
         assert!(u.as_pathname().is_none());
 
-        let n = SocketAddr::from_pathname("/home/arachnidsGrip/.arti/SOCKET")
+        let n = unix::SocketAddr::from_pathname("/home/arachnidsGrip/.arti/SOCKET")
             .expect("Couldn't construct named socketaddr");
         assert!(!n.is_unnamed());
     }

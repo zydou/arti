@@ -1,5 +1,4 @@
 //! Declarations for traits that we need our runtimes to implement.
-use crate::unix;
 use async_trait::async_trait;
 use futures::stream;
 use futures::task::Spawn;
@@ -8,6 +7,7 @@ use std::fmt::Debug;
 use std::io::Result as IoResult;
 use std::net;
 use std::time::{Duration, Instant, SystemTime};
+use tor_general_addr::unix;
 
 /// A runtime that we can use to run Tor as a client.
 ///
