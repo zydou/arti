@@ -90,7 +90,9 @@ impl GlobalId {
     pub(crate) fn encode(&self, key: &MacKey) -> ObjectId {
         use base64ct::{Base64Unpadded as B64, Encoding};
         let bytes = self.encode_as_bytes(key, &mut rand::rng());
-        B64::encode_string(&bytes[..]).into()
+        let mut b64: String = "G".into();
+        b64.push_str(&B64::encode_string(&bytes[..]));
+        b64.into()
     }
 
     /// As `encode`, but do not base64-encode the result.
@@ -111,7 +113,7 @@ impl GlobalId {
     pub(crate) fn try_decode(key: &MacKey, s: &ObjectId) -> Result<Self, LookupError> {
         use base64ct::{Base64Unpadded as B64, Encoding};
         let mut bytes = [0_u8; Self::ENCODED_LEN];
-        let byte_slice = B64::decode(s.as_ref(), &mut bytes[..])
+        let byte_slice = B64::decode(&s.as_ref()[1..], &mut bytes[..])
             .map_err(|_| LookupError::NoObject(s.clone()))?;
         Self::try_decode_from_bytes(key, byte_slice).ok_or_else(|| LookupError::NoObject(s.clone()))
     }
@@ -162,7 +164,7 @@ mod test {
 
     use super::*;
 
-    const B64_ENCODED_LEN: usize = (GlobalId::ENCODED_LEN * 8).div_ceil(6);
+    const B64_ENCODED_LEN: usize = (GlobalId::ENCODED_LEN * 8).div_ceil(6) + 1;
 
     #[test]
     fn roundtrip() {

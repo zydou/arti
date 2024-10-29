@@ -174,9 +174,9 @@ impl Connection {
         if *id
             .as_ref()
             .as_bytes()
-            .last()
+            .first()
             .expect("can't reference global ID")
-            == b'='
+            == b'G'
         {
             // This is the right length to be a GlobalId; let's see if it really
             // is one.
