@@ -51,7 +51,6 @@ pub mod load;
 mod misc;
 pub mod mistrust;
 mod mut_cfg;
-mod path;
 pub mod sources;
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -75,8 +74,8 @@ pub use listen::*;
 pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
 pub use misc::*;
 pub use mut_cfg::MutCfg;
-pub use path::{CfgPath, CfgPathError};
 pub use sources::{ConfigurationSource, ConfigurationSources};
+pub use tor_config_path::{CfgPath, CfgPathError};
 
 use itertools::Itertools;
 
