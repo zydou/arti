@@ -5250,12 +5250,29 @@ dependencies = [
  "thiserror",
  "toml",
  "tor-basic-utils",
+ "tor-config-path",
  "tor-error",
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
  "tracing-test",
  "void",
+]
+
+[[package]]
+name = "tor-config-path"
+version = "0.23.0"
+dependencies = [
+ "directories",
+ "dirs",
+ "once_cell",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "thiserror",
+ "toml",
+ "tor-error",
 ]
 
 [[package]]
