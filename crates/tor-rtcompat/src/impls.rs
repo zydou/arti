@@ -20,15 +20,15 @@ macro_rules! impl_unix_non_provider {
     { $for_type:ty } => {
 
         #[async_trait]
-        impl crate::traits::NetStreamProvider<crate::unix::SocketAddr> for $for_type {
+        impl crate::traits::NetStreamProvider<tor_general_addr::unix::SocketAddr> for $for_type {
             type Stream = crate::unimpl::FakeStream;
-            type Listener = crate::unimpl::FakeListener<crate::unix::SocketAddr>;
-            async fn connect(&self, _a: &crate::unix::SocketAddr) -> IoResult<Self::Stream> {
-                Err(crate::unix::NoUnixAddressSupport.into())
+            type Listener = crate::unimpl::FakeListener<tor_general_addr::unix::SocketAddr>;
+            async fn connect(&self, _a: &tor_general_addr::unix::SocketAddr) -> IoResult<Self::Stream> {
+                Err(tor_general_addr::unix::NoUnixAddressSupport::default().into())
 
             }
-            async fn listen(&self, _a: &crate::unix::SocketAddr) -> IoResult<Self::Listener> {
-                Err(crate::unix::NoUnixAddressSupport.into())
+            async fn listen(&self, _a: &tor_general_addr::unix::SocketAddr) -> IoResult<Self::Listener> {
+                Err(tor_general_addr::unix::NoUnixAddressSupport::default().into())
             }
         }
     }
