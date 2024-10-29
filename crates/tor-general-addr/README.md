@@ -6,7 +6,7 @@ Generalized address type used within Arti
 
 This crate provides a generalization 
 of [`std::net::SocketAddr`] and [`std::os::unix::net::SocketAddr`]
-for cases where an application to needs to bind or connect 
+for cases where an application to needs to bind or connect
 to both of them interchangeably.
 
 It also provides a stub, uninhabited version of
