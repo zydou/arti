@@ -171,6 +171,8 @@ impl Connection {
     /// If possible, convert an `ObjectId` into a `GenIdx` that can be used in
     /// this connection's ObjMap.
     fn id_into_local_idx(&self, id: &rpc::ObjectId) -> Result<GenIdx, rpc::LookupError> {
+        // For the global IDs, we use a tag byte prefix of `G`. This is
+        // followed by a base64 string.
         if *id
             .as_ref()
             .as_bytes()
@@ -178,9 +180,6 @@ impl Connection {
             .expect("can't reference global ID")
             == b'G'
         {
-            // This is the right length to be a GlobalId; let's see if it really
-            // is one.
-            //
             // Design note: It's not really necessary from a security POV to
             // check the MAC here; any possible GenIdx we return will either
             // refer to some object we're allowed to name in this session, or to
