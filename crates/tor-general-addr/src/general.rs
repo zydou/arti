@@ -1,7 +1,6 @@
 //! Support for generalized addresses.
 //!
 //! We use the [`SocketAddr`] type in this module,
-//! and its associated [`Stream`] and [`Listener`] types,
 //! when we want write code
 //! that can treat AF_UNIX addresses and internet addresses as a single type.
 //!
