@@ -5257,6 +5257,7 @@ name = "tor-config-path"
 version = "0.24.0"
 dependencies = [
  "assert_matches",
+ "derive_builder_fork_arti",
  "directories",
  "dirs",
  "once_cell",
@@ -5266,6 +5267,7 @@ dependencies = [
  "shellexpand",
  "thiserror",
  "toml",
+ "tor-config",
  "tor-error",
  "tor-general-addr",
 ]
