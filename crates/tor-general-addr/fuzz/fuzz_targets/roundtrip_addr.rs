@@ -1,7 +1,6 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use std::str::FromStr;
-use tor_rtcompat::general;
+use tor_general_addr::general;
 
 fuzz_target!(|addr: general::SocketAddr| {
     // There is no encoding for flowinfo, so we have to clear it.

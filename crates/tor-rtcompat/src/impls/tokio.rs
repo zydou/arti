@@ -7,6 +7,7 @@
 pub(crate) mod net {
     use crate::traits;
     use async_trait::async_trait;
+    use tor_general_addr::unix;
 
     pub(crate) use tokio_crate::net::{
         TcpListener as TokioTcpListener, TcpStream as TokioTcpStream, UdpSocket as TokioUdpSocket,
@@ -122,11 +123,11 @@ pub(crate) mod net {
     #[allow(clippy::needless_pass_by_value)]
     fn try_cvt_tokio_unix_addr(
         addr: tokio_crate::net::unix::SocketAddr,
-    ) -> IoResult<crate::unix::SocketAddr> {
+    ) -> IoResult<unix::SocketAddr> {
         if addr.is_unnamed() {
             crate::unix::new_unnamed_socketaddr()
         } else if let Some(p) = addr.as_pathname() {
-            crate::unix::SocketAddr::from_pathname(p)
+            unix::SocketAddr::from_pathname(p)
         } else {
             Err(crate::unix::UnsupportedUnixAddressType.into())
         }
@@ -140,7 +141,7 @@ pub(crate) mod net {
 
     stream_impl! { Tcp, std::net::SocketAddr, identity_fn_socketaddr }
     #[cfg(unix)]
-    stream_impl! { Unix, crate::unix::SocketAddr, try_cvt_tokio_unix_addr }
+    stream_impl! { Unix, unix::SocketAddr, try_cvt_tokio_unix_addr }
 
     /// Wrap a Tokio UdpSocket
     pub struct UdpSocket {
@@ -180,6 +181,7 @@ use async_trait::async_trait;
 use futures::Future;
 use std::io::Result as IoResult;
 use std::time::Duration;
+use tor_general_addr::unix;
 
 impl SleepProvider for TokioRuntimeHandle {
     type SleepFuture = tokio_crate::time::Sleep;
@@ -205,18 +207,18 @@ impl crate::traits::NetStreamProvider for TokioRuntimeHandle {
 
 #[cfg(unix)]
 #[async_trait]
-impl crate::traits::NetStreamProvider<crate::unix::SocketAddr> for TokioRuntimeHandle {
+impl crate::traits::NetStreamProvider<unix::SocketAddr> for TokioRuntimeHandle {
     type Stream = net::UnixStream;
     type Listener = net::UnixListener;
 
-    async fn connect(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Stream> {
+    async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
         let path = addr
             .as_pathname()
             .ok_or(crate::unix::UnsupportedUnixAddressType)?;
         let s = net::TokioUnixStream::connect(path).await?;
         Ok(s.into())
     }
-    async fn listen(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Listener> {
+    async fn listen(&self, addr: &unix::SocketAddr) -> IoResult<Self::Listener> {
         let path = addr
             .as_pathname()
             .ok_or(crate::unix::UnsupportedUnixAddressType)?;

@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 
-[dependencies.tor-rtcompat]
+[dependencies.tor-general-addr]
 path = ".."
 features = ["arbitrary"]
 

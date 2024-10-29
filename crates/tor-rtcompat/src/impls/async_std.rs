@@ -20,6 +20,7 @@ mod net {
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
+    use tor_general_addr::unix;
 
     /// Implement NetStreamProvider-related functionality for a single address type.
     macro_rules! impl_stream {
@@ -104,7 +105,7 @@ mod net {
 
     impl_stream! { Tcp, std::net::SocketAddr }
     #[cfg(unix)]
-    impl_stream! { Unix, crate::unix::SocketAddr}
+    impl_stream! { Unix, unix::SocketAddr}
 
     #[async_trait]
     impl traits::NetStreamProvider<std::net::SocketAddr> for async_executors::AsyncStd {
@@ -120,16 +121,16 @@ mod net {
 
     #[cfg(unix)]
     #[async_trait]
-    impl traits::NetStreamProvider<crate::unix::SocketAddr> for async_executors::AsyncStd {
+    impl traits::NetStreamProvider<unix::SocketAddr> for async_executors::AsyncStd {
         type Stream = UnixStream;
         type Listener = UnixListener;
-        async fn connect(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Stream> {
+        async fn connect(&self, addr: &unix::SocketAddr) -> IoResult<Self::Stream> {
             let path = addr
                 .as_pathname()
                 .ok_or(crate::unix::UnsupportedUnixAddressType)?;
             UnixStream::connect(path).await
         }
-        async fn listen(&self, addr: &crate::unix::SocketAddr) -> IoResult<Self::Listener> {
+        async fn listen(&self, addr: &unix::SocketAddr) -> IoResult<Self::Listener> {
             let path = addr
                 .as_pathname()
                 .ok_or(crate::unix::UnsupportedUnixAddressType)?;

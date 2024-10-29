@@ -38,7 +38,7 @@ additional_provided["tor-rtcompat"] = [
 ]
 # "unix::SocketAddr" is present unconditionally,
 # though it has different definitions.
-additional_provided["tor-rtcompat"] += [
+additional_provided["tor-general-addr"] = [
     ("SocketAddr", "unix"),
 ]
 
