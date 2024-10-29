@@ -9,9 +9,7 @@ use std::{pin::Pin, task::Context};
 use tor_general_addr::unix;
 
 use crate::{NetStreamListener, NetStreamProvider};
-
-// XXXX TODO: See if we want to remove this re-export.
-pub use tor_general_addr::general::*;
+use tor_general_addr::general;
 
 /// Helper trait to allow us to create a type-erased stream.
 ///
@@ -49,13 +47,13 @@ impl AsyncWrite for Stream {
 }
 
 /// The type of the result from an [`IncomingStreams`].
-type StreamItem = IoResult<(Stream, SocketAddr)>;
+type StreamItem = IoResult<(Stream, general::SocketAddr)>;
 
 /// A stream of incoming connections on a [`general::Listener`](Listener).
 pub struct IncomingStreams(Pin<Box<dyn stream::Stream<Item = StreamItem> + Send + Sync>>);
 
 impl stream::Stream for IncomingStreams {
-    type Item = IoResult<(Stream, SocketAddr)>;
+    type Item = IoResult<(Stream, general::SocketAddr)>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.0.as_mut().poll_next(cx)
@@ -67,10 +65,10 @@ pub struct Listener {
     /// The `futures::Stream` of incoming network streams.
     streams: IncomingStreams,
     /// The local address on which we're listening.
-    local_addr: SocketAddr,
+    local_addr: general::SocketAddr,
 }
 
-impl NetStreamListener<SocketAddr> for Listener {
+impl NetStreamListener<general::SocketAddr> for Listener {
     type Stream = Stream;
     type Incoming = IncomingStreams;
 
@@ -78,7 +76,7 @@ impl NetStreamListener<SocketAddr> for Listener {
         self.streams
     }
 
-    fn local_addr(&self) -> IoResult<SocketAddr> {
+    fn local_addr(&self) -> IoResult<general::SocketAddr> {
         Ok(self.local_addr.clone())
     }
 }
@@ -88,12 +86,12 @@ impl NetStreamListener<SocketAddr> for Listener {
 async fn abstract_listener_on<ADDR, P>(provider: &P, address: &ADDR) -> IoResult<Listener>
 where
     P: NetStreamProvider<ADDR>,
-    SocketAddr: From<ADDR>,
+    general::SocketAddr: From<ADDR>,
 {
     let lis = provider.listen(address).await?;
-    let local_addr = SocketAddr::from(lis.local_addr()?);
+    let local_addr = general::SocketAddr::from(lis.local_addr()?);
     let streams = lis.incoming().map(|result| {
-        result.map(|(socket, addr)| (Stream(Box::pin(socket)), SocketAddr::from(addr)))
+        result.map(|(socket, addr)| (Stream(Box::pin(socket)), general::SocketAddr::from(addr)))
     });
     let streams = IncomingStreams(Box::pin(streams));
     Ok(Listener {
@@ -103,15 +101,15 @@ where
 }
 
 #[async_trait]
-impl<T> NetStreamProvider<SocketAddr> for T
+impl<T> NetStreamProvider<general::SocketAddr> for T
 where
     T: NetStreamProvider<net::SocketAddr> + NetStreamProvider<unix::SocketAddr>,
 {
     type Stream = Stream;
     type Listener = Listener;
 
-    async fn connect(&self, addr: &SocketAddr) -> IoResult<Stream> {
-        use SocketAddr as G;
+    async fn connect(&self, addr: &general::SocketAddr) -> IoResult<Stream> {
+        use general::SocketAddr as G;
         match addr {
             G::Inet(a) => Ok(Stream(Box::pin(self.connect(a).await?))),
             G::Unix(a) => Ok(Stream(Box::pin(self.connect(a).await?))),
@@ -121,8 +119,8 @@ where
             )),
         }
     }
-    async fn listen(&self, addr: &SocketAddr) -> IoResult<Listener> {
-        use SocketAddr as G;
+    async fn listen(&self, addr: &general::SocketAddr) -> IoResult<Listener> {
+        use general::SocketAddr as G;
         match addr {
             G::Inet(a) => abstract_listener_on(self, a).await,
             G::Unix(a) => abstract_listener_on(self, a).await,
@@ -137,4 +135,4 @@ where
 /// Tried to use a [`general::SocketAddr`] that `tor-rtcompat` didn't understand.
 #[derive(Clone, Debug, thiserror::Error)]
 #[error("Socket address {0:?} is not supported by tor-rtcompat")]
-pub struct UnsupportedAddress(SocketAddr);
+pub struct UnsupportedAddress(general::SocketAddr);
