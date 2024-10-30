@@ -22,7 +22,7 @@ defined and implementation is proceeding.
    pluggable transport we spawn tells us it is listening on a non-localhost
    address, reject that transport, since this is almost certainly a
    security risk.  (The goal is to detect buggy PTs.  We aren't aware of
-   any such PTs.)  [!2454] [#1636]
+   any such PTs.)  ([!2454], [#1636])
 
  * **API:** Several methods (mostly in `tor-chanmgr` and `tor-proto`)
    take new memory quota tracking arguments.  If memory tracking is not
@@ -32,16 +32,16 @@ defined and implementation is proceeding.
  * **API:** New API for `tor-socksproto`, which is more robust and avoids
    many kinds of misuse, including bugs like TROVE-2024-010.  The old
    `.handshake` method still available, but deprecated, and now part of the
-   new `Handshake` trait.  [#1590] [#1627] [#1592] [!2436]
+   new `Handshake` trait.  ([#1590], [#1627], [#1592], [!2436])
 
  * **API:** Many places where a `SleepProvider` bound was used now also
    require `CoarseTimeProvider`.  In-tree `SleepProvider`s all implement
    `CoarseTimeProvider`, so for most callers this can be fixed by
-   propagating the bounds.  [!2482]
+   propagating the bounds.  ([!2482])
 
  * **cargo features:** Some cargo features of lower-layer crates are no
    longer enabled by implication by higher-layer crates.  External callers
-   may need to add feature requesgts to `Cargo.toml`s.  [!2498]
+   may need to add feature requesgts to `Cargo.toml`s.  ([!2498])
 
 ### Major new features
 
@@ -50,33 +50,33 @@ defined and implementation is proceeding.
    data that might be originated by untrusted parties.  This is currently
    useful as DoS resistance measure for Hidden Services (`.onion`
    services).  To actually enable this, a specific limit must be imposed in
-   the `[system]` section of of the Arti configuration.  [!2459] [!2461]
-   [!2484] [!2493] [!2508] [!2509] [!2518] [!2531] [!2536] [!2537] [!2545]
-   [!2555] [!2560] [!2569] [#1682] [#351]
+   the `[system]` section of of the Arti configuration.  ([!2459], [!2461]
+   [!2484], [!2493], [!2508], [!2509], [!2518], [!2531], [!2536], [!2537], [!2545]
+   [!2555], [!2560], [!2569], [#1682], [#351])
  * **Enabled connecting to `.onion` addresses (Hidden Services) by
    default,** by making `allow_onion_addrs` default to `true` in the
    configuration.  (This is appropriate now that we have Vanguard support.)
-   [#1402] [!2506]
+   [#1402], [!2506])
 
 ### Bugfixes
 
  * Fixed the build of `arti-client` with just the features `experimental-api`
-   and `onion-service-client` enabled.  [!2457] [#1638]
- * Fixed the build on FreeBSD.  [!2533] [#1686]
- * Fixed the build on NetBSD.  [!2540] [rust-pwd-grp#4] [rust-pwd-grp!25]
+   and `onion-service-client` enabled.  ([!2457], [#1638])
+ * Fixed the build on FreeBSD.  ([!2533], [#1686])
+ * Fixed the build on NetBSD.  ([!2540], [rust-pwd-grp#4], [rust-pwd-grp!25])
  * Fixed config file watching (file notifier) on non-Windows platforms
-   without inotify.  [!2547] [#1644] [notify-rs#644]
+   without inotify.  ([!2547], [#1644], [notify-rs#644])
  * Fixed a bug that rendered Arti unable to connect to the Tor network 
    when built with certain library combinations.
    This could occur
    when an out-of-tree user of the Arti libraries ends up enabling
    `time-rs`'s `large-dates` cargo feature, by replacing `simple_asn1`
-   dependency with `der-parser` in `tor-llcrypto`.  [!2462] [#1632]
-   [simple_asn1#34] [simple_asn1!35] [time-rs#683]
+   dependency with `der-parser` in `tor-llcrypto`.  ([!2462], [#1632]
+   [simple_asn1#34], [simple_asn1!35], [time-rs#683])
  * Fixed the logging of backtraces, when an internal error occurs.
-   (Bug first appeared in Arti 1.2.7.)  [!2588] [#1713]
- * Removed a false claim that we don't support pluggable transports. [!2507]
- * Documented the `vanguards` cargo feature flag.  [!2507]
+   (Bug first appeared in Arti 1.2.7.)  [!2588], [#1713])
+ * Removed a false claim that we don't support pluggable transports.  ([!2507])
+ * Documented the `vanguards` cargo feature flag.  ([!2507])
 
 ### Other user-facing improvements
 
@@ -84,124 +84,124 @@ defined and implementation is proceeding.
    non-localhost address, or if we're configured to use an
    externally-managed pluggable transport with a non-localhost address,
    These are very questionable configurations, but there may be unusual
-   situations where this is a sensible setup.  [!2454] [#1636]
+   situations where this is a sensible setup.  ([!2454], [#1636])
  * Use new "restricted discovery" terminology throughout (for Hidden
    Services, aka `.onion` services), replacing previous (misleading)
-   "client authorization".  [!2495] [#1476]
+   "client authorization".  ([!2495], [#1476])
  * Experimental ability to read private keys from C Tor's on-disk keystore.
-   [!2481] [!2514]
+   ([!2481], [!2514])
  * Experimental proof-of-work client-side support for Hidden Services
-   (`.onion` services).  [!2486] [!2026]
+   (`.onion` services).  ([!2486], [!2026])
 
 ### New library and API features
 
  * Added `general::SocketAddr` type for unifying IP and AF\_UNIX (and
-   potentially other) sockets.  [!2519] [#1681] [!2553] [!2554] [#1701]
-   [!2592]
- * Added type-erased `DynTimeProvider` in `tor-rtcompat`.  [!2460] [!2500]
+   potentially other) sockets.  ([!2519], [#1681], [!2553], [!2554], [#1701]
+   [!2592])
+ * Added type-erased `DynTimeProvider` in `tor-rtcompat`.  ([!2460], [!2500])
  * Added `SinkTrySend` and `SinkCloseChannel` traits, making the
    functionality of `mpsc::Sender::try_send` and `::close` available as a
-   trait method and implementable for other types.  [!2468] [!2485] [!2490]
- * Added `SometimesUnboundedSink::as_inner` method.  [!2483]
+   trait method and implementable for other types.  ([!2468], [!2485], [!2490])
+ * Added `SometimesUnboundedSink::as_inner` method.  ([!2483])
  * Guarantee that `Slug`s will never contain colons (`:`), and explain why.
-   [!2576]
+   ([!2576])
  * Moved `tor-config`'s `path` module to a new crate `tor-config-path`.
-   [!2590]
+   ([!2590])
  * Added `default-runtime` feature in `arti`, to simplify building without
-   default features.  [!2551]
+   default features.  ([!2551])
 
 ### Relay development
 
- * Support multiple channels for a single relay ID.  [!2442] [#1633]
- * Improved channel selection code [!2477] [#1602] [!2544]
- * Much other cleanup and refactoring in `tor-chanmgr` [!2523] [!2538]
-   [#1654] [!2566]
+ * Support multiple channels for a single relay ID.  ([!2442], [#1633])
+ * Improved channel selection code.  ([!2477], [#1602], [!2544])
+ * Much other cleanup and refactoring in `tor-chanmgr`.  ([!2523], [!2538]
+   [#1654], [!2566])
  * Made `arti-relay` be a binary crate only, for now at least, and abolish
-   the `relay` subcommand of the main `arti` CLI.  [!2525] [#1674] [!2542]
+   the `relay` subcommand of the main `arti` CLI.  ([!2525], [#1674], [!2542])
 
 ### RPC system development
 
- * Reorganised RPC documentation; soon it will be a mdbook.  [!2581]
+ * Reorganised RPC documentation; soon it will be a mdbook.  ([!2581])
  * Improved documentation for writing RPC callers, including a new Python
-   tool to build RPC method and type documentation.  [!2479] [!2489]
-   [!2574]
+   tool to build RPC method and type documentation.  ([!2479], [!2489]
+   [!2574])
  * Finalised specifications for how RPC clients should find the Arti RPC
    server, how the server should decide where to listen, and how
-   authentication will be done.  [!2439] [!2440] [!2439] [#1521] [!2563]
-   [#1702] [!2582] [#1711]
+   authentication will be done.  ([!2439], [!2440], [!2439], [#1521], [!2563]
+   [#1702], [!2582], [#1711])
  * Finalised specifications for version compatibility (interworking of
-   newer/older Arti with newer/older RPC clients).  [!2475] [#1634] [!2510]
-   [#1665] [!2511] [#1662] [!2512]
+   newer/older Arti with newer/older RPC clients).  ([!2475], [#1634], [!2510]
+   [#1665], [!2511], [#1662], [!2512])
  * Improvements to error handling, especially in the client library.
-   [!2556]
+   ([!2556])
  * Improved and clarified objectid/isolation rules in SOCKS interaction.
-   [!2474] [torspec!292] [proposal 351] [socks-extensions.md]
+   ([!2474], [torspec!292], [proposal 351], [socks-extensions.md])
  * Clarified (and weakened) guarantees provided on request cancellation.
-   [!2564] [#818]
- * Changed `release` method to be a method on the object itself.  [!2573]
-   [#1663]
- * Other specification fixes/improvements.  [#1678] [!2539]
- * Fixed the shared library extension on OSX and Windows.  [!2469]
- * Removed the `Echo` testing/demo method.  [!2549] [#1525]
+   ([!2564], [#818])
+ * Changed `release` method to be a method on the object itself.  ([!2573]
+   [#1663])
+ * Other specification fixes/improvements.  ([#1678], [!2539])
+ * Fixed the shared library extension on OSX and Windows.  ([!2469])
+ * Removed the `Echo` testing/demo method.  ([!2549], [#1525])
  * Started a Python client API, and adopted it for some integration
-   tests.  [!2515] [#1295] [!2567]
- * Reduced the dependencies of the client library.  [!2522] [!2524]
- * Internal cleanups.  [!2456] [#1587] [!2558]
+   tests.  ([!2515], [#1295], [!2567])
+ * Reduced the dependencies of the client library.  ([!2522], [!2524])
+ * Internal cleanups.  ([!2456], [#1587], [!2558])
 
 ### Documentation
 
- * Clarified `launch_onion_service_with_hsid()` [!2494] [#1626]
- * Use new "circuit stem" terminology.  [#1479] [!2410]
- * Added missing docs for `keypair_specifier` [!2532]
+ * Clarified `launch_onion_service_with_hsid()`.  ([!2494], [#1626])
+ * Use new "circuit stem" terminology.  ([#1479], [!2410])
+ * Added missing docs for `keypair_specifier`.  ([!2532])
 
 ### Testing
 
- * Much better testing for the CircMgr.  [!2444] [!2513]
- * Fixed the flaky `circuit::test::accept_valid_sendme` CI test.  [!2501]
- * Added more miri tests.  [!2502]
- * Avoid writing `_ => panic!()` even in tests [!2534]
+ * Much better testing for the CircMgr.  ([!2444], [!2513])
+ * Fixed the flaky `circuit::test::accept_valid_sendme` CI test.  ([!2501])
+ * Added more miri tests.  ([!2502])
+ * Avoid writing `_ => panic!()` even in tests.  ([!2534])
  * Allow more precise testing of conditional compilation which affects the
-   configuration reader. [!2561]
- * Updated to the latest version of Shadow.  [!2585] [shadow!3428] [!2587]
- * Include more output from Shadow in CI artifacts.  [!2586]
+   configuration reader.  ([!2561])
+ * Updated to the latest version of Shadow.  ([!2585], [shadow!3428], [!2587])
+ * Include more output from Shadow in CI artifacts.  ([!2586])
  * Pin the version of Chutney used in Shadow tests to make arti.git CI more
-   hermetic.  [!2596]
+   hermetic.  ([!2596])
 
 ### Cleanups and housekeeping
 
  * Updated the list of fallback directories. Clients use these to fetch
    directory information when they have no cached directory or guard
-   nodes. [!2589]
+   nodes.  ([!2589])
  * Updated some previous entries in `CHANGELOG.md` to more fully document
    changes in `tor-circmgr` 0.23.0.
  * Now we run a typechecker, linter, and autoformatter, on all our Python
-   scripts (and fix the issues identified).  [!2476] [!2578] [!2579]
-   [#1689] [!2584]
- * Minor cleanups and reformatting in `tor-key-forge`. [!2552]
- * Commented out (temporarily) ill-shaped `RelaySigningKeySpecifier`. [!2527]
+   scripts (and fix the issues identified).  ([!2476], [!2578], [!2579]
+   [#1689], [!2584])
+ * Minor cleanups and reformatting in `tor-key-forge`.  ([!2552])
+ * Commented out (temporarily) ill-shaped `RelaySigningKeySpecifier`.  ([!2527])
  * Reduced the number of "unused" warnings arising from conditional
-   compilation (eg, cargo features).  [!2431] [!2463] [#1645] [!2551]
+   compilation (eg, cargo features).  ([!2431], [!2463], [#1645], [!2551])
  * In `Cargo.toml`, avoid updating to a `typed-index-collections` which
-   would break our MSRV by requiring Rust 1.81.  [!2471] [#1647]
- * Tidied up the sealing of a pair of traits.  [!2472]
- * Use `{u64,usize}::div_ceil` where applicable.  [!2473]
- * Now we avoid some warnings about certain elided lifetimes.  [!2478] [!2575]
- * Fixed docs-rs cargo feature decorations on certain items.  [!2487]
- * Forbid hard tabs (in most files) in tree.  [!2488]
- * Fixed `no_default_features = true` typo in many `Cargo.toml`.  [!2498]
- * Bumped dependency requirements for `futures-*` `notify` [!2499]
- * Fixed indentation in a doc comment to address a new clippy lint.  [!2516]
-   [!2520]
- * Changed to depend on `slotmap-careful` instead of `slotmap`.  [!2530]
-   [#1531]
- * Abolished unneeded use of `python-is-python3` package in CI.  [!2535]
- * Reinstated the `tor-proto` circuit hop check in `test_create()`.  [!2546]
- * Updated download size numbers (for Project 101 Q3-2024).  [!2571]
+   would break our MSRV by requiring Rust 1.81.  ([!2471], [#1647])
+ * Tidied up the sealing of a pair of traits.  ([!2472])
+ * Use `{u64,usize}::div_ceil` where applicable.  ([!2473])
+ * Now we avoid some warnings about certain elided lifetimes.  ([!2478], [!2575])
+ * Fixed docs-rs cargo feature decorations on certain items.  ([!2487])
+ * Forbid hard tabs (in most files) in tree.  ([!2488])
+ * Fixed `no_default_features = true` typo in many `Cargo.toml`.  ([!2498])
+ * Bumped dependency requirements for `futures-*` `notify`.  ([!2499])
+ * Fixed indentation in a doc comment to address a new clippy lint.  ([!2516]
+   [!2520])
+ * Changed to depend on `slotmap-careful` instead of `slotmap`.  ([!2530]
+   [#1531])
+ * Abolished unneeded use of `python-is-python3` package in CI.  ([!2535])
+ * Reinstated the `tor-proto` circuit hop check in `test_create()`.  ([!2546])
+ * Updated download size numbers (for Project 101 Q3-2024).  ([!2571])
  * Simplified `tor-config` path handling by using `path` feature of
-   `shellexpand`.  [!2583]
+   `shellexpand`.  ([!2583])
  * Work around a bug in `cargo license` by permitting a weird licence
-   string.  [!2591] [cargo-license#78]
- * Removed an obsolete TODO.  [!2562]
+   string.  ([!2591], [cargo-license#78])
+ * Removed an obsolete TODO.  ([!2562])
 
 ### Acknowledgments
 
