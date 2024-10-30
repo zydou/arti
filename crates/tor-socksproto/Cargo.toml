@@ -17,7 +17,7 @@ default = ["proxy-handshake"]
 client-handshake = []
 proxy-handshake = []
 
-full = ["proxy-handshake", "client-handshake", "caret/full", "tor-bytes/full", "tor-error/full"]
+full = ["proxy-handshake", "client-handshake", "caret/full", "tor-bytes/full", "tor-error/full", "safelog/full"]
 
 [dependencies]
 amplify = { version = "4", default-features = false, features = ["derive"] }

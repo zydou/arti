@@ -30,7 +30,7 @@ getrandom = { version = "0.2.3", features = ["js"] }
 
 [features]
 default = ["tor-llcrypto"]
-full = ["tor-error/full", "tor-llcrypto/full", "safelog/full"]
+full = ["tor-error/full", "tor-llcrypto/full", "safelog/full", "tor-llcrypto?/full"]
 
 [package.metadata.docs.rs]
 all-features = true

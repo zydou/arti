@@ -32,12 +32,25 @@ onion services.
 
 * `ope` -- support for Order Preserving Encryption
 
+* `full` -- Enable all features above.
+
+### Experimental and unstable features
+
+Note that the APIs enabled by these features are NOT covered by
+semantic versioning[^1] guarantees: we might break them or remove
+them between patch versions.
+
 * `pow-v1` -- Tor Hidden Services Proof of Work (`v1` scheme only)
 
 * `pow-full` -- Tor Hidden Services Proof of Work
   (metafeature, enables all non-experimental schemes: currently, implies only `pow-v1`).
 
-* `full` -- Enable all features above.
+* `experimental`: Enable all the above experimental features.
+
+[^1]: Remember, semantic versioning is what makes various `cargo`
+features work reliably. To be explicit: if you want `cargo update`
+to _only_ make safe changes, then you cannot enable these
+features.
 
 ## License
 

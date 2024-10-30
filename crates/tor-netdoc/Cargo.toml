@@ -35,6 +35,8 @@ experimental = [
     "build_docs",
     "experimental-api",
     "hs-dir",
+    "hs-pow-full",
+    "hs-pow-v1",
     "hsdesc-inner-docs",
     "dangerous-expose-struct-fields",
 ]
@@ -63,8 +65,8 @@ hs-common = ["rand", "tor-hscrypto", "tor-linkspec", "tor-units"]
 hsdesc-inner-docs = ["visibility", "__is_experimental"] # TODO maybe fold this feature into `testing`
 
 # Onion service proof of work schemes
-hs-pow-v1 = ["tor-hscrypto/pow-v1"]
-hs-pow-full = ["hs-pow-v1"]
+hs-pow-v1 = ["tor-hscrypto/pow-v1", "__is_experimental"]
+hs-pow-full = ["hs-pow-v1", "__is_experimental"]
 
 # Enable experimental APIs that are not yet officially supported.
 #

@@ -53,6 +53,7 @@ full = [
     "tor-linkspec/full",
     "tor-geoip?/full",
     "tor-hsservice?/full",
+    "tor-memquota/full",
 ] # "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
 #   * Features that are experimental or unstable
 #   * Features that are testing-only
@@ -69,8 +70,8 @@ pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client",
 
 # Onion service proof of work schemes (specific schemes, full set, default set)
 hs-pow-v1 = ["tor-hsclient?/pow-v1", "tor-hsservice?/pow-v1"]
-hs-pow-full = ["hs-pow-v1"]
-hs-pow = ["hs-pow-v1"]
+hs-pow-full = ["hs-pow-v1", "__is_experimental"]
+hs-pow = ["hs-pow-v1", "__is_experimental"]
 
 # Expose interfaces useful for testing
 testing = ["__is_experimental", "visibility"]
@@ -105,6 +106,7 @@ experimental = [
     "error_detail",
     "geoip",
     "hs-pow",
+    "hs-pow-full",
     "rpc",
     "testing",
     "tor-proto/experimental",

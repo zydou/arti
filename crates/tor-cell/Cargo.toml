@@ -14,7 +14,13 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 
-experimental = ["experimental-udp", "hs", "testing"]
+experimental = [
+    "experimental-udp",
+    "hs",
+    "hs-pow-full",
+    "hs-pow-v1",
+    "testing",
+]
 # Enable experimental UDP support.
 experimental-udp = ["__is_experimental"]
 
@@ -25,8 +31,8 @@ hs = ["tor-hscrypto", "__is_experimental"]
 testing = ["experimental-udp", "__is_experimental"]
 
 # Onion service proof of work schemes
-hs-pow-v1 = ["tor-hscrypto/pow-v1"]
-hs-pow-full = ["hs-pow-v1"]
+hs-pow-v1 = ["tor-hscrypto/pow-v1", "__is_experimental"]
+hs-pow-full = ["hs-pow-v1", "__is_experimental"]
 
 full = [
     "caret/full",
@@ -38,6 +44,7 @@ full = [
     "tor-linkspec/full",
     "tor-llcrypto/full",
     "tor-units/full",
+    "tor-memquota/full",
 ]
 __is_experimental = []
 

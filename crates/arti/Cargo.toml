@@ -27,6 +27,7 @@ default = [
 ]
 
 full = [
+    "default-runtime",
     "memquota",
     "onion-service-client",
     "onion-service-service",
@@ -67,7 +68,7 @@ native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
 onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice"]
 vanguards = ["arti-client/vanguards"]
-hs-pow = ["arti-client/hs-pow"]
+hs-pow = ["arti-client/hs-pow", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
 
@@ -100,6 +101,7 @@ experimental = [
     "rpc",
     "hsc",
     "tor-hsservice/experimental",
+    "ctor-keystore",
 ]
 rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
 
