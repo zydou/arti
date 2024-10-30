@@ -95,7 +95,7 @@ defined and implementation is proceeding.
 
 ### New library and API features
 
- * New `general::SocketAddr` type for unifying IP and AF_UNIX (and
+ * New `general::SocketAddr` type for unifying IP and AF\_UNIX (and
    potentially other) sockets.  [!2519] [#1681] [!2553] [!2554] [#1701]
    [!2592]
  * New type-erased `DynTimeProvider` in `tor-rtcompat`.  [!2460] [!2500]
