@@ -19,7 +19,7 @@ variables:
   # Alternatively if we decide to keep this, consider to actually start managing
   # versions in chutney and using a version tag here.
   CHUTNEY_SHALLOW_SINCE: "2024-10-28"
-  CHUTNEY_COMMIT: be881a1e7c4bc8038fa13fde4a7b24e5c56349c4
+  CHUTNEY_COMMIT: b05403758dc81593256a93a10d896e68e0398fe7
 
 default:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
