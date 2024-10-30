@@ -333,7 +333,7 @@ is more mature, we may switch to using a separate changelog for each crate.
    !2546
  * Update download size numbers (for Project 101 Q3-2024).
    !2571
- * Simplify `tor-config` path handling by using.
+ * Simplify `tor-config` path handling by using
    `path` feature of `shellexpand`.
    !2583
  * Remove an obsolete TODO.
