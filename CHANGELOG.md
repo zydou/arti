@@ -360,7 +360,7 @@ defined and implementation is proceeding.
 [shadow!3428]: https://github.com/shadow/shadow/pull/3428
 [simple_asn1!35]: https://github.com/acw/simple_asn1/pull/35
 [simple_asn1#34]: https://github.com/acw/simple_asn1/issues/34
-[socks-extensions.md]: XXXX
+[socks-extensions.md]: https://spec.torproject.org/socks-extensions.html
 [time-rs#683]: https://github.com/time-rs/time/issues/638
 
 
