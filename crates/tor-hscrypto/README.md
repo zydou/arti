@@ -32,12 +32,12 @@ onion services.
 
 * `ope` -- support for Order Preserving Encryption
 
+* `full` -- Enable all features above.
+
 * `pow-v1` -- Tor Hidden Services Proof of Work (`v1` scheme only)
 
 * `pow-full` -- Tor Hidden Services Proof of Work
   (metafeature, enables all non-experimental schemes: currently, implies only `pow-v1`).
-
-* `full` -- Enable all features above.
 
 ## License
 
