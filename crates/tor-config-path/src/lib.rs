@@ -54,6 +54,9 @@ use {
 
 use tor_error::{ErrorKind, HasKind};
 
+#[cfg(feature = "address")]
+pub mod addr;
+
 /// A path in a configuration file: tilde expansion is performed, along
 /// with expansion of certain variables.
 ///
