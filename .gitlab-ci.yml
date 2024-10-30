@@ -533,7 +533,6 @@ integration-chutney:
     # install chutney's deps by installing chutney.
     # TODO: use a virtualenv instead.
     - python3 -m pip install --break-system-packages ./chutney
-    - export CHUTNEY_PATH="$(pwd)/chutney"
 
     - tests/chutney/integration-e2e
   artifacts:
@@ -571,7 +570,6 @@ integration-chutney-shadow:
     # install chutney's deps by installing chutney.
     # TODO: use a virtualenv instead.
     - python3 -m pip install --break-system-packages ./chutney
-    - export CHUTNEY_PATH="$(pwd)/chutney"
 
     # Set up shadow, built in build-shadow
     - maint/common/apt-install libglib2.0-0

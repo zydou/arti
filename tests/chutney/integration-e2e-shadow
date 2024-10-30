@@ -14,8 +14,9 @@ import os
 import pathlib
 import shutil
 import subprocess
-import sys
 import yaml
+
+from typing import Optional, Any
 
 SHADOW_DATA_DIR = "shadow.chutney.data"
 SHADOW_CONFIG_FILE = "shadow.chutney.yaml"
@@ -24,10 +25,23 @@ SHADOW_LOG_FILE = "shadow.log"
 TEST_DOMAIN = "example.com"
 
 
-def gen_shadow_config(**args):
+def gen_shadow_config(chutney_bin: Optional[str]) -> dict[str, Any]:
     """
     Generate a shadow config file, as a string, for the given parameters.
     """
+
+    env = {
+        "RUNNING_IN_SHADOW": "yes",
+        # unix sockets aren't supported in shadow
+        "CHUTNEY_ENABLE_CONTROLSOCKET": "no",
+        # ipv6 isn't supported in shadow
+        "CHUTNEY_DISABLE_IPV6": "yes",
+        # re-export PATH. The test scripts assume that
+        # usual shell utilities are on it.
+        "PATH": os.getenv("PATH"),
+    }
+    if chutney_bin is not None:
+        env["CHUTNEY_BIN"] = chutney_bin
 
     return {
         "general": {
@@ -42,17 +56,7 @@ def gen_shadow_config(**args):
                 "processes": [
                     {
                         "path": "./tests/chutney/integration-e2e",
-                        "environment": {
-                            "RUNNING_IN_SHADOW": "yes",
-                            # unix sockets aren't supported in shadow
-                            "CHUTNEY_ENABLE_CONTROLSOCKET": "no",
-                            # ipv6 isn't supported in shadow
-                            "CHUTNEY_DISABLE_IPV6": "yes",
-                            # re-export PATH. The test scripts assume that
-                            # usual shell utilities are on it.
-                            "PATH": os.getenv("PATH"),
-                            "CHUTNEY_PATH": args["chutney_path"],
-                        },
+                        "environment": env,
                         # Give the web server below a little time to start.
                         "start_time": "5s",
                     }
@@ -81,16 +85,12 @@ def main():
     )
     os.chdir(toplevel)
 
-    # Get CHUTNEY_PATH and ensure that it's set.
-    # We don't want the script trying to clone or update chutney from inside the
-    # shadow simulation, since it'll fail.
-    chutney_path = os.getenv("CHUTNEY_PATH") or sys.exit(
-        "Missing environment variable CHUTNEY_PATH"
-    )
+    # Get CHUTNEY_BIN if it's set.
+    chutney_bin = os.getenv("CHUTNEY_BIN", None)
 
     # Write out shadow config. We could just pipe it directly to the shadow
     # process below, but writing it out is useful for debugging.
-    shadow_config = gen_shadow_config(chutney_path=chutney_path)
+    shadow_config = gen_shadow_config(chutney_bin)
     with open(SHADOW_CONFIG_FILE, "w") as f:
         f.write(yaml.safe_dump(shadow_config))
 

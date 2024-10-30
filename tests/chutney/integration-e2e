@@ -5,11 +5,10 @@ cd "$(git rev-parse --show-toplevel)"
 
 ./tests/chutney/setup proxy
 
-# Use the same CHUTNEY_PATH through the rest of the test.
 # shellcheck disable=SC1091
 source tests/chutney/arti.run
-# Validate that CHUTNEY_PATH is set.
-[ -n "${CHUTNEY_PATH:?}" ]
+# Validate that CHUTNEY_DATA_DIR is set.
+[ -n "${CHUTNEY_DATA_DIR:?}" ]
 
 ./tests/chutney/test
 ./tests/chutney/stop-arti
@@ -24,6 +23,6 @@ else
     exit 1
 fi
 
-RUST_LOG=debug target/x86_64-unknown-linux-gnu/release/arti-bench -c "$CHUTNEY_PATH"/net/nodes/arti.toml --socks5 127.0.0.1:"$tor_client_port" -o benchmark_results.json
+RUST_LOG=debug target/x86_64-unknown-linux-gnu/release/arti-bench -c "$CHUTNEY_DATA_DIR"/nodes/arti.toml --socks5 127.0.0.1:"$tor_client_port" -o benchmark_results.json
 
 ./tests/chutney/teardown
