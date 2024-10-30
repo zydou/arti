@@ -136,7 +136,7 @@ defined and implementation is proceeding.
  * Improvements to error handling, especially in the client library.
    [!2556]
  * Improve and clarify objectid/isolation rules in SOCKS interaction
-   [!2474] torspec!292 [proposal 351] [socks-extensions.md]
+   [!2474] [torspec!292] [proposal 351] [socks-extensions.md]
  * Clarify (and weaken) guarantees provided on request cancellation.
    [!2564] [#818]
  * Change `release` method to be a method on the object itself.  [!2573]
