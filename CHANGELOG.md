@@ -381,6 +381,7 @@ for funding the development of Arti!
 [simple_asn1#34]: https://github.com/acw/simple_asn1/issues/34
 [socks-extensions.md]: https://spec.torproject.org/socks-extensions.html
 [time-rs#683]: https://github.com/time-rs/time/issues/638
+[torspec!292]: https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/292
 
 
 
