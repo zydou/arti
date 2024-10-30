@@ -4,7 +4,7 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
 
-# Arti 1.3.0 - 30 October 2024
+# Arti 1.3.0 - 31 October 2024
 
 Arti 1.3.0 is a significant milestone: we have achieved parity on most
 major client features with C Tor.  The last big security feature needed for
