@@ -162,6 +162,8 @@ is more mature, we may switch to using a separate changelog for each crate.
    !2576
  * Move `tor-config`'s `path` module to a new crate `tor-config-path`.
    !2590
+ * New `default-runtime` feature in `arti`, to simplify building without default features.
+   !2551
 
 ### Relay development
 
@@ -281,6 +283,8 @@ is more mature, we may switch to using a separate changelog for each crate.
    !2587
  * Include more output from Shadow in CI artifacts.
    !2586
+ * Pin the version of Chutney used in Shadow tests to make arti.git CI more hermetic.
+   !2596
 
 ### Cleanups and housekeeping
 
@@ -320,6 +324,7 @@ is more mature, we may switch to using a separate changelog for each crate.
    !2498
  * Bump dependency requirements for
    `futures-*`
+   `notify`
    !2499
  * Fix indentation in a doc comment to address a new clippy lint.
    !2516
@@ -336,6 +341,9 @@ is more mature, we may switch to using a separate changelog for each crate.
  * Simplify `tor-config` path handling by using
    `path` feature of `shellexpand`.
    !2583
+ * Work around a bug in `cargo license` by permitting a weird licence string.
+   !2591
+   [cargo-license#78](https://github.com/onur/cargo-license/issues/78)
  * Remove an obsolete TODO.
    !2562
 
