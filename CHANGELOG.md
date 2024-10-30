@@ -71,22 +71,22 @@ and implementation is proceeding.
    [#1686]
  * Fix the build on NetBSD.
    [!2540]
-   [rust-pwd-grp#4](https://gitlab.torproject.org/tpo/core/rust-pwd-grp/-/issues/4
-   [rust-pwd-grp!25](https://gitlab.torproject.org/tpo/core/rust-pwd-grp/-/merge_requests/25)
+   [rust-pwd-grp#4]
+   [rust-pwd-grp!25]
  * Fix config file watching (file notifier)
    on non-Windows platforms without inotify.
    [!2547]
    [#1644]
-   [notify-rs#644](https://github.com/notify-rs/notify/issues/644)
+   [notify-rs#644]
  * Fix a bug which breaks everything with certain library combinations,
    when an out-of-tree user of the Arti libraries ends up enabling
    `time-rs`'s `large-dates` cargo feature,
    by replacing `simple_asn1` dependency with `der-parser` in `tor-llcrypto`.
    [!2462]
    [#1632]
-   [simple_asn1#34](https://github.com/acw/simple_asn1/issues/34)
-   [simple_asn1!35](https://github.com/acw/simple_asn1/pull/35)
-   [time-rs#683](https://github.com/time-rs/time/issues/638)
+   [simple_asn1#34]
+   [simple_asn1!35]
+   [time-rs#683]
  * Fix the printing of backtraces in logs, when an internal error occurs.
    (Broken in Arti 1.2.7.)
    [!2588]
@@ -294,7 +294,7 @@ and implementation is proceeding.
    [!2561]
  * Update to the latest version of Shadow.
    [!2585]
-   [shadow!3428](https://github.com/shadow/shadow/pull/3428)
+   [shadow!3428]
    [!2587]
  * Include more output from Shadow in CI artifacts.
    [!2586]
@@ -358,7 +358,7 @@ and implementation is proceeding.
    [!2583]
  * Work around a bug in `cargo license` by permitting a weird licence string.
    [!2591]
-   [cargo-license#78](https://github.com/onur/cargo-license/issues/78)
+   [cargo-license#78]
  * Remove an obsolete TODO.
    [!2562]
 
@@ -515,9 +515,16 @@ and implementation is proceeding.
 [#1713]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1713
 [#351]: https://gitlab.torproject.org/tpo/core/arti/-/issues/351
 [#818]: https://gitlab.torproject.org/tpo/core/arti/-/issues/818
+[cargo-license#78]: https://github.com/onur/cargo-license/issues/78
+[notify-rs#644]: https://github.com/notify-rs/notify/issues/644
 [proposal 351]: https://spec.torproject.org/proposals/351-socks-auth-extensions.html
-[rust-pwd-grp#4]: XXXX
+[rust-pwd-grp!25]: https://gitlab.torproject.org/tpo/core/rust-pwd-grp/-/merge_requests/25
+[rust-pwd-grp#4]: https://gitlab.torproject.org/tpo/core/rust-pwd-grp/-/issues/4
+[shadow!3428]: https://github.com/shadow/shadow/pull/3428
+[simple_asn1!35]: https://github.com/acw/simple_asn1/pull/35
+[simple_asn1#34]: https://github.com/acw/simple_asn1/issues/34
 [socks-extensions.md]: XXXX
+[time-rs#683]: https://github.com/time-rs/time/issues/638
 
 
 
