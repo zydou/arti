@@ -53,7 +53,10 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "restricted-discovery"]
+experimental = [
+    "experimental-api",
+    "restricted-discovery",
+]
 experimental-api = ["restricted-discovery", "__is_experimental"]
 
 restricted-discovery = ["__is_experimental"]
