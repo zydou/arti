@@ -199,6 +199,17 @@ defined and implementation is proceeding.
    string.  [!2591] [cargo-license#78]
  * Remove an obsolete TODO.  [!2562]
 
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Morgan, and Neel Chauhan.
+
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
 [!2026]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2026
 [!2410]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2410
 [!2431]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2431
