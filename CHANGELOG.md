@@ -238,7 +238,7 @@ and implementation is proceeding.
  * Improve and clarify objectid/isolation rules in SOCKS interaction
    [!2474]
    torspec!292
-   [prop351]
+   [proposal 351]
    [socks-extensions.md]
  * Clarify (and weaken) guarantees provided on request cancellation.
    [!2564]
@@ -515,7 +515,7 @@ and implementation is proceeding.
 [#1713]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1713
 [#351]: https://gitlab.torproject.org/tpo/core/arti/-/issues/351
 [#818]: https://gitlab.torproject.org/tpo/core/arti/-/issues/818
-[prop351]: XXXX
+[proposal 351]: https://spec.torproject.org/proposals/351-socks-auth-extensions.html
 [rust-pwd-grp#4]: XXXX
 [socks-extensions.md]: XXXX
 
