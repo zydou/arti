@@ -206,6 +206,7 @@ defined and implementation is proceeding.
 
 Thanks to everybody who's contributed to this release, including
 Morgan, and Neel Chauhan.
+Also, our welcome to Clara Engler as they join the team!
 
 Also, our deep thanks to
 [Zcash Community Grants],
