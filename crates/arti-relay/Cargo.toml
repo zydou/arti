@@ -1,6 +1,6 @@
 [package]
 name = "arti-relay"
-version = "0.23.0"
+version = "0.24.0"
 authors = ["The Tor Project, Inc."]
 edition = "2021"
 rust-version = "1.77"
@@ -43,17 +43,17 @@ rand = "0.8.5"
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.23.0" }
-tor-config = { path = "../tor-config", version = "0.23.0" }
-tor-error = { path = "../tor-error", version = "0.23.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.23.0", features = ["keymgr", "ephemeral-keystore"] }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.24.0" }
+tor-config = { path = "../tor-config", version = "0.24.0" }
+tor-error = { path = "../tor-error", version = "0.24.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.24.0", features = ["keymgr", "ephemeral-keystore"] }
 # TODO RELAY compile in memquota tracking by default?  with a calculated limit maybe, even?
-tor-memquota = { version = "0.23.0", path = "../tor-memquota", default-features = false }
-tor-netdir = { path = "../tor-netdir", version = "0.23.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.23.0" }
-tor-proto = { path = "../tor-proto", version = "0.23.0" }
-tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.23.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.23.0" }
+tor-memquota = { version = "0.24.0", path = "../tor-memquota", default-features = false }
+tor-netdir = { path = "../tor-netdir", version = "0.24.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.24.0" }
+tor-proto = { path = "../tor-proto", version = "0.24.0" }
+tor-relay-crypto = { path = "../tor-relay-crypto", version = "0.24.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.24.0" }
 tracing = "0.1.36"
 
 [dev-dependencies]

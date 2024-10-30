@@ -1,6 +1,6 @@
 [package]
 name = "tor-memquota"
-version = "0.23.0"
+version = "0.24.0"
 authors = ["The Tor Project, Inc.", "Ian Jackson <iwj@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -21,26 +21,26 @@ itertools = "0.13.0"
 paste = "1"
 pin-project = "1"
 serde = { version = "1.0.103", features = ["derive"] }
-slotmap-careful = { path = "../slotmap-careful", version = "0.2.0" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
 static_assertions = "1"
 thiserror = "1"
-tor-async-utils = { path = "../tor-async-utils", version = "0.23.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0", features = ["serde"] }
-tor-config = { path = "../tor-config", version = "0.23.0" }
-tor-error = { path = "../tor-error", version = "0.23.0", features = ["tracing"] }
-tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.23.0" }
-tor-rtcompat = { version = "0.23.0", path = "../tor-rtcompat" }
+tor-async-utils = { path = "../tor-async-utils", version = "0.24.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0", features = ["serde"] }
+tor-config = { path = "../tor-config", version = "0.24.0" }
+tor-error = { path = "../tor-error", version = "0.24.0", features = ["tracing"] }
+tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.24.0" }
+tor-rtcompat = { version = "0.24.0", path = "../tor-rtcompat" }
 tracing = "0.1.36"
 visibility = { version = "0.1.0", optional = true }
 void = "1"
 
 [dev-dependencies]
 rand = "0.8"
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.1" }
 serde_json = "1.0.50"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.23.0" }
-tor-rtcompat = { version = "0.23.0", path = "../tor-rtcompat", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.23.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
+tor-rtcompat = { version = "0.24.0", path = "../tor-rtcompat", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.24.0" }
 tracing-test = "0.2.4"
 
 [features]

@@ -1,6 +1,6 @@
 [package]
 name = "slotmap-careful"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
