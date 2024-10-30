@@ -66,7 +66,7 @@ defined and implementation is proceeding.
  * Fixed the build on NetBSD.  ([!2540], [rust-pwd-grp#4], [rust-pwd-grp!25])
  * Fixed config file watching (file notifier) on non-Windows platforms
    without inotify.  ([!2547], [#1644], [notify-rs#644])
- * Fixed a bug that rendered Arti unable to connect to the Tor network 
+ * Fixed a bug that rendered Arti unable to connect to the Tor network
    when built with certain library combinations.
    This could occur
    when an out-of-tree user of the Arti libraries ends up enabling
