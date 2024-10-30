@@ -28,7 +28,9 @@ full = [
     "tor-bytes/full",
     "tor-llcrypto/full",
     "tor-units/full",
-    "tor-error/full", "equix?/full", "tor-memquota?/full",
+    "tor-error/full",
+    "equix?/full",
+    "tor-memquota?/full",
 ]
 
 experimental = [

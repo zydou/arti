@@ -100,7 +100,8 @@ experimental = [
     "restricted-discovery",
     "rpc",
     "hsc",
-    "tor-hsservice/experimental", "ctor-keystore",
+    "tor-hsservice/experimental",
+    "ctor-keystore",
 ]
 rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
 

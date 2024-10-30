@@ -21,7 +21,8 @@ full = [
     "tor-bytes/full",
     "tor-config/full",
     "tor-llcrypto/full",
-    "tor-protover/full", "tor-memquota/full",
+    "tor-protover/full",
+    "tor-memquota/full",
 ]
 experimental = ["decode", "verbatim"]
 pt-client = []

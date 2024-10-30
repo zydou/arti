@@ -51,7 +51,8 @@ full = [
     "tor-log-ratelim/full",
     "tor-rtcompat/full",
     "tor-async-utils/full",
-    "tor-basic-utils/full", "slotmap-careful/full",
+    "tor-basic-utils/full",
+    "slotmap-careful/full",
 ]
 default = ["memquota"]
 memquota = []

@@ -30,7 +30,8 @@ full = [
     "tor-socksproto/full",
     "tor-units/full",
     "tor-async-utils/full",
-    "oneshot-fused-workaround/full", "tor-memquota/full",
+    "oneshot-fused-workaround/full",
+    "tor-memquota/full",
 ]
 
 pt-client = ["tor-linkspec/pt-client"]

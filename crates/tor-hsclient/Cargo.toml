@@ -41,7 +41,9 @@ full = [
     "tor-keymgr/full",
     "tor-async-utils/full",
     "tor-persist/full",
-    "oneshot-fused-workaround/full", "slotmap-careful/full", "tor-memquota/full",
+    "oneshot-fused-workaround/full",
+    "slotmap-careful/full",
+    "tor-memquota/full",
 ]
 __is_experimental = []
 experimental = ["keymgr", "pow-full", "pow-v1"]
