@@ -13,7 +13,7 @@ for Tor Hidden Services aka `.onion` services
 (resistance to out-of-memory DoS)
 landed in this release.
 And, in Arti client 1.3.0,
-connecting to `.oinion` domains is enabled by default.
+connecting to `.onion` domains is enabled by default.
 
 Much other major work is taking place, too!
 We have continued our work on Arti Relay.
