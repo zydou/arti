@@ -87,7 +87,7 @@ defined and implementation is proceeding.
    situations where this is a sensible setup.  [!2454] [#1636]
  * Use new "restricted discovery" terminology throughout (for Hidden
    Services, aka `.onion` services), replacing previous (misleading)
-   "client authorisation".  [!2495] [#1476]
+   "client authorization".  [!2495] [#1476]
  * Experimental ability to read private keys from C Tor's on-disk keystore.
    [!2481] [!2514]
  * Experimental proof-of-work client-side support for Hidden Services
