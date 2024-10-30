@@ -12,6 +12,12 @@ variables:
   # Pinned CI image for must Rust tests
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   RECENT_RUST_IMAGE: "amd64/rust:1.79.0-bookworm"
+  # Pinned chutney version.
+  # TODO: Consider unpinning once chutney's CI is running arti's CI.
+  # Alternatively if we decide to keep this, consider to actually start managing
+  # versions in chutney and using a version tag here.
+  CHUTNEY_SHALLOW_SINCE: "2024-10-28"
+  CHUTNEY_COMMIT: be881a1e7c4bc8038fa13fde4a7b24e5c56349c4
 
 default:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
@@ -495,15 +501,23 @@ integration-chutney:
    - when: never
   script:
     - ./maint/preserve -u
-    - maint/common/apt-install tor git python3 curl dnsutils
+    - maint/common/apt-install tor git python3 curl dnsutils python3-pip
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
-    # TODO: install chutney and its dependencies here?
-    # `integration-e2e` is currently responsible for installing chutney.  I'm
-    # not sure we want to extend it to `pip install` its dependencies though,
-    # since this may be (more) surprising to users trying to run it locally.
+    # install chutney.
+    # TODO: consider moving this into a source-able script shared with
+    # integration-chutney-shadow.
+    - git clone
+        --shallow-since="$CHUTNEY_SHALLOW_SINCE"
+        https://gitlab.torproject.org/tpo/core/chutney
+    - git -C ./chutney checkout "$CHUTNEY_COMMIT"
+    # install chutney's deps by installing chutney.
+    # TODO: use a virtualenv instead.
+    - python3 -m pip install --break-system-packages ./chutney
+    - export CHUTNEY_PATH="$(pwd)/chutney"
+
     - tests/chutney/integration-e2e
   artifacts:
     paths:
@@ -533,7 +547,10 @@ integration-chutney-shadow:
 
     # install chutney to prevent the test scripts from trying to install
     # it from inside the shadow simulation, which won't work.
-    - git clone https://gitlab.torproject.org/tpo/core/chutney
+    - git clone
+        --shallow-since="$CHUTNEY_SHALLOW_SINCE"
+        https://gitlab.torproject.org/tpo/core/chutney
+    - git -C ./chutney checkout "$CHUTNEY_COMMIT"
     # install chutney's deps by installing chutney.
     # TODO: use a virtualenv instead.
     - python3 -m pip install --break-system-packages ./chutney
