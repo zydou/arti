@@ -61,7 +61,7 @@ defined and implementation is proceeding.
  * Fix the printing of backtraces in logs, when an internal error occurs.
    (Broken in Arti 1.2.7.)  [!2588] [#1713]
  * Remove a false claim that we don't support pluggable transports. [!2507]
- * Document the Vanguard cargo feature flag.  [!2507]
+ * Document the `vanguards` cargo feature flag.  [!2507]
 
 ### Major new features
 
