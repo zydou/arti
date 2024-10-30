@@ -17,8 +17,8 @@ memquota-memcost = ["derive-deftly", "tor-memquota", "tor-units/memquota-memcost
 ope = ["cipher", "zeroize"]
 
 # Onion service proof of work schemes
-pow-v1 = ["arrayvec", "blake2", "equix"]
-pow-full = ["pow-v1"]
+pow-v1 = ["arrayvec", "blake2", "equix", "__is_experimental"]
+pow-full = ["pow-v1", "__is_experimental"]
 
 full = [
     "memquota-memcost",
@@ -28,13 +28,14 @@ full = [
     "tor-bytes/full",
     "tor-llcrypto/full",
     "tor-units/full",
-    "tor-error/full",
+    "tor-error/full", "equix?/full", "tor-memquota?/full",
 ]
 
 experimental = [
     "pow-full",
     "pow-v1",
 ]
+__is_experimental = []
 
 [dependencies]
 arrayvec = { version = "0.7.4", optional = true }

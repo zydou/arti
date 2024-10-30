@@ -31,8 +31,8 @@ hs = ["tor-hscrypto", "__is_experimental"]
 testing = ["experimental-udp", "__is_experimental"]
 
 # Onion service proof of work schemes
-hs-pow-v1 = ["tor-hscrypto/pow-v1"]
-hs-pow-full = ["hs-pow-v1"]
+hs-pow-v1 = ["tor-hscrypto/pow-v1", "__is_experimental"]
+hs-pow-full = ["hs-pow-v1", "__is_experimental"]
 
 full = [
     "caret/full",
@@ -43,7 +43,7 @@ full = [
     "tor-hscrypto?/full",
     "tor-linkspec/full",
     "tor-llcrypto/full",
-    "tor-units/full",
+    "tor-units/full", "tor-memquota/full",
 ]
 __is_experimental = []
 

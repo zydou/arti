@@ -18,8 +18,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 # Onion service proof of work schemes
-pow-v1 = ["tor-hscrypto/pow-v1", "tor-netdoc/hs-pow-v1", "tor-cell/hs-pow-v1"]
-pow-full = ["pow-v1"]
+pow-v1 = ["tor-hscrypto/pow-v1", "tor-netdoc/hs-pow-v1", "tor-cell/hs-pow-v1", "__is_experimental"]
+pow-full = ["pow-v1", "__is_experimental"]
 
 full = [
     "tor-circmgr/full",
