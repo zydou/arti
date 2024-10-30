@@ -24,7 +24,7 @@ defined and implementation is proceeding.
    security risk.  (The goal is to detect buggy PTs.  We aren't aware of
    any such PTs.)  [!2454] [#1636]
 
- * **API:** Several methods in (mostly in `tor-chanmgr` and `tor-proto`)
+ * **API:** Several methods (mostly in `tor-chanmgr` and `tor-proto`)
    take new memory quota tracking arguments.  If memory tracking is not
    required, you can create a no-op memory quota account with
    `SpecificAccount::new_noop()` or `Account::new_noop().
