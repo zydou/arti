@@ -38,7 +38,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 hex = "0.4"
 itertools = "0.13.0"
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.1" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.26.3", features = ["derive"] }

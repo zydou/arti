@@ -76,7 +76,7 @@ oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.
 pin-project = "1"
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.6.0" }
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.1" }
 serde = { version = "1.0.103", features = ["derive"] }
 static_assertions = "1"
 thiserror = "1"

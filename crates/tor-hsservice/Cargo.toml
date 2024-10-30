@@ -83,7 +83,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.8.5"
 rand_core = "0.6.2"
 retry-error = { version = "0.6.0", path = "../retry-error" }
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.1" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.26.3", features = ["derive"] }
@@ -119,7 +119,7 @@ void = "1"
 libc = { version = "0.2", default-features = false }
 rmp-serde = "1"
 serde_json = "1.0.104"
-slotmap-careful = { path = "../slotmap-careful", version = "0.2.0" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
 tempfile = "3"
 test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
 tor-config = { version = "0.24.0", path = "../tor-config", features = ["testing"] }

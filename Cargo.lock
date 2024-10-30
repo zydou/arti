@@ -4086,7 +4086,7 @@ dependencies = [
 
 [[package]]
 name = "safelog"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "derive_more",
  "educe",
@@ -4520,7 +4520,7 @@ dependencies = [
 
 [[package]]
 name = "slotmap-careful"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "paste",
  "serde",

@@ -135,7 +135,7 @@ rustls-crate = { package = "rustls", version = "0.23.5", optional = true, defaul
     "logging",
     "ring",
 ] }
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.1" }
 secmem-proc = { version = "0.3.4", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
 signal-hook = { version = "0.3", optional = true }

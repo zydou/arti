@@ -150,7 +150,7 @@ humantime-serde = "1.1.1"
 libc = "0.2"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.1" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { path = "../tor-async-utils", version = "0.24.0" }

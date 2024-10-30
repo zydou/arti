@@ -58,8 +58,8 @@ oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.6.0" }
-safelog = { path = "../safelog", version = "0.4.0" }
-slotmap-careful = { path = "../slotmap-careful", version = "0.2.0" }
+safelog = { path = "../safelog", version = "0.4.1" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
 tor-async-utils = { version = "0.24.0", path = "../tor-async-utils" }
