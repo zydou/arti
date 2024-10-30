@@ -54,16 +54,22 @@ define_ed25519_keypair!(
 #[deftly(summary = "Relay medium-term signing keypair")]
 /// The key specifier of the relay medium-term signing key.
 pub struct RelaySigningKeypairSpecifier {
-    /// The approximate time when this key was generated.
+    /// The expiration time of this key.
     ///
-    /// This serves as a unique identifier for this key instance.
+    /// This **must** be the same as the expiration timestamp from the
+    /// `K_relaysign_ed` certificate of this key.
+    ///
+    /// This serves as a unique identifier for this key instance,
+    /// and is used for deciding which `K_relaysign_ed` key to use
+    /// (we use the newest key that is not yet expired according to
+    /// the `valid_until` timestamp from its specifier).
     ///
     /// **Important**: this timestamp should not be used for anything other than
     /// distinguishing between different signing keypair instances.
     /// In particular, it should **not** be used for validating the keypair,
     /// or for checking its timeliness.
     #[deftly(denotator)]
-    pub(crate) timestamp: Timestamp,
+    pub(crate) valid_until: Timestamp,
 }
 
 /// The approximate time when a [`RelaySigningKeypairSpecifier`] was generated.
