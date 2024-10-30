@@ -620,7 +620,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         debug!(nickname=%self.imm.nickname, "starting descriptor publisher reactor");
 
         {
-            let netdir = wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely).await?;
+            let netdir = self
+                .dir_provider
+                .wait_for_netdir(Timeliness::Timely)
+                .await?;
             let time_periods = self.compute_time_periods(&netdir, &[])?;
 
             let mut inner = self.inner.lock().expect("poisoned lock");
@@ -747,7 +750,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                         //
                         // Probably this should be fixed by moving the logging
                         // out of the reactor, where it won't be blocked.
-                        wait_for_netdir(self.dir_provider.as_ref(), Timeliness::Timely)
+                        self.dir_provider.wait_for_netdir(Timeliness::Timely)
                             .await?
                     }
                 };

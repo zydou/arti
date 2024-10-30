@@ -55,6 +55,7 @@ pub mod testnet;
 #[cfg(feature = "testing")]
 pub mod testprovider;
 
+use async_trait::async_trait;
 #[cfg(feature = "hs-service")]
 use itertools::chain;
 use static_assertions::const_assert;
@@ -69,7 +70,7 @@ use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, Rou
 use {hsdir_ring::HsDirRing, std::iter};
 
 use derive_more::{From, Into};
-use futures::stream::BoxStream;
+use futures::{stream::BoxStream, StreamExt};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use rand::seq::SliceRandom;
 use serde::Deserialize;
@@ -501,6 +502,19 @@ pub enum DirEvent {
     NewDescriptors,
 }
 
+/// The network directory provider is shutting down without giving us the
+/// netdir we asked for.
+#[derive(Clone, Copy, Debug, thiserror::Error)]
+#[error("Network directory provider is shutting down")]
+#[non_exhaustive]
+pub struct NetdirProviderShutdown;
+
+impl tor_error::HasKind for NetdirProviderShutdown {
+    fn kind(&self) -> tor_error::ErrorKind {
+        tor_error::ErrorKind::ArtiShuttingDown
+    }
+}
+
 /// How "timely" must a network directory be?
 ///
 /// This enum is used as an argument when requesting a [`NetDir`] object from
@@ -540,6 +554,7 @@ pub enum Timeliness {
 ///
 /// In usual configurations, Arti uses `tor_dirmgr::DirMgr`
 /// as its `NetDirProvider`.
+#[async_trait]
 pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     /// Return a network directory that's live according to the provided
     /// `timeliness`.
@@ -565,6 +580,69 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     ///
     /// If we have no directory, return a reasonable set of defaults.
     fn params(&self) -> Arc<dyn AsRef<NetParameters>>;
+
+    /// Get a NetDir from `provider`, waiting until one exists.
+    async fn wait_for_netdir(
+        &self,
+        timeliness: Timeliness,
+    ) -> std::result::Result<Arc<NetDir>, NetdirProviderShutdown> {
+        if let Ok(nd) = self.netdir(timeliness) {
+            return Ok(nd);
+        }
+
+        let mut stream = self.events();
+        loop {
+            // We need to retry `self.netdir()` before waiting for any stream events, to
+            // avoid deadlock.
+            //
+            // We ignore all errors here: they can all potentially be fixed by
+            // getting a fresh consensus, and they will all get warned about
+            // by the NetDirProvider itself.
+            if let Ok(nd) = self.netdir(timeliness) {
+                return Ok(nd);
+            }
+            match stream.next().await {
+                Some(_) => {}
+                None => {
+                    return Err(NetdirProviderShutdown);
+                }
+            }
+        }
+    }
+
+    /// Wait until `provider` lists `target`.
+    ///
+    /// NOTE: This might potentially wait indefinitely, if `target` is never actually
+    /// becomes listed in the directory.  It will exit if the `NetDirProvider` shuts down.
+    async fn wait_for_netdir_to_list(
+        &self,
+        target: &tor_linkspec::RelayIds,
+    ) -> std::result::Result<(), NetdirProviderShutdown> {
+        let mut events = self.events();
+        loop {
+            // See if the desired relay is in the netdir.
+            //
+            // We do this before waiting for any events, to avoid race conditions.
+            {
+                let netdir = self.wait_for_netdir(Timeliness::Timely).await?;
+                if netdir.ids_listed(target) == Some(true) {
+                    return Ok(());
+                }
+                // If we reach this point, then ids_listed returned `Some(false)`,
+                // meaning "This relay is definitely not in the current directory";
+                // or it returned `None`, meaning "waiting for more information
+                // about this network directory.
+                // In both cases, it's reasonable to just wait for another netdir
+                // event and try again.
+            }
+            // We didn't find the relay; wait for the provider to have a new netdir
+            // or more netdir information.
+            if events.next().await.is_none() {
+                // The event stream is closed; the provider has shut down.
+                return Err(NetdirProviderShutdown);
+            }
+        }
+    }
 }
 
 impl<T> NetDirProvider for Arc<T>

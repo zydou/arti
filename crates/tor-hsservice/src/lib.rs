@@ -61,7 +61,6 @@ mod ipt_lid;
 mod ipt_mgr;
 mod ipt_set;
 mod keys;
-mod netdir;
 mod publish;
 mod rend_handshake;
 mod replay;
@@ -91,7 +90,6 @@ use internal_prelude::*;
 
 // ---------- public exports ----------
 
-pub use crate::netdir::NetdirProviderShutdown;
 pub use anon_level::Anonymity;
 pub use config::OnionServiceConfig;
 pub use err::{ClientError, EstablishSessionError, FatalError, IntroRequestError, StartupError};
