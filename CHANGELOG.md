@@ -41,7 +41,7 @@ and implementation is proceeding.
    and avoids many kinds of misuse,
    including bugs like TROVE-2024-010.
    The old `.handshake` method still available, but deprecated,
-   and now part of the new [`Handshake`] trait.
+   and now part of the new `Handshake` trait.
    [#1590]
    [#1627]
    [#1592]
@@ -515,7 +515,6 @@ and implementation is proceeding.
 [#1713]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1713
 [#351]: https://gitlab.torproject.org/tpo/core/arti/-/issues/351
 [#818]: https://gitlab.torproject.org/tpo/core/arti/-/issues/818
-[`Handshake`]: XXXX
 [prop351]: XXXX
 [rust-pwd-grp#4]: XXXX
 [socks-extensions.md]: XXXX
