@@ -42,7 +42,22 @@ defined and implementation is proceeding.
  * **cargo features:** Some cargo features of lower-layer crates are no
    longer enabled by implication by higher-layer crates.  External callers
    may need to add feature requesgts to `Cargo.toml`s.  [!2498]
-   
+
+### Major new features
+
+ * **Support memory quota tracking.**  (Feature compiled in by default.)
+   Specifically: Arti can now try to limit the amount of memory it uses for
+   data that might be originated by untrusted parties.  This is currently
+   useful as DoS resistance measure for Hidden Services (`.onion`
+   services).  To actually enable this, a specific limit must be imposed in
+   the `[system]` section of of the Arti configuration.  [!2459] [!2461]
+   [!2484] [!2493] [!2508] [!2509] [!2518] [!2531] [!2536] [!2537] [!2545]
+   [!2555] [!2560] [!2569] [#1682] [#351]
+ * **Enabled connecting to `.onion` addresses (Hidden Services) by
+   default,** by making `allow_onion_addrs` default to `true` in the
+   configuration.  (This is appropriate now that we have Vanguard support.)
+   [#1402] [!2506]
+
 ### Bugfixes
 
  * Fixed the build of `arti-client` with just the features `experimental-api`
@@ -62,21 +77,6 @@ defined and implementation is proceeding.
    (Bug first appeared in Arti 1.2.7.)  [!2588] [#1713]
  * Removed a false claim that we don't support pluggable transports. [!2507]
  * Documented the `vanguards` cargo feature flag.  [!2507]
-
-### Major new features
-
- * **Support memory quota tracking.**  (Feature compiled in by default.)
-   Specifically: Arti can now try to limit the amount of memory it uses for
-   data that might be originated by untrusted parties.  This is currently
-   useful as DoS resistance measure for Hidden Services (`.onion`
-   services).  To actually enable this, a specific limit must be imposed in
-   the `[system]` section of of the Arti configuration.  [!2459] [!2461]
-   [!2484] [!2493] [!2508] [!2509] [!2518] [!2531] [!2536] [!2537] [!2545]
-   [!2555] [!2560] [!2569] [#1682] [#351]
- * **Enabled connecting to `.onion` addresses (Hidden Services) by
-   default,** by making `allow_onion_addrs` default to `true` in the
-   configuration.  (This is appropriate now that we have Vanguard support.)
-   [#1402] [!2506]
 
 ### Other user-facing improvements
 
