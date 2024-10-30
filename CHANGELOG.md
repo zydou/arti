@@ -135,7 +135,7 @@ defined and implementation is proceeding.
    [#1665] [!2511] [#1662] [!2512]
  * Improvements to error handling, especially in the client library.
    [!2556]
- * Improve and clarify objectid/isolation rules in SOCKS interaction
+ * Improve and clarify objectid/isolation rules in SOCKS interaction.
    [!2474] [torspec!292] [proposal 351] [socks-extensions.md]
  * Clarify (and weaken) guarantees provided on request cancellation.
    [!2564] [#818]
