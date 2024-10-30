@@ -126,7 +126,7 @@ humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.13.0"
 libc = "0.2"
-notify = { version = "6.0", default-features = false, features = ["macos_kqueue"] }
+notify = { version = "7", default-features = false, features = ["macos_kqueue"] }
 paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rlimit = "0.10.1"

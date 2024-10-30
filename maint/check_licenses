@@ -26,6 +26,10 @@ RECOGNIZED_LICENSES=(
     Zlib
     "MIT AND BSD-3-Clause"
     "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
+    "MIT AND (MIT OR Apache-2.0)"
+    # cargo-license appears to break on the OR inside () and then sort!
+    # https://github.com/onur/cargo-license/issues/78
+    "Apache-2.0) OR MIT AND (MIT"
 )
 
 # List of packages that don't list a license.
