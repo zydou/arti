@@ -3,7 +3,20 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
-# UNRELEASED
+
+# Arti 1.3.0 - 30 October 2024
+
+Arti 1.3.0 is a significant milestone:
+we have achieved parity on major client features with C Tor.
+This includes the security features needed
+for Tor Hidden Services aka `.onion` services,
+both as a client of the service, and as the service itself.
+In Arti 1.3.0, connecting to `.oinion` domains is enabled by default.
+
+Much other major work is taking place, too!
+We have continued our work on Arti Relay.
+The work-in-progress RPC system is significantly more clearly defined
+and implementation is proceeding.
 
 ### Breaking changes
 
