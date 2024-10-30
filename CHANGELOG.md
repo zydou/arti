@@ -98,7 +98,7 @@ and implementation is proceeding.
 
 ### Major new features
 
- * Support memory quota tracking.  (Feature compiled in by default.)
+ * **Support memory quota tracking.**  (Feature compiled in by default.)
    Specifically:
    Arti can now try to limit the amount of memory it uses
    for data that might be originated by untrusted parties.
@@ -122,7 +122,7 @@ and implementation is proceeding.
    [!2569]
    [#1682]
    [#351]
- * Enable connecting to `.onion` addresses (Hidden Services) by default,
+ * **Enable connecting to `.onion` addresses (Hidden Services) by default,**
    by making `allow_onion_addrs` default to `true` in the configuration.
    (This is appropriate now that we have Vanguard support.)
    [#1402]
