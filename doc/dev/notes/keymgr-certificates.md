@@ -10,7 +10,12 @@ is not.
 To that end, we decided to add support for storing certificates in the Arti keystore
 (see #1617).
 
-## Certificate `KeySpecifier`s
+## Proposed design: Reusing the existing KeyMgr functions to manipulate certs (rejected)
+
+Rejected in favor of option 2.
+See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2565#note_3099397
+
+### Certificate `KeySpecifier`s
 
 The certificate of a key will have the same `ArtiPath` as the key it certifies.
 
@@ -41,7 +46,7 @@ because it is included
 in the [`CERT_TYPE` field](https://spec.torproject.org/cert-spec.html#list-key-types)
 of the certificate.
 
-## Storage format
+### Storage format
 
 For the `K_relaysign_ed` cert, the storage format is Tor's
 [certificate format](https://spec.torproject.org/cert-spec.html).
@@ -53,7 +58,7 @@ If we ever decide to change the format of the `K_relaysign_ed` certificate,
 we will deprecate the existing `.tor_ed25519_cert` key type,
 and introduce a new one for certificates using the new format.
 
-### Alternatives considered
+#### Alternatives considered
 
 We could also store the key certificate *inside* the (OpenSSH) key entry
 it certifies, by encoding it in its comment field.
@@ -73,9 +78,9 @@ non-OpenSSH keystore entry isn't ideal either,
 but at least the `.tor_ed25519_cert` extension makes it
 obvious that the cert is a tor-specific binary blob.
 
-### Implementation details
+#### Implementation details
 
-#### KeyMgr changes
+##### KeyMgr changes
 
 The `KeySpecifier` trait will be extended with a function for getting the
 certificate specifier of a key:
@@ -113,7 +118,7 @@ if its `KeySpecifier::certificate_specifier()` impl returns `Some`.
 If the signing key can't be found,
 `KeyMgr::get_or_generate` will return an error.
 
-#### Key encoding traits
+##### Key encoding traits
 
 To retrieve a certificate from the keystore (for example, in `KeyMgr::get`),
 we need to know the concrete type of the certificate,
@@ -166,7 +171,7 @@ If we implement this, the Arti keystore storage format will no longer be just Op
 so we ought to rename `SshKeyData` (the serializable storage type)
 to `ArtiKeyMaterial` (or something else that doesn't mention "ssh").
 
-##### In even more detail...
+###### In even more detail...
 
 To support certificate retrieval, we need to specialize methods like `KeyMgr::get<K>`
 for keys (`K: ToEncodableKey`) and certs (`K: ToEncodableCert`).
