@@ -363,8 +363,11 @@ for funding the development of Arti!
 [#1713]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1713
 [#351]: https://gitlab.torproject.org/tpo/core/arti/-/issues/351
 [#818]: https://gitlab.torproject.org/tpo/core/arti/-/issues/818
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [cargo-license#78]: https://github.com/onur/cargo-license/issues/78
 [notify-rs#644]: https://github.com/notify-rs/notify/issues/644
+[other sponsors]: https://www.torproject.org/about/sponsors/
 [proposal 351]: https://spec.torproject.org/proposals/351-socks-auth-extensions.html
 [rust-pwd-grp!25]: https://gitlab.torproject.org/tpo/core/rust-pwd-grp/-/merge_requests/25
 [rust-pwd-grp#4]: https://gitlab.torproject.org/tpo/core/rust-pwd-grp/-/issues/4
