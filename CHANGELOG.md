@@ -118,7 +118,6 @@ defined and implementation is proceeding.
    [#1654] [!2566]
  * Made `arti-relay` be a binary crate only, for now at least, and abolish
    the `relay` subcommand of the main `arti` CLI.  [!2525] [#1674] [!2542]
- * Key handling work [!2527] [!2552]
 
 ### RPC system development
 
@@ -178,6 +177,8 @@ defined and implementation is proceeding.
  * Now we run a typechecker, linter, and autoformatter, on all our Python
    scripts (and fix the issues identified).  [!2476] [!2578] [!2579]
    [#1689] [!2584]
+ * Minor cleanups and reformatting in `tor-key-forge`. [!2552]
+ * Commented out (temporarily) ill-shaped `RelaySigningKeySpecifier`. [!2527]
  * Reduced the number of "unused" warnings arising from conditional
    compilation (eg, cargo features).  [!2431] [!2463] [#1645] [!2551]
  * In `Cargo.toml`, avoid updating to a `typed-index-collections` which
