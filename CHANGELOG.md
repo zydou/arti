@@ -180,7 +180,7 @@ defined and implementation is proceeding.
    conditional compilation (eg, cargo features).  [!2431] [!2463] [#1645]
    [!2551]
  * In `Cargo.toml`, avoid updating to a `typed-index-collections` which
-   would break our MSRV by requiring 1.81.  [!2471] [#1647]
+   would break our MSRV by requiring Rust 1.81.  [!2471] [#1647]
  * Tidy up the sealing of a pair of traits.  [!2472]
  * Use `{u64,usize}::div_ceil` where applicable.  [!2473]
  * Avoid some warnings about certain elided lifetimes.  [!2478] [!2575]
