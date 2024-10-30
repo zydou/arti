@@ -131,7 +131,7 @@ defined and implementation is proceeding.
    authentication will be done.  [!2439] [!2440] [!2439] [#1521] [!2563]
    [#1702] [!2582] [#1711]
  * Finalised specifications for version compatibility (interworking of
-   newer/older Arti with newer/older clients).  [!2475] [#1634] [!2510]
+   newer/older Arti with newer/older RPC clients).  [!2475] [#1634] [!2510]
    [#1665] [!2511] [#1662] [!2512]
  * Improvements to error handling, especially in the client library.
    [!2556]
