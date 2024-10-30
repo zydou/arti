@@ -31,6 +31,11 @@ full = [
     "tor-error/full",
 ]
 
+experimental = [
+    "pow-full",
+    "pow-v1",
+]
+
 [dependencies]
 arrayvec = { version = "0.7.4", optional = true }
 blake2 = { version = "0.10.6", optional = true }
