@@ -6,7 +6,7 @@ if [ -z "${RUST_LOG:-}" ]; then
     export RUST_LOG=info
 fi
 
-target="networks/basic"
+target="basic"
 cd "$(git rev-parse --show-toplevel)"
 
 if [ -z "${CHUTNEY_PATH:-}" ]; then
@@ -22,4 +22,4 @@ fi
 
 cargo run -p arti-bench --locked --release -- -c "${CHUTNEY_PATH}/net/nodes/arti.toml" "$@"
 
-"${CHUTNEY_PATH}"/chutney stop "${CHUTNEY_PATH}/$target"
+"${CHUTNEY_PATH}"/chutney stop "$target"

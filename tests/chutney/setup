@@ -48,7 +48,7 @@ for module in "$@"; do
     esac
 done
 
-target="networks/$NETWORK"
+target="$NETWORK"
 cd "$(git rev-parse --show-toplevel)"
 echo "target=$target" > tests/chutney/arti.run
 
@@ -69,15 +69,10 @@ fi
 # calling other tools/scripts that directly look for chutney there.
 echo "export CHUTNEY_PATH=\"$CHUTNEY_PATH\"" >> tests/chutney/arti.run
 
-if [ ! -e "${CHUTNEY_PATH}/${target}" ]; then
-    echo "Target network description ${CHUTNEY_PATH}/${target} not found."
-    exit 1
-fi
-
-"${CHUTNEY_PATH}/chutney" configure "${CHUTNEY_PATH}/$target"
-"${CHUTNEY_PATH}/chutney" start "${CHUTNEY_PATH}/$target"
-CHUTNEY_START_TIME=180 "${CHUTNEY_PATH}"/chutney wait_for_bootstrap "${CHUTNEY_PATH}/$target"
-"${CHUTNEY_PATH}"/chutney verify "${CHUTNEY_PATH}/$target"
+"${CHUTNEY_PATH}/chutney" configure "$target"
+"${CHUTNEY_PATH}/chutney" start "$target"
+CHUTNEY_START_TIME=180 "${CHUTNEY_PATH}"/chutney wait_for_bootstrap "$target"
+"${CHUTNEY_PATH}"/chutney verify "$target"
 
 if [ "$PROXY" = "no" ] ; then
     exit 0

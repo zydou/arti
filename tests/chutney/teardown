@@ -28,7 +28,7 @@ fi
 
 # Tells shellcheck that this variables is set; exits early if it isn't.
 target="${target:?}"
-"${CHUTNEY_PATH}/chutney" stop "${CHUTNEY_PATH}/$target"
+"${CHUTNEY_PATH}/chutney" stop "$target"
 
 # Tell shellcheck that yes, we know that we're sourcing a file.
 # shellcheck disable=SC1091
