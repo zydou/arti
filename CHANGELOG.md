@@ -149,7 +149,7 @@ defined and implementation is proceeding.
  * Reduced the dependencies of the client library.  [!2522] [!2524]
  * Internal cleanups.  [!2456] [#1587] [!2558]
 
-### Internal and developer documentation improvements
+### Documentation
 
  * Clarified `launch_onion_service_with_hsid()` [!2494] [#1626]
  * Use new "circuit stem" terminology.  [#1479] [!2410]
