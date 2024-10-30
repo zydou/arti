@@ -190,7 +190,7 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "arti"
-version = "1.2.8"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -2038,7 +2038,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
