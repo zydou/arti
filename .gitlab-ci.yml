@@ -18,7 +18,6 @@ variables:
   # TODO: Consider unpinning once chutney's CI is running arti's CI.
   # Alternatively if we decide to keep this, consider to actually start managing
   # versions in chutney and using a version tag here.
-  CHUTNEY_SHALLOW_SINCE: "2024-10-28"
   CHUTNEY_COMMIT: b05403758dc81593256a93a10d896e68e0398fe7
 
 default:
@@ -524,15 +523,10 @@ integration-chutney:
     - maint/common/apt-install libsqlite3-0 libssl3
 
     # install chutney.
-    # TODO: consider moving this into a source-able script shared with
-    # integration-chutney-shadow.
-    - git clone
-        --shallow-since="$CHUTNEY_SHALLOW_SINCE"
-        https://gitlab.torproject.org/tpo/core/chutney
-    - git -C ./chutney checkout "$CHUTNEY_COMMIT"
-    # install chutney's deps by installing chutney.
-    # TODO: use a virtualenv instead.
-    - python3 -m pip install --break-system-packages ./chutney
+    # TODO: use a virtualenv instead of --break-system-packages.
+    - python3 -m pip install
+        --break-system-packages
+        git+https://gitlab.torproject.org/tpo/core/chutney.git@"$CHUTNEY_COMMIT"
 
     - tests/chutney/integration-e2e
   artifacts:
@@ -561,15 +555,11 @@ integration-chutney-shadow:
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
-    # install chutney to prevent the test scripts from trying to install
-    # it from inside the shadow simulation, which won't work.
-    - git clone
-        --shallow-since="$CHUTNEY_SHALLOW_SINCE"
-        https://gitlab.torproject.org/tpo/core/chutney
-    - git -C ./chutney checkout "$CHUTNEY_COMMIT"
-    # install chutney's deps by installing chutney.
-    # TODO: use a virtualenv instead.
-    - python3 -m pip install --break-system-packages ./chutney
+    # install chutney.
+    # TODO: use a virtualenv instead of --break-system-packages.
+    - python3 -m pip install
+        --break-system-packages
+        git+https://gitlab.torproject.org/tpo/core/chutney.git@"$CHUTNEY_COMMIT"
 
     # Set up shadow, built in build-shadow
     - maint/common/apt-install libglib2.0-0
