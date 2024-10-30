@@ -170,7 +170,8 @@ defined and implementation is proceeding.
 
 ### Cleanups and housekeeping
 
- * Update the fallback list of Directory Authorities.  [!2589]
+ * Update the list of fallback directories. Clients use these to fetch directory information
+   when they have no cached directory or guard nodes. [!2589]
  * Update some previous entries in `CHANGELOG.md` to more fully document
    changes in `tor-circmgr` 0.23.0.
  * Run typechecker, linter, and autoformatter, on all our Python scripts
