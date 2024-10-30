@@ -6,10 +6,11 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.3.0 - 30 October 2024
 
-Arti 1.3.0 is a significant milestone: we have achieved parity on major
-client features with C Tor.  The last big security feature needed for Onion
-Services (resistance to out-of-memory DoS) landed in this release.  And, in
-Arti client 1.3.0, connecting to `.onion` domains is enabled by default.
+Arti 1.3.0 is a significant milestone: we have achieved parity on most
+major client features with C Tor.  The last big security feature needed for
+Onion Services (resistance to out-of-memory DoS) landed in this release.
+And, in Arti client 1.3.0, connecting to `.onion` domains is enabled by
+default.
 
 Much other major work is taking place, too!  We have continued our work on
 Arti Relay.  The work-in-progress RPC system is significantly more clearly
