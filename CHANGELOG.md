@@ -50,8 +50,8 @@ defined and implementation is proceeding.
    data that might be originated by untrusted parties.  This is currently
    useful as DoS resistance measure for Hidden Services (`.onion`
    services).  To actually enable this, a specific limit must be imposed in
-   the `[system]` section of of the Arti configuration.  ([!2459], [!2461]
-   [!2484], [!2493], [!2508], [!2509], [!2518], [!2531], [!2536], [!2537], [!2545]
+   the `[system]` section of of the Arti configuration.  ([!2459], [!2461],
+   [!2484], [!2493], [!2508], [!2509], [!2518], [!2531], [!2536], [!2537], [!2545],
    [!2555], [!2560], [!2569], [#1682], [#351])
  * **Enabled connecting to `.onion` addresses (Hidden Services) by
    default,** by making `allow_onion_addrs` default to `true` in the
@@ -71,7 +71,7 @@ defined and implementation is proceeding.
    This could occur
    when an out-of-tree user of the Arti libraries ends up enabling
    `time-rs`'s `large-dates` cargo feature, by replacing `simple_asn1`
-   dependency with `der-parser` in `tor-llcrypto`.  ([!2462], [#1632]
+   dependency with `der-parser` in `tor-llcrypto`.  ([!2462], [#1632],
    [simple_asn1#34], [simple_asn1!35], [time-rs#683])
  * Fixed the logging of backtraces, when an internal error occurs.
    (Bug first appeared in Arti 1.2.7.)  [!2588], [#1713])
@@ -96,7 +96,7 @@ defined and implementation is proceeding.
 ### New library and API features
 
  * Added `general::SocketAddr` type for unifying IP and AF\_UNIX (and
-   potentially other) sockets.  ([!2519], [#1681], [!2553], [!2554], [#1701]
+   potentially other) sockets.  ([!2519], [#1681], [!2553], [!2554], [#1701],
    [!2592])
  * Added type-erased `DynTimeProvider` in `tor-rtcompat`.  ([!2460], [!2500])
  * Added `SinkTrySend` and `SinkCloseChannel` traits, making the
@@ -114,7 +114,7 @@ defined and implementation is proceeding.
 
  * Support multiple channels for a single relay ID.  ([!2442], [#1633])
  * Improved channel selection code.  ([!2477], [#1602], [!2544])
- * Much other cleanup and refactoring in `tor-chanmgr`.  ([!2523], [!2538]
+ * Much other cleanup and refactoring in `tor-chanmgr`.  ([!2523], [!2538],
    [#1654], [!2566])
  * Made `arti-relay` be a binary crate only, for now at least, and abolish
    the `relay` subcommand of the main `arti` CLI.  ([!2525], [#1674], [!2542])
@@ -127,10 +127,10 @@ defined and implementation is proceeding.
    [!2574])
  * Finalised specifications for how RPC clients should find the Arti RPC
    server, how the server should decide where to listen, and how
-   authentication will be done.  ([!2439], [!2440], [!2439], [#1521], [!2563]
+   authentication will be done.  ([!2439], [!2440], [!2439], [#1521], [!2563],
    [#1702], [!2582], [#1711])
  * Finalised specifications for version compatibility (interworking of
-   newer/older Arti with newer/older RPC clients).  ([!2475], [#1634], [!2510]
+   newer/older Arti with newer/older RPC clients).  ([!2475], [#1634], [!2510],
    [#1665], [!2511], [#1662], [!2512])
  * Improvements to error handling, especially in the client library.
    ([!2556])
@@ -138,7 +138,7 @@ defined and implementation is proceeding.
    ([!2474], [torspec!292], [proposal 351], [socks-extensions.md])
  * Clarified (and weakened) guarantees provided on request cancellation.
    ([!2564], [#818])
- * Changed `release` method to be a method on the object itself.  ([!2573]
+ * Changed `release` method to be a method on the object itself.  ([!2573],
    [#1663])
  * Other specification fixes/improvements.  ([#1678], [!2539])
  * Fixed the shared library extension on OSX and Windows.  ([!2469])
@@ -175,7 +175,7 @@ defined and implementation is proceeding.
  * Updated some previous entries in `CHANGELOG.md` to more fully document
    changes in `tor-circmgr` 0.23.0.
  * Now we run a typechecker, linter, and autoformatter, on all our Python
-   scripts (and fix the issues identified).  ([!2476], [!2578], [!2579]
+   scripts (and fix the issues identified).  ([!2476], [!2578], [!2579],
    [#1689], [!2584])
  * Minor cleanups and reformatting in `tor-key-forge`.  ([!2552])
  * Commented out (temporarily) ill-shaped `RelaySigningKeySpecifier`.  ([!2527])
@@ -190,9 +190,9 @@ defined and implementation is proceeding.
  * Forbid hard tabs (in most files) in tree.  ([!2488])
  * Fixed `no_default_features = true` typo in many `Cargo.toml`.  ([!2498])
  * Bumped dependency requirements for `futures-*` `notify`.  ([!2499])
- * Fixed indentation in a doc comment to address a new clippy lint.  ([!2516]
+ * Fixed indentation in a doc comment to address a new clippy lint.  ([!2516],
    [!2520])
- * Changed to depend on `slotmap-careful` instead of `slotmap`.  ([!2530]
+ * Changed to depend on `slotmap-careful` instead of `slotmap`.  ([!2530],
    [#1531])
  * Abolished unneeded use of `python-is-python3` package in CI.  ([!2535])
  * Reinstated the `tor-proto` circuit hop check in `test_create()`.  ([!2546])
