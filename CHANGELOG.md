@@ -161,7 +161,7 @@ defined and implementation is proceeding.
  * Added more miri tests.  [!2502]
  * Avoid writing `_ => panic!()` even in tests [!2534]
  * Allow more precise testing of conditional compilation which affects the
-   configuration reader: [!2561]
+   configuration reader. [!2561]
  * Updated to the latest version of Shadow.  [!2585] [shadow!3428] [!2587]
  * Include more output from Shadow in CI artifacts.  [!2586]
  * Pin the version of Chutney used in Shadow tests to make arti.git CI more
