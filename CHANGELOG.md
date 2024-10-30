@@ -102,7 +102,7 @@ defined and implementation is proceeding.
  * New `SinkTrySend` and `SinkCloseChannel` traits, making the
    functionality of `mpsc::Sender::try_send` and `::close` available as a
    trait method and implementable for other types.  [!2468] [!2485] [!2490]
- * new `SometimesUnboundedSink::as_inner` method.  [!2483]
+ * New `SometimesUnboundedSink::as_inner` method.  [!2483]
  * Guarantee that `Slug`s will never contain colons (`:`), and explain why.
    [!2576]
  * Move `tor-config`'s `path` module to a new crate `tor-config-path`.
