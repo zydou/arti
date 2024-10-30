@@ -122,7 +122,7 @@ defined and implementation is proceeding.
 
 ### RPC system development
 
- * Reorganised documentation; now it is an mdbook.  [!2581]
+ * Reorganised RPC documentation; soon it will be a mdbook.  [!2581]
  * Improved documentation for writing RPC callers, including a new Python
    tool to build RPC method and type documentation.  [!2479] [!2489]
    [!2574]
