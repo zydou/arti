@@ -35,6 +35,8 @@ experimental = [
     "build_docs",
     "experimental-api",
     "hs-dir",
+    "hs-pow-full",
+    "hs-pow-v1",
     "hsdesc-inner-docs",
     "dangerous-expose-struct-fields",
 ]

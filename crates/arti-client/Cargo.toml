@@ -105,6 +105,7 @@ experimental = [
     "error_detail",
     "geoip",
     "hs-pow",
+    "hs-pow-full",
     "rpc",
     "testing",
     "tor-proto/experimental",

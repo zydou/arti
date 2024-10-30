@@ -55,6 +55,8 @@ full = [
 # feature voids your "semver warrantee".
 experimental = [
     "experimental-api",
+    "pow-full", 
+    "pow-v1",
     "restricted-discovery",
 ]
 experimental-api = ["restricted-discovery", "__is_experimental"]

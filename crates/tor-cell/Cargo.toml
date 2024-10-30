@@ -17,6 +17,8 @@ default = []
 experimental = [
     "experimental-udp",
     "hs",
+    "hs-pow-full",
+    "hs-pow-v1",
     "testing",
 ]
 # Enable experimental UDP support.

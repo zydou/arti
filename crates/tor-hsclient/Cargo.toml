@@ -44,7 +44,7 @@ full = [
     "oneshot-fused-workaround/full",
 ]
 __is_experimental = []
-experimental = ["keymgr"]
+experimental = ["keymgr", "pow-full", "pow-v1"]
 
 [dependencies]
 async-trait = "0.1.54"
