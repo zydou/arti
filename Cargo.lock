@@ -5910,6 +5910,7 @@ dependencies = [
  "fslock",
  "fslock-guard",
  "futures",
+ "humantime",
  "itertools",
  "oneshot-fused-workaround",
  "paste",
@@ -5919,6 +5920,7 @@ dependencies = [
  "tempfile",
  "test-temp-dir",
  "thiserror",
+ "time",
  "tor-async-utils",
  "tor-basic-utils",
  "tor-error",
@@ -6024,9 +6026,12 @@ version = "0.24.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
+ "humantime",
  "tor-cert",
+ "tor-error",
  "tor-key-forge",
  "tor-keymgr",
+ "tor-persist",
 ]
 
 [[package]]

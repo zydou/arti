@@ -45,6 +45,7 @@ sanitize-filename = "0.5.0"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 thiserror = "1"
+time = { version = "0.3", features = ["std", "parsing", "macros", "formatting"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.24.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
 tor-error = { path = "../tor-error", version = "0.24.0", features = ["tracing"] }
@@ -57,6 +58,7 @@ fslock = { version = "0.2.0" }
 [dev-dependencies]
 anyhow = { version = "1.0.23" }
 derive-deftly = "0.14"
+humantime = "2"
 itertools = "0.13.0"
 tempfile = "3"
 test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
