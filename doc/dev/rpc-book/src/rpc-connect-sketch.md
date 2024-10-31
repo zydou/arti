@@ -391,6 +391,9 @@ Any such connect point is declined (as with the policy for `none` above).
 > It would likely work internally creating a socketpair,
 > and telling the launched copy of arti to use its half
 > of that socketpair alone for its connection.
+>
+> We'd likely need some way to control command-line options
+> and configuration options.
 
 > We do not plan to implement functionality for
 > starting a shared system Arti on demand:
@@ -420,7 +423,9 @@ Any such connect point is declined (as with the policy for `none` above).
 >     to the existing embedded arti.
 >   - Whether an embedded arti will need to have the ability to take
 >     command line arguments to override its storage and cache defaults.
-
+>   - Whether to have some special process for passing command line options
+>     or configuration options to the embedded Arti.
+>
 > These issues will apply to owned arti instances as well.
 
 
