@@ -439,7 +439,7 @@ auth = "none"
 socket = "inet:[::1]:9191"
 socket_canonical = "inet:[::1]:2020"
 
-auth = { "cookie" : { "path" : "/home/user/.arti_rpc/cookie" } }
+auth = { cookie = { path = "/home/user/.arti_rpc/cookie" } }
 ```
 
 ```toml
