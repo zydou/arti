@@ -135,11 +135,16 @@ using syntax similar to [`tor_config::CfgPath`].
 
 > TODO RPC: _How_ similar?
 
-When specifying a set of paths as an environment variable,
+These environment variables can contain
+three kinds of entry:
+filenames, directory names, and literal connect points.
+When concatenating these entries,
 we use colon-separated paths on Unix,
 and semicolon-separated paths on Windows.
 
-When including a literal connect point _in an environment variable_,
+Because a _literal connect points_ can contain the path separator character,
+we need to escape them when including it an environment variable.
+Therefore,
 it is percent-encoded as per RFC 3986 s2.1.
 (The percent encoding is of UTF-8, even if the operating system's character set is not.)
 Percent-encoding must be applied to, at least:
