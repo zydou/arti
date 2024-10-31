@@ -135,11 +135,16 @@ using syntax similar to [`tor_config::CfgPath`].
 
 > TODO RPC: _How_ similar?
 
-When specifying a set of paths as an environment variable,
+These environment variables can contain
+three kinds of entry:
+filenames, directory names, and literal connect points.
+When concatenating these entries,
 we use colon-separated paths on Unix,
 and semicolon-separated paths on Windows.
 
-When including a literal connect point _in an environment variable_,
+Because a _literal connect point_ can contain the path separator character,
+we need to escape them when including it an environment variable.
+Therefore,
 it is percent-encoded as per RFC 3986 s2.1.
 (The percent encoding is of UTF-8, even if the operating system's character set is not.)
 Percent-encoding must be applied to, at least:
@@ -386,6 +391,9 @@ Any such connect point is declined (as with the policy for `none` above).
 > It would likely work internally creating a socketpair,
 > and telling the launched copy of arti to use its half
 > of that socketpair alone for its connection.
+>
+> We'd likely need some way to control command-line options
+> and configuration options.
 
 > We do not plan to implement functionality for
 > starting a shared system Arti on demand:
@@ -415,7 +423,9 @@ Any such connect point is declined (as with the policy for `none` above).
 >     to the existing embedded arti.
 >   - Whether an embedded arti will need to have the ability to take
 >     command line arguments to override its storage and cache defaults.
-
+>   - Whether to have some special process for passing command line options
+>     or configuration options to the embedded Arti.
+>
 > These issues will apply to owned arti instances as well.
 
 
@@ -439,7 +449,7 @@ auth = "none"
 socket = "inet:[::1]:9191"
 socket_canonical = "inet:[::1]:2020"
 
-auth = { "cookie" : { "path" : "/home/user/.arti_rpc/cookie" } }
+auth = { cookie = { path = "/home/user/.arti_rpc/cookie" } }
 ```
 
 ```toml
