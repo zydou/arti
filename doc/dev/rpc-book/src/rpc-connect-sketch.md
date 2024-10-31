@@ -142,7 +142,7 @@ When concatenating these entries,
 we use colon-separated paths on Unix,
 and semicolon-separated paths on Windows.
 
-Because a _literal connect points_ can contain the path separator character,
+Because a _literal connect point_ can contain the path separator character,
 we need to escape them when including it an environment variable.
 Therefore,
 it is percent-encoded as per RFC 3986 s2.1.
