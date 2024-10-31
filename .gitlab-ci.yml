@@ -25,6 +25,8 @@ default:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
   image: amd64/debian:bookworm-slim
   before_script:
+    # get section_start and section_end bash functions
+    - source maint/ci_log_span_fns.sh
     # gitlab fetch strategy doesn't reset permissions
     - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
     # verify that we're running in a container built for amd64.
@@ -587,7 +589,6 @@ integration-shadow:
       - opt/tgen
   script:
     - ./maint/preserve -u
-    - ./maint/ci_log_span start "shadow_install_deps[collapsed=true]" "Installing shadow and tgen"
 
     - maint/common/apt-install git tor obfs4proxy stow
 
@@ -598,6 +599,7 @@ integration-shadow:
     - maint/common/apt-install libglib2.0-0
     - stow -d opt -t $HOME/.local shadow
 
+    - section_start "setup-tgen"
     # Build tgen
     - |
       if [ -f opt/tgen/bin/tgen ]
@@ -618,12 +620,12 @@ integration-shadow:
       fi
     - maint/common/apt-install libigraph3 libglib2.0-0
     - stow -d opt -t $HOME/.local tgen
+    - section_end "setup-tgen"
 
     # Ensure newly installed executables can be found
     - hash -r
 
     - DEBIAN_FRONTEND=noninteractive maint/common/apt-install tshark
-    - ./maint/ci_log_span end "shadow_install_deps"
 
     # Run tests
     - pushd tests/shadow
