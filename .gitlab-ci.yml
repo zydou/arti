@@ -517,15 +517,15 @@ integration-chutney:
    - when: never
   script:
     - ./maint/preserve -u
-    - maint/common/apt-install tor git python3 curl dnsutils python3-pip
+    - maint/common/apt-install tor git python3 curl dnsutils python3-pip python3-venv
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
     # install chutney.
-    # TODO: use a virtualenv instead of --break-system-packages.
+    - python3 -m venv --system-site-packages $HOME/job-venv
+    - source $HOME/job-venv/bin/activate
     - python3 -m pip install
-        --break-system-packages
         git+https://gitlab.torproject.org/tpo/core/chutney.git@"$CHUTNEY_COMMIT"
 
     - tests/chutney/integration-e2e
@@ -551,14 +551,15 @@ integration-chutney-shadow:
         stow
         python3-yaml
         python3-pip
+        python3-venv
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
     # install chutney.
-    # TODO: use a virtualenv instead of --break-system-packages.
+    - python3 -m venv --system-site-packages $HOME/job-venv
+    - source $HOME/job-venv/bin/activate
     - python3 -m pip install
-        --break-system-packages
         git+https://gitlab.torproject.org/tpo/core/chutney.git@"$CHUTNEY_COMMIT"
 
     # Set up shadow, built in build-shadow
