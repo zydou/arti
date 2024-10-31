@@ -300,7 +300,7 @@ dependencies = [
  "rand",
  "safelog",
  "serde",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "thiserror 2.0.3",
  "tokio",
@@ -351,7 +351,7 @@ dependencies = [
  "fs-mistrust",
  "rand",
  "serde",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.3",
  "tor-chanmgr",
  "tor-config",
@@ -1151,7 +1151,7 @@ version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
 dependencies = [
- "heck",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.87",
@@ -1565,7 +1565,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f9bc3564f74be6c35d49a7efee54380d7946ccc631323067f33fabb9246027"
 dependencies = [
  "derive-deftly-macros",
- "heck",
+ "heck 0.5.0",
 ]
 
 [[package]]
@@ -1574,14 +1574,14 @@ version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1b84d32b18d9a256d81e4fec2e4cfd0ab6dde5e5ff49be1713ae0adbd0060c2"
 dependencies = [
- "heck",
- "indexmap 2.6.0",
- "itertools 0.13.0",
- "proc-macro-crate",
+ "heck 0.4.1",
+ "indexmap 1.9.3",
+ "itertools 0.11.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "sha3",
- "strum",
+ "strum 0.25.0",
  "syn 2.0.87",
  "void",
 ]
@@ -1878,7 +1878,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1e6a265c649f3f5979b601d26f1d05ada116434c87741c9493cb56218f76cbc"
 dependencies = [
- "heck",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.87",
@@ -2057,7 +2057,7 @@ dependencies = [
  "anyhow",
  "itertools 0.13.0",
  "pico-args",
- "toml_edit",
+ "toml_edit 0.22.22",
 ]
 
 [[package]]
@@ -2462,6 +2462,12 @@ dependencies = [
 
 [[package]]
 name = "heck"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
+
+[[package]]
+name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
@@ -2838,6 +2844,15 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
 dependencies = [
  "either",
 ]
@@ -3325,7 +3340,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate",
+ "proc-macro-crate 3.2.0",
  "proc-macro2",
  "quote",
  "syn 2.0.87",
@@ -3796,11 +3811,21 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
+dependencies = [
+ "once_cell",
+ "toml_edit 0.19.15",
+]
+
+[[package]]
+name = "proc-macro-crate"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecf48c7ca261d60b74ab1a7b20da18bede46776b2e55535cb958eb595c5fa7b"
 dependencies = [
- "toml_edit",
+ "toml_edit 0.22.22",
 ]
 
 [[package]]
@@ -4853,11 +4878,33 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "290d54ea6f91c969195bdbcd7442c8c2a2ba87da8bf60a7ee86a235d4bc1e125"
+dependencies = [
+ "strum_macros 0.25.3",
+]
+
+[[package]]
+name = "strum"
 version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 dependencies = [
- "strum_macros",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.25.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23dc1fa9ac9c169a78ba62f0b841814b7abae11bdd047b9c58f893439e309ea0"
+dependencies = [
+ "heck 0.4.1",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.87",
 ]
 
 [[package]]
@@ -4866,7 +4913,7 @@ version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
 dependencies = [
- "heck",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -5172,7 +5219,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "toml_edit",
+ "toml_edit 0.22.22",
 ]
 
 [[package]]
@@ -5186,6 +5233,17 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
+version = "0.19.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
+dependencies = [
+ "indexmap 2.6.0",
+ "toml_datetime",
+ "winnow 0.5.40",
+]
+
+[[package]]
+name = "toml_edit"
 version = "0.22.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ae48d6208a266e853d946088ed816055e556cc6028c5e8e2b84d9fa5dd7c7f5"
@@ -5194,7 +5252,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow",
+ "winnow 0.6.20",
 ]
 
 [[package]]
@@ -5421,7 +5479,7 @@ dependencies = [
  "serde-value",
  "serde_ignored",
  "serde_json",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "test-temp-dir",
  "thiserror 2.0.3",
@@ -5535,7 +5593,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "signature",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "thiserror 2.0.3",
  "time",
@@ -5572,7 +5630,7 @@ dependencies = [
  "paste",
  "retry-error",
  "static_assertions",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.3",
  "tracing",
  "tracing-test",
@@ -5638,7 +5696,7 @@ dependencies = [
  "safelog",
  "serde",
  "serde_json",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "thiserror 2.0.3",
  "toml",
@@ -5678,7 +5736,7 @@ dependencies = [
  "retry-error",
  "safelog",
  "slotmap-careful",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.3",
  "tokio",
  "tor-async-utils",
@@ -5799,7 +5857,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "slotmap-careful",
- "strum",
+ "strum 0.26.3",
  "tempfile",
  "test-temp-dir",
  "thiserror 2.0.3",
@@ -5905,7 +5963,7 @@ dependencies = [
  "serde",
  "serde_test",
  "serde_with",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.3",
  "tor-basic-utils",
  "tor-bytes",
@@ -6018,7 +6076,7 @@ dependencies = [
  "rand",
  "serde",
  "static_assertions",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.3",
  "time",
  "tor-basic-utils",
@@ -6237,6 +6295,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-rpc-connect"
+version = "0.24.0"
+dependencies = [
+ "fs-mistrust",
+ "serde",
+ "tempfile",
+ "thiserror 1.0.65",
+ "toml",
+ "tor-basic-utils",
+ "tor-config-path",
+ "tor-general-addr",
+ "tor-rtcompat",
+ "tracing",
+]
+
+[[package]]
 name = "tor-rpcbase"
 version = "0.24.0"
 dependencies = [
@@ -6309,7 +6383,7 @@ dependencies = [
  "priority-queue",
  "rand",
  "slotmap-careful",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.3",
  "tor-basic-utils",
  "tor-error",
@@ -6504,7 +6578,7 @@ dependencies = [
  "serde",
  "shlex",
  "snapbox",
- "toml_edit",
+ "toml_edit 0.22.22",
 ]
 
 [[package]]
@@ -7025,6 +7099,15 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "winnow"
+version = "0.5.40"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "winnow"
