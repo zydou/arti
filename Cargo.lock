@@ -5259,6 +5259,7 @@ dependencies = [
 name = "tor-config-path"
 version = "0.24.0"
 dependencies = [
+ "assert_matches",
  "directories",
  "dirs",
  "once_cell",
@@ -5269,6 +5270,7 @@ dependencies = [
  "thiserror",
  "toml",
  "tor-error",
+ "tor-general-addr",
 ]
 
 [[package]]

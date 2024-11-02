@@ -12,11 +12,12 @@ categories = ["config"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = ["expand-paths"]
+default = ["expand-paths", "address"]
 
-full = ["expand-paths", "tor-error/full"]
+full = ["address", "expand-paths", "tor-error/full"]
 
 expand-paths = ["shellexpand", "directories"]
+address = ["tor-general-addr"]
 
 experimental = ["testing", "experimental-api"]
 # Enable experimental APIs that are not yet officially supported.
@@ -38,8 +39,10 @@ serde = { version = "1.0.103", features = ["derive"] }
 shellexpand = { version = "3.0", optional = true, features = ["path"] }
 thiserror = "1"
 tor-error = { path = "../tor-error", version = "0.24.0" }
+tor-general-addr = { path = "../tor-general-addr", version = "0.24.0", optional = true }
 
 [dev-dependencies]
+assert_matches = "1.5.0"
 dirs = "5.0.0"
 rmp-serde = "1"
 serde_json = "1.0.50"
