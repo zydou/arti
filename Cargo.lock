@@ -6298,6 +6298,7 @@ dependencies = [
 name = "tor-rpc-connect"
 version = "0.24.0"
 dependencies = [
+ "assert_matches",
  "fs-mistrust",
  "serde",
  "tempfile",

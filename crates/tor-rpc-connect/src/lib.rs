@@ -42,6 +42,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod connpt;
+pub mod load;
 
 pub use connpt::{ParsedConnectPoint, ResolveError, ResolvedConnectPoint};
 
@@ -93,5 +94,39 @@ fn fs_error_action(err: &std::io::Error) -> ClientErrorAction {
         EK::NotFound => A::Decline,
         EK::PermissionDenied => A::Decline,
         _ => A::Abort,
+    }
+}
+impl HasClientErrorAction for fs_mistrust::Error {
+    fn client_action(&self) -> ClientErrorAction {
+        use fs_mistrust::Error as E;
+        use ClientErrorAction as A;
+        match self {
+            E::Multiple(errs) => {
+                if errs.iter().any(|e| e.client_action() == A::Abort) {
+                    A::Abort
+                } else {
+                    A::Decline
+                }
+            }
+            E::Io { err, .. } => fs_error_action(err),
+            E::CouldNotInspect(_, err) => fs_error_action(err),
+
+            E::NotFound(_) => A::Decline,
+            E::BadPermission(_, _, _) | E::BadOwner(_, _) => A::Decline,
+            E::StepsExceeded | E::CurrentDirectory(_) => A::Abort,
+
+            // TODO RPC: Not sure about this one.
+            E::BadType(_) => A::Abort,
+
+            // These should be impossible for clients given how we use fs_mistrust in this crate.
+            E::CreatingDir(_)
+            | E::Content(_)
+            | E::NoSuchGroup(_)
+            | E::NoSuchUser(_)
+            | E::MissingField(_)
+            | E::InvalidSubdirectory => A::Abort,
+            E::PasswdGroupIoError(_) => A::Abort,
+            _ => A::Abort,
+        }
     }
 }
