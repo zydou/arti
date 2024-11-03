@@ -1,7 +1,7 @@
 //! Connect point types, and the code to parse them and resolve them.
 
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 use tor_config_path::{
     addr::{CfgAddr, CfgAddrError},
     CfgPath, CfgPathError,
@@ -19,8 +19,7 @@ use crate::HasClientErrorAction;
 /// `${USER_HOME}` or `${ARTI_LOCAL_STATE}`.
 /// To convert these paths to a usable format,
 /// invoke [`ParsedConnectPoint::resolve()`] on this object.
-#[derive(Deserialize, Clone, Debug)]
-#[serde(transparent)]
+#[derive(Clone, Debug)]
 pub struct ParsedConnectPoint(ConnectPointEnum<Unresolved>);
 
 /// A connect point, with all paths resolved.
@@ -45,6 +44,42 @@ impl ParsedConnectPoint {
             CPE::Connect(connect) => CPE::Connect(connect.resolve()?),
             CPE::Builtin(builtin) => CPE::Builtin(builtin.clone()),
         }))
+    }
+}
+
+impl FromStr for ParsedConnectPoint {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let de: ConnectPointDe = toml::from_str(s).map_err(ParseError::InvalidConnectPoint)?;
+        Ok(ParsedConnectPoint(de.try_into()?))
+    }
+}
+
+/// A failure from [`ParsedConnectPoint::from_str()`].
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ParseError {
+    /// The input was not valid toml, or was an invalid connect point.
+    #[error("Invalid connect point")]
+    InvalidConnectPoint(#[source] toml::de::Error),
+    /// The input had sections or members
+    /// that are not allowed to appear in the same connect point.
+    #[error("Conflicting members in connect point")]
+    ConflictingMembers,
+    /// The input was valid toml, but did not have any recognized
+    /// connect point section.
+    #[error("Unrecognized format on connect point")]
+    UnrecognizedFormat,
+}
+impl HasClientErrorAction for ParseError {
+    fn client_action(&self) -> crate::ClientErrorAction {
+        use crate::ClientErrorAction as A;
+        match self {
+            ParseError::InvalidConnectPoint(_) => A::Abort,
+            ParseError::ConflictingMembers => A::Abort,
+            ParseError::UnrecognizedFormat => A::Decline,
+        }
     }
 }
 
@@ -73,12 +108,7 @@ impl HasClientErrorAction for ResolveError {
 /// This type is hidden so that the enum fields remain private.
 /// It is parameterized on a [`Reps`] trait,
 /// to indicate whether it is in resolved or unresolved form.
-#[derive(Deserialize, Clone, Debug)]
-#[serde(try_from = "ConnectPointDe")]
-#[serde(bound = r#"R::Path : Deserialize<'de>,
-               R::SocketAddr : Deserialize<'de>,
-               Self: TryFrom<ConnectPointDe>,
-               <Self as TryFrom<ConnectPointDe>>::Error : std::fmt::Display"#)]
+#[derive(Clone, Debug)]
 pub(crate) enum ConnectPointEnum<R: Reps> {
     /// Connect by opening a socket to a [`general::SocketAddr`]
     Connect(Connect<R>),
@@ -116,7 +146,7 @@ struct ConnectPointDe {
     builtin: Option<Builtin>,
 }
 impl TryFrom<ConnectPointDe> for ConnectPointEnum<Unresolved> {
-    type Error = InvalidConnectPointMembers;
+    type Error = ParseError;
 
     fn try_from(value: ConnectPointDe) -> Result<Self, Self::Error> {
         match value {
@@ -128,17 +158,18 @@ impl TryFrom<ConnectPointDe> for ConnectPointEnum<Unresolved> {
                 connect: None,
                 builtin: Some(b),
             } => Ok(ConnectPointEnum::Builtin(b)),
-            _ => Err(InvalidConnectPointMembers),
+            ConnectPointDe {
+                connect: Some(_),
+                builtin: Some(_),
+            } => Err(ParseError::ConflictingMembers),
+            // This didn't have either recognized section,
+            // so it is likely itn an unrecognized format.
+            _ => Err(ParseError::UnrecognizedFormat),
         }
         // XXXX: At this point we can check for other required properties, like
         // consistency between connect method and authentication.
     }
 }
-/// Error: a connect point is unparseble because it had no appropriate table,
-/// or because it had conflicting tables.
-#[derive(Clone, Debug, thiserror::Error)]
-#[error("A connect point must include exactly one of `builtin` or `connect`")]
-struct InvalidConnectPointMembers;
 
 /// A "builtin" connect point.
 ///
@@ -258,9 +289,10 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use assert_matches::assert_matches;
 
     fn parse(s: &str) -> ParsedConnectPoint {
-        toml::from_str(s).unwrap()
+        s.parse().unwrap()
     }
 
     #[test]
@@ -300,5 +332,14 @@ socket_canonical = "inet:[::1]:2020"
 path = "/home/user/.arti_rpc/cookie"
 "#,
         );
+    }
+
+    #[test]
+    fn parse_errors() {
+        let r: Result<ParsedConnectPoint, _> = "not a toml string".parse();
+        assert_matches!(r, Err(ParseError::InvalidConnectPoint(_)));
+
+        let r: Result<ParsedConnectPoint, _> = "[squidcakes]".parse();
+        assert_matches!(r, Err(ParseError::UnrecognizedFormat));
     }
 }
