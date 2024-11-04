@@ -317,6 +317,8 @@ enum ErrorDetail {
     BadClientSpecifier(#[from] tor_keymgr::ArtiPathSyntaxError),
 
     /// We tried to parse an onion address, but we found that it was invalid.
+    ///
+    /// This error occurs if we are asked to connect to an invalid .onion address.
     #[cfg(feature = "onion-service-client")]
     #[error("Invalid onion address")]
     BadOnionAddress(#[from] tor_hscrypto::pk::HsIdParseError),
