@@ -5,7 +5,7 @@ use futures::task::SpawnError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tor_chanmgr::factory::AbstractPtError;
-use tor_config::{CfgPath, CfgPathError};
+use tor_config_path::{CfgPath, CfgPathError};
 use tor_error::{ErrorKind, HasKind, HasRetryTime, RetryTime};
 
 /// An error spawning or managing a pluggable transport.

@@ -386,17 +386,27 @@ mod test_serde {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+
     use std::ffi::OsString;
     use std::fmt::Debug;
 
-    #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+    use derive_builder::Builder;
+    use tor_config::load::TopLevel;
+    use tor_config::{impl_standard_builder, ConfigBuildError};
+
+    #[derive(Serialize, Deserialize, Builder, Eq, PartialEq, Debug)]
+    #[builder(derive(Serialize, Deserialize, Debug))]
+    #[builder(build_fn(error = "ConfigBuildError"))]
     struct TestConfigFile {
         p: CfgPath,
     }
 
-    // TODO: Had to disable these tests when moving `tor_config::path` to `tor_config_path`, but we
-    // should re-enable them.
-    /*
+    impl_standard_builder! { TestConfigFile: !Default }
+
+    impl TopLevel for TestConfigFile {
+        type Builder = TestConfigFileBuilder;
+    }
+
     fn deser_json(json: &str) -> CfgPath {
         dbg!(json);
         let TestConfigFile { p } = serde_json::from_str(json).expect("deser json failed");
@@ -409,15 +419,15 @@ mod test_serde {
     }
     fn deser_toml_cfg(toml: &str) -> CfgPath {
         dbg!(toml);
-        let mut sources = crate::ConfigurationSources::new_empty();
+        let mut sources = tor_config::ConfigurationSources::new_empty();
         sources.push_source(
-            crate::ConfigurationSource::from_verbatim(toml.to_string()),
-            crate::sources::MustRead::MustRead,
+            tor_config::ConfigurationSource::from_verbatim(toml.to_string()),
+            tor_config::sources::MustRead::MustRead,
         );
         let cfg = sources.load().unwrap();
 
         dbg!(&cfg);
-        let TestConfigFile { p } = cfg.0.extract_lossy().expect("deser cfg failed");
+        let TestConfigFile { p } = tor_config::load::resolve(cfg).expect("cfg resolution failed");
         p
     }
 
@@ -440,7 +450,6 @@ mod test_serde {
             assert_eq!(cp.as_literal_path(), Some(&*PathBuf::from("lit")));
         }
     }
-    */
 
     fn non_string_path() -> PathBuf {
         #[cfg(target_family = "unix")]

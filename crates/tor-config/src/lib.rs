@@ -75,7 +75,6 @@ pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
 pub use misc::*;
 pub use mut_cfg::MutCfg;
 pub use sources::{ConfigurationSource, ConfigurationSources};
-pub use tor_config_path::{CfgPath, CfgPathError};
 
 use itertools::Itertools;
 

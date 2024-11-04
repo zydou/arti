@@ -1,6 +1,7 @@
 //! Configuration options for types implementing [`Keystore`](crate::Keystore)
 
-pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
+pub use tor_config::{ConfigBuildError, ConfigurationSource, Reconfigure};
+pub use tor_config_path::{CfgPath, CfgPathError};
 
 use amplify::Getters;
 use derive_builder::Builder;

@@ -99,6 +99,7 @@ tor-bytes = { version = "0.24.0", path = "../tor-bytes" }
 tor-cell = { version = "0.24.0", path = "../tor-cell", features = ["hs"] }
 tor-circmgr = { version = "0.24.0", path = "../tor-circmgr", features = ["hs-service"] }
 tor-config = { version = "0.24.0", path = "../tor-config" }
+tor-config-path = { version = "0.24.0", path = "../tor-config-path" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.24.0", default-features = false, features = ["hs-service"] }
 tor-error = { version = "0.24.0", path = "../tor-error" }
 tor-hscrypto = { version = "0.24.0", path = "../tor-hscrypto", features = ["ope"] }

@@ -12,8 +12,9 @@ use fs_mistrust::{CheckedDir, Mistrust, MistrustBuilder};
 use amplify::Getters;
 use serde_with::DisplayFromStr;
 
+use tor_config::define_list_builder_helper;
 use tor_config::mistrust::BuilderExt as _;
-use tor_config::{define_list_builder_helper, CfgPath, CfgPathError};
+use tor_config_path::{CfgPath, CfgPathError};
 use tor_error::warn_report;
 use tor_hscrypto::pk::HsClientDescEncKeyParseError;
 use tor_persist::slug::BadSlug;

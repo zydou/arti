@@ -45,6 +45,7 @@ strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1"
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.24.0" }
 tor-config = { path = "../tor-config", version = "0.24.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.24.0" }
 tor-error = { path = "../tor-error", version = "0.24.0" }
 tor-keymgr = { path = "../tor-keymgr", version = "0.24.0", features = ["keymgr", "ephemeral-keystore"] }
 # TODO RELAY compile in memquota tracking by default?  with a calculated limit maybe, even?
