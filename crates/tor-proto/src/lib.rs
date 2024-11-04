@@ -47,6 +47,7 @@
     allow(unused, unreachable_pub)
 )]
 
+pub mod bench_utils;
 pub mod channel;
 pub mod circuit;
 mod crypto;

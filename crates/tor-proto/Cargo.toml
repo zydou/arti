@@ -100,6 +100,8 @@ void = "1"
 zeroize = "1"
 
 [dev-dependencies]
+cpu-time = "1.0.0"
+criterion = "0.5.1"
 hex = "0.4"
 hex-literal = "0.4"
 humantime = "2"
@@ -110,3 +112,19 @@ tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.24.0", features = ["tokio", "native-tls"] }
 [package.metadata.docs.rs]
 all-features = true
+
+[[bench]]
+name = "cell_decrypt"
+harness = false
+
+[[bench]]
+name = "cell_encrypt"
+harness = false
+
+[[bench]]
+name = "cell_is_recognized"
+harness = false
+
+[[bench]]
+name = "cell_set_digest"
+harness = false
