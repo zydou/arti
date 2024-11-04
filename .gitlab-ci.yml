@@ -185,15 +185,28 @@ cargo-audit:
 .rust-recent-template:
   script: &rust-recent-script
     - rustup show
+
+    - section_start "cargo check"
     - cargo check --locked --verbose --target x86_64-unknown-linux-gnu
+
+    - section_start "cargo test"
     - cargo test --verbose --target x86_64-unknown-linux-gnu
+
+    - section_start "cargo clippy"
     - rustup component add clippy
     - rustup show
     - ./maint/add_warning --ci-stable
     - cargo clippy --all-features --all-targets -- -D warnings
+
+    - section_start "build arti-bench"
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
+
+    - section_start "build arti"
     - cargo build --locked --verbose --target x86_64-unknown-linux-gnu -p arti
+
+    - section_start "build docs"
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
+    - section_end
 
 rust-recent:
   stage: build
