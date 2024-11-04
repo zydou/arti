@@ -198,47 +198,6 @@ impl From<CfgAddr> for CfgAddrSerde {
     }
 }
 
-/*
-impl Serialize for CfgAddr {
-    fn serialize<S>(&self, ser: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        use crate::PathInner as PI;
-        use AddrInner as AI;
-        match &self.0 {
-            AI::Inet(socket_addr) => ser.serialize_str(format!("inet:{}", socket_addr).as_ref()),
-            AI::Unix(cfg_path) => match &cfg_path.0 {
-                PI::Shell(s) => ser.serialize_str(format!("unix:{}", s).as_ref()),
-                PI::Literal(path) => match path.literal.to_str() {
-                    Some(literal_as_str) => {
-                        ser.serialize_str(format!("unix-literal:{}", literal_as_str).as_ref())
-                    }
-                    None => path.literal.serialize(ser),
-                },
-            },
-        }
-    }
-}
-
-struct CfgAddrVisitor;
-impl Visitor for CfgAddrVisitor {
-    type Value = CfgAddr;
-
-    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "A string holding a ")
-    }
-}
-
-impl<'de> Deserialize<'de> for CfgAddr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-    }
-}
-    */
-
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
