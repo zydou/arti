@@ -590,17 +590,17 @@ integration-shadow:
   script:
     - ./maint/preserve -u
 
-    - maint/common/apt-install git tor obfs4proxy stow
+    - section_start "Install utility packages"
+    - maint/common/apt-install git tor obfs4proxy stow tshark
 
-    # arti runtime dependencies
+    - section_start "Install arti runtime dependencies"
     - maint/common/apt-install libsqlite3-0 libssl3
 
-    # Set up shadow, built in build-shadow
+    - section_start "Set up shadow, built in build-shadow"
     - maint/common/apt-install libglib2.0-0
     - stow -d opt -t $HOME/.local shadow
 
-    - section_start "setup-tgen"
-    # Build tgen
+    - section_start "Setup tgen"
     - |
       if [ -f opt/tgen/bin/tgen ]
       then
@@ -620,16 +620,14 @@ integration-shadow:
       fi
     - maint/common/apt-install libigraph3 libglib2.0-0
     - stow -d opt -t $HOME/.local tgen
-    - section_end "setup-tgen"
 
     # Ensure newly installed executables can be found
     - hash -r
 
-    - DEBIAN_FRONTEND=noninteractive maint/common/apt-install tshark
-
-    # Run tests
+    - section_start "Run shadow test"
     - pushd tests/shadow
     - ./run
+    - section_end
   artifacts:
     paths:
       - tests/shadow
