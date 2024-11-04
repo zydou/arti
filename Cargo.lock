@@ -6300,6 +6300,8 @@ version = "0.24.0"
 dependencies = [
  "assert_matches",
  "fs-mistrust",
+ "rand",
+ "safelog",
  "serde",
  "tempfile",
  "thiserror 1.0.65",
@@ -6309,6 +6311,7 @@ dependencies = [
  "tor-general-addr",
  "tor-rtcompat",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]

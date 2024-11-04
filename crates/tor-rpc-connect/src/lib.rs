@@ -41,6 +41,7 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+pub mod auth;
 mod connpt;
 pub mod load;
 #[cfg(test)]
