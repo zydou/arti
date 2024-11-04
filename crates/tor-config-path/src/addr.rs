@@ -306,9 +306,9 @@ mod test {
 
     #[test]
     fn unix_literal() {
-        let pb = PathBuf::from("${HOME}/.local/socket");
+        let pb = PathBuf::from("${USER_HOME}/.local/socket");
         let a1 = CfgAddr::new_unix(CfgPath::new_literal(&pb));
-        let a2 = CfgAddr::from_str("unix-literal:${HOME}/.local/socket").unwrap();
+        let a2 = CfgAddr::from_str("unix-literal:${USER_HOME}/.local/socket").unwrap();
         #[cfg(unix)]
         {
             assert_eq!(a1.address().unwrap(), a2.address().unwrap());
