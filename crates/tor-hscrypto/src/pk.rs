@@ -235,21 +235,6 @@ pub enum HsIdParseError {
     HsIdContainsSubdomain,
 }
 
-impl tor_error::HasKind for HsIdParseError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
-        match self {
-            HsIdParseError::InvalidBase32(_)
-            | HsIdParseError::InvalidData(_)
-            | HsIdParseError::UnsupportedVersion(_)
-            | HsIdParseError::WrongChecksum => EK::OnionServiceAddressInvalid,
-            HsIdParseError::NotOnionDomain | HsIdParseError::HsIdContainsSubdomain => {
-                EK::BadApiUsage
-            }
-        }
-    }
-}
-
 impl HsId {
     /// Calculates CHECKSUM rend-spec-v3 s.6 \[ONIONADDRESS]
     fn onion_checksum(&self) -> [u8; 2] {
