@@ -214,7 +214,8 @@ mod test {
     use io::Write;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-    use tempfile::TempDir;
+
+    use crate::testing::tempdir;
 
     fn write(dir: &Path, fname: &str, mode: u32, content: &str) -> PathBuf {
         #[cfg(not(unix))]
@@ -230,22 +231,6 @@ mod test {
         f.set_permissions(PermissionsExt::from_mode(mode)).unwrap();
 
         p
-    }
-
-    fn tempdir() -> (TempDir, PathBuf, Mistrust) {
-        let mut bld = tempfile::Builder::new();
-        #[cfg(unix)]
-        bld.permissions(PermissionsExt::from_mode(0o700));
-        let tempdir = bld.tempdir().unwrap();
-        let subdir = tempdir.as_ref().join("d");
-
-        let mistrust = fs_mistrust::Mistrust::builder()
-            .ignore_prefix(tempdir.as_ref().canonicalize().unwrap())
-            .build()
-            .unwrap();
-
-        mistrust.make_directory(&subdir).unwrap();
-        (tempdir, subdir, mistrust)
     }
 
     const EXAMPLE_1: &str = r#"

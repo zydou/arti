@@ -43,6 +43,8 @@
 
 mod connpt;
 pub mod load;
+#[cfg(test)]
+mod testing;
 
 pub use connpt::{ParsedConnectPoint, ResolveError, ResolvedConnectPoint};
 
