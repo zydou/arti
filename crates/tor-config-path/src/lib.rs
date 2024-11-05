@@ -221,7 +221,7 @@ impl CfgPath {
     /// Return the path on disk designated by this `CfgPath`.
     pub fn path(&self) -> Result<PathBuf, CfgPathError> {
         match &self.0 {
-            PathInner::Shell(s) => expand(s),
+            PathInner::Shell(s) => expand(s, &PATH_RESOLVER),
             PathInner::Literal(LiteralPath { literal }) => Ok(literal.clone()),
         }
     }
@@ -262,15 +262,14 @@ impl std::fmt::Display for CfgPath {
 
 /// Helper: expand a directory given as a string.
 #[cfg(feature = "expand-paths")]
-fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
-    Ok(shellexpand::path::full_with_context(s, get_home, get_env)
-        .map_err(|e| e.cause)?
-        .into_owned())
+fn expand(s: &str, path_resolver: &CfgPathResolver) -> Result<PathBuf, CfgPathError> {
+    let path = shellexpand::path::full_with_context(s, get_home, |x| path_resolver.get_var(x));
+    Ok(path.map_err(|e| e.cause)?.into_owned())
 }
 
 /// Helper: convert a string to a path without expansion.
 #[cfg(not(feature = "expand-paths"))]
-fn expand(input: &str) -> Result<PathBuf, CfgPathError> {
+fn expand(input: &str, _: &CfgPathResolver) -> Result<PathBuf, CfgPathError> {
     // We must still de-duplicate `$` and reject `~/`,, so that the behaviour is a superset
     if input.starts_with('~') {
         return Err(CfgPathError::HomeDirInterpolationNotSupported(input.into()));
@@ -307,20 +306,6 @@ fn get_program_dir() -> Result<Option<PathBuf>, CfgPathError> {
     Ok(binary.parent().map(ToOwned::to_owned))
 }
 
-/// Shellexpand helper: Expand a shell variable if we can.
-#[cfg(feature = "expand-paths")]
-fn get_env(var: &str) -> Result<Option<Cow<'static, Path>>, CfgPathError> {
-    match var {
-        "ARTI_CACHE" => Ok(Some(Cow::Borrowed(project_dirs()?.cache_dir()))),
-        "ARTI_CONFIG" => Ok(Some(Cow::Borrowed(project_dirs()?.config_dir()))),
-        "ARTI_SHARED_DATA" => Ok(Some(Cow::Borrowed(project_dirs()?.data_dir()))),
-        "ARTI_LOCAL_DATA" => Ok(Some(Cow::Borrowed(project_dirs()?.data_local_dir()))),
-        "PROGRAM_DIR" => Ok(get_program_dir()?.map(Cow::Owned)),
-        "USER_HOME" => Ok(Some(Cow::Borrowed(base_dirs()?.home_dir()))),
-        _ => Err(CfgPathError::UnknownVar(var.to_owned())),
-    }
-}
-
 /// Return a ProjectDirs object for the Arti project.
 #[cfg(feature = "expand-paths")]
 fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
@@ -339,6 +324,29 @@ fn base_dirs() -> Result<&'static BaseDirs, CfgPathError> {
 
     BASE_DIRS.as_ref().ok_or(CfgPathError::NoBaseDirs)
 }
+
+/// The path resolver used by all arti crates.
+// TODO(rust=1.80): replace once_cell with LazyLock once we have an msrv of 1.80
+#[cfg(feature = "expand-paths")]
+static PATH_RESOLVER: Lazy<CfgPathResolver> = Lazy::new(|| {
+    let arti_cache = project_dirs().map(|x| Some(Cow::Owned(x.cache_dir().to_owned())));
+    let arti_config = project_dirs().map(|x| Some(Cow::Owned(x.config_dir().to_owned())));
+    let arti_shared_data = project_dirs().map(|x| Some(Cow::Owned(x.data_dir().to_owned())));
+    let arti_local_data = project_dirs().map(|x| Some(Cow::Owned(x.data_local_dir().to_owned())));
+    let program_dir = get_program_dir().map(|x| x.map(Cow::Owned));
+    let user_home = base_dirs().map(|x| Some(Cow::Borrowed(x.home_dir())));
+
+    let mut resolver = CfgPathResolver::default();
+
+    resolver.set_var("ARTI_CACHE", arti_cache);
+    resolver.set_var("ARTI_CONFIG", arti_config);
+    resolver.set_var("ARTI_SHARED_DATA", arti_shared_data);
+    resolver.set_var("ARTI_LOCAL_DATA", arti_local_data);
+    resolver.set_var("PROGRAM_DIR", program_dir);
+    resolver.set_var("USER_HOME", user_home);
+
+    resolver
+});
 
 #[cfg(all(test, feature = "expand-paths"))]
 mod test {
