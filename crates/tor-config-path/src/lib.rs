@@ -41,10 +41,10 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "expand-paths")]
 use std::borrow::Cow;
 #[cfg(feature = "expand-paths")]
 use {
@@ -53,6 +53,9 @@ use {
 };
 
 use tor_error::{ErrorKind, HasKind};
+
+#[cfg(all(test, feature = "expand-paths"))]
+use std::ffi::OsStr;
 
 #[cfg(feature = "address")]
 pub mod addr;
@@ -143,6 +146,62 @@ impl HasKind for CfgPathError {
                 EK::FeatureDisabled
             }
         }
+    }
+}
+
+/// A variable resolver for paths in a configuration file.
+#[derive(Clone, Debug, Default)]
+pub struct CfgPathResolver {
+    /// The variables and their values.
+    vars: HashMap<String, Result<Option<Cow<'static, Path>>, CfgPathError>>,
+}
+
+impl CfgPathResolver {
+    /// Get the value for a given variable name.
+    #[cfg(feature = "expand-paths")]
+    fn get_var(&self, var: &str) -> Result<Option<Cow<'static, Path>>, CfgPathError> {
+        match self.vars.get(var) {
+            Some(val) => val.clone(),
+            None => Err(CfgPathError::UnknownVar(var.to_owned())),
+        }
+    }
+
+    /// Set a variable `var` that will be replaced with `val` when a [`CfgPath`] is expanded.
+    ///
+    /// Setting an `Err` is useful when a variable is supported, but for whatever reason it can't be
+    /// expanded, and you'd like to return a more-specific error. Setting an `Ok(None)` is useful
+    /// when a variable is supported but we don't have a value to expand it to.
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use tor_config_path::{CfgPath, CfgPathResolver};
+    ///
+    /// let mut path_resolver = CfgPathResolver::default();
+    /// path_resolver.set_var("FOO", Ok(Some(Path::new("/foo").to_owned().into())));
+    /// ```
+    // I don't really think it makes sense to have an `Option` here, but we need this for backwards
+    // compatability.
+    pub fn set_var(
+        &mut self,
+        var: impl Into<String>,
+        val: Result<Option<Cow<'static, Path>>, CfgPathError>,
+    ) {
+        self.vars.insert(var.into(), val);
+    }
+
+    /// Helper to create a `CfgPathResolver` from str `(name, value)` pairs.
+    #[cfg(all(test, feature = "expand-paths"))]
+    fn from_pairs<K, V>(vars: impl IntoIterator<Item = (K, V)>) -> CfgPathResolver
+    where
+        K: Into<String>,
+        V: AsRef<OsStr>,
+    {
+        let mut path_resolver = CfgPathResolver::default();
+        for (name, val) in vars.into_iter() {
+            let val = Path::new(val.as_ref()).to_owned();
+            path_resolver.set_var(name, Ok(Some(val.into())));
+        }
+        path_resolver
     }
 }
 
