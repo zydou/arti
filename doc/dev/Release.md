@@ -270,13 +270,18 @@ before you continue!
 
 2. Write a blog post.
 
-3. One the blog post is published,
-   update the origin/pages branch to refer to the new version.
+3. There's a "pages" branch in the arti repository
+   that controls the contents of <https:/arti.torproject.org/>.
+   Once the blog post is published,
+   update that "pages" branch to refer to the new version.
+   (For an example MR, see [!2271].)
 
 4. Did you create any new crates?
    If so, you need to make sure that they are owned (on crates.io)
    by the right set of developers.
    If you aren't sure, run `maint/cargo-crate-owners`.
+
+[!2271]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2271
 
 <!-- ================================================== -->
 
