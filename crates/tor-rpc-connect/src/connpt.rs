@@ -1,7 +1,7 @@
 //! Connect point types, and the code to parse them and resolve them.
 
 use serde::Deserialize;
-use std::{path::PathBuf, str::FromStr};
+use std::{fmt::Debug, path::PathBuf, str::FromStr};
 use tor_config_path::{
     addr::{CfgAddr, CfgAddrError},
     CfgPath, CfgPathError,
@@ -93,12 +93,17 @@ pub enum ResolveError {
     /// There was an address in the connect point that we couldn't resolve.
     #[error("Unable to resolve variables in address")]
     InvalidAddr(#[from] CfgAddrError),
+    /// After substitution, we couldn't expand the path to a string.
+    #[error("Cannot represent expanded path as string")]
+    PathNotString,
 }
 impl HasClientErrorAction for ResolveError {
     fn client_action(&self) -> crate::ClientErrorAction {
+        use crate::ClientErrorAction as A;
         match self {
             ResolveError::InvalidPath(e) => e.client_action(),
             ResolveError::InvalidAddr(e) => e.client_action(),
+            ResolveError::PathNotString => A::Decline,
         }
     }
 }
@@ -192,11 +197,11 @@ pub(crate) enum BuiltinVariant {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-#[serde(bound = "R::Path : Deserialize<'de>, R::SocketAddr : Deserialize<'de>")]
+#[serde(bound = "R::Path : Deserialize<'de>, AddrWithStr<R::SocketAddr> : Deserialize<'de>")]
 pub(crate) struct Connect<R: Reps> {
     /// The address of the socket at which the client should try to reach the RPC server,
     /// and which the RPC server should bind.
-    pub(crate) socket: R::SocketAddr,
+    pub(crate) socket: AddrWithStr<R::SocketAddr>,
     /// The address of the socket which the RPC server believes it is actually listening at.
     ///
     /// If absent, defaults to `socket`.
@@ -204,7 +209,7 @@ pub(crate) struct Connect<R: Reps> {
     /// This value is only needs to be different from `socket`
     /// in cases where cookie authentication is in use,
     /// and the client is sandboxed somehow (such as behind a NAT, or inside a container).
-    pub(crate) socket_canonical: Option<R::SocketAddr>,
+    pub(crate) socket_canonical: Option<AddrWithStr<R::SocketAddr>>,
     /// The authentication that the client should try to use,
     /// and which the server should require.
     pub(crate) auth: Auth<R>,
@@ -213,11 +218,11 @@ pub(crate) struct Connect<R: Reps> {
 impl Connect<Unresolved> {
     /// Convert all symbolic paths within this Connect to their resolved forms.
     fn resolve(&self) -> Result<Connect<Resolved>, ResolveError> {
-        let socket = self.socket.address()?;
+        let socket = self.socket.resolve()?;
         let socket_canonical = self
             .socket_canonical
             .as_ref()
-            .map(|sc| sc.address())
+            .map(|sc| sc.resolve())
             .transpose()?;
         let auth = self.auth.resolve()?;
         Ok(Connect {
@@ -270,6 +275,52 @@ pub(crate) struct Resolved;
 impl Reps for Resolved {
     type SocketAddr = general::SocketAddr;
     type Path = PathBuf;
+}
+
+/// Represent an address type along with the string it was decoded from.
+///
+/// We use this type in connect points because, for some kinds of authentication,
+/// we need the literal input string that created the address.
+#[derive(Clone, Debug, derive_more::AsRef, serde_with::DeserializeFromStr)]
+pub(crate) struct AddrWithStr<A>
+where
+    A: Clone + Debug,
+{
+    /// The string representation of the address.
+    ///
+    /// For inet addresses, this is the value that appeared in the configuration.
+    /// For unix addresses, this is the value that appeared in the configuration,
+    /// after shell expansion.
+    string: String,
+    /// The address itself.
+    #[as_ref]
+    addr: A,
+}
+impl AddrWithStr<CfgAddr> {
+    /// Convert an `AddrWithStr<CfgAddr>` into its substituted form.
+    pub(crate) fn resolve(&self) -> Result<AddrWithStr<general::SocketAddr>, ResolveError> {
+        let AddrWithStr { string, addr } = self;
+        let substituted = addr.substitutions_will_apply();
+        let addr = addr.address()?;
+        let string = if substituted {
+            addr.try_to_string().ok_or(ResolveError::PathNotString)?
+        } else {
+            string.clone()
+        };
+        Ok(AddrWithStr { string, addr })
+    }
+}
+impl<A> FromStr for AddrWithStr<A>
+where
+    A: Clone + Debug + FromStr,
+{
+    type Err = <A as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let addr = s.parse()?;
+        let string = s.to_owned();
+        Ok(Self { string, addr })
+    }
 }
 
 #[cfg(test)]

@@ -6299,10 +6299,12 @@ name = "tor-rpc-connect"
 version = "0.24.0"
 dependencies = [
  "assert_matches",
+ "derive_more",
  "fs-mistrust",
  "rand",
  "safelog",
  "serde",
+ "serde_with",
  "tempfile",
  "thiserror 1.0.65",
  "toml",
