@@ -317,6 +317,8 @@ enum ErrorDetail {
     BadClientSpecifier(#[from] tor_keymgr::ArtiPathSyntaxError),
 
     /// We tried to parse an onion address, but we found that it was invalid.
+    ///
+    /// This error occurs if we are asked to connect to an invalid .onion address.
     #[cfg(feature = "onion-service-client")]
     #[error("Invalid onion address")]
     BadOnionAddress(#[from] tor_hscrypto::pk::HsIdParseError),
@@ -423,7 +425,7 @@ impl tor_error::HasKind for ErrorDetail {
             #[cfg(feature = "onion-service-client")]
             E::OnionAddressDisabled => EK::ForbiddenStreamTarget,
             #[cfg(feature = "onion-service-client")]
-            E::BadOnionAddress(e) => e.kind(),
+            E::BadOnionAddress(_) => EK::InvalidStreamTarget,
             #[cfg(feature = "onion-service-service")]
             E::LaunchOnionService(e) => e.kind(),
             // TODO Should delegate to TorAddrError EK
