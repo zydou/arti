@@ -367,6 +367,41 @@ mod test {
         );
         assert_eq!(p.to_string(), "\"${ARTI_CACHE}/literally\" [exactly]");
     }
+
+    #[test]
+    #[cfg(feature = "expand-paths")]
+    fn program_dir() {
+        let p = CfgPath::new("${PROGRAM_DIR}/foo".to_string());
+
+        let mut this_binary = std::env::current_exe().unwrap();
+        this_binary.pop();
+        this_binary.push("foo");
+        let expanded = p.path().unwrap();
+        assert_eq!(expanded, this_binary);
+    }
+
+    #[test]
+    #[cfg(not(feature = "expand-paths"))]
+    fn rejections() {
+        let chk_err = |s: &str, mke: &dyn Fn(String) -> CfgPathError| {
+            let p = CfgPath::new(s.to_string());
+            assert_eq!(p.path().unwrap_err(), mke(s.to_string()));
+        };
+
+        let chk_ok = |s: &str, exp| {
+            let p = CfgPath::new(s.to_string());
+            assert_eq!(p.path(), Ok(PathBuf::from(exp)));
+        };
+
+        chk_err(
+            "some/${PROGRAM_DIR}/foo",
+            &CfgPathError::VariableInterpolationNotSupported,
+        );
+        chk_err("~some", &CfgPathError::HomeDirInterpolationNotSupported);
+
+        chk_ok("some$$foo$$bar", "some$foo$bar");
+        chk_ok("no dollars", "no dollars");
+    }
 }
 
 #[cfg(test)]
@@ -519,40 +554,5 @@ mod test_serde {
             |input| rmp_serde::to_vec(&input),
             |mpack| rmp_serde::from_slice(mpack),
         );
-    }
-
-    #[test]
-    #[cfg(feature = "expand-paths")]
-    fn program_dir() {
-        let p = CfgPath::new("${PROGRAM_DIR}/foo".to_string());
-
-        let mut this_binary = std::env::current_exe().unwrap();
-        this_binary.pop();
-        this_binary.push("foo");
-        let expanded = p.path().unwrap();
-        assert_eq!(expanded, this_binary);
-    }
-
-    #[test]
-    #[cfg(not(feature = "expand-paths"))]
-    fn rejections() {
-        let chk_err = |s: &str, mke: &dyn Fn(String) -> CfgPathError| {
-            let p = CfgPath::new(s.to_string());
-            assert_eq!(p.path().unwrap_err(), mke(s.to_string()));
-        };
-
-        let chk_ok = |s: &str, exp| {
-            let p = CfgPath::new(s.to_string());
-            assert_eq!(p.path(), Ok(PathBuf::from(exp)));
-        };
-
-        chk_err(
-            "some/${PROGRAM_DIR}/foo",
-            &CfgPathError::VariableInterpolationNotSupported,
-        );
-        chk_err("~some", &CfgPathError::HomeDirInterpolationNotSupported);
-
-        chk_ok("some$$foo$$bar", "some$foo$bar");
-        chk_ok("no dollars", "no dollars");
     }
 }
