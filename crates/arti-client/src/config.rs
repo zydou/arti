@@ -1181,4 +1181,24 @@ mod test {
             chk(&from_toml(test_case), *expected);
         }
     }
+
+    #[cfg(not(target_family = "windows"))]
+    #[test]
+    fn expand_cache() {
+        let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
+        assert_eq!(p.to_string(), "${ARTI_CACHE}/example".to_string());
+
+        let expected = project_dirs().unwrap().cache_dir().join("example");
+        assert_eq!(p.path(&PATH_RESOLVER).unwrap().to_str(), expected.to_str());
+    }
+
+    #[cfg(target_family = "windows")]
+    #[test]
+    fn expand_cache() {
+        let p = CfgPath::new("${ARTI_CACHE}\\example".to_string());
+        assert_eq!(p.to_string(), "${ARTI_CACHE}\\example".to_string());
+
+        let expected = project_dirs().unwrap().cache_dir().join("example");
+        assert_eq!(p.path(&PATH_RESOLVER).unwrap().to_str(), expected.to_str());
+    }
 }

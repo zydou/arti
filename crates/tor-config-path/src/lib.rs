@@ -353,29 +353,6 @@ mod test {
         assert_eq!(p.path(&r).unwrap().to_str(), expected.to_str());
     }
 
-    // XXX move to arti-client
-    /*
-    #[cfg(not(target_family = "windows"))]
-    #[test]
-    fn expand_cache() {
-        let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
-        assert_eq!(p.to_string(), "${ARTI_CACHE}/example".to_string());
-
-        let expected = project_dirs().unwrap().cache_dir().join("example");
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
-    }
-
-    #[cfg(target_family = "windows")]
-    #[test]
-    fn expand_cache() {
-        let p = CfgPath::new("${ARTI_CACHE}\\example".to_string());
-        assert_eq!(p.to_string(), "${ARTI_CACHE}\\example".to_string());
-
-        let expected = project_dirs().unwrap().cache_dir().join("example");
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
-    }
-    */
-
     #[test]
     fn expand_bogus() {
         let r = CfgPathResolver::from_pairs([("FOO", "foo")]);
