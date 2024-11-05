@@ -1182,23 +1182,48 @@ mod test {
         }
     }
 
+    fn cfg_variables() -> impl IntoIterator<Item = (&'static str, PathBuf)> {
+        let list = [
+            ("ARTI_CACHE", project_dirs().unwrap().cache_dir()),
+            ("ARTI_CONFIG", project_dirs().unwrap().config_dir()),
+            ("ARTI_SHARED_DATA", project_dirs().unwrap().data_dir()),
+            ("ARTI_LOCAL_DATA", project_dirs().unwrap().data_local_dir()),
+            ("PROGRAM_DIR", &get_program_dir().unwrap().unwrap()),
+            ("USER_HOME", tor_config_path::home().unwrap()),
+        ];
+
+        list.into_iter()
+            .map(|(a, b)| (a, b.to_owned()))
+            .collect::<Vec<_>>()
+    }
+
     #[cfg(not(target_family = "windows"))]
     #[test]
-    fn expand_cache() {
-        let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
-        assert_eq!(p.to_string(), "${ARTI_CACHE}/example".to_string());
+    fn expand_variables() {
+        for (var, val) in cfg_variables() {
+            let p = CfgPath::new(format!("${{{var}}}/example"));
+            assert_eq!(p.to_string(), format!("${{{var}}}/example"));
 
-        let expected = project_dirs().unwrap().cache_dir().join("example");
-        assert_eq!(p.path(&PATH_RESOLVER).unwrap().to_str(), expected.to_str());
+            let expected = val.join("example");
+            assert_eq!(p.path(&PATH_RESOLVER).unwrap().to_str(), expected.to_str());
+        }
+
+        let p = CfgPath::new("${NOT_A_REAL_VAR}/example".to_string());
+        assert!(p.path(&PATH_RESOLVER).is_err());
     }
 
     #[cfg(target_family = "windows")]
     #[test]
-    fn expand_cache() {
-        let p = CfgPath::new("${ARTI_CACHE}\\example".to_string());
-        assert_eq!(p.to_string(), "${ARTI_CACHE}\\example".to_string());
+    fn expand_variables() {
+        for (var, val) in cfg_variables() {
+            let p = CfgPath::new(format!("${{{var}}}\\example"));
+            assert_eq!(p.to_string(), format!("${{{var}}}\\example"));
 
-        let expected = project_dirs().unwrap().cache_dir().join("example");
-        assert_eq!(p.path(&PATH_RESOLVER).unwrap().to_str(), expected.to_str());
+            let expected = val.join("example");
+            assert_eq!(p.path(&PATH_RESOLVER).unwrap().to_str(), expected.to_str());
+        }
+
+        let p = CfgPath::new("${NOT_A_REAL_VAR}\\example".to_string());
+        assert!(p.path(&PATH_RESOLVER).is_err());
     }
 }
