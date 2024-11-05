@@ -289,6 +289,7 @@ impl DirMgrConfig {
     ///
     /// Any fields which aren't allowed to change at runtime are copied from self.
     pub(crate) fn update_from_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
+        // NOTE: keep this in sync with the behaviour of `DirMgr::reconfigure`
         DirMgrConfig {
             cache_dir: self.cache_dir.clone(),
             cache_trust: self.cache_trust.clone(),
