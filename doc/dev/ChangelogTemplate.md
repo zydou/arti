@@ -9,7 +9,7 @@ It can be multiple paragraphs.
 
 It is followed by sections, sorted roughly in descending order of
 importance.  Remove any empty sections.
-It is okay to re-order the sections or add new ones,
+It is okay to re-order or change the sections or add new ones,
 but please do so judiciously.
 -->
 
@@ -44,7 +44,11 @@ but please do so judiciously.
 
 ### Testing
 
-<!-- This section is for new test cases. -->
+<!-- This section is for new test cases, and updates to existing tests. -->
+<!-- But!  Tests added for work done in this same release shouldn't go here.
+     Those don't normally need be described separately.
+     If there are separate MRs/tickets for them,
+     list them alongside the MRs/tickets for the feature/bugfix. -->
 
 ### Documentation
 

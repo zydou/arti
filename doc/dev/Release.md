@@ -448,11 +448,15 @@ They are intended to answer the question
 Reference links should be grouped by type,
 then sorted by number.
 
-Use commit links only when a relevant MR is not present.
+Use commit links only when a relevant MR is not present,
+or (rarely) when describing a particular commit individually.
 
-One changelog entry per merge request is the default;
-however, it is okay to combine many merge requests into a single entry
+One changelog entry per merge request can be a good starting point;
+however, it is usually best to combine many merge requests into a single entry
 when they are logically combining to the same kind of development.
+The primary goal should be to structure the information for readability
+(including skim-reading) and comprehensibility,
+not to mirror the structure of the actual development work.
 It is also okay to make a changelog entry for a single commit
 when it does something interesting not covered by its MR.
 
@@ -531,7 +535,7 @@ or "To enable this feature, use...")
 Be terse.
 
 Be descriptive.
-Avoid entries like "general hacking on X" or "Work on Y".
+Avoid bland entries like "general hacking on X" or "Work on Y".
 If you can't tell what an MR actually did,
 ask the author for help.
 
@@ -575,12 +579,15 @@ make sure that the identifier is in `monospace`,
 and consider describing it so it does not start the sentence.
 (Not "tor-bytes is..." and not "Tor-bytes is...",
 but "`tor-bytes` is..." or "The `tor-bytes` crate is...".)
+It is not generally necessary necessary to linkify references to Rust APIs.
 
-Think twice before saying "connection";
+Be careful when saying "connection";
 instead you might mean
 "channel", "circuit", "stream",
 "TCP connection", "TLS connection",
 or something else entirely.
+Use "connection" when you mean more than one kind of underlying thing,
+or when it is clearer to avoid giving specific technical detail.
 
 Say "relays", not "servers" or "nodes" or "tor relays".
 
