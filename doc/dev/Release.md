@@ -242,7 +242,7 @@ before you continue!
 
 ## The actual release itself.
 
-   Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
+1. Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
    to see what it thinks.
 
    If all seems well, run it without the `--dry-run` option.
@@ -262,6 +262,9 @@ before you continue!
    `sudo systemctl restart pcscd`
    to set things right.
    I hope that nobody else has this problem.)
+
+3. Tell `network-team` that the tree is open 
+   for new MRs to be merged!
 
 ## Post-release
 
