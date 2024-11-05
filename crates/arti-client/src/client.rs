@@ -1689,6 +1689,8 @@ impl<R: Runtime> TorClient<R> {
                 self.runtime.clone(),
                 self.dirmgr.clone().upcast_arc(),
                 self.hs_circ_pool.clone(),
+                /// XXX fixme
+                Arc::new(tor_config_path::CfgPathResolver::default()),
             )
             .map_err(ErrorDetail::LaunchOnionService)?;
 

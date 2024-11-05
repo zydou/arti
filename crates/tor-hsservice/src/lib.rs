@@ -248,6 +248,7 @@ impl OnionService {
         runtime: R,
         netdir_provider: Arc<dyn NetDirProvider>,
         circ_pool: Arc<HsCircPool<R>>,
+        path_resolver: Arc<tor_config_path::CfgPathResolver>,
     ) -> Result<(Arc<RunningOnionService>, impl Stream<Item = RendRequest>), StartupError>
     where
         R: Runtime,
@@ -327,6 +328,7 @@ impl OnionService {
             config_rx,
             status_tx.clone().into(),
             Arc::clone(&keymgr),
+            path_resolver,
         );
 
         let svc = Arc::new(RunningOnionService {

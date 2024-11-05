@@ -76,7 +76,7 @@
 use tor_config::file_watcher::{
     self, Event as FileEvent, FileEventReceiver, FileEventSender, FileWatcher, FileWatcherBuilder,
 };
-use tor_config_path::CfgPath;
+use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_netdir::{DirEvent, NetDir};
 
 use crate::config::restricted_discovery::{
@@ -180,6 +180,8 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     ///
     /// Closing this channel will cause any pending upload tasks to be dropped.
     shutdown_tx: broadcast::Sender<Void>,
+    /// Path resolver for configuration files.
+    path_resolver: Arc<CfgPathResolver>,
 }
 
 /// The immutable, shared state of the descriptor publisher reactor.
@@ -548,6 +550,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
+        path_resolver: Arc<CfgPathResolver>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -565,7 +568,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         // since we never actually send anything on this channel.
         let (shutdown_tx, _shutdown_rx) = broadcast::channel(0);
 
-        let authorized_clients = Self::read_authorized_clients(&config.restricted_discovery);
+        let authorized_clients =
+            Self::read_authorized_clients(&config.restricted_discovery, &path_resolver);
 
         // Create a channel for watching for changes in the configured
         // restricted_discovery.key_dirs.
@@ -602,6 +606,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             upload_task_complete_rx,
             upload_task_complete_tx,
             shutdown_tx,
+            path_resolver,
         }
     }
 
@@ -1026,7 +1031,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
             let dirs = inner.config.restricted_discovery.key_dirs().clone();
 
-            watch_dirs(&mut watcher, &dirs);
+            watch_dirs(&mut watcher, &dirs, &self.path_resolver);
 
             let watcher = watcher
                 .start_watching(self.key_dirs_tx.clone())
@@ -1201,7 +1206,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Returns `true` if the authorized clients have changed.
     async fn update_authorized_clients_if_changed(&mut self) -> Result<bool, FatalError> {
         let mut inner = self.inner.lock().expect("poisoned lock");
-        let authorized_clients = Self::read_authorized_clients(&inner.config.restricted_discovery);
+        let authorized_clients =
+            Self::read_authorized_clients(&inner.config.restricted_discovery, &self.path_resolver);
 
         let clients = &mut inner.authorized_clients;
         let changed = clients.as_ref() != authorized_clients.as_ref();
@@ -1217,8 +1223,9 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Read the authorized `RestrictedDiscoveryKeys` from `config`.
     fn read_authorized_clients(
         config: &RestrictedDiscoveryConfig,
+        path_resolver: &CfgPathResolver,
     ) -> Option<Arc<RestrictedDiscoveryKeys>> {
-        let authorized_clients = config.read_keys();
+        let authorized_clients = config.read_keys(path_resolver);
 
         if matches!(authorized_clients.as_ref(), Some(c) if c.is_empty()) {
             warn!(
@@ -1810,7 +1817,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 }
 
 /// Try to expand a path, logging a warning on failure.
-fn maybe_expand_path(p: &CfgPath) -> Option<PathBuf> {
+fn maybe_expand_path(p: &CfgPath, _r: &CfgPathResolver) -> Option<PathBuf> {
     // map_err returns unit for clarity
     #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
     p.path()
@@ -1834,10 +1841,14 @@ macro_rules! watch_path {
 
 /// Add the specified directories to the watcher.
 #[allow(clippy::cognitive_complexity)]
-fn watch_dirs<R: Runtime>(watcher: &mut FileWatcherBuilder<R>, dirs: &DirectoryKeyProviderList) {
+fn watch_dirs<R: Runtime>(
+    watcher: &mut FileWatcherBuilder<R>,
+    dirs: &DirectoryKeyProviderList,
+    path_resolver: &CfgPathResolver,
+) {
     for path in dirs {
         let path = path.path();
-        let Some(path) = maybe_expand_path(path) else {
+        let Some(path) = maybe_expand_path(path, path_resolver) else {
             warn!("failed to expand key_dir path {:?}", path);
             continue;
         };

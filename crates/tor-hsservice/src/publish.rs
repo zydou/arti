@@ -16,6 +16,8 @@ use reactor::read_blind_id_keypair;
 use reactor::Reactor;
 use reupload_timer::ReuploadTimer;
 
+use tor_config_path::CfgPathResolver;
+
 pub use reactor::UploadError;
 pub(crate) use reactor::{Mockable, Real, OVERALL_UPLOAD_TIMEOUT};
 
@@ -47,6 +49,8 @@ pub(crate) struct Publisher<R: Runtime, M: Mockable> {
     keymgr: Arc<KeyMgr>,
     /// A sender for updating the status of the onion service.
     status_tx: PublisherStatusSender,
+    /// Path resolver for configuration files.
+    path_resolver: Arc<CfgPathResolver>,
 }
 
 impl<R: Runtime, M: Mockable> Publisher<R, M> {
@@ -66,6 +70,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
         config_rx: watch::Receiver<Arc<OnionServiceConfig>>,
         status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
+        path_resolver: Arc<CfgPathResolver>,
     ) -> Self {
         let config = config_rx.borrow().clone();
         Self {
@@ -78,6 +83,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config_rx,
             status_tx,
             keymgr,
+            path_resolver,
         }
     }
 
@@ -93,6 +99,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config_rx,
             status_tx,
             keymgr,
+            path_resolver,
         } = self;
 
         let reactor = Reactor::new(
@@ -105,6 +112,7 @@ impl<R: Runtime, M: Mockable> Publisher<R, M> {
             config_rx,
             status_tx,
             keymgr,
+            path_resolver,
         );
 
         runtime
@@ -466,6 +474,7 @@ mod test {
                 config_rx,
                 status_tx,
                 keymgr,
+                Arc::new(CfgPathResolver::default()),
             );
 
             publisher.launch().unwrap();
