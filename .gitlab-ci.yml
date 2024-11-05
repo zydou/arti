@@ -77,7 +77,7 @@ shellcheck:
 python3-checks:
   stage: check
   script:
-    - maint/common/apt-install python3-pip python3-venv mypy flake8 git
+    - maint/common/apt-install python3-pip python3-venv git
     # AFAICT these python packages do not have debian packages.
     #
     # (`black` does have a debian package, but we need the latest version.)
