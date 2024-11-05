@@ -875,8 +875,7 @@ impl<R: Runtime> TorClient<R> {
             let mgr = Arc::new(tor_ptmgr::PtMgr::new(
                 config.bridges.transports.clone(),
                 pt_state_dir,
-                // XXX fixme
-                Arc::new(tor_config_path::CfgPathResolver::default()),
+                Arc::clone(&crate::config::PATH_RESOLVER),
                 runtime.clone(),
             )?);
 
@@ -1191,7 +1190,10 @@ impl<R: Runtime> TorClient<R> {
         _reconfigure_lock_guard: &std::sync::MutexGuard<'_, ()>,
     ) -> crate::Result<()> {
         let dir_cfg = new_config.dir_mgr_config().map_err(wrap_err)?;
-        let state_cfg = new_config.storage.expand_state_dir().map_err(wrap_err)?;
+        let state_cfg = new_config
+            .storage
+            .expand_state_dir(&crate::config::PATH_RESOLVER)
+            .map_err(wrap_err)?;
         let addr_cfg = &new_config.address_filter;
         let timeout_cfg = &new_config.stream_timeouts;
 
@@ -1691,8 +1693,7 @@ impl<R: Runtime> TorClient<R> {
                 self.runtime.clone(),
                 self.dirmgr.clone().upcast_arc(),
                 self.hs_circ_pool.clone(),
-                /// XXX fixme
-                Arc::new(tor_config_path::CfgPathResolver::default()),
+                Arc::clone(&crate::config::PATH_RESOLVER),
             )
             .map_err(ErrorDetail::LaunchOnionService)?;
 

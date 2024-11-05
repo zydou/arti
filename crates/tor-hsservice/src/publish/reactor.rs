@@ -1817,10 +1817,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 }
 
 /// Try to expand a path, logging a warning on failure.
-fn maybe_expand_path(p: &CfgPath, _r: &CfgPathResolver) -> Option<PathBuf> {
+fn maybe_expand_path(p: &CfgPath, r: &CfgPathResolver) -> Option<PathBuf> {
     // map_err returns unit for clarity
     #[allow(clippy::unused_unit, clippy::semicolon_if_nothing_returned)]
-    p.path()
+    p.path(r)
         .map_err(|e| {
             tor_error::warn_report!(e, "invalid path");
             ()

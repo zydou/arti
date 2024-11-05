@@ -252,16 +252,18 @@ async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
     cfg: ManagedTransportOptions,
-    _path_resolver: Arc<CfgPathResolver>,
+    path_resolver: Arc<CfgPathResolver>,
 ) -> Result<PluggableClientTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
 
     let cfg_path = cfg.path;
 
-    let binary_path = cfg_path.path().map_err(|e| PtError::PathExpansionFailed {
-        path: cfg_path.clone(),
-        error: e,
-    })?;
+    let binary_path = cfg_path
+        .path(&path_resolver)
+        .map_err(|e| PtError::PathExpansionFailed {
+            path: cfg_path.clone(),
+            error: e,
+        })?;
 
     let filename = pt_identifier_as_path(&binary_path)?;
 

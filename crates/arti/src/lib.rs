@@ -367,6 +367,7 @@ where
     let _log_guards = logging::setup_logging(
         config.logging(),
         &log_mistrust,
+        arti_client::config::path_resolver(),
         matches.get_one::<String>("loglevel").map(|s| s.as_str()),
     )?;
 

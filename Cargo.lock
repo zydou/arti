@@ -286,6 +286,7 @@ dependencies = [
  "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
+ "directories",
  "dyn-clone",
  "educe",
  "fs-mistrust",

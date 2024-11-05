@@ -42,7 +42,10 @@ impl CfgAddr {
     }
 
     /// Return the [`general::SocketAddr`] produced by expanding this `CfgAddr`.
-    pub fn address(&self) -> Result<general::SocketAddr, CfgAddrError> {
+    pub fn address(
+        &self,
+        path_resolver: &crate::CfgPathResolver,
+    ) -> Result<general::SocketAddr, CfgAddrError> {
         match &self.0 {
             AddrInner::Inet(socket_addr) => {
                 // Easy case: This is an inet address.
@@ -56,9 +59,9 @@ impl CfgAddr {
                 }
                 #[cfg(unix)]
                 {
-                    Ok(unix::SocketAddr::from_pathname(cfg_path.path()?)
-                        .map_err(|e| CfgAddrError::ConstructUnixAddress(Arc::new(e)))?
-                        .into())
+                    let addr = unix::SocketAddr::from_pathname(cfg_path.path(path_resolver)?)
+                        .map_err(|e| CfgAddrError::ConstructUnixAddress(Arc::new(e)))?;
+                    Ok(addr.into())
                 }
             }
         }
@@ -218,10 +221,13 @@ mod test {
     use assert_matches::assert_matches;
     use std::path::PathBuf;
 
+    use crate::{home, CfgPathResolver};
+
     #[test]
     fn parse_inet_ok() {
         fn check(s: &str) {
-            let a: general::SocketAddr = CfgAddr::from_str(s).unwrap().address().unwrap();
+            let resolv = CfgPathResolver::from_pairs([("FOO", "foo")]);
+            let a: general::SocketAddr = CfgAddr::from_str(s).unwrap().address(&resolv).unwrap();
             assert_eq!(a, general::SocketAddr::from_str(s).unwrap());
         }
 
@@ -265,13 +271,14 @@ mod test {
 
     #[test]
     fn unix_literal() {
+        let resolv = CfgPathResolver::from_pairs([("USER_HOME", home().unwrap())]);
         let pb = PathBuf::from("${USER_HOME}/.local/socket");
         let a1 = CfgAddr::new_unix(CfgPath::new_literal(&pb));
         let a2 = CfgAddr::from_str("unix-literal:${USER_HOME}/.local/socket").unwrap();
         #[cfg(unix)]
         {
-            assert_eq!(a1.address().unwrap(), a2.address().unwrap());
-            match a1.address().unwrap() {
+            assert_eq!(a1.address(&resolv).unwrap(), a2.address(&resolv).unwrap(),);
+            match a1.address(&resolv).unwrap() {
                 general::SocketAddr::Unix(socket_addr) => {
                     // can't use assert_eq because these types are not Debug.
                     assert!(socket_addr.as_pathname() == Some(pb.as_ref()));
@@ -280,24 +287,27 @@ mod test {
             }
         }
         #[cfg(not(unix))]
-        assert_matches!(a.address(), Err(CfgAddrError::NoUnixAddressSupport(_)));
+        assert_matches!(
+            a.address(&resolv),
+            Err(CfgAddrError::NoUnixAddressSupport(_)),
+        );
     }
 
-    fn try_unix(addr: &str, want: &str) {
+    fn try_unix(addr: &str, want: &str, path_resolver: &CfgPathResolver) {
         let p = CfgPath::new(want.to_string());
-        let expansion = p.path().unwrap();
+        let expansion = p.path(path_resolver).unwrap();
         let cfg_addr = CfgAddr::from_str(addr).unwrap();
         assert_matches!(&cfg_addr.0, AddrInner::Unix(_));
         #[cfg(unix)]
         {
-            let gen_addr = cfg_addr.address().unwrap();
+            let gen_addr = cfg_addr.address(path_resolver).unwrap();
             let expected_addr = unix::SocketAddr::from_pathname(expansion).unwrap();
             assert_eq!(gen_addr, expected_addr.into());
         }
         #[cfg(not(unix))]
         {
             assert_matches!(
-                cfg_addr.address(),
+                cfg_addr.address(path_resolver),
                 Err(CfgAddrError::NoUnixAddressSupport(_))
             );
         }
@@ -305,13 +315,15 @@ mod test {
 
     #[test]
     fn unix_no_substitution() {
-        try_unix("unix:/home/mayor/.socket", "/home/mayor/.socket");
+        let resolver = CfgPathResolver::from_pairs([("FOO", "foo")]);
+        try_unix("unix:/home/mayor/.socket", "/home/mayor/.socket", &resolver);
     }
 
     #[test]
     #[cfg(feature = "expand-paths")]
     fn unix_substitution() {
-        try_unix("unix:${PROGRAM_DIR}/socket", "${PROGRAM_DIR}/socket");
+        let resolver = CfgPathResolver::from_pairs([("FOO", "foo")]);
+        try_unix("unix:${FOO}/socket", "${FOO}/socket", &resolver);
     }
 
     #[test]

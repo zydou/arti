@@ -119,15 +119,14 @@ impl DirectoryKeyProvider {
     /// Read the client service discovery keys from the specified directory.
     pub(super) fn read_keys(
         &self,
-        _path_resolver: &CfgPathResolver,
+        path_resolver: &CfgPathResolver,
     ) -> Result<Vec<(HsClientNickname, HsClientDescEncKey)>, DirectoryKeyProviderError> {
-        let dir_path =
-            self.path
-                .path()
-                .map_err(|err| DirectoryKeyProviderError::PathExpansionFailed {
-                    path: self.path.clone(),
-                    err,
-                })?;
+        let dir_path = self.path.path(path_resolver).map_err(|err| {
+            DirectoryKeyProviderError::PathExpansionFailed {
+                path: self.path.clone(),
+                err,
+            }
+        })?;
 
         let checked_dir = self
             .permissions
