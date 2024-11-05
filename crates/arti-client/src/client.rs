@@ -875,6 +875,8 @@ impl<R: Runtime> TorClient<R> {
             let mgr = Arc::new(tor_ptmgr::PtMgr::new(
                 config.bridges.transports.clone(),
                 pt_state_dir,
+                // XXX fixme
+                Arc::new(tor_config_path::CfgPathResolver::default()),
                 runtime.clone(),
             )?);
 
