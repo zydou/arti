@@ -1139,6 +1139,10 @@ impl<R: Runtime> TorClient<R> {
     /// Although most options are reconfigurable, there are some whose values
     /// can't be changed on an a running TorClient.  Those options (or their
     /// sections) are explicitly documented not to be changeable.
+    /// NOTE: Currently, not all of these non-reconfigurable options are
+    /// documented. See [arti#1721][arti-1721].
+    ///
+    /// [arti-1721]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1721
     ///
     /// Changing some options do not take effect immediately on all open streams
     /// and circuits, but rather affect only future streams and circuits.  Those
