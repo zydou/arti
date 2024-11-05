@@ -276,7 +276,13 @@ before you continue!
    update that "pages" branch to refer to the new version.
    (For an example MR, see [!2271].)
 
-4. Did you create any new crates?
+4. Once the blog post is published,
+   send Bekeela an email.
+   (For the duration of the Zcash grant,
+   Tor needs to inform the funder when we put out a new release.
+   This is being handled by Bekeela, our Grants Manager.)
+
+5. Did you create any new crates?
    If so, you need to make sure that they are owned (on crates.io)
    by the right set of developers.
    If you aren't sure, run `maint/cargo-crate-owners`.
