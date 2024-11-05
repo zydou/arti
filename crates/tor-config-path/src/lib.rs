@@ -192,6 +192,15 @@ impl CfgPath {
     }
 }
 
+impl std::fmt::Display for CfgPath {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            PathInner::Literal(LiteralPath { literal }) => write!(fmt, "{:?} [exactly]", literal),
+            PathInner::Shell(s) => s.fmt(fmt),
+        }
+    }
+}
+
 /// Helper: expand a directory given as a string.
 #[cfg(feature = "expand-paths")]
 fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
@@ -250,15 +259,6 @@ fn get_env(var: &str) -> Result<Option<Cow<'static, Path>>, CfgPathError> {
         "PROGRAM_DIR" => Ok(get_program_dir()?.map(Cow::Owned)),
         "USER_HOME" => Ok(Some(Cow::Borrowed(base_dirs()?.home_dir()))),
         _ => Err(CfgPathError::UnknownVar(var.to_owned())),
-    }
-}
-
-impl std::fmt::Display for CfgPath {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
-            PathInner::Literal(LiteralPath { literal }) => write!(fmt, "{:?} [exactly]", literal),
-            PathInner::Shell(s) => s.fmt(fmt),
-        }
     }
 }
 
