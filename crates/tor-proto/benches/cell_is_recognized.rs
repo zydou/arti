@@ -25,7 +25,7 @@ fn create_digested_cell<D: Digest + Clone, RCF: RelayCellFormatTrait>(
 }
 
 /// Benchmark the `client_decrypt` function.
-pub fn cell_is_recognized_benchmark(c: &mut Criterion<CPUTime>) {
+pub fn cell_is_recognized_benchmark(c: &mut Criterion<CpuTime>) {
     let mut group = c.benchmark_group("cell_is_recognized");
     group.throughput(criterion::Throughput::Bytes(509));
 
@@ -67,7 +67,7 @@ pub fn cell_is_recognized_benchmark(c: &mut Criterion<CPUTime>) {
 criterion_group!(
    name = cell_is_recognized;
    config = Criterion::default()
-      .with_measurement(CPUTime)
+      .with_measurement(CpuTime)
       .sample_size(5000);
    targets = cell_is_recognized_benchmark);
 criterion_main!(cell_is_recognized);

@@ -12,6 +12,8 @@ use tor_proto::bench_utils::{client_encrypt, OutboundCryptWrapper, RelayBody};
 mod cpu_time;
 use cpu_time::*;
 
+const HOP_NUM: u8 = 2;
+
 /// Create a random outbound cell.
 fn create_outbound_cell(rng: &mut ThreadRng) -> RelayBody {
     let mut cell = [0u8; 509];
@@ -20,7 +22,7 @@ fn create_outbound_cell(rng: &mut ThreadRng) -> RelayBody {
 }
 
 /// Benchmark the `client_encrypt` function.
-pub fn cell_encrypt_benchmark(c: &mut Criterion<CPUTime>) {
+pub fn cell_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
     let seed1: SecretBuf = b"hidden we are free".to_vec().into();
     let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
     let seed3: SecretBuf = b"free to hide no more".to_vec().into();
@@ -49,7 +51,7 @@ pub fn cell_encrypt_benchmark(c: &mut Criterion<CPUTime>) {
                 (cell, cc_out)
             },
             |(cell, cc_out)| {
-                client_encrypt(cell, cc_out, 2).unwrap();
+                client_encrypt(cell, cc_out, HOP_NUM).unwrap();
             },
             criterion::BatchSize::SmallInput,
         );
@@ -76,7 +78,7 @@ pub fn cell_encrypt_benchmark(c: &mut Criterion<CPUTime>) {
                 (cell, cc_out)
             },
             |(cell, cc_out)| {
-                client_encrypt(cell, cc_out, 2).unwrap();
+                client_encrypt(cell, cc_out, HOP_NUM).unwrap();
             },
             criterion::BatchSize::SmallInput,
         );
@@ -88,7 +90,7 @@ pub fn cell_encrypt_benchmark(c: &mut Criterion<CPUTime>) {
 criterion_group!(
    name = cell_encrypt;
    config = Criterion::default()
-      .with_measurement(CPUTime)
+      .with_measurement(CpuTime)
       .sample_size(5000);
    targets = cell_encrypt_benchmark);
 criterion_main!(cell_encrypt);

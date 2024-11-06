@@ -36,7 +36,7 @@ fn create_inbound_cell<
 }
 
 /// Benchmark the `client_decrypt` function.
-pub fn cell_decrypt_benchmark(c: &mut Criterion<CPUTime>) {
+pub fn cell_decrypt_benchmark(c: &mut Criterion<CpuTime>) {
     let seed1: SecretBuf = b"hidden we are free".to_vec().into();
     let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
     let seed3: SecretBuf = b"free to hide no more".to_vec().into();
@@ -120,7 +120,7 @@ pub fn cell_decrypt_benchmark(c: &mut Criterion<CPUTime>) {
 criterion_group!(
    name = cell_decrypt;
    config = Criterion::default()
-      .with_measurement(CPUTime)
+      .with_measurement(CpuTime)
       .sample_size(5000);
    targets = cell_decrypt_benchmark);
 criterion_main!(cell_decrypt);

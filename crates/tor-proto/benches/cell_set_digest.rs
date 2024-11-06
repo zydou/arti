@@ -17,7 +17,7 @@ fn create_random_cell(rng: &mut ThreadRng) -> RelayBody {
 }
 
 /// Benchmark the `client_decrypt` function.
-pub fn cell_set_digest_benchmark(c: &mut Criterion<CPUTime>) {
+pub fn cell_set_digest_benchmark(c: &mut Criterion<CpuTime>) {
     let mut group = c.benchmark_group("cell_set_digest");
     group.throughput(criterion::Throughput::Bytes(509));
 
@@ -57,7 +57,7 @@ pub fn cell_set_digest_benchmark(c: &mut Criterion<CPUTime>) {
 criterion_group!(
    name = cell_set_digest;
    config = Criterion::default()
-      .with_measurement(CPUTime)
+      .with_measurement(CpuTime)
       .sample_size(5000);
    targets = cell_set_digest_benchmark);
 criterion_main!(cell_set_digest);

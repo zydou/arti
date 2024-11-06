@@ -4,16 +4,14 @@ use criterion::measurement::ValueFormatter;
 use criterion::Throughput;
 use std::time::Duration;
 
-const NANOS_PER_SEC: u64 = 1_000_000_000;
-
 /// Custom measurement to use CPU time in Criterion benchmarks.
 ///
 /// This measurement is based on the example in the Criterion documentation
 /// for custom measurements:
 /// https://bheisler.github.io/criterion.rs/book/user_guide/custom_measurements.html
-pub struct CPUTime;
+pub struct CpuTime;
 
-impl Measurement for CPUTime {
+impl Measurement for CpuTime {
     type Intermediate = ProcessTime;
     type Value = Duration;
 
@@ -34,8 +32,7 @@ impl Measurement for CPUTime {
     }
 
     fn to_f64(&self, val: &Self::Value) -> f64 {
-        let nanos = val.as_secs() * NANOS_PER_SEC + u64::from(val.subsec_nanos());
-        nanos as f64
+        val.as_nanos() as f64
     }
 
     fn formatter(&self) -> &dyn ValueFormatter {
