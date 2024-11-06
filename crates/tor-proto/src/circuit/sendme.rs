@@ -236,8 +236,8 @@ impl<P: WindowParams> RecvWindow<P> {
     /// Called when we've just received a cell; return true if we need to send
     /// a sendme, and false otherwise.
     ///
-    /// Returns None if we should not have sent the cell, and we just
-    /// violated the window.
+    /// Returns a protocol error if we did not expect to receive a cell in the first place
+    /// (because our receive window is closed).
     pub(crate) fn take(&mut self) -> Result<bool> {
         let v = self.window.checked_sub(1);
         if let Some(x) = v {
