@@ -98,7 +98,7 @@ impl Default for OutboundCryptWrapper {
 pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormatTrait>(
     cell: &mut RelayBody,
     router_states: &mut [HopCryptState<SC, D, RCF>],
-) -> Result<()> {
+) {
     let cell = &mut cell.0;
 
     for (i, pair) in router_states.iter_mut().rev().enumerate() {
@@ -108,8 +108,6 @@ pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormat
         }
         pair.encrypt_inbound(cell);
     }
-
-    Ok(())
 }
 
 /// Public wrapper around the `InboundClientCrypt::decrypt` method

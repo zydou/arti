@@ -548,6 +548,7 @@ pub(crate) mod tor1 {
     }
 
     /// Benchmark utilities for the `tor1` module.
+    #[cfg(feature = "bench")]
     pub(crate) mod bench_utils {
         use super::*;
 

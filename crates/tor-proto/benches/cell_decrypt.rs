@@ -55,7 +55,7 @@ fn create_inbound_cell<
     rng.fill(&mut cell[..]);
     let mut cell: RelayBody = cell.into();
 
-    encrypt_inbound(&mut cell, circuit_crypt_states).unwrap();
+    encrypt_inbound(&mut cell, circuit_crypt_states);
 
     cell
 }
