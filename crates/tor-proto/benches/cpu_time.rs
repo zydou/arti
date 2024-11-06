@@ -32,7 +32,11 @@ impl Measurement for CpuTime {
     }
 
     fn to_f64(&self, val: &Self::Value) -> f64 {
-        val.as_nanos() as f64
+        let nanos: u64 = val
+            .as_nanos()
+            .try_into()
+            .expect("cannot represent CPU time as u64");
+        nanos as f64
     }
 
     fn formatter(&self) -> &dyn ValueFormatter {
