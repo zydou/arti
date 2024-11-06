@@ -102,6 +102,9 @@ pub enum ResolveError {
     /// Authorization mechanism not compatible with address family
     #[error("Authorization type not compatible with address family")]
     AuthNotCompatible,
+    /// Authorization mechanism not recognized
+    #[error("Authorization type not recognized as a supported type")]
+    AuthNotRecognized,
 }
 impl HasClientErrorAction for ResolveError {
     fn client_action(&self) -> crate::ClientErrorAction {
@@ -112,6 +115,7 @@ impl HasClientErrorAction for ResolveError {
             ResolveError::PathNotString => A::Decline,
             ResolveError::AddressNotLoopback => A::Decline,
             ResolveError::AuthNotCompatible => A::Abort,
+            ResolveError::AuthNotRecognized => A::Decline,
         }
     }
 }
@@ -247,6 +251,7 @@ impl Connect<Resolved> {
         match (self.socket.as_ref(), &self.auth) {
             (Inet(addr), _) if !addr.ip().is_loopback() => Err(ResolveError::AddressNotLoopback),
             (Inet(_), Auth::None) => Err(ResolveError::AuthNotCompatible),
+            (_, Auth::Unrecognized) => Err(ResolveError::AuthNotRecognized),
             (_, _) => Ok(self),
         }
     }
@@ -264,6 +269,9 @@ pub(crate) enum Auth<R: Reps> {
         /// Path to the cookie file.
         path: R::Path,
     },
+    /// Unrecognized authentication method.
+    #[serde(other)]
+    Unrecognized,
 }
 
 impl Auth<Unresolved> {
@@ -272,6 +280,7 @@ impl Auth<Unresolved> {
         match self {
             Auth::None => Ok(Auth::None),
             Auth::Cookie { path } => Ok(Auth::Cookie { path: path.path()? }),
+            Auth::Unrecognized => Ok(Auth::Unrecognized),
         }
     }
 }
