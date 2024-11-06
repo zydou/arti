@@ -46,6 +46,8 @@ pub mod auth;
 pub mod client;
 mod connpt;
 pub mod load;
+#[cfg(feature = "rpc-server")]
+pub mod server;
 #[cfg(test)]
 mod testing;
 
