@@ -564,7 +564,6 @@ pub(crate) mod tor1 {
 
         impl RelayBody {
             /// Public wrapper around the `set_digest` method of the `RelayCellBody` struct.
-            #[inline]
             pub fn set_digest<D: Digest + Clone, RCF: RelayCellFormatTrait>(
                 &mut self,
                 d: &mut D,
@@ -574,7 +573,6 @@ pub(crate) mod tor1 {
             }
 
             /// Public wrapper around the `is_recognized` method of the `RelayCellBody` struct.
-            #[inline]
             pub fn is_recognized<D: Digest + Clone, RCF: RelayCellFormatTrait>(
                 &self,
                 d: &mut D,

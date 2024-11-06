@@ -114,7 +114,6 @@ pub fn encrypt_inbound<SC: StreamCipher, D: Digest + Clone, RCF: RelayCellFormat
 
 /// Public wrapper around the `InboundClientCrypt::decrypt` method
 /// for benchmarking purposes.
-#[inline]
 pub fn client_decrypt(cell: &mut RelayBody, cc_in: &mut InboundCryptWrapper) -> Result<()> {
     let cell = &mut cell.0;
     cc_in.0.decrypt(cell)?;
@@ -124,7 +123,6 @@ pub fn client_decrypt(cell: &mut RelayBody, cc_in: &mut InboundCryptWrapper) -> 
 
 /// Public wrapper around the `OutboundClientCrypt::encrypt` method
 /// for benchmarking purposes.
-#[inline]
 pub fn client_encrypt(
     cell: &mut RelayBody,
     cc_out: &mut OutboundCryptWrapper,
