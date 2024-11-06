@@ -1,25 +1,33 @@
 #!/usr/bin/env bash
 set -xeuo pipefail
 
+# Set and fully resolve chutney bin if not already set.
+: "${CHUTNEY_BIN:=$(type -P chutney)}"
+if [ -z "${CHUTNEY_BIN:-}" ]; then
+    echo "Couldn't locate chutney bin. Ensure it's on PATH or set CHUTNEY_BIN."
+    echo "You can install with:"
+    echo "python3 -m pip install git+https://gitlab.torproject.org/tpo/core/chutney.git"
+    exit 1
+elif [ ! -x "$CHUTNEY_BIN" ]; then
+    echo "CHUTNEY_BIN='$CHUTNEY_BIN' doesn't exist or isn't executable"
+    exit 1
+else
+    # CHUTNEY_BIN is set; tell the user so.
+    echo "Using chutney at '${CHUTNEY_BIN}'"
+fi
+
+export CHUTNEY_DATA_DIR="${CHUTNEY_DATA_DIR:-$(pwd)}"
+
 if [ -z "${RUST_LOG:-}" ]; then
     echo "Setting RUST_LOG=info for your convenience."
     export RUST_LOG=info
 fi
 
-target="networks/basic"
+target="basic"
 cd "$(git rev-parse --show-toplevel)"
-
-if [ -z "${CHUTNEY_PATH:-}" ]; then
-    # Use the default chutney path we set up before.
-    CHUTNEY_PATH="$(pwd)/chutney"
-    export CHUTNEY_PATH
-else
-    # CHUTNEY_PATH is set; tell the user about that.
-    echo "CHUTNEY_PATH is ${CHUTNEY_PATH}; using your local copy of chutney."
-fi
 
 ./tests/chutney/setup
 
-cargo run -p arti-bench --locked --release -- -c "${CHUTNEY_PATH}/net/nodes/arti.toml" "$@"
+cargo run -p arti-bench --locked --release -- -c "${CHUTNEY_DATA_DIR}/nodes/arti.toml" "$@"
 
-"${CHUTNEY_PATH}"/chutney stop "${CHUTNEY_PATH}/$target"
+"${CHUTNEY_BIN}" stop "$target"

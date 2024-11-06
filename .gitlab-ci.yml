@@ -18,8 +18,7 @@ variables:
   # TODO: Consider unpinning once chutney's CI is running arti's CI.
   # Alternatively if we decide to keep this, consider to actually start managing
   # versions in chutney and using a version tag here.
-  CHUTNEY_SHALLOW_SINCE: "2024-10-28"
-  CHUTNEY_COMMIT: be881a1e7c4bc8038fa13fde4a7b24e5c56349c4
+  CHUTNEY_COMMIT: b05403758dc81593256a93a10d896e68e0398fe7
 
 default:
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
@@ -518,22 +517,16 @@ integration-chutney:
    - when: never
   script:
     - ./maint/preserve -u
-    - maint/common/apt-install tor git python3 curl dnsutils python3-pip
+    - maint/common/apt-install tor git python3 curl dnsutils python3-pip python3-venv
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
     # install chutney.
-    # TODO: consider moving this into a source-able script shared with
-    # integration-chutney-shadow.
-    - git clone
-        --shallow-since="$CHUTNEY_SHALLOW_SINCE"
-        https://gitlab.torproject.org/tpo/core/chutney
-    - git -C ./chutney checkout "$CHUTNEY_COMMIT"
-    # install chutney's deps by installing chutney.
-    # TODO: use a virtualenv instead.
-    - python3 -m pip install --break-system-packages ./chutney
-    - export CHUTNEY_PATH="$(pwd)/chutney"
+    - python3 -m venv --system-site-packages $HOME/job-venv
+    - source $HOME/job-venv/bin/activate
+    - python3 -m pip install
+        git+https://gitlab.torproject.org/tpo/core/chutney.git@"$CHUTNEY_COMMIT"
 
     - tests/chutney/integration-e2e
   artifacts:
@@ -558,20 +551,16 @@ integration-chutney-shadow:
         stow
         python3-yaml
         python3-pip
+        python3-venv
 
     # arti runtime dependencies
     - maint/common/apt-install libsqlite3-0 libssl3
 
-    # install chutney to prevent the test scripts from trying to install
-    # it from inside the shadow simulation, which won't work.
-    - git clone
-        --shallow-since="$CHUTNEY_SHALLOW_SINCE"
-        https://gitlab.torproject.org/tpo/core/chutney
-    - git -C ./chutney checkout "$CHUTNEY_COMMIT"
-    # install chutney's deps by installing chutney.
-    # TODO: use a virtualenv instead.
-    - python3 -m pip install --break-system-packages ./chutney
-    - export CHUTNEY_PATH="$(pwd)/chutney"
+    # install chutney.
+    - python3 -m venv --system-site-packages $HOME/job-venv
+    - source $HOME/job-venv/bin/activate
+    - python3 -m pip install
+        git+https://gitlab.torproject.org/tpo/core/chutney.git@"$CHUTNEY_COMMIT"
 
     # Set up shadow, built in build-shadow
     - maint/common/apt-install libglib2.0-0
