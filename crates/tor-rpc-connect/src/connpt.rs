@@ -96,6 +96,12 @@ pub enum ResolveError {
     /// After substitution, we couldn't expand the path to a string.
     #[error("Cannot represent expanded path as string")]
     PathNotString,
+    /// Address is not a loopback address.
+    #[error("Tried to bind or connect to a non-loopback TCP address")]
+    AddressNotLoopback,
+    /// Authorization mechanism not compatible with address family
+    #[error("Authorization type not compatible with address family")]
+    AuthNotCompatible,
 }
 impl HasClientErrorAction for ResolveError {
     fn client_action(&self) -> crate::ClientErrorAction {
@@ -104,6 +110,8 @@ impl HasClientErrorAction for ResolveError {
             ResolveError::InvalidPath(e) => e.client_action(),
             ResolveError::InvalidAddr(e) => e.client_action(),
             ResolveError::PathNotString => A::Decline,
+            ResolveError::AddressNotLoopback => A::Decline,
+            ResolveError::AuthNotCompatible => A::Abort,
         }
     }
 }
@@ -171,8 +179,6 @@ impl TryFrom<ConnectPointDe> for ConnectPointEnum<Unresolved> {
             // so it is likely itn an unrecognized format.
             _ => Err(ParseError::UnrecognizedFormat),
         }
-        // XXXX: At this point we can check for other required properties, like
-        // consistency between connect method and authentication.
     }
 }
 
@@ -225,11 +231,24 @@ impl Connect<Unresolved> {
             .map(|sc| sc.resolve())
             .transpose()?;
         let auth = self.auth.resolve()?;
-        Ok(Connect {
+        Connect {
             socket,
             socket_canonical,
             auth,
-        })
+        }
+        .validate()
+    }
+}
+
+impl Connect<Resolved> {
+    /// Return this `Connect` only if its parts are valid and compatible.
+    fn validate(self) -> Result<Self, ResolveError> {
+        use general::SocketAddr::Inet;
+        match (self.socket.as_ref(), &self.auth) {
+            (Inet(addr), _) if !addr.ip().is_loopback() => Err(ResolveError::AddressNotLoopback),
+            (Inet(_), Auth::None) => Err(ResolveError::AuthNotCompatible),
+            (_, _) => Ok(self),
+        }
     }
 }
 
