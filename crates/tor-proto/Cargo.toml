@@ -41,6 +41,7 @@ full = [
 experimental = ["experimental-api", "ntor_v3", "stream-ctrl", "testing"]
 ntor_v3 = ["__is_experimental"]
 
+bench = []
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
 hs-common = ["tor-hscrypto"]

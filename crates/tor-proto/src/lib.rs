@@ -47,6 +47,7 @@
     allow(unused, unreachable_pub)
 )]
 
+#[cfg(feature = "bench")]
 pub mod bench_utils;
 pub mod channel;
 pub mod circuit;
