@@ -67,6 +67,8 @@ the client and server additionally know this value from the connect point:
   - `socket_canonical`:
      The address at which the server is actually listening.
      If absent, defaults to the value of `socket` from the connect point.
+     If the address is a unix path containing shell-style expansions,
+     then this value is taken _after_ shell expansion.
 
 > Note that this protocol will only succeed
 > if the value of `socket_canonical` seen by the client
