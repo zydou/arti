@@ -117,15 +117,19 @@ all-features = true
 [[bench]]
 name = "cell_decrypt"
 harness = false
+required-features = ["bench"]
 
 [[bench]]
 name = "cell_encrypt"
 harness = false
+required-features = ["bench"]
 
 [[bench]]
 name = "cell_is_recognized"
 harness = false
+required-features = ["bench"]
 
 [[bench]]
 name = "cell_set_digest"
 harness = false
+required-features = ["bench"]
