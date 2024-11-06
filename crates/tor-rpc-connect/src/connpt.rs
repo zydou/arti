@@ -324,6 +324,16 @@ where
     #[as_ref]
     addr: A,
 }
+impl<A> AddrWithStr<A>
+where
+    A: Clone + Debug,
+{
+    /// Return the string representation of this address,
+    /// for use in the authentication handshake.
+    pub(crate) fn as_str(&self) -> &str {
+        self.string.as_str()
+    }
+}
 impl AddrWithStr<CfgAddr> {
     /// Convert an `AddrWithStr<CfgAddr>` into its substituted form.
     pub(crate) fn resolve(&self) -> Result<AddrWithStr<general::SocketAddr>, ResolveError> {

@@ -42,10 +42,14 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod auth;
+#[cfg(feature = "rpc-client")]
+pub mod client;
 mod connpt;
 pub mod load;
 #[cfg(test)]
 mod testing;
+
+use std::{io, sync::Arc};
 
 pub use connpt::{ParsedConnectPoint, ResolveError, ResolvedConnectPoint};
 
@@ -99,6 +103,24 @@ fn fs_error_action(err: &std::io::Error) -> ClientErrorAction {
         _ => A::Abort,
     }
 }
+/// Return the ClientErrorAction for an IO error encountered
+/// while opening a socket.
+///
+/// Note that this is not an implementation of `HasClientErrorAction`:
+/// We want to decline on a different set of errors for fs operation.
+fn net_error_action(err: &std::io::Error) -> ClientErrorAction {
+    use std::io::ErrorKind as EK;
+    use ClientErrorAction as A;
+    match err.kind() {
+        EK::ConnectionRefused => A::Decline,
+        EK::ConnectionReset => A::Decline,
+        // TODO RPC: Are there other "decline" error types here?
+        //
+        // TODO Rust 1.83; revisit once some of `io_error_more` is stabilized.
+        // see https://github.com/rust-lang/rust/pull/128316
+        _ => A::Abort,
+    }
+}
 impl HasClientErrorAction for fs_mistrust::Error {
     fn client_action(&self) -> ClientErrorAction {
         use fs_mistrust::Error as E;
@@ -132,4 +154,72 @@ impl HasClientErrorAction for fs_mistrust::Error {
             _ => A::Abort,
         }
     }
+}
+
+/// A failure to connect or bind to a [`ResolvedConnectPoint`].
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ConnectError {
+    /// We encountered an IO error while actually opening our socket.
+    #[error("IO error while connecting")]
+    Io(#[source] Arc<io::Error>),
+    /// The connect point told us to abort explicitly.
+    #[error("Encountered an explicit \"abort\"")]
+    ExplicitAbort,
+    /// We couldn't load the cookie file for cookie authentication.
+    #[error("Unable to load cookie file")]
+    LoadCookie(#[from] auth::CookieAccessError),
+    /// We were told to connect to a socket type that we don't support.
+    #[error("Unsupported socket type")]
+    UnsupportedSocketType,
+    /// We were told to connect using an auth type that we don't support.
+    #[error("Unsupported authentication type")]
+    UnsupportedAuthType,
+    /// We were told to use a Unix address for which we could not extract a parent directory.
+    #[error("Invalid unix address")]
+    InvalidUnixAddress,
+    /// Unable to access the location of a Unix address.
+    #[error("Unix address access")]
+    UnixAddressAccess(#[from] fs_mistrust::Error),
+}
+
+impl From<io::Error> for ConnectError {
+    fn from(err: io::Error) -> Self {
+        ConnectError::Io(Arc::new(err))
+    }
+}
+impl crate::HasClientErrorAction for ConnectError {
+    fn client_action(&self) -> crate::ClientErrorAction {
+        use crate::ClientErrorAction as A;
+        use ConnectError as E;
+        match self {
+            E::Io(err) => crate::net_error_action(err),
+            E::ExplicitAbort => A::Abort,
+            E::LoadCookie(err) => err.client_action(),
+            E::UnsupportedSocketType => A::Decline,
+            E::UnsupportedAuthType => A::Decline,
+            E::InvalidUnixAddress => A::Decline,
+            E::UnixAddressAccess(err) => err.client_action(),
+        }
+    }
+}
+
+#[cfg(any(feature = "rpc-client", feature = "rpc-server"))]
+/// Given a `general::SocketAddr`, try to return the path of its parent directory (if any).
+fn socket_parent_path(
+    addr: &tor_general_addr::general::SocketAddr,
+) -> Result<Option<&std::path::Path>, ConnectError> {
+    use tor_general_addr::general::SocketAddr::Unix;
+    let Unix(address) = addr else {
+        // Only unix addresses have paths.
+        //
+        // TODO: Maybe we should have an as_pathname() for general::SocketAddr?
+        return Ok(None);
+    };
+
+    let dirpath = address
+        .as_pathname()
+        .and_then(|p| p.parent())
+        .ok_or(ConnectError::InvalidUnixAddress)?;
+    Ok(Some(dirpath))
 }
