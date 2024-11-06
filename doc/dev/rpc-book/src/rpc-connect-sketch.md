@@ -531,6 +531,8 @@ The RPC server behaves as follows.
    in the `rpc.listen` table in `arti.toml`,
    and tries to bind to each,
    treating all errors as fatal.
+   (It does not attempt to load or validate connect files
+   whose entries are disabled.)
 3. If a fatal error did not occur,
    but no connect points were bound,
    the server uses the connect points in `rpc.listen-default`,
