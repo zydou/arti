@@ -761,8 +761,12 @@ impl<R: Runtime> DirMgr<R> {
         // We don't support changing these: doing so basically would require us
         // to abort all our in-progress downloads, since they might be based on
         // no-longer-viable information.
+        // NOTE: keep this in sync with the behaviour of `DirMgrConfig::update_from_config`
         if new_config.cache_dir != config.cache_dir {
             how.cannot_change("storage.cache_dir")?;
+        }
+        if new_config.cache_trust != config.cache_trust {
+            how.cannot_change("storage.permissions")?;
         }
         if new_config.authorities() != config.authorities() {
             how.cannot_change("network.authorities")?;
