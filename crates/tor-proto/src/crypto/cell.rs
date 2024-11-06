@@ -553,7 +553,7 @@ pub(crate) mod tor1 {
 
         /// Public wrapper around the `RelayCellBody` struct.
         #[repr(transparent)]
-        pub struct RelayBody(pub(crate) RelayCellBody);
+        pub struct RelayBody(pub(in crate::crypto) RelayCellBody);
 
         impl From<[u8; 509]> for RelayBody {
             fn from(body: [u8; 509]) -> Self {
