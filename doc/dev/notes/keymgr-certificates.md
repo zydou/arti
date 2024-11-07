@@ -208,6 +208,13 @@ The purpose and meaning of the certificate, as well as the algorithms
 of the subject and signing keys, will be given by the `KeyType`
 of the certificate (i.e. the file extension).
 
+Mote specifically, the `KeyType` of a certificate encodes the following:
+
+1. The cryptographic algorithms of the subject key and the signing key
+2. How the subject key value and its properties are encoded before
+   the signing key key makes its signature
+3. How the signature and the other information is encoded for storage.
+
 > Note: the name of the `KeyType` enum now makes little sense,
 > because it no longer represents a key type, but rather a type of object
 > we're able to serialize and write to the keystore.
