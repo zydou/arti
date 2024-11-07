@@ -235,7 +235,8 @@ the corresponding entry is *declined*.
 
  - A connect file is absent.
  - A connect file is present
-   but the _type_ of its connect is not recognized.
+   but its is not recognized:
+   it has neither a `connect` table nor a `builtin` table.
    (This likely indicates the presence of a version of Arti
    that is newer than our library.)
  - A connect file is present,
@@ -245,6 +246,12 @@ the corresponding entry is *declined*.
    but no Arti process is listening at the location it describes.
  - The connect point tells us to try an embedded
    Arti client, but no embedded client is available.
+ - The connect point tells us to use a Unix socket,
+   but we are on windows.
+ - The specified address for connect file,
+   or a file that the connect point mentions,
+   contains a shell expansion string
+   with a variable that does not exist.
 
 The following errors are not tolerated;
 when an Arti RPC client encounters any of them,
@@ -260,11 +267,10 @@ the corresponding entry *aborts* the entire search process.
    but we cannot read it due to an error other than `EACCES`, `ENOENT`,
    etc.
  - The connect file explicitly tells us to abort.
-
-TODO RPC These are still TBD; are they "decline" or "abort"?
-
- - A filename within a connect point
-   contains a `${VARIABLE}` that cannot be expanded.
+ - The specified address for connect file,
+   or a file that the connect point mentions,
+   contains a misformed shell expansion string, like `unix:${foo`.
+ - A `socket` IP address in a connect point is not localhost.
  - A filename within a connect point is not absolute.
 
 ## Interpreting connect points.
