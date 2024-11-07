@@ -287,6 +287,12 @@ and cause the search process to abort.)
 Unrecognized TOML tables and members in a connect point
 must be ignored.
 
+<!-- TODO:
+     Should RPC servers insist on understanding all tables and members?
+     It seems that for them the consequences of not understanding the options
+     are more serious.
+-->
+
 ### "Builtin" connect points.
 
 A "builtin" connect point is a TOML object with a `[builtin]` table.
