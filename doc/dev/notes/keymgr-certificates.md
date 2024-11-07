@@ -103,7 +103,7 @@ pub struct KeyCertificateSpecifier {
     /// The key specifier of the certificate.
     pub certificate: Box<dyn KeySpecifier>,
     /// The key specifier of the signing key.
-    pub signing_key: Box<dyn KeySpecifier>,
+    pub signing_key: Option<Box<dyn KeySpecifier>>,
 }
 ```
 
@@ -325,10 +325,27 @@ impl KeyMgr {
     ///    * the certificate is not well-signed, or
     ///    * the subject key or signing key in the certificate do not match
     ///      the subject and signing keys specified in `cert_spec`
+    ///
+    /// Exactly one of `signing_key` and `cert_spec.signing_key` can be `Some`.
+    /// If both are missing, or both are present, an error is returned.
+    //
+    // TODO: this function takes a lot of args.
+    // When we implement it, we should rethink its args.
+    // Alternatively, we might choose to make the signing_key specifier
+    // from KeyCertificateSpecifier non-optional,
+    // and provide a *different* certificate specifier type for key certificates
+    // where the signing key is not present in the keystore.
+    // We would also provide a different set of `KeyMgr::get*` functions
+    // for retrieving such key certificates.
+    // These new `KeyMgr::get* functions would take a non-optional
+    // signing key argument.
     fn get_key_and_cert<K: ToEncodableKey, C: ToEncodableCert<K>>(
         &self,
         key_spec: &dyn KeySpecifier,
-        cert_spec: KeyCertificateSpecifier
+        key_type: KeyType,
+        signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
+        cert_spec: KeyCertificateSpecifier,
+        cert_key_type: KeyType,
       ) -> Result<Option<(K, C)>> {
         ...
     }
@@ -365,10 +382,27 @@ impl KeyMgr {
     //
     // TODO: this will need an extra argument specifying the expiry
     // and other data that needs to go into the certificate
+    ///
+    /// Exactly one of `signing_key` and `cert_spec.signing_key` can be `Some`.
+    /// If both are missing, or both are present, an error is returned.
+    //
+    // TODO: this function takes a lot of args.
+    // When we implement it, we should rethink its args.
+    // Alternatively, we might choose to make the signing_key specifier
+    // from KeyCertificateSpecifier non-optional,
+    // and provide a *different* certificate specifier type for key certificates
+    // where the signing key is not present in the keystore.
+    // We would also provide a different set of `KeyMgr::get*` functions
+    // for retrieving such key certificates.
+    // These new `KeyMgr::get* functions would take a non-optional
+    // signing key argument.
     fn get_or_generate_key_and_cert<K: ToEncodableKey, C: ToEncodableCert>(
         &self,
         key_spec: &dyn KeySpecifier,
-        cert_spec: CertificateSpecifier
+        key_type: KeyType,
+        signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
+        cert_spec: KeyCertificateSpecifier,
+        cert_key_type: KeyType,
       ) -> Result<(K, C)> {
         ...
     }
