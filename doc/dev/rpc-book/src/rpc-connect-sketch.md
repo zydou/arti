@@ -196,8 +196,40 @@ The default search path is:
 > auth = "none"
 > ```
 
+### Handling errors as an RPC client.
 
-The following errors are all tolerated;
+On a RPC client, some errors are fatal
+and cause the connect point to **abort**;
+others are nonfatal
+and cause the connect point to be **declined**.
+
+As a general guideline,
+the decision about which errors are handled in which way
+is meant to support a use case
+in which the client is configured
+with a series of "possibly good" connect points,
+and is intended to choose "the first one that works."
+
+Therefore, the sort of errors
+hat typically cause a connect point to be *declined*
+are those that represent a "possibly good" connect point
+that "didn't work", including:
+- A connect point for a server that isn't currently running,
+  but might be running later.
+- A connect point that some other user might be able to reach,
+  but this client can't.
+- A connect point that some other client might support,
+  but this client doesn't.
+
+By contrast, the sort of errors
+that typically cause a connect point to be *abort*
+are those that represent
+ - A system failure or misconfiguration.
+ - A connect point that is broken by nature
+   and cannot ever work.
+
+More specifically,
+the following errors are all tolerated;
 when an Arti RPC client encounters encounter them,
 the corresponding entry is *declined*.
 
