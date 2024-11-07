@@ -204,7 +204,6 @@ relationship with their subject keys.
 
 ### Key certificate representation
 
-A key certificate will have the same `ArtiPath` as its subject key.
 The purpose and meaning of the certificate, as well as the algorithms
 of the subject and signing keys, will be given by the `KeyType`
 of the certificate (i.e. the file extension).
