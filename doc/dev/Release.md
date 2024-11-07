@@ -437,7 +437,7 @@ The reference links are surrounded by parentheses;
 they are separated by commas.
 
 Reference links can be to tickets (`[#1234]`),
-merge requests (`[11234]`),
+merge requests (`[!1234]`),
 proposals (`[prop123]`),
 TROVE IDs (`[TROVE-2024-001]`),
 git commits (`[1ce40b6e4a43bab4]`),
