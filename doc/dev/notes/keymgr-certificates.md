@@ -286,11 +286,6 @@ pub struct KeyCertificateSpecifier {
     pub certificate: Box<dyn CertSpecifier>,
     /// The key specifier of the signing key.
     pub signing_key: Box<dyn KeySpecifier>,
-    /// The key specifier of the subject key.
-    pub subject_key: Box<dyn KeySpecifier>,
-    // Note: the specifier of the subject key is somewhat redundant,
-    // since most (all?) of the KeyMgr APIs that receive a KeyCertificateSpecifier
-    // also get the KeySpecifier of the subject key as a separate arg.
 
     // other fields TBD
 }
