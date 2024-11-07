@@ -264,9 +264,8 @@ We will introduce a new `tor_ed25519_cert` extension for Tor Ed25519 certificate
 
 ### Storage format
 
-For certs like `K_relaysign_ed`, we won't have a separate "storage format".
-The cert will be stored in the keystore as-is
-(in Tor's [certificate format](https://spec.torproject.org/cert-spec.html#ed-certs)).
+The key certificates for `K_relaysign_ed` keys will be stored in the keystore
+in Tor's [certificate format](https://spec.torproject.org/cert-spec.html#ed-certs).
 
 If at some point we choose to support other kinds of certificates
 (i.e. with a different purpose and meaning),
