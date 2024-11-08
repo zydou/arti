@@ -17,7 +17,7 @@ mod cpu_time;
 use cpu_time::*;
 
 // Helper macro to setup a full circuit decryption benchmark.
-macro_rules! fullCircuitInboundSetup {
+macro_rules! full_circuit_inbound_setup {
     ($sc:ty, $d:ty, $f:ty) => {{
         let seed1: SecretBuf = b"hidden we are free".to_vec().into();
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
@@ -67,7 +67,7 @@ pub fn cell_decrypt_benchmark(c: &mut Criterion<CpuTime>) {
 
     group.bench_function("cell_decrypt_Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
-            || fullCircuitInboundSetup!(Aes128Ctr, Sha1, RelayCellFormatV0),
+            || full_circuit_inbound_setup!(Aes128Ctr, Sha1, RelayCellFormatV0),
             |(cell, cc_in)| {
                 client_decrypt(cell, cc_in).unwrap();
             },
@@ -77,7 +77,7 @@ pub fn cell_decrypt_benchmark(c: &mut Criterion<CpuTime>) {
 
     group.bench_function("cell_decrypt_Tor1Hsv3RelayCrypto", |b| {
         b.iter_batched_ref(
-            || fullCircuitInboundSetup!(Aes256Ctr, Sha256, RelayCellFormatV0),
+            || full_circuit_inbound_setup!(Aes256Ctr, Sha256, RelayCellFormatV0),
             |(cell, cc_in)| {
                 client_decrypt(cell, cc_in).unwrap();
             },

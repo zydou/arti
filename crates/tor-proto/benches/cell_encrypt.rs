@@ -15,7 +15,7 @@ use cpu_time::*;
 const HOP_NUM: u8 = 2;
 
 /// Helper macro to setup a full circuit encryption benchmark.
-macro_rules! fullCircuitOutboundSetup {
+macro_rules! full_circuit_outbound_setup {
     ($sc:ty, $d:ty, $f:ty) => {{
         let seed1: SecretBuf = b"hidden we are free".to_vec().into();
         let seed2: SecretBuf = b"free to speak, to free ourselves".to_vec().into();
@@ -46,7 +46,7 @@ pub fn cell_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
 
     group.bench_function("cell_encrypt_Tor1RelayCrypto", |b| {
         b.iter_batched_ref(
-            || fullCircuitOutboundSetup!(Aes128Ctr, Sha1, RelayCellFormatV0),
+            || full_circuit_outbound_setup!(Aes128Ctr, Sha1, RelayCellFormatV0),
             |(cell, cc_out)| {
                 client_encrypt(cell, cc_out, HOP_NUM).unwrap();
             },
@@ -56,7 +56,7 @@ pub fn cell_encrypt_benchmark(c: &mut Criterion<CpuTime>) {
 
     group.bench_function("cell_encrypt_Tor1Hsv3RelayCrypto", |b| {
         b.iter_batched_ref(
-            || fullCircuitOutboundSetup!(Aes256Ctr, Sha256, RelayCellFormatV0),
+            || full_circuit_outbound_setup!(Aes256Ctr, Sha256, RelayCellFormatV0),
             |(cell, cc_out)| {
                 client_encrypt(cell, cc_out, HOP_NUM).unwrap();
             },
