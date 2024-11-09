@@ -178,7 +178,7 @@ impl Connection {
             .as_bytes()
             .first()
             .expect("can't reference global ID")
-            == b'G'
+            == b'$'
         {
             // Design note: It's not really necessary from a security POV to
             // check the MAC here; any possible GenIdx we return will either

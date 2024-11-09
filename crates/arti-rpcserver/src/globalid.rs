@@ -90,7 +90,7 @@ impl GlobalId {
     pub(crate) fn encode(&self, key: &MacKey) -> ObjectId {
         use base64ct::{Base64Unpadded as B64, Encoding};
         let bytes = self.encode_as_bytes(key, &mut rand::rng());
-        let mut b64: String = "G".into();
+        let mut b64: String = "$".into();
         b64.push_str(&B64::encode_string(&bytes[..]));
         b64.into()
     }
