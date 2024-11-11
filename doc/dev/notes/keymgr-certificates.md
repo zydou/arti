@@ -197,9 +197,9 @@ impl KeyMgr {
     // signing key argument.
     fn get_key_and_cert<K: ToEncodableKey, C: ToEncodableCert<K>>(
         &self,
-        key_type: KeyType,
-        signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
         cert_spec: &dyn KeyCertificateSpecifier,
+        signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
+        key_type: KeyType,
         cert_key_type: KeyType,
       ) -> Result<Option<(K, C)>> {
         ...
@@ -253,9 +253,9 @@ impl KeyMgr {
     // signing key argument.
     fn get_or_generate_key_and_cert<K: ToEncodableKey, C: ToEncodableCert>(
         &self,
-        key_type: KeyType,
-        signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
         cert_spec: &dyn KeyCertificateSpecifier,
+        signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
+        key_type: KeyType,
         cert_key_type: KeyType,
       ) -> Result<(K, C)> {
         ...
