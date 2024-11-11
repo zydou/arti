@@ -93,13 +93,13 @@ In the on-disk Arti key store, their paths will be
 
 | Key                            | `ArtiPath`                      | Path                                              |
 |--------------------------------|---------------------------------|---------------------------------------------------|
-| `KS_relaysign_ed`              | `relay/relaysign_ed+<uid-tbd>` | `relay/relaysign_ed+<uid-tbd>.ed25519_private`   |
-| `KP_relaysign_ed`              | `relay/relaysign_ed+<uid-tbd>` | `relay/relaysign_ed+<uid-tbd>.ed25519_public`    |
-| `KP_relaysign_ed` certificate  | `relay/relaysign_ed+<uid-tbd>` | `relay/relaysign_ed+<uid-tbd>.tor_ed25519_cert`  |
+| `KS_relaysign_ed`              | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.ed25519_private`   |
+| `KP_relaysign_ed`              | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.ed25519_public`    |
+| `KP_relaysign_ed` certificate  | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.tor_ed25519_cert`  |
 
-Where `<uid-tbd>` is a unique identifier added to each key.
+Where `<valid_until>` is the expiry timestamp of the key.
 The exact format of this identifier is outside the scope of this document
-(the `uid` will likely be a timestamp -- see !2577).
+(see !2577).
 
 We will introduce a new `tor_ed25519_cert` extension for Tor Ed25519 certificates
 (internally represented by a new `CertType::Ed25519TorCert` variant -- see below).
