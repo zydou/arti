@@ -156,6 +156,8 @@ pub trait KeyCertificateSpecifier {
     /// as an argument to the `KeyMgr` accessor this `KeyCertificateSpecifier`
     /// will be used with.
     fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier>;
+    /// The key specifier of the subject key.
+    fn subject_key_specifier(&self) -> &dyn KeySpecifier;
 
     // other functions TBD
 }
@@ -195,7 +197,6 @@ impl KeyMgr {
     // signing key argument.
     fn get_key_and_cert<K: ToEncodableKey, C: ToEncodableCert<K>>(
         &self,
-        key_spec: &dyn KeySpecifier,
         key_type: KeyType,
         signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
         cert_spec: &dyn KeyCertificateSpecifier,
@@ -252,7 +253,6 @@ impl KeyMgr {
     // signing key argument.
     fn get_or_generate_key_and_cert<K: ToEncodableKey, C: ToEncodableCert>(
         &self,
-        key_spec: &dyn KeySpecifier,
         key_type: KeyType,
         signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
         cert_spec: &dyn KeyCertificateSpecifier,
