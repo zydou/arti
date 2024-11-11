@@ -45,7 +45,7 @@ The purpose and meaning of the certificate, as well as the algorithms
 of the subject and signing keys, will be given by the `KeyType`
 of the certificate (i.e. the file extension).
 
-Mote specifically, the `KeyType` of a certificate encodes the following:
+More specifically, the `KeyType` of a certificate encodes the following:
 
 1. The cryptographic algorithms of the subject key and the signing key
 2. How the subject key value and its properties are encoded before
