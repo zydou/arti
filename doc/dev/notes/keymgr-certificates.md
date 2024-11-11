@@ -124,7 +124,7 @@ and introduce a new one for certificates using the new format.
 
 ```rust
 /// The "specifier" of a key certificate, which identifies an instance of a cert,
-/// as well as its signing key.
+/// as well as its signing and subject keys.
 ///
 /// Certificates can only be fetched from Arti key stores
 /// (we will not support loading certs from C Tor's key directory)
@@ -134,7 +134,7 @@ pub trait KeyCertificateSpecifier {
     /// Used by `KeyMgr` to derive the `ArtiPath` of the certificate.
     /// The `ArtiPath` of a certificate is obtained
     /// by concatenating the `ArtiPath` of the subject key with the
-    /// denotators (if any) provided by this function,
+    /// denotators provided by this function,
     /// with a `+` between the `ArtiPath` of the subject key and
     /// the denotators.
     ///
@@ -164,7 +164,9 @@ for cert retrieval and validation:
 ```rust
 impl KeyMgr {
     /// Read the specified key and certificate from one of the key stores,
-    /// deserializing the key as `K::Key` and the cert as `C::Cert`.
+    /// deserializing the subject key as `K::Key`, the cert as `C::Cert`,
+    /// and the signing key (if the provided `signing_key` is `None`)
+    /// as `C::SigningKey`.
     ///
     /// Returns `Ok(None)` if none of the key stores have the requested key.
     ///
@@ -199,7 +201,9 @@ impl KeyMgr {
     }
 
     /// Read the specified key and certificate from one of the key stores,
-    /// and deserializing the key as `K::Key` and the cert as `C::Cert`,
+    /// deserializing the subject key as `K::Key`, the cert as `C::Cert`,
+    /// and the signing key (if the provided `signing_key` is `None`)
+    /// as `C::SigningKey`,
     /// generating the key and its corresponding certificate
     /// if either does not exist.
     ///
