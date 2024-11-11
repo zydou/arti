@@ -6,6 +6,8 @@
 //!   * `handshake` implements the ntor handshake.
 //!   * `ll` provides building blocks for other parts of the protocol.
 
+#[cfg(feature = "bench")]
+pub(crate) mod bench_utils;
 pub(crate) mod binding;
 pub(crate) mod cell;
 pub(crate) mod handshake;

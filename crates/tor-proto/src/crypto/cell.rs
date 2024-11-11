@@ -546,6 +546,43 @@ pub(crate) mod tor1 {
             false
         }
     }
+
+    /// Benchmark utilities for the `tor1` module.
+    #[cfg(feature = "bench")]
+    pub(crate) mod bench_utils {
+        use super::*;
+
+        /// Public wrapper around the `RelayCellBody` struct.
+        #[repr(transparent)]
+        pub struct RelayBody(pub(in crate::crypto) RelayCellBody);
+
+        impl From<[u8; 509]> for RelayBody {
+            fn from(body: [u8; 509]) -> Self {
+                let body = Box::new(body);
+                Self(body.into())
+            }
+        }
+
+        impl RelayBody {
+            /// Public wrapper around the `set_digest` method of the `RelayCellBody` struct.
+            pub fn set_digest<D: Digest + Clone, RCF: RelayCellFormatTrait>(
+                &mut self,
+                d: &mut D,
+                used_digest: &mut GenericArray<u8, D::OutputSize>,
+            ) {
+                self.0.set_digest::<D, RCF>(d, used_digest);
+            }
+
+            /// Public wrapper around the `is_recognized` method of the `RelayCellBody` struct.
+            pub fn is_recognized<D: Digest + Clone, RCF: RelayCellFormatTrait>(
+                &self,
+                d: &mut D,
+                rcvd: &mut GenericArray<u8, D::OutputSize>,
+            ) -> bool {
+                self.0.is_recognized::<D, RCF>(d, rcvd)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
