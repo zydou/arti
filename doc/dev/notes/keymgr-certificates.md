@@ -2,15 +2,10 @@
 
 ## Motivation
 
-To support running with offline identity keys,
-the `K_relayid_ed` identity key of a relay is only used for
-signing its `K_relaysign_ed` medium-term signing key (which must be kept online).
-The resulting certificate is used in the `CERTS` cell during channel negotiation,
-and needs to be available even if the `K_relayid_ed` key
-(or, more specifically, the `KS_relayid_ed` private key)
-is not.
-To that end, we decided to add support for storing certificates in the Arti keystore
+We have decided to add support for storing certificates in the Arti keystore
 (see #1617).
+
+This is needed, for example, to enable relays to run with offline identity keys.
 
 ## Assumptions
 
