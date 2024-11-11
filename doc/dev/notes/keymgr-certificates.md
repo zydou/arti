@@ -95,11 +95,19 @@ In the on-disk Arti key store, their paths will be
 |--------------------------------|---------------------------------|---------------------------------------------------|
 | `KS_relaysign_ed`              | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.ed25519_private`   |
 | `KP_relaysign_ed`              | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.ed25519_public`    |
-| `KP_relaysign_ed` certificate  | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.tor_ed25519_cert`  |
+| `KP_relaysign_ed` certificate  | `relay/relaysign_ed+<valid_until>+<uid-tbd>` | `relay/relaysign_ed+<valid_until>+<uid-tbd>.tor_ed25519_cert`  |
 
 Where `<valid_until>` is the expiry timestamp of the key.
 The exact format of this identifier is outside the scope of this document
 (see !2577).
+
+The `<uid-tbd>` component of certificate `relay/relaysign_ed+<valid_until>+<uid-tbd>`
+is a "unique identifier" for the certificate (whose exact format is TBD)
+of key `relay/relaysign_ed+<valid_until>`.
+
+Note: `<uid-tbd>` does not need to be a globally unique identifier.
+Because there is a 1:1 mapping between `K_relaysign_ed` keys
+and their corresponding certs, the `<uid-tbd>` part could even be a constant string.
 
 We will introduce a new `tor_ed25519_cert` extension for Tor Ed25519 certificates
 (internally represented by a new `CertType::Ed25519TorCert` variant -- see below).
@@ -120,31 +128,36 @@ and introduce a new one for certificates using the new format.
 #### Implementation details
 
 ```rust
-/// The "specifier" of a key certificate, which identifies an instance of a cert.
-#[non_exhaustive]
-pub struct KeyCertificateSpecifier {
-    /// The key specifier of the certificate.
-    pub certificate: Box<dyn CertSpecifier>,
-    /// The key specifier of the signing key.
-    pub signing_key: Box<dyn KeySpecifier>,
-
-    // other fields TBD
-}
-
-/// The "specifier" of a certificate, which identifies an instance of a cert.
-///
-/// [`CertSpecifier::arti_path()`] should uniquely identify an instance of a cert.
+/// The "specifier" of a key certificate, which identifies an instance of a cert,
+/// as well as its signing key.
 ///
 /// Certificates can only be fetched from Arti key stores
-/// (`ArtiNativeKeystore` or `ArtiEphemeralKeystore`).
-pub trait CertSpecifier {
-    /// The location of the cert in the Arti key store.
+/// (we will not support loading certs from C Tor's key directory)
+pub trait KeyCertificateSpecifier {
+    /// The denotators of the certificate.
     ///
-    /// This also acts as a unique identifier for a specific cert instance.
-    fn arti_path(&self) -> StdResult<ArtiPath, ArtiPathUnavailableError>;
+    /// Used by `KeyMgr` to derive the `ArtiPath` of the certificate.
+    /// The `ArtiPath` of a certificate is obtained
+    /// by concatenating the `ArtiPath` of the subject key with the
+    /// denotators (if any) provided by this function,
+    /// with a `+` between the `ArtiPath` of the subject key and
+    /// the denotators.
+    ///
+    /// The returned `Vec` **must** be non-empty.
+    //
+    // TODO: perhaps we should invent (or find an existing) NonEmptyVec type
+    // to use here instead of Vec
+    fn cert_denotators(&self) -> Vec<dyn KeySpecifierComponent>;
+    /// The key specifier of the signing key.
+    ///
+    /// Returns `None` if the signing key should not be retrieved from the keystore.
+    ///
+    /// Note: a return value of `None` means the signing key will be provided
+    /// as an argument to the `KeyMgr` accessor this `KeyCertificateSpecifier`
+    /// will be used with.
+    fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier>;
 
-    // NOTE: if at some point we decide to support loading certificates from C Tor key stores,
-    // we will add a ctor_path() -> Option<CTorPath> function here
+    // other functions TBD
 }
 ```
 
@@ -167,7 +180,7 @@ impl KeyMgr {
     ///    * the subject key or signing key in the certificate do not match
     ///      the subject and signing keys specified in `cert_spec`
     ///
-    /// Exactly one of `signing_key` and `cert_spec.signing_key` can be `Some`.
+    /// Exactly one of `signing_key` and `cert_spec.signing_key_specifier()` can be `Some`.
     /// If both are missing, or both are present, an error is returned.
     //
     // TODO: this function takes a lot of args.
@@ -185,7 +198,7 @@ impl KeyMgr {
         key_spec: &dyn KeySpecifier,
         key_type: KeyType,
         signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
-        cert_spec: KeyCertificateSpecifier,
+        cert_spec: &dyn KeyCertificateSpecifier,
         cert_key_type: KeyType,
       ) -> Result<Option<(K, C)>> {
         ...
@@ -224,7 +237,7 @@ impl KeyMgr {
     // TODO: this will need an extra argument specifying the expiry
     // and other data that needs to go into the certificate
     ///
-    /// Exactly one of `signing_key` and `cert_spec.signing_key` can be `Some`.
+    /// Exactly one of `signing_key` and `cert_spec.signing_key_specifier()` can be `Some`.
     /// If both are missing, or both are present, an error is returned.
     //
     // TODO: this function takes a lot of args.
@@ -242,7 +255,7 @@ impl KeyMgr {
         key_spec: &dyn KeySpecifier,
         key_type: KeyType,
         signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
-        cert_spec: KeyCertificateSpecifier,
+        cert_spec: &dyn KeyCertificateSpecifier,
         cert_key_type: KeyType,
       ) -> Result<(K, C)> {
         ...
