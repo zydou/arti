@@ -112,6 +112,13 @@ We will introduce a new `tor_ed25519_cert` extension for Tor Ed25519 certificate
 The key certificates for `K_relaysign_ed` keys will be stored in the keystore
 in Tor's [certificate format](https://spec.torproject.org/cert-spec.html#ed-certs).
 
+Note: the [Tor ed25519 key format](https://spec.torproject.org/cert-spec.html#ed-certs)
+can only represent signatures *by* ed25519 keys
+but it can represent signatures *on* a variety of algorithms.
+The `.tor_ed25519` extension and the `KeystoreEntryType::Ed25519TorCert` enum variant
+are used only when the `CERT_KEY_TYPE` is `01`;
+other subject key algorithms (types) will have different `KeystoreEntryType` and extension.
+
 If at some point we choose to support other kinds of certificates
 (i.e. with a different purpose and meaning),
 we will likely use a different certificate format (not specified here).
