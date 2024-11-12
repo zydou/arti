@@ -407,11 +407,26 @@ since the last release.)
 >
 > If this guide produces bad results, we should change it.
 
-## Goals
+## Goals and guidelines
 
 The CHANGELOG is meant to be read by downstream users and developers;
 try to describe things from their point of view,
 and emphasize the entries that they care about.
+
+When writing a CHANGELOG,
+think about what users will most want to know,
+and make sure to describe the
+implications of things in terms of how the user experience will change,
+what they should look out for,
+what was the impact/risk from that bug you fixed,
+what new features they should try in this new version,
+and so on.
+
+The CHANGELOG is partly an advertisement
+for why users should want to upgrade,
+and partly a historical document
+so that people can go back to discover
+what features/bugs were present in which past versions.
 
 ## Format
 
