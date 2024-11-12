@@ -21,7 +21,12 @@ but please do so judiciously.
 
 ### Network updates
 
-<!-- Changes to the list of directory authorities or fallback dirs -->
+<!-- Changes to the list of directory authorities, or to their identity keys,
+     go here.
+
+     Changes to the list of fallbacks can go in "cleanups, minor features,
+     etc" below
+-->
 
 ### Major bugfixes
 
