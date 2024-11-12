@@ -102,10 +102,10 @@ of key `relay/relaysign_ed+<valid_until>`.
 
 Note: `<uid-tbd>` does not need to be a globally unique identifier.
 Because there is a 1:1 mapping between `K_relaysign_ed` keys
-and their corresponding certs, the `<uid-tbd>` part could even be a constant string.
+and their corresponding certs, the `<uid-tbd>` part could even be a constant string, or omitted.
 
 We will introduce a new `tor_ed25519_cert` extension for Tor Ed25519 certificates
-(internally represented by a new `CertType::Ed25519TorCert` variant -- see below).
+(represented in the Rust API by a new `KeystoreEntryType::Ed25519TorCert` variant -- see below).
 
 ### Storage format
 
