@@ -290,13 +290,10 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                                     // Just log an error if we're unable to remove it, since there's
                                     // nothing else we can do here, and returning the error would
                                     // hide the actual error that we care about (the channel build
-                                    // failure). Panic in debug builds so that we catch this error
-                                    // sooner.
+                                    // failure).
                                     #[allow(clippy::missing_docs_in_private_items)]
                                     const MSG: &str = "Unable to remove the pending channel";
                                     error_report!(internal!("{e}"), "{}", MSG);
-                                    #[cfg(debug_assertions)]
-                                    panic!("{MSG}: {e}");
                                 }
                             }
                         }

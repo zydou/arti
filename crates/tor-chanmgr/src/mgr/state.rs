@@ -605,15 +605,12 @@ impl PendingChannelHandle {
 impl std::ops::Drop for PendingChannelHandle {
     fn drop(&mut self) {
         if !self.chan_has_been_removed {
-            // log, and also panic in debug builds
             #[allow(clippy::missing_docs_in_private_items)]
             const MSG: &str = "Dropped the 'PendingChannelHandle' without removing the channel";
             error_report!(
                 internal!("{MSG}"),
                 "'PendingChannelHandle' dropped unexpectedly",
             );
-            #[cfg(debug_assertions)]
-            panic!("{MSG}");
         }
     }
 }
