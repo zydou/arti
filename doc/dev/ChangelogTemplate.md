@@ -46,8 +46,8 @@ but please do so judiciously.
 
 <!-- These sections are for areas where there is enough development going on -->
 <!-- that it makes sense to group develoment by type.  Once a particular area -->
-<!-- of development is settled, it makes sense to .   -->
-
+<!-- of development is settled, it makes sense to omit its section, -->
+<!-- and put its changes into a less area-specific section.  -->
 
 ### Testing
 
