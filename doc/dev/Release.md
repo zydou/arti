@@ -172,6 +172,13 @@ Wait! Go back and make sure
 that you have done everything in the previous sections
 before you continue!
 
+0. Declare a merge freeze.
+
+   Tell `network-team`
+   (via email and IRC)
+   that the tree is now frozen,
+   and no MRs should be merged.
+
 1. Finalize the changelog.
 
    Make sure that the date is correct.
@@ -263,7 +270,9 @@ before you continue!
    to set things right.
    I hope that nobody else has this problem.)
 
-3. Tell `network-team` that the tree is open 
+3. Tell `network-team`
+   (via email and IRC)
+   that the tree is open
    for new MRs to be merged!
 
 ## Post-release
