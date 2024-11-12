@@ -507,6 +507,8 @@ in which the code was introduced.
 
 ## Style (specific to Changelog)
 
+**Be terse.**
+
 Prefer grammatical structures
 in the following _declining_ order of preference:
 
@@ -562,7 +564,6 @@ Avoid referring to the reader as "you";
 instead prefer the imperative.  ("To find out more, consult..."
 or "To enable this feature, use...")
 
-Be terse.
 
 Be descriptive.
 Avoid bland entries like "general hacking on X" or "Work on Y".
