@@ -25,7 +25,7 @@ pin-project = "1"
 priority-queue = "2.0.3"
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
 strum = { version = "0.26.3", features = ["derive"] }
-thiserror = "1"
+thiserror = "2"
 tor-error = { version = "0.24.0", path = "../tor-error", features = ["tracing"] }
 tor-general-addr = { version = "0.24.0", path = "../tor-general-addr" }
 tor-rtcompat = { version = "0.24.0", path = "../tor-rtcompat" }

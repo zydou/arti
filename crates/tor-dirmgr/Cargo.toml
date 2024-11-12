@@ -84,7 +84,7 @@ scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "2"
 strum = { version = "0.26.3", features = ["derive"] }
-thiserror = "1"
+thiserror = "2"
 time = { version = "0.3.20", features = ["formatting", "parsing"] }
 tor-async-utils = { version = "0.24.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }

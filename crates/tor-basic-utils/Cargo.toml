@@ -22,7 +22,7 @@ rand_chacha = "0.3"
 serde = { version = "1.0.103", optional = true, features = ["derive"] }
 slab = "0.4.4"
 smallvec = "1.10"
-thiserror = "1"
+thiserror = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }

@@ -19,7 +19,7 @@ futures = "0.3.14"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
-thiserror = "1"
+thiserror = "2"
 void = "1"
 
 [dev-dependencies]

@@ -54,7 +54,7 @@ httparse = "1.2"
 httpdate = "1.0"
 itertools = "0.13.0"
 memchr = "2.5"
-thiserror = "1"
+thiserror = "2"
 tor-circmgr = { path = "../tor-circmgr", version = "0.24.0" }
 tor-error = { path = "../tor-error", version = "0.24.0" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.24.0", optional = true }

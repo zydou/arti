@@ -41,7 +41,7 @@ futures = "0.3.14"
 itertools = "0.13.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 serde = { version = "1.0.103", features = ["derive"] }
-thiserror = "1"
+thiserror = "2"
 tor-async-utils = { version = "0.24.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
 tor-chanmgr = { version = "0.24.0", path = "../tor-chanmgr", features = ["pt-client"] }

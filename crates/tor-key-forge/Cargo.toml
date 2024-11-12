@@ -30,7 +30,7 @@ paste = "1"
 rand = "0.8"
 signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }
-thiserror = "1"
+thiserror = "2"
 tor-error = { version = "0.24.0", path = "../tor-error" }
 tor-hscrypto = { path = "../tor-hscrypto", version = "0.24.0" }
 tor-llcrypto = { version = "0.24.0", path = "../tor-llcrypto" }

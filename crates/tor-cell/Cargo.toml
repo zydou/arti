@@ -59,7 +59,7 @@ educe = "0.4.6"
 paste = "1"
 rand = "0.8"
 smallvec = "1.10"
-thiserror = "1"
+thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.24.0" }
 tor-cert = { path = "../tor-cert", version = "0.24.0" }

@@ -17,7 +17,7 @@ full = []
 
 [dependencies]
 fslock = { version = "0.2.0", package = "fslock-arti-fork" }
-thiserror = "1"
+thiserror = "2"
 
 [dev-dependencies]
 test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
