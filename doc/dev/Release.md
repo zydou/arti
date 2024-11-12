@@ -413,6 +413,10 @@ The CHANGELOG is meant to be read by downstream users and developers;
 try to describe things from their point of view,
 and emphasize the entries that they care about.
 
+Other people will read the CHANGELOG too:
+do not assume that the audience has extensive Tor experience,
+or knowledge of our inner workings.
+
 When writing a CHANGELOG,
 think about what users will most want to know,
 and make sure to describe the
@@ -427,6 +431,10 @@ for why users should want to upgrade,
 and partly a historical document
 so that people can go back to discover
 what features/bugs were present in which past versions.
+
+In times of excitement,
+the CHANGELOG may even get attention from the press.
+When possible, avoid phrases prone to misinterpretation or sensationalism.
 
 ## Format
 
