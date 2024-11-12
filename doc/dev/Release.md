@@ -521,12 +521,14 @@ in the following _declining_ order of preference:
   as if you were telling Arti to do it.
   ("Don't support Rust ≤1.76";
   "Support generic strings in `tor-bytes`".)
+- Bare noun phrases with no main verb,
+  if noun is something
+  newly done, added, or instituted.
+  ("New requirement for Rust 1.77";
+  "Generic string support in `tor-bytes`".)
 
 Try to avoid these grammatical structures:
 
-- Bare noun phrases with no main verb.
-  ("New requirement for Rust 1.77";
-  "Generic string support in `tor-bytes`".)
 - Something that _we_ did described
   with the present tense, imperative, or infinitive.
   \[Sorry, these are hard to distinguish in English.\]
@@ -544,6 +546,11 @@ Try to avoid these grammatical structures:
 - Something that Arti now does, using the word "we".
   ("We now require 1.77";
   "we now support generic strings in `tor-bytes`.")
+- Bare noun phrases with no main verb,
+  if noun is **not** something
+  done, added, or instituted.
+  ("Bug in Rust 1.77";
+  "Performance in `tor-bytes`".)
 
 <!-- NOTE:  C tor changelog style prefers present-tense for changes,
      and never past tense.  Our guidelines here reflect a change in that
