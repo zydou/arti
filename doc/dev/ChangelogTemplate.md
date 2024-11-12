@@ -35,6 +35,8 @@ but please do so judiciously.
 <!-- This section only for features that don't appear under a specific area -->
 <!-- of development. -->
 
+### Deprecated functionality
+
 ### Breaking changes in lower-level crates
 
 ### Onion service development
@@ -64,7 +66,7 @@ but please do so judiciously.
 
 ### Cleanups, minor features, and bugfixes
 
-### Deprecated functionality
+
 
 ### Acknowledgments
 
