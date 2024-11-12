@@ -22,7 +22,7 @@ derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 dirs = { version = "5", optional = true }
 once_cell = { version = "1", optional = true }
 serde = { version = "1.0.103", features = ["derive"], optional = true }
-thiserror = "1"
+thiserror = "2"
 walkdir = { version = "2", optional = true }
 
 [target.'cfg(unix)'.dependencies]

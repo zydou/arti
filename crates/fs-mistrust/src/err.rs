@@ -55,7 +55,7 @@ pub enum Error {
     /// Only generated on unix-like systems.
     ///
     /// The provided integer contains the user_id o
-    #[error("Bad owner (UID {1}) on file or directory {}", _0.anonymize_home())]
+    #[error("Bad owner (UID {1}) on file or directory {anon}", anon = _0.anonymize_home())]
     BadOwner(PathBuf, u32),
 
     /// A target (or one of its ancestors) had the wrong type.

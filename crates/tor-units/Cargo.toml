@@ -15,7 +15,7 @@ categories = ["rust-patterns"]
 [dependencies]
 derive-deftly = { version = "0.14.2", optional = true }
 derive_more = { version = "1.0.0", features = ["full"] }
-thiserror = "1"
+thiserror = "2"
 tor-memquota = { version = "0.24.0", path = "../tor-memquota", default-features = false, optional = true }
 
 [dev-dependencies]

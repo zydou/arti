@@ -42,7 +42,7 @@ fs-mistrust = { path = "../fs-mistrust", version = "0.8.0", features = ["serde"]
 rand = "0.8.5"
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
-thiserror = "1"
+thiserror = "2"
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.24.0" }
 tor-config = { path = "../tor-config", version = "0.24.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.24.0" }

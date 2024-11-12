@@ -54,7 +54,7 @@ rand = "0.8"
 safelog = { path = "../safelog", version = "0.4.1" }
 signature = "2"
 subtle = "2"
-thiserror = "1"
+thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
 tor-bytes = { version = "0.24.0", path = "../tor-bytes" }
 tor-error = { version = "0.24.0", path = "../tor-error" }

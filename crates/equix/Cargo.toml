@@ -33,7 +33,7 @@ __is_experimental = []
 arrayvec = "0.7.4"
 hashx = { path = "../hashx", version = "0.2.0", default-features = false }
 num-traits = "0.2.15"
-thiserror = "1.0.40"
+thiserror = "2"
 visibility = "0.1.0"
 
 [dev-dependencies]

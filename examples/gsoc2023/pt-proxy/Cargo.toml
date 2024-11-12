@@ -10,7 +10,7 @@ publish = false
 anyhow = "1.0.72"
 clap = { version = "4.3.21", features = ["derive", "wrap_help"] }
 fast-socks5 = "0.9.1"
-thiserror = "1.0.44"
+thiserror = "2"
 tokio = { version = "1.7", features = ["full"] }
 tokio-stream = "0.1.14"
 tor-chanmgr = { path = "../../../crates/tor-chanmgr", features = ["pt-client"] }

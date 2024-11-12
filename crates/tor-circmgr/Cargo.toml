@@ -80,7 +80,7 @@ retry-error = { path = "../retry-error", version = "0.6.0" }
 safelog = { path = "../safelog", version = "0.4.1" }
 serde = { version = "1.0.103", features = ["derive"] }
 static_assertions = "1"
-thiserror = "1"
+thiserror = "2"
 tor-async-utils = { version = "0.24.0", path = "../tor-async-utils" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.24.0" }
