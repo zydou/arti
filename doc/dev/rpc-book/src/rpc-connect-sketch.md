@@ -252,6 +252,7 @@ the corresponding entry is *declined*.
    or a file that the connect point mentions,
    contains a shell expansion string
    with a variable that does not exist.
+ - A `socket` IP address in a connect point is not localhost.
 
 The following errors are not tolerated;
 when an Arti RPC client encounters any of them,
@@ -270,7 +271,6 @@ the corresponding entry *aborts* the entire search process.
  - The specified address for connect file,
    or a file that the connect point mentions,
    contains a misformed shell expansion string, like `unix:${foo`.
- - A `socket` IP address in a connect point is not localhost.
  - A filename within a connect point is not absolute.
 
 ## Interpreting connect points.
