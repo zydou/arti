@@ -28,7 +28,9 @@ Here are the assumptions that motivate the design proposed here:
   of the key it certifies. More specifically, it is formed by
   concatenating the `ArtiPath` of the subject key with the
   denotators provided by
-  `KeyCertificateSpecifier::cert_denotators()`.
+  `KeyCertificateSpecifier::cert_denotators()`, if any
+  (if there are no cert denotators, the `ArtiPath` of the certificate
+  is the same as the `ArtiPath` of the subject key).
   The reason we are not giving certificates their own
   `KeyCertificateSpecifier`-defined `ArtiPath`
   is because we want to ensure the certificates stored
@@ -90,19 +92,16 @@ In the on-disk Arti key store, their paths will be
 |--------------------------------|---------------------------------|---------------------------------------------------|
 | `KS_relaysign_ed`              | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.ed25519_private`   |
 | `KP_relaysign_ed`              | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.ed25519_public`    |
-| `KP_relaysign_ed` certificate  | `relay/relaysign_ed+<valid_until>+<uid-tbd>` | `relay/relaysign_ed+<valid_until>+<uid-tbd>.tor_ed25519_cert`  |
+| `KP_relaysign_ed` certificate  | `relay/relaysign_ed+<valid_until>` | `relay/relaysign_ed+<valid_until>.tor_ed25519_cert`  |
 
 Where `<valid_until>` is the expiry timestamp of the key.
 The exact format of this identifier is outside the scope of this document
 (see !2577).
 
-The `<uid-tbd>` component of certificate `relay/relaysign_ed+<valid_until>+<uid-tbd>`
-is a "unique identifier" for the certificate (whose exact format is TBD)
-of key `relay/relaysign_ed+<valid_until>`.
-
-Note: `<uid-tbd>` does not need to be a globally unique identifier.
-Because there is a 1:1 mapping between `K_relaysign_ed` keys
-and their corresponding certs, the `<uid-tbd>` part could even be a constant string, or omitted.
+> Note that in the general case, a key certificate has a path of the form
+> `<KEY_PATH>[+<D1>+<D2>+..+<Dn>]`, where `<KEY_PATH>` is the `ArtiPath`
+> of the subject key, and `D1`, `D2`, ..., `Dn` are the certificate denotators
+> (obtained from `KeyCertificateSpecifier::cert_denotators()`).
 
 We will introduce a new `tor_ed25519_cert` extension for Tor Ed25519 certificates
 (represented in the Rust API by a new `KeystoreItemType::Ed25519TorCert` variant -- see below).
@@ -143,9 +142,8 @@ pub trait KeyCertificateSpecifier {
     /// by concatenating the `ArtiPath` of the subject key with the
     /// denotators provided by this function,
     /// with a `+` between the `ArtiPath` of the subject key and
-    /// the denotators.
+    /// the denotators (the `+` is omitted if there are no denotators).
     ///
-    /// The returned `Vec` **must** be non-empty.
     //
     // TODO: perhaps we should invent (or find an existing) NonEmptyVec type
     // to use here instead of Vec
