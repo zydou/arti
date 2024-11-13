@@ -10,10 +10,13 @@ description = "Library for running a relay of the Tor network"
 keywords = ["tor", "arti", "privacy", "anonymity", "networking"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+#
+# We need a runtime
+# TODO(arti#1744): remove if we decide to have an always-required runtime
+# @@ test-all-crates conditional-option minimal --features=default-runtime
 
 [features]
-# Relay doesn't support native-tls at the moment.
-default = ["tokio", "rustls"]
+default = ["default-runtime"]
 full = [
     "async-std",
     "tokio",
@@ -31,11 +34,16 @@ full = [
     "tor-memquota/full",
 ]
 
+# Relay doesn't support native-tls at the moment.
+default-runtime = ["tokio", "rustls"]
+
 async-std = ["tor-rtcompat/async-std"]
 rustls = ["tor-rtcompat/rustls"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 
 [dependencies]
+anyhow = "1.0.23"
+clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 fs-mistrust = { path = "../fs-mistrust", version = "0.8.0", features = ["serde"] }
