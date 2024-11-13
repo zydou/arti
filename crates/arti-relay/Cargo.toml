@@ -12,8 +12,7 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-# Relay doesn't support native-tls at the moment.
-default = ["tokio", "rustls"]
+default = ["default-runtime"]
 full = [
     "async-std",
     "tokio",
@@ -30,6 +29,9 @@ full = [
     "tor-rtcompat/full",
     "tor-memquota/full",
 ]
+
+# Relay doesn't support native-tls at the moment.
+default-runtime = ["tokio", "rustls"]
 
 async-std = ["tor-rtcompat/async-std"]
 rustls = ["tor-rtcompat/rustls"]
