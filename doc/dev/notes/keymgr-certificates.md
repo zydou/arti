@@ -105,7 +105,7 @@ Because there is a 1:1 mapping between `K_relaysign_ed` keys
 and their corresponding certs, the `<uid-tbd>` part could even be a constant string, or omitted.
 
 We will introduce a new `tor_ed25519_cert` extension for Tor Ed25519 certificates
-(represented in the Rust API by a new `KeystoreEntryType::Ed25519TorCert` variant -- see below).
+(represented in the Rust API by a new `KeystoreItemType::Ed25519TorCert` variant -- see below).
 
 ### Storage format
 
@@ -115,9 +115,9 @@ in Tor's [certificate format](https://spec.torproject.org/cert-spec.html#ed-cert
 Note: the [Tor ed25519 key format](https://spec.torproject.org/cert-spec.html#ed-certs)
 can only represent signatures *by* ed25519 keys
 but it can represent signatures *on* a variety of algorithms.
-The `.tor_ed25519` extension and the `KeystoreEntryType::Ed25519TorCert` enum variant
+The `.tor_ed25519` extension and the `KeystoreItemType::Ed25519TorCert` enum variant
 are used only when the `CERT_KEY_TYPE` is `01`;
-other subject key algorithms (types) will have different `KeystoreEntryType` and extension.
+other subject key algorithms (types) will have different `KeystoreItemType` and extension.
 
 If at some point we choose to support other kinds of certificates
 (i.e. with a different purpose and meaning),
@@ -266,12 +266,6 @@ impl KeyMgr {
     // This function already exists in KeyMgr
     ///
     // ** Important note for the reviewer **
-    //
-    // Don't confuse the KeystoreEntry type here with the one mentioned
-    // below!! This function references the _existing_ KeystoreEntry type
-    // (which will need to be renamed to something else, like `KeystoreEntryDescriptor`),
-    // whereas the sections below talk about a _new_ KeystoreEntry type that represents
-    // the thing we call SshKeyData today.
     pub fn get_entry<K: ToEncodableKey>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
        ...
     }
@@ -335,47 +329,44 @@ As mentioned before, once we add support for storing certificates,
 the Arti keystore storage format will no longer be just OpenSSH
 (it'll be OpenSSH for keys + the C Tor custom cert format for certificates),
 so we ought to rename `SshKeyData` (the serializable storage type)
-to `KeystoreEntry` or `ArtiKeyMaterial` (or something else that doesn't mention "ssh").
+to `KeystoreItem`.
 
 ##### Proposed renamings
 
-* preemptively rename `KeystoreEntry` to `KeystoreEntryDescriptor` or `KeystoreEntryHandle`
-  or `KeyMgrEntry` or `KeyMgrEntryDescriptor`
-  (I want to use `KeystoreEntry` to represent a key retrieved from the keystore
-  or ready to be written to the keystore)
-* rename `EncodableKey::as_ssh_key_data()` to `EncodableKey::as_keystore_entry()`
-* replace `SshKeyData` with a new `KeystoreEntry` type
+* preemptively rename `KeystoreEntry` to `KeystoreItemEntry`
+* rename `EncodableKey::as_ssh_key_data()` to `EncodableKey::as_keystore_item()`
+* replace `SshKeyData` with a new `KeystoreItem` type
 * Rename the `EncodableKey` trait to `KeystoreEncodable`
   (other possible names: `EncodableEntry`, `EncodableKeystoreEntry`)
-* Rename `KeyType` to `KeystoreEntryType`
+* Rename `KeyType` to `KeystoreItemType`
 
 IOW, I propose we rewrite the `EncodableKey` trait like so
 
 ```rust
-/// An object that can be converted to and from `KeystoreEntry`.
+/// An object that can be converted to and from `KeystoreItem`.
 ///
 /// Types implementing this trait can be written to the keystore.
 //
 // When adding a new `KeystoreEncodable` impl, you must also update
-// [`KeystoreEntry::into_erased`](crate::KeystoreEntry::into_erased) to
+// [`KeystoreItem::into_erased`](crate::KeystoreItem::into_erased) to
 // return the corresponding concrete type implementing `KeystoreEncodable`
 // (as a `dyn KeystoreEncodable`).
 pub trait KeystoreEncodable: Downcast {
-    /// The kind of keystore entry this is.
-    fn entry_type() -> KeystoreEntryType
+    /// The kind of keystore item this is.
+    fn item_type() -> KeystoreItemType
     where
         Self: Sized;
 
-    /// Return the [`KeystoreEntry`] representation of this object.
-    fn as_keystore_entry(&self) -> Result<KeystoreEntry>;
+    /// Return the [`KeystoreItem`] representation of this object.
+    fn as_keystore_item(&self) -> Result<KeystoreItem>;
 }
 
 /// A type of [`KeystoreEncodable`] entry
 #[non_exhaustive]
-enum KeystoreEntryType {
+enum KeystoreItemType {
     /// A key
     // KeyType is the same as before,
-    // except its Unknown variant is moved to KeystoreEntryType
+    // except its Unknown variant is moved to KeystoreItemType
     Key(KeyType),
     /// A key certificate
     Cert(CertType),
@@ -396,12 +387,12 @@ enum CertType {
 /// A public key, keypair, or key certificate.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct KeystoreEntry(KeystoreEntryInner);
+pub struct KeystoreItem(KeystoreItemInner);
 
-/// The inner representation of a KeystoreEntry.
+/// The inner representation of a KeystoreItem.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-enum KeystoreEntryInner {
+enum KeystoreItemInner {
     /// A public key or a keypair.
     Key(SshKeyData),
     /// A certificate.
