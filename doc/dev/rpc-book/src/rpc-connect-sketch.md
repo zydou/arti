@@ -196,14 +196,47 @@ The default search path is:
 > auth = "none"
 > ```
 
+### Handling errors as an RPC client.
 
-The following errors are all tolerated;
+On a RPC client, some errors are fatal
+and cause the connect point to **abort**;
+others are nonfatal
+and cause the connect point to be **declined**.
+
+As a general guideline,
+the decision about which errors are handled in which way
+is meant to support a use case
+in which the client is configured
+with a series of "possibly good" connect points,
+and is intended to choose "the first one that works."
+
+Therefore, the sort of errors
+hat typically cause a connect point to be *declined*
+are those that represent a "possibly good" connect point
+that "didn't work", including:
+- A connect point for a server that isn't currently running,
+  but might be running later.
+- A connect point that some other user might be able to reach,
+  but this client can't.
+- A connect point that some other client might support,
+  but this client doesn't.
+
+By contrast, the sort of errors
+that typically cause a connect point to be *abort*
+are those that represent
+ - A system failure or misconfiguration.
+ - A connect point that is broken by nature
+   and cannot ever work.
+
+More specifically,
+the following errors are all tolerated;
 when an Arti RPC client encounters encounter them,
 the corresponding entry is *declined*.
 
  - A connect file is absent.
  - A connect file is present
-   but the _type_ of its connect is not recognized.
+   but its is not recognized:
+   it has neither a `connect` table nor a `builtin` table.
    (This likely indicates the presence of a version of Arti
    that is newer than our library.)
  - A connect file is present,
@@ -213,6 +246,13 @@ the corresponding entry is *declined*.
    but no Arti process is listening at the location it describes.
  - The connect point tells us to try an embedded
    Arti client, but no embedded client is available.
+ - The connect point tells us to use a Unix socket,
+   but we are on windows.
+ - The specified address for connect file,
+   or a file that the connect point mentions,
+   contains a shell expansion string
+   with a variable that does not exist.
+ - A `socket` IP address in a connect point is not localhost.
 
 The following errors are not tolerated;
 when an Arti RPC client encounters any of them,
@@ -228,11 +268,9 @@ the corresponding entry *aborts* the entire search process.
    but we cannot read it due to an error other than `EACCES`, `ENOENT`,
    etc.
  - The connect file explicitly tells us to abort.
-
-TODO RPC These are still TBD; are they "decline" or "abort"?
-
- - A filename within a connect point
-   contains a `${VARIABLE}` that cannot be expanded.
+ - The specified address for connect file,
+   or a file that the connect point mentions,
+   contains a misformed shell expansion string, like `unix:${foo`.
  - A filename within a connect point is not absolute.
 
 ## Interpreting connect points.
@@ -248,6 +286,12 @@ and cause the search process to abort.)
 
 Unrecognized TOML tables and members in a connect point
 must be ignored.
+
+<!-- TODO:
+     Should RPC servers insist on understanding all tables and members?
+     It seems that for them the consequences of not understanding the options
+     are more serious.
+-->
 
 ### "Builtin" connect points.
 
@@ -531,6 +575,8 @@ The RPC server behaves as follows.
    in the `rpc.listen` table in `arti.toml`,
    and tries to bind to each,
    treating all errors as fatal.
+   (It does not attempt to load or validate connect files
+   whose entries are disabled.)
 3. If a fatal error did not occur,
    but no connect points were bound,
    the server uses the connect points in `rpc.listen-default`,
