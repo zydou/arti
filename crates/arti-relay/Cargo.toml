@@ -10,6 +10,10 @@ description = "Library for running a relay of the Tor network"
 keywords = ["tor", "arti", "privacy", "anonymity", "networking"]
 categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+#
+# We need a runtime
+# TODO(arti#1744): remove if we decide to have an always-required runtime
+# @@ test-all-crates conditional-option minimal --features=default-runtime
 
 [features]
 default = ["default-runtime"]
