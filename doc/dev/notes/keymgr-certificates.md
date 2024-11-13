@@ -261,22 +261,6 @@ impl KeyMgr {
         ...
     }
 
-    // This function already exists in KeyMgr
-    ///
-    // ** Important note for the reviewer **
-    pub fn get_entry<K: ToEncodableKey>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
-       ...
-    }
-
-    // This function is new
-    //
-    /// Used for fetching a certificate listed using list_matching
-    //
-    // See the note on get_entry() above
-    pub fn get_cert_entry<C: ToEncodableCert>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
-       ...
-    }
-
     // Note: this list of proposed additions is non-exhaustive.
     // In the future, we might decide to also add
     // e.g. a get_cert() function for retrieving a certificate
