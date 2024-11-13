@@ -343,6 +343,8 @@ version = "0.17.0"
 name = "arti-relay"
 version = "0.24.0"
 dependencies = [
+ "anyhow",
+ "clap",
  "derive_builder_fork_arti",
  "derive_more",
  "fs-mistrust",
