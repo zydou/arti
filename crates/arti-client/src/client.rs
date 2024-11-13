@@ -198,6 +198,14 @@ pub struct TorClient<R: Runtime> {
     // The sent value is `Option`, so that `None` is sent when the sender, here,
     // is dropped,.  That shuts down the monitoring task.
     dormant: Arc<Mutex<DropNotifyWatchSender<Option<DormantMode>>>>,
+
+    /// The path resolver given to us by a [`TorClientConfig`].
+    ///
+    /// We must not add our own variables to it since `TorClientConfig` uses it to perform its own
+    /// path expansions. If we added our own variables, it would introduce an inconsistency where
+    /// paths expanded by the `TorClientConfig` would expand differently than when expanded by us.
+    // This is an Arc so that we can make cheap clones of it.
+    path_resolver: Arc<tor_config_path::CfgPathResolver>,
 }
 
 /// A Tor client that is not runnable.
@@ -837,6 +845,8 @@ impl<R: Runtime> TorClient<R> {
 
         let memquota = MemoryQuotaTracker::new(&runtime, config.system.memory.clone())?;
 
+        let path_resolver = Arc::new(config.path_resolver.clone());
+
         let (state_dir, mistrust) = config.state_dir()?;
 
         let dormant = DormantMode::Normal;
@@ -875,7 +885,7 @@ impl<R: Runtime> TorClient<R> {
             let mgr = Arc::new(tor_ptmgr::PtMgr::new(
                 config.bridges.transports.clone(),
                 pt_state_dir,
-                Arc::clone(&crate::config::PATH_RESOLVER),
+                Arc::clone(&path_resolver),
                 runtime.clone(),
             )?);
 
@@ -1005,6 +1015,7 @@ impl<R: Runtime> TorClient<R> {
             state_dir,
             #[cfg(feature = "onion-service-service")]
             storage_mistrust: mistrust.clone(),
+            path_resolver,
         })
     }
 
@@ -1189,10 +1200,14 @@ impl<R: Runtime> TorClient<R> {
         how: tor_config::Reconfigure,
         _reconfigure_lock_guard: &std::sync::MutexGuard<'_, ()>,
     ) -> crate::Result<()> {
+        // We ignore 'new_config.path_resolver' here since CfgPathResolver does not impl PartialEq
+        // and we have no way to compare them, but this field is explicitly documented as being
+        // non-reconfigurable anyways.
+
         let dir_cfg = new_config.dir_mgr_config().map_err(wrap_err)?;
         let state_cfg = new_config
             .storage
-            .expand_state_dir(&crate::config::PATH_RESOLVER)
+            .expand_state_dir(&self.path_resolver)
             .map_err(wrap_err)?;
         let addr_cfg = &new_config.address_filter;
         let timeout_cfg = &new_config.stream_timeouts;
@@ -1693,7 +1708,7 @@ impl<R: Runtime> TorClient<R> {
                 self.runtime.clone(),
                 self.dirmgr.clone().upcast_arc(),
                 self.hs_circ_pool.clone(),
-                Arc::clone(&crate::config::PATH_RESOLVER),
+                Arc::clone(&self.path_resolver),
             )
             .map_err(ErrorDetail::LaunchOnionService)?;
 

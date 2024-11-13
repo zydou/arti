@@ -89,7 +89,7 @@ async fn run_proxy<R: Runtime>(
     #[cfg(feature = "rpc")]
     let rpc_path = {
         if let Some(path) = &arti_config.rpc().rpc_listen {
-            let path = path.path(arti_client::config::path_resolver())?;
+            let path = path.path(client_config.as_ref())?;
             let parent = path
                 .parent()
                 .ok_or(anyhow::anyhow!("No parent directory for rpc_listen path?"))?;
