@@ -86,3 +86,38 @@ impl std::fmt::Display for CliOsString {
         self.0.to_string_lossy().fmt(f)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn common_flags() {
+        Cli::parse_from(["arti-relay", "build-info"]);
+        Cli::parse_from(["arti-relay", "run"]);
+
+        let cli = Cli::parse_from(["arti-relay", "--log-level", "warn", "run"]);
+        assert_eq!(cli.log_level, LogLevel::Warn);
+        let cli = Cli::parse_from(["arti-relay", "run", "--log-level", "warn"]);
+        assert_eq!(cli.log_level, LogLevel::Warn);
+
+        let cli = Cli::parse_from(["arti-relay", "--disable-fs-permission-checks", "run"]);
+        assert!(cli.disable_fs_permission_checks);
+        let cli = Cli::parse_from(["arti-relay", "run", "--disable-fs-permission-checks"]);
+        assert!(cli.disable_fs_permission_checks);
+    }
+
+    #[test]
+    fn clap_bug() {
+        let cli = Cli::parse_from(["arti-relay", "-o", "foo=1", "run"]);
+        assert_eq!(cli.options, vec!["foo=1"]);
+
+        let cli = Cli::parse_from(["arti-relay", "-o", "foo=1", "-o", "bar=2", "run"]);
+        assert_eq!(cli.options, vec!["foo=1", "bar=2"]);
+
+        // this is https://github.com/clap-rs/clap/issues/3938
+        // TODO: this is a footgun, and we should consider alternatives to clap's 'global' args
+        let cli = Cli::parse_from(["arti-relay", "-o", "foo=1", "run", "-o", "bar=2"]);
+        assert_eq!(cli.options, vec!["bar=2"]);
+    }
+}
