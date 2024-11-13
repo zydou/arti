@@ -216,6 +216,8 @@ impl KeyMgr {
     /// as `C::SigningKey`,
     /// generating the key and its corresponding certificate
     /// if either does not exist.
+    /// The certificate will be generated from the subject key and signing key
+    /// using the provided `make_certificate` callback.
     ///
     /// See [`KeyMgr::get_key_and_cert`] for possible errors.
     ///
@@ -242,8 +244,6 @@ impl KeyMgr {
     /// |                    |                    |             | (we already have a cert for it,        |
     /// |                    |                    |             | but it's unavailable)                  |
     //
-    // TODO: this will need an extra argument specifying the expiry
-    // and other data that needs to go into the certificate
     ///
     /// Exactly one of `signing_key` and `cert_spec.signing_key_specifier()` can be `Some`.
     /// If both are missing, or both are present, an error is returned.
@@ -262,6 +262,7 @@ impl KeyMgr {
         &self,
         cert_spec: &dyn KeyCertificateSpecifier,
         signing_key: Option<<C as ToEncodableCert<K>>::SigningKey>,
+        make_certificate: impl FnOnce(K, <C as ToEncodableCert<K>>::SigningKey) -> C,
       ) -> Result<(K, C)> {
         ...
     }
