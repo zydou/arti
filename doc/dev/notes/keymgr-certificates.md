@@ -34,9 +34,14 @@ Here are the assumptions that motivate the design proposed here:
   The reason we are not giving certificates their own
   `KeyCertificateSpecifier`-defined `ArtiPath`
   is because we want to ensure the certificates stored
-  in the keystore are always for subject keys that we own
-  (that is, the subject key **must** be a key
-  the key management system knows about)
+  in the keystore are always for subject keys that we *own*.
+  That is, the subject key **must** be a key
+  whose private part is stored in one of our keystores.
+  We will not provide functionality for retrieving certificates
+  whose subject key we do not own, because the keymgr is not meant
+  to be used as a general-purpose trusted certificate store.
+  See the `tor_key_forge::key_type` module-level docs
+  for more about the reasoning behind this.
 
 [^1]: The key is said to have an "associated certificate" if
 it is the subject key of a certificate used in the Tor protocol
