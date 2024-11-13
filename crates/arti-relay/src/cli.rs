@@ -37,6 +37,8 @@ pub(crate) struct Cli {
 pub(crate) enum Commands {
     /// Run the relay.
     Run(RunArgs),
+    /// Print build information.
+    BuildInfo,
 }
 
 /// Arguments when running an Arti relay.

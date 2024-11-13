@@ -19,6 +19,17 @@ fn main() -> anyhow::Result<()> {
     let runtime = create_runtime()?;
 
     match cli.command {
+        cli::Commands::BuildInfo => {
+            println!("Version: {}", env!("CARGO_PKG_VERSION"));
+            // these are set by our build script
+            println!("Features: {}", env!("BUILD_FEATURES"));
+            println!("Profile: {}", env!("BUILD_PROFILE"));
+            println!("Debug: {}", env!("BUILD_DEBUG"));
+            println!("Optimization level: {}", env!("BUILD_OPT_LEVEL"));
+            println!("Rust version: {}", env!("BUILD_RUSTC_VERSION"));
+            println!("Target triple: {}", env!("BUILD_TARGET"));
+            println!("Host triple: {}", env!("BUILD_HOST"));
+        }
         cli::Commands::Run(_args) => {
             let _relay = TorRelay::with_runtime(runtime).create()?;
         }
