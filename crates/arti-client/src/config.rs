@@ -93,12 +93,12 @@ pub mod vanguards {
 /// hood. (Some of those overrides are based on environment variables.)
 /// For more information, see that crate's documentation.
 fn base_path_resolver() -> CfgPathResolver {
-    let arti_cache = project_dirs().map(|x| Some(Cow::Owned(x.cache_dir().to_owned())));
-    let arti_config = project_dirs().map(|x| Some(Cow::Owned(x.config_dir().to_owned())));
-    let arti_shared_data = project_dirs().map(|x| Some(Cow::Owned(x.data_dir().to_owned())));
-    let arti_local_data = project_dirs().map(|x| Some(Cow::Owned(x.data_local_dir().to_owned())));
-    let program_dir = get_program_dir().map(|x| x.map(Cow::Owned));
-    let user_home = tor_config_path::home().map(Cow::Borrowed).map(Some);
+    let arti_cache = project_dirs().map(|x| Cow::Owned(x.cache_dir().to_owned()));
+    let arti_config = project_dirs().map(|x| Cow::Owned(x.config_dir().to_owned()));
+    let arti_shared_data = project_dirs().map(|x| Cow::Owned(x.data_dir().to_owned()));
+    let arti_local_data = project_dirs().map(|x| Cow::Owned(x.data_local_dir().to_owned()));
+    let program_dir = get_program_dir().map(Cow::Owned);
+    let user_home = tor_config_path::home().map(Cow::Borrowed);
 
     let mut resolver = CfgPathResolver::default();
 
@@ -113,9 +113,10 @@ fn base_path_resolver() -> CfgPathResolver {
 }
 
 /// Return the directory holding the currently executing program.
-fn get_program_dir() -> Result<Option<PathBuf>, CfgPathError> {
+fn get_program_dir() -> Result<PathBuf, CfgPathError> {
     let binary = std::env::current_exe().map_err(|_| CfgPathError::NoProgramPath)?;
-    Ok(binary.parent().map(ToOwned::to_owned))
+    let directory = binary.parent().ok_or(CfgPathError::NoProgramDir)?;
+    Ok(directory.to_owned())
 }
 
 /// Return a ProjectDirs object for the Arti project.
@@ -1198,7 +1199,7 @@ mod test {
             ("ARTI_CONFIG", project_dirs().unwrap().config_dir()),
             ("ARTI_SHARED_DATA", project_dirs().unwrap().data_dir()),
             ("ARTI_LOCAL_DATA", project_dirs().unwrap().data_local_dir()),
-            ("PROGRAM_DIR", &get_program_dir().unwrap().unwrap()),
+            ("PROGRAM_DIR", &get_program_dir().unwrap()),
             ("USER_HOME", tor_config_path::home().unwrap()),
         ];
 

@@ -108,6 +108,9 @@ pub enum CfgPathError {
     /// We couldn't find our current binary path.
     #[error("Can't find the path to the current binary")]
     NoProgramPath,
+    /// We couldn't find the directory path containing the current binary.
+    #[error("Can't find the directory of the current binary")]
+    NoProgramDir,
     /// We couldn't convert a string to a valid path on the OS.
     #[error("Invalid path string: {0:?}")]
     InvalidString(String),
@@ -126,7 +129,7 @@ impl HasKind for CfgPathError {
         match self {
             E::UnknownVar(_) | E::InvalidString(_) => EK::InvalidConfig,
             E::NoProjectDirs | E::NoBaseDirs => EK::NoHomeDirectory,
-            E::NoProgramPath => EK::InvalidConfig,
+            E::NoProgramPath | E::NoProgramDir => EK::InvalidConfig,
             E::VariableInterpolationNotSupported(_) | E::HomeDirInterpolationNotSupported(_) => {
                 EK::FeatureDisabled
             }
@@ -137,14 +140,15 @@ impl HasKind for CfgPathError {
 /// A variable resolver for paths in a configuration file.
 #[derive(Clone, Debug, Default)]
 pub struct CfgPathResolver {
-    /// The variables and their values.
-    vars: HashMap<String, Result<Option<Cow<'static, Path>>, CfgPathError>>,
+    /// The variables and their values. The values can be an `Err` if the variable is expected but
+    /// can't be expanded.
+    vars: HashMap<String, Result<Cow<'static, Path>, CfgPathError>>,
 }
 
 impl CfgPathResolver {
     /// Get the value for a given variable name.
     #[cfg(feature = "expand-paths")]
-    fn get_var(&self, var: &str) -> Result<Option<Cow<'static, Path>>, CfgPathError> {
+    fn get_var(&self, var: &str) -> Result<Cow<'static, Path>, CfgPathError> {
         match self.vars.get(var) {
             Some(val) => val.clone(),
             None => Err(CfgPathError::UnknownVar(var.to_owned())),
@@ -154,15 +158,15 @@ impl CfgPathResolver {
     /// Set a variable `var` that will be replaced with `val` when a [`CfgPath`] is expanded.
     ///
     /// Setting an `Err` is useful when a variable is supported, but for whatever reason it can't be
-    /// expanded, and you'd like to return a more-specific error. Setting an `Ok(None)` is useful
-    /// when a variable is supported but we don't have a value to expand it to.
+    /// expanded, and you'd like to return a more-specific error. An example might be a `USER_HOME`
+    /// variable for a user that doesn't have a `HOME` environment variable set.
     ///
     /// ```
     /// use std::path::Path;
     /// use tor_config_path::{CfgPath, CfgPathResolver};
     ///
     /// let mut path_resolver = CfgPathResolver::default();
-    /// path_resolver.set_var("FOO", Ok(Some(Path::new("/foo").to_owned().into())));
+    /// path_resolver.set_var("FOO", Ok(Path::new("/foo").to_owned().into()));
     ///
     /// let path = CfgPath::new("${FOO}/bar".into());
     ///
@@ -171,12 +175,10 @@ impl CfgPathResolver {
     /// #[cfg(not(feature = "expand-paths"))]
     /// assert!(path.path(&path_resolver).is_err());
     /// ```
-    // I don't really think it makes sense to have an `Option` here, but we need this for backwards
-    // compatability.
     pub fn set_var(
         &mut self,
         var: impl Into<String>,
-        val: Result<Option<Cow<'static, Path>>, CfgPathError>,
+        val: Result<Cow<'static, Path>, CfgPathError>,
     ) {
         self.vars.insert(var.into(), val);
     }
@@ -191,7 +193,7 @@ impl CfgPathResolver {
         let mut path_resolver = CfgPathResolver::default();
         for (name, val) in vars.into_iter() {
             let val = Path::new(val.as_ref()).to_owned();
-            path_resolver.set_var(name, Ok(Some(val.into())));
+            path_resolver.set_var(name, Ok(val.into()));
         }
         path_resolver
     }
@@ -272,8 +274,11 @@ pub fn home() -> Result<&'static Path, CfgPathError> {
 /// Helper: expand a directory given as a string.
 #[cfg(feature = "expand-paths")]
 fn expand(s: &str, path_resolver: &CfgPathResolver) -> Result<PathBuf, CfgPathError> {
-    let path =
-        shellexpand::path::full_with_context(s, || home().ok(), |x| path_resolver.get_var(x));
+    let path = shellexpand::path::full_with_context(
+        s,
+        || home().ok(),
+        |x| path_resolver.get_var(x).map(Some),
+    );
     Ok(path.map_err(|e| e.cause)?.into_owned())
 }
 
