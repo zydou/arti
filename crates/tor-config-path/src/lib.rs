@@ -138,6 +138,15 @@ impl HasKind for CfgPathError {
 }
 
 /// A variable resolver for paths in a configuration file.
+///
+/// Typically there should be one resolver per application, and the application should share the
+/// resolver throughout the application to have consistent path variable expansions. Typically the
+/// application would create its own resolver with its application-specific variables, but note that
+/// `TorClientConfig` is an exception which does not accept a resolver from the application and
+/// instead generates its own. This is done for backwards compatibility reasons.
+///
+/// Once constructed, they are used during calls to [`CfgPath::path`] to expand variables in the
+/// path.
 #[derive(Clone, Debug, Default)]
 pub struct CfgPathResolver {
     /// The variables and their values. The values can be an `Err` if the variable is expected but
