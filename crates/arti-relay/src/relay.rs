@@ -11,14 +11,10 @@ use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::params::NetParameters;
 use tor_proto::memquota::ToplevelAccount;
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{PreferredRuntime, Runtime};
 use tracing::info;
 
 use crate::{builder::TorRelayBuilder, config::TorRelayConfig, err::ErrorDetail};
-
-// Only rustls is supported.
-#[cfg(all(feature = "rustls", any(feature = "async-std", feature = "tokio")))]
-use tor_rtcompat::PreferredRuntime;
 
 /// Represent an active Relay on the Tor network.
 #[derive(Clone)]
@@ -34,8 +30,6 @@ pub struct TorRelay<R: Runtime> {
     keymgr: Arc<KeyMgr>,
 }
 
-/// TorRelay can't be used with native-tls due to the lack of RFC5705 (keying material exporter).
-#[cfg(all(feature = "rustls", any(feature = "async-std", feature = "tokio")))]
 #[allow(unused)] // TODO: Remove me when used.
 impl TorRelay<PreferredRuntime> {
     /// Return a new builder for creating a TorRelay object.
