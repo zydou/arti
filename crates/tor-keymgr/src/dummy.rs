@@ -76,6 +76,7 @@ pub trait Keystore: Send + Sync + 'static {
     // If your code does not compile with the `tor-keymgr/keymgr` feature disabled
     // because this trait is missing some functions you are using/implementing,
     // the correct answer is very likely to feature-gate the offending code,
+    // or arrange for the calling crate to unconditionally enable `tor-keymgr/keymgr`,
     // rather than to extend this trait to match the interface of the `Keystore` trait
     // exposed when the `tor-keymgr/keymgr` feature is enabled.
     //
@@ -151,6 +152,7 @@ impl KeyMgr {
     // If your code does not compile with the `tor-keymgr/keymgr` feature disabled
     // because this impl is missing some functions you are using,
     // the correct answer is very likely to feature-gate the offending code,
+    // or arrange for the calling crate to unconditionally enable `tor-keymgr/keymgr`,
     // rather than to extend this impl to match the interface of the real `KeyMgr`
     // (exposed when the `tor-keymgr/keymgr` feature is enabled).
     //
