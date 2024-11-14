@@ -112,9 +112,8 @@ def test_crate(crate):
 
     # no features; don't test if it would already be tested by normal tests
     if len(features) != 0:
-        # arti and arti-relay do not work: they require an executor
-        # TODO(arti#1744): remove 'arti-relay' if we decide to have an always-required executor
-        if crate not in ["arti", "arti-relay"]:
+        # arti does not work: it requires an executor
+        if crate not in ["arti"]:
             test_crate_config(crate, [], True)
     # default
     test_crate_config(crate, default)
