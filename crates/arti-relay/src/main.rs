@@ -16,7 +16,9 @@ use crate::relay::TorRelay;
 fn main() -> anyhow::Result<()> {
     let cli = cli::Cli::parse();
 
-    let runtime = create_runtime()?;
+    // use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
+    // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
+    let runtime = tor_rtcompat::PreferredRuntime::create()?;
 
     match cli.command {
         cli::Commands::BuildInfo => {
@@ -36,10 +38,4 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-/// Create the runtime for the relay.
-fn create_runtime() -> std::io::Result<impl tor_rtcompat::Runtime> {
-    // TODO(arti#1744): we may want to support multiple runtimes
-    tor_rtcompat::PreferredRuntime::create()
 }
