@@ -287,11 +287,17 @@ and cause the search process to abort.)
 Unrecognized TOML tables and members in a connect point
 must be ignored.
 
-<!-- TODO:
-     Should RPC servers insist on understanding all tables and members?
-     It seems that for them the consequences of not understanding the options
-     are more serious.
--->
+> Note for future extensions:
+>
+> As a consequence of our behavior for unrecognized tables and members,
+> we can never add new "critical" members
+> to an existing connect-point type.
+>
+> In other words,
+> when we define a new member or a new table,
+> we need to remember
+> that existing implementations will _ignore_ it;
+> this must not result in surprising security outcomes.
 
 ### "Builtin" connect points.
 
