@@ -10,7 +10,7 @@ pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) command: Commands,
 
-    /// Log level.
+    /// Override the log level from the configuration.
     #[arg(long, short, global = true)]
     #[arg(value_name = "LEVEL")]
     #[clap(default_value_t = LogLevel::Info)]
