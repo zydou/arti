@@ -71,7 +71,15 @@ impl KeyMgrBuilder {
 
 /// A dummy key store trait.
 pub trait Keystore: Send + Sync + 'static {
-    // TODO(gabi): Add the missing functions and impls
+    // NOTE: resist the temptation to add additional functions here!
+    //
+    // If your code does not compile with the `tor-keymgr/keymgr` feature disabled
+    // because this trait is missing some functions you are using/implementing,
+    // the correct answer is very likely to feature-gate the offending code,
+    // rather than to extend this trait to match the interface of the `Keystore` trait
+    // exposed when the `tor-keymgr/keymgr` feature is enabled.
+    //
+    // See the note in the dummy `KeyMgr` impl block below for more details.
 }
 
 /// A dummy `ArtiNativeKeystore`.
@@ -151,6 +159,25 @@ impl KeyMgr {
     pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<K>> {
         Err(crate::Error::Keystore(Arc::new(Error)))
     }
+
+    // NOTE: resist the temptation to add additional functions here!
+    //
+    // If your code does not compile with the `tor-keymgr/keymgr` feature disabled
+    // because this impl is missing some functions you are using,
+    // the correct answer is very likely to feature-gate the offending code,
+    // rather than to extend this impl to match the interface of the real `KeyMgr`
+    // (exposed when the `tor-keymgr/keymgr` feature is enabled).
+    //
+    // The dummy `KeyMgr` (and the dummy keystores) and the fully fledged
+    // `KeyMgr`/`Keystore` implementations gated behind the `keymgr` feature
+    // are **not** supposed to have the same interface.
+    // This is because implementations needing a real `KeyMgr`
+    // to function shouldn't even compile if the real `KeyMgr` is disabled.
+    // We could have provided an API here that's identical to the real one,
+    // with the dummy implementation always returning an error,
+    // but that would be strictly worse, because the user of this code
+    // would only find out at *runtime* about what is essentially a *build* issue
+    // (the build issue being that the application was built with an incoherent feature set).
 }
 
 inventory::collect!(&'static dyn crate::KeyPathInfoExtractor);
