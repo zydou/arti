@@ -1211,34 +1211,40 @@ mod test {
     #[cfg(not(target_family = "windows"))]
     #[test]
     fn expand_variables() {
-        let path_resolver = base_path_resolver();
+        // test using the actual resolver from the `TorClientConfig` after it's done all of its
+        // builder stuff, not just `base_path_resolver()`
+        let path_resolver = TorClientConfig::builder().build().unwrap();
+        let path_resolver = path_resolver.as_ref();
 
         for (var, val) in cfg_variables() {
             let p = CfgPath::new(format!("${{{var}}}/example"));
             assert_eq!(p.to_string(), format!("${{{var}}}/example"));
 
             let expected = val.join("example");
-            assert_eq!(p.path(&path_resolver).unwrap().to_str(), expected.to_str());
+            assert_eq!(p.path(path_resolver).unwrap().to_str(), expected.to_str());
         }
 
         let p = CfgPath::new("${NOT_A_REAL_VAR}/example".to_string());
-        assert!(p.path(&path_resolver).is_err());
+        assert!(p.path(path_resolver).is_err());
     }
 
     #[cfg(target_family = "windows")]
     #[test]
     fn expand_variables() {
-        let path_resolver = base_path_resolver();
+        // test using the actual resolver from the `TorClientConfig` after it's done all of its
+        // builder stuff, not just `base_path_resolver()`
+        let path_resolver = TorClientConfig::builder().build().unwrap();
+        let path_resolver = path_resolver.as_ref();
 
         for (var, val) in cfg_variables() {
             let p = CfgPath::new(format!("${{{var}}}\\example"));
             assert_eq!(p.to_string(), format!("${{{var}}}\\example"));
 
             let expected = val.join("example");
-            assert_eq!(p.path(&path_resolver).unwrap().to_str(), expected.to_str());
+            assert_eq!(p.path(path_resolver).unwrap().to_str(), expected.to_str());
         }
 
         let p = CfgPath::new("${NOT_A_REAL_VAR}\\example".to_string());
-        assert!(p.path(&path_resolver).is_err());
+        assert!(p.path(path_resolver).is_err());
     }
 }
