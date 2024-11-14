@@ -146,20 +146,6 @@ impl KeyMgr {
         Ok(None)
     }
 
-    /// A dummy `insert` implementation that always fails.
-    ///
-    /// This function always returns an error.
-    pub fn insert<K>(&self, _: K, _: &dyn Any, _: KeystoreSelector) -> Result<Option<K>> {
-        Err(crate::Error::Keystore(Arc::new(Error)))
-    }
-
-    /// A dummy `remove` implementation that always fails.
-    ///
-    /// This function always returns an error.
-    pub fn remove<K>(&self, _: &dyn Any) -> Result<Option<K>> {
-        Err(crate::Error::Keystore(Arc::new(Error)))
-    }
-
     // NOTE: resist the temptation to add additional functions here!
     //
     // If your code does not compile with the `tor-keymgr/keymgr` feature disabled
