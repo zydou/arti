@@ -41,40 +41,28 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "expand-paths")]
 use std::borrow::Cow;
 #[cfg(feature = "expand-paths")]
-use {
-    directories::{BaseDirs, ProjectDirs},
-    once_cell::sync::Lazy,
-};
+use {directories::BaseDirs, once_cell::sync::Lazy};
 
 use tor_error::{ErrorKind, HasKind};
+
+#[cfg(all(test, feature = "expand-paths"))]
+use std::ffi::OsStr;
 
 #[cfg(feature = "address")]
 pub mod addr;
 
 /// A path in a configuration file: tilde expansion is performed, along
-/// with expansion of certain variables.
+/// with expansion of variables provided by a [`CfgPathResolver`].
 ///
-/// The supported variables are:
-///   * `ARTI_CACHE`: an arti-specific cache directory.
-///   * `ARTI_CONFIG`: an arti-specific configuration directory.
-///   * `ARTI_SHARED_DATA`: an arti-specific directory in the user's "shared
-///     data" space.
-///   * `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
-///     data" space.
-///   * `PROGRAM_DIR`: the directory of the currently executing binary.
-///     See documentation for [`std::env::current_exe`] for security notes.
-///   * `USER_HOME`: the user's home directory.
-///
-/// These variables are implemented using the `directories` crate, and
-/// so should use appropriate system-specific overrides under the
-/// hood. (Some of those overrides are based on environment variables.)
-/// For more information, see that crate's documentation.
+/// The tilde expansion is performed using the home directory given by the
+/// `directories` crate, which may be based on an environment variable. For more
+/// information, see [`BaseDirs::home_dir`](directories::BaseDirs::home_dir).
 ///
 /// Alternatively, a `CfgPath` can contain literal `PathBuf`, which will not be expanded.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -120,6 +108,9 @@ pub enum CfgPathError {
     /// We couldn't find our current binary path.
     #[error("Can't find the path to the current binary")]
     NoProgramPath,
+    /// We couldn't find the directory path containing the current binary.
+    #[error("Can't find the directory of the current binary")]
+    NoProgramDir,
     /// We couldn't convert a string to a valid path on the OS.
     #[error("Invalid path string: {0:?}")]
     InvalidString(String),
@@ -138,11 +129,82 @@ impl HasKind for CfgPathError {
         match self {
             E::UnknownVar(_) | E::InvalidString(_) => EK::InvalidConfig,
             E::NoProjectDirs | E::NoBaseDirs => EK::NoHomeDirectory,
-            E::NoProgramPath => EK::InvalidConfig,
+            E::NoProgramPath | E::NoProgramDir => EK::InvalidConfig,
             E::VariableInterpolationNotSupported(_) | E::HomeDirInterpolationNotSupported(_) => {
                 EK::FeatureDisabled
             }
         }
+    }
+}
+
+/// A variable resolver for paths in a configuration file.
+///
+/// Typically there should be one resolver per application, and the application should share the
+/// resolver throughout the application to have consistent path variable expansions. Typically the
+/// application would create its own resolver with its application-specific variables, but note that
+/// `TorClientConfig` is an exception which does not accept a resolver from the application and
+/// instead generates its own. This is done for backwards compatibility reasons.
+///
+/// Once constructed, they are used during calls to [`CfgPath::path`] to expand variables in the
+/// path.
+#[derive(Clone, Debug, Default)]
+pub struct CfgPathResolver {
+    /// The variables and their values. The values can be an `Err` if the variable is expected but
+    /// can't be expanded.
+    vars: HashMap<String, Result<Cow<'static, Path>, CfgPathError>>,
+}
+
+impl CfgPathResolver {
+    /// Get the value for a given variable name.
+    #[cfg(feature = "expand-paths")]
+    fn get_var(&self, var: &str) -> Result<Cow<'static, Path>, CfgPathError> {
+        match self.vars.get(var) {
+            Some(val) => val.clone(),
+            None => Err(CfgPathError::UnknownVar(var.to_owned())),
+        }
+    }
+
+    /// Set a variable `var` that will be replaced with `val` when a [`CfgPath`] is expanded.
+    ///
+    /// Setting an `Err` is useful when a variable is supported, but for whatever reason it can't be
+    /// expanded, and you'd like to return a more-specific error. An example might be a `USER_HOME`
+    /// variable for a user that doesn't have a `HOME` environment variable set.
+    ///
+    /// ```
+    /// use std::path::Path;
+    /// use tor_config_path::{CfgPath, CfgPathResolver};
+    ///
+    /// let mut path_resolver = CfgPathResolver::default();
+    /// path_resolver.set_var("FOO", Ok(Path::new("/foo").to_owned().into()));
+    ///
+    /// let path = CfgPath::new("${FOO}/bar".into());
+    ///
+    /// #[cfg(feature = "expand-paths")]
+    /// assert_eq!(path.path(&path_resolver).unwrap(), Path::new("/foo/bar"));
+    /// #[cfg(not(feature = "expand-paths"))]
+    /// assert!(path.path(&path_resolver).is_err());
+    /// ```
+    pub fn set_var(
+        &mut self,
+        var: impl Into<String>,
+        val: Result<Cow<'static, Path>, CfgPathError>,
+    ) {
+        self.vars.insert(var.into(), val);
+    }
+
+    /// Helper to create a `CfgPathResolver` from str `(name, value)` pairs.
+    #[cfg(all(test, feature = "expand-paths"))]
+    fn from_pairs<K, V>(vars: impl IntoIterator<Item = (K, V)>) -> CfgPathResolver
+    where
+        K: Into<String>,
+        V: AsRef<OsStr>,
+    {
+        let mut path_resolver = CfgPathResolver::default();
+        for (name, val) in vars.into_iter() {
+            let val = Path::new(val.as_ref()).to_owned();
+            path_resolver.set_var(name, Ok(val.into()));
+        }
+        path_resolver
     }
 }
 
@@ -160,9 +222,12 @@ impl CfgPath {
     }
 
     /// Return the path on disk designated by this `CfgPath`.
-    pub fn path(&self) -> Result<PathBuf, CfgPathError> {
+    ///
+    /// Variables may or may not be resolved using `path_resolver`, depending on whether the
+    /// `expand-paths` feature is enabled or not.
+    pub fn path(&self, path_resolver: &CfgPathResolver) -> Result<PathBuf, CfgPathError> {
         match &self.0 {
-            PathInner::Shell(s) => expand(s),
+            PathInner::Shell(s) => expand(s, path_resolver),
             PathInner::Literal(LiteralPath { literal }) => Ok(literal.clone()),
         }
     }
@@ -192,17 +257,43 @@ impl CfgPath {
     }
 }
 
+impl std::fmt::Display for CfgPath {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            PathInner::Literal(LiteralPath { literal }) => write!(fmt, "{:?} [exactly]", literal),
+            PathInner::Shell(s) => s.fmt(fmt),
+        }
+    }
+}
+
+/// Return the user's home directory used when expanding paths.
+// This is public so that applications which want to support for example a `USER_HOME` variable can
+// use the same home directory expansion that we use in this crate for `~` expansion.
+#[cfg(feature = "expand-paths")]
+pub fn home() -> Result<&'static Path, CfgPathError> {
+    /// Lazy cell holding the home directory.
+    static HOME_DIR: Lazy<Option<PathBuf>> =
+        Lazy::new(|| Some(BaseDirs::new()?.home_dir().to_owned()));
+    HOME_DIR
+        .as_ref()
+        .map(PathBuf::as_path)
+        .ok_or(CfgPathError::NoBaseDirs)
+}
+
 /// Helper: expand a directory given as a string.
 #[cfg(feature = "expand-paths")]
-fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
-    Ok(shellexpand::path::full_with_context(s, get_home, get_env)
-        .map_err(|e| e.cause)?
-        .into_owned())
+fn expand(s: &str, path_resolver: &CfgPathResolver) -> Result<PathBuf, CfgPathError> {
+    let path = shellexpand::path::full_with_context(
+        s,
+        || home().ok(),
+        |x| path_resolver.get_var(x).map(Some),
+    );
+    Ok(path.map_err(|e| e.cause)?.into_owned())
 }
 
 /// Helper: convert a string to a path without expansion.
 #[cfg(not(feature = "expand-paths"))]
-fn expand(input: &str) -> Result<PathBuf, CfgPathError> {
+fn expand(input: &str, _: &CfgPathResolver) -> Result<PathBuf, CfgPathError> {
     // We must still de-duplicate `$` and reject `~/`,, so that the behaviour is a superset
     if input.starts_with('~') {
         return Err(CfgPathError::HomeDirInterpolationNotSupported(input.into()));
@@ -226,61 +317,6 @@ fn expand(input: &str) -> Result<PathBuf, CfgPathError> {
     Ok(out.into())
 }
 
-/// Shellexpand helper: return the user's home directory if we can.
-#[cfg(feature = "expand-paths")]
-fn get_home() -> Option<&'static Path> {
-    base_dirs().ok().map(BaseDirs::home_dir)
-}
-
-/// Shellexpand helper: return the directory holding the currently executing program.
-#[cfg(feature = "expand-paths")]
-fn get_program_dir() -> Result<Option<PathBuf>, CfgPathError> {
-    let binary = std::env::current_exe().map_err(|_| CfgPathError::NoProgramPath)?;
-    Ok(binary.parent().map(ToOwned::to_owned))
-}
-
-/// Shellexpand helper: Expand a shell variable if we can.
-#[cfg(feature = "expand-paths")]
-fn get_env(var: &str) -> Result<Option<Cow<'static, Path>>, CfgPathError> {
-    match var {
-        "ARTI_CACHE" => Ok(Some(Cow::Borrowed(project_dirs()?.cache_dir()))),
-        "ARTI_CONFIG" => Ok(Some(Cow::Borrowed(project_dirs()?.config_dir()))),
-        "ARTI_SHARED_DATA" => Ok(Some(Cow::Borrowed(project_dirs()?.data_dir()))),
-        "ARTI_LOCAL_DATA" => Ok(Some(Cow::Borrowed(project_dirs()?.data_local_dir()))),
-        "PROGRAM_DIR" => Ok(get_program_dir()?.map(Cow::Owned)),
-        "USER_HOME" => Ok(Some(Cow::Borrowed(base_dirs()?.home_dir()))),
-        _ => Err(CfgPathError::UnknownVar(var.to_owned())),
-    }
-}
-
-impl std::fmt::Display for CfgPath {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
-            PathInner::Literal(LiteralPath { literal }) => write!(fmt, "{:?} [exactly]", literal),
-            PathInner::Shell(s) => s.fmt(fmt),
-        }
-    }
-}
-
-/// Return a ProjectDirs object for the Arti project.
-#[cfg(feature = "expand-paths")]
-fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
-    /// lazy cell holding the ProjectDirs object.
-    static PROJECT_DIRS: Lazy<Option<ProjectDirs>> =
-        Lazy::new(|| ProjectDirs::from("org", "torproject", "Arti"));
-
-    PROJECT_DIRS.as_ref().ok_or(CfgPathError::NoProjectDirs)
-}
-
-/// Return a UserDirs object for the current user.
-#[cfg(feature = "expand-paths")]
-fn base_dirs() -> Result<&'static BaseDirs, CfgPathError> {
-    /// lazy cell holding the BaseDirs object.
-    static BASE_DIRS: Lazy<Option<BaseDirs>> = Lazy::new(BaseDirs::new);
-
-    BASE_DIRS.as_ref().ok_or(CfgPathError::NoBaseDirs)
-}
-
 #[cfg(all(test, feature = "expand-paths"))]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -288,84 +324,114 @@ mod test {
 
     #[test]
     fn expand_no_op() {
+        let r = CfgPathResolver::from_pairs([("FOO", "foo")]);
+
         let p = CfgPath::new("Hello/world".to_string());
         assert_eq!(p.to_string(), "Hello/world".to_string());
-        assert_eq!(p.path().unwrap().to_str(), Some("Hello/world"));
+        assert_eq!(p.path(&r).unwrap().to_str(), Some("Hello/world"));
 
         let p = CfgPath::new("/usr/local/foo".to_string());
         assert_eq!(p.to_string(), "/usr/local/foo".to_string());
-        assert_eq!(p.path().unwrap().to_str(), Some("/usr/local/foo"));
+        assert_eq!(p.path(&r).unwrap().to_str(), Some("/usr/local/foo"));
     }
 
     #[cfg(not(target_family = "windows"))]
     #[test]
     fn expand_home() {
+        let r = CfgPathResolver::from_pairs([("USER_HOME", home().unwrap())]);
+
         let p = CfgPath::new("~/.arti/config".to_string());
         assert_eq!(p.to_string(), "~/.arti/config".to_string());
 
         let expected = dirs::home_dir().unwrap().join(".arti/config");
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
+        assert_eq!(p.path(&r).unwrap().to_str(), expected.to_str());
 
         let p = CfgPath::new("${USER_HOME}/.arti/config".to_string());
         assert_eq!(p.to_string(), "${USER_HOME}/.arti/config".to_string());
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
+        assert_eq!(p.path(&r).unwrap().to_str(), expected.to_str());
     }
 
     #[cfg(target_family = "windows")]
     #[test]
     fn expand_home() {
+        let r = CfgPathResolver::from_pairs([("USER_HOME", home().unwrap())]);
+
         let p = CfgPath::new("~\\.arti\\config".to_string());
         assert_eq!(p.to_string(), "~\\.arti\\config".to_string());
 
         let expected = dirs::home_dir().unwrap().join(".arti\\config");
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
+        assert_eq!(p.path(&r).unwrap().to_str(), expected.to_str());
 
         let p = CfgPath::new("${USER_HOME}\\.arti\\config".to_string());
         assert_eq!(p.to_string(), "${USER_HOME}\\.arti\\config".to_string());
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
-    }
-
-    #[cfg(not(target_family = "windows"))]
-    #[test]
-    fn expand_cache() {
-        let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
-        assert_eq!(p.to_string(), "${ARTI_CACHE}/example".to_string());
-
-        let expected = project_dirs().unwrap().cache_dir().join("example");
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
-    }
-
-    #[cfg(target_family = "windows")]
-    #[test]
-    fn expand_cache() {
-        let p = CfgPath::new("${ARTI_CACHE}\\example".to_string());
-        assert_eq!(p.to_string(), "${ARTI_CACHE}\\example".to_string());
-
-        let expected = project_dirs().unwrap().cache_dir().join("example");
-        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
+        assert_eq!(p.path(&r).unwrap().to_str(), expected.to_str());
     }
 
     #[test]
     fn expand_bogus() {
+        let r = CfgPathResolver::from_pairs([("FOO", "foo")]);
+
         let p = CfgPath::new("${ARTI_WOMBAT}/example".to_string());
         assert_eq!(p.to_string(), "${ARTI_WOMBAT}/example".to_string());
 
-        assert!(matches!(p.path(), Err(CfgPathError::UnknownVar(_))));
+        assert!(matches!(p.path(&r), Err(CfgPathError::UnknownVar(_))));
         assert_eq!(
-            &p.path().unwrap_err().to_string(),
+            &p.path(&r).unwrap_err().to_string(),
             "Unrecognized variable ARTI_WOMBAT in path"
         );
     }
 
     #[test]
     fn literal() {
+        let r = CfgPathResolver::from_pairs([("ARTI_CACHE", "foo")]);
+
         let p = CfgPath::new_literal(PathBuf::from("${ARTI_CACHE}/literally"));
         // This doesn't get expanded, since we're using a literal path.
         assert_eq!(
-            p.path().unwrap().to_str().unwrap(),
+            p.path(&r).unwrap().to_str().unwrap(),
             "${ARTI_CACHE}/literally"
         );
         assert_eq!(p.to_string(), "\"${ARTI_CACHE}/literally\" [exactly]");
+    }
+
+    #[test]
+    #[cfg(feature = "expand-paths")]
+    fn program_dir() {
+        let current_exe = std::env::current_exe().unwrap();
+        let r = CfgPathResolver::from_pairs([("PROGRAM_DIR", current_exe.parent().unwrap())]);
+
+        let p = CfgPath::new("${PROGRAM_DIR}/foo".to_string());
+
+        let mut this_binary = current_exe;
+        this_binary.pop();
+        this_binary.push("foo");
+        let expanded = p.path(&r).unwrap();
+        assert_eq!(expanded, this_binary);
+    }
+
+    #[test]
+    #[cfg(not(feature = "expand-paths"))]
+    fn rejections() {
+        let r = CfgPathResolver::from_pairs([("PROGRAM_DIR", std::env::current_exe().unwrap())]);
+
+        let chk_err = |s: &str, mke: &dyn Fn(String) -> CfgPathError| {
+            let p = CfgPath::new(s.to_string());
+            assert_eq!(p.path(&r).unwrap_err(), mke(s.to_string()));
+        };
+
+        let chk_ok = |s: &str, exp| {
+            let p = CfgPath::new(s.to_string());
+            assert_eq!(p.path(&r), Ok(PathBuf::from(exp)));
+        };
+
+        chk_err(
+            "some/${PROGRAM_DIR}/foo",
+            &CfgPathError::VariableInterpolationNotSupported,
+        );
+        chk_err("~some", &CfgPathError::HomeDirInterpolationNotSupported);
+
+        chk_ok("some$$foo$$bar", "some$foo$bar");
+        chk_ok("no dollars", "no dollars");
     }
 }
 
@@ -519,40 +585,5 @@ mod test_serde {
             |input| rmp_serde::to_vec(&input),
             |mpack| rmp_serde::from_slice(mpack),
         );
-    }
-
-    #[test]
-    #[cfg(feature = "expand-paths")]
-    fn program_dir() {
-        let p = CfgPath::new("${PROGRAM_DIR}/foo".to_string());
-
-        let mut this_binary = std::env::current_exe().unwrap();
-        this_binary.pop();
-        this_binary.push("foo");
-        let expanded = p.path().unwrap();
-        assert_eq!(expanded, this_binary);
-    }
-
-    #[test]
-    #[cfg(not(feature = "expand-paths"))]
-    fn rejections() {
-        let chk_err = |s: &str, mke: &dyn Fn(String) -> CfgPathError| {
-            let p = CfgPath::new(s.to_string());
-            assert_eq!(p.path().unwrap_err(), mke(s.to_string()));
-        };
-
-        let chk_ok = |s: &str, exp| {
-            let p = CfgPath::new(s.to_string());
-            assert_eq!(p.path(), Ok(PathBuf::from(exp)));
-        };
-
-        chk_err(
-            "some/${PROGRAM_DIR}/foo",
-            &CfgPathError::VariableInterpolationNotSupported,
-        );
-        chk_err("~some", &CfgPathError::HomeDirInterpolationNotSupported);
-
-        chk_ok("some$$foo$$bar", "some$foo$bar");
-        chk_ok("no dollars", "no dollars");
     }
 }

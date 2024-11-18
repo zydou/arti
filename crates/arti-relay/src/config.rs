@@ -148,9 +148,11 @@ impl StorageConfig {
 
     /// Return the fully expanded path of the keystore directory.
     pub(crate) fn keystore_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+        // TODO RELAY: resolve using arti-relay-specific variables
+        let r = tor_config_path::CfgPathResolver::default();
         Ok(self
             .state_dir
-            .path()
+            .path(&r)
             .map_err(|e| ConfigBuildError::Invalid {
                 field: "state_dir".to_owned(),
                 problem: e.to_string(),

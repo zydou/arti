@@ -107,6 +107,7 @@ use std::collections::BTreeMap;
 use amplify::Getters;
 use derive_more::{Display, Into};
 
+use tor_config_path::CfgPathResolver;
 use tor_error::warn_report;
 use tor_persist::slug::BadSlug;
 
@@ -241,7 +242,10 @@ impl RestrictedDiscoveryConfig {
     /// The deduplication logic is as follows:
     ///   * the `static_keys` take precedence over the keys from `key_dirs`
     ///   * the ordering of the directories in `key_dirs` represents the order of precedence
-    pub(crate) fn read_keys(&self) -> Option<RestrictedDiscoveryKeys> {
+    pub(crate) fn read_keys(
+        &self,
+        path_resolver: &CfgPathResolver,
+    ) -> Option<RestrictedDiscoveryKeys> {
         if !self.enabled {
             return None;
         }
@@ -258,7 +262,7 @@ impl RestrictedDiscoveryConfig {
         // The key_dirs are read in order of appearance,
         // which is also the order of precedence.
         for dir in &self.key_dirs {
-            match dir.read_keys() {
+            match dir.read_keys(path_resolver) {
                 Ok(keys) => extend_key_map(&mut authorized_clients, keys),
                 Err(e) => {
                     warn_report!(e, "Failed to read keys at {}", dir.path());
@@ -494,7 +498,11 @@ mod test {
             .push(dir_prov_builder);
 
         let restricted_config = builder.build().unwrap();
-        assert!(restricted_config.read_keys().unwrap().is_empty());
+        let path_resolver = CfgPathResolver::default();
+        assert!(restricted_config
+            .read_keys(&path_resolver)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -587,8 +595,13 @@ mod test {
 
         for (range, builder) in test_cases {
             let config = builder.build().unwrap();
+            let path_resolver = CfgPathResolver::default();
 
-            let mut authorized_clients = config.read_keys().unwrap().into_iter().collect_vec();
+            let mut authorized_clients = config
+                .read_keys(&path_resolver)
+                .unwrap()
+                .into_iter()
+                .collect_vec();
             authorized_clients.sort_by(|k1, k2| k1.0.cmp(&k2.0));
 
             assert_eq!(authorized_clients.as_slice(), all_keys.index(range));
@@ -639,7 +652,8 @@ mod test {
 
         builder.key_dirs().access().extend([key_dir1, key_dir2]);
         let config = builder.build().unwrap();
-        let keys = config.read_keys().unwrap();
+        let path_resolver = CfgPathResolver::default();
+        let keys = config.read_keys(&path_resolver).unwrap();
 
         // Check that foo is the entry we inserted into static_keys:
         let foo_key_found = keys.get(&foo_nick).unwrap();
@@ -689,6 +703,7 @@ mod test {
             .push(dir_prov_builder);
         let config = builder.build().unwrap();
 
-        assert_eq!(config.read_keys().unwrap().len(), VALID_COUNT);
+        let path_resolver = CfgPathResolver::default();
+        assert_eq!(config.read_keys(&path_resolver).unwrap().len(), VALID_COUNT);
     }
 }

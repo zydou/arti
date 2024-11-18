@@ -17,6 +17,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
+use tor_config_path::CfgPathResolver;
 use tor_error::internal;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
@@ -61,6 +62,8 @@ pub(crate) struct PtReactor<R> {
     rx: UnboundedReceiver<PtReactorMessage>,
     /// State directory.
     state_dir: PathBuf,
+    /// Path resolver for configuration files.
+    path_resolver: Arc<CfgPathResolver>,
 }
 
 impl<R: Runtime> PtReactor<R> {
@@ -70,6 +73,7 @@ impl<R: Runtime> PtReactor<R> {
         state: Arc<RwLock<PtSharedState>>,
         rx: UnboundedReceiver<PtReactorMessage>,
         state_dir: PathBuf,
+        path_resolver: Arc<CfgPathResolver>,
     ) -> Self {
         let spawning = FuturesUnordered::new();
         spawning.push(Box::pin(futures::future::pending::<SpawnResult>())
@@ -82,6 +86,7 @@ impl<R: Runtime> PtReactor<R> {
             state,
             rx,
             state_dir,
+            path_resolver,
         }
     }
 
@@ -224,8 +229,13 @@ impl<R: Runtime> PtReactor<R> {
 
                         // Add the spawn future to our pile of them.
                         let spawn_fut = Box::pin(
-                            spawn_from_config(self.rt.clone(), self.state_dir.clone(), config.clone())
-                                .map(|result| (config.protocols, result))
+                            spawn_from_config(
+                                self.rt.clone(),
+                                self.state_dir.clone(),
+                                config.clone(),
+                                Arc::clone(&self.path_resolver)
+                            )
+                            .map(|result| (config.protocols, result))
                         );
                         self.spawning.push(spawn_fut);
                     },
@@ -242,15 +252,18 @@ async fn spawn_from_config<R: Runtime>(
     rt: R,
     state_dir: PathBuf,
     cfg: ManagedTransportOptions,
+    path_resolver: Arc<CfgPathResolver>,
 ) -> Result<PluggableClientTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
 
     let cfg_path = cfg.path;
 
-    let binary_path = cfg_path.path().map_err(|e| PtError::PathExpansionFailed {
-        path: cfg_path.clone(),
-        error: e,
-    })?;
+    let binary_path = cfg_path
+        .path(&path_resolver)
+        .map_err(|e| PtError::PathExpansionFailed {
+            path: cfg_path.clone(),
+            error: e,
+        })?;
 
     let filename = pt_identifier_as_path(&binary_path)?;
 

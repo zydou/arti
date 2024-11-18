@@ -9,7 +9,7 @@ use std::str::FromStr;
 use tor_config::impl_standard_builder;
 use tor_config::ConfigBuildError;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
-use tor_config_path::CfgPath;
+use tor_config_path::{CfgPath, CfgPathResolver};
 use tor_error::warn_report;
 use tracing::{error, Subscriber};
 use tracing_appender::non_blocking::WorkerGuard;
@@ -191,6 +191,7 @@ fn logfile_layer<S>(
     config: &LogfileConfig,
     granularity: std::time::Duration,
     mistrust: &Mistrust,
+    path_resolver: &CfgPathResolver,
 ) -> Result<(impl Layer<S> + Send + Sync + Sized, WorkerGuard)>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
@@ -207,7 +208,7 @@ where
         LogRotation::Hourly => Rotation::HOURLY,
         _ => Rotation::NEVER,
     };
-    let path = config.path.path()?;
+    let path = config.path.path(path_resolver)?;
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     mistrust.make_directory(directory)?;
     let fname = path
@@ -232,6 +233,7 @@ where
 fn logfile_layers<S>(
     config: &LoggingConfig,
     mistrust: &Mistrust,
+    path_resolver: &CfgPathResolver,
 ) -> Result<(impl Layer<S>, Vec<WorkerGuard>)>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
@@ -243,7 +245,12 @@ where
         return Ok((None, guards));
     }
 
-    let (layer, guard) = logfile_layer(&config.files[0], config.time_granularity, mistrust)?;
+    let (layer, guard) = logfile_layer(
+        &config.files[0],
+        config.time_granularity,
+        mistrust,
+        path_resolver,
+    )?;
     guards.push(guard);
 
     // We have to use a dyn pointer here so we can build up linked list of
@@ -251,7 +258,8 @@ where
     let mut layer: Box<dyn Layer<S> + Send + Sync + 'static> = Box::new(layer);
 
     for logfile in &config.files[1..] {
-        let (new_layer, guard) = logfile_layer(logfile, config.time_granularity, mistrust)?;
+        let (new_layer, guard) =
+            logfile_layer(logfile, config.time_granularity, mistrust, path_resolver)?;
         layer = Box::new(layer.and_then(new_layer));
         guards.push(guard);
     }
@@ -312,6 +320,7 @@ pub(crate) struct LogGuards {
 pub(crate) fn setup_logging(
     config: &LoggingConfig,
     mistrust: &Mistrust,
+    path_resolver: &CfgPathResolver,
     cli: Option<&str>,
 ) -> Result<LogGuards> {
     // Important: We have to make sure that the individual layers we add here
@@ -327,7 +336,7 @@ pub(crate) fn setup_logging(
     #[cfg(feature = "journald")]
     let registry = registry.with(journald_layer(config)?);
 
-    let (layer, guards) = logfile_layers(config, mistrust)?;
+    let (layer, guards) = logfile_layers(config, mistrust, path_resolver)?;
     let registry = registry.with(layer);
 
     registry.init();

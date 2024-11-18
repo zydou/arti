@@ -5,13 +5,17 @@
 use crate::err::ErrorDetail;
 use derive_builder::Builder;
 use derive_more::AsRef;
+use directories::ProjectDirs;
 use fs_mistrust::{Mistrust, MistrustBuilder};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::result::Result as StdResult;
 use std::time::Duration;
+
 pub use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 pub use tor_config::convert_helper_via_multi_line_list_builder;
 pub use tor_config::impl_standard_builder;
@@ -20,7 +24,7 @@ pub use tor_config::mistrust::BuilderExt as _;
 pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 pub use tor_config::{BoolOrAuto, ConfigError};
 pub use tor_config::{ConfigBuildError, ConfigurationSource, Reconfigure};
-pub use tor_config_path::{CfgPath, CfgPathError};
+pub use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 pub use tor_linkspec::{ChannelMethod, HasChanMethod, PtTransportName, TransportId};
 
 pub use tor_guardmgr::bridge::BridgeConfigBuilder;
@@ -64,6 +68,64 @@ pub mod onion_service {
 /// Types for configuring vanguards.
 pub mod vanguards {
     pub use tor_guardmgr::{VanguardConfig, VanguardConfigBuilder};
+}
+
+/// A [`CfgPathResolver`] with the base variables configured for a [`TorClientConfig`].
+///
+/// A [`TorClientConfig`] may set additional variables on its resolver.
+///
+/// This should only be used by `TorClient` users. Libraries should be written in a
+/// resolver-agnostic way (shouldn't rely on resolving `ARTI_CONFIG` for example).
+///
+/// The supported variables are:
+///   * `ARTI_CACHE`: an arti-specific cache directory.
+///   * `ARTI_CONFIG`: an arti-specific configuration directory.
+///   * `ARTI_SHARED_DATA`: an arti-specific directory in the user's "shared
+///     data" space.
+///   * `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
+///     data" space.
+///   * `PROGRAM_DIR`: the directory of the currently executing binary.
+///     See documentation for [`std::env::current_exe`] for security notes.
+///   * `USER_HOME`: the user's home directory.
+///
+/// These variables are implemented using the `directories` crate, and
+/// so should use appropriate system-specific overrides under the
+/// hood. (Some of those overrides are based on environment variables.)
+/// For more information, see that crate's documentation.
+fn base_path_resolver() -> CfgPathResolver {
+    let arti_cache = project_dirs().map(|x| Cow::Owned(x.cache_dir().to_owned()));
+    let arti_config = project_dirs().map(|x| Cow::Owned(x.config_dir().to_owned()));
+    let arti_shared_data = project_dirs().map(|x| Cow::Owned(x.data_dir().to_owned()));
+    let arti_local_data = project_dirs().map(|x| Cow::Owned(x.data_local_dir().to_owned()));
+    let program_dir = get_program_dir().map(Cow::Owned);
+    let user_home = tor_config_path::home().map(Cow::Borrowed);
+
+    let mut resolver = CfgPathResolver::default();
+
+    resolver.set_var("ARTI_CACHE", arti_cache);
+    resolver.set_var("ARTI_CONFIG", arti_config);
+    resolver.set_var("ARTI_SHARED_DATA", arti_shared_data);
+    resolver.set_var("ARTI_LOCAL_DATA", arti_local_data);
+    resolver.set_var("PROGRAM_DIR", program_dir);
+    resolver.set_var("USER_HOME", user_home);
+
+    resolver
+}
+
+/// Return the directory holding the currently executing program.
+fn get_program_dir() -> Result<PathBuf, CfgPathError> {
+    let binary = std::env::current_exe().map_err(|_| CfgPathError::NoProgramPath)?;
+    let directory = binary.parent().ok_or(CfgPathError::NoProgramDir)?;
+    Ok(directory.to_owned())
+}
+
+/// Return a ProjectDirs object for the Arti project.
+fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
+    /// lazy cell holding the ProjectDirs object.
+    static PROJECT_DIRS: Lazy<Option<ProjectDirs>> =
+        Lazy::new(|| ProjectDirs::from("org", "torproject", "Arti"));
+
+    PROJECT_DIRS.as_ref().ok_or(CfgPathError::NoProjectDirs)
 }
 
 /// Configuration for client behavior relating to addresses.
@@ -210,10 +272,10 @@ fn default_state_dir() -> CfgPath {
 /// Macro to avoid repeating code for `expand_*_dir` functions on StorageConfig
 // TODO: generate the expand_*_dir functions using d-a instead
 macro_rules! expand_dir {
-    ($self:ident, $dirname:ident) => {
+    ($self:ident, $dirname:ident, $dircfg:ident) => {
         $self
             .$dirname
-            .path()
+            .path($dircfg)
             .map_err(|e| ConfigBuildError::Invalid {
                 field: stringify!($dirname).to_owned(),
                 problem: e.to_string(),
@@ -223,12 +285,18 @@ macro_rules! expand_dir {
 
 impl StorageConfig {
     /// Try to expand `state_dir` to be a path buffer.
-    pub(crate) fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        expand_dir!(self, state_dir)
+    pub(crate) fn expand_state_dir(
+        &self,
+        path_resolver: &CfgPathResolver,
+    ) -> Result<PathBuf, ConfigBuildError> {
+        expand_dir!(self, state_dir, path_resolver)
     }
     /// Try to expand `cache_dir` to be a path buffer.
-    pub(crate) fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        expand_dir!(self, cache_dir)
+    pub(crate) fn expand_cache_dir(
+        &self,
+        path_resolver: &CfgPathResolver,
+    ) -> Result<PathBuf, ConfigBuildError> {
+        expand_dir!(self, cache_dir, path_resolver)
     }
     /// Return the keystore config
     #[allow(clippy::unnecessary_wraps)]
@@ -529,9 +597,10 @@ define_list_builder_accessors! {
 /// information, you can make a TorClientConfig with
 /// [`TorClientConfigBuilder::from_directories`].
 ///
-/// Finally, you can get fine-grained control over the members of a a
+/// Finally, you can get fine-grained control over the members of a
 /// TorClientConfig using [`TorClientConfigBuilder`].
-#[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
+#[derive(Clone, Builder, Debug, AsRef, educe::Educe)]
+#[educe(PartialEq, Eq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[non_exhaustive]
@@ -624,6 +693,20 @@ pub struct TorClientConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) vanguards: vanguards::VanguardConfig,
+
+    /// Resolves paths in this configuration.
+    ///
+    /// This is not [reconfigurable](crate::TorClient::reconfigure).
+    // We don't accept this from the builder/serde, and don't inspect it when comparing configs.
+    // This should be considered as ancillary data rather than a configuration option.
+    // TorClientConfig maybe isn't the best place for this, but this is where it needs to go to not
+    // require public API changes.
+    #[as_ref]
+    #[builder(setter(skip))]
+    #[builder_field_attr(serde(skip))]
+    #[educe(PartialEq(ignore), Eq(ignore))]
+    #[builder(default = "base_path_resolver()")]
+    pub(crate) path_resolver: CfgPathResolver,
 }
 impl_standard_builder! { TorClientConfig }
 
@@ -716,7 +799,7 @@ impl TorClientConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
             tolerance:           self.directory_tolerance.clone(),
-            cache_dir:           self.storage.expand_cache_dir()?,
+            cache_dir:           self.storage.expand_cache_dir(&self.path_resolver)?,
             cache_trust:         self.storage.permissions.clone(),
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
@@ -752,7 +835,7 @@ impl TorClientConfig {
     pub(crate) fn state_dir(&self) -> StdResult<(PathBuf, &fs_mistrust::Mistrust), ErrorDetail> {
         let state_dir = self
             .storage
-            .expand_state_dir()
+            .expand_state_dir(&self.path_resolver)
             .map_err(ErrorDetail::Configuration)?;
         let mistrust = self.storage.permissions();
 
@@ -792,10 +875,13 @@ impl TorClientConfigBuilder {
 
 /// Return the filenames for the default user configuration files
 pub fn default_config_files() -> Result<Vec<ConfigurationSource>, CfgPathError> {
+    // the base path resolver includes the 'ARTI_CONFIG' variable
+    let path_resolver = base_path_resolver();
+
     ["${ARTI_CONFIG}/arti.toml", "${ARTI_CONFIG}/arti.d/"]
         .into_iter()
         .map(|f| {
-            let path = CfgPath::new(f.into()).path()?;
+            let path = CfgPath::new(f.into()).path(&path_resolver)?;
             Ok(ConfigurationSource::from_path(path))
         })
         .collect()
@@ -1105,5 +1191,60 @@ mod test {
         for (test_case, expected) in test_cases.iter() {
             chk(&from_toml(test_case), *expected);
         }
+    }
+
+    fn cfg_variables() -> impl IntoIterator<Item = (&'static str, PathBuf)> {
+        let list = [
+            ("ARTI_CACHE", project_dirs().unwrap().cache_dir()),
+            ("ARTI_CONFIG", project_dirs().unwrap().config_dir()),
+            ("ARTI_SHARED_DATA", project_dirs().unwrap().data_dir()),
+            ("ARTI_LOCAL_DATA", project_dirs().unwrap().data_local_dir()),
+            ("PROGRAM_DIR", &get_program_dir().unwrap()),
+            ("USER_HOME", tor_config_path::home().unwrap()),
+        ];
+
+        list.into_iter()
+            .map(|(a, b)| (a, b.to_owned()))
+            .collect::<Vec<_>>()
+    }
+
+    #[cfg(not(target_family = "windows"))]
+    #[test]
+    fn expand_variables() {
+        // test using the actual resolver from the `TorClientConfig` after it's done all of its
+        // builder stuff, not just `base_path_resolver()`
+        let path_resolver = TorClientConfig::builder().build().unwrap();
+        let path_resolver = path_resolver.as_ref();
+
+        for (var, val) in cfg_variables() {
+            let p = CfgPath::new(format!("${{{var}}}/example"));
+            assert_eq!(p.to_string(), format!("${{{var}}}/example"));
+
+            let expected = val.join("example");
+            assert_eq!(p.path(path_resolver).unwrap().to_str(), expected.to_str());
+        }
+
+        let p = CfgPath::new("${NOT_A_REAL_VAR}/example".to_string());
+        assert!(p.path(path_resolver).is_err());
+    }
+
+    #[cfg(target_family = "windows")]
+    #[test]
+    fn expand_variables() {
+        // test using the actual resolver from the `TorClientConfig` after it's done all of its
+        // builder stuff, not just `base_path_resolver()`
+        let path_resolver = TorClientConfig::builder().build().unwrap();
+        let path_resolver = path_resolver.as_ref();
+
+        for (var, val) in cfg_variables() {
+            let p = CfgPath::new(format!("${{{var}}}\\example"));
+            assert_eq!(p.to_string(), format!("${{{var}}}\\example"));
+
+            let expected = val.join("example");
+            assert_eq!(p.path(path_resolver).unwrap().to_str(), expected.to_str());
+        }
+
+        let p = CfgPath::new("${NOT_A_REAL_VAR}\\example".to_string());
+        assert!(p.path(path_resolver).is_err());
     }
 }
