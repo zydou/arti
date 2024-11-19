@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::{fmt::Debug, path::PathBuf, str::FromStr};
 use tor_config_path::{
     addr::{CfgAddr, CfgAddrError},
-    CfgPath, CfgPathError,
+    CfgPath, CfgPathError, CfgPathResolver,
 };
 use tor_general_addr::general;
 
@@ -35,13 +35,16 @@ pub struct ResolvedConnectPoint(pub(crate) ConnectPointEnum<Resolved>);
 impl ParsedConnectPoint {
     /// Try to resolve all symbolic paths in this connect point,
     /// using the rules of [`CfgPath`] and [`CfgAddr`].
-    pub fn resolve(&self) -> Result<ResolvedConnectPoint, ResolveError> {
+    pub fn resolve(
+        &self,
+        resolver: &CfgPathResolver,
+    ) -> Result<ResolvedConnectPoint, ResolveError> {
         use ConnectPointEnum as CPE;
         // TODO RPC: Make sure that all paths are absolute after we resolve them.
         //
         // See also #1748, #1749.
         Ok(ResolvedConnectPoint(match &self.0 {
-            CPE::Connect(connect) => CPE::Connect(connect.resolve()?),
+            CPE::Connect(connect) => CPE::Connect(connect.resolve(resolver)?),
             CPE::Builtin(builtin) => CPE::Builtin(builtin.clone()),
         }))
     }
@@ -233,14 +236,14 @@ pub(crate) struct Connect<R: Addresses> {
 
 impl Connect<Unresolved> {
     /// Convert all symbolic paths within this Connect to their resolved forms.
-    fn resolve(&self) -> Result<Connect<Resolved>, ResolveError> {
-        let socket = self.socket.resolve()?;
+    fn resolve(&self, resolver: &CfgPathResolver) -> Result<Connect<Resolved>, ResolveError> {
+        let socket = self.socket.resolve(resolver)?;
         let socket_canonical = self
             .socket_canonical
             .as_ref()
-            .map(|sc| sc.resolve())
+            .map(|sc| sc.resolve(resolver))
             .transpose()?;
-        let auth = self.auth.resolve()?;
+        let auth = self.auth.resolve(resolver)?;
         Connect {
             socket,
             socket_canonical,
@@ -286,10 +289,12 @@ pub(crate) enum Auth<R: Addresses> {
 
 impl Auth<Unresolved> {
     /// Convert all symbolic paths within this `Auth` to their resolved forms.
-    fn resolve(&self) -> Result<Auth<Resolved>, ResolveError> {
+    fn resolve(&self, resolver: &CfgPathResolver) -> Result<Auth<Resolved>, ResolveError> {
         match self {
             Auth::None => Ok(Auth::None),
-            Auth::Cookie { path } => Ok(Auth::Cookie { path: path.path()? }),
+            Auth::Cookie { path } => Ok(Auth::Cookie {
+                path: path.path(resolver)?,
+            }),
             Auth::Unrecognized {} => Ok(Auth::Unrecognized {}),
         }
     }
@@ -346,10 +351,13 @@ where
 }
 impl AddrWithStr<CfgAddr> {
     /// Convert an `AddrWithStr<CfgAddr>` into its substituted form.
-    pub(crate) fn resolve(&self) -> Result<AddrWithStr<general::SocketAddr>, ResolveError> {
+    pub(crate) fn resolve(
+        &self,
+        resolver: &CfgPathResolver,
+    ) -> Result<AddrWithStr<general::SocketAddr>, ResolveError> {
         let AddrWithStr { string, addr } = self;
         let substituted = addr.substitutions_will_apply();
-        let addr = addr.address()?;
+        let addr = addr.address(resolver)?;
         let string = if substituted {
             addr.try_to_string().ok_or(ResolveError::PathNotString)?
         } else {
@@ -457,6 +465,8 @@ auth = { cookie = { path = "/home/user/.arti_rpc/cookie" } }
 
     #[test]
     fn resolve_errors() {
+        let resolver = CfgPathResolver::default();
+
         let r: ParsedConnectPoint = r#"
 [connect]
 socket = "inet:[::1]:9191"
@@ -467,7 +477,7 @@ telekinetic_handshake = 3
 "#
         .parse()
         .unwrap();
-        let err = r.resolve().err();
+        let err = r.resolve(&resolver).err();
         assert_matches!(err, Some(ResolveError::AuthNotRecognized));
 
         /*
