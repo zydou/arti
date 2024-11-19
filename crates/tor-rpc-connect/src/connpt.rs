@@ -430,5 +430,18 @@ path = "/home/user/.arti_rpc/cookie"
 
         let r: Result<ParsedConnectPoint, _> = "[squidcakes]".parse();
         assert_matches!(r, Err(ParseError::UnrecognizedFormat));
+
+        let r: Result<ParsedConnectPoint, _> = r#"
+[builtin]
+builtin = "abort"
+
+[connect]
+socket = "inet:[::1]:9191"
+socket_canonical = "inet:[::1]:2020"
+
+auth = { cookie = { path = "/home/user/.arti_rpc/cookie" } }
+"#
+        .parse();
+        assert_matches!(r, Err(ParseError::ConflictingMembers));
     }
 }
