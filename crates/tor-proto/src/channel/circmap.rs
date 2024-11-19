@@ -58,7 +58,7 @@ pub(super) enum CircEnt {
     /// to the oneshot sender to tell the corresponding
     /// PendingClientCirc that the handshake is done.
     ///
-    /// Once that's done, the mpsc sender will be used to send subsequent
+    /// Once that's done, the `CircuitRxSender` mpsc sender will be used to send subsequent
     /// cells to the circuit.
     Opening(oneshot::Sender<CreateResponse>, CircuitRxSender),
 
