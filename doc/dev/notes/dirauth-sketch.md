@@ -24,8 +24,8 @@
  * consensus algorithm implementation
    - We will not attempt to 100% match the behaviour of C Tor.
      Instead, we provide this as `.so` (or a maybe an executable)
-	 and will arrange for C Tor diaruth to  be able to use it 
-	 (see transition plan).
+     and will arrange for C Tor diaruth to  be able to use it
+     (see transition plan).
 
  * vote calculator
 
