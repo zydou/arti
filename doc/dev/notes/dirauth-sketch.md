@@ -92,9 +92,9 @@ to maximise availability and minimise risk.
 
 ### dirauth operator options
 
- Each dirauth operator can choose
- from the following options,
- (presented in order from least to most effort):
+Each dirauth operator can choose
+from the following options,
+(presented in order from least to most effort):
 
  1. Do nothing until the network consensus
     is using the Arti consensus method,
