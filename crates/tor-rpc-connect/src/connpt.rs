@@ -123,10 +123,10 @@ impl HasClientErrorAction for ResolveError {
 /// Implementation type for a connect point.
 ///
 /// This type is hidden so that the enum fields remain private.
-/// It is parameterized on a [`Reps`] trait,
+/// It is parameterized on a [`Addresses`] trait,
 /// to indicate whether it is in resolved or unresolved form.
 #[derive(Clone, Debug)]
-pub(crate) enum ConnectPointEnum<R: Reps> {
+pub(crate) enum ConnectPointEnum<R: Addresses> {
     /// Connect by opening a socket to a [`general::SocketAddr`]
     Connect(Connect<R>),
     /// Connect by some built-in mechanism.
@@ -139,7 +139,7 @@ pub(crate) enum ConnectPointEnum<R: Reps> {
 //
 // Note: We could use instead separate `PATH` and `ADDR` parameters,
 // but this approach makes specifying bounds significantly easier.
-pub(crate) trait Reps {
+pub(crate) trait Addresses {
     /// Type to represent addresses that we can open a socket to.
     type SocketAddr: Clone + std::fmt::Debug;
     /// Type to represent paths on the filesystem.
@@ -208,7 +208,7 @@ pub(crate) enum BuiltinVariant {
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(bound = "R::Path : Deserialize<'de>, AddrWithStr<R::SocketAddr> : Deserialize<'de>")]
-pub(crate) struct Connect<R: Reps> {
+pub(crate) struct Connect<R: Addresses> {
     /// The address of the socket at which the client should try to reach the RPC server,
     /// and which the RPC server should bind.
     pub(crate) socket: AddrWithStr<R::SocketAddr>,
@@ -261,7 +261,7 @@ impl Connect<Resolved> {
 /// along with its related parameters.
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum Auth<R: Reps> {
+pub(crate) enum Auth<R: Addresses> {
     /// No authentication is needed or should be expected.
     None,
     /// Cookie-based authentication should be used.
@@ -290,7 +290,7 @@ impl Auth<Unresolved> {
 // This derive should be needless, but it permits derive(Clone,Debug) elsewhere.
 #[derive(Clone, Debug)]
 struct Unresolved;
-impl Reps for Unresolved {
+impl Addresses for Unresolved {
     type SocketAddr = CfgAddr;
     type Path = CfgPath;
 }
@@ -300,7 +300,7 @@ impl Reps for Unresolved {
 // This derive should be needless, but it permits derive(Clone,Debug) elsewhere.
 #[derive(Clone, Debug)]
 pub(crate) struct Resolved;
-impl Reps for Resolved {
+impl Addresses for Resolved {
     type SocketAddr = general::SocketAddr;
     type Path = PathBuf;
 }
