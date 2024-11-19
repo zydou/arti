@@ -76,7 +76,7 @@ impl OpenStreamEnt {
     }
 
     /// Take capacity to send `msg`. If there's insufficient capacity, returns
-    /// an error. Should be called at the point we've fullyh committed to
+    /// an error. Should be called at the point we've fully committed to
     /// sending the message.
     //
     // TODO: Consider not exposing this, and instead taking the capacity in
