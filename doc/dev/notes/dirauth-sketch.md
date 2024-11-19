@@ -163,7 +163,7 @@ each dirauth is in a fixed category determined at the start.
    The Arti project is shipping both
     1. Arti dirauth
     2. the Arti consensus method plugin and its support in C Tor
-   as formal software ddeliverables,
+   as formal software deliverables,
    in a form suitable for production use by dirauth operators.
 
    Any necessary updates to C Tor dirauths (and maybe relays)
@@ -185,7 +185,7 @@ each dirauth is in a fixed category determined at the start.
    At least 2/3 of dirauths have the Arti consensus method available
    (ie, are in categories 2-4 and have completed their phase 2 setup).
 
-   Schedule determined by: dirauth operators deployment decisions.
+   Schedule determined by: dirauth operators' deployment decisions.
 
  * Phase 3: switch to the Arti consensus method.
    dirauths in category 3 coordinate,
