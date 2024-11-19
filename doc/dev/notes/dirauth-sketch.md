@@ -131,7 +131,6 @@ from the following options,
     These operators can provide valuable feedback on Arti dirauth,
     but having many dirauths in this state reduces network resilience,
     so ideally this would be a minority choice.
-
     Ideally we would have at least one dirauth operator in this category,
     so we can discover issues with Arti dirauth as soon as possible,
     but that's not essential for the transition plan.
@@ -160,6 +159,7 @@ each dirauth is in a fixed category determined at the start.
    These will be released and deployed according to normal C Tor processes.
 
  * Milestone 1: Software available.
+
    The Arti project is shipping both
     1. Arti dirauth
     2. the Arti consensus method plugin and its support in C Tor
@@ -182,12 +182,14 @@ each dirauth is in a fixed category determined at the start.
    and configure their C Tor accordingly.
  
  * Milestone 2: Arti consensus method available.
+
    At least 2/3 of dirauths have the Arti consensus method available
    (ie, are in categories 2-4 and have completed their phase 2 setup).
 
    Schedule determined by: dirauth operators' deployment decisions.
 
  * Phase 3: switch to the Arti consensus method.
+
    dirauths in category 3 coordinate,
    and switch their configuration to advertise the Arti consensus method.
 
@@ -215,6 +217,7 @@ each dirauth is in a fixed category determined at the start.
    some coordination is advisable to reduce overall network impact.
 
  * Milestone 4: C Tor dirauth withdrawn.
+
    All (or nearly all) dirauths are running Arti dirauth
    (not C Tor with Arti plugin).
    C Tor dirauth can be desupported.
