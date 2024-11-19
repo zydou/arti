@@ -617,6 +617,7 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     async fn wait_for_netdir_to_list(
         &self,
         target: &tor_linkspec::RelayIds,
+        timeliness: Timeliness,
     ) -> std::result::Result<(), NetdirProviderShutdown> {
         let mut events = self.events();
         loop {
@@ -624,7 +625,7 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
             //
             // We do this before waiting for any events, to avoid race conditions.
             {
-                let netdir = self.wait_for_netdir(Timeliness::Timely).await?;
+                let netdir = self.wait_for_netdir(timeliness).await?;
                 if netdir.ids_listed(target) == Some(true) {
                     return Ok(());
                 }

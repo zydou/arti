@@ -679,7 +679,7 @@ impl<R: Runtime> Reactor<R> {
                     // wait indefinitely when we call wait_for_netdir_to_list.
                     status_tx.borrow_mut().note_error(&e, self.runtime.now());
                     self.netdir_provider
-                        .wait_for_netdir_to_list(&self.target)
+                        .wait_for_netdir_to_list(&self.target, Timeliness::Timely)
                         .await?;
                 }
                 Err(e) => {
