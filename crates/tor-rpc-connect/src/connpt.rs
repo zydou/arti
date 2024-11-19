@@ -257,7 +257,7 @@ impl Connect<Resolved> {
         match (self.socket.as_ref(), &self.auth) {
             (Inet(addr), _) if !addr.ip().is_loopback() => Err(ResolveError::AddressNotLoopback),
             (Inet(_), Auth::None) => Err(ResolveError::AuthNotCompatible),
-            (_, Auth::Unrecognized) => Err(ResolveError::AuthNotRecognized),
+            (_, Auth::Unrecognized {}) => Err(ResolveError::AuthNotRecognized),
             (Inet(_), Auth::Cookie { .. }) => Ok(self),
             (Unix(_), _) => Ok(self),
             (_, _) => Err(ResolveError::AddressTypeNotRecognized),
@@ -278,8 +278,10 @@ pub(crate) enum Auth<R: Addresses> {
         path: R::Path,
     },
     /// Unrecognized authentication method.
-    #[serde(other)]
-    Unrecognized,
+    ///
+    /// (Serde will deserialize into this whenever the )
+    #[serde(untagged)]
+    Unrecognized {},
 }
 
 impl Auth<Unresolved> {
@@ -288,7 +290,7 @@ impl Auth<Unresolved> {
         match self {
             Auth::None => Ok(Auth::None),
             Auth::Cookie { path } => Ok(Auth::Cookie { path: path.path()? }),
-            Auth::Unrecognized => Ok(Auth::Unrecognized),
+            Auth::Unrecognized {} => Ok(Auth::Unrecognized {}),
         }
     }
 }
@@ -451,5 +453,36 @@ auth = { cookie = { path = "/home/user/.arti_rpc/cookie" } }
 "#
         .parse();
         assert_matches!(r, Err(ParseError::ConflictingMembers));
+    }
+
+    #[test]
+    fn resolve_errors() {
+        let r: ParsedConnectPoint = r#"
+[connect]
+socket = "inet:[::1]:9191"
+socket_canonical = "inet:[::1]:2020"
+
+[connect.auth.esp]
+telekinetic_handshake = 3
+"#
+        .parse()
+        .unwrap();
+        let err = r.resolve().err();
+        assert_matches!(err, Some(ResolveError::AuthNotRecognized));
+
+        /*
+                 TODO RPC: Make this pass.
+                let r: ParsedConnectPoint = r#"
+        [connect]
+        socket = "inet:[::1]:9191"
+        socket_canonical = "inet:[::1]:2020"
+
+        auth = "foo"
+        "#
+                .parse()
+                .unwrap();
+                let err = r.resolve().err();
+                assert_matches!(err, Some(ResolveError::AuthNotRecognized));
+                */
     }
 }

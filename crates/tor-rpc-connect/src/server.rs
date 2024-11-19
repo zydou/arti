@@ -61,7 +61,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
                 secret: Cookie::create(path.as_path(), &mut rand::thread_rng(), mistrust)?,
                 server_address: self.socket.as_str().to_owned(),
             },
-            crate::connpt::Auth::Unrecognized => return Err(ConnectError::UnsupportedAuthType),
+            crate::connpt::Auth::Unrecognized {} => return Err(ConnectError::UnsupportedAuthType),
         };
 
         Ok(Listener { listener, auth })
