@@ -69,3 +69,23 @@ can be deployed.
 (In practice there may be, during the transition,
 more than one relevant Arti consensus method
 and possibly more than one relevant C Tor consensus method.)
+
+### Rationale, dirauth upgrade impact
+
+Arti dirauth is not going to be a drop-in replacement
+for C Tor dirauth.
+While we'll aim to minimise unnecessary changes,
+it will interact with the operating system somewhat differently,
+be configured somewhat differently,
+and there will be possible complications involving key management.
+
+So the upgrade process for each dirauth
+will involve human work by the operator,
+and carries some risk.
+It is likely to involve some downtime.
+
+Attempting to do this near-simultaneously for all dirauths
+has a big coordination problem and risks a long outage.
+
+Ideally dirauth upgrades would be staggered,
+to maximise availability and minimise risk.
