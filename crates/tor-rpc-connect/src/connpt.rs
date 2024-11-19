@@ -105,6 +105,11 @@ pub enum ResolveError {
     /// Authorization mechanism not recognized
     #[error("Authorization type not recognized as a supported type")]
     AuthNotRecognized,
+    /// Address type not supported by the RPC connect point subsystem.
+    ///
+    /// (This can only happen if somebody adds new variants to `general::SocketAddr`.)
+    #[error("Address type not recognized")]
+    AddressTypeNotRecognized,
 }
 impl HasClientErrorAction for ResolveError {
     fn client_action(&self) -> crate::ClientErrorAction {
@@ -116,6 +121,7 @@ impl HasClientErrorAction for ResolveError {
             ResolveError::AddressNotLoopback => A::Decline,
             ResolveError::AuthNotCompatible => A::Abort,
             ResolveError::AuthNotRecognized => A::Decline,
+            ResolveError::AddressTypeNotRecognized => A::Decline,
         }
     }
 }
@@ -247,12 +253,14 @@ impl Connect<Unresolved> {
 impl Connect<Resolved> {
     /// Return this `Connect` only if its parts are valid and compatible.
     fn validate(self) -> Result<Self, ResolveError> {
-        use general::SocketAddr::Inet;
+        use general::SocketAddr::{Inet, Unix};
         match (self.socket.as_ref(), &self.auth) {
             (Inet(addr), _) if !addr.ip().is_loopback() => Err(ResolveError::AddressNotLoopback),
             (Inet(_), Auth::None) => Err(ResolveError::AuthNotCompatible),
             (_, Auth::Unrecognized) => Err(ResolveError::AuthNotRecognized),
-            (_, _) => Ok(self),
+            (Inet(_), Auth::Cookie { .. }) => Ok(self),
+            (Unix(_), _) => Ok(self),
+            (_, _) => Err(ResolveError::AddressTypeNotRecognized),
         }
     }
 }
