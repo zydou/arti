@@ -69,6 +69,7 @@ pub use key_specifier::{
     InvalidKeyPathComponentValue, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoBuilder,
     KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeySpecifierComponent,
     KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
+    KeyCertificateSpecifier,
 };
 
 #[cfg(feature = "keymgr")]
