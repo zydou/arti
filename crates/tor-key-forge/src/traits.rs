@@ -20,6 +20,8 @@ use crate::{
     KeyType, Result,
 };
 
+use std::result::Result as StdResult;
+
 /// A random number generator for generating [`EncodableKey`]s.
 pub trait KeygenRng: RngCore + CryptoRng {}
 
@@ -87,6 +89,53 @@ where
 
     /// Convert an [`EncodableKey`] to another key type.
     fn from_encodable_key(key: Self::Key) -> Self;
+}
+
+/// A trait representing an encodable certificate.
+///
+/// `K` represents the (Rust) type of the subject key.
+pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
+    /// The low-level type this can be converted to/from.
+    // XXX: EncodableKey is now a misnomer, because it encodes keys *and* certs.
+    // We need to rename it to EncodableItem as per doc/dev/notes/keymgr-certificates.md
+    type Cert: EncodableKey + 'static;
+
+    /// The (Rust) type of the signing key.
+    type SigningKey: ToEncodableKey;
+
+    /// Validate this certificate.
+    //
+    // This function will be called from functions such as KeyMgr::get_key_and_cert()
+    // to validate the cert using the provided subject key
+    // (the concrete type of which is given by the `K` in KeyMgr::get_key_and_cert())
+    // and ToEncodableCert::SigningKey.
+    //
+    /// This function should return an error if
+    ///   * the certificate is not timely
+    ///     (i.e. it is expired, or not yet valid), or
+    ///   * the certificate is not well-signed, or
+    ///   * the subject key or signing key in the certificate do not match
+    ///      the subject and signing keys specified in `cert_spec`
+    fn validate(
+        &self,
+        subject: &K,
+        signed_with: &Self::SigningKey,
+    ) -> StdResult<(), InvalidCertError>;
+
+    /// Convert this cert to a type that implements [`EncodableKey`].
+    fn to_encodable_cert(self) -> Self::Cert;
+
+    /// Convert an [`EncodableKey`] to another cert type.
+    fn from_encodable_cert(cert: Self::Cert) -> Self
+    where
+        Self: Sized;
+}
+
+/// The error type returned by [`ToEncodableCert::validate`].
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum InvalidCertError {
+    // TODO
 }
 
 impl Keygen for curve25519::StaticKeypair {
