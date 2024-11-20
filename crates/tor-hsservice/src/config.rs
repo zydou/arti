@@ -226,7 +226,7 @@ impl OnionServiceConfig {
             // The descriptor publisher responds by generating and publishing a new descriptor.
             restricted_discovery: simply_update,
 
-            // TODO: look into this
+            // TODO POW: Verify that simply_update has correct behaviour here.
             enable_pow: simply_update,
         }
 
