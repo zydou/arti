@@ -8,8 +8,7 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{BoxedKeystore, KeystoreError, Result};
-use tor_error::HasKind;
+use crate::{BoxedKeystore, Result};
 
 use fs_mistrust::Mistrust;
 use std::any::Any;
@@ -85,20 +84,6 @@ pub trait Keystore: Send + Sync + 'static {
 /// A dummy `ArtiNativeKeystore`.
 #[non_exhaustive]
 pub struct ArtiNativeKeystore;
-
-/// A dummy `Error` indicating that key manager support is disabled in cargo features.
-#[non_exhaustive]
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("Key manager support disabled in cargo features")]
-struct Error;
-
-impl KeystoreError for Error {}
-
-impl HasKind for Error {
-    fn kind(&self) -> tor_error::ErrorKind {
-        tor_error::ErrorKind::Other
-    }
-}
 
 impl ArtiNativeKeystore {
     /// Create a new [`ArtiNativeKeystore`].
