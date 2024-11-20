@@ -87,20 +87,6 @@ pub trait Keystore: Send + Sync + 'static {
 #[non_exhaustive]
 pub struct ArtiNativeKeystore;
 
-/// A dummy `KeyType`.
-#[non_exhaustive]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct KeyType;
-
-impl KeyType {
-    /// The file extension for a key of this type.
-    //
-    // TODO: maybe this function should return an error instead
-    pub fn arti_extension(&self) -> &'static str {
-        "dummy_extension"
-    }
-}
-
 /// A dummy `Error` indicating that key manager support is disabled in cargo features.
 #[non_exhaustive]
 #[derive(Debug, Clone, thiserror::Error)]
