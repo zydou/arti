@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
-
 //! A dummy key manager implementation.
 //!
 //! This key manager implementation is only used when the `keymgr` feature is disabled.
