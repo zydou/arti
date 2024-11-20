@@ -8,13 +8,12 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{BoxedKeystore, KeystoreError, KeystoreSelector, Result};
+use crate::{BoxedKeystore, KeystoreError, Result};
 use tor_error::HasKind;
 
 use fs_mistrust::Mistrust;
 use std::any::Any;
 use std::path::Path;
-use std::sync::Arc;
 
 /// A dummy key manager implementation.
 ///
