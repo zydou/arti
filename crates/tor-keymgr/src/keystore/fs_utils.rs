@@ -42,6 +42,7 @@ impl<'a> RelKeyPath<'a> {
     }
 
     /// Create a new [`RelKeyPath`] from a `CheckedDir` and a relative path.
+    #[cfg(feature = "ctor-keystore")]
     pub(super) fn from_parts(dir: &'a CheckedDir, path: PathBuf) -> Self {
         Self { dir, path }
     }
