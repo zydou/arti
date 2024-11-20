@@ -53,7 +53,7 @@ We can't switch all dirauths from C Tor to Arti on the same day.
 Instead, we will
 make the Arti implementation of the consensus protocol
 available in a form that can be used by C Tor.
-We'l
+We'll
 adapt C Tor to be able to call that implementation,
 making the choice based on the consensus method.
 
