@@ -2,24 +2,33 @@
 
 ## dirauth functions
 
- * receive relays' server descriptor submissions
+ * receive relays' server descriptor submissions (and extra-info docs submissions)
  * exchange server submissions with other dirauths
- * perform basic reachability tests for candidate relays
+   (acting as a full normal dircache is one way to do this,
+   but perhaps a more limited form of dircache is sufficient).
+ * perform some reachability tests for candidate relays
+   - includes tracking reachability over time
+     (and thus computing Stable and Guard flags)
  * generate a vote from
    - available descriptors
    - configuration (including relay-specific configuration provided
      by network health team, mediated by dirauth local policy
    - bandwidth measurements
- * exchange votes with other dirauths (make them publicly available)
+ * exchange votes (and consensus signatures) with other dirauths (make them publicly available)
  * given votes, generate and sign consensus
+ * serve the consensus document
 
 ## principal components
 
  * dircache
 
- * reachability tester
+ * reachability tester and relay status history
+   - test relays' reachability
+   - record enough history to calculate consensus uptime and MTBF measures
 
- * ingester for relay-specific configuration from Network Health
+ * ingesters for relay-specific information
+   - relay-specific configuration from Network Health
+   - bandwidth scanner results
 
  * consensus algorithm implementation
    - We will not attempt to 100% match the behaviour of C Tor.
