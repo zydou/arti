@@ -13,6 +13,7 @@ pub struct ProofOfWorkV1(Void);
 
 impl ProofOfWorkV1 {
     /// Stub reader implementation; never matches
+    #[allow(clippy::unnecessary_wraps)]
     pub(super) fn try_take_body_from(_scheme: u8, _b: &mut Reader<'_>) -> Result<Option<Self>> {
         Ok(None)
     }
