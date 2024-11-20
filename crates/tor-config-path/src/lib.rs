@@ -112,6 +112,8 @@ pub enum CfgPathError {
     #[error("Can't find the directory of the current binary")]
     NoProgramDir,
     /// We couldn't convert a string to a valid path on the OS.
+    //
+    // NOTE: This is not currently generated. Shall we remove it?
     #[error("Invalid path string: {0:?}")]
     InvalidString(String),
     /// Variable interpolation (`$`) attempted, but not compiled in

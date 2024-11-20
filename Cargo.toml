@@ -30,6 +30,7 @@ members = [
     "crates/tor-async-utils",
     "crates/tor-config",
     "crates/tor-config-path",
+    "crates/tor-rpc-connect",
     "crates/tor-log-ratelim",
     "crates/tor-rpcbase",
     "crates/tor-memquota",

@@ -67,6 +67,16 @@ impl CfgAddr {
         }
     }
 
+    /// Return true if this address is of a type to which variable substitutions will apply.
+    ///
+    /// Currently, substitutions apply to Unix addresses but not to Inet addresses.
+    pub fn substitutions_will_apply(&self) -> bool {
+        match &self.0 {
+            AddrInner::Inet(_) => false,
+            AddrInner::Unix(_) => true,
+        }
+    }
+
     /// Helper: if possible, format this address as a String.
     ///
     /// (This will return Err(p) if this path is a literal unix path
