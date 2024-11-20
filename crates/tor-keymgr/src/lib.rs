@@ -41,12 +41,6 @@
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-// TODO #1645 (either remove this, or decide to have it everywhere)
-#![cfg_attr(
-    not(all(feature = "full", feature = "experimental")),
-    allow(unused, unreachable_pub)
-)]
-
 // TODO: write more comprehensive documentation when the API is a bit more
 // stable
 

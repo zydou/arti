@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_wraps, clippy::extra_unused_type_parameters)]
-
 //! A dummy key manager implementation.
 //!
 //! This key manager implementation is only used when the `keymgr` feature is disabled.
@@ -8,13 +6,11 @@
 //! removed, because the dummy implementations must have the same API as their fully-featured
 //! counterparts.
 
-use crate::{BoxedKeystore, KeystoreError, KeystoreSelector, Result};
-use tor_error::HasKind;
+use crate::{BoxedKeystore, Result};
 
 use fs_mistrust::Mistrust;
 use std::any::Any;
 use std::path::Path;
-use std::sync::Arc;
 
 /// A dummy key manager implementation.
 ///
@@ -28,8 +24,10 @@ use std::sync::Arc;
 #[non_exhaustive]
 pub struct KeyMgr {
     /// The default key store.
+    #[allow(unused)] // Unused, but needed because we want its setter present in the builder
     primary_store: BoxedKeystore,
     /// The secondary key stores.
+    #[allow(unused)] // Unused, but needed because we want its setter present in the builder
     #[builder(default, setter(custom))]
     secondary_stores: Vec<BoxedKeystore>,
 }
@@ -86,34 +84,6 @@ pub trait Keystore: Send + Sync + 'static {
 /// A dummy `ArtiNativeKeystore`.
 #[non_exhaustive]
 pub struct ArtiNativeKeystore;
-
-/// A dummy `KeyType`.
-#[non_exhaustive]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct KeyType;
-
-impl KeyType {
-    /// The file extension for a key of this type.
-    //
-    // TODO: maybe this function should return an error instead
-    pub fn arti_extension(&self) -> &'static str {
-        "dummy_extension"
-    }
-}
-
-/// A dummy `Error` indicating that key manager support is disabled in cargo features.
-#[non_exhaustive]
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("Key manager support disabled in cargo features")]
-struct Error;
-
-impl KeystoreError for Error {}
-
-impl HasKind for Error {
-    fn kind(&self) -> tor_error::ErrorKind {
-        tor_error::ErrorKind::Other
-    }
-}
 
 impl ArtiNativeKeystore {
     /// Create a new [`ArtiNativeKeystore`].
