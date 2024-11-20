@@ -26,8 +26,10 @@ use std::path::Path;
 #[non_exhaustive]
 pub struct KeyMgr {
     /// The default key store.
+    #[allow(unused)] // Unused, but needed because we want its setter present in the builder
     primary_store: BoxedKeystore,
     /// The secondary key stores.
+    #[allow(unused)] // Unused, but needed because we want its setter present in the builder
     #[builder(default, setter(custom))]
     secondary_stores: Vec<BoxedKeystore>,
 }
