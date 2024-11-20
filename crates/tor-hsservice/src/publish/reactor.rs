@@ -1794,6 +1794,10 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
     /// Returns `Ok(None)` if restricted discovery mode is disabled.
     ///
     /// Returns an error if restricted discovery mode is enabled, but the client list is empty.
+    #[cfg_attr(
+        not(feature = "restricted-discovery"),
+        allow(clippy::unnecessary_wraps)
+    )]
     fn authorized_clients(&self) -> Result<Option<Arc<RestrictedDiscoveryKeys>>, FatalError> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "restricted-discovery")] {
