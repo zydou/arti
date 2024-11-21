@@ -5,13 +5,14 @@
 use crate::{
     BoxedKeystore, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor, KeyPathPattern,
     KeySpecifier, KeystoreId, KeystoreSelector, Result,
+    KeystoreCorruptionError, KeyCertificateSpecifier, ArtiPath,
 };
 
 use itertools::Itertools;
 use std::iter;
 use std::result::Result as StdResult;
-use tor_error::{bad_api_usage, internal};
-use tor_key_forge::{EncodableItem, Keygen, KeygenRng, KeystoreItemType, ToEncodableKey};
+use tor_error::{bad_api_usage, into_bad_api_usage, internal};
+use tor_key_forge::{EncodableItem, KeyType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey};
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -407,6 +408,62 @@ impl KeyMgr {
         Ok(Some(K::from_encodable_key(key)))
     }
 
+    /// Read the specified key and certificate from one of the key stores,
+    /// deserializing the subject key as `K::Key`, the cert as `C::Cert`,
+    /// and the signing key as `C::SigningKey`.
+    ///
+    /// Returns `Ok(None)` if none of the key stores have the requested key.
+    ///
+    // Note: the behavior of this function is a bit inconsistent with
+    // get_or_generate_key_and_cert: here, if the cert is absent but
+    // its subject key is not, we return Ok(None).
+    // In get_or_generate_key_and_cert, OTOH< we return an error in that case
+    // (because we can't possibly generate the missing subject key
+    // without overwriting the cert of the missing key).
+    ///
+    /// This function validates the certificate using [`ToEncodableCert::validate`],
+    /// returning an error if it is invalid or missing.
+    #[cfg(feature = "experimental-api")]
+    pub fn get_key_and_cert<K, C>(
+        &self,
+        spec: &dyn KeyCertificateSpecifier,
+    ) -> Result<Option<(K, C)>>
+    where
+        K: ToEncodableKey,
+        C: ToEncodableCert<K>,
+    {
+        let subject_key_spec = spec.subject_key_specifier();
+        // Get the subject key...
+        let Some(key) =
+            self.get_from_store::<K>(subject_key_spec, &K::Key::item_type(), self.all_stores())?
+        else {
+            return Ok(None);
+        };
+
+        let subject_key_arti_path = subject_key_spec
+            .arti_path()
+            .map_err(|_| bad_api_usage!("subject key does not have an ArtiPath?!"))?;
+        let cert_spec =
+            ArtiPath::from_path_and_denotators(subject_key_arti_path, &spec.cert_denotators())
+                .map_err(into_bad_api_usage!("invalid certificate specifier"))?;
+
+        let Some(cert) = self.get_from_store_raw::<C::Cert>(
+            &cert_spec,
+            &C::Cert::item_type(),
+            self.all_stores(),
+        )?
+        else {
+            return Err(KeystoreCorruptionError::MissingCertificate.into());
+        };
+
+        // Finally, get the signing key and validate the cert
+        let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
+        let cert = C::from_encodable_cert(cert);
+        cert.validate(&key, &signed_with)?;
+
+        Ok(Some((key, cert)))
+    }
+
     /// Return an iterator over all configured stores.
     fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
         iter::once(&self.primary_store).chain(self.secondary_stores.iter())
@@ -431,6 +488,38 @@ impl KeyMgr {
         self.all_stores()
             .find(|keystore| keystore.id() == id)
             .ok_or_else(|| bad_api_usage!("could not find keystore with ID {id}").into())
+    }
+
+    /// Get the signing key of the certificate described by `spec`.
+    ///
+    /// Returns a [`KeystoreCorruptionError::MissingSigningKey`] error
+    /// if the signing key doesn't exist in any of the keystores.
+    #[cfg(feature = "experimental-api")]
+    fn get_cert_signing_key<K, C>(
+        &self,
+        spec: &dyn KeyCertificateSpecifier,
+    ) -> Result<C::SigningKey>
+    where
+        K: ToEncodableKey,
+        C: ToEncodableCert<K>,
+    {
+        let Some(signing_key_spec) = spec.signing_key_specifier() else {
+            return Err(bad_api_usage!(
+                "signing key specifier is None, but external signing key was not provided?"
+            )
+            .into());
+        };
+
+        let Some(signing_key) = self.get_from_store::<C::SigningKey>(
+            signing_key_spec,
+            &<C::SigningKey as ToEncodableKey>::Key::item_type(),
+            self.all_stores(),
+        )?
+        else {
+            return Err(KeystoreCorruptionError::MissingSigningKey.into());
+        };
+
+        Ok(signing_key)
     }
 }
 

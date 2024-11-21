@@ -38,6 +38,10 @@ pub enum Error {
     #[error("{0}")]
     KeyForge(#[from] tor_key_forge::Error),
 
+    /// An error caused by an invalid certificate.
+    #[error("{0}")]
+    InvalidCert(#[from] tor_key_forge::InvalidCertError),
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -59,6 +63,7 @@ impl HasKind for Error {
             E::Corruption(_) => EK::KeystoreCorrupted,
             E::KeyAlreadyExists => EK::BadApiUsage, // TODO: not strictly right
             E::KeyForge(_) => EK::BadApiUsage,
+            E::InvalidCert(_) => EK::BadApiUsage, // TODO: not strictly right
             E::Bug(e) => e.kind(),
         }
     }
