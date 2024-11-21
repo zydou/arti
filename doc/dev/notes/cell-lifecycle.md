@@ -239,9 +239,7 @@ circuit's channel reactor for delivery via the `self.chan_sender` channel:
   has an internal **unbounded** buffer than contains cells that couldn't be sent
   right away (i.e. the cells the `ChannelSender` sink blocked on)
 
-## Places where we buffer data
-
-See the diagram above.
+## Places where we buffer data *unboundedly*
 
 The places where cells may be buffered unboundedly include:
 
@@ -252,6 +250,8 @@ However, currently neither of these channels can be made
 to buffer unboundedly remotely.
 See the explanation in the `circuit::Reactor::chan_sender` docs
 for more details.
+
+As for the bounded buffers/queues, see the diagram above.
 
 -------
 
