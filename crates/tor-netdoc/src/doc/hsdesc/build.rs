@@ -63,6 +63,7 @@ struct HsDesc<'a> {
     intro_enc_key_cert_expiry: SystemTime,
     /// Proof-of-work parameters.
     #[builder(default)]
+    #[cfg(feature = "hs-pow-v1")]
     pow_params: Option<&'a PowParams>,
     /// The list of clients authorized to discover the hidden service.
     ///
@@ -160,6 +161,7 @@ impl<'a> NetdocBuilder for HsDescBuilder<'a> {
             intro_points: hs_desc.intro_points,
             intro_auth_key_cert_expiry: hs_desc.intro_auth_key_cert_expiry,
             intro_enc_key_cert_expiry: hs_desc.intro_enc_key_cert_expiry,
+            #[cfg(feature = "hs-pow-v1")]
             pow_params: hs_desc.pow_params,
         }
         .build_sign(rng)?;

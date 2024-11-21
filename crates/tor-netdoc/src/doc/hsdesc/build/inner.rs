@@ -50,6 +50,7 @@ pub(super) struct HsDescInner<'a> {
     /// The expiration time of an introduction point encryption key certificate.
     pub(super) intro_enc_key_cert_expiry: SystemTime,
     /// Proof-of-work parameters
+    #[cfg(feature = "hs-pow-v1")]
     pub(super) pow_params: Option<&'a PowParams>,
 }
 
@@ -94,6 +95,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             intro_points,
             intro_auth_key_cert_expiry,
             intro_enc_key_cert_expiry,
+            #[cfg(feature = "hs-pow-v1")]
             pow_params,
         } = self;
 
@@ -120,13 +122,9 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             encoder.item(SINGLE_ONION_SERVICE);
         }
 
-        if let Some(pow_params) = pow_params {
-            match pow_params {
-                #[cfg(feature = "hs-pow-v1")]
-                PowParams::V1(pow_params) => encode_pow_params(&mut encoder, pow_params)?,
-                #[cfg(not(feature = "hs-pow-v1"))]
-                PowParams::V1(_) => {}
-            }
+        #[cfg(feature = "hs-pow-v1")]
+        if let Some(PowParams::V1(pow_params)) = pow_params {
+            encode_pow_params(&mut encoder, pow_params)?;
         }
 
         // We sort the introduction points here so as not to expose
@@ -275,6 +273,7 @@ mod test {
             intro_points,
             intro_auth_key_cert_expiry: UNIX_EPOCH,
             intro_enc_key_cert_expiry: UNIX_EPOCH,
+            #[cfg(feature = "hs-pow-v1")]
             pow_params,
         }
         .build_sign(&mut thread_rng())
