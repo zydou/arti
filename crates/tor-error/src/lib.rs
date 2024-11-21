@@ -622,6 +622,7 @@ pub enum ErrorKind {
     /// You should not generally see this kind of error returned directly to you
     /// for high-level functions.  It should only be returned from lower-level
     /// crates that do not automatically retry these failures.
+    // Errors with this kind should generally not return a `HasRetryTime::retry_time()` of `Never`.
     #[display("un-retried transient failure")]
     TransientFailure,
 
