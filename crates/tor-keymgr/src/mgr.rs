@@ -466,6 +466,100 @@ impl KeyMgr {
         Ok(Some((key, cert)))
     }
 
+    /// Like [`KeyMgr::get_key_and_cert`], except this function also generates the subject key
+    /// and its corresponding certificate if they don't already exist.
+    ///
+    /// If the key certificate is missing, it will be generated
+    /// from the subject key and signing key using the provided `make_certificate` callback.
+    ///
+    /// Generates the missing key and/or certificate as follows:
+    ///
+    /// ```text
+    /// | Subject Key exists | Signing Key exists | Cert exists | Action                                 |
+    /// |--------------------|--------------------|-------------|----------------------------------------|
+    /// | Y                  | Y                  | Y           | Validate cert, return key and cert     |
+    /// |                    |                    |             | if valid, error otherwise              |
+    /// |--------------------|--------------------|-------------|----------------------------------------|
+    /// | N                  | Y                  | N           | Generate subject key and               |
+    /// |                    |                    |             | a new cert signed with signing key     |
+    /// |--------------------|--------------------|-------------|----------------------------------------|
+    /// | Y                  | Y                  | N           | Generate cert signed with signing key  |
+    /// |--------------------|--------------------|-------------|----------------------------------------|
+    /// | Y                  | N                  | N           | Error - cannot validate cert           |
+    /// |                    |                    |             | if signing key is not available        |
+    /// |--------------------|--------------------|-------------|----------------------------------------|
+    /// | Y/N                | N                  | N           | Error - cannot generate cert           |
+    /// |                    |                    |             | if signing key is not available        |
+    /// |--------------------|--------------------|-------------|----------------------------------------|
+    /// | N                  | Y/N                | Y           | Error - subject key was removed?       |
+    /// |                    |                    |             | (we found the cert,                    |
+    /// |                    |                    |             | but the subject key is missing)        |
+    /// ```
+    ///
+    //
+    // Note; the table above isn't a markdown table because CommonMark-flavor markdown
+    // doesn't support multiline text in tables. Even if we trim down the text,
+    // the resulting markdown table would be pretty unreadable in raw form
+    // (it would have several excessively long lines, over 120 chars in len).
+    #[cfg(feature = "experimental-api")]
+    pub fn get_or_generate_key_and_cert<K, C>(
+        &self,
+        spec: &dyn KeyCertificateSpecifier,
+        make_certificate: impl FnOnce(&K, &<C as ToEncodableCert<K>>::SigningKey) -> C,
+        selector: KeystoreSelector,
+        rng: &mut dyn KeygenRng,
+    ) -> Result<(K, C)>
+    where
+        K: ToEncodableKey,
+        K::Key: Keygen,
+        C: ToEncodableCert<K>,
+    {
+        let subject_key_spec = spec.subject_key_specifier();
+        let subject_key_arti_path = subject_key_spec
+            .arti_path()
+            .map_err(|_| bad_api_usage!("subject key does not have an ArtiPath?!"))?;
+
+        let cert_specifier =
+            ArtiPath::from_path_and_denotators(subject_key_arti_path, &spec.cert_denotators())
+                .map_err(into_bad_api_usage!("invalid certificate specifier"))?;
+
+        let maybe_cert = self.get_from_store_raw::<C::Cert>(
+            &cert_specifier,
+            &C::Cert::item_type(),
+            self.all_stores(),
+        )?;
+
+        let maybe_subject_key = self.get::<K>(subject_key_spec)?;
+
+        match (&maybe_cert, &maybe_subject_key) {
+            (Some(_), None) => {
+                return Err(internal!("xxx").into());
+            }
+            _ => {
+                // generate key and/or cert
+            }
+        }
+        let subject_key = match maybe_subject_key {
+            Some(key) => key,
+            _ => self.generate(subject_key_spec, selector, rng, false)?,
+        };
+
+        let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
+        let cert = match maybe_cert {
+            Some(cert) => C::from_encodable_cert(cert),
+            None => {
+                let cert = make_certificate(&subject_key, &signed_with);
+
+                let () = self.insert_cert(cert.clone(), &cert_specifier, selector)?;
+
+                cert
+            }
+        };
+
+        cert.validate(&subject_key, &signed_with)?;
+        Ok((subject_key, cert))
+    }
+
     /// Return an iterator over all configured stores.
     fn all_stores(&self) -> impl Iterator<Item = &BoxedKeystore> {
         iter::once(&self.primary_store).chain(self.secondary_stores.iter())
@@ -522,6 +616,31 @@ impl KeyMgr {
         };
 
         Ok(signing_key)
+    }
+
+    /// Insert `cert` into the [`Keystore`](crate::Keystore) specified by `selector`.
+    ///
+    /// If the key already exists in the specified key store, it will be overwritten.
+    ///
+    // NOTE: if we ever make this public we should rethink/improve its API.
+    // TODO: maybe fold this into insert() somehow?
+    fn insert_cert<K, C>(
+        &self,
+        cert: C,
+        cert_spec: &dyn KeySpecifier,
+        selector: KeystoreSelector,
+    ) -> Result<()>
+    where
+        K: ToEncodableKey,
+        K::Key: Keygen,
+        C: ToEncodableCert<K>,
+    {
+        let cert = cert.to_encodable_cert();
+        let store = self.select_keystore(&selector)?;
+        let cert_type = C::Cert::item_type();
+
+        let () = store.insert(&cert, cert_spec, &cert_type)?;
+        Ok(())
     }
 }
 
