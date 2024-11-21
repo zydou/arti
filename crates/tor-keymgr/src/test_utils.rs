@@ -185,11 +185,11 @@ mod internal {
     /// Assert that the specified key can be found (or not) in `key_store`.
     macro_rules! assert_found {
         ($key_store:expr, $key_spec:expr, $key_type:expr, $found:expr) => {{
-            let res = $key_store.get($key_spec, $key_type).unwrap();
+            let res = $key_store.get($key_spec, &$key_type.clone().into()).unwrap();
             if $found {
                 assert!(res.is_some());
                 // Ensure contains() agrees with get()
-                assert!($key_store.contains($key_spec, $key_type).unwrap());
+                assert!($key_store.contains($key_spec, &$key_type.clone().into()).unwrap());
             } else {
                 assert!(res.is_none());
             }

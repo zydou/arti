@@ -6,14 +6,14 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tor_error::internal;
-use tor_key_forge::{EncodableItem, ErasedKey, KeyType, SshKeyData};
+use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItemType, SshKeyData};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;
 use crate::{ArtiPath, KeyPath, KeySpecifier, Keystore, KeystoreId};
 
 /// The identifier of a key stored in the `ArtiEphemeralKeystore`.
-type KeyIdent = (ArtiPath, KeyType);
+type KeyIdent = (ArtiPath, KeystoreItemType);
 
 /// The Ephemeral Arti key store
 ///
@@ -48,25 +48,25 @@ impl Keystore for ArtiEphemeralKeystore {
         &self.id
     }
 
-    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool, Error> {
+    fn contains(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<bool, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
-        let contains_key = key_dictionary.contains_key(&(arti_path, key_type.clone()));
+        let contains_key = key_dictionary.contains_key(&(arti_path, item_type.clone()));
         Ok(contains_key)
     }
 
     fn get(
         &self,
         key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        item_type: &KeystoreItemType,
     ) -> Result<Option<ErasedKey>, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
-        match key_dictionary.get(&(arti_path.clone(), key_type.clone())) {
+        match key_dictionary.get(&(arti_path.clone(), item_type.clone())) {
             Some(key) => {
                 let key: ErasedKey = key.clone().into_erased()?;
                 Ok(Some(key))
@@ -79,52 +79,52 @@ impl Keystore for ArtiEphemeralKeystore {
         &self,
         key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        item_type: &KeystoreItemType,
     ) -> Result<(), Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let key_data = key.as_ssh_key_data()?;
 
-        // TODO: add key_type validation to Keystore::get and Keystore::remove.
-        // The presence of a key with a mismatched key_type can be either due to keystore
+        // TODO: add item_type validation to Keystore::get and Keystore::remove.
+        // The presence of a key with a mismatched item_type can be either due to keystore
         // corruption, or API misuse. We will need a new error type and corresponding ErrorKind for
         // that).
         //
-        // TODO: add key_type validation to ArtiNativeKeystore
-        if &key_data.key_type()? != key_type {
+        // TODO: add item_type validation to ArtiNativeKeystore
+        if &KeystoreItemType::from(key_data.key_type()?) != item_type {
             // This can never happen unless:
-            //   * Keystore::insert is called directly with an incorrect KeyType for `key`, or
+            //   * Keystore::insert is called directly with an incorrect KeystoreItemType for `key`, or
             //   * Keystore::insert is called via KeyMgr, but the EncodableItem implementation of
             //   the key is broken. EncodableItem can't be implemented by external types,
             //   so a broken implementation means we have an internal bug.
             return Err(internal!(
-                "the specified KeyType does not match key type of the inserted key?!"
+                "the specified KeystoreItemType does not match key type of the inserted key?!"
             )
             .into());
         }
 
         // save to dictionary
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
-        let _ = key_dictionary.insert((arti_path, key_type.clone()), key_data);
+        let _ = key_dictionary.insert((arti_path, item_type.clone()), key_data);
         Ok(())
     }
 
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>, Error> {
+    fn remove(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<()>, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
         let mut key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
         Ok(key_dictionary
-            .remove(&(arti_path, key_type.clone()))
+            .remove(&(arti_path, item_type.clone()))
             .map(|_| ()))
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeyType)>, Error> {
+    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>, Error> {
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
         Ok(key_dictionary
             .keys()
-            .map(|(arti_path, key_type)| (arti_path.clone().into(), key_type.clone()))
+            .map(|(arti_path, item_type)| (arti_path.clone().into(), item_type.clone()))
             .collect())
     }
 }
@@ -146,6 +146,7 @@ mod tests {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_key_forge::KeyType;
     use tor_llcrypto::pk::ed25519;
 
     use super::*;
@@ -160,12 +161,12 @@ mod tests {
         Box::new(keypair)
     }
 
-    fn key_type() -> &'static KeyType {
-        &KeyType::Ed25519Keypair
+    fn key_type() -> KeystoreItemType {
+        KeyType::Ed25519Keypair.into()
     }
 
-    fn key_type_bad() -> &'static KeyType {
-        &KeyType::X25519StaticKeypair
+    fn key_type_bad() -> KeystoreItemType {
+        KeyType::X25519StaticKeypair.into()
     }
 
     fn key_spec() -> Box<dyn KeySpecifier> {
@@ -186,13 +187,17 @@ mod tests {
         let key_store = ArtiEphemeralKeystore::new("test-ephemeral".to_string());
 
         // verify no key in store
-        assert!(!key_store.contains(key_spec().as_ref(), key_type()).unwrap());
+        assert!(!key_store
+            .contains(key_spec().as_ref(), &key_type())
+            .unwrap());
 
         // insert key and verify in store
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), key_type())
+            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
             .is_ok());
-        assert!(key_store.contains(key_spec().as_ref(), key_type()).unwrap());
+        assert!(key_store
+            .contains(key_spec().as_ref(), &key_type())
+            .unwrap());
     }
 
     #[test]
@@ -201,17 +206,17 @@ mod tests {
 
         // verify no result to get
         assert!(key_store
-            .get(key_spec().as_ref(), key_type())
+            .get(key_spec().as_ref(), &key_type())
             .unwrap()
             .is_none());
 
         // insert and verify get is a result
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), key_type())
+            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
             .is_ok());
 
         let key = key_store
-            .get(key_spec().as_ref(), key_type())
+            .get(key_spec().as_ref(), &key_type())
             .unwrap()
             .unwrap();
 
@@ -225,27 +230,29 @@ mod tests {
 
         // verify inserting a key with the wrong key type fails
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), key_type_bad())
+            .insert(key().as_ref(), key_spec().as_ref(), &key_type_bad())
             .is_err());
         // further ensure there are no side effects
         assert!(!key_store
-            .contains(key_spec().as_ref(), key_type_bad())
+            .contains(key_spec().as_ref(), &key_type_bad())
             .unwrap());
         assert!(key_store
-            .get(key_spec().as_ref(), key_type_bad())
+            .get(key_spec().as_ref(), &key_type_bad())
             .unwrap()
             .is_none());
         assert!(key_store.list().unwrap().is_empty());
 
         // verify inserting a good key succeeds
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), key_type())
+            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
             .is_ok());
 
         // further ensure correct side effects
-        assert!(key_store.contains(key_spec().as_ref(), key_type()).unwrap());
         assert!(key_store
-            .get(key_spec().as_ref(), key_type())
+            .contains(key_spec().as_ref(), &key_type())
+            .unwrap());
+        assert!(key_store
+            .get(key_spec().as_ref(), &key_type())
             .unwrap()
             .is_some());
         assert_eq!(key_store.list().unwrap().len(), 1);
@@ -257,16 +264,16 @@ mod tests {
 
         // verify removing from an empty store returns None
         assert!(key_store
-            .remove(key_spec().as_ref(), key_type())
+            .remove(key_spec().as_ref(), &key_type())
             .unwrap()
             .is_none());
 
         // verify inserting and removing results in Some(())
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), key_type())
+            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
             .is_ok());
         assert!(key_store
-            .remove(key_spec().as_ref(), key_type())
+            .remove(key_spec().as_ref(), &key_type())
             .unwrap()
             .is_some());
     }
@@ -280,7 +287,7 @@ mod tests {
 
         // verify size 1 after inserting a key
         assert!(key_store
-            .insert(key().as_ref(), key_spec().as_ref(), key_type())
+            .insert(key().as_ref(), key_spec().as_ref(), &key_type())
             .is_ok());
         assert_eq!(key_store.list().unwrap().len(), 1);
     }

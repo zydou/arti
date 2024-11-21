@@ -11,7 +11,7 @@ use crate::{CTorPath, CTorServicePath, KeyPath, Result};
 use fs_mistrust::Mistrust;
 use tor_basic_utils::PathExt as _;
 use tor_error::internal;
-use tor_key_forge::KeyType;
+use tor_key_forge::{KeyType, KeystoreItemType};
 use tor_llcrypto::pk::ed25519;
 use tor_persist::hsnickname::HsNickname;
 
@@ -36,12 +36,12 @@ use std::sync::Arc;
 /// will return an error.
 ///
 /// This keystore implementation uses the [`CTorPath`] of the requested [`KeySpecifier`]
-/// and the [`KeyType`] to identify the appropriate key.
+/// and the [`KeystoreItemType`] to identify the appropriate key.
 /// If the requested `CTorPath` is not [`Service`](CTorPath::Service),
 /// or if the [`HsNickname`] specified in the `CTorPath` does not match the nickname of this store,
 /// the key will be declared not found.
 /// If the requested `CTorPath` is [`Service`](CTorPath::Service),
-/// but the `KeyType` and [`CTorServicePath`] are mismatched,
+/// but the `ItemType` and [`CTorServicePath`] are mismatched,
 /// an error is returned.
 pub struct CTorServiceKeystore {
     /// The underlying keystore
@@ -73,7 +73,9 @@ impl CTorServiceKeystore {
 ///
 /// If `res` is `None`, return `ret`.
 macro_rules! rel_path_if_supported {
-    ($self:expr, $spec:expr, $ret:expr, $key_type:expr) => {{
+    ($self:expr, $spec:expr, $ret:expr, $item_type:expr) => {{
+        use KeystoreItemType::*;
+
         // If the key specifier doesn't have a CTorPath,
         // we can't possibly handle this key.
         let Some(ctor_path) = $spec.ctor_path() else {
@@ -92,11 +94,11 @@ macro_rules! rel_path_if_supported {
         };
 
         let relpath = $self.keystore.rel_path(PathBuf::from(path.to_string()));
-        match ($key_type, &path) {
-            (KeyType::Ed25519ExpandedKeypair, CTorServicePath::PrivateKey)
-            | (KeyType::Ed25519PublicKey, CTorServicePath::PublicKey) => Ok(()),
+        match ($item_type, &path) {
+            (Key(KeyType::Ed25519ExpandedKeypair), CTorServicePath::PrivateKey)
+            | (Key(KeyType::Ed25519PublicKey), CTorServicePath::PublicKey) => Ok(()),
             _ => Err(CTorKeystoreError::InvalidKeyType {
-                key_type: $key_type.clone(),
+                key_type: $item_type.clone(),
                 key: format!("key {}", relpath.rel_path_unchecked().display_lossy()),
             }),
         }?;
@@ -110,8 +112,8 @@ impl Keystore for CTorServiceKeystore {
         &self.keystore.id
     }
 
-    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
-        let path = rel_path_if_supported!(self, key_spec, Ok(false), key_type);
+    fn contains(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<bool> {
+        let path = rel_path_if_supported!(self, key_spec, Ok(false), item_type);
 
         let meta = match checked_op!(metadata, path) {
             Ok(meta) => meta,
@@ -139,8 +141,10 @@ impl Keystore for CTorServiceKeystore {
         }
     }
 
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
-        let path = rel_path_if_supported!(self, key_spec, Ok(None), key_type);
+    fn get(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<ErasedKey>> {
+        use KeystoreItemType::*;
+
+        let path = rel_path_if_supported!(self, key_spec, Ok(None), item_type);
 
         let key = match checked_op!(read, path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
@@ -158,16 +162,16 @@ impl Keystore for CTorServiceKeystore {
             err: err.into(),
         };
 
-        let parsed_key: ErasedKey = match key_type {
-            KeyType::Ed25519ExpandedKeypair => parse_ed25519_keypair(&key)
+        let parsed_key: ErasedKey = match item_type {
+            Key(KeyType::Ed25519ExpandedKeypair) => parse_ed25519_keypair(&key)
                 .map_err(parse_err)
                 .map(Box::new)?,
-            KeyType::Ed25519PublicKey => parse_ed25519_public(&key)
+            Key(KeyType::Ed25519PublicKey) => parse_ed25519_public(&key)
                 .map_err(parse_err)
                 .map(Box::new)?,
             _ => {
                 return Err(
-                    internal!("key type was not validated by rel_path_if_supported?!").into(),
+                    internal!("item type was not validated by rel_path_if_supported?!").into(),
                 );
             }
         };
@@ -179,16 +183,16 @@ impl Keystore for CTorServiceKeystore {
         &self,
         _key: &dyn EncodableItem,
         _key_spec: &dyn KeySpecifier,
-        _key_type: &KeyType,
+        _item_type: &KeystoreItemType,
     ) -> Result<()> {
         Err(CTorKeystoreError::NotSupported { action: "insert" }.into())
     }
 
-    fn remove(&self, _key_spec: &dyn KeySpecifier, _key_type: &KeyType) -> Result<Option<()>> {
+    fn remove(&self, _key_spec: &dyn KeySpecifier, _item_type: &KeystoreItemType) -> Result<Option<()>> {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
+    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
         use crate::CTorServicePath::*;
         use itertools::Itertools;
 
@@ -200,14 +204,14 @@ impl Keystore for CTorServiceKeystore {
                     nickname: self.nickname.clone(),
                     path: PublicKey,
                 },
-                KeyType::Ed25519PublicKey,
+                KeyType::Ed25519PublicKey.into(),
             ),
             (
                 CTorPath::Service {
                     nickname: self.nickname.clone(),
                     path: PrivateKey,
                 },
-                KeyType::Ed25519ExpandedKeypair,
+                KeyType::Ed25519ExpandedKeypair.into(),
             ),
         ];
 
@@ -396,7 +400,7 @@ mod tests {
         };
 
         let err = keystore
-            .remove(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey)
+            .remove(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey.into())
             .unwrap_err();
 
         assert_eq!(err.to_string(), "Operation not supported: remove");
@@ -405,7 +409,7 @@ mod tests {
             .insert(
                 &DummyKey,
                 &TestCTorSpecifier(path.clone()),
-                &KeyType::Ed25519PublicKey,
+                &KeyType::Ed25519PublicKey.into(),
             )
             .unwrap_err();
 
@@ -424,7 +428,7 @@ mod tests {
         let err = keystore
             .get(
                 &TestCTorSpecifier(path.clone()),
-                &KeyType::X25519StaticKeypair,
+                &KeyType::X25519StaticKeypair.into(),
             )
             .map(|_| ())
             .unwrap_err();
@@ -444,10 +448,10 @@ mod tests {
 
         assert!(keys
             .iter()
-            .any(|(_, key_type)| *key_type == KeyType::Ed25519ExpandedKeypair));
+            .any(|(_, key_type)| *key_type == KeyType::Ed25519ExpandedKeypair.into()));
 
         assert!(keys
             .iter()
-            .any(|(_, key_type)| *key_type == KeyType::Ed25519PublicKey));
+            .any(|(_, key_type)| *key_type == KeyType::Ed25519PublicKey.into()));
     }
 }

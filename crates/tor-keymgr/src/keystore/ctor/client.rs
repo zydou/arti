@@ -18,7 +18,7 @@ use itertools::Itertools as _;
 use tor_basic_utils::PathExt as _;
 use tor_error::debug_report;
 use tor_hscrypto::pk::{HsClientDescEncKeypair, HsId};
-use tor_key_forge::KeyType;
+use tor_key_forge::{KeyType, KeystoreItemType};
 use tor_llcrypto::pk::curve25519;
 use tracing::debug;
 
@@ -37,11 +37,11 @@ use tracing::debug;
 /// will return an error.
 ///
 /// This keystore implementation uses the [`CTorPath`] of the requested [`KeySpecifier`]
-/// and the [`KeyType`] to identify the appropriate restricted discovery keypair.
+/// and the [`KeystoreItemType`] to identify the appropriate restricted discovery keypair.
 /// If the requested `CTorPath` is not [`ClientHsDescEncKey`](CTorPath::ClientHsDescEncKey),
 /// the keystore will declare the key not found.
 /// If the requested `CTorPath` is [`ClientHsDescEncKey`](CTorPath::ClientHsDescEncKey),
-/// but the `KeyType` is not [`X25519StaticKeypair`](KeyType::X25519StaticKeypair),
+/// but the `KeystoreItemType` is not [`X25519StaticKeypair`](KeyType::X25519StaticKeypair),
 /// an error is returned.
 pub struct CTorClientKeystore(CTorKeystore);
 
@@ -73,7 +73,7 @@ macro_rules! hsid_if_supported {
             return $ret;
         };
 
-        if *$key_type != KeyType::X25519StaticKeypair {
+        if *$key_type != KeyType::X25519StaticKeypair.into() {
             return Err(CTorKeystoreError::InvalidKeyType {
                 key_type: $key_type.clone(),
                 key: "client restricted discovery key".into(),
@@ -235,12 +235,12 @@ impl Keystore for CTorClientKeystore {
         &self.0.id
     }
 
-    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
-        self.get(key_spec, key_type).map(|k| k.is_some())
+    fn contains(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<bool> {
+        self.get(key_spec, item_type).map(|k| k.is_some())
     }
 
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
-        let want_hsid = hsid_if_supported!(key_spec, Ok(None), key_type);
+    fn get(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<ErasedKey>> {
+        let want_hsid = hsid_if_supported!(key_spec, Ok(None), item_type);
         Ok(self
             .list_keys()?
             .find_map(|(hsid, key)| (hsid == want_hsid).then(|| key.into()))
@@ -251,22 +251,22 @@ impl Keystore for CTorClientKeystore {
         &self,
         _key: &dyn EncodableItem,
         _key_spec: &dyn KeySpecifier,
-        _key_type: &KeyType,
+        _item_type: &KeystoreItemType,
     ) -> Result<()> {
         Err(CTorKeystoreError::NotSupported { action: "insert" }.into())
     }
 
-    fn remove(&self, _key_spec: &dyn KeySpecifier, _key_type: &KeyType) -> Result<Option<()>> {
+    fn remove(&self, _key_spec: &dyn KeySpecifier, _item_type: &KeystoreItemType) -> Result<Option<()>> {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
+    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
         let keys = self
             .list_keys()?
             .map(|(hsid, _)| {
                 (
                     CTorPath::ClientHsDescEncKey(hsid).into(),
-                    KeyType::X25519StaticKeypair,
+                    KeyType::X25519StaticKeypair.into(),
                 )
             })
             .collect();
@@ -378,7 +378,7 @@ mod tests {
         assert_eq!(keys.len(), 2);
         assert!(keys
             .iter()
-            .all(|(_, key_type)| *key_type == KeyType::X25519StaticKeypair));
+            .all(|(_, key_type)| *key_type == KeyType::X25519StaticKeypair.into()));
     }
 
     #[test]
@@ -389,7 +389,7 @@ mod tests {
         let err = keystore
             .remove(
                 &TestCTorSpecifier(path.clone()),
-                &KeyType::X25519StaticKeypair,
+                &KeyType::X25519StaticKeypair.into(),
             )
             .unwrap_err();
 
@@ -399,7 +399,7 @@ mod tests {
             .insert(
                 &DummyKey,
                 &TestCTorSpecifier(path),
-                &KeyType::X25519StaticKeypair,
+                &KeyType::X25519StaticKeypair.into(),
             )
             .unwrap_err();
 
@@ -412,7 +412,7 @@ mod tests {
         let path = CTorPath::ClientHsDescEncKey(HsId::from_str(HSID).unwrap());
 
         let err = keystore
-            .get(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey)
+            .get(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey.into())
             .map(|_| ())
             .unwrap_err();
 

@@ -11,7 +11,7 @@ use itertools::Itertools;
 use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
-use tor_key_forge::{EncodableItem, KeyType, Keygen, KeygenRng, ToEncodableKey};
+use tor_key_forge::{EncodableItem, KeyType, Keygen, KeygenRng, KeystoreItemType, ToEncodableKey};
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -63,8 +63,8 @@ pub struct KeyMgr {
 pub struct KeystoreEntry<'a> {
     /// The [`KeyPath`] of the key.
     key_path: KeyPath,
-    /// The [`KeyType`] of the key.
-    key_type: KeyType,
+    /// The [`KeystoreItemType`] of the key.
+    key_type: KeystoreItemType,
     /// The [`KeystoreId`] that of the keystore where the key was found.
     #[getter(as_copy)]
     keystore_id: &'a KeystoreId,
@@ -137,7 +137,8 @@ impl KeyMgr {
     ///
     /// Returns `Ok(None)` if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
-        let result = self.get_from_store(key_spec, &K::Key::key_type(), self.all_stores())?;
+        let result =
+            self.get_from_store(key_spec, &K::Key::key_type().into(), self.all_stores())?;
         if result.is_none() {
             // If the key_spec is the specifier for the public part of a keypair,
             // try getting the pair and extracting the public portion from it.
@@ -158,7 +159,11 @@ impl KeyMgr {
     pub fn get_entry<K: ToEncodableKey>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
         let selector = entry.keystore_id().into();
         let store = self.select_keystore(&selector)?;
-        self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
+        self.get_from_store(
+            entry.key_path(),
+            entry.key_type(),
+            [store].into_iter(),
+        )
     }
 
     /// Read the key identified by `key_spec`.
@@ -220,7 +225,7 @@ impl KeyMgr {
         K::Key: Keygen,
     {
         let store = self.select_keystore(&selector)?;
-        let key_type = K::Key::key_type();
+        let key_type = K::Key::key_type().into();
 
         if overwrite || !store.contains(key_spec, &key_type)? {
             let key = K::Key::generate(rng)?;
@@ -253,7 +258,7 @@ impl KeyMgr {
     ) -> Result<Option<K>> {
         let key = key.to_encodable_key();
         let store = self.select_keystore(&selector)?;
-        let key_type = K::Key::key_type();
+        let key_type = K::Key::key_type().into();
         let old_key: Option<K> = self.get_from_store(key_spec, &key_type, [store].into_iter())?;
 
         if old_key.is_some() && !overwrite {
@@ -280,7 +285,7 @@ impl KeyMgr {
         selector: KeystoreSelector,
     ) -> Result<Option<K>> {
         let store = self.select_keystore(&selector)?;
-        let key_type = K::Key::key_type();
+        let key_type = K::Key::key_type().into();
         let old_key: Option<K> = self.get_from_store(key_spec, &key_type, [store].into_iter())?;
 
         store.remove(key_spec, &key_type)?;
@@ -315,7 +320,7 @@ impl KeyMgr {
                 Ok(store
                     .list()?
                     .into_iter()
-                    .filter(|(key_path, _): &(KeyPath, KeyType)| key_path.matches(pat))
+                    .filter(|(key_path, _): &(KeyPath, KeystoreItemType)| key_path.matches(pat))
                     .map(|(path, key_type)| KeystoreEntry {
                         key_path: path.clone(),
                         key_type,
@@ -351,10 +356,10 @@ impl KeyMgr {
     fn get_from_store<'a, K: ToEncodableKey>(
         &self,
         key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        key_type: &KeystoreItemType,
         stores: impl Iterator<Item = &'a BoxedKeystore>,
     ) -> Result<Option<K>> {
-        let static_key_type = K::Key::key_type();
+        let static_key_type = K::Key::key_type().into();
         if key_type != &static_key_type {
             return Err(internal!(
                 "key type {:?} does not match the key type {:?} of requested key K::Key",
@@ -365,7 +370,7 @@ impl KeyMgr {
         }
 
         for store in stores {
-            let key = match store.get(key_spec, &K::Key::key_type()) {
+            let key = match store.get(key_spec, &K::Key::key_type().into()) {
                 Ok(None) => {
                     // The key doesn't exist in this store, so we check the next one...
                     continue;
@@ -438,7 +443,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_key_forge::{EncodableItem, ErasedKey, SshKeyData};
+    use tor_key_forge::{EncodableItem, ErasedKey, SshKeyData, KeyType};
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.
@@ -544,7 +549,7 @@ mod tests {
     macro_rules! impl_keystore {
         ($name:tt, $id:expr) => {
             struct $name {
-                inner: RwLock<HashMap<(ArtiPath, KeyType), TestKey>>,
+                inner: RwLock<HashMap<(ArtiPath, KeystoreItemType), TestKey>>,
                 id: KeystoreId,
             }
 
@@ -568,13 +573,13 @@ mod tests {
                 fn contains(
                     &self,
                     key_spec: &dyn KeySpecifier,
-                    key_type: &KeyType,
+                    item_type: &KeystoreItemType,
                 ) -> Result<bool> {
                     Ok(self
                         .inner
                         .read()
                         .unwrap()
-                        .contains_key(&(key_spec.arti_path().unwrap(), key_type.clone())))
+                        .contains_key(&(key_spec.arti_path().unwrap(), item_type.clone())))
                 }
 
                 fn id(&self) -> &KeystoreId {
@@ -584,13 +589,13 @@ mod tests {
                 fn get(
                     &self,
                     key_spec: &dyn KeySpecifier,
-                    key_type: &KeyType,
+                    item_type: &KeystoreItemType,
                 ) -> Result<Option<ErasedKey>> {
                     Ok(self
                         .inner
                         .read()
                         .unwrap()
-                        .get(&(key_spec.arti_path().unwrap(), key_type.clone()))
+                        .get(&(key_spec.arti_path().unwrap(), item_type.clone()))
                         .map(|k| Box::new(k.clone()) as Box<dyn EncodableItem>))
                 }
 
@@ -598,7 +603,7 @@ mod tests {
                     &self,
                     key: &dyn EncodableItem,
                     key_spec: &dyn KeySpecifier,
-                    key_type: &KeyType,
+                    item_type: &KeystoreItemType,
                 ) -> Result<()> {
                     let key = key.downcast_ref::<TestKey>().unwrap();
                     let value = &key.meta;
@@ -610,7 +615,7 @@ mod tests {
                     self.inner
                         .write()
                         .unwrap()
-                        .insert((key_spec.arti_path().unwrap(), key_type.clone()), key);
+                        .insert((key_spec.arti_path().unwrap(), item_type.clone()), key);
 
                     Ok(())
                 }
@@ -618,24 +623,24 @@ mod tests {
                 fn remove(
                     &self,
                     key_spec: &dyn KeySpecifier,
-                    key_type: &KeyType,
+                    item_type: &KeystoreItemType,
                 ) -> Result<Option<()>> {
                     Ok(self
                         .inner
                         .write()
                         .unwrap()
-                        .remove(&(key_spec.arti_path().unwrap(), key_type.clone()))
+                        .remove(&(key_spec.arti_path().unwrap(), item_type.clone()))
                         .map(|_| ()))
                 }
 
-                fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
+                fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
                     Ok(self
                         .inner
                         .read()
                         .unwrap()
                         .iter()
-                        .map(|((arti_path, key_type), _)| {
-                            (KeyPath::Arti(arti_path.clone()), key_type.clone())
+                        .map(|((arti_path, item_type), _)| {
+                            (KeyPath::Arti(arti_path.clone()), item_type.clone())
                         })
                         .collect())
                 }
@@ -678,7 +683,7 @@ mod tests {
     fn entry_descriptor(specifier: impl KeySpecifier, keystore_id: &KeystoreId) -> KeystoreEntry {
         KeystoreEntry {
             key_path: specifier.arti_path().unwrap().into(),
-            key_type: TestKey::key_type(),
+            key_type: TestKey::key_type().into(),
             keystore_id,
         }
     }
@@ -817,7 +822,7 @@ mod tests {
         let mgr = builder.build().unwrap();
 
         assert!(!mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type().into())
             .unwrap());
 
         // Insert a key into Keystore2
@@ -844,7 +849,7 @@ mod tests {
             .is_err());
         // The key still exists in Keystore2
         assert!(mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type().into())
             .unwrap());
 
         // Try to remove the key from the primary key store
@@ -855,7 +860,7 @@ mod tests {
 
         // The key still exists in Keystore2
         assert!(mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type().into())
             .unwrap());
 
         // Removing from Keystore2 should succeed.
@@ -871,7 +876,7 @@ mod tests {
 
         // The key doesn't exist in Keystore2 anymore
         assert!(!mgr.secondary_stores[0]
-            .contains(&TestKeySpecifier1, &TestKey::key_type())
+            .contains(&TestKeySpecifier1, &TestKey::key_type().into())
             .unwrap());
     }
 

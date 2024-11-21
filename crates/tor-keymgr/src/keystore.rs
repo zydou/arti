@@ -8,7 +8,7 @@ pub(crate) mod fs_utils;
 #[cfg(feature = "ephemeral-keystore")]
 pub(crate) mod ephemeral;
 
-use tor_key_forge::{EncodableItem, ErasedKey, KeyType};
+use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItemType};
 
 use crate::{KeyPath, KeySpecifier, KeystoreId, Result};
 
@@ -21,13 +21,13 @@ pub trait Keystore: Send + Sync + 'static {
     fn id(&self) -> &KeystoreId;
 
     /// Check if the key identified by `key_spec` exists in this key store.
-    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool>;
+    fn contains(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<bool>;
 
     /// Retrieve the key identified by `key_spec`.
     ///
     /// Returns `Ok(Some(key))` if the key was successfully retrieved. Returns `Ok(None)` if the
     /// key does not exist in this key store.
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>>;
+    fn get(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
     //
@@ -50,7 +50,7 @@ pub trait Keystore: Send + Sync + 'static {
         &self,
         key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        item_type: &KeystoreItemType,
     ) -> Result<()>;
 
     /// Remove the specified key.
@@ -59,8 +59,8 @@ pub trait Keystore: Send + Sync + 'static {
     /// `Ok(Some(())` means the key was successfully removed.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>>;
+    fn remove(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<()>>;
 
     /// List all the keys in this keystore.
-    fn list(&self) -> Result<Vec<(KeyPath, KeyType)>>;
+    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>>;
 }

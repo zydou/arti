@@ -1,9 +1,10 @@
 //! An error type for [C Tor](crate::keystore::ctor) keystores.
 
 use crate::keystore::fs_utils;
-use crate::{KeyType, KeystoreError};
+use crate::KeystoreError;
 use tor_error::{ErrorKind, HasKind};
 use tor_hscrypto::pk::HsIdParseError;
+use tor_key_forge::KeystoreItemType;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -34,10 +35,11 @@ pub(crate) enum CTorKeystoreError {
     },
 
     /// Key type and specifier mismatch.
+    // XXX Rename this variant to InvalidKeystoreItemType.
     #[error("Invalid key type {key_type:?} for {key}")]
     InvalidKeyType {
         /// The key type.
-        key_type: KeyType,
+        key_type: KeystoreItemType,
         /// The key we tried to access.
         key: String,
     },
