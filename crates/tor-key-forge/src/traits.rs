@@ -15,9 +15,10 @@ use tor_hscrypto::pk::{
 };
 use tor_llcrypto::pk::{curve25519, ed25519};
 
+use crate::certs::CertData;
 use crate::{
     ssh::{SshKeyData, ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME},
-    KeyType, Result,
+    KeyType, KeystoreItemType, Result,
 };
 
 use std::result::Result as StdResult;
@@ -52,6 +53,26 @@ pub trait EncodableKey: Downcast {
 }
 
 impl_downcast!(EncodableKey);
+
+/// A public key, keypair, or key certificate.
+#[derive(Debug, Clone, derive_more::From)]
+#[non_exhaustive]
+pub enum KeystoreItem {
+    /// A public key or a keypair.
+    Key(SshKeyData),
+    /// A certificate.
+    Cert(CertData),
+}
+
+impl KeystoreItem {
+    /// Return the [`KeystoreItemType`] of this item.
+    pub fn item_type(&self) -> Result<KeystoreItemType> {
+        match self {
+            KeystoreItem::Key(ssh_key_data) => ssh_key_data.key_type().map(KeystoreItemType::Key),
+            _ => Err(tor_error::internal!("XXX not implemented").into()),
+        }
+    }
+}
 
 /// A key that can be converted to an [`EncodableKey`].
 //
