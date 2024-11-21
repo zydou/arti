@@ -178,7 +178,7 @@ These control messages are sent over an *unbounded* MPSC channel
 (see the `mpsc::UnboundedSender` `control` field in `Channel`).
 
 After the circuit reactor is spawned,
-it *blocks* in `wait_for_create` until it receives a control message,
+it *awaits* on `wait_for_create` until it receives a control message,
 which is expected to be either `CtrlMsg::Create` or `CtrlMsg::Shutdown`.
 This is described further in the "Sending CREATE cells" section below.
 
