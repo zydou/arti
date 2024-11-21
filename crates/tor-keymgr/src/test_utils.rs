@@ -146,8 +146,8 @@ mod specifier {
 /// A module exporting key implementations used for testing.
 #[cfg(test)]
 mod key {
-    use crate::{EncodableItem, KeyType};
-    use tor_key_forge::SshKeyData;
+    use crate::EncodableItem;
+    use tor_key_forge::{KeystoreItemType, SshKeyData};
 
     /// A dummy key.
     ///
@@ -157,7 +157,7 @@ mod key {
     pub(crate) struct DummyKey;
 
     impl EncodableItem for DummyKey {
-        fn key_type() -> KeyType
+        fn item_type() -> KeystoreItemType
         where
             Self: Sized,
         {

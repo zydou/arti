@@ -149,8 +149,8 @@ define_derive_deftly! {
     /// in a keystore.
 
     impl $crate::EncodableItem for $ttype {
-        fn key_type() -> $crate::KeyType {
-            $crate::KeyType::Ed25519Keypair
+        fn item_type() -> $crate::KeystoreItemType {
+            $crate::KeyType::Ed25519Keypair.into()
         }
         fn as_ssh_key_data(&self) -> $crate::Result<$crate::SshKeyData> {
             self.$KP_NAME.as_ssh_key_data()
@@ -296,8 +296,8 @@ define_derive_deftly! {
     /// in a keystore.
 
     impl $crate::EncodableItem for $ttype {
-        fn key_type() -> $crate::KeyType {
-            $crate::KeyType::X25519StaticKeypair
+        fn item_type() -> $crate::KeystoreItemType {
+            $crate::KeyType::X25519StaticKeypair.into()
         }
         fn as_ssh_key_data(&self) -> $crate::Result<$crate::SshKeyData> {
             self.$KP_NAME.as_ssh_key_data()

@@ -93,9 +93,6 @@ macro_rules! declare_item_type {
         }
 
         /// A type of item stored in a keystore.
-        ///
-        // XXX: replace KeyType in EncodableKey implementation with KeystoreItemType
-        // (because EncodableKey will soon be used for encoding certificates too)
         #[derive(Clone, PartialEq, Eq, Hash)]
         #[non_exhaustive]
         pub enum KeystoreItemType {

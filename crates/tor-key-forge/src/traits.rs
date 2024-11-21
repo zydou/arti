@@ -44,8 +44,7 @@ pub trait Keygen {
 // (as a `dyn EncodableItem`).
 pub trait EncodableItem: Downcast {
     /// The type of the key.
-    // XXX: rename to item_type as per doc/dev/notes/keymgr-certificates.md
-    fn key_type() -> KeyType
+    fn item_type() -> KeystoreItemType
     where
         Self: Sized;
 
@@ -172,11 +171,11 @@ impl Keygen for curve25519::StaticKeypair {
 }
 
 impl EncodableItem for curve25519::StaticKeypair {
-    fn key_type() -> KeyType
+    fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
-        KeyType::X25519StaticKeypair
+        KeyType::X25519StaticKeypair.into()
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
@@ -194,11 +193,11 @@ impl EncodableItem for curve25519::StaticKeypair {
 }
 
 impl EncodableItem for curve25519::PublicKey {
-    fn key_type() -> KeyType
+    fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
-        KeyType::X25519PublicKey
+        KeyType::X25519PublicKey.into()
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
@@ -222,11 +221,11 @@ impl Keygen for ed25519::Keypair {
 }
 
 impl EncodableItem for ed25519::Keypair {
-    fn key_type() -> KeyType
+    fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
-        KeyType::Ed25519Keypair
+        KeyType::Ed25519Keypair.into()
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
@@ -240,11 +239,11 @@ impl EncodableItem for ed25519::Keypair {
 }
 
 impl EncodableItem for ed25519::PublicKey {
-    fn key_type() -> KeyType
+    fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
-        KeyType::Ed25519PublicKey
+        KeyType::Ed25519PublicKey.into()
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
@@ -266,11 +265,11 @@ impl Keygen for ed25519::ExpandedKeypair {
 }
 
 impl EncodableItem for ed25519::ExpandedKeypair {
-    fn key_type() -> KeyType
+    fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
-        KeyType::Ed25519ExpandedKeypair
+        KeyType::Ed25519ExpandedKeypair.into()
     }
 
     fn as_ssh_key_data(&self) -> Result<SshKeyData> {
