@@ -8,7 +8,7 @@ pub(crate) mod fs_utils;
 #[cfg(feature = "ephemeral-keystore")]
 pub(crate) mod ephemeral;
 
-use tor_key_forge::{EncodableKey, ErasedKey, KeyType};
+use tor_key_forge::{EncodableItem, ErasedKey, KeyType};
 
 use crate::{KeyPath, KeySpecifier, KeystoreId, Result};
 
@@ -31,12 +31,12 @@ pub trait Keystore: Send + Sync + 'static {
 
     /// Write `key` to the key store.
     //
-    // Note: the key_type argument here might seem redundant: `key` implements `EncodableKey`,
+    // Note: the key_type argument here might seem redundant: `key` implements `EncodableItem`,
     // which has a `key_type` function. However:
-    //   * `key_type` is an associated function on `EncodableKey`, not a method, which means we
-    //   can't call it on `key: &dyn EncodableKey` (you can't call an associated function of trait
+    //   * `key_type` is an associated function on `EncodableItem`, not a method, which means we
+    //   can't call it on `key: &dyn EncodableItem` (you can't call an associated function of trait
     //   object). The caller of `Keystore::insert` (i.e. `KeyMgr`) OTOH _can_ call `K::key_type()`
-    //   on the `EncodableKey` because the concrete type `K` that implements `EncodableKey` is
+    //   on the `EncodableItem` because the concrete type `K` that implements `EncodableItem` is
     //   known.
     //  * one could argue I should make `key_type` a `&self` method rather than an associated function,
     //   which would fix this problem (and enable us to remove the additional `key_type` param).
@@ -48,7 +48,7 @@ pub trait Keystore: Send + Sync + 'static {
     // TODO: Maybe we can refactor this API and remove the "redundant" param somehow.
     fn insert(
         &self,
-        key: &dyn EncodableKey,
+        key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> Result<()>;

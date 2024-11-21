@@ -41,18 +41,20 @@ pub trait Keygen {
 // When adding a new `EncodableKey` impl, you must also update
 // [`SshKeyData::into_erased`](crate::SshKeyData::into_erased) to
 // return the corresponding concrete type implementing `EncodableKey`
-// (as a `dyn EncodableKey`).
-pub trait EncodableKey: Downcast {
+// (as a `dyn EncodableItem`).
+pub trait EncodableItem: Downcast {
     /// The type of the key.
+    // XXX: rename to item_type as per doc/dev/notes/keymgr-certificates.md
     fn key_type() -> KeyType
     where
         Self: Sized;
 
     /// Return the [`SshKeyData`] of this key.
+    // XXX: rename to as_keystore_item as per doc/dev/notes/keymgr-certificates.md
     fn as_ssh_key_data(&self) -> Result<SshKeyData>;
 }
 
-impl_downcast!(EncodableKey);
+impl_downcast!(EncodableItem);
 
 /// A public key, keypair, or key certificate.
 #[derive(Debug, Clone, derive_more::From)]
@@ -87,14 +89,14 @@ impl KeystoreItem {
 //
 // `ToEncodableKey` is used in the `KeyMgr` impl, where the associated type isn't an issue because
 // the `KeyMgr` implementation is generic over `K: ToEncodableKey`. The `Keystore`s themselves only
-// receive `&dyn EncodableKey`s.
+// receive `&dyn EncodableItem`s.
 //
 pub trait ToEncodableKey: From<Self::KeyPair>
 where
     Self::Key: From<<Self::KeyPair as ToEncodableKey>::Key>,
 {
     /// The key type this can be converted to/from.
-    type Key: EncodableKey + 'static;
+    type Key: EncodableItem + 'static;
 
     /// The KeyPair (secret+public) of which this key is a subset.  For secret
     /// keys, this type is Self.  For public keys, this type is the
@@ -117,9 +119,7 @@ where
 /// `K` represents the (Rust) type of the subject key.
 pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
     /// The low-level type this can be converted to/from.
-    // XXX: EncodableKey is now a misnomer, because it encodes keys *and* certs.
-    // We need to rename it to EncodableItem as per doc/dev/notes/keymgr-certificates.md
-    type Cert: EncodableKey + 'static;
+    type Cert: EncodableItem + 'static;
 
     /// The (Rust) type of the signing key.
     type SigningKey: ToEncodableKey;
@@ -171,7 +171,7 @@ impl Keygen for curve25519::StaticKeypair {
     }
 }
 
-impl EncodableKey for curve25519::StaticKeypair {
+impl EncodableItem for curve25519::StaticKeypair {
     fn key_type() -> KeyType
     where
         Self: Sized,
@@ -193,7 +193,7 @@ impl EncodableKey for curve25519::StaticKeypair {
     }
 }
 
-impl EncodableKey for curve25519::PublicKey {
+impl EncodableItem for curve25519::PublicKey {
     fn key_type() -> KeyType
     where
         Self: Sized,
@@ -221,7 +221,7 @@ impl Keygen for ed25519::Keypair {
     }
 }
 
-impl EncodableKey for ed25519::Keypair {
+impl EncodableItem for ed25519::Keypair {
     fn key_type() -> KeyType
     where
         Self: Sized,
@@ -239,7 +239,7 @@ impl EncodableKey for ed25519::Keypair {
     }
 }
 
-impl EncodableKey for ed25519::PublicKey {
+impl EncodableItem for ed25519::PublicKey {
     fn key_type() -> KeyType
     where
         Self: Sized,
@@ -265,7 +265,7 @@ impl Keygen for ed25519::ExpandedKeypair {
     }
 }
 
-impl EncodableKey for ed25519::ExpandedKeypair {
+impl EncodableItem for ed25519::ExpandedKeypair {
     fn key_type() -> KeyType
     where
         Self: Sized,

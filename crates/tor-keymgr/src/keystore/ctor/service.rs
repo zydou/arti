@@ -5,7 +5,7 @@
 use crate::keystore::ctor::err::{CTorKeystoreError, MalformedServiceKeyError};
 use crate::keystore::ctor::CTorKeystore;
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError};
-use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore, KeystoreId};
+use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore, KeystoreId};
 use crate::{CTorPath, CTorServicePath, KeyPath, Result};
 
 use fs_mistrust::Mistrust;
@@ -177,7 +177,7 @@ impl Keystore for CTorServiceKeystore {
 
     fn insert(
         &self,
-        _key: &dyn EncodableKey,
+        _key: &dyn EncodableItem,
         _key_spec: &dyn KeySpecifier,
         _key_type: &KeyType,
     ) -> Result<()> {

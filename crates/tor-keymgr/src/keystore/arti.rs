@@ -11,7 +11,7 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
-use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
+use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
 use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result};
 use err::ArtiNativeKeystoreError;
 use ssh::UnparsedOpenSshKey;
@@ -166,7 +166,7 @@ impl Keystore for ArtiNativeKeystore {
 
     fn insert(
         &self,
-        key: &dyn EncodableKey,
+        key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> Result<()> {

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tor_error::internal;
-use tor_key_forge::{EncodableKey, ErasedKey, KeyType, SshKeyData};
+use tor_key_forge::{EncodableItem, ErasedKey, KeyType, SshKeyData};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;
@@ -77,7 +77,7 @@ impl Keystore for ArtiEphemeralKeystore {
 
     fn insert(
         &self,
-        key: &dyn EncodableKey,
+        key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
         key_type: &KeyType,
     ) -> Result<(), Error> {
@@ -95,8 +95,8 @@ impl Keystore for ArtiEphemeralKeystore {
         if &key_data.key_type()? != key_type {
             // This can never happen unless:
             //   * Keystore::insert is called directly with an incorrect KeyType for `key`, or
-            //   * Keystore::insert is called via KeyMgr, but the EncodableKey implementation of
-            //   the key is broken. EncodableKey can't be implemented by external types,
+            //   * Keystore::insert is called via KeyMgr, but the EncodableItem implementation of
+            //   the key is broken. EncodableItem can't be implemented by external types,
             //   so a broken implementation means we have an internal bug.
             return Err(internal!(
                 "the specified KeyType does not match key type of the inserted key?!"

@@ -10,7 +10,7 @@ use std::str::FromStr as _;
 use crate::keystore::ctor::err::{CTorKeystoreError, MalformedClientKeyError};
 use crate::keystore::ctor::CTorKeystore;
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
-use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
+use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
 use crate::{CTorPath, KeyPath, KeystoreId, Result};
 
 use fs_mistrust::Mistrust;
@@ -249,7 +249,7 @@ impl Keystore for CTorClientKeystore {
 
     fn insert(
         &self,
-        _key: &dyn EncodableKey,
+        _key: &dyn EncodableItem,
         _key_spec: &dyn KeySpecifier,
         _key_type: &KeyType,
     ) -> Result<()> {

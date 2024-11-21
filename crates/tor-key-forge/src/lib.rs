@@ -52,7 +52,7 @@ mod traits;
 pub use err::Error;
 pub use key_type::{CertType, KeyType, KeystoreItemType};
 pub use ssh::{SshKeyAlgorithm, SshKeyData};
-pub use traits::{EncodableKey, Keygen, KeygenRng, ToEncodableCert, ToEncodableKey};
+pub use traits::{EncodableItem, Keygen, KeygenRng, ToEncodableCert, ToEncodableKey};
 
 // Needed to export our derive_deftly macros.
 #[doc(hidden)]
@@ -65,4 +65,4 @@ pub use macros::deps as macro_deps;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// A type-erased key. Used by the tor-keymgr.
-pub type ErasedKey = Box<dyn traits::EncodableKey>;
+pub type ErasedKey = Box<dyn traits::EncodableItem>;

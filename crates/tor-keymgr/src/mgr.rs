@@ -11,7 +11,7 @@ use itertools::Itertools;
 use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
-use tor_key_forge::{EncodableKey, KeyType, Keygen, KeygenRng, ToEncodableKey};
+use tor_key_forge::{EncodableItem, KeyType, Keygen, KeygenRng, ToEncodableKey};
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
@@ -438,7 +438,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_key_forge::{EncodableKey, ErasedKey, SshKeyData};
+    use tor_key_forge::{EncodableItem, ErasedKey, SshKeyData};
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.
@@ -488,7 +488,7 @@ mod tests {
         }
     }
 
-    impl EncodableKey for TestKey {
+    impl EncodableItem for TestKey {
         fn key_type() -> KeyType
         where
             Self: Sized,
@@ -515,7 +515,7 @@ mod tests {
         }
     }
 
-    impl EncodableKey for TestPublicKey {
+    impl EncodableItem for TestPublicKey {
         fn key_type() -> KeyType
         where
             Self: Sized,
@@ -591,12 +591,12 @@ mod tests {
                         .read()
                         .unwrap()
                         .get(&(key_spec.arti_path().unwrap(), key_type.clone()))
-                        .map(|k| Box::new(k.clone()) as Box<dyn EncodableKey>))
+                        .map(|k| Box::new(k.clone()) as Box<dyn EncodableItem>))
                 }
 
                 fn insert(
                     &self,
-                    key: &dyn EncodableKey,
+                    key: &dyn EncodableItem,
                     key_spec: &dyn KeySpecifier,
                     key_type: &KeyType,
                 ) -> Result<()> {
