@@ -55,6 +55,7 @@ pub struct OnionServiceConfig {
     max_concurrent_streams_per_circuit: u32,
 
     /// If true, we will require proof-of-work when we're under heavy load.
+    // TODO POW: If this is set to true but the pow feature is disabled we should error.
     #[builder(default = "false")]
     #[deftly(publisher_view)]
     pub(crate) enable_pow: bool,
