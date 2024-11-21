@@ -48,9 +48,8 @@ pub trait EncodableItem: Downcast {
     where
         Self: Sized;
 
-    /// Return the [`SshKeyData`] of this key.
-    // XXX: rename to as_keystore_item as per doc/dev/notes/keymgr-certificates.md
-    fn as_ssh_key_data(&self) -> Result<SshKeyData>;
+    /// Return the key as a [`KeystoreItem`].
+    fn as_keystore_item(&self) -> Result<KeystoreItem>;
 }
 
 impl_downcast!(EncodableItem);
@@ -189,7 +188,7 @@ impl EncodableItem for curve25519::StaticKeypair {
         KeyType::X25519StaticKeypair.into()
     }
 
-    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
@@ -199,7 +198,7 @@ impl EncodableItem for curve25519::StaticKeypair {
         );
         let keypair = OpaqueKeypair::new(self.secret.to_bytes().to_vec(), ssh_public);
 
-        SshKeyData::try_from_keypair_data(KeypairData::Other(keypair))
+        SshKeyData::try_from_keypair_data(KeypairData::Other(keypair)).map(KeystoreItem::from)
     }
 }
 
@@ -211,14 +210,14 @@ impl EncodableItem for curve25519::PublicKey {
         KeyType::X25519PublicKey.into()
     }
 
-    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
         let ssh_public =
             OpaquePublicKey::new(self.to_bytes().to_vec(), Algorithm::Other(algorithm_name));
 
-        SshKeyData::try_from_key_data(KeyData::Other(ssh_public))
+        SshKeyData::try_from_key_data(KeyData::Other(ssh_public)).map(KeystoreItem::from)
     }
 }
 
@@ -239,13 +238,13 @@ impl EncodableItem for ed25519::Keypair {
         KeyType::Ed25519Keypair.into()
     }
 
-    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let keypair = Ed25519Keypair {
             public: Ed25519PublicKey(self.verifying_key().to_bytes()),
             private: Ed25519PrivateKey::from_bytes(self.as_bytes()),
         };
 
-        SshKeyData::try_from_keypair_data(KeypairData::Ed25519(keypair))
+        SshKeyData::try_from_keypair_data(KeypairData::Ed25519(keypair)).map(KeystoreItem::from)
     }
 }
 
@@ -257,10 +256,10 @@ impl EncodableItem for ed25519::PublicKey {
         KeyType::Ed25519PublicKey.into()
     }
 
-    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let key_data = Ed25519PublicKey(self.to_bytes());
 
-        SshKeyData::try_from_key_data(ssh_key::public::KeyData::Ed25519(key_data))
+        SshKeyData::try_from_key_data(ssh_key::public::KeyData::Ed25519(key_data)).map(KeystoreItem::from)
     }
 }
 
@@ -283,7 +282,7 @@ impl EncodableItem for ed25519::ExpandedKeypair {
         KeyType::Ed25519ExpandedKeypair.into()
     }
 
-    fn as_ssh_key_data(&self) -> Result<SshKeyData> {
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let algorithm_name = AlgorithmName::new(ED25519_EXPANDED_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
 
@@ -294,7 +293,7 @@ impl EncodableItem for ed25519::ExpandedKeypair {
 
         let keypair = OpaqueKeypair::new(self.to_secret_key_bytes().to_vec(), ssh_public);
 
-        SshKeyData::try_from_keypair_data(KeypairData::Other(keypair))
+        SshKeyData::try_from_keypair_data(KeypairData::Other(keypair)).map(KeystoreItem::from)
     }
 }
 

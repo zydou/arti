@@ -152,8 +152,8 @@ define_derive_deftly! {
         fn item_type() -> $crate::KeystoreItemType {
             $crate::KeyType::Ed25519Keypair.into()
         }
-        fn as_ssh_key_data(&self) -> $crate::Result<$crate::SshKeyData> {
-            self.$KP_NAME.as_ssh_key_data()
+        fn as_keystore_item(&self) -> $crate::Result<$crate::KeystoreItem> {
+            self.$KP_NAME.as_keystore_item()
         }
     }
 
@@ -299,8 +299,8 @@ define_derive_deftly! {
         fn item_type() -> $crate::KeystoreItemType {
             $crate::KeyType::X25519StaticKeypair.into()
         }
-        fn as_ssh_key_data(&self) -> $crate::Result<$crate::SshKeyData> {
-            self.$KP_NAME.as_ssh_key_data()
+        fn as_keystore_item(&self) -> $crate::Result<$crate::KeystoreItem> {
+            self.$KP_NAME.as_keystore_item()
         }
     }
 

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tor_error::internal;
-use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItemType, SshKeyData};
+use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType, SshKeyData};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;
@@ -30,7 +30,7 @@ pub struct ArtiEphemeralKeystore {
     /// Identifier hard-coded to 'ephemeral'
     id: KeystoreId,
     /// Keys stored as [`SshKeyData`].
-    key_dictionary: Arc<Mutex<HashMap<KeyIdent, SshKeyData>>>,
+    key_dictionary: Arc<Mutex<HashMap<KeyIdent, KeystoreItem>>>,
 }
 
 impl ArtiEphemeralKeystore {
@@ -72,7 +72,8 @@ impl Keystore for ArtiEphemeralKeystore {
         let key_dictionary = self.key_dictionary.lock().expect("lock poisoned");
         match key_dictionary.get(&(arti_path.clone(), item_type.clone())) {
             Some(key) => {
-                let key: ErasedKey = key.clone().into_erased()?;
+                let key: KeystoreItem = key.clone();
+                let key: ErasedKey = key.into_erased()?;
                 Ok(Some(key))
             }
             None => Ok(None),
@@ -88,7 +89,7 @@ impl Keystore for ArtiEphemeralKeystore {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
-        let key_data = key.as_ssh_key_data()?;
+        let key_data = key.as_keystore_item()?;
 
         // TODO: add item_type validation to Keystore::get and Keystore::remove.
         // The presence of a key with a mismatched item_type can be either due to keystore
@@ -96,7 +97,7 @@ impl Keystore for ArtiEphemeralKeystore {
         // that).
         //
         // TODO: add item_type validation to ArtiNativeKeystore
-        if &KeystoreItemType::from(key_data.key_type()?) != item_type {
+        if key_data.item_type()? != *item_type {
             // This can never happen unless:
             //   * Keystore::insert is called directly with an incorrect KeystoreItemType for `key`, or
             //   * Keystore::insert is called via KeyMgr, but the EncodableItem implementation of

@@ -438,14 +438,14 @@ mod tests {
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_key_forge::{EncodableItem, ErasedKey, KeyType, SshKeyData};
+    use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeyType};
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.
     #[derive(Clone, Debug)]
     struct TestKey {
         /// The underlying key.
-        key: SshKeyData,
+        key: KeystoreItem,
         /// Some metadata about the key
         meta: String,
     }
@@ -454,7 +454,7 @@ mod tests {
     #[derive(Clone, Debug)]
     struct TestPublicKey {
         /// The underlying key.
-        key: SshKeyData,
+        key: KeystoreItem,
     }
 
     impl From<TestKey> for TestPublicKey {
@@ -469,7 +469,7 @@ mod tests {
             let mut rng = testing_rng();
             TestKey {
                 key: ed25519::Keypair::generate(&mut rng)
-                    .as_ssh_key_data()
+                    .as_keystore_item()
                     .unwrap(),
                 meta: meta.into(),
             }
@@ -482,7 +482,7 @@ mod tests {
             Self: Sized,
         {
             Ok(TestKey {
-                key: ed25519::Keypair::generate(&mut rng).as_ssh_key_data()?,
+                key: ed25519::Keypair::generate(&mut rng).as_keystore_item()?,
                 meta: "generated_test_key".into(),
             })
         }
@@ -497,7 +497,7 @@ mod tests {
             KeyType::Ed25519Keypair.into()
         }
 
-        fn as_ssh_key_data(&self) -> tor_key_forge::Result<SshKeyData> {
+        fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             Ok(self.key.clone())
         }
     }
@@ -523,7 +523,7 @@ mod tests {
             KeyType::Ed25519PublicKey.into()
         }
 
-        fn as_ssh_key_data(&self) -> tor_key_forge::Result<SshKeyData> {
+        fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             Ok(self.key.clone())
         }
     }
@@ -603,7 +603,7 @@ mod tests {
                     let key = key.downcast_ref::<TestKey>().unwrap();
                     let value = &key.meta;
                     let key = TestKey {
-                        key: key.as_ssh_key_data()?,
+                        key: key.as_keystore_item()?,
                         meta: format!("{}_{value}", self.id()),
                     };
 

@@ -21,7 +21,7 @@ use itertools::Itertools;
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
-use tor_key_forge::KeystoreItemType;
+use tor_key_forge::{KeystoreItem, KeystoreItemType};
 
 /// The Arti key store.
 ///
@@ -196,13 +196,16 @@ impl Keystore for ArtiNativeKeystore {
         }
 
         // XXX handle certs too
-        let key = key.as_ssh_key_data()?;
-        // TODO (#1095): decide what information, if any, to put in the comment
-        let comment = "";
+        let item_bytes = match key.as_keystore_item()? {
+            KeystoreItem::Key(key) => {
+                // TODO (#1095): decide what information, if any, to put in the comment
+                let comment = "";
+                key.to_openssh_string(comment)?
+            },
+            _ => unimplemented!("insert cert"),
+        };
 
-        let openssh_key = key.to_openssh_string(comment)?;
-
-        Ok(checked_op!(write_and_replace, path, openssh_key)
+        Ok(checked_op!(write_and_replace, path, item_bytes)
             .map_err(|err| FilesystemError::FsMistrust {
                 action: FilesystemAction::Write,
                 path: unchecked_path.into(),

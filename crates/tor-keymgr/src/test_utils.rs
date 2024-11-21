@@ -147,7 +147,7 @@ mod specifier {
 #[cfg(test)]
 mod key {
     use crate::EncodableItem;
-    use tor_key_forge::{KeystoreItemType, SshKeyData};
+    use tor_key_forge::{KeystoreItemType, KeystoreItem};
 
     /// A dummy key.
     ///
@@ -164,7 +164,7 @@ mod key {
             todo!()
         }
 
-        fn as_ssh_key_data(&self) -> tor_key_forge::Result<SshKeyData> {
+        fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             todo!()
         }
     }
