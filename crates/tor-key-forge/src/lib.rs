@@ -42,6 +42,7 @@
 #![allow(clippy::needless_lifetimes)] // See arti#1765
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+mod certs;
 mod err;
 mod key_type;
 mod macros;

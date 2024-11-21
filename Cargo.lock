@@ -5995,6 +5995,7 @@ dependencies = [
  "ssh-key",
  "thiserror 2.0.3",
  "tor-basic-utils",
+ "tor-cert",
  "tor-error",
  "tor-hscrypto",
  "tor-llcrypto",
