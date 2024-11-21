@@ -16,6 +16,7 @@ use tor_hscrypto::pk::{
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::certs::CertData;
+use crate::key_type::CertType;
 use crate::{
     ssh::{SshKeyData, ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME},
     ErasedKey, KeyType, KeystoreItemType, Result,
@@ -295,6 +296,19 @@ impl EncodableItem for ed25519::ExpandedKeypair {
         let keypair = OpaqueKeypair::new(self.to_secret_key_bytes().to_vec(), ssh_public);
 
         SshKeyData::try_from_keypair_data(KeypairData::Other(keypair)).map(KeystoreItem::from)
+    }
+}
+
+impl EncodableItem for tor_cert::EncodedEd25519Cert {
+    fn item_type() -> KeystoreItemType
+    where
+        Self: Sized,
+    {
+        CertType::Ed25519TorCert.into()
+    }
+
+    fn as_keystore_item(&self) -> Result<KeystoreItem> {
+        Ok(CertData::TorEd25519Cert(self.clone()).into())
     }
 }
 

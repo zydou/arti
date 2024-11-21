@@ -18,7 +18,8 @@ impl CertData {
     /// The caller is expected to downcast the value returned to the correct concrete type.
     #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn into_erased(self) -> Result<ErasedKey> {
-        // XXX must implement EncodableKey for EncodedEd25519Cert
-        todo!()
+        match self {
+            Self::TorEd25519Cert(cert) => Ok(Box::new(cert)),
+        }
     }
 }

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tor_error::internal;
-use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType, SshKeyData};
+use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeystoreItemType};
 
 use crate::keystore::ephemeral::err::ArtiEphemeralKeystoreError;
 use crate::Error;
@@ -18,7 +18,7 @@ type KeyIdent = (ArtiPath, KeystoreItemType);
 /// The Ephemeral Arti key store
 ///
 /// This is a purely in-memory key store. Keys written to this store
-/// are never written to disk, and are stored in-memory as [`SshKeyData`].
+/// are never written to disk, and are stored in-memory as [`KeystoreItem`]s.
 /// Keys saved in this Keystore do not persist between restarts!
 ///
 /// While Arti never writes the keys for this key store to disk, the operating
@@ -29,7 +29,7 @@ type KeyIdent = (ArtiPath, KeystoreItemType);
 pub struct ArtiEphemeralKeystore {
     /// Identifier hard-coded to 'ephemeral'
     id: KeystoreId,
-    /// Keys stored as [`SshKeyData`].
+    /// Keys stored as [`KeystoreItem`].
     key_dictionary: Arc<Mutex<HashMap<KeyIdent, KeystoreItem>>>,
 }
 
