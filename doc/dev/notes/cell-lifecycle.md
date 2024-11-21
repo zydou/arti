@@ -9,6 +9,10 @@ the *current* state of affairs.
 > *not* the high-level life cycle of a circuit or channel.
 > You can read about about the life cycle of circuits and channels
 > in the [`ClientCirc`] and [`Channel`] docs, respectively.
+>
+> Stream management and prioritization is also not covered here.
+> See the `StreamMap`, `StreamPollSet` docs, and the use of `StreamMap`
+> in the circuit reactor to learn about stream management.
 
 ## TLDR
 
