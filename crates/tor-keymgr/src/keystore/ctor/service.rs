@@ -141,7 +141,11 @@ impl Keystore for CTorServiceKeystore {
         }
     }
 
-    fn get(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<ErasedKey>> {
+    fn get(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<ErasedKey>> {
         use KeystoreItemType::*;
 
         let path = rel_path_if_supported!(self, key_spec, Ok(None), item_type);
@@ -188,7 +192,11 @@ impl Keystore for CTorServiceKeystore {
         Err(CTorKeystoreError::NotSupported { action: "insert" }.into())
     }
 
-    fn remove(&self, _key_spec: &dyn KeySpecifier, _item_type: &KeystoreItemType) -> Result<Option<()>> {
+    fn remove(
+        &self,
+        _key_spec: &dyn KeySpecifier,
+        _item_type: &KeystoreItemType,
+    ) -> Result<Option<()>> {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
@@ -400,7 +408,10 @@ mod tests {
         };
 
         let err = keystore
-            .remove(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey.into())
+            .remove(
+                &TestCTorSpecifier(path.clone()),
+                &KeyType::Ed25519PublicKey.into(),
+            )
             .unwrap_err();
 
         assert_eq!(err.to_string(), "Operation not supported: remove");

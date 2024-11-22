@@ -27,7 +27,11 @@ pub trait Keystore: Send + Sync + 'static {
     ///
     /// Returns `Ok(Some(key))` if the key was successfully retrieved. Returns `Ok(None)` if the
     /// key does not exist in this key store.
-    fn get(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<ErasedKey>>;
+    fn get(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<ErasedKey>>;
 
     /// Write `key` to the key store.
     //
@@ -59,7 +63,11 @@ pub trait Keystore: Send + Sync + 'static {
     /// `Ok(Some(())` means the key was successfully removed.
     ///
     /// Returns `Err` if an error occurred while trying to remove the key.
-    fn remove(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<()>>;
+    fn remove(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<()>>;
 
     /// List all the keys in this keystore.
     fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>>;

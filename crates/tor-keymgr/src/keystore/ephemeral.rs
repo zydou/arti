@@ -48,7 +48,11 @@ impl Keystore for ArtiEphemeralKeystore {
         &self.id
     }
 
-    fn contains(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<bool, Error> {
+    fn contains(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<bool, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;
@@ -110,7 +114,11 @@ impl Keystore for ArtiEphemeralKeystore {
         Ok(())
     }
 
-    fn remove(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<()>, Error> {
+    fn remove(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<()>, Error> {
         let arti_path = key_spec
             .arti_path()
             .map_err(ArtiEphemeralKeystoreError::ArtiPathUnavailableError)?;

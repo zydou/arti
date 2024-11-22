@@ -142,7 +142,11 @@ impl Keystore for ArtiNativeKeystore {
         }
     }
 
-    fn get(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<ErasedKey>> {
+    fn get(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<ErasedKey>> {
         let path = rel_path_if_supported!(self.rel_path(key_spec, item_type), Ok(None));
 
         let inner = match checked_op!(read_to_string, path) {
@@ -207,7 +211,11 @@ impl Keystore for ArtiNativeKeystore {
             .map_err(ArtiNativeKeystoreError::Filesystem)?)
     }
 
-    fn remove(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<()>> {
+    fn remove(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<()>> {
         let rel_path = self
             .rel_path(key_spec, item_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
@@ -436,7 +444,10 @@ mod tests {
 
         assert_eq!(
             key_store
-                .rel_path(&TestSpecifier::default(), &KeyType::X25519StaticKeypair.into())
+                .rel_path(
+                    &TestSpecifier::default(),
+                    &KeyType::X25519StaticKeypair.into()
+                )
                 .unwrap()
                 .rel_path_unchecked(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private")

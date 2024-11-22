@@ -159,11 +159,7 @@ impl KeyMgr {
     pub fn get_entry<K: ToEncodableKey>(&self, entry: &KeystoreEntry) -> Result<Option<K>> {
         let selector = entry.keystore_id().into();
         let store = self.select_keystore(&selector)?;
-        self.get_from_store(
-            entry.key_path(),
-            entry.key_type(),
-            [store].into_iter(),
-        )
+        self.get_from_store(entry.key_path(), entry.key_type(), [store].into_iter())
     }
 
     /// Read the key identified by `key_spec`.
@@ -443,7 +439,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_key_forge::{EncodableItem, ErasedKey, SshKeyData, KeyType};
+    use tor_key_forge::{EncodableItem, ErasedKey, KeyType, SshKeyData};
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.

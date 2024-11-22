@@ -239,7 +239,11 @@ impl Keystore for CTorClientKeystore {
         self.get(key_spec, item_type).map(|k| k.is_some())
     }
 
-    fn get(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<Option<ErasedKey>> {
+    fn get(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<ErasedKey>> {
         let want_hsid = hsid_if_supported!(key_spec, Ok(None), item_type);
         Ok(self
             .list_keys()?
@@ -256,7 +260,11 @@ impl Keystore for CTorClientKeystore {
         Err(CTorKeystoreError::NotSupported { action: "insert" }.into())
     }
 
-    fn remove(&self, _key_spec: &dyn KeySpecifier, _item_type: &KeystoreItemType) -> Result<Option<()>> {
+    fn remove(
+        &self,
+        _key_spec: &dyn KeySpecifier,
+        _item_type: &KeystoreItemType,
+    ) -> Result<Option<()>> {
         Err(CTorKeystoreError::NotSupported { action: "remove" }.into())
     }
 
@@ -412,7 +420,10 @@ mod tests {
         let path = CTorPath::ClientHsDescEncKey(HsId::from_str(HSID).unwrap());
 
         let err = keystore
-            .get(&TestCTorSpecifier(path.clone()), &KeyType::Ed25519PublicKey.into())
+            .get(
+                &TestCTorSpecifier(path.clone()),
+                &KeyType::Ed25519PublicKey.into(),
+            )
             .map(|_| ())
             .unwrap_err();
 
