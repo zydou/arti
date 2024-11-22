@@ -702,6 +702,17 @@ mod test {
     // than is necessary.  `t`/`f` would be better representation.  But it's fine for tests.
     impl KeySpecifierComponentViaDisplayFromStr for bool {}
 
+    impl PartialEq for ArtiPathSyntaxError {
+        fn eq(&self, other: &Self) -> bool {
+            use ArtiPathSyntaxError::*;
+
+            match (self, other) {
+                (Slug(err1), Slug(err2)) => err1 == err2,
+                _ => false,
+            }
+        }
+    }
+
     // TODO many of these tests should be in arti_path.rs
 
     fn test_time_period() -> TimePeriod {

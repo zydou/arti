@@ -71,13 +71,17 @@ impl HasKind for Error {
 ///
 /// (Does not include any errors arising from paths which are invalid
 /// *for the particular key*.)
-#[derive(thiserror::Error, Debug, Clone, Eq, PartialEq)]
+#[derive(thiserror::Error, Debug, Clone)]
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
 pub enum ArtiPathSyntaxError {
     /// One of the path slugs was invalid.
     #[error("{0}")]
     Slug(#[from] BadSlug),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 /// An error caused by keystore corruption.
