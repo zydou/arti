@@ -11,7 +11,7 @@ use itertools::Itertools;
 use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal};
-use tor_key_forge::{EncodableItem, KeyType, Keygen, KeygenRng, KeystoreItemType, ToEncodableKey};
+use tor_key_forge::{EncodableItem, Keygen, KeygenRng, KeystoreItemType, ToEncodableKey};
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
