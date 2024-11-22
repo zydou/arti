@@ -13,7 +13,7 @@ use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage};
 use tor_key_forge::{
-    EncodableItem, KeyType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
+    EncodableItem, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
 };
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
