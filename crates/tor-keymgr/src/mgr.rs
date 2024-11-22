@@ -347,14 +347,16 @@ impl KeyMgr {
 
     /// Attempt to retrieve a key from one of the specified `stores`.
     ///
+    /// Returns the `<K as ToEncodableKey>::Key` representation of the key.
+    ///
     /// See [`KeyMgr::get`] for more details.
-    fn get_from_store<'a, K: ToEncodableKey>(
+    fn get_from_store_raw<'a, K: EncodableItem>(
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeystoreItemType,
         stores: impl Iterator<Item = &'a BoxedKeystore>,
     ) -> Result<Option<K>> {
-        let static_key_type = K::Key::item_type();
+        let static_key_type = K::item_type();
         if key_type != &static_key_type {
             return Err(internal!(
                 "key type {:?} does not match the key type {:?} of requested key K::Key",
@@ -365,7 +367,7 @@ impl KeyMgr {
         }
 
         for store in stores {
-            let key = match store.get(key_spec, &K::Key::item_type()) {
+            let key = match store.get(key_spec, &K::item_type()) {
                 Ok(None) => {
                     // The key doesn't exist in this store, so we check the next one...
                     continue;
@@ -378,15 +380,31 @@ impl KeyMgr {
             };
 
             // Found it! Now try to downcast it to the right type (this should _not_ fail)...
-            let key: K::Key = key
-                .downcast::<K::Key>()
+            let key: K = key
+                .downcast::<K>()
                 .map(|k| *k)
                 .map_err(|_| internal!("failed to downcast key to requested type"))?;
 
-            return Ok(Some(K::from_encodable_key(key)));
+            return Ok(Some(key));
         }
 
         Ok(None)
+    }
+
+    /// Attempt to retrieve a key from one of the specified `stores`.
+    ///
+    /// See [`KeyMgr::get`] for more details.
+    fn get_from_store<'a, K: ToEncodableKey>(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        key_type: &KeystoreItemType,
+        stores: impl Iterator<Item = &'a BoxedKeystore>,
+    ) -> Result<Option<K>> {
+        let Some(key) = self.get_from_store_raw::<K::Key>(key_spec, key_type, stores)? else {
+            return Ok(None);
+        };
+
+        Ok(Some(K::from_encodable_key(key)))
     }
 
     /// Return an iterator over all configured stores.
