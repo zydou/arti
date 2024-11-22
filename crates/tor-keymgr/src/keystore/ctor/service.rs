@@ -97,9 +97,9 @@ macro_rules! rel_path_if_supported {
         match ($item_type, &path) {
             (Key(KeyType::Ed25519ExpandedKeypair), CTorServicePath::PrivateKey)
             | (Key(KeyType::Ed25519PublicKey), CTorServicePath::PublicKey) => Ok(()),
-            _ => Err(CTorKeystoreError::InvalidKeyType {
-                key_type: $item_type.clone(),
-                key: format!("key {}", relpath.rel_path_unchecked().display_lossy()),
+            _ => Err(CTorKeystoreError::InvalidKeystoreItemType {
+                item_type: $item_type.clone(),
+                item: format!("key {}", relpath.rel_path_unchecked().display_lossy()),
             }),
         }?;
 

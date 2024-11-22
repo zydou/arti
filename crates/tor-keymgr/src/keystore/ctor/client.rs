@@ -74,9 +74,9 @@ macro_rules! hsid_if_supported {
         };
 
         if *$key_type != KeyType::X25519StaticKeypair.into() {
-            return Err(CTorKeystoreError::InvalidKeyType {
-                key_type: $key_type.clone(),
-                key: "client restricted discovery key".into(),
+            return Err(CTorKeystoreError::InvalidKeystoreItemType {
+                item_type: $key_type.clone(),
+                item: "client restricted discovery key".into(),
             }
             .into());
         }
