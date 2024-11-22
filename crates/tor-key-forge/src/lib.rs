@@ -52,7 +52,10 @@ mod traits;
 pub use err::Error;
 pub use key_type::{CertType, KeyType, KeystoreItemType};
 pub use ssh::{SshKeyAlgorithm, SshKeyData};
-pub use traits::{EncodableItem, InvalidCertError, Keygen, KeygenRng, KeystoreItem, ToEncodableCert, ToEncodableKey};
+pub use traits::{
+    EncodableItem, InvalidCertError, Keygen, KeygenRng, KeystoreItem, ToEncodableCert,
+    ToEncodableKey,
+};
 
 // Needed to export our derive_deftly macros.
 #[doc(hidden)]

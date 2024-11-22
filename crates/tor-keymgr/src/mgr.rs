@@ -3,16 +3,18 @@
 //! See the [`KeyMgr`] docs for more details.
 
 use crate::{
-    BoxedKeystore, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoExtractor, KeyPathPattern,
-    KeySpecifier, KeystoreId, KeystoreSelector, Result,
-    KeystoreCorruptionError, KeyCertificateSpecifier, ArtiPath,
+    ArtiPath, BoxedKeystore, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
+    KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeystoreCorruptionError, KeystoreId,
+    KeystoreSelector, Result,
 };
 
 use itertools::Itertools;
 use std::iter;
 use std::result::Result as StdResult;
-use tor_error::{bad_api_usage, into_bad_api_usage, internal};
-use tor_key_forge::{EncodableItem, KeyType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey};
+use tor_error::{bad_api_usage, internal, into_bad_api_usage};
+use tor_key_forge::{
+    EncodableItem, KeyType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
+};
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
 /// any number of secondary [`Keystore`](crate::Keystore)s.
