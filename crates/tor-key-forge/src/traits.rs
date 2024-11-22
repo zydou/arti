@@ -259,7 +259,8 @@ impl EncodableItem for ed25519::PublicKey {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let key_data = Ed25519PublicKey(self.to_bytes());
 
-        SshKeyData::try_from_key_data(ssh_key::public::KeyData::Ed25519(key_data)).map(KeystoreItem::from)
+        SshKeyData::try_from_key_data(ssh_key::public::KeyData::Ed25519(key_data))
+            .map(KeystoreItem::from)
     }
 }
 

@@ -438,7 +438,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_key_forge::{EncodableItem, ErasedKey, KeystoreItem, KeyType};
+    use tor_key_forge::{EncodableItem, ErasedKey, KeyType, KeystoreItem};
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.

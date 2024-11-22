@@ -201,7 +201,7 @@ impl Keystore for ArtiNativeKeystore {
                 // TODO (#1095): decide what information, if any, to put in the comment
                 let comment = "";
                 key.to_openssh_string(comment)?
-            },
+            }
             _ => unimplemented!("insert cert"),
         };
 

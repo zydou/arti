@@ -147,7 +147,7 @@ mod specifier {
 #[cfg(test)]
 mod key {
     use crate::EncodableItem;
-    use tor_key_forge::{KeystoreItemType, KeystoreItem};
+    use tor_key_forge::{KeystoreItem, KeystoreItemType};
 
     /// A dummy key.
     ///
