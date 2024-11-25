@@ -24,7 +24,7 @@ use crate::{
 
 use std::result::Result as StdResult;
 
-/// A random number generator for generating [`EncodableKey`]s.
+/// A random number generator for generating [`EncodableItem`]s.
 pub trait KeygenRng: RngCore + CryptoRng {}
 
 impl<T> KeygenRng for T where T: RngCore + CryptoRng {}
@@ -39,9 +39,9 @@ pub trait Keygen {
 
 /// A key that can be serialized to, and deserialized from.
 //
-// When adding a new `EncodableKey` impl, you must also update
+// When adding a new `EncodableItem` impl, you must also update
 // [`SshKeyData::into_erased`](crate::SshKeyData::into_erased) to
-// return the corresponding concrete type implementing `EncodableKey`
+// return the corresponding concrete type implementing `EncodableItem`
 // (as a `dyn EncodableItem`).
 pub trait EncodableItem: Downcast {
     /// The type of the key.
@@ -86,15 +86,15 @@ impl KeystoreItem {
     }
 }
 
-/// A key that can be converted to an [`EncodableKey`].
+/// A key that can be converted to an [`EncodableItem`].
 //
-// NOTE: Conceptually, the `ToEncodableKey` and `EncodableKey` traits serve the same purpose (they
+// NOTE: Conceptually, the `ToEncodableKey` and `EncodableItem` traits serve the same purpose (they
 // provide information about how to encode/decode a key).
 //
-// The reason we have two traits instead of just one is because `EncodableKey` cannot have an
+// The reason we have two traits instead of just one is because `EncodableItem` cannot have an
 // associated type: for instance, if it did, we'd need to either give
 // `tor-keymgr::Keystore::insert` a generic parameter (which would make `Keystore` object-unsafe),
-// or specify a concrete type for the associated type of the `EncodableKey` (which would defeat the
+// or specify a concrete type for the associated type of the `EncodableItem` (which would defeat the
 // whole purpose of the trait, i.e. to enable users to store their own "encodable key" types).
 //
 // `ToEncodableKey` is used in the `KeyMgr` impl, where the associated type isn't an issue because
@@ -117,10 +117,10 @@ where
     ///
     type KeyPair: ToEncodableKey;
 
-    /// Convert this key to a type that implements [`EncodableKey`].
+    /// Convert this key to a type that implements [`EncodableItem`].
     fn to_encodable_key(self) -> Self::Key;
 
-    /// Convert an [`EncodableKey`] to another key type.
+    /// Convert an [`EncodableItem`] to another key type.
     fn from_encodable_key(key: Self::Key) -> Self;
 }
 
@@ -153,10 +153,10 @@ pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
         signed_with: &Self::SigningKey,
     ) -> StdResult<(), InvalidCertError>;
 
-    /// Convert this cert to a type that implements [`EncodableKey`].
+    /// Convert this cert to a type that implements [`EncodableItem`].
     fn to_encodable_cert(self) -> Self::Cert;
 
-    /// Convert an [`EncodableKey`] to another cert type.
+    /// Convert an [`EncodableItem`] to another cert type.
     fn from_encodable_cert(cert: Self::Cert) -> Self
     where
         Self: Sized;
