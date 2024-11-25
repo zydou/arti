@@ -1,6 +1,6 @@
 //! Helpers for encoding certificate material.
 
-use crate::{ErasedKey, Result};
+use crate::{CertType, ErasedKey, Result};
 use tor_cert::EncodedEd25519Cert;
 
 /// A key certificate.
@@ -20,6 +20,13 @@ impl CertData {
     pub(crate) fn into_erased(self) -> Result<ErasedKey> {
         match self {
             Self::TorEd25519Cert(cert) => Ok(Box::new(cert)),
+        }
+    }
+
+    /// Get the [`CertType`] of this cert.
+    pub(crate) fn cert_type(&self) -> CertType {
+        match self {
+            CertData::TorEd25519Cert(_) => CertType::Ed25519TorCert,
         }
     }
 }

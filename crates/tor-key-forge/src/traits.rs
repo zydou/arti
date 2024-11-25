@@ -70,7 +70,7 @@ impl KeystoreItem {
     pub fn item_type(&self) -> Result<KeystoreItemType> {
         match self {
             KeystoreItem::Key(ssh_key_data) => ssh_key_data.key_type().map(KeystoreItemType::Key),
-            _ => Err(tor_error::internal!("XXX not implemented").into()),
+            KeystoreItem::Cert(cert) => Ok(KeystoreItemType::Cert(cert.cert_type())),
         }
     }
 
