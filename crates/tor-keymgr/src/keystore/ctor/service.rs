@@ -446,7 +446,7 @@ mod tests {
 
         assert_eq!(
             err.to_string(),
-            "Invalid key type X25519StaticKeypair for key hs_ed25519_public_key"
+            "Invalid item type X25519StaticKeypair for key hs_ed25519_public_key"
         );
     }
 

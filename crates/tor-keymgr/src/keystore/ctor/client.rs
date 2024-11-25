@@ -429,7 +429,7 @@ mod tests {
 
         assert_eq!(
             err.to_string(),
-            "Invalid key type Ed25519PublicKey for client restricted discovery key"
+            "Invalid item type Ed25519PublicKey for client restricted discovery key"
         );
     }
 }
