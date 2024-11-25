@@ -5,6 +5,8 @@ use crate::pow::v1::challenge::Challenge;
 use crate::pow::v1::{err::RuntimeErrorV1, err::SolutionErrorV1, types::Instance, types::Solution};
 use equix::{EquiXBuilder, HashError, RuntimeOption};
 
+use super::Seed;
+
 /// Checker for potential [`Solution`]s to a particular puzzle [`Instance`]
 ///
 /// Holds information about the puzzle instance, and optional configuration
@@ -68,5 +70,10 @@ impl Verifier {
         } else {
             Err(SolutionErrorV1::Seed)
         }
+    }
+
+    /// Return the seed for this verifier's instance.
+    pub fn seed(&self) -> &Seed {
+        self.instance.seed()
     }
 }

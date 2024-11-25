@@ -454,7 +454,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::{iter, ops::Bound, time::Duration};
+    use std::{iter, time::Duration};
 
     use hex_literal::hex;
     use itertools::chain;
@@ -525,8 +525,7 @@ mod test {
                 let expected_effort: tor_hscrypto::pow::v1::Effort = 614.into();
                 let expected_seed: tor_hscrypto::pow::v1::Seed =
                     hex!("144e901df0841833a6e8592190849b4412f307d1565f2f137b2a5bc21a31092a").into();
-                let expected_expiry =
-                    Bound::Included(SystemTime::UNIX_EPOCH + Duration::new(1712812537, 0));
+                let expected_expiry = Some(SystemTime::UNIX_EPOCH + Duration::new(1712812537, 0));
                 assert_eq!(v1.suggested_effort(), expected_effort);
                 assert_eq!(
                     v1.seed().to_owned().dangerously_assume_timely(),

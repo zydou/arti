@@ -243,7 +243,7 @@ pub enum FatalError {
     /// The network directory provider is shutting down without giving us the
     /// netdir we asked for.
     #[error("{0}")]
-    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
+    NetdirProviderShutdown(#[from] tor_netdir::NetdirProviderShutdown),
 
     /// A field was missing when we tried to construct a
     /// [`OnionService`](crate::OnionService).

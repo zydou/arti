@@ -54,6 +54,12 @@ pub struct OnionServiceConfig {
     #[builder(default = "65535")]
     max_concurrent_streams_per_circuit: u32,
 
+    /// If true, we will require proof-of-work when we're under heavy load.
+    // TODO POW: If this is set to true but the pow feature is disabled we should error.
+    #[builder(default = "false")]
+    #[deftly(publisher_view)]
+    pub(crate) enable_pow: bool,
+
     /// Configure restricted discovery mode.
     ///
     /// When this is enabled, we encrypt our list of introduction point and keys
@@ -77,8 +83,6 @@ pub struct OnionServiceConfig {
     // pub(crate) anonymity: crate::Anonymity,
 
     // TODO POW: The POW items are disabled for now, since they aren't implemented.
-    // /// If true, we will require proof-of-work when we're under heavy load.
-    // // enable_pow: bool,
     // /// Disable the compiled backend for proof-of-work.
     // // disable_pow_compilation: bool,
 
@@ -222,6 +226,9 @@ impl OnionServiceConfig {
 
             // The descriptor publisher responds by generating and publishing a new descriptor.
             restricted_discovery: simply_update,
+
+            // TODO POW: Verify that simply_update has correct behaviour here.
+            enable_pow: simply_update,
         }
 
         Ok(other)

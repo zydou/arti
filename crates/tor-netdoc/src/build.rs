@@ -15,7 +15,7 @@
 
 use std::fmt::{Display, Write};
 
-use base64ct::{Base64, Encoding};
+use base64ct::{Base64, Base64Unpadded, Encoding};
 use rand::{CryptoRng, RngCore};
 use tor_bytes::EncodeError;
 use tor_error::{internal, Bug};
@@ -215,6 +215,24 @@ impl ItemArgument for Iso8601TimeSp {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         let arg = self.to_string();
         out.args_raw_nonempty(&arg.as_str());
+        Ok(())
+    }
+}
+
+#[cfg(feature = "hs-pow-v1")]
+impl ItemArgument for tor_hscrypto::pow::v1::Seed {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        let mut seed_bytes = vec![];
+        tor_bytes::Writer::write(&mut seed_bytes, &self)?;
+        out.add_arg(&Base64Unpadded::encode_string(&seed_bytes));
+        Ok(())
+    }
+}
+
+#[cfg(feature = "hs-pow-v1")]
+impl ItemArgument for tor_hscrypto::pow::v1::Effort {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        out.add_arg(&<Self as Into<u32>>::into(*self));
         Ok(())
     }
 }

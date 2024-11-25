@@ -16,7 +16,6 @@
 
 use std::future::Future;
 use std::iter;
-use std::ops::Bound;
 use std::time::UNIX_EPOCH;
 
 use futures::select_biased;
@@ -43,8 +42,8 @@ fn example_validity() -> (SystemTime, SystemTime) {
         .dangerously_assume_wellsigned()
         .dangerously_into_parts();
     let ret = |tb| match tb {
-        Bound::Included(t) | Bound::Excluded(t) => t,
-        other => panic!("{:?}", other),
+        Some(t) => t,
+        None => panic!("Time range does not have a starting bound"),
     };
     (ret(t), ret(u))
 }
@@ -595,7 +594,7 @@ fn process_doc() -> Result<(), anyhow::Error> {
             Err("Descriptor is outside its validity time"),
         );
 
-        // TODO ideally we would test the `ops::Bound::Unbounded` case in process_download's
+        // TODO ideally we would test the unbounded case in process_download's
         // expiry time handling, but that would require making a document with unbounded
         // validity time.  Even if that is possible, I don't think we have code in-tree to
         // make signed test documents.

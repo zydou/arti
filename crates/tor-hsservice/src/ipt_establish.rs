@@ -64,7 +64,7 @@ pub(crate) enum IptEstablisherError {
     /// The network directory provider is shutting down without giving us the
     /// netdir we asked for.
     #[error("{0}")]
-    NetdirProviderShutdown(#[from] NetdirProviderShutdown),
+    NetdirProviderShutdown(#[from] tor_netdir::NetdirProviderShutdown),
 
     /// We encountered an error while building a circuit to an intro point.
     #[error("Unable to build circuit to introduction point")]
@@ -678,7 +678,9 @@ impl<R: Runtime> Reactor<R> {
                     // ipt as Faulty. That's important, since we may be about to
                     // wait indefinitely when we call wait_for_netdir_to_list.
                     status_tx.borrow_mut().note_error(&e, self.runtime.now());
-                    wait_for_netdir_to_list(self.netdir_provider.as_ref(), &self.target).await?;
+                    self.netdir_provider
+                        .wait_for_netdir_to_list(&self.target, Timeliness::Timely)
+                        .await?;
                 }
                 Err(e) => {
                     status_tx.borrow_mut().note_error(&e, self.runtime.now());
@@ -703,11 +705,10 @@ impl<R: Runtime> Reactor<R> {
         &self,
     ) -> Result<(IntroPtSession, GoodIptDetails), IptEstablisherError> {
         let (protovers, circuit, ipt_details) = {
-            let netdir = wait_for_netdir(
-                self.netdir_provider.as_ref(),
-                tor_netdir::Timeliness::Timely,
-            )
-            .await?;
+            let netdir = self
+                .netdir_provider
+                .wait_for_netdir(tor_netdir::Timeliness::Timely)
+                .await?;
             let circ_target = netdir
                 .by_ids(&self.target)
                 .ok_or(IptError::IntroPointNotListed)?;

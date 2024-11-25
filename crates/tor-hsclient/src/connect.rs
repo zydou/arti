@@ -1518,7 +1518,6 @@ mod test {
     use super::*;
     use crate::*;
     use futures::FutureExt as _;
-    use std::ops::{Bound, RangeBounds};
     use std::{iter, panic::AssertUnwindSafe};
     use tokio_crate as tokio;
     use tor_async_utils::JoinReadWrite;
@@ -1712,14 +1711,11 @@ mod test {
         );
 
         // Check how long the descriptor is valid for
-        let bounds = data.desc.as_ref().unwrap().bounds();
-        assert_eq!(bounds.start_bound(), Bound::Unbounded);
+        let (start_time, end_time) = data.desc.as_ref().unwrap().bounds();
+        assert_eq!(start_time, None);
 
         let desc_valid_until = humantime::parse_rfc3339("2023-02-11T20:00:00Z").unwrap();
-        assert_eq!(
-            bounds.end_bound(),
-            Bound::Included(desc_valid_until).as_ref()
-        );
+        assert_eq!(end_time, Some(desc_valid_until));
 
         // TODO HS TESTS: check the circuit in got is the one we gave out
 

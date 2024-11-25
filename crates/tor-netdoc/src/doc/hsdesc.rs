@@ -285,12 +285,13 @@ impl HsDesc {
             unchecked_desc
                 .is_valid_at(&valid_at)
                 .map_err(|e| E::OuterValidation(e.into()))?;
-            // It's safe to use dangerously_into_parts() as we've just checked if unchecked_desc is
+            // It's safe to use dangerously_peek() as we've just checked if unchecked_desc is
             // valid at the current time
-            let (unchecked_desc, bounds) = unchecked_desc.dangerously_into_parts();
-            let inner_timerangebound = unchecked_desc.decrypt(subcredential, hsc_desc_enc)?;
+            let inner_timerangebound = unchecked_desc
+                .dangerously_peek()
+                .decrypt(subcredential, hsc_desc_enc)?;
 
-            let new_bounds = bounds
+            let new_bounds = unchecked_desc
                 .intersect(&inner_timerangebound)
                 .map(|(b1, b2)| (b1.cloned(), b2.cloned()));
 

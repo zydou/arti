@@ -5,7 +5,6 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::{self, Debug, Display};
 use std::num::NonZeroU8;
-use std::ops;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant, SystemTime};
@@ -1169,11 +1168,11 @@ fn process_document<R: Runtime>(
     // connect to the bridge itself.  In particular, we don't want to completely trust
     // bridges to control our retry logic.
     let refetch = match expires {
-        ops::Bound::Included(expires) | ops::Bound::Excluded(expires) => expires
+        Some(expires) => expires
             .checked_sub(config.prefetch)
             .ok_or(Error::ExtremeValidityTime)?,
 
-        ops::Bound::Unbounded => now
+        None => now
             .checked_add(config.max_refetch)
             .ok_or(Error::ExtremeValidityTime)?,
     };

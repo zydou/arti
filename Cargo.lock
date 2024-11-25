@@ -6062,6 +6062,7 @@ dependencies = [
 name = "tor-netdir"
 version = "0.24.0"
 dependencies = [
+ "async-trait",
  "bitflags 2.6.0",
  "derive_more",
  "digest",

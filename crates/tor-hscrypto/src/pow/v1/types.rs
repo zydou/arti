@@ -2,6 +2,7 @@
 
 use crate::pk::HsBlindId;
 use crate::pow::v1::err::SolutionErrorV1;
+use rand::prelude::*;
 use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
 
 /// Effort setting, a u32 value with linear scale
@@ -9,7 +10,7 @@ use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
 /// The numerical value is roughly the expected number of times we will
 /// need to invoke the underlying solver (Equi-X) for the v1 proof-of-work
 /// protocol to find a solution.
-#[derive(derive_more::AsRef, derive_more::From)] //
+#[derive(derive_more::AsRef, derive_more::From, derive_more::Into)] //
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Effort(u32);
 
@@ -55,6 +56,17 @@ pub const SEED_LEN: usize = 32;
 pub struct Seed([u8; SEED_LEN]);
 
 impl Seed {
+    /// Generate a new, random seed.
+    ///
+    /// If old_seed is given, avoid generating a seed that shares a seed head.
+    pub fn new<R: Rng + CryptoRng>(rng: &mut R, old_seed: Option<&Seed>) -> Self {
+        let mut new = Seed(rng.gen());
+        while Some(new.head()) == old_seed.as_ref().map(|seed| seed.head()) {
+            new = Seed(rng.gen());
+        }
+        new
+    }
+
     /// Make a new [`SeedHead`] from a prefix of this seed
     pub fn head(&self) -> SeedHead {
         SeedHead(
@@ -220,5 +232,36 @@ impl Solution {
     /// Clone the proof portion of the solution in its canonical byte string format
     pub fn proof_to_bytes(&self) -> equix::SolutionByteArray {
         self.proof.to_bytes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_seed_head_collision() {
+        use tor_basic_utils::test_rng::Config;
+
+        let mut rng = Config::Seeded([
+            191, 169, 93, 126, 223, 128, 184, 217, 105, 3, 80, 87, 181, 242, 206, 38, 152, 149,
+            116, 71, 249, 142, 6, 196, 188, 141, 20, 139, 97, 45, 230, 55,
+        ])
+        .into_rng();
+
+        let seed_1 = Seed::new(&mut rng, None);
+        let seed_2_shared_head = Seed::new(&mut rng, None);
+
+        // Verify that this RNG seed does actually result in a collision.
+        // If the code to generate the seed is changed, we may need to find a new RNG seed to
+        // generate this collision.
+        assert_eq!(seed_1.head(), seed_2_shared_head.head());
+
+        let mut rng = Config::Seeded([0x00; 32]).into_rng();
+
+        let seed_1 = Seed::new(&mut rng, None);
+        let seed_2 = Seed::new(&mut rng, Some(&seed_1));
+
+        assert_ne!(seed_1.head(), seed_2.head());
     }
 }

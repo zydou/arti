@@ -4,10 +4,14 @@
 //! not meant to be used directly. Hidden services will use `HsDescBuilder` to build and encode
 //! hidden service descriptors.
 
+use crate::build::ItemArgument;
 use crate::build::NetdocEncoder;
 use crate::doc::hsdesc::inner::HsInnerKwd;
+use crate::doc::hsdesc::pow::v1::PowParamsV1;
+use crate::doc::hsdesc::pow::PowParams;
 use crate::doc::hsdesc::IntroAuthType;
 use crate::doc::hsdesc::IntroPointDesc;
+use crate::types::misc::Iso8601TimeNoSp;
 use crate::NetdocBuilder;
 
 use rand::CryptoRng;
@@ -15,6 +19,7 @@ use rand::RngCore;
 use tor_bytes::{EncodeError, Writer};
 use tor_cell::chancell::msg::HandshakeType;
 use tor_cert::{CertType, CertifiedKey, Ed25519Cert};
+use tor_error::internal;
 use tor_error::{bad_api_usage, into_bad_api_usage};
 use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::pk::keymanip::convert_curve25519_to_ed25519_public;
@@ -44,6 +49,38 @@ pub(super) struct HsDescInner<'a> {
     pub(super) intro_auth_key_cert_expiry: SystemTime,
     /// The expiration time of an introduction point encryption key certificate.
     pub(super) intro_enc_key_cert_expiry: SystemTime,
+    /// Proof-of-work parameters
+    #[cfg(feature = "hs-pow-v1")]
+    pub(super) pow_params: Option<&'a PowParams>,
+}
+
+#[cfg(feature = "hs-pow-v1")]
+fn encode_pow_params(
+    encoder: &mut NetdocEncoder,
+    pow_params: &PowParamsV1,
+) -> Result<(), EncodeError> {
+    let mut pow_params_enc = encoder.item(HsInnerKwd::POW_PARAMS);
+    pow_params_enc.add_arg(&"v1");
+
+    // It's safe to call dangerously_into_parts here, since we encode the
+    // expiration alongside the value.
+    let (seed, (_, expiration)) = pow_params.seed().clone().dangerously_into_parts();
+
+    seed.write_onto(&mut pow_params_enc)?;
+
+    pow_params
+        .suggested_effort()
+        .write_onto(&mut pow_params_enc)?;
+
+    let expiration = if let Some(expiration) = expiration {
+        expiration
+    } else {
+        return Err(internal!("PoW seed should always have expiration").into());
+    };
+
+    Iso8601TimeNoSp::from(expiration).write_onto(&mut pow_params_enc)?;
+
+    Ok(())
 }
 
 impl<'a> NetdocBuilder for HsDescInner<'a> {
@@ -58,6 +95,8 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             intro_points,
             intro_auth_key_cert_expiry,
             intro_enc_key_cert_expiry,
+            #[cfg(feature = "hs-pow-v1")]
+            pow_params,
         } = self;
 
         let mut encoder = NetdocEncoder::new();
@@ -81,6 +120,20 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
 
         if is_single_onion_service {
             encoder.item(SINGLE_ONION_SERVICE);
+        }
+
+        #[cfg(feature = "hs-pow-v1")]
+        if let Some(pow_params) = pow_params {
+            match pow_params {
+                #[cfg(feature = "hs-pow-v1")]
+                PowParams::V1(pow_params) => encode_pow_params(&mut encoder, pow_params)?,
+                #[cfg(not(feature = "hs-pow-v1"))]
+                PowParams::V1(_) => {
+                    return Err(internal!(
+                        "Got a V1 PoW params but support for V1 is disabled."
+                    ))
+                }
+            }
         }
 
         // We sort the introduction points here so as not to expose
@@ -198,6 +251,7 @@ mod test {
 
     use super::*;
     use crate::doc::hsdesc::build::test::{create_intro_point_descriptor, expect_bug};
+    use crate::doc::hsdesc::pow::v1::PowParamsV1;
     use crate::doc::hsdesc::IntroAuthType;
 
     use rand::thread_rng;
@@ -205,6 +259,9 @@ mod test {
     use std::net::Ipv4Addr;
     use std::time::UNIX_EPOCH;
     use tor_basic_utils::test_rng::Config;
+    use tor_checkable::timed::TimerangeBound;
+    #[cfg(feature = "hs-pow-v1")]
+    use tor_hscrypto::pow::v1::{Effort, Seed};
     use tor_linkspec::LinkSpec;
 
     /// Build an inner document using the specified parameters.
@@ -213,6 +270,7 @@ mod test {
         auth_required: Option<&SmallVec<[IntroAuthType; 2]>>,
         is_single_onion_service: bool,
         intro_points: &[IntroPointDesc],
+        pow_params: Option<&PowParams>,
     ) -> Result<String, EncodeError> {
         let hs_desc_sign = ed25519::Keypair::generate(&mut Config::Deterministic.into_rng());
 
@@ -224,6 +282,8 @@ mod test {
             intro_points,
             intro_auth_key_cert_expiry: UNIX_EPOCH,
             intro_enc_key_cert_expiry: UNIX_EPOCH,
+            #[cfg(feature = "hs-pow-v1")]
+            pow_params,
         }
         .build_sign(&mut thread_rng())
     }
@@ -236,6 +296,7 @@ mod test {
             None,                   /* auth_required */
             true,                   /* is_single_onion_service */
             &[],                    /* intro_points */
+            None,
         )
         .unwrap();
 
@@ -247,6 +308,7 @@ mod test {
             None,                   /* auth_required */
             false,                  /* is_single_onion_service */
             &[],                    /* intro_points */
+            None,
         )
         .unwrap();
 
@@ -272,6 +334,7 @@ mod test {
             None,   /* auth_required */
             false,  /* is_single_onion_service */
             intros, /* intro_points */
+            None,
         )
         .unwrap();
 
@@ -346,6 +409,7 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
             None,                   /* auth_required */
             false,                  /* is_single_onion_service */
             intros,                 /* intro_points */
+            None,
         )
         .unwrap_err();
 
@@ -366,6 +430,7 @@ o7Ct/ZB0j8YRB5lKSd07YAjA6Zo8kMnuZYX2Mb67TxWDQ/zlYJGOwLlj7A8=
             Some(&auth),            /* auth_required */
             false,                  /* is_single_onion_service */
             intros,                 /* intro_points */
+            None,
         )
         .unwrap();
 
@@ -390,5 +455,34 @@ eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61Hectpha37ioha85fpNt+/yDfebh
 -----END ED25519 CERT-----
 "#
         );
+    }
+
+    #[test]
+    #[cfg(feature = "hs-pow-v1")]
+    fn inner_hsdesc_pow_params() {
+        use humantime::parse_rfc3339;
+
+        let mut rng = Config::Deterministic.into_rng();
+        let link_specs = &[LinkSpec::OrPort(Ipv4Addr::LOCALHOST.into(), 8080)];
+        let intros = &[create_intro_point_descriptor(&mut rng, link_specs)];
+
+        let pow_expiration = parse_rfc3339("1994-04-29T00:00:00Z").unwrap();
+        let pow_params = PowParams::V1(PowParamsV1::new(
+            TimerangeBound::new(Seed::from([0; 32]), ..pow_expiration),
+            Effort::new(64),
+        ));
+
+        let hs_desc = create_inner_desc(
+            &[HandshakeType::NTOR], /* create2_formats */
+            None,                   /* auth_required */
+            false,                  /* is_single_onion_service */
+            intros,                 /* intro_points */
+            Some(&pow_params),
+        )
+        .unwrap();
+
+        assert!(hs_desc.contains(
+            "\npow-params v1 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 64 1994-04-29T00:00:00\n"
+        ));
     }
 }
