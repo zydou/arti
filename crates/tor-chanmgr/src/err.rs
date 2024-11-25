@@ -214,7 +214,7 @@ impl tor_error::HasRetryTime for Error {
             // transports, is reconfigured.
             E::NoSuchTransport(_) => RT::Never,
 
-            E::RequestCancelled => RT::Never,
+            E::RequestCancelled => RT::Immediate,
 
             // Hopefully the problem will pass!
             E::Memquota { .. } => RT::AfterWaiting,
