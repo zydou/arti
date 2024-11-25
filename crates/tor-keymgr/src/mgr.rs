@@ -666,7 +666,9 @@ mod tests {
     use std::str::FromStr;
     use std::sync::RwLock;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_key_forge::{EncodableItem, ErasedKey, KeyType, KeystoreItem};
+    use tor_key_forge::{
+        CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
+    };
     use tor_llcrypto::pk::ed25519;
 
     /// The type of "key" stored in the test key stores.
@@ -677,6 +679,10 @@ mod tests {
         /// Some metadata about the key
         meta: String,
     }
+
+    /// A "certificate" used for testing purposes.
+    #[derive(Clone, Debug)]
+    struct AlwaysValidCert(TestItem);
 
     /// The corresponding fake public key type.
     #[derive(Clone, Debug)]
@@ -766,6 +772,33 @@ mod tests {
 
         fn from_encodable_key(key: Self::Key) -> Self {
             key
+        }
+    }
+
+    impl ToEncodableCert<TestItem> for AlwaysValidCert {
+        type Cert = TestItem;
+        type SigningKey = TestItem;
+
+        fn validate(
+            &self,
+            _subject: &TestItem,
+            _signed_with: &Self::SigningKey,
+        ) -> StdResult<(), InvalidCertError> {
+            // AlwaysValidCert is always valid
+            Ok(())
+        }
+
+        /// Convert this cert to a type that implements [`EncodableKey`].
+        fn to_encodable_cert(self) -> Self::Cert {
+            self.0
+        }
+
+        /// Convert an [`EncodableKey`] to another cert type.
+        fn from_encodable_cert(cert: Self::Cert) -> Self
+        where
+            Self: Sized,
+        {
+            Self(cert)
         }
     }
 
@@ -1256,5 +1289,143 @@ mod tests {
         assert_eq!(mgr.remove_entry(&entry_desc2).unwrap(), Some(()));
         assert!(mgr.get_entry::<TestItem>(&entry_desc2).unwrap().is_none());
         assert!(mgr.remove_entry(&entry_desc2).unwrap().is_none());
+    }
+
+    /// Whether to generate a given item before running the `run_certificate_test`.
+    #[cfg(feature = "experimental-api")]
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum GenerateItem {
+        Yes,
+        No,
+    }
+
+    #[cfg(feature = "experimental-api")]
+    macro_rules! run_certificate_test {
+        (
+            generate_subject_key = $generate_subject_key:expr,
+            generate_signing_key = $generate_signing_key:expr,
+            $($expected_err:tt)?
+        ) => {{
+            use GenerateItem::*;
+
+            let mut builder = KeyMgrBuilder::default().primary_store(Box::<Keystore1>::default());
+
+            builder
+                .secondary_stores()
+                .extend([Keystore2::new_boxed(), Keystore3::new_boxed()]);
+
+            let mgr = builder.build().unwrap();
+
+            let spec = crate::test_utils::TestCertSpecifier {
+                subject_key_spec: TestKeySpecifier1,
+                signing_key_spec: TestKeySpecifier2,
+                denotator: vec!["foo".into()],
+            };
+
+            if $generate_subject_key == Yes {
+                let _ = mgr
+                    .generate::<TestItem>(
+                        &TestKeySpecifier1,
+                        KeystoreSelector::Primary,
+                        &mut testing_rng(),
+                        false,
+                    )
+                    .unwrap();
+            }
+
+            if $generate_signing_key == Yes {
+                let _ = mgr
+                    .generate::<TestItem>(
+                        &TestKeySpecifier2,
+                        KeystoreSelector::Id(&KeystoreId::from_str("keystore2").unwrap()),
+                        &mut testing_rng(),
+                        false,
+                    )
+                    .unwrap();
+            }
+
+            let make_certificate = move |subject_key: &TestItem, signed_with: &TestItem| {
+                let meta = format!(
+                    "a test cert for {} signed with {}",
+                    subject_key.meta, signed_with.meta
+                );
+
+
+                let dummy_tor_cert = tor_key_forge::EncodedEd25519Cert::from_bytes(&[]);
+                let test_cert = CertData::TorEd25519Cert(dummy_tor_cert);
+                AlwaysValidCert(TestItem {
+                    item: KeystoreItem::Cert(test_cert),
+                    meta,
+                })
+            };
+
+            let res = mgr
+                .get_or_generate_key_and_cert::<TestItem, AlwaysValidCert>(
+                    &spec,
+                    &make_certificate,
+                    KeystoreSelector::Primary,
+                    &mut testing_rng(),
+                );
+
+            #[allow(unused_assignments)]
+            #[allow(unused_mut)]
+            let mut has_error = false;
+            $(
+                has_error = true;
+                let err = res.clone().unwrap_err();
+                assert!(
+                    matches!(
+                        err,
+                        crate::Error::Corruption(KeystoreCorruptionError::$expected_err)
+                    ),
+                    "unexpected error: {err:?}",
+                );
+            )?
+
+            if !has_error {
+                let (key, cert) = res.unwrap();
+
+
+                let expected_subj_key_meta = if $generate_subject_key == Yes {
+                    "keystore1_generated_test_key"
+                } else {
+                    "generated_test_key"
+                };
+
+                assert_eq!(key.meta, expected_subj_key_meta);
+                assert_eq!(
+                    cert.0.meta,
+                    format!("a test cert for {expected_subj_key_meta} signed with keystore2_generated_test_key")
+                );
+            }
+        }}
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-api")]
+    #[rustfmt::skip] // preserve the layout for readability
+    #[allow(clippy::cognitive_complexity)] // clippy seems confused here...
+    fn get_certificate() {
+        run_certificate_test!(
+            generate_subject_key = No,
+            generate_signing_key = No,
+            MissingSigningKey
+        );
+
+        run_certificate_test!(
+            generate_subject_key = Yes,
+            generate_signing_key = No,
+            MissingSigningKey
+        );
+
+        run_certificate_test!(
+            generate_subject_key = No,
+            generate_signing_key = Yes,
+        );
+
+        run_certificate_test!(
+            generate_subject_key = Yes,
+            generate_signing_key = Yes,
+        );
     }
 }
