@@ -18,7 +18,6 @@ experimental = [
     "experimental-udp",
     "hs",
     "hs-pow-full",
-    "hs-pow-v1",
     "testing",
 ]
 # Enable experimental UDP support.
@@ -31,8 +30,7 @@ hs = ["tor-hscrypto", "__is_experimental"]
 testing = ["experimental-udp", "__is_experimental"]
 
 # Onion service proof of work schemes
-hs-pow-v1 = ["tor-hscrypto/pow-v1", "__is_experimental"]
-hs-pow-full = ["hs-pow-v1", "__is_experimental"]
+hs-pow-full = ["tor-hscrypto/hs-pow-full", "__is_experimental"]
 
 full = [
     "caret/full",

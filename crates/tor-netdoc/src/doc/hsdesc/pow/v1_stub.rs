@@ -6,7 +6,7 @@ use crate::Result;
 
 /// Marker for a `pow-params v1` line which was not parsed
 ///
-/// If are missing the `hs-pow-v1` crate feature, we will not parse
+/// If are missing the `hs-pow-full` crate feature, we will not parse
 /// `pow-params v1` but we will remember that one exists. Clients will see
 /// that a pow scheme is available which might work if the software were
 /// compiled differently.

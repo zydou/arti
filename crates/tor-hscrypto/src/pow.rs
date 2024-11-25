@@ -9,14 +9,10 @@
 //! `equix` crate.
 //!
 //! Specification at: <https://spec.torproject.org/hspow-spec/index.html>
-//!
-//! Individual schemes must be selected with crate features ("pow-v1", or
-//! "pow-full" to enable every scheme.) Some Void stub types are provided
-//! for functionality that isn't enabled.
 
 mod err;
 
-#[cfg_attr(not(feature = "pow-v1"), path = "pow/v1_stub.rs")]
+#[cfg_attr(not(feature = "hs-pow-full"), path = "pow/v1_stub.rs")]
 pub mod v1;
 
 pub use err::{Error, RuntimeError, SolutionError};
