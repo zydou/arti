@@ -26,6 +26,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.104"
 thiserror = "2"
 tor-error = { version = "0.25.0", path = "../tor-error", default-features = false }
+tor-rpc-connect = { version = "0.25.0", path = "../tor-rpc-connect", features = ["rpc-client"] }
 tor-socksproto = { path = "../tor-socksproto", version = "0.25.0", default-features = false, features = [
     "client-handshake",
 ] }

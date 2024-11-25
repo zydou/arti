@@ -383,6 +383,7 @@ dependencies = [
  "thiserror 2.0.3",
  "tor-basic-utils",
  "tor-error",
+ "tor-rpc-connect",
  "tor-socksproto",
  "void",
 ]
