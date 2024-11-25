@@ -80,7 +80,12 @@ class TestContext:
         Open an RPC connection to Arti.
         """
         # TODO RPC: This design will change; see #1528 and !2439
-        connect_string = f"unix:{self.socket_path}"
+        # XXXX This is not the final API for this branch.
+        connect_string = f"""
+[connect]
+socket = "unix:{self.socket_path}"
+auth = "none"
+"""
         return arti_rpc.ArtiRpcConn(connect_string)
 
     def arti_process_is_running(self) -> bool:

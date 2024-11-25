@@ -278,11 +278,16 @@ impl IntoFfiError for crate::ConnectError {
         use crate::ConnectError as E;
         use FfiStatus as F;
         match self {
-            E::SchemeNotSupported => F::NotSupported,
-            E::CannotConnect(_) => F::ConnectIo,
+            E::CannotConnect(_) => F::ConnectIo, // XXXX: This type is not correct any more.
             E::AuthenticationRejected(_) => F::BadAuth,
             E::BadMessage(_) => F::PeerProtocolViolation,
             E::ProtoError(e) => e.status(),
+            E::BadEnvironment => F::InvalidInput, // XXXX: Be more specific.
+            E::CannotParse(_) => F::InvalidInput, // XXXX: Be more specific.
+            E::CannotResolvePath(_) => F::InvalidInput, // XXXX: Be more specific.
+            E::CannotResolveConnectPoint(_) => F::InvalidInput, // XXXX: Be more specific.
+            E::AllAttemptsDeclined => F::ConnectIo, // XXXX: Not right.
+            E::AuthenticationNotSupported => F::NotSupported,
         }
     }
 

@@ -8,13 +8,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    msgs::{
-        request::InvalidRequestError,
-        response::{ResponseKind, RpcError, ValidatedResponse},
-        AnyRequestId, ObjectId,
-    },
-    util::define_from_for_arc,
+use crate::msgs::{
+    request::InvalidRequestError,
+    response::{ResponseKind, RpcError, ValidatedResponse},
+    AnyRequestId, ObjectId,
 };
 
 mod auth;
@@ -27,6 +24,7 @@ pub use builder::{BuilderError, RpcConnBuilder};
 pub use connimpl::RpcConn;
 use serde::{de::DeserializeOwned, Deserialize};
 pub use stream::StreamError;
+use tor_rpc_connect::HasClientErrorAction;
 
 /// A handle to an open request.
 ///
@@ -401,16 +399,30 @@ pub enum ProtoError {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConnectError {
-    /// We specified a prefix to our connect string, but we don't
-    /// have run-time support for it.
-    #[error("Selected connection scheme was not supported in this build")]
-    SchemeNotSupported,
+    /// Unable to parse connect points from an environment variable.
+    #[error("Cannot parse connect points from environment variable")]
+    BadEnvironment,
+    /// We were unable to load and/or parse a given connect point.
+    #[error("Unable to load and parse connect point: {0}")]
+    CannotParse(#[from] tor_rpc_connect::load::LoadError),
+    /// The path used to specify a connect file couldn't be resolved.
+    #[error("Unable to resolve connect point path: {0}")]
+    CannotResolvePath(#[source] tor_config_path::CfgPathError),
+    /// A parsed connect point couldn't be resolved.
+    #[error("Unable to resolve connect point: {0}")]
+    CannotResolveConnectPoint(#[from] tor_rpc_connect::ResolveError),
     /// IO error while connecting to Arti.
     #[error("Unable to make a connection: {0}")]
-    CannotConnect(#[source] Arc<std::io::Error>),
+    CannotConnect(#[from] tor_rpc_connect::ConnectError),
+    /// All attempted connect points were declined, and none were aborted.
+    #[error("All connect points were declined (or there were none)")]
+    AllAttemptsDeclined,
     /// One of our authentication messages was rejected.
     #[error("Arti rejected our authentication: {0:?}")]
     AuthenticationRejected(ErrorResponse),
+    /// The connect point uses an RPC authentication type we don't support.
+    #[error("Authentication type is not supported")]
+    AuthenticationNotSupported,
     /// We couldn't decode one of the responses we got.
     #[error("Message not in expected format: {0:?}")]
     BadMessage(#[source] Arc<serde_json::Error>),
@@ -418,7 +430,45 @@ pub enum ConnectError {
     #[error("Error while negotiating with Arti: {0}")]
     ProtoError(#[from] ProtoError),
 }
-define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
+
+impl HasClientErrorAction for ConnectError {
+    fn client_action(&self) -> tor_rpc_connect::ClientErrorAction {
+        use tor_rpc_connect::ClientErrorAction as A;
+        use ConnectError as E;
+        match self {
+            E::BadEnvironment => A::Abort,
+            E::CannotParse(e) => e.client_action(),
+            E::CannotResolvePath(_) => A::Abort,
+            E::CannotResolveConnectPoint(e) => e.client_action(),
+            E::CannotConnect(e) => e.client_action(),
+            E::AuthenticationRejected(_) => A::Decline,
+            // TODO RPC: Is this correct?  This error can also occur when
+            // we are talking to something other than an RPC server.
+            E::BadMessage(_) => A::Abort,
+            E::ProtoError(e) => e.client_action(),
+            E::AllAttemptsDeclined => A::Abort,
+            E::AuthenticationNotSupported => A::Decline,
+        }
+    }
+}
+
+impl HasClientErrorAction for ProtoError {
+    fn client_action(&self) -> tor_rpc_connect::ClientErrorAction {
+        use tor_rpc_connect::ClientErrorAction as A;
+        use ProtoError as E;
+        match self {
+            E::Shutdown(_) => A::Decline,
+            E::InternalRequestFailed(_) => A::Decline,
+            // These are always internal errors if they occur while negotiating a connection to RPC,
+            // which is the context we care about for `HasClientErrorAction`.
+            E::InvalidRequest(_)
+            | E::RequestIdInUse
+            | E::RequestCompleted
+            | E::DuplicateWait
+            | E::CouldNotEncode(_) => A::Abort,
+        }
+    }
+}
 
 /// In response to a request that we generated internally,
 /// Arti gave a reply that we did not understand.

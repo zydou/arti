@@ -106,7 +106,9 @@ pub unsafe extern "C" fn arti_rpc_connect(
             let connection_string = connection_string
                 .ok_or(InvalidInput::NullPointer)?;
 
-            let builder = RpcConnBuilder::from_connect_string(connection_string)?;
+            let mut builder = RpcConnBuilder::new();
+            // XXXX This is not quite right; we need to rework this API.
+            builder.prepend_literal_entry(connection_string.to_owned());
 
             let conn = builder.connect()?;
 
