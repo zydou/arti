@@ -82,12 +82,6 @@ macro_rules! declare_item_type {
                 $(#[$meta])*
                 $variant,
             )*
-            /// An unrecognized entry type
-            /// XXX: remove once we replace KeyType with KeystoreItemType in our APIs
-            Unknown {
-                /// The extension used for entries of this type in an Arti keystore.
-                arti_extension: String,
-            },
         }
 
         $(#[$cert_enum_meta])*
@@ -125,23 +119,6 @@ macro_rules! declare_item_type {
                     $(
                         $variant => $str_repr.into(),
                     )*
-                    Unknown { arti_extension } => arti_extension.clone(),
-                }
-            }
-        }
-
-        // XXX: remove when we remove KeyType::Unknown variant
-        impl From<&str> for KeyType {
-            fn from(key_type: &str) -> Self {
-                use KeyType::*;
-
-                match key_type {
-                    $(
-                        $str_repr => $variant,
-                    )*
-                    _ => Unknown {
-                        arti_extension: key_type.into(),
-                    },
                 }
             }
         }
@@ -153,8 +130,6 @@ macro_rules! declare_item_type {
                 use CertType::*;
 
                 match self {
-                        // XXX: remove
-                        Self::Key(Unknown { arti_extension }) => arti_extension.into(),
                     $(
                         Self::Key($variant) => $str_repr.into(),
                     )*
@@ -308,13 +283,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unknown_key_types() {
+    fn unknown_item_types() {
         const UNKNOWN_KEY_TYPE: &str = "rsa";
 
-        let unknown_key_ty = KeyType::from(UNKNOWN_KEY_TYPE);
+        let unknown_key_ty = KeystoreItemType::from(UNKNOWN_KEY_TYPE);
         assert_eq!(
             unknown_key_ty,
-            KeyType::Unknown {
+            KeystoreItemType::Unknown {
                 arti_extension: UNKNOWN_KEY_TYPE.into()
             }
         );
