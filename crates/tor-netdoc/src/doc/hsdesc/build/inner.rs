@@ -123,8 +123,17 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
         }
 
         #[cfg(feature = "hs-pow-v1")]
-        if let Some(PowParams::V1(pow_params)) = pow_params {
-            encode_pow_params(&mut encoder, pow_params)?;
+        if let Some(pow_params) = pow_params {
+            match pow_params {
+                #[cfg(feature = "hs-pow-v1")]
+                PowParams::V1(pow_params) => encode_pow_params(&mut encoder, pow_params)?,
+                #[cfg(not(feature = "hs-pow-v1"))]
+                PowParams::V1(_) => {
+                    return Err(internal!(
+                        "Got a V1 PoW params but support for V1 is disabled."
+                    ))
+                }
+            }
         }
 
         // We sort the introduction points here so as not to expose
