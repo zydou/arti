@@ -226,3 +226,63 @@ fn socket_parent_path(
         .ok_or(ConnectError::InvalidUnixAddress)?;
     Ok(Some(dirpath))
 }
+
+/// Default connect point for a user-owned Arti instance.
+#[cfg(unix)]
+pub const USER_DEFAULT_CONNECT_POINT: &str = r#"
+[connect]
+socket = "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket"
+auth = "none"
+"#;
+
+/// Default connect point for a system-wide Arti instance.
+///
+/// This is `None` if, on this platform, there is no such default connect point.
+#[cfg(unix)]
+pub const SYSTEM_DEFAULT_CONNECT_POINT: Option<&str> = Some(
+    r#"
+[connect]
+socket = "unix:/var/run/arti-rpc/arti_rpc_socket"
+auth = "none"
+"#,
+);
+
+// TODO RPC: Does this make sense as a windows default?  If so document it.
+#[cfg(not(unix))]
+pub const USER_DEFAULT_CONNECT_POINT: &str = Some(
+    r#"
+[connect]
+socket = "inet:127.0.0.1:9180"
+auth = { cookie = { path = "${ARTI_LOCAL_DATA}/rpc/arti_rpc_cookie" } }
+"#,
+);
+
+#[cfg(not(unix))]
+pub const SYSTEM_DEFAULT_CONNECT_POINT: Option<&str> = None;
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+
+    #[test]
+    fn parse_defaults() {
+        let _parsed: ParsedConnectPoint = USER_DEFAULT_CONNECT_POINT.parse().unwrap();
+        if let Some(s) = SYSTEM_DEFAULT_CONNECT_POINT {
+            let _parsed: ParsedConnectPoint = s.parse().unwrap();
+        }
+    }
+}
