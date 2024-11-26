@@ -193,6 +193,58 @@ macro_rules! declare_item_type {
                 Self::Cert(key)
             }
         }
+
+        #[cfg(test)]
+        mod tests {
+            // @@ begin test lint list maintained by maint/add_warning @@
+            #![allow(clippy::bool_assert_comparison)]
+            #![allow(clippy::clone_on_copy)]
+            #![allow(clippy::dbg_macro)]
+            #![allow(clippy::mixed_attributes_style)]
+            #![allow(clippy::print_stderr)]
+            #![allow(clippy::print_stdout)]
+            #![allow(clippy::single_char_pattern)]
+            #![allow(clippy::unwrap_used)]
+            #![allow(clippy::unchecked_duration_subtraction)]
+            #![allow(clippy::useless_vec)]
+            #![allow(clippy::needless_pass_by_value)]
+            //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+            use super::*;
+
+            #[test]
+            fn unknown_item_types() {
+                const UNKNOWN_KEY_TYPE: &str = "rsa";
+
+                let unknown_key_ty = KeystoreItemType::from(UNKNOWN_KEY_TYPE);
+                assert_eq!(
+                    unknown_key_ty,
+                    KeystoreItemType::Unknown {
+                        arti_extension: UNKNOWN_KEY_TYPE.into()
+                    }
+                );
+                assert_eq!(unknown_key_ty.arti_extension(), UNKNOWN_KEY_TYPE);
+            }
+
+            #[test]
+            fn recognized_item_types() {
+                $(
+                    let key_ty = KeystoreItemType::from($str_repr);
+                    assert_eq!(
+                        key_ty,
+                        KeystoreItemType::Key(KeyType::$variant)
+                    );
+                    assert_eq!(key_ty.arti_extension(), $str_repr);
+                )*
+                $(
+                    let cert_ty = KeystoreItemType::from($cert_str_repr);
+                    assert_eq!(
+                        cert_ty,
+                        KeystoreItemType::Cert(CertType::$cert_variant)
+                    );
+                    assert_eq!(cert_ty.arti_extension(), $cert_str_repr);
+                )*
+            }
+        }
     }
 }
 
@@ -262,37 +314,5 @@ declare_item_type! {
         ///
         /// See <https://spec.torproject.org/cert-spec.html#ed-certs>
         Ed25519TorCert => "tor_ed25519_cert",
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    // @@ begin test lint list maintained by maint/add_warning @@
-    #![allow(clippy::bool_assert_comparison)]
-    #![allow(clippy::clone_on_copy)]
-    #![allow(clippy::dbg_macro)]
-    #![allow(clippy::mixed_attributes_style)]
-    #![allow(clippy::print_stderr)]
-    #![allow(clippy::print_stdout)]
-    #![allow(clippy::single_char_pattern)]
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::unchecked_duration_subtraction)]
-    #![allow(clippy::useless_vec)]
-    #![allow(clippy::needless_pass_by_value)]
-    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use super::*;
-
-    #[test]
-    fn unknown_item_types() {
-        const UNKNOWN_KEY_TYPE: &str = "rsa";
-
-        let unknown_key_ty = KeystoreItemType::from(UNKNOWN_KEY_TYPE);
-        assert_eq!(
-            unknown_key_ty,
-            KeystoreItemType::Unknown {
-                arti_extension: UNKNOWN_KEY_TYPE.into()
-            }
-        );
-        assert_eq!(unknown_key_ty.arti_extension(), UNKNOWN_KEY_TYPE);
     }
 }
