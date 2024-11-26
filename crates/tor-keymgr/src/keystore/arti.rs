@@ -2,6 +2,7 @@
 //!
 //! See the [`ArtiNativeKeystore`] docs for more details.
 
+pub(crate) mod certs;
 pub(crate) mod err;
 pub(crate) mod ssh;
 
