@@ -279,33 +279,25 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                         }
                     });
 
-                    let outcome = async {
-                        let chan_result = async {
-                            let connector = self.channels.builder();
-                            let memquota = ChannelAccount::new(&self.memquota)?;
+                    let connector = self.channels.builder();
+                    let memquota = ChannelAccount::new(&self.memquota)?;
 
-                            connector
-                                .build_channel(&target, self.reporter.clone(), memquota)
-                                .await
-                        }
+                    let outcome = connector
+                        .build_channel(&target, self.reporter.clone(), memquota)
                         .await;
 
-                        match chan_result {
-                            Ok(ref chan) => {
-                                // Replace the pending channel with the newly built channel.
-                                let handle = defer_remove_pending.cancel();
-                                self.channels
-                                    .upgrade_pending_channel_to_open(handle, Arc::clone(chan))?;
-                            }
-                            Err(_) => {
-                                // Remove the pending channel.
-                                drop(defer_remove_pending);
-                            }
+                    match outcome {
+                        Ok(ref chan) => {
+                            // Replace the pending channel with the newly built channel.
+                            let handle = defer_remove_pending.cancel();
+                            self.channels
+                                .upgrade_pending_channel_to_open(handle, Arc::clone(chan))?;
                         }
-
-                        chan_result
+                        Err(_) => {
+                            // Remove the pending channel.
+                            drop(defer_remove_pending);
+                        }
                     }
-                    .await;
 
                     // It's okay if all the receivers went away:
                     // that means that nobody was waiting for this channel.
