@@ -49,7 +49,7 @@ mod ssh;
 mod traits;
 
 pub use err::Error;
-pub use key_type::KeyType;
+pub use key_type::{CertType, KeyType, KeystoreItemType};
 pub use ssh::{SshKeyAlgorithm, SshKeyData};
 pub use traits::{EncodableKey, Keygen, KeygenRng, ToEncodableKey};
 

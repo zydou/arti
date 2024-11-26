@@ -39,10 +39,13 @@
 use ssh_key::private::KeypairData;
 use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
-use tor_error::internal;
+use tor_error::{bad_api_usage, internal, Bug};
 
 use crate::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
 use crate::Result;
+
+use std::fmt;
+use std::result::Result as StdResult;
 
 /// Declare and implement the `KeyType` enum.
 ///
@@ -54,13 +57,21 @@ use crate::Result;
 /// Note `KeyType` implements `From<&str>` rather than `FromStr`,
 /// because the conversion from string is infallible
 /// (unrecognized strings are mapped to `KeyType::Unknown`)
-macro_rules! declare_key_type {
+macro_rules! declare_item_type {
     {
         $(#[$enum_meta:meta])*
         $vis:vis enum KeyType {
             $(
                 $(#[$meta:meta])*
                 $variant:ident => $str_repr:expr,
+            )*
+        }
+
+        $(#[$cert_enum_meta:meta])*
+        $cert_vis:vis enum CertType {
+            $(
+                $(#[$cert_meta:meta])*
+                $cert_variant:ident => $cert_str_repr:expr,
             )*
         }
     } => {
@@ -71,10 +82,36 @@ macro_rules! declare_key_type {
                 $(#[$meta])*
                 $variant,
             )*
-
-            /// An unrecognized key type.
+            /// An unrecognized entry type
+            /// XXX: remove once we replace KeyType with KeystoreItemType in our APIs
             Unknown {
-                /// The extension used for keys of this type in an Arti keystore.
+                /// The extension used for entries of this type in an Arti keystore.
+                arti_extension: String,
+            },
+        }
+
+        $(#[$cert_enum_meta])*
+        $cert_vis enum CertType {
+            $(
+                $(#[$cert_meta])*
+                $cert_variant,
+            )*
+        }
+
+        /// A type of item stored in a keystore.
+        ///
+        // XXX: replace KeyType in EncodableKey implementation with KeystoreItemType
+        // (because EncodableKey will soon be used for encoding certificates too)
+        #[derive(Clone, PartialEq, Eq, Hash)]
+        #[non_exhaustive]
+        pub enum KeystoreItemType {
+            /// A key
+            Key(KeyType),
+            /// A key certificate
+            Cert(CertType),
+            /// An unrecognized entry type
+            Unknown {
+                /// The extension used for entries of this type in an Arti keystore.
                 arti_extension: String,
             },
         }
@@ -93,6 +130,7 @@ macro_rules! declare_key_type {
             }
         }
 
+        // XXX: remove when we remove KeyType::Unknown variant
         impl From<&str> for KeyType {
             fn from(key_type: &str) -> Self {
                 use KeyType::*;
@@ -105,6 +143,79 @@ macro_rules! declare_key_type {
                         arti_extension: key_type.into(),
                     },
                 }
+            }
+        }
+
+        impl KeystoreItemType {
+            /// The file extension for an item of this type.
+            pub fn arti_extension(&self) -> String {
+                use KeyType::*;
+                use CertType::*;
+
+                match self {
+                        // XXX: remove
+                        Self::Key(Unknown { arti_extension }) => arti_extension.into(),
+                    $(
+                        Self::Key($variant) => $str_repr.into(),
+                    )*
+                    $(
+                        Self::Cert($cert_variant) => $cert_str_repr.into(),
+                    )*
+                        Self::Unknown { arti_extension } => arti_extension.into(),
+                }
+            }
+
+            /// Try to get the inner [`KeyType`], if this is a [`KeystoreItemType::Key`].
+            ///
+            /// Returns an error if this is not a key type.
+            pub fn key_type(&self) -> StdResult<&KeyType, Bug> {
+                match self {
+                    KeystoreItemType::Key(key_type) => Ok(key_type),
+                    _ => Err(bad_api_usage!("{:?} is not a key type", self)),
+                }
+            }
+        }
+
+        impl From<&str> for KeystoreItemType {
+            fn from(key_type: &str) -> Self {
+                use KeyType::*;
+                use CertType::*;
+
+                match key_type {
+                    $(
+                        $str_repr => Self::Key($variant),
+                    )*
+                    $(
+                        $cert_str_repr => Self::Cert($cert_variant),
+                    )*
+                    _ => Self::Unknown {
+                        arti_extension: key_type.into(),
+                    },
+                }
+            }
+        }
+
+        impl fmt::Debug for KeystoreItemType {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    KeystoreItemType::Key(key_type) => write!(f, "{:?}", key_type),
+                    KeystoreItemType::Cert(cert_type) => write!(f, "{:?}", cert_type),
+                    KeystoreItemType::Unknown { arti_extension } => {
+                        write!(f, "unknown item type (extension={arti_extension})")
+                    }
+                }
+            }
+        }
+
+        impl From<KeyType> for KeystoreItemType {
+            fn from(key: KeyType) -> Self {
+                Self::Key(key)
+            }
+        }
+
+        impl From<CertType> for KeystoreItemType {
+            fn from(key: CertType) -> Self {
+                Self::Cert(key)
             }
         }
     }
@@ -142,7 +253,7 @@ impl KeyType {
     }
 }
 
-declare_key_type! {
+declare_item_type! {
     /// A type of key stored in the key store.
     #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     #[non_exhaustive]
@@ -157,6 +268,25 @@ declare_key_type! {
         X25519PublicKey => "x25519_public",
         /// An expanded Ed25519 keypair.
         Ed25519ExpandedKeypair => "ed25519_expanded_private",
+    }
+
+    /// A type of certificate stored in the keystore.
+    ///
+    /// The purpose and meaning of a certificate, as well as the algorithms
+    /// of the subject and signing keys, are specified by its `CertType`
+    ///
+    /// More specifically, the `CertType` of a certificate determines
+    ///  * The cryptographic algorithms of the subject key and the signing key
+    ///  * How the subject key value and its properties are encoded before
+    ///    the signing key key makes its signature
+    ///  * How the signature and the other information is encoded for storage.
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum CertType {
+        /// A Tor Ed25519 certificate.
+        ///
+        /// See <https://spec.torproject.org/cert-spec.html#ed-certs>
+        Ed25519TorCert => "tor_ed25519_cert",
     }
 }
 
