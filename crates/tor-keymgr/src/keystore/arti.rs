@@ -26,7 +26,7 @@ use tor_error::internal;
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
-use tor_key_forge::{KeystoreItem, KeystoreItemType};
+use tor_key_forge::{CertData, KeystoreItem, KeystoreItemType};
 
 /// The Arti key store.
 ///
@@ -224,14 +224,17 @@ impl Keystore for ArtiNativeKeystore {
                 .map_err(ArtiNativeKeystoreError::Filesystem)?;
         }
 
-        // XXX handle certs too
-        let item_bytes = match key.as_keystore_item()? {
+        let item_bytes: Vec<u8> = match key.as_keystore_item()? {
             KeystoreItem::Key(key) => {
                 // TODO (#1095): decide what information, if any, to put in the comment
                 let comment = "";
-                key.to_openssh_string(comment)?
+                key.to_openssh_string(comment)?.into_bytes()
             }
-            _ => unimplemented!("insert cert"),
+            KeystoreItem::Cert(cert) => match cert {
+                CertData::TorEd25519Cert(cert) => cert.into(),
+                _ => return Err(internal!("unknown cert type {item_type:?}").into()),
+            },
+            _ => return Err(internal!("unknown item type {item_type:?}").into()),
         };
 
         Ok(checked_op!(write_and_replace, path, item_bytes)
