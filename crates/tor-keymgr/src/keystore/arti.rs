@@ -375,7 +375,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use tempfile::{tempdir, TempDir};
-    use tor_key_forge::KeyType;
+    use tor_key_forge::{CertType, EncodedEd25519Cert, KeyType};
     use tor_llcrypto::pk::ed25519;
 
     #[cfg(unix)]
@@ -691,5 +691,33 @@ mod tests {
             .contains(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
             .unwrap_err();
         assert!(err.to_string().contains("not a regular file"), "{err}");
+    }
+
+    #[test]
+    fn certs() {
+        let (key_store, _keystore_dir) = init_keystore(false);
+
+        // TODO: currently, you're allowed to build a cert out of an arbitrary byte slice
+        // (including empty ones).
+        //
+        // We should implement a proper parser for tor ed25519 certs in the near future
+        // (and reject any files that don't parse).
+        const DUMMY_CERT: &[u8] = b"not really a cert...";
+        let cert = EncodedEd25519Cert::from_bytes(DUMMY_CERT);
+        // The specifier doesn't really matter.
+        let cert_spec = TestSpecifier::default();
+        assert!(key_store
+            .insert(&cert, &cert_spec, &CertType::Ed25519TorCert.into())
+            .is_ok());
+
+        let erased_cert = key_store
+            .get(&cert_spec, &CertType::Ed25519TorCert.into())
+            .unwrap()
+            .unwrap();
+        let Ok(found_cert) = erased_cert.downcast::<EncodedEd25519Cert>() else {
+            panic!("failed to downcast cert to EncodedEd25519Cert")
+        };
+
+        assert_eq!(cert, *found_cert);
     }
 }
