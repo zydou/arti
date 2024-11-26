@@ -13,12 +13,16 @@ use std::str::FromStr;
 
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
 use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
-use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result};
+use crate::{
+    arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result, UnknownKeyTypeError,
+};
+use certs::UnparsedCert;
 use err::ArtiNativeKeystoreError;
 use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
+use tor_error::internal;
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
@@ -150,7 +154,7 @@ impl Keystore for ArtiNativeKeystore {
     ) -> Result<Option<ErasedKey>> {
         let path = rel_path_if_supported!(self.rel_path(key_spec, item_type), Ok(None));
 
-        let inner = match checked_op!(read_to_string, path) {
+        let inner = match checked_op!(read, path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
             res => res
                 .map_err(|err| FilesystemError::FsMistrust {
@@ -165,12 +169,36 @@ impl Keystore for ArtiNativeKeystore {
             .checked_path()
             .map_err(ArtiNativeKeystoreError::Filesystem)?;
 
-        // XXX handle certs too
-        let item_type = item_type.clone();
-        let key_type = item_type.key_type()?;
-        UnparsedOpenSshKey::new(inner, abs_path)
-            .parse_ssh_format_erased(&key_type)
-            .map(Some)
+        match item_type {
+            KeystoreItemType::Key(key_type) => {
+                let inner = String::from_utf8(inner).map_err(|_| {
+                    let err = io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "OpenSSH key is not valid UTF-8".to_string(),
+                    );
+
+                    ArtiNativeKeystoreError::Filesystem(FilesystemError::Io {
+                        action: FilesystemAction::Read,
+                        path: abs_path.clone(),
+                        err: err.into(),
+                    })
+                })?;
+
+                UnparsedOpenSshKey::new(inner, abs_path)
+                    .parse_ssh_format_erased(key_type)
+                    .map(Some)
+            }
+            KeystoreItemType::Cert(cert_type) => UnparsedCert::new(inner, abs_path)
+                .parse_certificate_erased(cert_type)
+                .map(Some),
+            KeystoreItemType::Unknown { arti_extension } => Err(
+                ArtiNativeKeystoreError::UnknownKeyType(UnknownKeyTypeError {
+                    arti_extension: arti_extension.clone(),
+                })
+                .into(),
+            ),
+            _ => Err(internal!("unknown item type {item_type:?}").into()),
+        }
     }
 
     fn insert(
