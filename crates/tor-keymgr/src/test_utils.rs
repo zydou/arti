@@ -86,7 +86,10 @@ pub(crate) mod ssh_keys {
 /// A module exporting a key specifier used for testing.
 #[cfg(test)]
 mod specifier {
-    use crate::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
+    use crate::{
+        ArtiPath, ArtiPathUnavailableError, CTorPath, KeyCertificateSpecifier, KeySpecifier,
+        KeySpecifierComponent,
+    };
 
     /// A key specifier path.
     pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
@@ -139,6 +142,36 @@ mod specifier {
 
         fn keypair_specifier(&self) -> Option<Box<dyn KeySpecifier>> {
             unimplemented!()
+        }
+    }
+
+    /// A test certificate specifier.
+    pub(crate) struct TestCertSpecifier<SUBJ: KeySpecifier, SIGN: KeySpecifier> {
+        /// The key specifier of the subject key.
+        pub(crate) subject_key_spec: SUBJ,
+        /// The key specifier of the signing key.
+        pub(crate) signing_key_spec: SIGN,
+        /// A list of denotators for distinguishing certs of this type.
+        pub(crate) denotator: Vec<String>,
+    }
+
+    impl<SUBJ: KeySpecifier, SIGN: KeySpecifier> KeyCertificateSpecifier
+        for TestCertSpecifier<SUBJ, SIGN>
+    {
+        fn cert_denotators(&self) -> Vec<&dyn KeySpecifierComponent> {
+            self.denotator
+                .iter()
+                .map(|s| s as &dyn KeySpecifierComponent)
+                .collect()
+        }
+
+        fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier> {
+            Some(&self.signing_key_spec)
+        }
+
+        /// The key specifier of the subject key.
+        fn subject_key_specifier(&self) -> &dyn KeySpecifier {
+            &self.subject_key_spec
         }
     }
 }
