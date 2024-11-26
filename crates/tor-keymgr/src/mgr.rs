@@ -137,8 +137,7 @@ impl KeyMgr {
     ///
     /// Returns `Ok(None)` if none of the key stores have the requested key.
     pub fn get<K: ToEncodableKey>(&self, key_spec: &dyn KeySpecifier) -> Result<Option<K>> {
-        let result =
-            self.get_from_store(key_spec, &K::Key::item_type(), self.all_stores())?;
+        let result = self.get_from_store(key_spec, &K::Key::item_type(), self.all_stores())?;
         if result.is_none() {
             // If the key_spec is the specifier for the public part of a keypair,
             // try getting the pair and extracting the public portion from it.
