@@ -533,7 +533,7 @@ impl KeyMgr {
 
         match (&maybe_cert, &maybe_subject_key) {
             (Some(_), None) => {
-                return Err(internal!("xxx").into());
+                return Err(KeystoreCorruptionError::MissingSubjectKey.into());
             }
             _ => {
                 // generate key and/or cert

@@ -102,6 +102,10 @@ pub enum KeystoreCorruptionError {
     #[error("Missing certificate for key")]
     MissingCertificate,
 
+    /// Missing the subject key of a certificate we own.
+    #[error("Subject key of certificate not found")]
+    MissingSubjectKey,
+
     /// Missing signing key for certificate.
     #[error("Missing signing key for certificate")]
     MissingSigningKey,
