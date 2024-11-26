@@ -16,6 +16,13 @@ default = []
 experimental = ["encode"]
 encode = ["derive_builder", "__is_experimental"]
 full = ["caret/full", "tor-bytes/full", "tor-checkable/full", "tor-llcrypto/full"]
+
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental-api = ["__is_experimental"]
+
 __is_experimental = []
 
 [dependencies]
