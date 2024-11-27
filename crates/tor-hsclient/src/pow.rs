@@ -1,6 +1,6 @@
 //! Common support for proof of work denial of service mitigation on the client side
 
-#[cfg_attr(not(feature = "pow-v1"), path = "pow/v1_stub.rs")]
+#[cfg_attr(not(feature = "hs-pow-full"), path = "pow/v1_stub.rs")]
 mod v1;
 
 use crate::err::ProofOfWorkError;

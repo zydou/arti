@@ -40,10 +40,7 @@ Note that the APIs enabled by these features are NOT covered by
 semantic versioning[^1] guarantees: we might break them or remove
 them between patch versions.
 
-* `pow-v1` -- Tor Hidden Services Proof of Work (`v1` scheme only)
-
-* `pow-full` -- Tor Hidden Services Proof of Work
-  (metafeature, enables all non-experimental schemes: currently, implies only `pow-v1`).
+* `hs-pow-full` -- Tor Hidden Services Proof of Work.
 
 * `experimental`: Enable all the above experimental features.
 

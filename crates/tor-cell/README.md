@@ -46,9 +46,7 @@ implement [Tor](https://www.torproject.org/) in Rust.
 ## Compile-time features
 
 * `hs` -- Types relating to Tor Hidden Services (`.onion` services).
-* `hs-pow-v1` -- Types relating to Tor Hidden Services Proof of Work (`v1` scheme only)
-* `hs-pow-full` -- Types relating to Tor Hidden Services Proof of Work
-  (metafeature, enables all non-experimental schemes: currently, implies only `hs-pow-v1`).
+* `hs-pow-full` -- Types relating to Tor Hidden Services Proof of Work.
 
 * `full` -- Enable all features above.
 

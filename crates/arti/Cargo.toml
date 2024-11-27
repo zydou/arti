@@ -68,7 +68,7 @@ native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 onion-service-client = ["arti-client/onion-service-client"]
 onion-service-service = ["arti-client/onion-service-service", "tor-hsrproxy", "tor-hsservice"]
 vanguards = ["arti-client/vanguards"]
-hs-pow = ["arti-client/hs-pow", "__is_experimental"]
+hs-pow-full = ["arti-client/hs-pow-full", "__is_experimental"]
 pt-client = ["bridge-client", "arti-client/pt-client"]
 ctor-keystore = ["arti-client/ctor-keystore", "__is_experimental"]
 
@@ -95,7 +95,7 @@ compression = ["arti-client/compression"]
 experimental = [
     "arti-client/experimental",
     "experimental-api",
-    "hs-pow",
+    "hs-pow-full",
     "keymgr",
     "restricted-discovery",
     "rpc",

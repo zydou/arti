@@ -50,11 +50,11 @@ pub(super) struct HsDescInner<'a> {
     /// The expiration time of an introduction point encryption key certificate.
     pub(super) intro_enc_key_cert_expiry: SystemTime,
     /// Proof-of-work parameters
-    #[cfg(feature = "hs-pow-v1")]
+    #[cfg(feature = "hs-pow-full")]
     pub(super) pow_params: Option<&'a PowParams>,
 }
 
-#[cfg(feature = "hs-pow-v1")]
+#[cfg(feature = "hs-pow-full")]
 fn encode_pow_params(
     encoder: &mut NetdocEncoder,
     pow_params: &PowParamsV1,
@@ -95,7 +95,7 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             intro_points,
             intro_auth_key_cert_expiry,
             intro_enc_key_cert_expiry,
-            #[cfg(feature = "hs-pow-v1")]
+            #[cfg(feature = "hs-pow-full")]
             pow_params,
         } = self;
 
@@ -122,12 +122,12 @@ impl<'a> NetdocBuilder for HsDescInner<'a> {
             encoder.item(SINGLE_ONION_SERVICE);
         }
 
-        #[cfg(feature = "hs-pow-v1")]
+        #[cfg(feature = "hs-pow-full")]
         if let Some(pow_params) = pow_params {
             match pow_params {
-                #[cfg(feature = "hs-pow-v1")]
+                #[cfg(feature = "hs-pow-full")]
                 PowParams::V1(pow_params) => encode_pow_params(&mut encoder, pow_params)?,
-                #[cfg(not(feature = "hs-pow-v1"))]
+                #[cfg(not(feature = "hs-pow-full"))]
                 PowParams::V1(_) => {
                     return Err(internal!(
                         "Got a V1 PoW params but support for V1 is disabled."
@@ -260,7 +260,7 @@ mod test {
     use std::time::UNIX_EPOCH;
     use tor_basic_utils::test_rng::Config;
     use tor_checkable::timed::TimerangeBound;
-    #[cfg(feature = "hs-pow-v1")]
+    #[cfg(feature = "hs-pow-full")]
     use tor_hscrypto::pow::v1::{Effort, Seed};
     use tor_linkspec::LinkSpec;
 
@@ -282,7 +282,7 @@ mod test {
             intro_points,
             intro_auth_key_cert_expiry: UNIX_EPOCH,
             intro_enc_key_cert_expiry: UNIX_EPOCH,
-            #[cfg(feature = "hs-pow-v1")]
+            #[cfg(feature = "hs-pow-full")]
             pow_params,
         }
         .build_sign(&mut thread_rng())
@@ -458,7 +458,7 @@ eNThmyleMYdmFucrbgPcZNDO6S81MZD1r7q61Hectpha37ioha85fpNt+/yDfebh
     }
 
     #[test]
-    #[cfg(feature = "hs-pow-v1")]
+    #[cfg(feature = "hs-pow-full")]
     fn inner_hsdesc_pow_params() {
         use humantime::parse_rfc3339;
 

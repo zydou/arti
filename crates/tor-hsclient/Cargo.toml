@@ -17,8 +17,7 @@ default = []
 keymgr = ["tor-keymgr/keymgr", "__is_experimental"]
 
 # Onion service proof of work schemes
-pow-v1 = ["tor-hscrypto/pow-v1", "tor-netdoc/hs-pow-v1", "tor-cell/hs-pow-v1", "__is_experimental"]
-pow-full = ["pow-v1", "__is_experimental"]
+hs-pow-full = ["tor-hscrypto/hs-pow-full", "tor-netdoc/hs-pow-full", "tor-cell/hs-pow-full", "__is_experimental"]
 
 full = [
     "retry-error/full",
@@ -46,7 +45,7 @@ full = [
     "tor-memquota/full",
 ]
 __is_experimental = []
-experimental = ["keymgr", "pow-full", "pow-v1"]
+experimental = ["keymgr", "hs-pow-full"]
 
 [dependencies]
 async-trait = "0.1.54"

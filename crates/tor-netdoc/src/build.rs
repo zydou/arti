@@ -219,7 +219,7 @@ impl ItemArgument for Iso8601TimeSp {
     }
 }
 
-#[cfg(feature = "hs-pow-v1")]
+#[cfg(feature = "hs-pow-full")]
 impl ItemArgument for tor_hscrypto::pow::v1::Seed {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         let mut seed_bytes = vec![];
@@ -229,7 +229,7 @@ impl ItemArgument for tor_hscrypto::pow::v1::Seed {
     }
 }
 
-#[cfg(feature = "hs-pow-v1")]
+#[cfg(feature = "hs-pow-full")]
 impl ItemArgument for tor_hscrypto::pow::v1::Effort {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
         out.add_arg(&<Self as Into<u32>>::into(*self));
