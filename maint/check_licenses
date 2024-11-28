@@ -30,6 +30,8 @@ RECOGNIZED_LICENSES=(
     # cargo-license appears to break on the OR inside () and then sort!
     # https://github.com/onur/cargo-license/issues/78
     "Apache-2.0) OR MIT AND (MIT"
+    # Used by unicode-ident
+    "(MIT OR Apache-2.0) AND Unicode-3.0"
 )
 
 # List of packages that don't list a license.
