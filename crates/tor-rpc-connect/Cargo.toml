@@ -27,7 +27,7 @@ rand = { version = "0.8", optional = true }
 safelog = { path = "../safelog", version = "0.4.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
-thiserror = "1"
+thiserror = "2"
 toml = "0.8.8"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.24.0", features = ["address"] }
