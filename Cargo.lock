@@ -2711,7 +2711,7 @@ checksum = "13acbb8371917fc971be86fc8057c41a64b521c184808a698c02acc242dbf637"
 dependencies = [
  "displaydoc",
  "litemap",
- "tinystr",
+ "tinystr 0.7.6",
  "writeable",
  "zerovec",
 ]
@@ -2726,7 +2726,7 @@ dependencies = [
  "icu_locid",
  "icu_locid_transform_data",
  "icu_provider",
- "tinystr",
+ "tinystr 0.7.6",
  "zerovec",
 ]
 
@@ -2771,7 +2771,7 @@ dependencies = [
  "icu_locid_transform",
  "icu_properties_data",
  "icu_provider",
- "tinystr",
+ "tinystr 0.7.6",
  "zerovec",
 ]
 
@@ -2791,7 +2791,7 @@ dependencies = [
  "icu_locid",
  "icu_provider_macros",
  "stable_deref_trait",
- "tinystr",
+ "tinystr 0.7.6",
  "writeable",
  "yoke",
  "zerofrom",
@@ -5205,6 +5205,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinystr"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2b56a820bb70060f096338fcc02edb78cb3f8fb21c5078503f48588cfcaf494"
+dependencies = [
+ "displaydoc",
+]
+
+[[package]]
 name = "tinytemplate"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6206,7 +6215,7 @@ dependencies = [
  "subtle",
  "thiserror 2.0.3",
  "time",
- "tinystr",
+ "tinystr 0.8.0",
  "tor-basic-utils",
  "tor-bytes",
  "tor-cell",
