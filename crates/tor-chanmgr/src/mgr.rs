@@ -1,6 +1,7 @@
 //! Abstract implementation of a channel manager
 
 use crate::mgr::state::{ChannelForTarget, PendingChannelHandle};
+use crate::util::defer::Defer;
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use crate::factory::BootstrapReporter;
@@ -257,50 +258,46 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 }
                 // We need to launch a channel.
                 Some(Action::Launch((handle, send))) => {
-                    // WARNING: do not drop the handle without calling
-                    // `upgrade_pending_channel_to_open` or `remove_pending_channel`. If you don't,
-                    // then the pending entry will remain in the channel map forever, and arti will
-                    // be unable to build new channels to the target relay of that pending channel.
+                    // If the remainder of this code returns early or is cancelled, we still want to
+                    // clean up our pending entry in the channel map. The following closure will be
+                    // run when dropped to ensure that it's cleaned up properly.
                     //
-                    // This code is ugly since it tries to use IIFE-inspired immediately awaited
-                    // async block expressions to prevent the code from returning early (for example
-                    // due to a `?` operator). When modifying this code, be careful to not add a
-                    // code path that returns early before properly passing `handle` back to
-                    // `MgrState` (see `PendingChannelHandle` for details).
-                    let outcome = async {
-                        let chan_result = async {
-                            let connector = self.channels.builder();
-                            let memquota = ChannelAccount::new(&self.memquota)?;
-
-                            connector
-                                .build_channel(&target, self.reporter.clone(), memquota)
-                                .await
+                    // The `remove_pending_channel` will acquire the lock within `MgrState`, but
+                    // this won't lead to deadlocks since the lock is only ever acquired within
+                    // methods of `MgrState`. When this `Defer` is being dropped, no other
+                    // `MgrState` methods will be running on this thread, so the lock will not have
+                    // already been acquired.
+                    let defer_remove_pending = Defer::new(handle, |handle| {
+                        if let Err(e) = self.channels.remove_pending_channel(handle) {
+                            // Just log an error if we're unable to remove it, since there's
+                            // nothing else we can do here, and returning the error would
+                            // hide the actual error that we care about (the channel build
+                            // failure).
+                            #[allow(clippy::missing_docs_in_private_items)]
+                            const MSG: &str = "Unable to remove the pending channel";
+                            error_report!(internal!("{e}"), "{}", MSG);
                         }
+                    });
+
+                    let connector = self.channels.builder();
+                    let memquota = ChannelAccount::new(&self.memquota)?;
+
+                    let outcome = connector
+                        .build_channel(&target, self.reporter.clone(), memquota)
                         .await;
 
-                        match chan_result {
-                            Ok(ref chan) => {
-                                // Replace the pending channel with the newly built channel.
-                                self.channels
-                                    .upgrade_pending_channel_to_open(handle, Arc::clone(chan))?;
-                            }
-                            Err(_) => {
-                                // Remove the pending channel.
-                                if let Err(e) = self.channels.remove_pending_channel(handle) {
-                                    // Just log an error if we're unable to remove it, since there's
-                                    // nothing else we can do here, and returning the error would
-                                    // hide the actual error that we care about (the channel build
-                                    // failure).
-                                    #[allow(clippy::missing_docs_in_private_items)]
-                                    const MSG: &str = "Unable to remove the pending channel";
-                                    error_report!(internal!("{e}"), "{}", MSG);
-                                }
-                            }
+                    match outcome {
+                        Ok(ref chan) => {
+                            // Replace the pending channel with the newly built channel.
+                            let handle = defer_remove_pending.cancel();
+                            self.channels
+                                .upgrade_pending_channel_to_open(handle, Arc::clone(chan))?;
                         }
-
-                        chan_result
+                        Err(_) => {
+                            // Remove the pending channel.
+                            drop(defer_remove_pending);
+                        }
                     }
-                    .await;
 
                     // It's okay if all the receivers went away:
                     // that means that nobody was waiting for this channel.

@@ -50,6 +50,7 @@ mod mgr;
 #[cfg(test)]
 mod testing;
 pub mod transport;
+pub(crate) mod util;
 
 use futures::select_biased;
 use futures::task::SpawnExt;
