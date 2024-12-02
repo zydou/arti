@@ -190,10 +190,8 @@ pub struct Channel {
 
     /// A receiver that indicates whether the channel is closed.
     ///
-    /// Awaiting will return a `Cancelled` event when the reactor is dropped.
+    /// Awaiting will return a `CancelledError` event when the reactor is dropped.
     /// Read to decide if operations may succeed, and is returned by `wait_for_close`.
-    ///
-    /// This must never be polled directly. (Must `clone` if you need to poll.)
     reactor_closed_rx: oneshot_broadcast::Receiver<void::Void>,
 
     /// A unique identifier for this channel.
