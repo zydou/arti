@@ -45,7 +45,8 @@ full = [
     "fs-mistrust/full",
     "tor-log-ratelim/full",
     "tor-relay-selection/full",
-    "oneshot-fused-workaround/full", "tor-config-path/full",
+    "oneshot-fused-workaround/full",
+    "tor-config-path/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.

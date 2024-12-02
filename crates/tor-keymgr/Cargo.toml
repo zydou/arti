@@ -23,7 +23,9 @@ full = [
     "tor-key-forge/full",
     "tor-llcrypto/full",
     "tor-config/full",
-    "tor-persist/full", "tor-basic-utils/full", "tor-config-path/full",
+    "tor-persist/full",
+    "tor-basic-utils/full",
+    "tor-config-path/full",
 ]
 
 # Enable experimental APIs that are not yet officially supported.
