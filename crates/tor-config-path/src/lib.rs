@@ -58,6 +58,13 @@ use std::ffi::OsStr;
 #[cfg(feature = "address")]
 pub mod addr;
 
+#[cfg(feature = "arti-client")]
+mod arti_client_paths;
+
+#[cfg(feature = "arti-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arti-client")))]
+pub use arti_client_paths::arti_client_base_resolver;
+
 /// A path in a configuration file: tilde expansion is performed, along
 /// with expansion of variables provided by a [`CfgPathResolver`].
 ///
