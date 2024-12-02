@@ -74,6 +74,7 @@ pin-project = "1"
 rand = "0.8"
 rand_core = "0.6.2"
 safelog = { path = "../safelog", version = "0.4.2" }
+slab = "0.4.4"
 subtle = "2"
 thiserror = "2"
 tokio-crate = { package = "tokio", version = "1.7", optional = true }

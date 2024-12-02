@@ -722,7 +722,7 @@ impl Channel {
     /// of just ().
     #[cfg(feature = "experimental-api")]
     pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
-        self.reactor_closed_rx.clone().map(|_| ())
+        self.reactor_closed_rx.recv_clone().map(|_| ())
     }
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
