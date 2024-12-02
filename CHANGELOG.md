@@ -69,7 +69,7 @@ to their target relays.
   ([!2602], [!2623], [!2629])
 - New `CfgAddr` type to represent socket addresses in configuration.
   ([#1528], [!2597])
-- New [`tor-connect-point`] crate providing an initial backend implementation
+- New `tor-connect-point` crate providing an initial backend implementation
   for RPC connect point management.
   ([#1528], [!2629])
 
@@ -118,7 +118,7 @@ to their target relays.
 - Upgraded to the latest versions of
   `thiserror`, `rustls`, `sanitize-filename`, and `tinystr`.
   ([#1741], [!2626], [!2641], [!2647])
-- Removed dead code from [`tor-keymgr`]. ([!2638])
+- Removed dead code from `tor-keymgr`. ([!2638])
 - Fixed various new clippy warnings. ([!2639])
 
 ### Acknowledgments
