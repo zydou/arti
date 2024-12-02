@@ -23,6 +23,12 @@ to their target relays.
 - In `tor-config`, removed the `expand-paths` feature
   and re-export of `CfgPath` and `CfgPathError`.
   ([#1717], [!2593])
+- In `tor-config-path`, `CfgPath::path` now takes
+  a `CfgPathResolver` argument ([!2615]).
+- In `tor-ptmgr`, `PtMgr::new` now takes
+  a `CfgPathResolver` argument ([!2615]).
+- Moved the `NetdirProviderShutdown` error from `tor-hsservice`
+  to `tor-netdir`. ([!2609])
 - `HsIdParseError` no longer has an `HasKind` implementation.
   ([!2607])
 - When the `keymgr` feature is disabled in `tor-keymgr`,
