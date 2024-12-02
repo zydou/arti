@@ -10,11 +10,14 @@ use once_cell::sync::Lazy;
 
 use crate::{CfgPathError, CfgPathResolver};
 
-/// A [`CfgPathResolver`] with the base variables configured for a [`TorClientConfig`].
+/// A [`CfgPathResolver`] with the base variables configured for a `TorClientConfig`
+/// in `arti-client`.
 ///
-/// A [`TorClientConfig`] may set additional variables on its resolver.
+/// A `TorClientConfig` may set additional variables on its resolver.
 ///
-/// This should only be used by `TorClient` users. Libraries should be written in a
+/// This should only be used by `TorClient` users
+/// and others that need to use the same variables.
+/// Libraries should be written in a
 /// resolver-agnostic way (shouldn't rely on resolving `ARTI_CONFIG` for example).
 ///
 /// The supported variables are:
@@ -28,7 +31,7 @@ use crate::{CfgPathError, CfgPathResolver};
 ///     See documentation for [`std::env::current_exe`] for security notes.
 ///   * `USER_HOME`: the user's home directory.
 ///
-/// These variables are implemented using the `directories` crate, and
+/// These variables are implemented using the [`directories`] crate, and
 /// so should use appropriate system-specific overrides under the
 /// hood. (Some of those overrides are based on environment variables.)
 /// For more information, see that crate's documentation.
