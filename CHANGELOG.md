@@ -36,7 +36,7 @@ to their target relays.
   ([#1732], [!2631])
 - In `tor-checkable`, `TimeRangeBound` now returns
   a tuple of `Option<SystemTime>` instead of `Bound<SystemTime>`.
-  ([1659495eb30ae6a17058418b6d00592373cfdf65])
+  ([#1691], [1659495eb30ae6a17058418b6d00592373cfdf65])
 
 ### Onion service development
 - The `HasKind` implementation of `ErrorDetail`
@@ -168,6 +168,7 @@ for funding the development of Arti!
 [#1528]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1528
 [#1617]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1617
 [#1672]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1672
+[#1691]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1691
 [#1692]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1692
 [#1716]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1716
 [#1717]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1717
