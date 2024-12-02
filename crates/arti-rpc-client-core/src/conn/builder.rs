@@ -84,7 +84,7 @@ impl RpcConnBuilder {
     /// Prepend a single literal path entry to the search path in this RpcConnBuilder.
     ///
     /// This entry will be considered before any entries in `${ARTI_RPC_CONNECT_PATH}`,
-    /// but after any entry in `$ARTI_RPC_CONNECT_PATH_OVERRIDE`.
+    /// but after any entry in `${ARTI_RPC_CONNECT_PATH_OVERRIDE}`.
     ///
     /// Variables in this entry will not be expanded.
     pub fn prepend_literal_path(&mut self, p: PathBuf) {

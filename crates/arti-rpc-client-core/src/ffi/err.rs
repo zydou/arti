@@ -273,6 +273,10 @@ pub(super) enum InvalidInput {
     /// Tried to use an invalid port.
     #[error("Port was not in range 1..65535")]
     BadPort,
+
+    /// Tried to use an invalid constant
+    #[error("Provided constant was not recognized")]
+    InvalidConstValue,
 }
 
 impl From<void::Void> for InvalidInput {

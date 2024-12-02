@@ -31,6 +31,12 @@ class ArtiRpcStr(Structure):
     _fields_: list = []
 
 
+class ArtiRpcConnBuilder(Structure):
+    """FFI type: Builder for constructing RPC connections."""
+
+    _fields_: list = []
+
+
 class ArtiRpcConn(Structure):
     """FFI type: Connection to Arti via the RPC protocol."""
 
@@ -52,6 +58,7 @@ class ArtiRpcHandle(Structure):
 ArtiRpcResponseType = c_int
 
 _ConnOut = POINTER(POINTER(ArtiRpcConn))
+_BuilderOut = POINTER(POINTER(ArtiRpcConnBuilder))
 _ErrorOut = POINTER(POINTER(ArtiRpcError))
 _RpcStrOut = POINTER(POINTER(ArtiRpcStr))
 _RpcHandleOut = POINTER(POINTER(ArtiRpcHandle))
@@ -113,8 +120,26 @@ def _annotate_library(lib: ctypes.CDLL):
     lib.arti_rpc_conn_get_session_id.argtypes = [POINTER(ArtiRpcConn)]
     lib.arti_rpc_conn_get_session_id.restype = c_char_p
 
-    lib.arti_rpc_connect.argtypes = [c_char_p, _ConnOut, _ErrorOut]
-    lib.arti_rpc_connect.restype = _ArtiRpcStatus
+    lib.arti_rpc_conn_builder_new.argtypes = [_BuilderOut, _ErrorOut]
+    lib.arti_rpc_conn_builder_new.restype = _ArtiRpcStatus
+
+    lib.arti_rpc_conn_builder_free.argtypes = [POINTER(ArtiRpcConnBuilder)]
+    lib.arti_rpc_conn_builder_free.restype = None
+
+    lib.arti_rpc_conn_builder_prepend_entry.argtypes = [
+        POINTER(ArtiRpcConnBuilder),
+        c_int,
+        c_char_p,
+        _ErrorOut,
+    ]
+    lib.arti_rpc_conn_builder_prepend_entry.restype = _ArtiRpcStatus
+
+    lib.arti_rpc_conn_builder_connect.argtypes = [
+        POINTER(ArtiRpcConnBuilder),
+        _ConnOut,
+        _ErrorOut,
+    ]
+    lib.arti_rpc_conn_builder_connect.restype = _ArtiRpcStatus
 
     lib.arti_rpc_conn_free.argtypes = [POINTER(ArtiRpcConn)]
     lib.arti_rpc_conn_free.restype = None

@@ -35,6 +35,7 @@ from arti_rpc.ffi import (
     ArtiRpcError as FfiError,
     ArtiRpcHandle as FfiHandle,
     ArtiRpcConn as FfiConn,
+    ArtiRpcConnBuilder as FfiBuilder,
     _ArtiRpcStatus as FfiStatus,
 )
 from typing import (
@@ -102,6 +103,103 @@ def _into_json_str(o: Union[str, dict]) -> str:
         return o
 
 
+class _BuildEntType(Enum):
+    """
+    Value to indiate the kind of an RPC connect point search path entry.
+
+    Returned by ArtiRpcResponse.kind().
+    """
+
+    LITERAL_CONNECT_POINT = 1
+    EXPANDABLE_PATH = 2
+    LITERAL_PATH = 3
+
+
+class ArtiRpcConnBuilder(_RpcBase):
+    """
+    A builder object used to configure connections to Arti.
+    """
+
+    _builder: Optional[Ptr[FfiBuilder]]
+
+    def __init__(self, rpc_lib=None):
+        """
+        Return a new ArtiR
+        """
+        self._builder = None
+
+        if rpc_lib is None:
+            rpc_lib = arti_rpc.ffi.get_library()
+
+        _RpcBase.__init__(self, rpc_lib)
+
+        builder = POINTER(arti_rpc.ffi.ArtiRpcConnBuilder)()
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+        rv = self._rpc.arti_rpc_conn_builder_new(byref(builder), byref(error))
+        self._handle_error(rv, error)
+        assert builder
+        self._builder = builder
+
+    def __del__(self):
+        if self._builder is not None:
+            self._rpc.arti_rpc_conn_builder_free(self._builder)
+            self._builder = None
+
+    def _prepend_entry(self, entrykind: _BuildEntType, entry: str) -> None:
+        """
+        Helper: Prepend `entry` to the search path of this builder.
+        """
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+        rv = self._rpc.arti_rpc_conn_builder_prepend_entry(
+            self._builder, entrykind.value, entry.encode("utf-8"), byref(error)
+        )
+        self._handle_error(rv, error)
+
+    def prepend_literal_connect_point(self, connect_point: str) -> None:
+        """
+        Prepend `connect_point` to this builder's search path
+        as a literal connect point.
+        """
+        self._prepend_entry(_BuildEntType.LITERAL_CONNECT_POINT, connect_point)
+
+    def prepend_expandable_path(self, path: str) -> None:
+        """
+        Prepend `path` to this builder's search path
+        as an expandable path (one to which Arti's variable substitution applies).
+        """
+        self._prepend_entry(_BuildEntType.EXPANDABLE_PATH, path)
+
+    def prepend_literal_path(self, path: str) -> None:
+        """
+        Prepend `path` to this builder's search path
+        as a literal path (one to which Arti's variable substitution does not apply).
+        """
+        self._prepend_entry(_BuildEntType.LITERAL_PATH, path)
+
+    def connect(self) -> ArtiRpcConn:
+        """
+        Use the settings in this builder to open a connection to Arti.
+        """
+        conn = self._connect_inner()
+
+        return ArtiRpcConn(rpc_lib=self._rpc, _conn=conn)
+
+    def _connect_inner(self) -> Ptr[FfiConn]:
+        """
+        Helper: Use the settings in this builder to open a connection to Arti,
+        and return a pointer to that connection.
+        """
+        conn = POINTER(arti_rpc.ffi.ArtiRpcConn)()
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+        rv = self._rpc.arti_rpc_conn_builder_connect(
+            self._builder, byref(conn), byref(error)
+        )
+        self._handle_error(rv, error)
+        assert conn
+
+        return conn
+
+
 class ArtiRpcConn(_RpcBase):
     """
     An open connection to Arti.
@@ -110,10 +208,9 @@ class ArtiRpcConn(_RpcBase):
     _conn: Optional[Ptr[FfiConn]]
     _session: ArtiRpcObject
 
-    def __init__(self, connect_string: str, rpc_lib=None):
+    def __init__(self, rpc_lib=None, _conn: Optional[Ptr[FfiConn]] = None):
         """
-        Try to connect to Arti, using the parameters specified in
-        `connect_str`.
+        Try to connect to Arti using default settings.
 
         If `rpc_lib` is specified, it must be a ctypes DLL,
         constructed with `arti_rpc.ffi.get_library`.
@@ -126,14 +223,10 @@ class ArtiRpcConn(_RpcBase):
 
         _RpcBase.__init__(self, rpc_lib)
 
-        conn = POINTER(arti_rpc.ffi.ArtiRpcConn)()
-        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
-        rv = self._rpc.arti_rpc_connect(
-            connect_string.encode("utf-8"), byref(conn), byref(error)
-        )
-        self._handle_error(rv, error)
-        assert conn
-        self._conn = conn
+        if _conn is None:
+            _conn = ArtiRpcConnBuilder()._connect_inner()
+
+        self._conn = _conn
         s = self._rpc.arti_rpc_conn_get_session_id(self._conn).decode("utf-8")
         self._session = self.make_object(s)
 
@@ -287,6 +380,9 @@ class ArtiRpcErrorStatus(Enum):
     PROXY_IO = 10
     STREAM_FAILED = 11
     NOT_AUTHENTICATED = 12
+    ALL_CONNECT_ATTEMPTS_FAILED = 13
+    CONNECT_POINT_NOT_USABLE = 14
+    BAD_CONNECT_POINT_PATH = 15
 
 
 def _error_status_from_int(status: int) -> Union[ArtiRpcErrorStatus, int]:

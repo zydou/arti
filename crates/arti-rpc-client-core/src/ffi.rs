@@ -8,6 +8,7 @@ mod util;
 
 use err::{ArtiRpcError, InvalidInput};
 use std::ffi::{c_char, c_int};
+use std::sync::Mutex;
 use util::{
     ffi_body_raw, ffi_body_with_err, OptOutPtrExt as _, OptOutValExt, OutPtr, OutSocketOwned,
     OutVal,
@@ -33,6 +34,14 @@ pub type ArtiRpcStatus = u32;
 /// it with [`arti_rpc_conn_free`]
 pub type ArtiRpcConn = crate::RpcConn;
 
+/// A builder object used to configure and construct
+/// a connection to Arti over the RPC protocol.
+///
+/// This is a thread-safe type: you may safely use it from multiple threads at once.
+///
+/// Once you are done with this object, you must free it with [`arti_rpc_conn_builder_free`].
+pub struct ArtiRpcConnBuilder(Mutex<RpcConnBuilder>);
+
 /// An owned string, returned by this library.
 ///
 /// This string must be released with `arti_rpc_str_free`.
@@ -49,6 +58,9 @@ pub type ArtiRpcHandle = RequestHandle;
 
 /// The type of a message returned by an RPC request.
 pub type ArtiRpcResponseType = c_int;
+
+/// The type of an entry prepended to a connect point search path.
+pub type ArtiRpcBuilderEntryType = c_int;
 
 /// The type of a data stream socket.
 /// (This is always `int` on Unix-like platforms,
@@ -74,17 +86,115 @@ impl Default for ArtiRpcRawSocket {
     }
 }
 
-/// Try to open a new connection to an Arti instance.
+/// Try to create a new `ArtiRpcConnBuilder`, with default settings.
 ///
-/// The location of the instance and the method to connect to it are described in
-/// `connection_string`.
-///
-/// (TODO RPC: Document the format of this string better!)
-///
-/// On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
-/// Otherwise return some other status code, set `*rpc_conn_out` to NULL, and set
+/// On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*builder_out`
+/// to a new `ArtiRpcConnBuilder`.
+/// Otherwise return some other status code, set `*builder_out` to NULL, and set
 /// `*error_out` (if provided) to a newly allocated error object.
 ///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*builder_out` and `*error_out`,
+/// if set, are eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_conn_builder_new(
+    builder_out: *mut *mut ArtiRpcConnBuilder,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let builder_out: Option<OutPtr<ArtiRpcConnBuilder>> [out_ptr_opt];
+            err error_out: Option<OutPtr<ArtiRpcError>>;
+        } in {
+            let builder = ArtiRpcConnBuilder(Mutex::new(RpcConnBuilder::new()));
+            builder_out.write_boxed_value_if_ptr_set(builder);
+        }
+    )
+}
+
+/// Release storage held by an `ArtiRpcConnBuilder`.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_conn_builder_free(builder: *mut ArtiRpcConnBuilder) {
+    ffi_body_raw!(
+        {
+            let builder: Option<Box<ArtiRpcConnBuilder>> [in_ptr_consume_opt];
+        } in {
+            drop(builder);
+            // Safety: return value is (); trivially safe.
+            ()
+        }
+    );
+}
+
+/// Constant to denote a literal connect point.
+///
+/// This constant is passed to [`arti_rpc_conn_builder_prepend_entry`].
+pub const ARTI_RPC_BUILDER_ENTRY_LITERAL_CONNECT_POINT: ArtiRpcBuilderEntryType = 1;
+
+/// Constant to denote a path in which Arti configuration variables are expanded.
+///
+/// This constant is passed to [`arti_rpc_conn_builder_prepend_entry`].
+pub const ARTI_RPC_BUILDER_ENTRY_EXPANDABLE_PATH: ArtiRpcBuilderEntryType = 2;
+
+/// Constant to denote a literal path that is not expanded.
+///
+/// This constant is passed to [`arti_rpc_conn_builder_prepend_entry`].
+pub const ARTI_RPC_BUILDER_ENTRY_LITERAL_PATH: ArtiRpcBuilderEntryType = 3;
+
+/// Prepend a single entry to the connection point path in `builder`.
+///
+/// This entry will be considered before any entries in `${ARTI_RPC_CONNECT_PATH}`,
+/// but after any entry in `${ARTI_RPC_CONNECT_PATH_OVERRIDE}`.
+///
+/// The interpretation will depend on the value of `entry_type`.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`.
+/// Otherwise return some other status code, and set
+/// `*error_out` (if provided) to a newly allocated error object.
+///
+/// # Ownership
+///
+/// The caller is responsible for making sure that `*error_out`,
+/// if set, is eventually freed.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_conn_builder_prepend_entry(
+    builder: *const ArtiRpcConnBuilder,
+    entry_type: ArtiRpcBuilderEntryType,
+    entry: *const c_char,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let builder: Option<&ArtiRpcConnBuilder> [in_ptr_opt];
+            let entry: Option<&str> [in_str_opt];
+            err error_out: Option<OutPtr<ArtiRpcError>>;
+        } in {
+            let builder = builder.ok_or(InvalidInput::NullPointer)?;
+            let entry = entry.ok_or(InvalidInput::NullPointer)?;
+            let mut b = builder.0.lock().expect("Poisoned lock");
+            match entry_type {
+                ARTI_RPC_BUILDER_ENTRY_LITERAL_CONNECT_POINT =>
+                    b.prepend_literal_entry(entry.to_string()),
+                ARTI_RPC_BUILDER_ENTRY_EXPANDABLE_PATH =>
+                    b.prepend_path(entry.into()),
+                ARTI_RPC_BUILDER_ENTRY_LITERAL_PATH =>
+                    b.prepend_literal_path(entry.into()),
+                _ => return Err(InvalidInput::InvalidConstValue.into()),
+            }
+        }
+    )
+}
+
+/// Use `builder` to open a new RPC connection to Arti.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`,
+/// and set `conn_out` to a new ArtiRpcConn.
+/// Otherwise return some other status code, set *conn_out to NULL, and set
+/// `*error_out` (if provided) to a newly allocated error object.
 ///
 /// # Ownership
 ///
@@ -92,26 +202,20 @@ impl Default for ArtiRpcRawSocket {
 /// if set, are eventually freed.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn arti_rpc_connect(
-    connection_string: *const c_char,
+pub unsafe extern "C" fn arti_rpc_conn_builder_connect(
+    builder: *const ArtiRpcConnBuilder,
     rpc_conn_out: *mut *mut ArtiRpcConn,
     error_out: *mut *mut ArtiRpcError,
 ) -> ArtiRpcStatus {
     ffi_body_with_err!(
         {
-            let connection_string: Option<&str> [in_str_opt];
+            let builder: Option<&ArtiRpcConnBuilder> [in_ptr_opt];
             let rpc_conn_out: Option<OutPtr<ArtiRpcConn>> [out_ptr_opt];
-            err error_out : Option<OutPtr<ArtiRpcError>>;
+            err error_out: Option<OutPtr<ArtiRpcError>>;
         } in {
-            let connection_string = connection_string
-                .ok_or(InvalidInput::NullPointer)?;
-
-            let mut builder = RpcConnBuilder::new();
-            // XXXX This is not quite right; we need to rework this API.
-            builder.prepend_literal_entry(connection_string.to_owned());
-
-            let conn = builder.connect()?;
-
+            let builder = builder.ok_or(InvalidInput::NullPointer)?;
+            let b = builder.0.lock().expect("Poisoned lock");
+            let conn = b.connect()?;
             rpc_conn_out.write_boxed_value_if_ptr_set(conn);
         }
     )

@@ -173,12 +173,13 @@ typedef int ArtiRpcRawSocket;
 [export]
 # These structs are not ones we want to expose under their actual names,
 # or ones that we don't want to expose at all.
-exclude = ["FfiError", "RequestHandle", "RpcConn", "RpcErrorCode", "Utf8CString", "ArtiRpcRawSocket"]
+exclude = ["FfiError", "RequestHandle", "RpcConnBuilder", "RpcConn", "RpcErrorCode", "Utf8CString", "ArtiRpcRawSocket"]
 
 [export.rename]
 # Having not declared these structs, we can give them new names in the
 # typedefs that assign them their real names.
 "RpcConn" = "struct ArtiRpcConn"
+"RpcConnBuilder" = "struct ArtiRpcConnBuilder"
 "FfiError" = "struct ArtiRpcError"
 "Utf8CString" = "struct ArtiRpcStr"
 "RequestHandle" = "struct ArtiRpcHandle"

@@ -155,12 +155,36 @@ typedef int ArtiRpcRawSocket;
 
 
 /**
+ * A builder object used to configure and construct
+ * a connection to Arti over the RPC protocol.
+ *
+ * This is a thread-safe type: you may safely use it from multiple threads at once.
+ *
+ * Once you are done with this object, you must free it with [`arti_rpc_conn_builder_free`].
+ */
+typedef struct ArtiRpcConnBuilder ArtiRpcConnBuilder;
+
+/**
  * A status code returned by an Arti RPC function.
  *
  * On success, a function will return `ARTI_SUCCESS (0)`.
  * On failure, a function will return some other status code.
  */
 typedef uint32_t ArtiRpcStatus;
+
+/**
+ * An error returned by the Arti RPC code, exposed as an object.
+ *
+ * When a function returns an [`ArtiRpcStatus`] other than [`ARTI_RPC_STATUS_SUCCESS`],
+ * it will also expose a newly allocated value of this type
+ * via its `error_out` parameter.
+ */
+typedef struct ArtiRpcError ArtiRpcError;
+
+/**
+ * The type of an entry prepended to a connect point search path.
+ */
+typedef int ArtiRpcBuilderEntryType;
 
 /**
  * An open connection to Arti over an a RPC protocol.
@@ -171,15 +195,6 @@ typedef uint32_t ArtiRpcStatus;
  * it with [`arti_rpc_conn_free`]
  */
 typedef struct ArtiRpcConn ArtiRpcConn;
-
-/**
- * An error returned by the Arti RPC code, exposed as an object.
- *
- * When a function returns an [`ArtiRpcStatus`] other than [`ARTI_RPC_STATUS_SUCCESS`],
- * it will also expose a newly allocated value of this type
- * via its `error_out` parameter.
- */
-typedef struct ArtiRpcError ArtiRpcError;
 
 /**
  * An owned string, returned by this library.
@@ -203,6 +218,27 @@ typedef struct ArtiRpcHandle ArtiRpcHandle;
  * The type of a message returned by an RPC request.
  */
 typedef int ArtiRpcResponseType;
+
+/**
+ * Constant to denote a literal connect point.
+ *
+ * This constant is passed to [`arti_rpc_conn_builder_prepend_entry`].
+ */
+#define ARTI_RPC_BUILDER_ENTRY_LITERAL_CONNECT_POINT 1
+
+/**
+ * Constant to denote a path in which Arti configuration variables are expanded.
+ *
+ * This constant is passed to [`arti_rpc_conn_builder_prepend_entry`].
+ */
+#define ARTI_RPC_BUILDER_ENTRY_EXPANDABLE_PATH 2
+
+/**
+ * Constant to denote a literal path that is not expanded.
+ *
+ * This constant is passed to [`arti_rpc_conn_builder_prepend_entry`].
+ */
+#define ARTI_RPC_BUILDER_ENTRY_LITERAL_PATH 3
 
 /**
  * A constant indicating that a message is a final result.
@@ -362,26 +398,64 @@ extern "C" {
 #endif // __cplusplus
 
 /**
- * Try to open a new connection to an Arti instance.
+ * Try to create a new `ArtiRpcConnBuilder`, with default settings.
  *
- * The location of the instance and the method to connect to it are described in
- * `connection_string`.
- *
- * (TODO RPC: Document the format of this string better!)
- *
- * On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*rpc_conn_out` to a new ArtiRpcConn.
- * Otherwise return some other status code, set `*rpc_conn_out` to NULL, and set
+ * On success, return `ARTI_RPC_STATUS_SUCCESS` and set `*builder_out`
+ * to a new `ArtiRpcConnBuilder`.
+ * Otherwise return some other status code, set `*builder_out` to NULL, and set
  * `*error_out` (if provided) to a newly allocated error object.
  *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*builder_out` and `*error_out`,
+ * if set, are eventually freed.
+ */
+ArtiRpcStatus arti_rpc_conn_builder_new(struct ArtiRpcConnBuilder **builder_out,
+                                        ArtiRpcError **error_out);
+
+/**
+ * Release storage held by an `ArtiRpcConnBuilder`.
+ */
+void arti_rpc_conn_builder_free(struct ArtiRpcConnBuilder *builder);
+
+/**
+ * Prepend a single entry to the connection point path in `builder`.
+ *
+ * This entry will be considered before any entries in `${ARTI_RPC_CONNECT_PATH}`,
+ * but after any entry in `${ARTI_RPC_CONNECT_PATH_OVERRIDE}`.
+ *
+ * The interpretation will depend on the value of `entry_type`.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`.
+ * Otherwise return some other status code, and set
+ * `*error_out` (if provided) to a newly allocated error object.
+ *
+ * # Ownership
+ *
+ * The caller is responsible for making sure that `*error_out`,
+ * if set, is eventually freed.
+ */
+ArtiRpcStatus arti_rpc_conn_builder_prepend_entry(const struct ArtiRpcConnBuilder *builder,
+                                                  ArtiRpcBuilderEntryType entry_type,
+                                                  const char *entry,
+                                                  ArtiRpcError **error_out);
+
+/**
+ * Use `builder` to open a new RPC connection to Arti.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`,
+ * and set `conn_out` to a new ArtiRpcConn.
+ * Otherwise return some other status code, set *conn_out to NULL, and set
+ * `*error_out` (if provided) to a newly allocated error object.
  *
  * # Ownership
  *
  * The caller is responsible for making sure that `*rpc_conn_out` and `*error_out`,
  * if set, are eventually freed.
  */
-ArtiRpcStatus arti_rpc_connect(const char *connection_string,
-                               ArtiRpcConn **rpc_conn_out,
-                               ArtiRpcError **error_out);
+ArtiRpcStatus arti_rpc_conn_builder_connect(const struct ArtiRpcConnBuilder *builder,
+                                            ArtiRpcConn **rpc_conn_out,
+                                            ArtiRpcError **error_out);
 
 /**
  * Given a pointer to an RPC connection, return the object ID for its negotiated session.
