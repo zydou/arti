@@ -1,6 +1,6 @@
 [package]
 name = "tor-relay-crypto"
-version = "0.24.0"
+version = "0.25.0"
 authors = ["The Tor Project, Inc."]
 edition = "2021"
 rust-version = "1.77"
@@ -25,11 +25,11 @@ full = [
 derive-deftly = "0.14"
 derive_more = { version = "1.0.0", features = ["full"] }
 humantime = "2"
-tor-cert = { path = "../tor-cert", version = "0.24.0", features = ["encode"] }
-tor-error = { path = "../tor-error", version = "0.24.0" }
-tor-key-forge = { path = "../tor-key-forge", version = "0.24.0" }
-tor-keymgr = { path = "../tor-keymgr", version = "0.24.0" }
-tor-persist = { path = "../tor-persist", version = "0.24.0" }
+tor-cert = { path = "../tor-cert", version = "0.25.0", features = ["encode"] }
+tor-error = { path = "../tor-error", version = "0.25.0" }
+tor-key-forge = { path = "../tor-key-forge", version = "0.25.0" }
+tor-keymgr = { path = "../tor-keymgr", version = "0.25.0" }
+tor-persist = { path = "../tor-persist", version = "0.25.0" }
 
 [dev-dependencies]
-tor-keymgr = { version = "0.24.0", path = "../tor-keymgr", features = ["testing"] }
+tor-keymgr = { version = "0.25.0", path = "../tor-keymgr", features = ["testing"] }

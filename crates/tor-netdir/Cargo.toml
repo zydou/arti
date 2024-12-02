@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdir"
-version = "0.24.0"
+version = "0.25.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -61,15 +61,15 @@ static_assertions = "1"
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "2"
 time = { version = "0.3.17", features = ["macros"], optional = true }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
-tor-error = { path = "../tor-error", version = "0.24.0" }
-tor-geoip = { path = "../tor-geoip", version = "0.24.0", optional = true }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.24.0", optional = true }
-tor-linkspec = { path = "../tor-linkspec", version = "0.24.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.24.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.24.0" }
-tor-protover = { path = "../tor-protover", version = "0.24.0" }
-tor-units = { path = "../tor-units", version = "0.24.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.25.0" }
+tor-error = { path = "../tor-error", version = "0.25.0" }
+tor-geoip = { path = "../tor-geoip", version = "0.25.0", optional = true }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.25.0", optional = true }
+tor-linkspec = { path = "../tor-linkspec", version = "0.25.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.25.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.25.0" }
+tor-protover = { path = "../tor-protover", version = "0.25.0" }
+tor-units = { path = "../tor-units", version = "0.25.0" }
 tracing = "0.1.36"
 # TODO MSRV 1.81: typed-index-collections 3.2 requires rust 1.81;
 # the tilde below prevents it from picking 3.2 and breaking our CI.
@@ -80,6 +80,6 @@ visibility = { version = "0.1.0", optional = true }
 float_eq = "1.0.0"
 hex = "0.4"
 hex-literal = "0.4"
-tor-netdoc = { path = "../tor-netdoc", version = "0.24.0", features = ["build_docs"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.25.0", features = ["build_docs"] }
 [package.metadata.docs.rs]
 all-features = true
