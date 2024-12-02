@@ -20,7 +20,7 @@ full = [
     "tor-basic-utils/full",
     "tor-config-path/full",
     "tor-general-addr/full",
-    "tor-rtcompat?/full"
+    "tor-rtcompat?/full",
 ]
 default = []
 
