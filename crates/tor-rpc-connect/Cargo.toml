@@ -31,9 +31,9 @@ rpc-server = ["rand", "tor-rtcompat"]
 # NOTE: This crate is a dependency of our RPC client library;
 # Try to avoid introducing big unconditional dependencies!
 derive_more = { version = "1.0.0", features = ["full"] }
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.2" }
 rand = { version = "0.8", optional = true }
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 thiserror = "2"

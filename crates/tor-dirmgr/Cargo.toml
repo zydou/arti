@@ -65,7 +65,7 @@ derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.6"
 event-listener = "5"
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.2" }
 fslock = { version = "0.2.0" }
 futures = "0.3.14"
 hex = "0.4"
@@ -79,7 +79,7 @@ paste = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 rusqlite = { version = "0.32.1", features = ["time"] }
-safelog = { path = "../safelog", version = "0.4.1" }
+safelog = { path = "../safelog", version = "0.4.2" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "2"

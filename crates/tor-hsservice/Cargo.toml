@@ -74,7 +74,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 digest = "0.10.0"
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.0", features = ["serde"] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.2", features = ["serde"] }
 futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
 hex = "0.4"
@@ -86,8 +86,8 @@ oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8.5"
 rand_core = "0.6.2"
-retry-error = { version = "0.6.0", path = "../retry-error" }
-safelog = { path = "../safelog", version = "0.4.1" }
+retry-error = { version = "0.6.1", path = "../retry-error" }
+safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 strum = { version = "0.26.3", features = ["derive"] }
@@ -124,7 +124,7 @@ void = "1"
 libc = { version = "0.2", default-features = false }
 rmp-serde = "1"
 serde_json = "1.0.104"
-slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.2" }
 tempfile = "3"
 test-temp-dir = { version = "0.3.0", path = "../test-temp-dir" }
 tor-config = { version = "0.24.0", path = "../tor-config", features = ["testing"] }

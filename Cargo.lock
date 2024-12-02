@@ -1905,7 +1905,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "equix"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2129,7 +2129,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -2166,7 +2166,7 @@ dependencies = [
 
 [[package]]
 name = "fslock-guard"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "fslock-arti-fork",
  "test-temp-dir",
@@ -2448,7 +2448,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -4154,7 +4154,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "retry-error"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -4376,7 +4376,7 @@ dependencies = [
 
 [[package]]
 name = "safelog"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "derive_more",
  "educe",
@@ -4809,7 +4809,7 @@ dependencies = [
 
 [[package]]
 name = "slotmap-careful"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "paste",
  "serde",

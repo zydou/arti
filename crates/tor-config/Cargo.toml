@@ -37,7 +37,7 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 educe = "0.4.6"
 either = "1"
 figment = { version = "0.10.18", features = ["toml"] }
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.2" }
 futures = "0.3.14"
 itertools = "0.13.0"
 notify = { version = "7", default-features = false, features = ["macos_kqueue"] }

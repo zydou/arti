@@ -23,7 +23,7 @@ itertools = "0.13.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 priority-queue = "2.0.3"
-slotmap-careful = { path = "../slotmap-careful", version = "0.2.1" }
+slotmap-careful = { path = "../slotmap-careful", version = "0.2.2" }
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "2"
 tor-error = { version = "0.24.0", path = "../tor-error", features = ["tracing"] }
