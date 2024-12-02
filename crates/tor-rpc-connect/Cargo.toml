@@ -12,7 +12,7 @@ categories = ["asynchronous"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-full = ["rpc-client", "rpc-server"]
+full = ["rpc-client", "rpc-server", "fs-mistrust/full", "safelog/full", "tor-basic-utils/full", "tor-config-path/full", "tor-general-addr/full", "tor-rtcompat?/full"]
 default = []
 
 rpc-client = []

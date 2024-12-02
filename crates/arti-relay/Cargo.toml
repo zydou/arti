@@ -23,7 +23,7 @@ full = [
     "tor-proto/full",
     "tor-relay-crypto/full",
     "tor-rtcompat/full",
-    "tor-memquota/full",
+    "tor-memquota/full", "tor-config-path/full",
 ]
 
 [dependencies]

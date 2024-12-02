@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["expand-paths", "address"]
 
-full = ["address", "expand-paths", "tor-error/full"]
+full = ["address", "expand-paths", "tor-error/full", "tor-general-addr?/full"]
 
 expand-paths = ["shellexpand", "directories"]
 address = ["tor-general-addr"]
