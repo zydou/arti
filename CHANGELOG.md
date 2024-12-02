@@ -181,7 +181,13 @@ for funding the development of Arti!
 [#1751]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1751
 [1659495eb30ae6a17058418b6d00592373cfdf65]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1659495eb30ae6a17058418b6d00592373cfdf65
 [38d1e334007143bba5ec4b483f9e04b1f3ea23a1]: https://gitlab.torproject.org/tpo/core/arti/-/commit/38d1e334007143bba5ec4b483f9e04b1f3ea23a1
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[RUSTSEC-2024-0384]: https://rustsec.org/advisories/RUSTSEC-2024-0384.html
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 [cc2aff554c43e6b52bfea8f5378b3ee8dde35645]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cc2aff554c43e6b52bfea8f5378b3ee8dde35645
+[other sponsors]: https://www.torproject.org/about/sponsors/
+
+
 
 # Arti 1.3.0 - 31 October 2024
 
