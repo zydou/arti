@@ -323,6 +323,26 @@ typedef int ArtiRpcResponseType;
  */
 #define ARTI_RPC_STATUS_NOT_AUTHENTICATED 12
 
+/**
+ * All of our attempts to connect to Arti failed,
+ * or we reached an explicit instruction to "abort" our connection attempts.
+ */
+#define ARTI_RPC_STATUS_ALL_CONNECT_ATTEMPTS_FAILED 13
+
+/**
+ * We tried to connect to Arti at a given connect point,
+ * but it could not be used:
+ * either because we don't know how,
+ * or because we were not able to access some necessary file or directory.
+ */
+#define ARTI_RPC_STATUS_CONNECT_POINT_NOT_USABLE 14
+
+/**
+ * We were unable to parse or resolve an entry
+ * in our connect point search path.
+ */
+#define ARTI_RPC_STATUS_BAD_CONNECT_POINT_PATH 15
+
 
 
 
