@@ -1,6 +1,6 @@
 [package]
 name = "tor-socksproto"
-version = "0.24.0"
+version = "0.25.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -25,11 +25,11 @@ arbitrary = { version = "1.0.1", optional = true, features = ["derive"] }
 caret = { path = "../caret", version = "0.5.0" }
 derive-deftly = "0.14"
 educe = "0.4.6"
-safelog = { path = "../safelog", version = "0.4.1" }
+safelog = { path = "../safelog", version = "0.4.2" }
 subtle = "2"
 thiserror = "2"
-tor-bytes = { path = "../tor-bytes", version = "0.24.0", default-features = false }
-tor-error = { path = "../tor-error", version = "0.24.0", default-features = false }
+tor-bytes = { path = "../tor-bytes", version = "0.25.0", default-features = false }
+tor-error = { path = "../tor-error", version = "0.25.0", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.75"

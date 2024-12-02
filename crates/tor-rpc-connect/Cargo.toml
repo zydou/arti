@@ -1,6 +1,6 @@
 [package]
 name = "tor-rpc-connect"
-version = "0.24.0"
+version = "0.25.0"
 edition = "2021"
 rust-version = "1.77"
 authors = ["The Tor Project, Inc."]
@@ -31,17 +31,17 @@ rpc-server = ["rand", "tor-rtcompat"]
 # NOTE: This crate is a dependency of our RPC client library;
 # Try to avoid introducing big unconditional dependencies!
 derive_more = { version = "1.0.0", features = ["full"] }
-fs-mistrust = { path = "../fs-mistrust", version = "0.8.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.8.2" }
 rand = { version = "0.8", optional = true }
-safelog = { path = "../safelog", version = "0.4.0" }
+safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 thiserror = "2"
 toml = "0.8.8"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
-tor-config-path = { path = "../tor-config-path", version = "0.24.0", features = ["address"] }
-tor-general-addr = { path = "../tor-general-addr", version = "0.24.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.24.0", optional = true }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.25.0" }
+tor-config-path = { path = "../tor-config-path", version = "0.25.0", features = ["address"] }
+tor-general-addr = { path = "../tor-general-addr", version = "0.25.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.25.0", optional = true }
 tracing = "0.1.36"
 zeroize = "1"
 

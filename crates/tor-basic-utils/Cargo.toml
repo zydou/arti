@@ -1,6 +1,6 @@
 [package]
 name = "tor-basic-utils"
-version = "0.24.0"
+version = "0.25.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"

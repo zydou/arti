@@ -1,6 +1,6 @@
 [package]
 name = "tor-chanmgr"
-version = "0.24.0"
+version = "0.25.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -49,24 +49,24 @@ futures = "0.3.14"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-safelog = { path = "../safelog", version = "0.4.1" }
+safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "2"
-tor-async-utils = { version = "0.24.0", path = "../tor-async-utils" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.24.0" }
-tor-cell = { path = "../tor-cell", version = "0.24.0" }
-tor-config = { path = "../tor-config", version = "0.24.0" }
-tor-error = { path = "../tor-error", version = "0.24.0", features = ["tracing"] }
-tor-linkspec = { path = "../tor-linkspec", version = "0.24.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.24.0" }
-tor-memquota = { version = "0.24.0", path = "../tor-memquota", default-features = false }
-tor-netdir = { path = "../tor-netdir", version = "0.24.0" }
-tor-proto = { path = "../tor-proto", version = "0.24.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.24.0" }
-tor-socksproto = { path = "../tor-socksproto", version = "0.24.0", default-features = false, features = [
+tor-async-utils = { version = "0.25.0", path = "../tor-async-utils" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.25.0" }
+tor-cell = { path = "../tor-cell", version = "0.25.0" }
+tor-config = { path = "../tor-config", version = "0.25.0" }
+tor-error = { path = "../tor-error", version = "0.25.0", features = ["tracing"] }
+tor-linkspec = { path = "../tor-linkspec", version = "0.25.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.25.0" }
+tor-memquota = { version = "0.25.0", path = "../tor-memquota", default-features = false }
+tor-netdir = { path = "../tor-netdir", version = "0.25.0" }
+tor-proto = { path = "../tor-proto", version = "0.25.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.25.0" }
+tor-socksproto = { path = "../tor-socksproto", version = "0.25.0", default-features = false, features = [
     "client-handshake",
 ] }
-tor-units = { path = "../tor-units", version = "0.24.0" }
+tor-units = { path = "../tor-units", version = "0.25.0" }
 tracing = "0.1.36"
 void = "1"
 
@@ -75,10 +75,10 @@ float_eq = "1.0.0"
 futures-await-test = "0.3.0"
 hex-literal = "0.4"
 itertools = "0.13.0"
-tor-cell = { path = "../tor-cell", version = "0.24.0", features = ["testing"] }
-tor-netdir = { path = "../tor-netdir", version = "0.24.0", features = ["testing"] }
-tor-proto = { path = "../tor-proto", version = "0.24.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.24.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.24.0" }
+tor-cell = { path = "../tor-cell", version = "0.25.0", features = ["testing"] }
+tor-netdir = { path = "../tor-netdir", version = "0.25.0", features = ["testing"] }
+tor-proto = { path = "../tor-proto", version = "0.25.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.25.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.25.0" }
 [package.metadata.docs.rs]
 all-features = true
