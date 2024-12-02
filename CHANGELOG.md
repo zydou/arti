@@ -20,8 +20,8 @@ to their target relays.
   ([#1716], [!2646], [!2625])
 
 ### Breaking changes in lower-level crates
-- In `tor-config`, removed the `expand-paths` feature
-  and re-export of `CfgPath` and `CfgPathError`.
+- Removed the `expand-feature`
+  and the  `CfgPath` and `CfgPathError` re-exports from `tor-config`.
   ([#1717], [!2593])
 - In `tor-config-path`, `CfgPath::path` now takes
   a `CfgPathResolver` argument ([!2615]).
