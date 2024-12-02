@@ -38,10 +38,9 @@ full = [
     "tor-memquota/full",
 ]
 
-experimental = ["experimental-api", "ntor_v3", "stream-ctrl", "testing"]
+experimental = ["experimental-api", "ntor_v3", "stream-ctrl", "testing", "bench"]
 ntor_v3 = ["__is_experimental"]
 
-bench = []
 hs-client = ["hs-common"]
 hs-service = ["hs-common"]
 hs-common = ["tor-hscrypto"]
@@ -53,6 +52,7 @@ stream-ctrl = ["__is_experimental"]
 # covered by semver.
 testing = ["__is_experimental"]
 tokio = ["tokio-crate", "tokio-util"]
+bench = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
