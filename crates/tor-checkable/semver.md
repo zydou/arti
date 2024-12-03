@@ -1,1 +1,0 @@
-BREAKING: `TimeRangeBound` now returns a tuple of `Option<SystemTime>` instead of `Bound<SystemTime>`. Callers who want something that implements `RangeBound` should use the `TimeRangeBound` object directly. Code that wants a underlying `SystemTime` object should be simplified by having only two match arms instead of three. (#1691)
