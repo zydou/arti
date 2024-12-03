@@ -16,7 +16,7 @@ use super::ArtiRpcStatus;
 /// Helper:
 /// Given a restricted enum defining FfiStatus, also define a series of constants for its variants,
 /// and a string conversion function.
-
+//
 // NOTE: I tried to use derive_deftly here, but ran into trouble when defining the constants.
 // I wanted to have them be "pub const ARTI_FOO = FfiStatus::$vname",
 // but that doesn't work with cbindgen, which won't expose a constant unless it is a public type

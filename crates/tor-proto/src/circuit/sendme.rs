@@ -120,7 +120,7 @@ where
     /// Construct a new SendWindow.
     pub(crate) fn new(window: u16) -> SendWindow<P, T> {
         let increment = P::increment();
-        let capacity = (window + increment - 1) / increment;
+        let capacity = window.div_ceil(increment);
         SendWindow {
             window,
             tags: VecDeque::with_capacity(capacity as usize),

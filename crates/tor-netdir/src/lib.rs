@@ -39,6 +39,7 @@
 #![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 #![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
+#![allow(clippy::needless_lifetimes)] // See arti#1765
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod details;
@@ -1450,7 +1451,6 @@ impl NetDir {
     }
     /// Return true if there is enough information in this NetDir to build
     /// multihop circuits.
-
     fn have_enough_paths(&self) -> bool {
         // TODO-A001: This should check for our guards as well, and
         // make sure that if they're listed in the consensus, we have
