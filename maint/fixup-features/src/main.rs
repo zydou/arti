@@ -380,7 +380,10 @@ impl Crate {
 }
 
 /// Look at a toplevel Cargo.toml and find all of the paths in workplace.members
-fn list_crate_paths(toplevel: impl AsRef<Path>) -> Result<Vec<String>> {
+fn list_crate_paths(
+    toplevel: impl AsRef<Path>,
+    exclusion_prefixes: &[String],
+) -> Result<Vec<String>> {
     let s = std::fs::read_to_string(toplevel.as_ref())?;
     let toml_doc = s.parse::<DocumentMut>()?;
     Ok(toml_doc["workspace"]["members"]
@@ -392,18 +395,26 @@ fn list_crate_paths(toplevel: impl AsRef<Path>) -> Result<Vec<String>> {
                 .expect("Some member of workplace.members is not a string!?")
                 .to_owned()
         })
+        .filter(|s| {
+            // Iterate through all exclusion prefixes and check if there isn't one that `s` starts with.
+            !exclusion_prefixes
+                .iter()
+                .any(|prefix| s.starts_with(prefix))
+        })
         .collect())
 }
 
 fn main() -> Result<()> {
     let mut pargs = pico_args::Arguments::from_env();
-    const HELP: &str = "fixup-features [--no-annotate] <toplevel Cargo.toml>";
+    const HELP: &str =
+        "fixup-features [--no-annotate] [--exclude <PREFIX1> --exclude <PREFIX2> ...] <toplevel Cargo.toml>";
 
     if pargs.contains(["-h", "--help"]) {
         println!("{}", HELP);
         return Ok(());
     }
     let no_annotate = pargs.contains("--no-annotate");
+    let exclusion_prefixes: Vec<String> = pargs.values_from_str("--exclude").unwrap();
     let toplevel_toml_file: PathBuf = pargs.free_from_str()?;
     if !pargs.finish().is_empty() {
         println!("{}", HELP);
@@ -416,7 +427,7 @@ fn main() -> Result<()> {
         .to_path_buf();
     let mut crates = Vec::new();
     let mut crate_info = HashMap::new();
-    for p in list_crate_paths(&toplevel_toml_file)? {
+    for p in list_crate_paths(&toplevel_toml_file, &exclusion_prefixes)? {
         let mut crate_toml_path = toplevel_dir.clone();
         crate_toml_path.push(p);
         crate_toml_path.push("Cargo.toml");

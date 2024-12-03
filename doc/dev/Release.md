@@ -50,7 +50,7 @@ to make sure we aren't going to break our users.
    Note: fixup-features should be run with the top-level Cargo.toml
    as an argument:
    ```
-   cargo run -p fixup-features Cargo.toml
+   cargo run -p fixup-features -- --exclude examples/ --exclude maint/ Cargo.toml
    ```
 
 6. Does `maint/semver-checks "arti-v$LAST_VERSION"` find any issues
