@@ -146,10 +146,11 @@ pub(crate) trait AbstractCircBuilder<R: Runtime>: Send + Sync {
     type Circ: AbstractCirc + Send + Sync;
     /// An opaque type describing how a given circuit will be built.
     /// It may represent some or all of a path-or it may not.
+    //
     // TODO: It would be nice to have this parameterized on a lifetime,
     // and have that lifetime depend on the lifetime of the directory.
     // But I don't think that rust can do that.
-
+    //
     // HACK(eta): I don't like the fact that `MockablePlan` is necessary here.
     type Plan: Send + Debug + MockablePlan;
 

@@ -165,7 +165,7 @@ pub(crate) type CircuitRxReceiver = mq_queue::Receiver<ClientCircChanMsg, MpscSp
 // Because of the above, cloning this struct is always going to involve
 // two atomic refcount changes/checks.  Wrapping it in another Arc would
 // be overkill.
-
+//
 pub struct ClientCirc {
     /// Mutable state shared with the `Reactor`.
     mutable: Arc<Mutex<MutableState>>,

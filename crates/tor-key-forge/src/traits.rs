@@ -65,7 +65,7 @@ impl_downcast!(EncodableKey);
 // `ToEncodableKey` is used in the `KeyMgr` impl, where the associated type isn't an issue because
 // the `KeyMgr` implementation is generic over `K: ToEncodableKey`. The `Keystore`s themselves only
 // receive `&dyn EncodableKey`s.
-
+//
 pub trait ToEncodableKey: From<Self::KeyPair>
 where
     Self::Key: From<<Self::KeyPair as ToEncodableKey>::Key>,

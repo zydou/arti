@@ -271,7 +271,7 @@ fn srv_interval(consensus: &MdConsensus) -> Duration {
 /// Return the length of the voting period in the consensus.
 ///
 /// (The "voting period" is the length of time between between one consensus and the next.)
-
+///
 /// Return a time at the start of the UTC day containing `t`.
 fn start_of_day_containing(t: SystemTime) -> SystemTime {
     OffsetDateTime::from(t)

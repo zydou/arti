@@ -51,7 +51,6 @@ const HOME_SUBSTITUTION: &str = {
 };
 
 /// An extension trait for [`Path`].
-
 pub trait PathExt {
     /// If this is a path within our home directory, try to replace the home
     /// directory component with a symbolic reference to our home directory.

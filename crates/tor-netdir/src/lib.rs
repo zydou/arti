@@ -1451,7 +1451,6 @@ impl NetDir {
     }
     /// Return true if there is enough information in this NetDir to build
     /// multihop circuits.
-
     fn have_enough_paths(&self) -> bool {
         // TODO-A001: This should check for our guards as well, and
         // make sure that if they're listed in the consensus, we have
