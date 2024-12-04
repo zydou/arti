@@ -11,7 +11,9 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::task::{Context, Poll, Waker};
 
-use slab::Slab;
+use slotmap_careful::DenseSlotMap;
+
+slotmap_careful::new_key_type! { struct WakerKey; }
 
 /// A [oneshot broadcast][crate::util::oneshot_broadcast] sender.
 #[derive(Debug)]
@@ -58,7 +60,7 @@ struct Shared<T> {
     // the `Option` isn't really needed here,
     // but we use it to help detect bugs where something
     // tries to add a `Waker` after we've already woken them all
-    wakers: Mutex<Option<Slab<Waker>>>,
+    wakers: Mutex<Option<DenseSlotMap<WakerKey, Waker>>>,
 }
 
 /// A future that will be ready when the sender sends a message or is dropped.
@@ -70,7 +72,7 @@ struct ReceiverBorrowedFuture<'a, T> {
     /// State shared with the sender and all other receivers.
     shared: &'a Shared<T>,
     /// The key for any waker that we've added to [`Shared::wakers`].
-    waker_key: Option<usize>,
+    waker_key: Option<WakerKey>,
 }
 
 /// A future that will be ready when the sender sends a message or is dropped.
@@ -86,7 +88,7 @@ struct ReceiverOwnedFuture<T> {
     /// State shared with the sender and all other receivers.
     shared: Arc<Shared<T>>,
     /// The key for any waker that we've added to [`Shared::wakers`].
-    waker_key: Option<usize>,
+    waker_key: Option<WakerKey>,
 }
 
 /// The sender was dropped, so the channel is closed.
@@ -97,7 +99,7 @@ pub(crate) struct CancelledError;
 pub(crate) fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let shared = Arc::new(Shared {
         msg: OnceLock::new(),
-        wakers: Mutex::new(Some(Slab::new())),
+        wakers: Mutex::new(Some(DenseSlotMap::with_key())),
     });
 
     let sender = Sender {
@@ -147,7 +149,7 @@ impl<T> Sender<T> {
         // set the message
         shared.msg.set(msg)?;
 
-        let wakers = {
+        let mut wakers = {
             let mut wakers = shared.wakers.lock().expect("poisoned");
             // Take the wakers and drop the mutex guard, releasing the lock.
             // We could use `mem::take` here, but the `Option` should help catch bugs if something
@@ -165,7 +167,7 @@ impl<T> Sender<T> {
         // Wake while not holding the lock.
         // Since the lock is used in `ReceiverFuture::poll` and should not block for long periods of
         // time, we don't want to run third-party waker code here while holding the mutex.
-        for (_key, waker) in wakers.into_iter() {
+        for (_key, waker) in wakers.drain() {
             waker.wake();
         }
 
@@ -272,7 +274,7 @@ impl<T> std::ops::Drop for ReceiverOwnedFuture<T> {
 /// The shared poll implementation for receiver futures.
 fn receiver_fut_poll<'a, T>(
     shared: &'a Shared<T>,
-    waker_key: &mut Option<usize>,
+    waker_key: &mut Option<WakerKey>,
     new_waker: &Waker,
 ) -> Poll<Result<&'a T, CancelledError>> {
     // if the message was already set, return it
@@ -315,12 +317,12 @@ fn receiver_fut_poll<'a, T>(
 }
 
 /// The shared drop implementation for receiver futures.
-fn receiver_fut_drop<T>(shared: &Shared<T>, waker_key: &mut Option<usize>) {
+fn receiver_fut_drop<T>(shared: &Shared<T>, waker_key: &mut Option<WakerKey>) {
     if let Some(waker_key) = waker_key.take() {
         let mut wakers = shared.wakers.lock().expect("poisoned");
         if let Some(wakers) = wakers.as_mut() {
             wakers
-                .try_remove(waker_key)
+                .remove(waker_key)
                 // this is the only place that removes the waker from the map,
                 // so the waker should never be missing
                 .expect("the waker key was not found");
