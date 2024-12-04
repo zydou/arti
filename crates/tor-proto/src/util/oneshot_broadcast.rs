@@ -69,7 +69,7 @@ struct Shared<T> {
 /// This borrows the shared state from the [`Receiver`],
 /// so is more efficient than [`ReceiverFuture`].
 #[derive(Debug)]
-struct ReceiverBorrowedFuture<'a, T> {
+struct BorrowedReceiverFuture<'a, T> {
     /// State shared with the sender and all other receivers.
     shared: &'a Shared<T>,
     /// The key for any waker that we've added to [`Shared::wakers`].
@@ -79,7 +79,7 @@ struct ReceiverBorrowedFuture<'a, T> {
 /// A future that will be ready when the sender sends a message or is dropped.
 // This holds an `Arc` of the shared state,
 // so can be used as a `'static` future.
-// It would have been nice if we could store a `ReceiverBorrowedFuture`
+// It would have been nice if we could store a `BorrowedReceiverFuture`
 // holding a reference to our `Arc<Shared>`,
 // but that would be a self-referential struct,
 // so we need to duplicate everything instead.
@@ -214,7 +214,7 @@ impl<T> Receiver<T> {
     /// This is cancellation-safe.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) async fn borrowed(&self) -> Result<&T, SenderDropped> {
-        ReceiverBorrowedFuture {
+        BorrowedReceiverFuture {
             shared: &self.shared,
             waker_key: None,
         }
@@ -242,7 +242,7 @@ impl<T: Clone> IntoFuture for Receiver<T> {
     }
 }
 
-impl<'a, T> Future for ReceiverBorrowedFuture<'a, T> {
+impl<'a, T> Future for BorrowedReceiverFuture<'a, T> {
     type Output = Result<&'a T, SenderDropped>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -251,7 +251,7 @@ impl<'a, T> Future for ReceiverBorrowedFuture<'a, T> {
     }
 }
 
-impl<T> Drop for ReceiverBorrowedFuture<'_, T> {
+impl<T> Drop for BorrowedReceiverFuture<'_, T> {
     fn drop(&mut self) {
         receiver_fut_drop(self.shared, &mut self.waker_key);
     }
