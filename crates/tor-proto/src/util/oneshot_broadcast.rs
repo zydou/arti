@@ -72,8 +72,8 @@ struct Shared<T> {
 struct BorrowedReceiverFuture<'a, T> {
     /// State shared with the sender and all other receivers.
     shared: &'a Shared<T>,
-    /// The key for any waker that we've added to [`Shared::wakers`].
-    waker_key: Option<WakerKey>,
+    /// Internal state of the future.
+    state: FutureState,
 }
 
 /// A future that will be ready when the sender sends a message or is dropped.
@@ -87,6 +87,13 @@ struct BorrowedReceiverFuture<'a, T> {
 pub(crate) struct ReceiverFuture<T> {
     /// State shared with the sender and all other receivers.
     shared: Arc<Shared<T>>,
+    /// Internal state of the future.
+    state: FutureState,
+}
+
+/// Internal state used by both [`ReceiverFuture`] and [`BorrowedReceiverFuture`].
+#[derive(Debug, Default)]
+struct FutureState {
     /// The key for any waker that we've added to [`Shared::wakers`].
     waker_key: Option<WakerKey>,
 }
@@ -216,7 +223,7 @@ impl<T> Receiver<T> {
     pub(crate) async fn borrowed(&self) -> Result<&T, SenderDropped> {
         BorrowedReceiverFuture {
             shared: &self.shared,
-            waker_key: None,
+            state: FutureState::default(),
         }
         .await
     }
@@ -237,7 +244,7 @@ impl<T: Clone> IntoFuture for Receiver<T> {
     fn into_future(self) -> Self::IntoFuture {
         ReceiverFuture {
             shared: self.shared,
-            waker_key: None,
+            state: FutureState::default(),
         }
     }
 }
@@ -247,13 +254,13 @@ impl<'a, T> Future for BorrowedReceiverFuture<'a, T> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let self_ = self.get_mut();
-        receiver_fut_poll(self_.shared, &mut self_.waker_key, cx.waker())
+        receiver_fut_poll(self_.shared, &mut self_.state, cx.waker())
     }
 }
 
 impl<T> Drop for BorrowedReceiverFuture<'_, T> {
     fn drop(&mut self) {
-        receiver_fut_drop(self.shared, &mut self.waker_key);
+        receiver_fut_drop(self.shared, &mut self.state.waker_key);
     }
 }
 
@@ -262,7 +269,7 @@ impl<T: Clone> Future for ReceiverFuture<T> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let self_ = self.get_mut();
-        match receiver_fut_poll(&self_.shared, &mut self_.waker_key, cx.waker()) {
+        match receiver_fut_poll(&self_.shared, &mut self_.state, cx.waker()) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(x) => Poll::Ready(x.cloned()),
         }
@@ -271,14 +278,14 @@ impl<T: Clone> Future for ReceiverFuture<T> {
 
 impl<T> Drop for ReceiverFuture<T> {
     fn drop(&mut self) {
-        receiver_fut_drop(&self.shared, &mut self.waker_key);
+        receiver_fut_drop(&self.shared, &mut self.state.waker_key);
     }
 }
 
 /// The shared poll implementation for receiver futures.
 fn receiver_fut_poll<'a, T>(
     shared: &'a Shared<T>,
-    waker_key: &mut Option<WakerKey>,
+    state: &mut FutureState,
     new_waker: &Waker,
 ) -> Poll<Result<&'a T, SenderDropped>> {
     // if the message was already set, return it
@@ -298,7 +305,7 @@ fn receiver_fut_poll<'a, T>(
     // and it's okay to add our waker to the wakers map
     let wakers = wakers.as_mut().expect("wakers were already woken");
 
-    match waker_key {
+    match &mut state.waker_key {
         // we have added a waker previously
         Some(waker_key) => {
             // replace the old entry
@@ -313,7 +320,7 @@ fn receiver_fut_poll<'a, T>(
         None => {
             // add a new entry
             let new_key = wakers.insert(new_waker.clone());
-            *waker_key = Some(new_key);
+            state.waker_key = Some(new_key);
         }
     }
 
