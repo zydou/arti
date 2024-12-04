@@ -7,7 +7,7 @@ use derive_more::{Deref, Display, Into};
 use serde::{Deserialize, Serialize};
 use tor_persist::slug::{self, BadSlug};
 
-use crate::{ArtiPathRange, ArtiPathSyntaxError};
+use crate::{ArtiPathRange, ArtiPathSyntaxError, KeySpecifierComponent};
 
 // TODO: this is only used for ArtiPaths (we should consider turning this
 // intro a regular impl ArtiPath {} and removing the macro).
@@ -63,12 +63,12 @@ define_derive_deftly! {
 ///
 /// The last component of the path may optionally contain the encoded (string) representation
 /// of one or more
-/// [`KeySpecifierComponent`](crate::KeySpecifierComponent)
+/// [`KeySpecifierComponent`]
 /// s representing the denotators of the key.
 /// They are separated from the rest of the component, and from each other,
 /// by [`DENOTATOR_SEP`] characters.
 /// Denotators are encoded using their
-/// [`KeySpecifierComponent::to_slug`](crate::KeySpecifierComponent::to_slug)
+/// [`KeySpecifierComponent::to_slug`]
 /// implementation.
 /// The denotators **must** come after all the other fields.
 /// Denotator strings are validated in the same way as [`Slug`](tor-persist::slug::Slug)s.
@@ -151,5 +151,118 @@ impl ArtiPath {
     /// ```
     pub fn substring(&self, range: &ArtiPathRange) -> Option<&str> {
         self.0.get(range.0.clone())
+    }
+
+    /// Create an `ArtiPath` from an `ArtiPath` and a list of denotators.
+    ///
+    /// If `cert_denotators` is empty, returns the specified `path` as-is.
+    /// Otherwise, returns an `ArtiPath` that consists of the specified `path`
+    /// followed by a [`DENOTATOR_SEP`] character and the specified denotators
+    /// (the denotators are encoded as described in the [`ArtiPath`] docs).
+    ///
+    /// Returns an error if any of the specified denotators are not valid `Slug`s.
+    //
+    /// ### Example
+    /// ```nocompile
+    /// # // `nocompile` because this function is not pub
+    /// # use tor_keymgr::{
+    /// #    ArtiPath, ArtiPathRange, ArtiPathSyntaxError, KeySpecifierComponent,
+    /// #    KeySpecifierComponentViaDisplayFromStr,
+    /// # };
+    /// # use derive_more::{Display, FromStr};
+    /// # #[derive(Display, FromStr)]
+    /// # struct Denotator(String);
+    /// # impl KeySpecifierComponentViaDisplayFromStr for Denotator {}
+    /// # fn demo() -> Result<(), ArtiPathSyntaxError> {
+    /// let path = ArtiPath::new("my_key_path".into())?;
+    /// let denotators = [
+    ///    &Denotator("foo".to_string()) as &dyn KeySpecifierComponent,
+    ///    &Denotator("bar".to_string()) as &dyn KeySpecifierComponent,
+    /// ];
+    ///
+    /// let expected_path = ArtiPath::new("my_key_path+foo+bar".into())?;
+    ///
+    /// assert_eq!(
+    ///    ArtiPath::from_path_and_denotators(path.clone(), &denotators[..])?,
+    ///    expected_path
+    /// );
+    ///
+    /// assert_eq!(
+    ///    ArtiPath::from_path_and_denotators(path.clone(), &[])?,
+    ///    path
+    /// );
+    /// # Ok(())
+    /// # }
+    /// #
+    /// # demo().unwrap();
+    /// ```
+    pub(crate) fn from_path_and_denotators(
+        path: ArtiPath,
+        cert_denotators: &[&dyn KeySpecifierComponent],
+    ) -> Result<ArtiPath, ArtiPathSyntaxError> {
+        if cert_denotators.is_empty() {
+            return Ok(path);
+        }
+
+        let path: String = [Ok(path.0)]
+            .into_iter()
+            .chain(
+                cert_denotators
+                    .iter()
+                    .map(|s| s.to_slug().map(|s| s.to_string())),
+            )
+            .collect::<Result<Vec<_>, _>>()?
+            .join(&DENOTATOR_SEP.to_string());
+
+        ArtiPath::new(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    use derive_more::{Display, FromStr};
+
+    use crate::KeySpecifierComponentViaDisplayFromStr;
+
+    #[derive(Display, FromStr)]
+    struct Denotator(String);
+
+    impl KeySpecifierComponentViaDisplayFromStr for Denotator {}
+
+    #[test]
+    fn arti_path_from_path_and_denotators() {
+        let path = ArtiPath::new("my_key_path".into()).unwrap();
+        let denotators = [
+            &Denotator("foo".to_string()) as &dyn KeySpecifierComponent,
+            &Denotator("bar".to_string()) as &dyn KeySpecifierComponent,
+            &Denotator("baz".to_string()) as &dyn KeySpecifierComponent,
+        ];
+
+        let expected_path = ArtiPath::new("my_key_path+foo+bar+baz".into()).unwrap();
+
+        assert_eq!(
+            ArtiPath::from_path_and_denotators(path.clone(), &denotators[..]).unwrap(),
+            expected_path
+        );
+
+        assert_eq!(
+            ArtiPath::from_path_and_denotators(path.clone(), &[]).unwrap(),
+            path
+        );
     }
 }

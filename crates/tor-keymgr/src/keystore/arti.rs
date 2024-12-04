@@ -2,6 +2,7 @@
 //!
 //! See the [`ArtiNativeKeystore`] docs for more details.
 
+pub(crate) mod certs;
 pub(crate) mod err;
 pub(crate) mod ssh;
 
@@ -11,17 +12,21 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use crate::keystore::fs_utils::{checked_op, FilesystemAction, FilesystemError, RelKeyPath};
-use crate::keystore::{EncodableKey, ErasedKey, KeySpecifier, Keystore};
-use crate::{arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result};
+use crate::keystore::{EncodableItem, ErasedKey, KeySpecifier, Keystore};
+use crate::{
+    arti_path, ArtiPath, ArtiPathUnavailableError, KeyPath, KeystoreId, Result, UnknownKeyTypeError,
+};
+use certs::UnparsedCert;
 use err::ArtiNativeKeystoreError;
 use ssh::UnparsedOpenSshKey;
 
 use fs_mistrust::{CheckedDir, Mistrust};
 use itertools::Itertools;
-use tor_key_forge::KeyType;
+use tor_error::internal;
 use walkdir::WalkDir;
 
 use tor_basic_utils::PathExt as _;
+use tor_key_forge::{CertData, KeystoreItem, KeystoreItemType};
 
 /// The Arti key store.
 ///
@@ -85,9 +90,9 @@ impl ArtiNativeKeystore {
     fn rel_path(
         &self,
         key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        item_type: &KeystoreItemType,
     ) -> StdResult<RelKeyPath, ArtiPathUnavailableError> {
-        RelKeyPath::arti(&self.keystore_dir, key_spec, key_type)
+        RelKeyPath::arti(&self.keystore_dir, key_spec, item_type)
     }
 }
 
@@ -113,8 +118,8 @@ impl Keystore for ArtiNativeKeystore {
         &self.id
     }
 
-    fn contains(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<bool> {
-        let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(false));
+    fn contains(&self, key_spec: &dyn KeySpecifier, item_type: &KeystoreItemType) -> Result<bool> {
+        let path = rel_path_if_supported!(self.rel_path(key_spec, item_type), Ok(false));
 
         let meta = match checked_op!(metadata, path) {
             Ok(meta) => meta,
@@ -142,10 +147,14 @@ impl Keystore for ArtiNativeKeystore {
         }
     }
 
-    fn get(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<ErasedKey>> {
-        let path = rel_path_if_supported!(self.rel_path(key_spec, key_type), Ok(None));
+    fn get(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<ErasedKey>> {
+        let path = rel_path_if_supported!(self.rel_path(key_spec, item_type), Ok(None));
 
-        let inner = match checked_op!(read_to_string, path) {
+        let inner = match checked_op!(read, path) {
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
             res => res
                 .map_err(|err| FilesystemError::FsMistrust {
@@ -159,19 +168,47 @@ impl Keystore for ArtiNativeKeystore {
         let abs_path = path
             .checked_path()
             .map_err(ArtiNativeKeystoreError::Filesystem)?;
-        UnparsedOpenSshKey::new(inner, abs_path)
-            .parse_ssh_format_erased(key_type)
-            .map(Some)
+
+        match item_type {
+            KeystoreItemType::Key(key_type) => {
+                let inner = String::from_utf8(inner).map_err(|_| {
+                    let err = io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "OpenSSH key is not valid UTF-8".to_string(),
+                    );
+
+                    ArtiNativeKeystoreError::Filesystem(FilesystemError::Io {
+                        action: FilesystemAction::Read,
+                        path: abs_path.clone(),
+                        err: err.into(),
+                    })
+                })?;
+
+                UnparsedOpenSshKey::new(inner, abs_path)
+                    .parse_ssh_format_erased(key_type)
+                    .map(Some)
+            }
+            KeystoreItemType::Cert(cert_type) => UnparsedCert::new(inner, abs_path)
+                .parse_certificate_erased(cert_type)
+                .map(Some),
+            KeystoreItemType::Unknown { arti_extension } => Err(
+                ArtiNativeKeystoreError::UnknownKeyType(UnknownKeyTypeError {
+                    arti_extension: arti_extension.clone(),
+                })
+                .into(),
+            ),
+            _ => Err(internal!("unknown item type {item_type:?}").into()),
+        }
     }
 
     fn insert(
         &self,
-        key: &dyn EncodableKey,
+        key: &dyn EncodableItem,
         key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        item_type: &KeystoreItemType,
     ) -> Result<()> {
         let path = self
-            .rel_path(key_spec, key_type)
+            .rel_path(key_spec, item_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
         let unchecked_path = path.rel_path_unchecked();
 
@@ -187,13 +224,20 @@ impl Keystore for ArtiNativeKeystore {
                 .map_err(ArtiNativeKeystoreError::Filesystem)?;
         }
 
-        let key = key.as_ssh_key_data()?;
-        // TODO (#1095): decide what information, if any, to put in the comment
-        let comment = "";
+        let item_bytes: Vec<u8> = match key.as_keystore_item()? {
+            KeystoreItem::Key(key) => {
+                // TODO (#1095): decide what information, if any, to put in the comment
+                let comment = "";
+                key.to_openssh_string(comment)?.into_bytes()
+            }
+            KeystoreItem::Cert(cert) => match cert {
+                CertData::TorEd25519Cert(cert) => cert.into(),
+                _ => return Err(internal!("unknown cert type {item_type:?}").into()),
+            },
+            _ => return Err(internal!("unknown item type {item_type:?}").into()),
+        };
 
-        let openssh_key = key.to_openssh_string(comment)?;
-
-        Ok(checked_op!(write_and_replace, path, openssh_key)
+        Ok(checked_op!(write_and_replace, path, item_bytes)
             .map_err(|err| FilesystemError::FsMistrust {
                 action: FilesystemAction::Write,
                 path: unchecked_path.into(),
@@ -202,9 +246,13 @@ impl Keystore for ArtiNativeKeystore {
             .map_err(ArtiNativeKeystoreError::Filesystem)?)
     }
 
-    fn remove(&self, key_spec: &dyn KeySpecifier, key_type: &KeyType) -> Result<Option<()>> {
+    fn remove(
+        &self,
+        key_spec: &dyn KeySpecifier,
+        item_type: &KeystoreItemType,
+    ) -> Result<Option<()>> {
         let rel_path = self
-            .rel_path(key_spec, key_type)
+            .rel_path(key_spec, item_type)
             .map_err(|e| tor_error::internal!("{e}"))?;
 
         match checked_op!(remove_file, rel_path) {
@@ -220,7 +268,7 @@ impl Keystore for ArtiNativeKeystore {
         }
     }
 
-    fn list(&self) -> Result<Vec<(KeyPath, KeyType)>> {
+    fn list(&self) -> Result<Vec<(KeyPath, KeystoreItemType)>> {
         WalkDir::new(self.keystore_dir.as_path())
             .into_iter()
             .map(|entry| {
@@ -284,7 +332,7 @@ impl Keystore for ArtiNativeKeystore {
                     .to_str()
                     .ok_or_else(|| malformed_err(path, err::MalformedPathError::Utf8))?;
 
-                let key_type = KeyType::from(extension);
+                let item_type = KeystoreItemType::from(extension);
                 // Strip away the file extension
                 let path = path.with_extension("");
                 // Construct slugs in platform-independent way
@@ -294,7 +342,7 @@ impl Keystore for ArtiNativeKeystore {
                     .collect::<Vec<_>>()
                     .join(&arti_path::PATH_SEP.to_string());
                 ArtiPath::new(slugs)
-                    .map(|path| Some((path.into(), key_type)))
+                    .map(|path| Some((path.into(), item_type)))
                     .map_err(|e| {
                         malformed_err(&path, err::MalformedPathError::InvalidArtiPath(e)).into()
                     })
@@ -327,6 +375,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use tempfile::{tempdir, TempDir};
+    use tor_key_forge::{CertType, EncodedEd25519Cert, KeyType};
     use tor_llcrypto::pk::ed25519;
 
     #[cfg(unix)]
@@ -349,7 +398,7 @@ mod tests {
 
     fn key_path(key_store: &ArtiNativeKeystore, key_type: &KeyType) -> PathBuf {
         let rel_key_path = key_store
-            .rel_path(&TestSpecifier::default(), key_type)
+            .rel_path(&TestSpecifier::default(), &key_type.clone().into())
             .unwrap();
 
         rel_key_path.checked_path().unwrap()
@@ -422,7 +471,7 @@ mod tests {
 
         assert_eq!(
             key_store
-                .rel_path(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+                .rel_path(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
                 .unwrap()
                 .rel_path_unchecked(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.ed25519_private")
@@ -430,7 +479,10 @@ mod tests {
 
         assert_eq!(
             key_store
-                .rel_path(&TestSpecifier::default(), &KeyType::X25519StaticKeypair)
+                .rel_path(
+                    &TestSpecifier::default(),
+                    &KeyType::X25519StaticKeypair.into()
+                )
                 .unwrap()
                 .rel_path_unchecked(),
             PathBuf::from("parent1/parent2/parent3/test-specifier.x25519_private")
@@ -449,7 +501,7 @@ mod tests {
         // Make the permissions of the test key too permissive
         fs::set_permissions(&key_path, fs::Permissions::from_mode(0o777)).unwrap();
         assert!(key_store
-            .get(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+            .get(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
             .is_err());
 
         // Make the permissions of the parent directory too lax
@@ -462,7 +514,7 @@ mod tests {
         assert!(key_store.list().is_err());
 
         let key_spec = TestSpecifier::default();
-        let ed_key_type = &KeyType::Ed25519Keypair;
+        let ed_key_type = &KeyType::Ed25519Keypair.into();
         assert_eq!(
             key_store
                 .remove(&key_spec, ed_key_type)
@@ -532,7 +584,7 @@ mod tests {
         };
 
         let key_spec = TestSpecifier::default();
-        let ed_key_type = &KeyType::Ed25519Keypair;
+        let ed_key_type = &KeyType::Ed25519Keypair.into();
         let path = keystore_dir.as_ref().join(
             key_store
                 .rel_path(&key_spec, ed_key_type)
@@ -571,7 +623,7 @@ mod tests {
         // Now remove the key... remove() should indicate success by returning Ok(Some(()))
         assert_eq!(
             key_store
-                .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+                .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
                 .unwrap(),
             Some(())
         );
@@ -587,7 +639,7 @@ mod tests {
 
         // remove() returns Ok(None) now.
         assert!(key_store
-            .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+            .remove(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
             .unwrap()
             .is_none());
         assert!(key_store.list().unwrap().is_empty());
@@ -610,7 +662,7 @@ mod tests {
         };
 
         let key_spec = TestSpecifier::new("-i-am-a-suffix");
-        let ed_key_type = KeyType::Ed25519Keypair;
+        let ed_key_type = KeyType::Ed25519Keypair.into();
 
         assert!(key_store.insert(&*key, &key_spec, &ed_key_type).is_ok());
 
@@ -636,8 +688,36 @@ mod tests {
         fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).unwrap();
 
         let err = key_store
-            .contains(&TestSpecifier::default(), &KeyType::Ed25519Keypair)
+            .contains(&TestSpecifier::default(), &KeyType::Ed25519Keypair.into())
             .unwrap_err();
         assert!(err.to_string().contains("not a regular file"), "{err}");
+    }
+
+    #[test]
+    fn certs() {
+        let (key_store, _keystore_dir) = init_keystore(false);
+
+        // TODO: currently, you're allowed to build a cert out of an arbitrary byte slice
+        // (including empty ones).
+        //
+        // We should implement a proper parser for tor ed25519 certs in the near future
+        // (and reject any files that don't parse).
+        const DUMMY_CERT: &[u8] = b"not really a cert...";
+        let cert = EncodedEd25519Cert::from_bytes(DUMMY_CERT);
+        // The specifier doesn't really matter.
+        let cert_spec = TestSpecifier::default();
+        assert!(key_store
+            .insert(&cert, &cert_spec, &CertType::Ed25519TorCert.into())
+            .is_ok());
+
+        let erased_cert = key_store
+            .get(&cert_spec, &CertType::Ed25519TorCert.into())
+            .unwrap()
+            .unwrap();
+        let Ok(found_cert) = erased_cert.downcast::<EncodedEd25519Cert>() else {
+            panic!("failed to downcast cert to EncodedEd25519Cert")
+        };
+
+        assert_eq!(cert, *found_cert);
     }
 }

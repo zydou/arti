@@ -66,8 +66,8 @@ pub use err::{
 };
 pub use key_specifier::{
     ArtiPathRange, ArtiPathUnavailableError, CTorPath, CTorServicePath,
-    InvalidKeyPathComponentValue, KeyPath, KeyPathError, KeyPathInfo, KeyPathInfoBuilder,
-    KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeySpecifierComponent,
+    InvalidKeyPathComponentValue, KeyCertificateSpecifier, KeyPath, KeyPathError, KeyPathInfo,
+    KeyPathInfoBuilder, KeyPathInfoExtractor, KeyPathPattern, KeySpecifier, KeySpecifierComponent,
     KeySpecifierComponentViaDisplayFromStr, KeySpecifierPattern,
 };
 
@@ -95,7 +95,7 @@ pub use keystore::ctor::{CTorClientKeystore, CTorServiceKeystore};
 pub use key_specifier::derive as key_specifier_derive;
 
 pub use tor_key_forge::{
-    EncodableKey, ErasedKey, KeyType, Keygen, KeygenRng, SshKeyAlgorithm, SshKeyData,
+    EncodableItem, ErasedKey, KeyType, Keygen, KeygenRng, SshKeyAlgorithm, SshKeyData,
     ToEncodableKey,
 };
 

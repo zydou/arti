@@ -42,16 +42,25 @@
 #![allow(clippy::needless_lifetimes)] // See arti#1765
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+mod certs;
 mod err;
 mod key_type;
 mod macros;
 mod ssh;
 mod traits;
 
+pub use certs::CertData;
 pub use err::Error;
-pub use key_type::KeyType;
+pub use key_type::{CertType, KeyType, KeystoreItemType};
 pub use ssh::{SshKeyAlgorithm, SshKeyData};
-pub use traits::{EncodableKey, Keygen, KeygenRng, ToEncodableKey};
+pub use traits::{
+    EncodableItem, InvalidCertError, Keygen, KeygenRng, KeystoreItem, ToEncodableCert,
+    ToEncodableKey,
+};
+
+// Note: we use EncodedEd25519Cert in our public API here,
+// so let's reexport it for convenience...
+pub use tor_cert::EncodedEd25519Cert;
 
 // Needed to export our derive_deftly macros.
 #[doc(hidden)]
@@ -64,4 +73,4 @@ pub use macros::deps as macro_deps;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// A type-erased key. Used by the tor-keymgr.
-pub type ErasedKey = Box<dyn traits::EncodableKey>;
+pub type ErasedKey = Box<dyn traits::EncodableItem>;

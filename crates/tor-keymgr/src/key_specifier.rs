@@ -612,6 +612,33 @@ impl Display for KeySpecifierComponentPrettyHelper<'_> {
     }
 }
 
+/// The "specifier" of a key certificate, which identifies an instance of a cert,
+/// as well as its signing and subject keys.
+///
+/// Certificates can only be fetched from Arti key stores
+/// (we will not support loading certs from C Tor's key directory)
+pub trait KeyCertificateSpecifier {
+    /// The denotators of the certificate.
+    ///
+    /// Used by `KeyMgr` to derive the `ArtiPath` of the certificate.
+    /// The `ArtiPath` of a certificate is obtained
+    /// by concatenating the `ArtiPath` of the subject key with the
+    /// denotators provided by this function,
+    /// with a `+` between the `ArtiPath` of the subject key and
+    /// the denotators (the `+` is omitted if there are no denotators).
+    fn cert_denotators(&self) -> Vec<&dyn KeySpecifierComponent>;
+    /// The key specifier of the signing key.
+    ///
+    /// Returns `None` if the signing key should not be retrieved from the keystore.
+    ///
+    /// Note: a return value of `None` means the signing key will be provided
+    /// as an argument to the `KeyMgr` accessor this `KeyCertificateSpecifier`
+    /// will be used with.
+    fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier>;
+    /// The key specifier of the subject key.
+    fn subject_key_specifier(&self) -> &dyn KeySpecifier;
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -674,6 +701,17 @@ mod test {
     // This impl probably shouldn't be made non-test, since it produces longer paths
     // than is necessary.  `t`/`f` would be better representation.  But it's fine for tests.
     impl KeySpecifierComponentViaDisplayFromStr for bool {}
+
+    impl PartialEq for ArtiPathSyntaxError {
+        fn eq(&self, other: &Self) -> bool {
+            use ArtiPathSyntaxError::*;
+
+            match (self, other) {
+                (Slug(err1), Slug(err2)) => err1 == err2,
+                _ => false,
+            }
+        }
+    }
 
     // TODO many of these tests should be in arti_path.rs
 

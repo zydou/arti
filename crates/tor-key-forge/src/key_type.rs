@@ -39,10 +39,13 @@
 use ssh_key::private::KeypairData;
 use ssh_key::public::KeyData;
 use ssh_key::Algorithm;
-use tor_error::internal;
+use tor_error::{bad_api_usage, internal, Bug};
 
 use crate::ssh::{ED25519_EXPANDED_ALGORITHM_NAME, X25519_ALGORITHM_NAME};
 use crate::Result;
+
+use std::fmt;
+use std::result::Result as StdResult;
 
 /// Declare and implement the `KeyType` enum.
 ///
@@ -54,13 +57,21 @@ use crate::Result;
 /// Note `KeyType` implements `From<&str>` rather than `FromStr`,
 /// because the conversion from string is infallible
 /// (unrecognized strings are mapped to `KeyType::Unknown`)
-macro_rules! declare_key_type {
+macro_rules! declare_item_type {
     {
         $(#[$enum_meta:meta])*
         $vis:vis enum KeyType {
             $(
                 $(#[$meta:meta])*
                 $variant:ident => $str_repr:expr,
+            )*
+        }
+
+        $(#[$cert_enum_meta:meta])*
+        $cert_vis:vis enum CertType {
+            $(
+                $(#[$cert_meta:meta])*
+                $cert_variant:ident => $cert_str_repr:expr,
             )*
         }
     } => {
@@ -71,10 +82,27 @@ macro_rules! declare_key_type {
                 $(#[$meta])*
                 $variant,
             )*
+        }
 
-            /// An unrecognized key type.
+        $(#[$cert_enum_meta])*
+        $cert_vis enum CertType {
+            $(
+                $(#[$cert_meta])*
+                $cert_variant,
+            )*
+        }
+
+        /// A type of item stored in a keystore.
+        #[derive(Clone, PartialEq, Eq, Hash)]
+        #[non_exhaustive]
+        pub enum KeystoreItemType {
+            /// A key
+            Key(KeyType),
+            /// A key certificate
+            Cert(CertType),
+            /// An unrecognized entry type
             Unknown {
-                /// The extension used for keys of this type in an Arti keystore.
+                /// The extension used for entries of this type in an Arti keystore.
                 arti_extension: String,
             },
         }
@@ -88,23 +116,130 @@ macro_rules! declare_key_type {
                     $(
                         $variant => $str_repr.into(),
                     )*
-                    Unknown { arti_extension } => arti_extension.clone(),
                 }
             }
         }
 
-        impl From<&str> for KeyType {
+        impl KeystoreItemType {
+            /// The file extension for an item of this type.
+            pub fn arti_extension(&self) -> String {
+                use KeyType::*;
+                use CertType::*;
+
+                match self {
+                    $(
+                        Self::Key($variant) => $str_repr.into(),
+                    )*
+                    $(
+                        Self::Cert($cert_variant) => $cert_str_repr.into(),
+                    )*
+                        Self::Unknown { arti_extension } => arti_extension.into(),
+                }
+            }
+
+            /// Try to get the inner [`KeyType`], if this is a [`KeystoreItemType::Key`].
+            ///
+            /// Returns an error if this is not a key type.
+            pub fn key_type(&self) -> StdResult<&KeyType, Bug> {
+                match self {
+                    KeystoreItemType::Key(key_type) => Ok(key_type),
+                    _ => Err(bad_api_usage!("{:?} is not a key type", self)),
+                }
+            }
+        }
+
+        impl From<&str> for KeystoreItemType {
             fn from(key_type: &str) -> Self {
                 use KeyType::*;
+                use CertType::*;
 
                 match key_type {
                     $(
-                        $str_repr => $variant,
+                        $str_repr => Self::Key($variant),
                     )*
-                    _ => Unknown {
+                    $(
+                        $cert_str_repr => Self::Cert($cert_variant),
+                    )*
+                    _ => Self::Unknown {
                         arti_extension: key_type.into(),
                     },
                 }
+            }
+        }
+
+        impl fmt::Debug for KeystoreItemType {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    KeystoreItemType::Key(key_type) => write!(f, "{:?}", key_type),
+                    KeystoreItemType::Cert(cert_type) => write!(f, "{:?}", cert_type),
+                    KeystoreItemType::Unknown { arti_extension } => {
+                        write!(f, "unknown item type (extension={arti_extension})")
+                    }
+                }
+            }
+        }
+
+        impl From<KeyType> for KeystoreItemType {
+            fn from(key: KeyType) -> Self {
+                Self::Key(key)
+            }
+        }
+
+        impl From<CertType> for KeystoreItemType {
+            fn from(key: CertType) -> Self {
+                Self::Cert(key)
+            }
+        }
+
+        #[cfg(test)]
+        mod tests {
+            // @@ begin test lint list maintained by maint/add_warning @@
+            #![allow(clippy::bool_assert_comparison)]
+            #![allow(clippy::clone_on_copy)]
+            #![allow(clippy::dbg_macro)]
+            #![allow(clippy::mixed_attributes_style)]
+            #![allow(clippy::print_stderr)]
+            #![allow(clippy::print_stdout)]
+            #![allow(clippy::single_char_pattern)]
+            #![allow(clippy::unwrap_used)]
+            #![allow(clippy::unchecked_duration_subtraction)]
+            #![allow(clippy::useless_vec)]
+            #![allow(clippy::needless_pass_by_value)]
+            //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+            use super::*;
+
+            #[test]
+            fn unknown_item_types() {
+                const UNKNOWN_KEY_TYPE: &str = "rsa";
+
+                let unknown_key_ty = KeystoreItemType::from(UNKNOWN_KEY_TYPE);
+                assert_eq!(
+                    unknown_key_ty,
+                    KeystoreItemType::Unknown {
+                        arti_extension: UNKNOWN_KEY_TYPE.into()
+                    }
+                );
+                assert_eq!(unknown_key_ty.arti_extension(), UNKNOWN_KEY_TYPE);
+            }
+
+            #[test]
+            fn recognized_item_types() {
+                $(
+                    let key_ty = KeystoreItemType::from($str_repr);
+                    assert_eq!(
+                        key_ty,
+                        KeystoreItemType::Key(KeyType::$variant)
+                    );
+                    assert_eq!(key_ty.arti_extension(), $str_repr);
+                )*
+                $(
+                    let cert_ty = KeystoreItemType::from($cert_str_repr);
+                    assert_eq!(
+                        cert_ty,
+                        KeystoreItemType::Cert(CertType::$cert_variant)
+                    );
+                    assert_eq!(cert_ty.arti_extension(), $cert_str_repr);
+                )*
             }
         }
     }
@@ -142,7 +277,7 @@ impl KeyType {
     }
 }
 
-declare_key_type! {
+declare_item_type! {
     /// A type of key stored in the key store.
     #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     #[non_exhaustive]
@@ -158,36 +293,23 @@ declare_key_type! {
         /// An expanded Ed25519 keypair.
         Ed25519ExpandedKeypair => "ed25519_expanded_private",
     }
-}
 
-#[cfg(test)]
-mod tests {
-    // @@ begin test lint list maintained by maint/add_warning @@
-    #![allow(clippy::bool_assert_comparison)]
-    #![allow(clippy::clone_on_copy)]
-    #![allow(clippy::dbg_macro)]
-    #![allow(clippy::mixed_attributes_style)]
-    #![allow(clippy::print_stderr)]
-    #![allow(clippy::print_stdout)]
-    #![allow(clippy::single_char_pattern)]
-    #![allow(clippy::unwrap_used)]
-    #![allow(clippy::unchecked_duration_subtraction)]
-    #![allow(clippy::useless_vec)]
-    #![allow(clippy::needless_pass_by_value)]
-    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
-    use super::*;
-
-    #[test]
-    fn unknown_key_types() {
-        const UNKNOWN_KEY_TYPE: &str = "rsa";
-
-        let unknown_key_ty = KeyType::from(UNKNOWN_KEY_TYPE);
-        assert_eq!(
-            unknown_key_ty,
-            KeyType::Unknown {
-                arti_extension: UNKNOWN_KEY_TYPE.into()
-            }
-        );
-        assert_eq!(unknown_key_ty.arti_extension(), UNKNOWN_KEY_TYPE);
+    /// A type of certificate stored in the keystore.
+    ///
+    /// The purpose and meaning of a certificate, as well as the algorithms
+    /// of the subject and signing keys, are specified by its `CertType`
+    ///
+    /// More specifically, the `CertType` of a certificate determines
+    ///  * The cryptographic algorithms of the subject key and the signing key
+    ///  * How the subject key value and its properties are encoded before
+    ///    the signing key key makes its signature
+    ///  * How the signature and the other information is encoded for storage.
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub enum CertType {
+        /// A Tor Ed25519 certificate.
+        ///
+        /// See <https://spec.torproject.org/cert-spec.html#ed-certs>
+        Ed25519TorCert => "tor_ed25519_cert",
     }
 }

@@ -38,6 +38,10 @@ pub enum Error {
     #[error("{0}")]
     KeyForge(#[from] tor_key_forge::Error),
 
+    /// An error caused by an invalid certificate.
+    #[error("{0}")]
+    InvalidCert(#[from] tor_key_forge::InvalidCertError),
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -59,6 +63,7 @@ impl HasKind for Error {
             E::Corruption(_) => EK::KeystoreCorrupted,
             E::KeyAlreadyExists => EK::BadApiUsage, // TODO: not strictly right
             E::KeyForge(_) => EK::BadApiUsage,
+            E::InvalidCert(_) => EK::BadApiUsage, // TODO: not strictly right
             E::Bug(e) => e.kind(),
         }
     }
@@ -71,13 +76,17 @@ impl HasKind for Error {
 ///
 /// (Does not include any errors arising from paths which are invalid
 /// *for the particular key*.)
-#[derive(thiserror::Error, Debug, Clone, Eq, PartialEq)]
+#[derive(thiserror::Error, Debug, Clone)]
 #[error("Invalid ArtiPath")]
 #[non_exhaustive]
 pub enum ArtiPathSyntaxError {
     /// One of the path slugs was invalid.
     #[error("{0}")]
     Slug(#[from] BadSlug),
+
+    /// An internal error.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 /// An error caused by keystore corruption.
@@ -88,6 +97,18 @@ pub enum KeystoreCorruptionError {
     /// A keystore contains a key that has an invalid [`KeyPath`](crate::KeyPath).
     #[error("{0}")]
     KeyPath(#[from] KeyPathError),
+
+    /// Missing certificate for key.
+    #[error("Missing certificate for key")]
+    MissingCertificate,
+
+    /// Missing the subject key of a certificate we own.
+    #[error("Subject key of certificate not found")]
+    MissingSubjectKey,
+
+    /// Missing signing key for certificate.
+    #[error("Missing signing key for certificate")]
+    MissingSigningKey,
 }
 
 /// An error that happens when we encounter an unknown key type.

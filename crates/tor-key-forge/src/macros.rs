@@ -145,15 +145,15 @@ define_derive_deftly! {
         }
     }
 
-    /// Implementing EncodableKey, ToEncodableKey and Keygen allows this wrapper key to be stored
+    /// Implementing EncodableItem, ToEncodableKey and Keygen allows this wrapper key to be stored
     /// in a keystore.
 
-    impl $crate::EncodableKey for $ttype {
-        fn key_type() -> $crate::KeyType {
-            $crate::KeyType::Ed25519Keypair
+    impl $crate::EncodableItem for $ttype {
+        fn item_type() -> $crate::KeystoreItemType {
+            $crate::KeyType::Ed25519Keypair.into()
         }
-        fn as_ssh_key_data(&self) -> $crate::Result<$crate::SshKeyData> {
-            self.$KP_NAME.as_ssh_key_data()
+        fn as_keystore_item(&self) -> $crate::Result<$crate::KeystoreItem> {
+            self.$KP_NAME.as_keystore_item()
         }
     }
 
@@ -292,15 +292,15 @@ define_derive_deftly! {
         }
     }
 
-    /// Implementing EncodableKey, ToEncodableKey and Keygen allows this wrapper key to be stored
+    /// Implementing EncodableItem, ToEncodableKey and Keygen allows this wrapper key to be stored
     /// in a keystore.
 
-    impl $crate::EncodableKey for $ttype {
-        fn key_type() -> $crate::KeyType {
-            $crate::KeyType::X25519StaticKeypair
+    impl $crate::EncodableItem for $ttype {
+        fn item_type() -> $crate::KeystoreItemType {
+            $crate::KeyType::X25519StaticKeypair.into()
         }
-        fn as_ssh_key_data(&self) -> $crate::Result<$crate::SshKeyData> {
-            self.$KP_NAME.as_ssh_key_data()
+        fn as_keystore_item(&self) -> $crate::Result<$crate::KeystoreItem> {
+            self.$KP_NAME.as_keystore_item()
         }
     }
 

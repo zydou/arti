@@ -86,7 +86,10 @@ pub(crate) mod ssh_keys {
 /// A module exporting a key specifier used for testing.
 #[cfg(test)]
 mod specifier {
-    use crate::{ArtiPath, ArtiPathUnavailableError, CTorPath, KeySpecifier};
+    use crate::{
+        ArtiPath, ArtiPathUnavailableError, CTorPath, KeyCertificateSpecifier, KeySpecifier,
+        KeySpecifierComponent,
+    };
 
     /// A key specifier path.
     pub(crate) const TEST_SPECIFIER_PATH: &str = "parent1/parent2/parent3/test-specifier";
@@ -141,30 +144,60 @@ mod specifier {
             unimplemented!()
         }
     }
+
+    /// A test certificate specifier.
+    pub(crate) struct TestCertSpecifier<SUBJ: KeySpecifier, SIGN: KeySpecifier> {
+        /// The key specifier of the subject key.
+        pub(crate) subject_key_spec: SUBJ,
+        /// The key specifier of the signing key.
+        pub(crate) signing_key_spec: SIGN,
+        /// A list of denotators for distinguishing certs of this type.
+        pub(crate) denotator: Vec<String>,
+    }
+
+    impl<SUBJ: KeySpecifier, SIGN: KeySpecifier> KeyCertificateSpecifier
+        for TestCertSpecifier<SUBJ, SIGN>
+    {
+        fn cert_denotators(&self) -> Vec<&dyn KeySpecifierComponent> {
+            self.denotator
+                .iter()
+                .map(|s| s as &dyn KeySpecifierComponent)
+                .collect()
+        }
+
+        fn signing_key_specifier(&self) -> Option<&dyn KeySpecifier> {
+            Some(&self.signing_key_spec)
+        }
+
+        /// The key specifier of the subject key.
+        fn subject_key_specifier(&self) -> &dyn KeySpecifier {
+            &self.subject_key_spec
+        }
+    }
 }
 
 /// A module exporting key implementations used for testing.
 #[cfg(test)]
 mod key {
-    use crate::{EncodableKey, KeyType};
-    use tor_key_forge::SshKeyData;
+    use crate::EncodableItem;
+    use tor_key_forge::{KeystoreItem, KeystoreItemType};
 
     /// A dummy key.
     ///
-    /// Used as an argument placeholder for calling functions that require an [`EncodableKey`].
+    /// Used as an argument placeholder for calling functions that require an [`EncodableItem`].
     ///
-    /// Panics if its `EncodableKey` implementation is called.
+    /// Panics if its `EncodableItem` implementation is called.
     pub(crate) struct DummyKey;
 
-    impl EncodableKey for DummyKey {
-        fn key_type() -> KeyType
+    impl EncodableItem for DummyKey {
+        fn item_type() -> KeystoreItemType
         where
             Self: Sized,
         {
             todo!()
         }
 
-        fn as_ssh_key_data(&self) -> tor_key_forge::Result<SshKeyData> {
+        fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             todo!()
         }
     }
@@ -185,11 +218,15 @@ mod internal {
     /// Assert that the specified key can be found (or not) in `key_store`.
     macro_rules! assert_found {
         ($key_store:expr, $key_spec:expr, $key_type:expr, $found:expr) => {{
-            let res = $key_store.get($key_spec, $key_type).unwrap();
+            let res = $key_store
+                .get($key_spec, &$key_type.clone().into())
+                .unwrap();
             if $found {
                 assert!(res.is_some());
                 // Ensure contains() agrees with get()
-                assert!($key_store.contains($key_spec, $key_type).unwrap());
+                assert!($key_store
+                    .contains($key_spec, &$key_type.clone().into())
+                    .unwrap());
             } else {
                 assert!(res.is_none());
             }

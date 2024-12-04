@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use fs_mistrust::CheckedDir;
 use tor_error::{ErrorKind, HasKind};
-use tor_key_forge::KeyType;
+use tor_key_forge::KeystoreItemType;
 
 use crate::{ArtiPathUnavailableError, KeySpecifier};
 
@@ -33,11 +33,11 @@ impl<'a> RelKeyPath<'a> {
     pub(super) fn arti(
         dir: &'a CheckedDir,
         key_spec: &dyn KeySpecifier,
-        key_type: &KeyType,
+        item_type: &KeystoreItemType,
     ) -> Result<Self, ArtiPathUnavailableError> {
         let arti_path: String = key_spec.arti_path()?.into();
         let mut path = PathBuf::from(arti_path);
-        path.set_extension(key_type.arti_extension());
+        path.set_extension(item_type.arti_extension());
         Ok(Self { dir, path })
     }
 

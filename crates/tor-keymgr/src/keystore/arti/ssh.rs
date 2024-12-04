@@ -12,8 +12,6 @@ use crate::Result;
 use std::path::PathBuf;
 use zeroize::Zeroizing;
 
-use crate::UnknownKeyTypeError;
-
 /// An unparsed OpenSSH key.
 ///
 /// Note: This is a wrapper around the contents of a file we think is an OpenSSH key. The inner
@@ -77,12 +75,6 @@ fn ssh_algorithm(key_type: &KeyType) -> Result<SshKeyAlgorithm> {
         KeyType::Ed25519Keypair | KeyType::Ed25519PublicKey => Ok(SshKeyAlgorithm::Ed25519),
         KeyType::X25519StaticKeypair | KeyType::X25519PublicKey => Ok(SshKeyAlgorithm::X25519),
         KeyType::Ed25519ExpandedKeypair => Ok(SshKeyAlgorithm::Ed25519Expanded),
-        KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
-            UnknownKeyTypeError {
-                arti_extension: arti_extension.clone(),
-            },
-        )
-        .into()),
         &_ => {
             Err(ArtiNativeKeystoreError::Bug(internal!("Unknown SSH key type {key_type:?}")).into())
         }
@@ -114,12 +106,6 @@ impl UnparsedOpenSshKey {
             KeyType::Ed25519PublicKey | KeyType::X25519PublicKey => {
                 Ok(parse_openssh!(PUBLIC self, key_type).into_erased()?)
             }
-            KeyType::Unknown { arti_extension } => Err(ArtiNativeKeystoreError::UnknownKeyType(
-                UnknownKeyTypeError {
-                    arti_extension: arti_extension.clone(),
-                },
-            )
-            .into()),
             &_ => Err(ArtiNativeKeystoreError::Bug(internal!("Unknown SSH key type")).into()),
         }
     }
