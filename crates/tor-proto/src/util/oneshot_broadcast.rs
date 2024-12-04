@@ -52,8 +52,7 @@ pub(crate) struct Receiver<T> {
 #[derive(Debug)]
 struct Shared<T> {
     /// The message sent from the [`Sender`] to the [`Receiver`]s.
-    /// A `None` message indicates that the sender was dropped.
-    msg: OnceLock<Option<T>>,
+    msg: OnceLock<Result<T, CancelledError>>,
     /// The wakers waiting for a value to be sent.
     /// Will be set to `None` after the wakers have been woken.
     // the `Option` isn't really needed here,
@@ -130,7 +129,7 @@ impl<T> Sender<T> {
         };
 
         // set the message and inform the wakers
-        if Self::send_and_wake(&shared, Some(msg)).is_err() {
+        if Self::send_and_wake(&shared, Ok(msg)).is_err() {
             // this 'send()` method takes an owned self,
             // and we don't send a message outside of here and the drop handler,
             // so this shouldn't be possible
@@ -141,7 +140,10 @@ impl<T> Sender<T> {
     /// Send the message, and wake and clear all wakers.
     ///
     /// If the message was unable to be set, returns the message in an `Err`.
-    fn send_and_wake(shared: &Shared<T>, msg: Option<T>) -> Result<(), Option<T>> {
+    fn send_and_wake(
+        shared: &Shared<T>,
+        msg: Result<T, CancelledError>,
+    ) -> Result<(), Result<T, CancelledError>> {
         // set the message
         shared.msg.set(msg)?;
 
@@ -192,9 +194,10 @@ impl<T> std::ops::Drop for Sender<T> {
             return;
         };
 
-        // set an empty message and inform the wakers; it's fine if setting the message fails since
-        // it might have been set previously during a `send()`
-        let _ = Self::send_and_wake(&shared, None);
+        // set an error message to indicate that the sender was dropped and inform the wakers;
+        // it's fine if setting the message fails since it might have been set previously during a
+        // `send()`
+        let _ = Self::send_and_wake(&shared, Err(CancelledError));
     }
 }
 
@@ -274,14 +277,14 @@ fn receiver_fut_poll<'a, T>(
 ) -> Poll<Result<&'a T, CancelledError>> {
     // if the message was already set, return it
     if let Some(msg) = shared.msg.get() {
-        return Poll::Ready(msg.as_ref().ok_or(CancelledError));
+        return Poll::Ready(msg.as_ref().or(Err(CancelledError)));
     }
 
     let mut wakers = shared.wakers.lock().expect("poisoned");
 
     // check again now that we've acquired the mutex
     if let Some(msg) = shared.msg.get() {
-        return Poll::Ready(msg.as_ref().ok_or(CancelledError));
+        return Poll::Ready(msg.as_ref().or(Err(CancelledError)));
     }
 
     // we have acquired the wakers mutex and checked that the message wasn't set,
