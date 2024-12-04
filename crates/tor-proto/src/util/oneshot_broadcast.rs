@@ -126,21 +126,8 @@ impl<T> Sender<T> {
     /// The message may be lost if all receivers have been dropped.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn send(self, msg: T) {
-        // Even if the `Weak` upgrade is successful,
-        // it's possible that the last receiver
-        // will be dropped during this `send` method,
-        // in which case we will be holding the last `Arc`.
-        //
-        // We could return the message in an `Err` here,
-        // but I don't see a use case for it since we don't
-        // have a race-free method to ensure that the message isn't lost.
-        // So best to keep things simple and just drop the message.
-        let Some(shared) = self.shared.upgrade() else {
-            return;
-        };
-
         // set the message and inform the wakers
-        if Self::send_and_wake(&shared, Ok(msg)).is_err() {
+        if Self::send_and_wake(&self.shared, Ok(msg)).is_err() {
             // this 'send()` method takes an owned self,
             // and we don't send a message outside of here and the drop handler,
             // so this shouldn't be possible
@@ -150,11 +137,22 @@ impl<T> Sender<T> {
 
     /// Send the message, and wake and clear all wakers.
     ///
+    /// If all receivers have been dropped, then always returns `Ok`.
+    ///
     /// If the message was unable to be set, returns the message in an `Err`.
     fn send_and_wake(
-        shared: &Shared<T>,
+        shared: &Weak<Shared<T>>,
         msg: Result<T, SenderDropped>,
     ) -> Result<(), Result<T, SenderDropped>> {
+        // Even if the `Weak` upgrade is successful,
+        // it's possible that the last receiver
+        // will be dropped during this `send_and_wake` method,
+        // in which case we will be holding the last `Arc`.
+        let Some(shared) = shared.upgrade() else {
+            // all receivers have dropped; nothing to do
+            return Ok(());
+        };
+
         // set the message
         shared.msg.set(msg)?;
 
@@ -193,7 +191,7 @@ impl<T> Sender<T> {
     /// discarded anyways.
     // This is for external use.
     // It is not always valid to call this internally.
-    // For example when we've done a `Weak::upgrade` internally, like in `send`,
+    // For example when we've done a `Weak::upgrade` internally, like in `send_and_wake`,
     // this won't return the correct value.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn is_cancelled(&self) -> bool {
@@ -203,15 +201,10 @@ impl<T> Sender<T> {
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
-        let Some(shared) = self.shared.upgrade() else {
-            // all receivers have dropped; nothing to do
-            return;
-        };
-
         // set an error message to indicate that the sender was dropped and inform the wakers;
         // it's fine if setting the message fails since it might have been set previously during a
         // `send()`
-        let _ = Self::send_and_wake(&shared, Err(SenderDropped));
+        let _ = Self::send_and_wake(&self.shared, Err(SenderDropped));
     }
 }
 
