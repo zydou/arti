@@ -172,6 +172,13 @@ Wait! Go back and make sure
 that you have done everything in the previous sections
 before you continue!
 
+0. Declare a merge freeze.
+
+   Tell `network-team`
+   (via email and IRC)
+   that the tree is now frozen,
+   and no MRs should be merged.
+
 1. Finalize the changelog.
 
    Make sure that the date is correct.
@@ -242,7 +249,7 @@ before you continue!
 
 ## The actual release itself.
 
-   Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
+1. Run `maint/cargo-publish --dry-run ${THIS_VERSION}`
    to see what it thinks.
 
    If all seems well, run it without the `--dry-run` option.
@@ -263,6 +270,11 @@ before you continue!
    to set things right.
    I hope that nobody else has this problem.)
 
+3. Tell `network-team`
+   (via email and IRC)
+   that the tree is open
+   for new MRs to be merged!
+
 ## Post-release
 
 1. Remove all of the semver.md files:
@@ -270,13 +282,24 @@ before you continue!
 
 2. Write a blog post.
 
-3. One the blog post is published,
-   update the origin/pages branch to refer to the new version.
+3. There's a "pages" branch in the arti repository
+   that controls the contents of <https:/arti.torproject.org/>.
+   Once the blog post is published,
+   update that "pages" branch to refer to the new version.
+   (For an example MR, see [!2271].)
 
-4. Did you create any new crates?
+4. Once the blog post is published,
+   send Bekeela an email.
+   (For the duration of the Zcash grant,
+   Tor needs to inform the funder when we put out a new release.
+   This is being handled by Bekeela, our Grants Manager.)
+
+5. Did you create any new crates?
    If so, you need to make sure that they are owned (on crates.io)
    by the right set of developers.
    If you aren't sure, run `maint/cargo-crate-owners`.
+
+[!2271]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2271
 
 <!-- ================================================== -->
 
