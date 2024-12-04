@@ -12,7 +12,6 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::task::{Context, Poll, Waker};
 
-use futures::future::FusedFuture;
 use slotmap_careful::DenseSlotMap;
 
 slotmap_careful::new_key_type! { struct WakerKey; }
@@ -97,8 +96,6 @@ pub(crate) struct ReceiverFuture<T> {
 struct FutureState {
     /// The key for any waker that we've added to [`Shared::wakers`].
     waker_key: Option<WakerKey>,
-    /// The future has completed (`poll` returned `Ready`).
-    completed: bool,
 }
 
 /// The wakers have already been woken.
@@ -223,11 +220,12 @@ impl<T> Receiver<T> {
     ///
     /// This is cancellation-safe.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn borrowed(&self) -> impl FusedFuture<Output = Result<&T, SenderDropped>> {
+    pub(crate) async fn borrowed(&self) -> Result<&T, SenderDropped> {
         BorrowedReceiverFuture {
             shared: &self.shared,
             state: FutureState::default(),
         }
+        .await
     }
 
     /// The receiver is ready.
@@ -260,12 +258,6 @@ impl<'a, T> Future for BorrowedReceiverFuture<'a, T> {
     }
 }
 
-impl<T> FusedFuture for BorrowedReceiverFuture<'_, T> {
-    fn is_terminated(&self) -> bool {
-        self.state.completed
-    }
-}
-
 impl<T> Drop for BorrowedReceiverFuture<'_, T> {
     fn drop(&mut self) {
         receiver_fut_drop(self.shared, &mut self.state.waker_key);
@@ -284,12 +276,6 @@ impl<T: Clone> Future for ReceiverFuture<T> {
     }
 }
 
-impl<T: Clone> FusedFuture for ReceiverFuture<T> {
-    fn is_terminated(&self) -> bool {
-        self.state.completed
-    }
-}
-
 impl<T> Drop for ReceiverFuture<T> {
     fn drop(&mut self) {
         receiver_fut_drop(&self.shared, &mut self.state.waker_key);
@@ -302,52 +288,43 @@ fn receiver_fut_poll<'a, T>(
     state: &mut FutureState,
     new_waker: &Waker,
 ) -> Poll<Result<&'a T, SenderDropped>> {
-    // an IIFE so that we can capture the `Poll::Ready` without accidentally returning early
-    let rv = (|| {
-        // if the message was already set, return it
-        if let Some(msg) = shared.msg.get() {
-            return Poll::Ready(msg.as_ref().or(Err(SenderDropped)));
-        }
-
-        let mut wakers = shared.wakers.lock().expect("poisoned");
-
-        // check again now that we've acquired the mutex
-        if let Some(msg) = shared.msg.get() {
-            return Poll::Ready(msg.as_ref().or(Err(SenderDropped)));
-        }
-
-        // we have acquired the wakers mutex and checked that the message wasn't set,
-        // so we know that wakers have not yet been woken
-        // and it's okay to add our waker to the wakers map
-        let wakers = wakers.as_mut().expect("wakers were already woken");
-
-        match &mut state.waker_key {
-            // we have added a waker previously
-            Some(waker_key) => {
-                // replace the old entry
-                let waker = wakers
-                    .get_mut(*waker_key)
-                    // the waker is only removed from the map by our drop handler,
-                    // so the waker should never be missing
-                    .expect("waker key is missing from map");
-                waker.clone_from(new_waker);
-            }
-            // we have never added a waker
-            None => {
-                // add a new entry
-                let new_key = wakers.insert(new_waker.clone());
-                state.waker_key = Some(new_key);
-            }
-        }
-
-        Poll::Pending
-    })();
-
-    if rv.is_ready() {
-        state.completed = true;
+    // if the message was already set, return it
+    if let Some(msg) = shared.msg.get() {
+        return Poll::Ready(msg.as_ref().or(Err(SenderDropped)));
     }
 
-    rv
+    let mut wakers = shared.wakers.lock().expect("poisoned");
+
+    // check again now that we've acquired the mutex
+    if let Some(msg) = shared.msg.get() {
+        return Poll::Ready(msg.as_ref().or(Err(SenderDropped)));
+    }
+
+    // we have acquired the wakers mutex and checked that the message wasn't set,
+    // so we know that wakers have not yet been woken
+    // and it's okay to add our waker to the wakers map
+    let wakers = wakers.as_mut().expect("wakers were already woken");
+
+    match &mut state.waker_key {
+        // we have added a waker previously
+        Some(waker_key) => {
+            // replace the old entry
+            let waker = wakers
+                .get_mut(*waker_key)
+                // the waker is only removed from the map by our drop handler,
+                // so the waker should never be missing
+                .expect("waker key is missing from map");
+            waker.clone_from(new_waker);
+        }
+        // we have never added a waker
+        None => {
+            // add a new entry
+            let new_key = wakers.insert(new_waker.clone());
+            state.waker_key = Some(new_key);
+        }
+    }
+
+    Poll::Pending
 }
 
 /// The shared drop implementation for receiver futures.
@@ -703,29 +680,6 @@ mod test {
             for join in joins {
                 assert!(matches!(join.await, Ok(0)));
             }
-        });
-    }
-
-    #[test]
-    fn fused() {
-        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
-            let (tx, rx) = channel::<u8>();
-            let mut fut = Box::pin(rx.into_future());
-            assert!(!fut.is_terminated());
-            assert!(fut.as_mut().now_or_never().is_none());
-            drop(tx);
-            assert!(!fut.is_terminated());
-            assert!(fut.as_mut().now_or_never().is_some());
-            assert!(fut.is_terminated());
-
-            let (tx, rx) = channel::<u8>();
-            let mut fut = Box::pin(rx.borrowed());
-            assert!(!fut.is_terminated());
-            assert!(fut.as_mut().now_or_never().is_none());
-            drop(tx);
-            assert!(!fut.is_terminated());
-            assert!(fut.as_mut().now_or_never().is_some());
-            assert!(fut.is_terminated());
         });
     }
 }
