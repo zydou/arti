@@ -6,7 +6,7 @@
 //!
 //! See [`channel()`].
 
-use std::future::Future;
+use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::task::{Context, Poll, Waker};
@@ -76,15 +76,14 @@ struct ReceiverBorrowedFuture<'a, T> {
 }
 
 /// A future that will be ready when the sender sends a message or is dropped.
-///
-/// This holds an `Arc` of the shared state,
-/// so can be used as a `'static` future.
-// it would have been nice if we could store a `ReceiverBorrowedFuture`
+// This holds an `Arc` of the shared state,
+// so can be used as a `'static` future.
+// It would have been nice if we could store a `ReceiverBorrowedFuture`
 // holding a reference to our `Arc<Shared>`,
 // but that would be a self-referential struct,
-// so we need to duplicate everything instead
+// so we need to duplicate everything instead.
 #[derive(Debug)]
-struct ReceiverOwnedFuture<T> {
+pub(crate) struct ReceiverOwnedFuture<T> {
     /// State shared with the sender and all other receivers.
     shared: Arc<Shared<T>>,
     /// The key for any waker that we've added to [`Shared::wakers`].
@@ -224,15 +223,14 @@ impl<T> Receiver<T> {
     }
 }
 
-impl<T: Clone + 'static> Receiver<T> {
-    /// Receive and clone the message from the [`Sender`].
-    ///
-    /// This returns a `'static` future and is slightly more expensive than [`recv`](Self::recv).
-    ///
-    /// This is cancellation-safe.
-    pub(crate) fn recv_clone(&self) -> impl Future<Output = Result<T, SenderDropped>> + 'static {
+impl<T: Clone> IntoFuture for Receiver<T> {
+    type Output = Result<T, SenderDropped>;
+    type IntoFuture = ReceiverOwnedFuture<T>;
+
+    /// This future is cancellation-safe.
+    fn into_future(self) -> Self::IntoFuture {
         ReceiverOwnedFuture {
-            shared: Arc::clone(&self.shared),
+            shared: self.shared,
             waker_key: None,
         }
     }
@@ -369,7 +367,7 @@ mod test {
 
             let (tx, rx) = channel();
             tx.send(0_u8);
-            assert_eq!(rx.recv_clone().await, Ok(0));
+            assert_eq!(rx.await, Ok(0));
         });
     }
 
@@ -497,7 +495,7 @@ mod test {
     #[test]
     fn drop_owned_fut() {
         let (_tx, rx) = channel::<u8>();
-        let fut = rx.recv_clone();
+        let fut = rx.clone().into_future();
         assert_eq!(rx.shared.count_wakers(), 0);
         drop(fut);
         assert_eq!(rx.shared.count_wakers(), 0);
@@ -505,14 +503,14 @@ mod test {
         // drop after sending
         let (tx, rx) = channel();
         tx.send(0_u8);
-        let fut = rx.recv_clone();
+        let fut = rx.clone().into_future();
         assert_eq!(rx.shared.count_wakers(), 0);
         drop(fut);
         assert_eq!(rx.shared.count_wakers(), 0);
 
         // drop after polling once
         let (_tx, rx) = channel::<u8>();
-        let mut fut = Box::pin(rx.recv_clone());
+        let mut fut = Box::pin(rx.clone().into_future());
         assert_eq!(rx.shared.count_wakers(), 0);
         assert_eq!(fut.as_mut().now_or_never(), None);
         assert_eq!(rx.shared.count_wakers(), 1);
@@ -521,7 +519,7 @@ mod test {
 
         // drop after polling once and send
         let (tx, rx) = channel();
-        let mut fut = Box::pin(rx.recv_clone());
+        let mut fut = Box::pin(rx.clone().into_future());
         assert_eq!(rx.shared.count_wakers(), 0);
         assert_eq!(fut.as_mut().now_or_never(), None);
         assert_eq!(rx.shared.count_wakers(), 1);
@@ -586,7 +584,7 @@ mod test {
             let join = rt
                 .spawn_with_handle(async move {
                     assert_eq!(rx.recv().await, Ok(&0));
-                    assert_eq!(rx.recv_clone().await, Ok(0));
+                    assert_eq!(rx.await, Ok(0));
                 })
                 .unwrap();
 
@@ -610,7 +608,7 @@ mod test {
                 .unwrap();
             let join_2 = rt
                 .spawn_with_handle(async move {
-                    assert_eq!(rx_2.recv_clone().await, Ok(0));
+                    assert_eq!(rx_2.await, Ok(0));
                 })
                 .unwrap();
 
@@ -630,8 +628,8 @@ mod test {
             tx.send(0_u8);
             assert_eq!(rx.recv().await, Ok(&0));
             assert_eq!(rx.recv().await, Ok(&0));
-            assert_eq!(rx.recv_clone().await, Ok(0));
-            assert_eq!(rx.recv_clone().await, Ok(0));
+            assert_eq!(rx.clone().await, Ok(0));
+            assert_eq!(rx.await, Ok(0));
         });
     }
 

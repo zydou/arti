@@ -73,6 +73,7 @@ use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use safelog::sensitive as sv;
+use std::future::IntoFuture;
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
@@ -720,7 +721,7 @@ impl Channel {
     /// of just ().
     #[cfg(feature = "experimental-api")]
     pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
-        self.reactor_closed_rx.recv_clone().map(|_| ())
+        self.reactor_closed_rx.clone().into_future().map(|_| ())
     }
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
