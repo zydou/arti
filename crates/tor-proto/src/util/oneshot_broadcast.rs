@@ -58,10 +58,10 @@ struct Shared<T> {
     msg: OnceLock<Result<T, SenderDropped>>,
     /// The wakers waiting for a value to be sent.
     /// Will be set to `None` after the wakers have been woken.
-    // the `Option` isn't really needed here,
-    // but we use it to help detect bugs where something
-    // tries to add a `Waker` after we've already woken them all
-    wakers: Mutex<Option<DenseSlotMap<WakerKey, Waker>>>,
+    // the `Result` isn't technically needed here,
+    // but we use it to help detect bugs;
+    // see `WakersAlreadyWoken` for details
+    wakers: Mutex<Result<DenseSlotMap<WakerKey, Waker>, WakersAlreadyWoken>>,
 }
 
 /// A future that will be ready when the sender sends a message or is dropped.
@@ -91,6 +91,15 @@ pub(crate) struct ReceiverOwnedFuture<T> {
     waker_key: Option<WakerKey>,
 }
 
+/// The wakers have already been woken.
+///
+/// This is used to help detect if we're trying to access the wakers after they've already been
+/// woken, which likely indicates a bug. For example, it is a bug if a receiver attempts to add a
+/// waker after the sender has already sent its message and woken the wakers, since the new waker
+/// would never be woken.
+#[derive(Copy, Clone, Debug)]
+struct WakersAlreadyWoken;
+
 /// The sender was dropped, so the channel is closed.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SenderDropped;
@@ -99,7 +108,7 @@ pub(crate) struct SenderDropped;
 pub(crate) fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let shared = Arc::new(Shared {
         msg: OnceLock::new(),
-        wakers: Mutex::new(Some(DenseSlotMap::with_key())),
+        wakers: Mutex::new(Ok(DenseSlotMap::with_key())),
     });
 
     let sender = Sender {
@@ -152,12 +161,15 @@ impl<T> Sender<T> {
         let mut wakers = {
             let mut wakers = shared.wakers.lock().expect("poisoned");
             // Take the wakers and drop the mutex guard, releasing the lock.
-            // We could use `mem::take` here, but the `Option` should help catch bugs if something
-            // tries adding a new waker later after we've already woken the wakers.
+            //
+            // We could just drain the wakers map in-place here, but instead we replace the map with
+            // an explicit `WakersAlreadyWoken` state to help catch bugs if something tries adding a
+            // new waker later after we've already woken the wakers.
             //
             // The above `msg.set()` will only ever succeed once,
             // which means that we should only end up here once.
-            wakers.take().expect("wakers were taken more than once")
+            std::mem::replace(&mut *wakers, Err(WakersAlreadyWoken))
+                .expect("wakers were taken more than once")
         };
 
         // Once we drop the mutex guard, which does a release-store on its own atomic, any other
@@ -319,7 +331,7 @@ fn receiver_fut_poll<'a, T>(
 fn receiver_fut_drop<T>(shared: &Shared<T>, waker_key: &mut Option<WakerKey>) {
     if let Some(waker_key) = waker_key.take() {
         let mut wakers = shared.wakers.lock().expect("poisoned");
-        if let Some(wakers) = wakers.as_mut() {
+        if let Ok(wakers) = wakers.as_mut() {
             wakers
                 .remove(waker_key)
                 // this is the only place that removes the waker from the map,
