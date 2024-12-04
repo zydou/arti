@@ -12,6 +12,8 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::task::{Context, Poll, Waker};
 
+use futures::future::{Fuse, FusedFuture};
+use futures::FutureExt;
 use slotmap_careful::DenseSlotMap;
 
 slotmap_careful::new_key_type! { struct WakerKey; }
@@ -77,6 +79,12 @@ struct BorrowedReceiverFuture<'a, T> {
 }
 
 /// A future that will be ready when the sender sends a message or is dropped.
+// Wrap a `Fuse` rather than implement `FusedFuture` ourselves
+// to hopefully reduce the chance of bugs.
+#[derive(Debug)]
+pub(crate) struct ReceiverFuture<T>(Fuse<ReceiverFutureInner<T>>);
+
+/// Inner data for [`ReceiverFuture`].
 // This holds an `Arc` of the shared state,
 // so can be used as a `'static` future.
 // It would have been nice if we could store a `BorrowedReceiverFuture`
@@ -84,7 +92,7 @@ struct BorrowedReceiverFuture<'a, T> {
 // but that would be a self-referential struct,
 // so we need to duplicate everything instead.
 #[derive(Debug)]
-pub(crate) struct ReceiverFuture<T> {
+pub(crate) struct ReceiverFutureInner<T> {
     /// State shared with the sender and all other receivers.
     shared: Arc<Shared<T>>,
     /// The key for any waker that we've added to [`Shared::wakers`].
@@ -213,12 +221,12 @@ impl<T> Receiver<T> {
     ///
     /// This is cancellation-safe.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) async fn borrowed(&self) -> Result<&T, SenderDropped> {
+    pub(crate) fn borrowed(&self) -> impl FusedFuture<Output = Result<&T, SenderDropped>> {
         BorrowedReceiverFuture {
             shared: &self.shared,
             waker_key: None,
         }
-        .await
+        .fuse()
     }
 
     /// The receiver is ready.
@@ -235,10 +243,13 @@ impl<T: Clone> IntoFuture for Receiver<T> {
 
     /// This future is cancellation-safe.
     fn into_future(self) -> Self::IntoFuture {
-        ReceiverFuture {
-            shared: self.shared,
-            waker_key: None,
-        }
+        ReceiverFuture(
+            ReceiverFutureInner {
+                shared: self.shared,
+                waker_key: None,
+            }
+            .fuse(),
+        )
     }
 }
 
@@ -257,7 +268,7 @@ impl<T> Drop for BorrowedReceiverFuture<'_, T> {
     }
 }
 
-impl<T: Clone> Future for ReceiverFuture<T> {
+impl<T: Clone> Future for ReceiverFutureInner<T> {
     type Output = Result<T, SenderDropped>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -269,9 +280,23 @@ impl<T: Clone> Future for ReceiverFuture<T> {
     }
 }
 
-impl<T> Drop for ReceiverFuture<T> {
+impl<T> Drop for ReceiverFutureInner<T> {
     fn drop(&mut self) {
         receiver_fut_drop(&self.shared, &mut self.waker_key);
+    }
+}
+
+impl<T: Clone> Future for ReceiverFuture<T> {
+    type Output = Result<T, SenderDropped>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        std::pin::pin!(&mut self.0).as_mut().poll(cx)
+    }
+}
+
+impl<T: Clone> FusedFuture for ReceiverFuture<T> {
+    fn is_terminated(&self) -> bool {
+        self.0.is_terminated()
     }
 }
 
@@ -361,7 +386,6 @@ mod test {
 
     use super::*;
 
-    use futures::future::FutureExt;
     use futures::task::SpawnExt;
 
     #[test]
@@ -673,6 +697,29 @@ mod test {
             for join in joins {
                 assert!(matches!(join.await, Ok(0)));
             }
+        });
+    }
+
+    #[test]
+    fn fused() {
+        tor_rtmock::MockRuntime::test_with_various(|_rt| async move {
+            let (tx, rx) = channel::<u8>();
+            let mut fut = Box::pin(rx.into_future());
+            assert!(!fut.is_terminated());
+            assert!(fut.as_mut().now_or_never().is_none());
+            drop(tx);
+            assert!(!fut.is_terminated());
+            assert!(fut.as_mut().now_or_never().is_some());
+            assert!(fut.is_terminated());
+
+            let (tx, rx) = channel::<u8>();
+            let mut fut = Box::pin(rx.borrowed());
+            assert!(!fut.is_terminated());
+            assert!(fut.as_mut().now_or_never().is_none());
+            drop(tx);
+            assert!(!fut.is_terminated());
+            assert!(fut.as_mut().now_or_never().is_some());
+            assert!(fut.is_terminated());
         });
     }
 }
