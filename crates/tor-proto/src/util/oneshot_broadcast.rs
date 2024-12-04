@@ -28,27 +28,27 @@ pub(crate) struct Receiver<T> {
 }
 
 /// State shared between the sender and receivers.
-// Correctness:
-//
-// Sending a message:
-//  - set the message OnceLock [A]
-//  - acquire the wakers Mutex
-//  - take all wakers [B]
-//  - release the wakers Mutex [C]
-//  - wake all wakers
-//
-// Polling:
-//  - if message was set, return it (fast path)
-//  - acquire the wakers Mutex [D]
-//  - if message was set, return it [E]
-//  - add waker [F]
-//  - release the wakers Mutex
-//
-// When the wakers Mutex is released at [C], a release-store operation is performed by the Mutex,
-// which means that the message set at [A] will be seen by all future acquire-load operations by
-// that same Mutex. More specifically, after [C] has occured and when the same mutex is acquired at
-// [D], the message set at [A] is guaranteed to be visible at [E]. This means that after the wakers
-// are taken at [B], no future wakers will be added at [F] and no waker will be "lost".
+/// Correctness:
+///
+/// Sending a message:
+///  - set the message OnceLock (A)
+///  - acquire the wakers Mutex
+///  - take all wakers (B)
+///  - release the wakers Mutex (C)
+///  - wake all wakers
+///
+/// Polling:
+///  - if message was set, return it (fast path)
+///  - acquire the wakers Mutex (D)
+///  - if message was set, return it (E)
+///  - add waker (F)
+///  - release the wakers Mutex
+///
+/// When the wakers Mutex is released at (C), a release-store operation is performed by the Mutex,
+/// which means that the message set at (A) will be seen by all future acquire-load operations by
+/// that same Mutex. More specifically, after (C) has occured and when the same mutex is acquired at
+/// (D), the message set at (A) is guaranteed to be visible at (E). This means that after the wakers
+/// are taken at (B), no future wakers will be added at (F) and no waker will be "lost".
 #[derive(Debug)]
 struct Shared<T> {
     /// The message sent from the [`Sender`] to the [`Receiver`]s.
