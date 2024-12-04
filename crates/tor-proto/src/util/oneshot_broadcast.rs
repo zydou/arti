@@ -209,11 +209,11 @@ impl<T> Drop for Sender<T> {
 }
 
 impl<T> Receiver<T> {
-    /// Receive the message from the [`Sender`].
+    /// Receive a borrowed message from the [`Sender`].
     ///
     /// This is cancellation-safe.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) async fn recv(&self) -> Result<&T, SenderDropped> {
+    pub(crate) async fn borrowed(&self) -> Result<&T, SenderDropped> {
         ReceiverBorrowedFuture {
             shared: &self.shared,
             waker_key: None,
@@ -369,7 +369,7 @@ mod test {
         tor_rtmock::MockRuntime::test_with_various(|_rt| async move {
             let (tx, rx) = channel();
             tx.send(0_u8);
-            assert_eq!(rx.recv().await, Ok(&0));
+            assert_eq!(rx.borrowed().await, Ok(&0));
 
             let (tx, rx) = channel();
             tx.send(0_u8);
@@ -398,9 +398,9 @@ mod test {
             let rx_2 = rx_1.clone();
             drop(tx);
             let rx_3 = rx_1.clone();
-            assert_eq!(rx_1.recv().await, Err(SenderDropped));
-            assert_eq!(rx_2.recv().await, Err(SenderDropped));
-            assert_eq!(rx_3.recv().await, Err(SenderDropped));
+            assert_eq!(rx_1.borrowed().await, Err(SenderDropped));
+            assert_eq!(rx_2.borrowed().await, Err(SenderDropped));
+            assert_eq!(rx_3.borrowed().await, Err(SenderDropped));
         });
     }
 
@@ -411,8 +411,8 @@ mod test {
 
             let rx_2 = rx_1.clone();
             tx.send(0_u8);
-            assert_eq!(rx_1.recv().await, Ok(&0));
-            assert_eq!(rx_2.recv().await, Ok(&0));
+            assert_eq!(rx_1.borrowed().await, Ok(&0));
+            assert_eq!(rx_2.borrowed().await, Ok(&0));
         });
     }
 
@@ -423,20 +423,20 @@ mod test {
 
             tx.send(0_u8);
             let rx_2 = rx_1.clone();
-            assert_eq!(rx_1.recv().await, Ok(&0));
-            assert_eq!(rx_2.recv().await, Ok(&0));
+            assert_eq!(rx_1.borrowed().await, Ok(&0));
+            assert_eq!(rx_2.borrowed().await, Ok(&0));
         });
     }
 
     #[test]
-    fn clone_after_recv() {
+    fn clone_after_borrowed() {
         tor_rtmock::MockRuntime::test_with_various(|_rt| async move {
             let (tx, rx_1) = channel();
 
             tx.send(0_u8);
-            assert_eq!(rx_1.recv().await, Ok(&0));
+            assert_eq!(rx_1.borrowed().await, Ok(&0));
             let rx_2 = rx_1.clone();
-            assert_eq!(rx_2.recv().await, Ok(&0));
+            assert_eq!(rx_2.borrowed().await, Ok(&0));
         });
     }
 
@@ -448,7 +448,7 @@ mod test {
             let rx_2 = rx_1.clone();
             drop(rx_1);
             tx.send(0_u8);
-            assert_eq!(rx_2.recv().await, Ok(&0));
+            assert_eq!(rx_2.borrowed().await, Ok(&0));
         });
     }
 
@@ -465,7 +465,7 @@ mod test {
     #[test]
     fn drop_fut() {
         let (_tx, rx) = channel::<u8>();
-        let fut = rx.recv();
+        let fut = rx.borrowed();
         assert_eq!(rx.shared.count_wakers(), 0);
         drop(fut);
         assert_eq!(rx.shared.count_wakers(), 0);
@@ -473,14 +473,14 @@ mod test {
         // drop after sending
         let (tx, rx) = channel();
         tx.send(0_u8);
-        let fut = rx.recv();
+        let fut = rx.borrowed();
         assert_eq!(rx.shared.count_wakers(), 0);
         drop(fut);
         assert_eq!(rx.shared.count_wakers(), 0);
 
         // drop after polling once
         let (_tx, rx) = channel::<u8>();
-        let mut fut = Box::pin(rx.recv());
+        let mut fut = Box::pin(rx.borrowed());
         assert_eq!(rx.shared.count_wakers(), 0);
         assert_eq!(fut.as_mut().now_or_never(), None);
         assert_eq!(rx.shared.count_wakers(), 1);
@@ -489,7 +489,7 @@ mod test {
 
         // drop after polling once and send
         let (tx, rx) = channel();
-        let mut fut = Box::pin(rx.recv());
+        let mut fut = Box::pin(rx.borrowed());
         assert_eq!(rx.shared.count_wakers(), 0);
         assert_eq!(fut.as_mut().now_or_never(), None);
         assert_eq!(rx.shared.count_wakers(), 1);
@@ -589,7 +589,7 @@ mod test {
 
             let join = rt
                 .spawn_with_handle(async move {
-                    assert_eq!(rx.recv().await, Ok(&0));
+                    assert_eq!(rx.borrowed().await, Ok(&0));
                     assert_eq!(rx.await, Ok(0));
                 })
                 .unwrap();
@@ -609,7 +609,7 @@ mod test {
 
             let join_1 = rt
                 .spawn_with_handle(async move {
-                    assert_eq!(rx_1.recv().await, Ok(&0));
+                    assert_eq!(rx_1.borrowed().await, Ok(&0));
                 })
                 .unwrap();
             let join_2 = rt
@@ -622,7 +622,7 @@ mod test {
 
             join_1.await;
             join_2.await;
-            assert_eq!(rx.recv().await, Ok(&0));
+            assert_eq!(rx.borrowed().await, Ok(&0));
         });
     }
 
@@ -632,8 +632,8 @@ mod test {
             let (tx, rx) = channel();
 
             tx.send(0_u8);
-            assert_eq!(rx.recv().await, Ok(&0));
-            assert_eq!(rx.recv().await, Ok(&0));
+            assert_eq!(rx.borrowed().await, Ok(&0));
+            assert_eq!(rx.borrowed().await, Ok(&0));
             assert_eq!(rx.clone().await, Ok(0));
             assert_eq!(rx.await, Ok(0));
         });
@@ -663,7 +663,7 @@ mod test {
             for _ in 0..100 {
                 let rx_clone = rx.clone();
                 let join = rt
-                    .spawn_with_handle(async move { rx_clone.recv().await.cloned() })
+                    .spawn_with_handle(async move { rx_clone.borrowed().await.cloned() })
                     .unwrap();
                 joins.push(join);
                 // allows the send task to make progress if single-threaded
