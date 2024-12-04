@@ -54,7 +54,7 @@ pub(crate) struct Receiver<T> {
 #[derive(Debug)]
 struct Shared<T> {
     /// The message sent from the [`Sender`] to the [`Receiver`]s.
-    msg: OnceLock<Result<T, CancelledError>>,
+    msg: OnceLock<Result<T, SenderDropped>>,
     /// The wakers waiting for a value to be sent.
     /// Will be set to `None` after the wakers have been woken.
     // the `Option` isn't really needed here,
@@ -93,7 +93,7 @@ struct ReceiverOwnedFuture<T> {
 
 /// The sender was dropped, so the channel is closed.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct CancelledError;
+pub(crate) struct SenderDropped;
 
 /// Create a new oneshot broadcast channel.
 pub(crate) fn channel<T>() -> (Sender<T>, Receiver<T>) {
@@ -144,8 +144,8 @@ impl<T> Sender<T> {
     /// If the message was unable to be set, returns the message in an `Err`.
     fn send_and_wake(
         shared: &Shared<T>,
-        msg: Result<T, CancelledError>,
-    ) -> Result<(), Result<T, CancelledError>> {
+        msg: Result<T, SenderDropped>,
+    ) -> Result<(), Result<T, SenderDropped>> {
         // set the message
         shared.msg.set(msg)?;
 
@@ -199,7 +199,7 @@ impl<T> std::ops::Drop for Sender<T> {
         // set an error message to indicate that the sender was dropped and inform the wakers;
         // it's fine if setting the message fails since it might have been set previously during a
         // `send()`
-        let _ = Self::send_and_wake(&shared, Err(CancelledError));
+        let _ = Self::send_and_wake(&shared, Err(SenderDropped));
     }
 }
 
@@ -208,7 +208,7 @@ impl<T> Receiver<T> {
     ///
     /// This is cancellation-safe.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) async fn recv(&self) -> Result<&T, CancelledError> {
+    pub(crate) async fn recv(&self) -> Result<&T, SenderDropped> {
         ReceiverBorrowedFuture {
             shared: &self.shared,
             waker_key: None,
@@ -230,7 +230,7 @@ impl<T: Clone + 'static> Receiver<T> {
     /// This returns a `'static` future and is slightly more expensive than [`recv`](Self::recv).
     ///
     /// This is cancellation-safe.
-    pub(crate) fn recv_clone(&self) -> impl Future<Output = Result<T, CancelledError>> + 'static {
+    pub(crate) fn recv_clone(&self) -> impl Future<Output = Result<T, SenderDropped>> + 'static {
         ReceiverOwnedFuture {
             shared: Arc::clone(&self.shared),
             waker_key: None,
@@ -239,7 +239,7 @@ impl<T: Clone + 'static> Receiver<T> {
 }
 
 impl<'a, T> Future for ReceiverBorrowedFuture<'a, T> {
-    type Output = Result<&'a T, CancelledError>;
+    type Output = Result<&'a T, SenderDropped>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let self_ = self.get_mut();
@@ -254,7 +254,7 @@ impl<T> std::ops::Drop for ReceiverBorrowedFuture<'_, T> {
 }
 
 impl<T: Clone> Future for ReceiverOwnedFuture<T> {
-    type Output = Result<T, CancelledError>;
+    type Output = Result<T, SenderDropped>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let self_ = self.get_mut();
@@ -276,17 +276,17 @@ fn receiver_fut_poll<'a, T>(
     shared: &'a Shared<T>,
     waker_key: &mut Option<WakerKey>,
     new_waker: &Waker,
-) -> Poll<Result<&'a T, CancelledError>> {
+) -> Poll<Result<&'a T, SenderDropped>> {
     // if the message was already set, return it
     if let Some(msg) = shared.msg.get() {
-        return Poll::Ready(msg.as_ref().or(Err(CancelledError)));
+        return Poll::Ready(msg.as_ref().or(Err(SenderDropped)));
     }
 
     let mut wakers = shared.wakers.lock().expect("poisoned");
 
     // check again now that we've acquired the mutex
     if let Some(msg) = shared.msg.get() {
-        return Poll::Ready(msg.as_ref().or(Err(CancelledError)));
+        return Poll::Ready(msg.as_ref().or(Err(SenderDropped)));
     }
 
     // we have acquired the wakers mutex and checked that the message wasn't set,
@@ -330,13 +330,13 @@ fn receiver_fut_drop<T>(shared: &Shared<T>, waker_key: &mut Option<WakerKey>) {
     }
 }
 
-impl std::fmt::Display for CancelledError {
+impl std::fmt::Display for SenderDropped {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "the sender was dropped")
     }
 }
 
-impl std::error::Error for CancelledError {}
+impl std::error::Error for SenderDropped {}
 
 impl<T> Shared<T> {
     /// Count the number of wakers.
@@ -394,9 +394,9 @@ mod test {
             let rx_2 = rx_1.clone();
             drop(tx);
             let rx_3 = rx_1.clone();
-            assert_eq!(rx_1.recv().await, Err(CancelledError));
-            assert_eq!(rx_2.recv().await, Err(CancelledError));
-            assert_eq!(rx_3.recv().await, Err(CancelledError));
+            assert_eq!(rx_1.recv().await, Err(SenderDropped));
+            assert_eq!(rx_2.recv().await, Err(SenderDropped));
+            assert_eq!(rx_3.recv().await, Err(SenderDropped));
         });
     }
 
