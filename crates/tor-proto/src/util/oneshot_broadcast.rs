@@ -7,6 +7,7 @@
 //! See [`channel()`].
 
 use std::future::{Future, IntoFuture};
+use std::ops::Drop;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::task::{Context, Poll, Waker};
@@ -188,7 +189,7 @@ impl<T> Sender<T> {
     }
 }
 
-impl<T> std::ops::Drop for Sender<T> {
+impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
         let Some(shared) = self.shared.upgrade() else {
             // all receivers have dropped; nothing to do
@@ -245,7 +246,7 @@ impl<'a, T> Future for ReceiverBorrowedFuture<'a, T> {
     }
 }
 
-impl<T> std::ops::Drop for ReceiverBorrowedFuture<'_, T> {
+impl<T> Drop for ReceiverBorrowedFuture<'_, T> {
     fn drop(&mut self) {
         receiver_fut_drop(self.shared, &mut self.waker_key);
     }
@@ -263,7 +264,7 @@ impl<T: Clone> Future for ReceiverOwnedFuture<T> {
     }
 }
 
-impl<T> std::ops::Drop for ReceiverOwnedFuture<T> {
+impl<T> Drop for ReceiverOwnedFuture<T> {
     fn drop(&mut self) {
         receiver_fut_drop(&self.shared, &mut self.waker_key);
     }
