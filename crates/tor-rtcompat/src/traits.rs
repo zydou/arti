@@ -152,6 +152,16 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
 
+/// Trait providing additional operations on network sockets.
+pub trait StreamOps {
+    /// Set the `TCP_NOTSENT_LOWAT` socket option, if this `Stream` is a TCP stream.
+    ///
+    /// Returns an error if the stream is not a TCP stream,
+    /// if the operation is not supported on this platform,
+    /// or if the option could not be set on the underlying socket.
+    fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()>;
+}
+
 /// Trait for a runtime that can create and accept connections
 /// over network sockets.
 ///
