@@ -2,7 +2,7 @@
 #![allow(clippy::missing_docs_in_private_items)] // required for pin_project(enum)
 
 use futures::Stream;
-use tor_rtcompat::{NetStreamListener, NetStreamProvider, SleepProvider};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, SleepProvider, StreamOps};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -216,6 +216,15 @@ impl<S: AsyncWrite> AsyncWrite for BreakableTcpStream<S> {
         match self.project() {
             BreakableTcpStreamP::Present(s) => s.poll_close(cx),
             BreakableTcpStreamP::Broken => Poll::Ready(Ok(())),
+        }
+    }
+}
+
+impl<S: StreamOps> StreamOps for BreakableTcpStream<S> {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        match self {
+            BreakableTcpStream::Broken => Ok(()),
+            BreakableTcpStream::Present(s) => s.set_tcp_notsent_lowat(notsent_lowat),
         }
     }
 }

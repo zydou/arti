@@ -1,7 +1,7 @@
 //! Support for counting various TCP stats for a Runtime.
 
 use futures::Stream;
-use tor_rtcompat::{NetStreamListener, NetStreamProvider};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, StreamOps};
 
 use async_trait::async_trait;
 use futures::io::{AsyncRead, AsyncWrite};
@@ -134,6 +134,12 @@ impl<S: AsyncWrite> AsyncWrite for Counting<S> {
     }
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         self.project().inner.poll_close(cx)
+    }
+}
+
+impl<S: StreamOps> StreamOps for Counting<S> {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        self.inner.set_tcp_notsent_lowat(notsent_lowat)
     }
 }
 

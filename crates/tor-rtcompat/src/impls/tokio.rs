@@ -5,8 +5,9 @@
 
 /// Types used for networking (tokio implementation)
 pub(crate) mod net {
-    use crate::traits;
+    use crate::{impls, traits};
     use async_trait::async_trait;
+    use tor_error::bad_api_usage;
     use tor_general_addr::unix;
 
     pub(crate) use tokio_crate::net::{
@@ -21,7 +22,7 @@ pub(crate) mod net {
     use paste::paste;
     use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
 
-    use std::io::Result as IoResult;
+    use std::io::{self, Result as IoResult};
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -170,6 +171,22 @@ pub(crate) mod net {
 
         fn local_addr(&self) -> IoResult<SocketAddr> {
             self.socket.local_addr()
+        }
+    }
+
+    impl traits::StreamOps for TcpStream {
+        fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+            impls::streamops::set_tcp_notsent_lowat(&self.s, notsent_lowat)
+        }
+    }
+
+    #[cfg(unix)]
+    impl traits::StreamOps for UnixStream {
+        fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                bad_api_usage!("set_tcp_notsent_lowat not supported on Unix stream sockets"),
+            ))
         }
     }
 }

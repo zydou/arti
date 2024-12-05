@@ -6455,6 +6455,7 @@ dependencies = [
  "educe",
  "futures",
  "futures-rustls",
+ "libc",
  "native-tls",
  "paste",
  "pin-project",

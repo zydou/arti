@@ -8,7 +8,7 @@ use std::task::Poll;
 use std::{pin::Pin, task::Context};
 use tor_general_addr::unix;
 
-use crate::{NetStreamListener, NetStreamProvider};
+use crate::{NetStreamListener, NetStreamProvider, StreamOps};
 use tor_general_addr::general;
 
 /// Helper trait to allow us to create a type-erased stream.
@@ -43,6 +43,14 @@ impl AsyncWrite for Stream {
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         self.0.as_mut().poll_close(cx)
+    }
+}
+
+impl StreamOps for Stream {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        // TODO: delegate to self.0's impl after adding
+        // a StreamOps bound
+        todo!()
     }
 }
 

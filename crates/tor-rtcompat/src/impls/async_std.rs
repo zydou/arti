@@ -7,7 +7,7 @@
 
 /// Types used for networking (async_std implementation)
 mod net {
-    use crate::traits;
+    use crate::{impls, traits};
 
     use async_std_crate::net::{TcpListener, TcpStream, UdpSocket as StdUdpSocket};
     #[cfg(unix)]
@@ -16,10 +16,11 @@ mod net {
     use futures::future::Future;
     use futures::stream::Stream;
     use paste::paste;
-    use std::io::Result as IoResult;
+    use std::io::{self, Result as IoResult};
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
+    use tor_error::bad_api_usage;
     use tor_general_addr::unix;
 
     /// Implement NetStreamProvider-related functionality for a single address type.
@@ -170,6 +171,22 @@ mod net {
 
         fn local_addr(&self) -> IoResult<SocketAddr> {
             self.socket.local_addr()
+        }
+    }
+
+    impl traits::StreamOps for TcpStream {
+        fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+            impls::streamops::set_tcp_notsent_lowat(self, notsent_lowat)
+        }
+    }
+
+    #[cfg(unix)]
+    impl traits::StreamOps for UnixStream {
+        fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                bad_api_usage!("set_tcp_notsent_lowat not supported on Unix stream sockets"),
+            ))
         }
     }
 }
