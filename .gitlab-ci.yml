@@ -21,8 +21,10 @@ variables:
   CHUTNEY_COMMIT: b05403758dc81593256a93a10d896e68e0398fe7
 
 default:
-  # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  image: amd64/debian:bookworm-slim
+  image:
+    name: containers.torproject.org/tpo/tpa/base-images/debian:bookworm
+    docker:
+      platform: linux/amd64
   before_script:
     # get section_start and section_end bash functions
     - source maint/ci_log_span_fns.sh
