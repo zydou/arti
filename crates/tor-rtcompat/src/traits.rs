@@ -174,7 +174,7 @@ pub trait StreamOps {
 #[async_trait]
 pub trait NetStreamProvider<ADDR = net::SocketAddr>: Clone + Send + Sync + 'static {
     /// The type for the connections returned by [`Self::connect()`].
-    type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
+    type Stream: AsyncRead + AsyncWrite + StreamOps + Send + Sync + Unpin + 'static;
     /// The type for the listeners returned by [`Self::listen()`].
     type Listener: NetStreamListener<ADDR, Stream = Self::Stream> + Send + Sync + Unpin + 'static;
 
@@ -197,7 +197,7 @@ pub trait NetStreamProvider<ADDR = net::SocketAddr>: Clone + Send + Sync + 'stat
 /// use `incoming` to convert this object into a [`stream::Stream`].
 pub trait NetStreamListener<ADDR = net::SocketAddr> {
     /// The type of connections returned by [`Self::incoming()`].
-    type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
+    type Stream: AsyncRead + AsyncWrite + StreamOps + Send + Sync + Unpin + 'static;
 
     /// The type of [`stream::Stream`] returned by [`Self::incoming()`].
     type Incoming: stream::Stream<Item = IoResult<(Self::Stream, ADDR)>>

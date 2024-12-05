@@ -14,8 +14,8 @@ use tor_general_addr::general;
 /// Helper trait to allow us to create a type-erased stream.
 ///
 /// (Rust doesn't allow "dyn AsyncRead + AsyncWrite")
-trait ReadAndWrite: AsyncRead + AsyncWrite + Send + Sync {}
-impl<T> ReadAndWrite for T where T: AsyncRead + AsyncWrite + Send + Sync {}
+trait ReadAndWrite: AsyncRead + AsyncWrite + StreamOps + Send + Sync {}
+impl<T> ReadAndWrite for T where T: AsyncRead + AsyncWrite + StreamOps + Send + Sync {}
 
 /// A stream returned by a `NetStreamProvider<GeneralizedAddr>`
 pub struct Stream(Pin<Box<dyn ReadAndWrite>>);
@@ -48,9 +48,7 @@ impl AsyncWrite for Stream {
 
 impl StreamOps for Stream {
     fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
-        // TODO: delegate to self.0's impl after adding
-        // a StreamOps bound
-        todo!()
+        self.0.set_tcp_notsent_lowat(notsent_lowat)
     }
 }
 
