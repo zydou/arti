@@ -68,6 +68,9 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
         if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref())? {
             mistrust.check_directory(sock_parent_dir)?;
         }
+        // TODO: we currently use try_clone() to get separate reader and writer instances.
+        // conceivably, we could instead create something like the `Split` implementation that
+        // exists for `AsyncRead + AsyncWrite` objects in futures::io.
         let (reader, writer): (Box<dyn io::Read + Send>, Box<dyn io::Write + Send>) =
             match self.socket.as_ref() {
                 SA::Inet(addr) => {
