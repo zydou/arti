@@ -10,7 +10,7 @@ use std::future::{Future, IntoFuture};
 use std::ops::Drop;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
-use std::task::{Context, Poll, Waker};
+use std::task::{ready, Context, Poll, Waker};
 
 use slotmap_careful::DenseSlotMap;
 
@@ -269,10 +269,8 @@ impl<T: Clone> Future for ReceiverFuture<T> {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let self_ = self.get_mut();
-        match receiver_fut_poll(&self_.shared, &mut self_.waker_key, cx.waker()) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(x) => Poll::Ready(x.cloned()),
-        }
+        let poll = receiver_fut_poll(&self_.shared, &mut self_.waker_key, cx.waker());
+        Poll::Ready(ready!(poll)).map_ok(Clone::clone)
     }
 }
 
