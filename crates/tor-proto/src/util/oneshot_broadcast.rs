@@ -6,6 +6,9 @@
 //!
 //! See [`channel()`].
 
+// NOTE: If we decide to make this public in the future (for example through `tor-async-utils`),
+// we should enable the doc tests.
+
 use std::future::{Future, IntoFuture};
 use std::ops::Drop;
 use std::pin::Pin;
@@ -24,6 +27,22 @@ pub(crate) struct Sender<T> {
 }
 
 /// A [oneshot broadcast][crate::util::oneshot_broadcast] receiver.
+///
+/// The `Receiver` offers two methods for receiving the message:
+///
+/// 1. [`Receiver::into_future`]
+///     ```rust,ignore
+///     let (tx, rx) = channel();
+///     tx.send(0);
+///     let message: u32 = rx.await.unwrap();
+///     ```
+///
+/// 2. [`Receiver::borrowed`]
+///     ```rust,ignore
+///     let (tx, rx) = channel();
+///     tx.send(0);
+///     let message: &u32 = rx.borrowed().await.unwrap();
+///     ```
 #[derive(Clone, Debug)]
 pub(crate) struct Receiver<T> {
     /// State shared with the sender and all other receivers.
@@ -109,6 +128,14 @@ struct WakersAlreadyWoken;
 pub(crate) struct SenderDropped;
 
 /// Create a new oneshot broadcast channel.
+///
+/// ```rust,ignore
+/// let (tx, rx) = channel();
+/// let rx_clone = rx.clone();
+/// tx.send(0_u8);
+/// assert_eq!(rx.await, Ok(0));
+/// assert_eq!(rx_clone.await, Ok(0));
+/// ```
 pub(crate) fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let shared = Arc::new(Shared {
         msg: OnceLock::new(),
