@@ -4,7 +4,7 @@ use futures::stream;
 use futures::task::Spawn;
 use futures::{AsyncRead, AsyncWrite, Future};
 use std::fmt::Debug;
-use std::io::Result as IoResult;
+use std::io::{self, Result as IoResult};
 use std::net;
 use std::time::{Duration, Instant, SystemTime};
 use tor_general_addr::unix;
@@ -161,7 +161,13 @@ pub trait StreamOps {
     /// and on platforms where the operation is not supported.
     ///
     /// [`TCP_NOTSENT_LOWAT`]: https://lwn.net/Articles/560082/
-    fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()>;
+    fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            // XXX: here and elsewhere: use a different error type
+            tor_error::bad_api_usage!("set_tcp_notsent_lowat not supported on this object type"),
+        ))
+    }
 }
 
 /// Trait for a runtime that can create and accept connections
