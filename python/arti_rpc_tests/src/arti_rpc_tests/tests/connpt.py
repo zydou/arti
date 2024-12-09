@@ -6,6 +6,7 @@ from arti_rpc_tests import arti_test
 from arti_rpc import (
     ArtiRpcError,
     ArtiRpcErrorStatus,
+    ArtiRpcConn,
     ArtiRpcConnBuilder,
 )
 
@@ -228,3 +229,28 @@ def ordering_multi(context):
 
         os.environ["ARTI_RPC_CONNECT_PATH_OVERRIDE"] = fn_a
         assert_builder_aborts(bld)
+
+
+@arti_test
+def connect_nobuilder(context):
+    # Assert that we can use ArtiRpcConn constructor
+    # without a builder.
+    tmp = Tempdir()
+    tmp.write("abort.toml", connpt_abort())
+    tmp.write("working.toml", connpt_working(context))
+
+    fn_a = tmp.fname("abort.toml")
+    fn_w = tmp.fname("working.toml")
+
+    with SavedEnviron():
+        os.environ["ARTI_RPC_CONNECT_PATH"] = fn_a
+        try:
+            _ = ArtiRpcConn()
+            assert False  # Shouldn't be reached.
+        except ArtiRpcError as e:
+            assert e.status_code() == ArtiRpcErrorStatus.ALL_CONNECT_ATTEMPTS_FAILED
+            assert 'Encountered an explicit "abort"' in str(e)
+
+        os.environ["ARTI_RPC_CONNECT_PATH"] = fn_w
+        c = ArtiRpcConn()
+        assert c is not None
