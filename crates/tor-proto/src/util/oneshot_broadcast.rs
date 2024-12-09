@@ -69,7 +69,7 @@ struct Shared<T> {
 /// Will be ready, yielding `&'a T`,
 /// when the sender sends a message or is dropped.
 #[derive(Debug)]
-struct BorrowedReceiverFuture<'a, T> {
+pub(crate) struct BorrowedReceiverFuture<'a, T> {
     /// State shared with the sender and all other receivers.
     shared: &'a Shared<T>,
     /// The key for any waker that we've added to [`Shared::wakers`].
@@ -221,12 +221,11 @@ impl<T> Receiver<T> {
     ///
     /// This is cancellation-safe.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) async fn borrowed(&self) -> Result<&T, SenderDropped> {
+    pub(crate) fn borrowed(&self) -> BorrowedReceiverFuture<'_, T> {
         BorrowedReceiverFuture {
             shared: &self.shared,
             waker_key: None,
         }
-        .await
     }
 
     /// The receiver is ready.
