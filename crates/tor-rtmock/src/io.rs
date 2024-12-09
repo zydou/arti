@@ -165,7 +165,10 @@ impl AsyncWrite for LocalStream {
 
 impl StreamOps for LocalStream {
     fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
-        Err(UnsupportedStreamOp::new("set_tcp_notsent_lowat", "unsupported on local streams").into())
+        Err(
+            UnsupportedStreamOp::new("set_tcp_notsent_lowat", "unsupported on local streams")
+                .into(),
+        )
     }
 }
 

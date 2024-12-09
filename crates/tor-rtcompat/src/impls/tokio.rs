@@ -21,7 +21,7 @@ pub(crate) mod net {
     use paste::paste;
     use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
 
-    use std::io::{Result as IoResult};
+    use std::io::Result as IoResult;
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -182,7 +182,11 @@ pub(crate) mod net {
     #[cfg(unix)]
     impl traits::StreamOps for UnixStream {
         fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
-            Err(traits::UnsupportedStreamOp::new("set_tcp_notsent_lowat", "unsupported on Unix streams").into())
+            Err(traits::UnsupportedStreamOp::new(
+                "set_tcp_notsent_lowat",
+                "unsupported on Unix streams",
+            )
+            .into())
         }
     }
 }
