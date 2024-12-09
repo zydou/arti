@@ -339,19 +339,6 @@ fn receiver_fut_drop<T>(shared: &Shared<T>, waker_key: &mut Option<WakerKey>) {
     }
 }
 
-impl<T> Shared<T> {
-    /// Count the number of wakers.
-    #[cfg(test)]
-    fn count_wakers(&self) -> usize {
-        self.wakers
-            .lock()
-            .expect("poisoned")
-            .as_ref()
-            .map(|x| x.len())
-            .unwrap_or(0)
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -360,6 +347,18 @@ mod test {
 
     use futures::future::FutureExt;
     use futures::task::SpawnExt;
+
+    impl<T> Shared<T> {
+        /// Count the number of wakers.
+        fn count_wakers(&self) -> usize {
+            self.wakers
+                .lock()
+                .expect("poisoned")
+                .as_ref()
+                .map(|x| x.len())
+                .unwrap_or(0)
+        }
+    }
 
     #[test]
     fn standard_usage() {
