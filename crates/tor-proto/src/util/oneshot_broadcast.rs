@@ -122,6 +122,11 @@ pub(crate) struct ReceiverFuture<T> {
 #[derive(Copy, Clone, Debug)]
 struct WakersAlreadyWoken;
 
+/// The message has already been set, and we can't set it again.
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[error("the message was already set")]
+struct MessageAlreadySet;
+
 /// The sender was dropped, so the channel is closed.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("the sender was dropped")]
@@ -158,23 +163,22 @@ impl<T> Sender<T> {
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn send(self, msg: T) {
         // set the message and inform the wakers
-        if Self::send_and_wake(&self.shared, Ok(msg)).is_err() {
+        Self::send_and_wake(&self.shared, Ok(msg))
             // this 'send()` method takes an owned self,
             // and we don't send a message outside of here and the drop handler,
             // so this shouldn't be possible
-            unreachable!("the message was already set");
-        }
+            .expect("could not set the message");
     }
 
     /// Send the message, and wake and clear all wakers.
     ///
     /// If all receivers have been dropped, then always returns `Ok`.
     ///
-    /// If the message was unable to be set, returns the message in an `Err`.
+    /// If the message was unable to be set, returns `Err(MessageAlreadySet)`.
     fn send_and_wake(
         shared: &Weak<Shared<T>>,
         msg: Result<T, SenderDropped>,
-    ) -> Result<(), Result<T, SenderDropped>> {
+    ) -> Result<(), MessageAlreadySet> {
         // Even if the `Weak` upgrade is successful,
         // it's possible that the last receiver
         // will be dropped during this `send_and_wake` method,
@@ -185,7 +189,7 @@ impl<T> Sender<T> {
         };
 
         // set the message
-        shared.msg.set(msg)?;
+        shared.msg.set(msg).or(Err(MessageAlreadySet))?;
 
         let mut wakers = {
             let mut wakers = shared.wakers.lock().expect("poisoned");
