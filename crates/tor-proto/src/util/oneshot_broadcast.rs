@@ -104,7 +104,8 @@ pub(crate) struct ReceiverFuture<T> {
 struct WakersAlreadyWoken;
 
 /// The sender was dropped, so the channel is closed.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("the sender was dropped")]
 pub(crate) struct SenderDropped;
 
 /// Create a new oneshot broadcast channel.
@@ -338,14 +339,6 @@ fn receiver_fut_drop<T>(shared: &Shared<T>, waker_key: &mut Option<WakerKey>) {
         }
     }
 }
-
-impl std::fmt::Display for SenderDropped {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "the sender was dropped")
-    }
-}
-
-impl std::error::Error for SenderDropped {}
 
 impl<T> Shared<T> {
     /// Count the number of wakers.
