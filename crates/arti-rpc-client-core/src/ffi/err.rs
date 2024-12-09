@@ -303,7 +303,9 @@ impl IntoFfiError for crate::ConnectError {
             E::AuthenticationRejected(_) => F::BadAuth,
             E::BadMessage(_) => F::PeerProtocolViolation,
             E::ProtoError(e) => e.status(),
-            E::BadEnvironment | E::CannotResolvePath(_) => F::BadConnectPointPath,
+            E::BadEnvironment | E::RelativeConnectFile | E::CannotResolvePath(_) => {
+                F::BadConnectPointPath
+            }
             E::CannotParse(_) | E::CannotResolveConnectPoint(_) => F::ConnectPointNotUsable,
             E::AllAttemptsDeclined => F::AllConnectAttemptsFailed,
             E::AuthenticationNotSupported => F::NotSupported,

@@ -213,6 +213,9 @@ impl SearchEntry {
                         return ConnPtIterator::Singleton(Err(ConnectError::CannotResolvePath(e)))
                     }
                 };
+                if !path.is_absolute() {
+                    return ConnPtIterator::Singleton(Err(ConnectError::RelativeConnectFile));
+                }
                 // ..then try to load it as a directory...
                 match ParsedConnectPoint::load_dir(&path, mistrust, options) {
                     Ok(iter) => ConnPtIterator::Dir(iter),

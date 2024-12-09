@@ -417,6 +417,10 @@ pub enum ConnectError {
     /// All attempted connect points were declined, and none were aborted.
     #[error("All connect points were declined (or there were none)")]
     AllAttemptsDeclined,
+    /// A connect file or directory was given as a relative path.
+    /// (Only absolute paths are supported).
+    #[error("Connect file was given as a relative path.")]
+    RelativeConnectFile,
     /// One of our authentication messages was rejected.
     #[error("Arti rejected our authentication: {0:?}")]
     AuthenticationRejected(ErrorResponse),
@@ -441,6 +445,7 @@ impl HasClientErrorAction for ConnectError {
             E::CannotResolvePath(_) => A::Abort,
             E::CannotResolveConnectPoint(e) => e.client_action(),
             E::CannotConnect(e) => e.client_action(),
+            E::RelativeConnectFile => A::Abort,
             E::AuthenticationRejected(_) => A::Decline,
             // TODO RPC: Is this correct?  This error can also occur when
             // we are talking to something other than an RPC server.
