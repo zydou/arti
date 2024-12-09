@@ -31,18 +31,6 @@ impl Ed25519Cert {
     }
 }
 
-impl EncodedEd25519Cert {
-    /// Create an `EncodedEd25519Cert` from a byte slice.
-    //
-    // TODO: this should return a Result and parse `cert` to ensure
-    // it has the right format.
-    // XXX remove
-    #[cfg(feature = "experimental-api")]
-    pub fn from_bytes(cert: &[u8]) -> Self {
-        Self(cert.into())
-    }
-}
-
 impl Writeable for CertExt {
     /// As Writeable::WriteOnto, but may return an error.
     ///
