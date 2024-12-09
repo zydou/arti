@@ -26,8 +26,10 @@ pub enum BuilderError {
 pub struct RpcConnBuilder {
     /// Path entries provided programmatically.
     ///
-    /// These are considered after entries in ARTI_RPC_CONNECT_PATH_OVERRIDE,
+    /// These are considered after entries in
+    /// the `$ARTI_RPC_CONNECT_PATH_OVERRIDE` environment variable,
     /// but before any other entries.
+    /// (See `RPCConnBuilder::new` for details.)
     ///
     /// These entries are stored in reverse order.
     prepend_path_reversed: Vec<PathEntry>,
@@ -47,10 +49,12 @@ impl RpcConnBuilder {
     ///
     /// By default, we search:
     ///   - Any connect points listed in the environment variable `$ARTI_RPC_CONNECT_PATH_OVERRIDE`
-    ///   - Any connect points passed to `RpcConnBuilder::prepend_entry`
+    ///   - Any connect points passed to `RpcConnBuilder::prepend_*`
+    ///     (Since these variables are _prepended_,
+    ///     the ones that are prepended _last_ will be considered _first_.)
     ///   - Any connect points listed in the environment variable `$ARTI_RPC_CONNECT_PATH`
-    ///   - Any connect files in `${ARTI_LOCAL_DATA/rpc/connect.d`
-    ///   - Any connect files in `/etc/arti-rpc/connect/d` (unix only)
+    ///   - Any connect files in `${ARTI_LOCAL_DATA}/rpc/connect.d`
+    ///   - Any connect files in `/etc/arti-rpc/connect.d` (unix only)
     ///   - [`tor_rpc_connect::USER_DEFAULT_CONNECT_POINT`]
     ///   - [`tor_rpc_connect::SYSTEM_DEFAULT_CONNECT_POINT`] if present
     pub fn new() -> Self {
@@ -59,8 +63,10 @@ impl RpcConnBuilder {
 
     /// Prepend a single literal connect point to the search path in this RpcConnBuilder.
     ///
-    /// This entry will be considered before any entries in `${ARTI_RPC_CONNECT_PATH}`,
-    /// but after any entry in `$ARTI_RPC_CONNECT_PATH_OVERRIDE`.
+    /// This entry will be considered before any entries in
+    /// the `$ARTI_RPC_CONNECT_PATH` environment variable
+    /// but after any entry in
+    /// the `$ARTI_RPC_CONNECT_PATH_OVERRIDE` environment variable.
     ///
     /// This entry must be a literal connect point, expressed as a TOML table.
     pub fn prepend_literal_entry(&mut self, s: String) {
@@ -69,8 +75,10 @@ impl RpcConnBuilder {
 
     /// Prepend a single path entry to the search path in this RpcConnBuilder.
     ///
-    /// This entry will be considered before any entries in `${ARTI_RPC_CONNECT_PATH}`,
-    /// but after any entry in `$ARTI_RPC_CONNECT_PATH_OVERRIDE`.
+    /// This entry will be considered before any entries in
+    /// the `$ARTI_RPC_CONNECT_PATH` environment variable,
+    /// but after any entry in
+    /// the `$ARTI_RPC_CONNECT_PATH_OVERRIDE` environment variable.
     ///
     /// This entry must be a path to a file or directory.
     /// It may contain variables to expand;
@@ -83,8 +91,10 @@ impl RpcConnBuilder {
 
     /// Prepend a single literal path entry to the search path in this RpcConnBuilder.
     ///
-    /// This entry will be considered before any entries in `${ARTI_RPC_CONNECT_PATH}`,
-    /// but after any entry in `${ARTI_RPC_CONNECT_PATH_OVERRIDE}`.
+    /// This entry will be considered before any entries in
+    /// the `$ARTI_RPC_CONNECT_PATH` environment variable,
+    /// but after any entry in
+    /// the `$ARTI_RPC_CONNECT_PATH_OVERRIDE` environment variable.
     ///
     /// Variables in this entry will not be expanded.
     pub fn prepend_literal_path(&mut self, p: PathBuf) {
