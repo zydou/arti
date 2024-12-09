@@ -7,7 +7,6 @@
 pub(crate) mod net {
     use crate::{impls, traits};
     use async_trait::async_trait;
-    use tor_error::bad_api_usage;
     use tor_general_addr::unix;
 
     pub(crate) use tokio_crate::net::{
@@ -22,7 +21,7 @@ pub(crate) mod net {
     use paste::paste;
     use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
 
-    use std::io::{self, Result as IoResult};
+    use std::io::{Result as IoResult};
     use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -183,10 +182,7 @@ pub(crate) mod net {
     #[cfg(unix)]
     impl traits::StreamOps for UnixStream {
         fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
-            Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                bad_api_usage!("set_tcp_notsent_lowat not supported on Unix stream sockets"),
-            ))
+            Err(traits::UnsupportedStreamOp::new("set_tcp_notsent_lowat", "unsupported on Unix streams").into())
         }
     }
 }

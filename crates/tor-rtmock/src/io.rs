@@ -10,11 +10,10 @@ use futures::channel::mpsc;
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::{Sink, SinkExt};
 use futures::stream::Stream;
-use std::io::{self, Error as IoError, ErrorKind, Result as IoResult};
+use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tor_error::bad_api_usage;
-use tor_rtcompat::StreamOps;
+use tor_rtcompat::{StreamOps, UnsupportedStreamOp};
 
 /// Channel capacity for our internal MPSC channels.
 ///
@@ -166,10 +165,7 @@ impl AsyncWrite for LocalStream {
 
 impl StreamOps for LocalStream {
     fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            bad_api_usage!("set_tcp_notsent_lowat not supported on local streams"),
-        ))
+        Err(UnsupportedStreamOp::new("set_tcp_notsent_lowat", "unsupported on local streams").into())
     }
 }
 

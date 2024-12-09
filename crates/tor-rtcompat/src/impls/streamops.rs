@@ -6,7 +6,7 @@ use std::io;
 use {std::mem, std::os::fd::AsRawFd};
 
 #[cfg(not(target_os = "linux"))]
-use tor_error::bad_api_usage;
+use crate::UnsupportedStreamOp;
 
 /// Helper for implementing [`set_tcp_notsent_lowat`](crate::StreamOps::set_tcp_notsent_lowat).
 ///
@@ -36,10 +36,7 @@ pub(crate) fn set_tcp_notsent_lowat<S: AsRawFd>(sock: &S, notsent_lowat: u32) ->
 /// Only implemented on Linux. Returns an error on all other platforms.
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn set_tcp_notsent_lowat<S>(sock: &S, notsent_lowat: u32) -> io::Result<()> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        bad_api_usage!("set_tcp_notsent_lowat not supported on non-Linux platforms"),
-    ))
+    Err(UnsupportedStreamOp::new("set_tcp_notsent_lowat", "unsupported on non-linux platforms").into())
 }
 
 #[cfg(test)]

@@ -156,17 +156,17 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 pub trait StreamOps {
     /// Set the [`TCP_NOTSENT_LOWAT`] socket option, if this `Stream` is a TCP stream.
     ///
-    /// Implementations should return an [`Unsupported`](std::io::ErrorKind::Unsupported) error
+    /// Implementations should return an [`UnsupportedStreamOp`] IO error
     /// if the stream is not a TCP stream,
     /// and on platforms where the operation is not supported.
     ///
     /// [`TCP_NOTSENT_LOWAT`]: https://lwn.net/Articles/560082/
     fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            // XXX: here and elsewhere: use a different error type
-            tor_error::bad_api_usage!("set_tcp_notsent_lowat not supported on this object type"),
-        ))
+        Err(UnsupportedStreamOp {
+            op: "set_tcp_notsent_lowat",
+            reason: "unsupported object type",
+        }
+        .into())
     }
 }
 
