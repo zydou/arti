@@ -6396,6 +6396,7 @@ name = "tor-rpc-connect"
 version = "0.25.0"
 dependencies = [
  "assert_matches",
+ "cfg-if",
  "derive_more",
  "fs-mistrust",
  "rand",

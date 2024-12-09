@@ -228,37 +228,44 @@ fn socket_parent_path(
 }
 
 /// Default connect point for a user-owned Arti instance.
-#[cfg(unix)]
-pub const USER_DEFAULT_CONNECT_POINT: &str = r#"
+pub const USER_DEFAULT_CONNECT_POINT: &str = {
+    cfg_if::cfg_if! {
+        if #[cfg(unix)] {
+r#"
 [connect]
 socket = "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket"
 auth = "none"
-"#;
+"#
+        } else {
+        // TODO RPC: Does this make sense as a windows default?  If so document it.
+r#"
+[connect]
+socket = "inet:127.0.0.1:9180"
+auth = { cookie = { path = "${ARTI_LOCAL_DATA}/rpc/arti_rpc_cookie" } }
+"#
+        }
+    }
+};
 
 /// Default connect point for a system-wide Arti instance.
 ///
 /// This is `None` if, on this platform, there is no such default connect point.
 #[cfg(unix)]
-pub const SYSTEM_DEFAULT_CONNECT_POINT: Option<&str> = Some(
-    r#"
+pub const SYSTEM_DEFAULT_CONNECT_POINT: Option<&str> = {
+    cfg_if::cfg_if! {
+        if #[cfg(unix)] {
+            Some(
+r#"
 [connect]
 socket = "unix:/var/run/arti-rpc/arti_rpc_socket"
 auth = "none"
-"#,
-);
-
-// TODO RPC: Does this make sense as a windows default?  If so document it.
-#[cfg(not(unix))]
-pub const USER_DEFAULT_CONNECT_POINT: &str = Some(
-    r#"
-[connect]
-socket = "inet:127.0.0.1:9180"
-auth = { cookie = { path = "${ARTI_LOCAL_DATA}/rpc/arti_rpc_cookie" } }
-"#,
-);
-
-#[cfg(not(unix))]
-pub const SYSTEM_DEFAULT_CONNECT_POINT: Option<&str> = None;
+"#
+            )
+        } else {
+            None
+        }
+    }
+};
 
 #[cfg(test)]
 mod test {
