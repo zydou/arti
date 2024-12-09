@@ -32,12 +32,12 @@ pub struct RpcConnBuilder {
     /// (See `RPCConnBuilder::new` for details.)
     ///
     /// These entries are stored in reverse order.
-    prepend_path_reversed: Vec<PathEntry>,
+    prepend_path_reversed: Vec<SearchEntry>,
 }
 
-/// A single searchable entry in the connect path.
+/// A single searchable entry in the search path used to find connect points.
 #[derive(Clone, Debug)]
-enum PathEntry {
+enum SearchEntry {
     /// A literal connect point entry to parse.
     Literal(String),
     /// A path to a connect file, or a directory full of connect files.
@@ -70,7 +70,7 @@ impl RpcConnBuilder {
     ///
     /// This entry must be a literal connect point, expressed as a TOML table.
     pub fn prepend_literal_entry(&mut self, s: String) {
-        self.prepend_path_reversed.push(PathEntry::Literal(s));
+        self.prepend_path_reversed.push(SearchEntry::Literal(s));
     }
 
     /// Prepend a single path entry to the search path in this RpcConnBuilder.
@@ -86,7 +86,7 @@ impl RpcConnBuilder {
     /// using the variables of [`tor_config_path::arti_client_base_resolver`].
     pub fn prepend_path(&mut self, p: String) {
         self.prepend_path_reversed
-            .push(PathEntry::Path(CfgPath::new(p)));
+            .push(SearchEntry::Path(CfgPath::new(p)));
     }
 
     /// Prepend a single literal path entry to the search path in this RpcConnBuilder.
@@ -99,13 +99,13 @@ impl RpcConnBuilder {
     /// Variables in this entry will not be expanded.
     pub fn prepend_literal_path(&mut self, p: PathBuf) {
         self.prepend_path_reversed
-            .push(PathEntry::Path(CfgPath::new_literal(p)));
+            .push(SearchEntry::Path(CfgPath::new_literal(p)));
     }
 
     /// Return the list of default path entries that we search _after_
     /// all user-provided entries.
-    fn default_path_entries() -> Vec<PathEntry> {
-        use PathEntry::*;
+    fn default_path_entries() -> Vec<SearchEntry> {
+        use SearchEntry::*;
         let mut result = vec![
             Path(CfgPath::new("${ARTI_LOCAL_DATA}/rpc/connect.d/".to_owned())),
             #[cfg(unix)]
@@ -119,10 +119,10 @@ impl RpcConnBuilder {
     }
 
     /// Return a vector of every PathEntry that we should try to connect to.
-    fn all_entries(&self) -> Result<Vec<PathEntry>, ConnectError> {
-        let mut entries = PathEntry::from_env_var("ARTI_RPC_CONNECT_PATH_OVERRIDE")?;
+    fn all_entries(&self) -> Result<Vec<SearchEntry>, ConnectError> {
+        let mut entries = SearchEntry::from_env_var("ARTI_RPC_CONNECT_PATH_OVERRIDE")?;
         entries.extend(self.prepend_path_reversed.iter().rev().cloned());
-        entries.extend(PathEntry::from_env_var("ARTI_RPC_CONNECT_PATH")?);
+        entries.extend(SearchEntry::from_env_var("ARTI_RPC_CONNECT_PATH")?);
         entries.extend(Self::default_path_entries());
         Ok(entries)
     }
@@ -186,8 +186,8 @@ fn try_connect(
     Ok(conn)
 }
 
-impl PathEntry {
-    /// Return an iterator over ParsedConnPoints from this PathEntry.
+impl SearchEntry {
+    /// Return an iterator over ParsedConnPoints from this `SearchEntry`.
     fn load<'a>(
         &self,
         resolver: &CfgPathResolver,
@@ -195,11 +195,11 @@ impl PathEntry {
         options: &'a HashMap<PathBuf, LoadOptions>,
     ) -> ConnPtIterator<'a> {
         match self {
-            PathEntry::Literal(s) => ConnPtIterator::Singleton(
+            SearchEntry::Literal(s) => ConnPtIterator::Singleton(
                 // It's a literal entry, so we just try to parse it.
                 ParsedConnectPoint::from_str(s).map_err(|e| ConnectError::from(LoadError::from(e))),
             ),
-            PathEntry::Path(cfg_path) => {
+            SearchEntry::Path(cfg_path) => {
                 // It's a path, so we need to expand it...
                 let path = match cfg_path.path(resolver) {
                     Ok(p) => p,
@@ -222,7 +222,7 @@ impl PathEntry {
         }
     }
 
-    /// Return a list of PathEntry as specified in an environment variable with a given name.
+    /// Return a list of `SearchEntry` as specified in an environment variable with a given name.
     fn from_env_var(s: &str) -> Result<Vec<Self>, ConnectError> {
         match std::env::var(s) {
             Ok(s) if s.is_empty() => Ok(vec![]),
@@ -232,12 +232,12 @@ impl PathEntry {
         }
     }
 
-    /// Return a list of PathEntry as specified in an environment variable with a given name.
+    /// Return a list of `SearchEntry` as specified in an environment variable with a given name.
     fn from_env_string(s: &str) -> Result<Vec<Self>, ConnectError> {
         s.split(':').map(Self::from_env_string_elt).collect()
     }
 
-    /// Return a PathEntry from a single entry within an environment variable.
+    /// Return a `SearchEntry` from a single entry within an environment variable.
     fn from_env_string_elt(s: &str) -> Result<Self, ConnectError> {
         match s.bytes().next() {
             Some(b'%') | Some(b'[') => Ok(Self::Literal(
