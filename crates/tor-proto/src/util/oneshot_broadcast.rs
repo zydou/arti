@@ -331,11 +331,10 @@ fn receiver_fut_drop<T>(shared: &Shared<T>, waker_key: &mut Option<WakerKey>) {
     if let Some(waker_key) = waker_key.take() {
         let mut wakers = shared.wakers.lock().expect("poisoned");
         if let Ok(wakers) = wakers.as_mut() {
-            wakers
-                .remove(waker_key)
-                // this is the only place that removes the waker from the map,
-                // so the waker should never be missing
-                .expect("the waker key was not found");
+            let waker = wakers.remove(waker_key);
+            // this is the only place that removes the waker from the map,
+            // so the waker should never be missing
+            debug_assert!(waker.is_some(), "the waker key was not found");
         }
     }
 }
