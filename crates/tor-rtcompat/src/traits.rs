@@ -170,6 +170,33 @@ pub trait StreamOps {
     }
 }
 
+/// Error: Tried to perform a [`StreamOps`] operation on an unsupported stream type
+/// or on an unsupported platform.
+///
+/// (For example, you can't call [`StreamOps::set_tcp_notsent_lowat`] on Windows
+/// or on a stream type that is not backed by a TCP socket.)
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Operation {op} not supported: {reason}")]
+pub struct UnsupportedStreamOp {
+    /// The unsupported operation.
+    op: &'static str,
+    /// The reason the operation is unsupported.
+    reason: &'static str,
+}
+
+impl UnsupportedStreamOp {
+    /// Construct a new `UnsupportedStreamOp` error with the provided operation and reason.
+    pub fn new(op: &'static str, reason: &'static str) -> Self {
+        Self { op, reason }
+    }
+}
+
+impl From<UnsupportedStreamOp> for io::Error {
+    fn from(value: UnsupportedStreamOp) -> Self {
+        io::Error::new(io::ErrorKind::Unsupported, value)
+    }
+}
+
 /// Trait for a runtime that can create and accept connections
 /// over network sockets.
 ///
