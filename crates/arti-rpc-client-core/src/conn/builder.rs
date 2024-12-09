@@ -240,7 +240,11 @@ impl SearchEntry {
 
     /// Return a list of `SearchEntry` as specified in an environment variable with a given name.
     fn from_env_string(s: &str) -> Result<Vec<Self>, ConnectError> {
-        s.split(':').map(Self::from_env_string_elt).collect()
+        // TODO RPC: Possibly we should be using std::env::split_paths, if it behaves correctly
+        // with our url-escaped entries.
+        s.split(PATH_SEP_CHAR)
+            .map(Self::from_env_string_elt)
+            .collect()
     }
 
     /// Return a `SearchEntry` from a single entry within an environment variable.
@@ -256,6 +260,13 @@ impl SearchEntry {
         }
     }
 }
+
+/// Character used to separate path environment variables.
+const PATH_SEP_CHAR: char = {
+    cfg_if::cfg_if! {
+         if #[cfg(windows)] { ';' } else { ':' }
+    }
+};
 
 /// Iterator over connect points returned by PathEntry::load().
 enum ConnPtIterator<'a> {
