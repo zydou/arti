@@ -154,11 +154,13 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 
 /// Trait providing additional operations on network sockets.
 pub trait StreamOps {
-    /// Set the `TCP_NOTSENT_LOWAT` socket option, if this `Stream` is a TCP stream.
+    /// Set the [`TCP_NOTSENT_LOWAT`] socket option, if this `Stream` is a TCP stream.
     ///
-    /// Returns an error if the stream is not a TCP stream,
-    /// if the operation is not supported on this platform,
-    /// or if the option could not be set on the underlying socket.
+    /// Implementations should return an [`Unsupported`](std::io::ErrorKind::Unsupported) error
+    /// if the stream is not a TCP stream,
+    /// and on platforms where the operation is not supported.
+    ///
+    /// [`TCP_NOTSENT_LOWAT`]: https://lwn.net/Articles/560082/
     fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()>;
 }
 
