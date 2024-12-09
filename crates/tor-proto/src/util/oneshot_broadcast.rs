@@ -57,17 +57,17 @@ struct Shared<T> {
     /// The message sent from the [`Sender`] to the [`Receiver`]s.
     msg: OnceLock<Result<T, SenderDropped>>,
     /// The wakers waiting for a value to be sent.
-    /// Will be set to `None` after the wakers have been woken.
+    /// Will be set to `Err` after the wakers have been woken.
     // the `Result` isn't technically needed here,
     // but we use it to help detect bugs;
     // see `WakersAlreadyWoken` for details
     wakers: Mutex<Result<DenseSlotMap<WakerKey, Waker>, WakersAlreadyWoken>>,
 }
 
-/// A future that will be ready when the sender sends a message or is dropped.
+/// The future from [`Receiver::borrowed`].
 ///
-/// This borrows the shared state from the [`Receiver`],
-/// so is more efficient than [`ReceiverFuture`].
+/// Will be ready, yielding `&'a T`,
+/// when the sender sends a message or is dropped.
 #[derive(Debug)]
 struct BorrowedReceiverFuture<'a, T> {
     /// State shared with the sender and all other receivers.
@@ -76,13 +76,16 @@ struct BorrowedReceiverFuture<'a, T> {
     waker_key: Option<WakerKey>,
 }
 
-/// A future that will be ready when the sender sends a message or is dropped.
-// This holds an `Arc` of the shared state,
-// so can be used as a `'static` future.
+/// The future from [`Receiver::into_future`].
+///
+/// Will be ready, yielding a clone of `T`,
+/// when the sender sends a message or is dropped.
+// Both `ReceiverFuture` and `BorrowedReceiverFuture` have similar fields
+// but there's no nice way to deduplicated them.
 // It would have been nice if we could store a `BorrowedReceiverFuture`
 // holding a reference to our `Arc<Shared>`,
 // but that would be a self-referential struct,
-// so we need to duplicate everything instead.
+// so we need to duplicate the fields here instead.
 #[derive(Debug)]
 pub(crate) struct ReceiverFuture<T> {
     /// State shared with the sender and all other receivers.
@@ -175,8 +178,10 @@ impl<T> Sender<T> {
         // See comments on `Shared`.
 
         // Wake while not holding the lock.
-        // Since the lock is used in `ReceiverFuture::poll` and should not block for long periods of
-        // time, we don't want to run third-party waker code here while holding the mutex.
+        // Since the lock is used in `ReceiverFuture::poll` and `ReceiverFuture::drop` and
+        // should not block for long periods of time,
+        // we'd prefer not to run third-party waker code here while holding the mutex,
+        // even if `wake` should typically be fast.
         for (_key, waker) in wakers.drain() {
             waker.wake();
         }
@@ -210,6 +215,9 @@ impl<T> Drop for Sender<T> {
 
 impl<T> Receiver<T> {
     /// Receive a borrowed message from the [`Sender`].
+    ///
+    /// This may be more efficient than [`Receiver::into_future`]
+    /// and doesn't require `T: Clone`.
     ///
     /// This is cancellation-safe.
     #[cfg_attr(not(test), allow(dead_code))]
@@ -641,11 +649,19 @@ mod test {
 
     #[test]
     fn stress() {
-        // Since we don't really have control over the runtime and where/when tasks are scheduled,
-        // we try as best as possible to send the message while simultaneously creating new
-        // receivers and waiting on them. It's possible this might be entirely ineffective, but in
-        // the worst case, it's still a test with multiple receivers on different tasks, so is
-        // useful to have.
+        // In general we don't have control over the runtime and where/when tasks are scheduled,
+        // so we try as best as possible to send the message while simultaneously creating new
+        // receivers and waiting on them.
+        // It's possible this might be entirely ineffective since we don't enforce any specific
+        // scheduler behaviour here,
+        // but in the worst case it's still a test with multiple receivers on different tasks,
+        // so is useful to have.
+        //
+        // The `test_with_various` helper uses `MockExecutor` with two different deterministic
+        // scheduling policies.
+        // At least at the time of writing,
+        // when this test uses `MockExecutor` with its "queue" scheduling policy
+        // the "send" occurs after 20 of the tasks have begun waiting.
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             let (tx, rx) = channel();
 
