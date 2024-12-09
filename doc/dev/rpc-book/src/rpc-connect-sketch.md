@@ -192,7 +192,7 @@ The default search path is:
 > SYSTEM\_DEFAULT:
 > ```toml
 > [connect]
-> socket = "/var/run/arti-rpc/arti_rpc_socket"
+> socket = "unix:/var/run/arti-rpc/arti_rpc_socket"
 > auth = "none"
 > ```
 

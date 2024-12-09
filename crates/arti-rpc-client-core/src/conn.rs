@@ -4,29 +4,27 @@
 //! and matching them with their responses.
 
 use std::{
-    io::{self, BufReader},
-    path::PathBuf,
+    io,
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    llconn,
-    msgs::{
-        request::InvalidRequestError,
-        response::{ResponseKind, RpcError, ValidatedResponse},
-        AnyRequestId, ObjectId,
-    },
-    util::define_from_for_arc,
+use crate::msgs::{
+    request::InvalidRequestError,
+    response::{ResponseKind, RpcError, ValidatedResponse},
+    AnyRequestId, ObjectId,
 };
 
 mod auth;
+mod builder;
 mod connimpl;
 mod stream;
 
 use crate::util::Utf8CString;
+pub use builder::{BuilderError, RpcConnBuilder};
 pub use connimpl::RpcConn;
 use serde::{de::DeserializeOwned, Deserialize};
 pub use stream::StreamError;
+use tor_rpc_connect::HasClientErrorAction;
 
 /// A handle to an open request.
 ///
@@ -153,77 +151,6 @@ pub enum AnyResponse {
     Update(UpdateResponse),
 }
 // TODO RPC: DODGY TYPES END.
-
-/// Information about how to construct a connection to an Arti instance.
-pub struct RpcConnBuilder {
-    /// A path to a unix domain socket at which Arti is listening.
-    // TODO RPC: Right now this is the only kind of supported way to connect.
-    unix_socket: PathBuf,
-    // todo RPC: include selector for how to connect.
-    //
-    // TODO RPC: Possibly kill off the builder entirely.
-}
-
-// TODO: For FFI purposes, define a slightly higher level API that
-// tries to do this all at once, possibly decoding a "connect string"
-// and some optional secret stuff?
-impl RpcConnBuilder {
-    /// Create a Builder from a connect string.
-    ///
-    /// (Right now the only supported string type is "unix:" followed by a path.)
-    //
-    // TODO RPC: Should this take an OsString?
-    //
-    // TODO RPC: Specify the actual metaformat that we want to use here.
-    // Possibly turn this into a K=V sequence ... or possibly, just
-    // turn it into a JSON object.
-    pub fn from_connect_string(s: &str) -> Result<Self, BuilderError> {
-        let (kind, location) = s
-            .split_once(':')
-            .ok_or(BuilderError::InvalidConnectString)?;
-        if kind == "unix" {
-            Ok(Self::new_unix_socket(location))
-        } else {
-            Err(BuilderError::InvalidConnectString)
-        }
-    }
-
-    /// Create a Builder to connect to a unix socket at a given path.
-    ///
-    /// Note that this function may succeed even in environments where
-    /// unix sockets are not supported.  On these environments,
-    /// the `connect` attempt will later fail with `SchemeNotSupported`.
-    pub fn new_unix_socket(addr: impl Into<PathBuf>) -> Self {
-        Self {
-            unix_socket: addr.into(),
-        }
-    }
-
-    /// Try to connect to an Arti process as specified by this Builder.
-    pub fn connect(&self) -> Result<RpcConn, ConnectError> {
-        #[cfg(not(unix))]
-        {
-            return Err(ConnectError::SchemeNotSupported);
-        }
-        #[cfg(unix)]
-        {
-            let sock = std::os::unix::net::UnixStream::connect(&self.unix_socket)
-                .map_err(|e| ConnectError::CannotConnect(Arc::new(e)))?;
-            let sock_dup = sock
-                .try_clone()
-                .map_err(|e| ConnectError::CannotConnect(Arc::new(e)))?;
-            let mut conn = RpcConn::new(
-                llconn::Reader::new(Box::new(BufReader::new(sock))),
-                llconn::Writer::new(Box::new(sock_dup)),
-            );
-
-            let session_id = conn.authenticate_inherent("inherent:unix_path")?;
-            conn.session = Some(session_id);
-
-            Ok(conn)
-        }
-    }
-}
 
 impl AnyResponse {
     /// Convert `v` into `AnyResponse`.
@@ -472,16 +399,34 @@ pub enum ProtoError {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConnectError {
-    /// We specified a prefix to our connect string, but we don't
-    /// have run-time support for it.
-    #[error("Selected connection scheme was not supported in this build")]
-    SchemeNotSupported,
+    /// Unable to parse connect points from an environment variable.
+    #[error("Cannot parse connect points from environment variable")]
+    BadEnvironment,
+    /// We were unable to load and/or parse a given connect point.
+    #[error("Unable to load and parse connect point: {0}")]
+    CannotParse(#[from] tor_rpc_connect::load::LoadError),
+    /// The path used to specify a connect file couldn't be resolved.
+    #[error("Unable to resolve connect point path: {0}")]
+    CannotResolvePath(#[source] tor_config_path::CfgPathError),
+    /// A parsed connect point couldn't be resolved.
+    #[error("Unable to resolve connect point: {0}")]
+    CannotResolveConnectPoint(#[from] tor_rpc_connect::ResolveError),
     /// IO error while connecting to Arti.
     #[error("Unable to make a connection: {0}")]
-    CannotConnect(#[source] Arc<std::io::Error>),
+    CannotConnect(#[from] tor_rpc_connect::ConnectError),
+    /// All attempted connect points were declined, and none were aborted.
+    #[error("All connect points were declined (or there were none)")]
+    AllAttemptsDeclined,
+    /// A connect file or directory was given as a relative path.
+    /// (Only absolute paths are supported).
+    #[error("Connect file was given as a relative path.")]
+    RelativeConnectFile,
     /// One of our authentication messages was rejected.
     #[error("Arti rejected our authentication: {0:?}")]
     AuthenticationRejected(ErrorResponse),
+    /// The connect point uses an RPC authentication type we don't support.
+    #[error("Authentication type is not supported")]
+    AuthenticationNotSupported,
     /// We couldn't decode one of the responses we got.
     #[error("Message not in expected format: {0:?}")]
     BadMessage(#[source] Arc<serde_json::Error>),
@@ -489,15 +434,45 @@ pub enum ConnectError {
     #[error("Error while negotiating with Arti: {0}")]
     ProtoError(#[from] ProtoError),
 }
-define_from_for_arc!(serde_json::Error => ConnectError [BadMessage]);
 
-/// An error occurred while trying to construct or manipulate an [`RpcConnBuilder`].
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum BuilderError {
-    /// We couldn't decode a provided connect string.
-    #[error("Invalid connect string.")]
-    InvalidConnectString,
+impl HasClientErrorAction for ConnectError {
+    fn client_action(&self) -> tor_rpc_connect::ClientErrorAction {
+        use tor_rpc_connect::ClientErrorAction as A;
+        use ConnectError as E;
+        match self {
+            E::BadEnvironment => A::Abort,
+            E::CannotParse(e) => e.client_action(),
+            E::CannotResolvePath(_) => A::Abort,
+            E::CannotResolveConnectPoint(e) => e.client_action(),
+            E::CannotConnect(e) => e.client_action(),
+            E::RelativeConnectFile => A::Abort,
+            E::AuthenticationRejected(_) => A::Decline,
+            // TODO RPC: Is this correct?  This error can also occur when
+            // we are talking to something other than an RPC server.
+            E::BadMessage(_) => A::Abort,
+            E::ProtoError(e) => e.client_action(),
+            E::AllAttemptsDeclined => A::Abort,
+            E::AuthenticationNotSupported => A::Decline,
+        }
+    }
+}
+
+impl HasClientErrorAction for ProtoError {
+    fn client_action(&self) -> tor_rpc_connect::ClientErrorAction {
+        use tor_rpc_connect::ClientErrorAction as A;
+        use ProtoError as E;
+        match self {
+            E::Shutdown(_) => A::Decline,
+            E::InternalRequestFailed(_) => A::Decline,
+            // These are always internal errors if they occur while negotiating a connection to RPC,
+            // which is the context we care about for `HasClientErrorAction`.
+            E::InvalidRequest(_)
+            | E::RequestIdInUse
+            | E::RequestCompleted
+            | E::DuplicateWait
+            | E::CouldNotEncode(_) => A::Abort,
+        }
+    }
 }
 
 /// In response to a request that we generated internally,
@@ -548,11 +523,14 @@ mod test {
 
     use std::{sync::atomic::AtomicUsize, thread, time::Duration};
 
-    use io::{BufRead as _, Write as _};
+    use io::{BufRead as _, BufReader, Write as _};
     use rand::{seq::SliceRandom as _, Rng as _, SeedableRng as _};
     use tor_basic_utils::{test_rng::testing_rng, RngExt as _};
 
-    use crate::msgs::request::{JsonMap, Request, ValidatedRequest};
+    use crate::{
+        llconn,
+        msgs::request::{JsonMap, Request, ValidatedRequest},
+    };
 
     use super::*;
 

@@ -21,11 +21,15 @@ caret = { path = "../caret", version = "0.5.0" }
 cfg-if = "1.0.0"
 derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
+fs-mistrust = { version = "0.8.1", path = "../fs-mistrust" }
 paste = { version = "1", optional = true }
+percent-encoding = "2.3.1"
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.104"
 thiserror = "2"
+tor-config-path = { version = "0.25.0", path = "../tor-config-path", features = ["arti-client"] }
 tor-error = { version = "0.25.0", path = "../tor-error", default-features = false }
+tor-rpc-connect = { version = "0.25.0", path = "../tor-rpc-connect", features = ["rpc-client"] }
 tor-socksproto = { path = "../tor-socksproto", version = "0.25.0", default-features = false, features = [
     "client-handshake",
 ] }

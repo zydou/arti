@@ -1,6 +1,6 @@
 //! Client operations for working with connect points.
 
-use std::{fmt, io, net::TcpStream};
+use std::{io, net::TcpStream};
 
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
@@ -12,16 +12,14 @@ use crate::{
     ConnectError, ResolvedConnectPoint,
 };
 
-/// Wrapper type for a socket that might be a `UnixStream` or a TcpSocket.
-pub trait AnySocket: io::Read + io::Write + fmt::Debug {}
-impl<T> AnySocket for T where T: io::Read + io::Write + fmt::Debug {}
-
 /// Information about an initial connection to a connect point.
-#[derive(Debug)]
 #[non_exhaustive]
 pub struct Connection {
-    /// A successfully connected socket.
-    pub socket: Box<dyn AnySocket>,
+    /// A reading instance successfully connected socket.
+    pub reader: Box<dyn io::Read + Send>,
+    /// A writing instance successfully connected socket.
+    pub writer: Box<dyn io::Write + Send>,
+
     /// Information about how to authenticate.
     pub auth: crate::auth::RpcAuth,
 }
@@ -70,13 +68,27 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
         if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref())? {
             mistrust.check_directory(sock_parent_dir)?;
         }
-        let socket: Box<dyn AnySocket> = match self.socket.as_ref() {
-            SA::Inet(addr) => Box::new(TcpStream::connect(addr)?),
-            #[cfg(unix)]
-            SA::Unix(addr) => Box::new(UnixStream::connect_addr(addr)?),
-            _ => return Err(ConnectError::UnsupportedSocketType),
-        };
+        // TODO: we currently use try_clone() to get separate reader and writer instances.
+        // conceivably, we could instead create something like the `Split` implementation that
+        // exists for `AsyncRead + AsyncWrite` objects in futures::io.
+        let (reader, writer): (Box<dyn io::Read + Send>, Box<dyn io::Write + Send>) =
+            match self.socket.as_ref() {
+                SA::Inet(addr) => {
+                    let socket = TcpStream::connect(addr)?;
+                    (Box::new(socket.try_clone()?), Box::new(socket))
+                }
+                #[cfg(unix)]
+                SA::Unix(addr) => {
+                    let socket = UnixStream::connect_addr(addr)?;
+                    (Box::new(socket.try_clone()?), Box::new(socket))
+                }
+                _ => return Err(ConnectError::UnsupportedSocketType),
+            };
 
-        Ok(Connection { socket, auth })
+        Ok(Connection {
+            reader,
+            writer,
+            auth,
+        })
     }
 }

@@ -286,7 +286,6 @@ dependencies = [
  "derive-deftly",
  "derive_builder_fork_arti",
  "derive_more",
- "directories",
  "dyn-clone",
  "educe",
  "fs-mistrust",
@@ -375,7 +374,9 @@ dependencies = [
  "cfg-if",
  "derive_more",
  "educe",
+ "fs-mistrust",
  "paste",
+ "percent-encoding",
  "rand",
  "rand_chacha",
  "serde",
@@ -383,7 +384,9 @@ dependencies = [
  "socketpair",
  "thiserror 2.0.3",
  "tor-basic-utils",
+ "tor-config-path",
  "tor-error",
+ "tor-rpc-connect",
  "tor-socksproto",
  "void",
 ]
@@ -6393,6 +6396,7 @@ name = "tor-rpc-connect"
 version = "0.25.0"
 dependencies = [
  "assert_matches",
+ "cfg-if",
  "derive_more",
  "fs-mistrust",
  "rand",

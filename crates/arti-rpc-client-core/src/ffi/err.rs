@@ -156,6 +156,23 @@ pub(crate) enum FfiStatus {
     /// but that may change in the future.)
     [c"Not authenticated"]
     NotAuthenticated = 12,
+
+    /// All of our attempts to connect to Arti failed,
+    /// or we reached an explicit instruction to "abort" our connection attempts.
+    [c"All attempts to connect to Arti RPC failed"]
+    AllConnectAttemptsFailed = 13,
+
+    /// We tried to connect to Arti at a given connect point,
+    /// but it could not be used:
+    /// either because we don't know how,
+    /// or because we were not able to access some necessary file or directory.
+    [c"Connect point was not usable"]
+    ConnectPointNotUsable = 14,
+
+    /// We were unable to parse or resolve an entry
+    /// in our connect point search path.
+    [c"Invalid connect point search path"]
+    BadConnectPointPath = 15,
 }
 }
 
@@ -256,6 +273,10 @@ pub(super) enum InvalidInput {
     /// Tried to use an invalid port.
     #[error("Port was not in range 1..65535")]
     BadPort,
+
+    /// Tried to use an invalid constant
+    #[error("Provided constant was not recognized")]
+    InvalidConstValue,
 }
 
 impl From<void::Void> for InvalidInput {
@@ -278,11 +299,16 @@ impl IntoFfiError for crate::ConnectError {
         use crate::ConnectError as E;
         use FfiStatus as F;
         match self {
-            E::SchemeNotSupported => F::NotSupported,
-            E::CannotConnect(_) => F::ConnectIo,
+            E::CannotConnect(e) => e.status(),
             E::AuthenticationRejected(_) => F::BadAuth,
             E::BadMessage(_) => F::PeerProtocolViolation,
             E::ProtoError(e) => e.status(),
+            E::BadEnvironment | E::RelativeConnectFile | E::CannotResolvePath(_) => {
+                F::BadConnectPointPath
+            }
+            E::CannotParse(_) | E::CannotResolveConnectPoint(_) => F::ConnectPointNotUsable,
+            E::AllAttemptsDeclined => F::AllConnectAttemptsFailed,
+            E::AuthenticationNotSupported => F::NotSupported,
         }
     }
 
@@ -293,6 +319,27 @@ impl IntoFfiError for crate::ConnectError {
             _ => None,
         }
     }
+    fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(self)
+    }
+}
+
+impl IntoFfiError for tor_rpc_connect::ConnectError {
+    fn status(&self) -> FfiStatus {
+        use tor_rpc_connect::ConnectError as E;
+        use FfiStatus as F;
+        match self {
+            E::Io(_) => F::ConnectIo,
+            E::ExplicitAbort => F::AllConnectAttemptsFailed,
+            E::LoadCookie(_)
+            | E::UnsupportedSocketType
+            | E::UnsupportedAuthType
+            | E::InvalidUnixAddress
+            | E::UnixAddressAccess(_) => F::ConnectPointNotUsable,
+            _ => F::Internal,
+        }
+    }
+
     fn as_error(&self) -> Option<&(dyn StdError + 'static)> {
         Some(self)
     }

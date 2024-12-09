@@ -55,6 +55,19 @@ testfilter = runner.TestFilter()
 
 logging.basicConfig(level=logging.INFO)
 
+######
+# Clear variables that have special meaning for arti_rpc_client_core.
+
+for var in [
+    "ARTI_RPC_CONNECT_PATH",
+    "ARTI_RPC_CONNECT_PATH_OVERRIDE",
+    "ARTI_RPC_FORCE_SYSTEM_ARTI",
+]:
+    try:
+        del os.environ[var]
+    except KeyError:
+        pass
+
 #####
 # Build a test process
 test_context = context.TestContext(arti_binary, test_dir)
