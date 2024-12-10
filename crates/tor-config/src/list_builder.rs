@@ -32,7 +32,7 @@
 //!    to (i) get `derive_builder` call the appropriate build method,
 //!    (ii) suppress the `derive_builder`-generated setter.
 //!
-// `ThingLisgtBuiler` exixsts for two reasons:
+// `ThingListBuilder` exists for two reasons:
 //
 //  * derive_builder wants to call simply `build` on the builder struct field, and will
 //    generate code for attaching the field name to any error which occurs.  We could
