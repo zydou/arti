@@ -716,7 +716,6 @@ impl Channel {
     /// Return a future that will resolve once this channel has closed.
     ///
     /// Note that this method does not _cause_ the channel to shut down on its own.
-    #[cfg(feature = "experimental-api")]
     pub fn wait_for_close(
         &self,
     ) -> impl Future<Output = StdResult<CloseInfo, ClosedUnexpectedly>> + Send + Sync + 'static
