@@ -144,18 +144,13 @@ pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
     ///   * the subject key or signing key in the certificate do not match
     ///      the subject and signing keys specified in `cert_spec`
     fn validate(
-        &self,
+        cert: Self::Cert,
         subject: &K,
         signed_with: &Self::SigningKey,
-    ) -> StdResult<(), InvalidCertError>;
+    ) -> StdResult<Self, InvalidCertError>;
 
     /// Convert this cert to a type that implements [`EncodableItem`].
     fn to_encodable_cert(self) -> Self::Cert;
-
-    /// Convert an [`EncodableItem`] to another cert type.
-    fn from_encodable_cert(cert: Self::Cert) -> Self
-    where
-        Self: Sized;
 }
 
 /// The error type returned by [`ToEncodableCert::validate`].

@@ -460,8 +460,7 @@ impl KeyMgr {
 
         // Finally, get the signing key and validate the cert
         let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
-        let cert = C::from_encodable_cert(cert);
-        cert.validate(&key, &signed_with)?;
+        let cert = C::validate(cert, &key, &signed_with)?;
 
         Ok(Some((key, cert)))
     }
@@ -546,7 +545,7 @@ impl KeyMgr {
 
         let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
         let cert = match maybe_cert {
-            Some(cert) => C::from_encodable_cert(cert),
+            Some(cert) => C::validate(cert, &subject_key, &signed_with)?,
             None => {
                 let cert = make_certificate(&subject_key, &signed_with);
 
@@ -556,7 +555,6 @@ impl KeyMgr {
             }
         };
 
-        cert.validate(&subject_key, &signed_with)?;
         Ok((subject_key, cert))
     }
 
@@ -780,25 +778,17 @@ mod tests {
         type SigningKey = TestItem;
 
         fn validate(
-            &self,
+            cert: Self::Cert,
             _subject: &TestItem,
             _signed_with: &Self::SigningKey,
-        ) -> StdResult<(), InvalidCertError> {
+        ) -> StdResult<Self, InvalidCertError> {
             // AlwaysValidCert is always valid
-            Ok(())
+            Ok(Self(cert))
         }
 
         /// Convert this cert to a type that implements [`EncodableKey`].
         fn to_encodable_cert(self) -> Self::Cert {
             self.0
-        }
-
-        /// Convert an [`EncodableKey`] to another cert type.
-        fn from_encodable_cert(cert: Self::Cert) -> Self
-        where
-            Self: Sized,
-        {
-            Self(cert)
         }
     }
 
