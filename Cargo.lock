@@ -6013,6 +6013,8 @@ dependencies = [
  "thiserror 2.0.9",
  "tor-basic-utils",
  "tor-bytes",
+ "tor-cert",
+ "tor-checkable",
  "tor-config",
  "tor-config-path",
  "tor-error",

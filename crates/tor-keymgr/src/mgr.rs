@@ -663,11 +663,13 @@ mod tests {
     use std::result::Result as StdResult;
     use std::str::FromStr;
     use std::sync::RwLock;
+    use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_cert::CertifiedKey;
     use tor_key_forge::{
-        CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
+        CertData, Ed25519Cert, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
     };
-    use tor_llcrypto::pk::ed25519;
+    use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
 
     /// The type of "key" stored in the test key stores.
     #[derive(Clone, Debug)]
@@ -1345,9 +1347,21 @@ mod tests {
                     subject_key.meta, signed_with.meta
                 );
 
-
-                let dummy_tor_cert = tor_key_forge::EncodedEd25519Cert::from_bytes(&[]);
-                let test_cert = CertData::TorEd25519Cert(dummy_tor_cert);
+                // Note: this is not really a cert for `subject_key` signed with the `signed_with`
+                // key!. The two are `TestItem`s and not keys, so we can't really generate a real
+                // cert from them. We can, however, pretend we did, for testing purposes.
+                // Eventually we might want to rewrite these tests to use real items
+                // (like the `ArtiNativeKeystore` tests)
+                let mut rng = rand::thread_rng();
+                let keypair = ed25519::Keypair::generate(&mut rng);
+                let encoded_cert = Ed25519Cert::constructor()
+                    .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
+                    .expiration(SystemTime::now() + Duration::from_secs(180))
+                    .signing_key(keypair.public_key().into())
+                    .cert_key(CertifiedKey::Ed25519(keypair.public_key().into()))
+                    .encode_and_sign(&keypair)
+                    .unwrap();
+                let test_cert = CertData::TorEd25519Cert(encoded_cert);
                 AlwaysValidCert(TestItem {
                     item: KeystoreItem::Cert(test_cert),
                     meta,
@@ -1396,8 +1410,6 @@ mod tests {
         }}
     }
 
-    // XXX: reenable this test
-    /*
     #[test]
     #[cfg(feature = "experimental-api")]
     #[rustfmt::skip] // preserve the layout for readability
@@ -1425,5 +1437,4 @@ mod tests {
             generate_signing_key = Yes,
         );
     }
-    */
 }
