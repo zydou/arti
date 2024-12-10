@@ -14,6 +14,8 @@ pub(crate) mod rustls;
 #[cfg(feature = "native-tls")]
 pub(crate) mod native_tls;
 
+pub(crate) mod streamops;
+
 /// Helper: Implement an unreachable NetProvider<unix::SocketAddr> for a given runtime.
 #[cfg(not(unix))]
 macro_rules! impl_unix_non_provider {

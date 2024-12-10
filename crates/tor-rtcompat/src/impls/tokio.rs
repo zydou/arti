@@ -5,7 +5,7 @@
 
 /// Types used for networking (tokio implementation)
 pub(crate) mod net {
-    use crate::traits;
+    use crate::{impls, traits};
     use async_trait::async_trait;
     use tor_general_addr::unix;
 
@@ -170,6 +170,23 @@ pub(crate) mod net {
 
         fn local_addr(&self) -> IoResult<SocketAddr> {
             self.socket.local_addr()
+        }
+    }
+
+    impl traits::StreamOps for TcpStream {
+        fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+            impls::streamops::set_tcp_notsent_lowat(&self.s, notsent_lowat)
+        }
+    }
+
+    #[cfg(unix)]
+    impl traits::StreamOps for UnixStream {
+        fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
+            Err(traits::UnsupportedStreamOp::new(
+                "set_tcp_notsent_lowat",
+                "unsupported on Unix streams",
+            )
+            .into())
         }
     }
 }

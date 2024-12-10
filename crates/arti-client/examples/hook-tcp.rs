@@ -31,7 +31,9 @@ use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
 
 use futures::{AsyncRead, AsyncWrite, FutureExt, Stream};
-use tor_rtcompat::{NetStreamListener, NetStreamProvider, PreferredRuntime, RuntimeSubstExt as _};
+use tor_rtcompat::{
+    NetStreamListener, NetStreamProvider, PreferredRuntime, RuntimeSubstExt as _, StreamOps,
+};
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -272,6 +274,15 @@ where
         bufs: &[std::io::IoSlice<'_>],
     ) -> Poll<IoResult<usize>> {
         Pin::new(&mut self.inner).poll_write_vectored(cx, bufs)
+    }
+}
+
+impl<T> StreamOps for CustomTcpStream<T>
+where
+    T: StreamOps,
+{
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        self.inner.set_tcp_notsent_lowat(notsent_lowat)
     }
 }
 

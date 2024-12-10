@@ -8,6 +8,8 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use crate::StreamOps;
+
 /// An unconstructable AsyncRead+AsyncWrite type.
 ///
 /// (This is the type of a Stream for any unsupported address type.)
@@ -71,6 +73,12 @@ where
         void::unreachable(self.0)
     }
     fn local_addr(&self) -> IoResult<ADDR> {
+        void::unreachable(self.0)
+    }
+}
+
+impl StreamOps for FakeStream {
+    fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
         void::unreachable(self.0)
     }
 }

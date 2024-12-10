@@ -8,14 +8,14 @@ use std::task::Poll;
 use std::{pin::Pin, task::Context};
 use tor_general_addr::unix;
 
-use crate::{NetStreamListener, NetStreamProvider};
+use crate::{NetStreamListener, NetStreamProvider, StreamOps};
 use tor_general_addr::general;
 
 /// Helper trait to allow us to create a type-erased stream.
 ///
 /// (Rust doesn't allow "dyn AsyncRead + AsyncWrite")
-trait ReadAndWrite: AsyncRead + AsyncWrite + Send + Sync {}
-impl<T> ReadAndWrite for T where T: AsyncRead + AsyncWrite + Send + Sync {}
+trait ReadAndWrite: AsyncRead + AsyncWrite + StreamOps + Send + Sync {}
+impl<T> ReadAndWrite for T where T: AsyncRead + AsyncWrite + StreamOps + Send + Sync {}
 
 /// A stream returned by a `NetStreamProvider<GeneralizedAddr>`
 pub struct Stream(Pin<Box<dyn ReadAndWrite>>);
@@ -43,6 +43,12 @@ impl AsyncWrite for Stream {
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         self.0.as_mut().poll_close(cx)
+    }
+}
+
+impl StreamOps for Stream {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        self.0.set_tcp_notsent_lowat(notsent_lowat)
     }
 }
 

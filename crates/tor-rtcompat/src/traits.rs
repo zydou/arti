@@ -4,7 +4,7 @@ use futures::stream;
 use futures::task::Spawn;
 use futures::{AsyncRead, AsyncWrite, Future};
 use std::fmt::Debug;
-use std::io::Result as IoResult;
+use std::io::{self, Result as IoResult};
 use std::net;
 use std::time::{Duration, Instant, SystemTime};
 use tor_general_addr::unix;
@@ -152,6 +152,51 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
 
+/// Trait providing additional operations on network sockets.
+pub trait StreamOps {
+    /// Set the [`TCP_NOTSENT_LOWAT`] socket option, if this `Stream` is a TCP stream.
+    ///
+    /// Implementations should return an [`UnsupportedStreamOp`] IO error
+    /// if the stream is not a TCP stream,
+    /// and on platforms where the operation is not supported.
+    ///
+    /// [`TCP_NOTSENT_LOWAT`]: https://lwn.net/Articles/560082/
+    fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
+        Err(UnsupportedStreamOp {
+            op: "set_tcp_notsent_lowat",
+            reason: "unsupported object type",
+        }
+        .into())
+    }
+}
+
+/// Error: Tried to perform a [`StreamOps`] operation on an unsupported stream type
+/// or on an unsupported platform.
+///
+/// (For example, you can't call [`StreamOps::set_tcp_notsent_lowat`] on Windows
+/// or on a stream type that is not backed by a TCP socket.)
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("Operation {op} not supported: {reason}")]
+pub struct UnsupportedStreamOp {
+    /// The unsupported operation.
+    op: &'static str,
+    /// The reason the operation is unsupported.
+    reason: &'static str,
+}
+
+impl UnsupportedStreamOp {
+    /// Construct a new `UnsupportedStreamOp` error with the provided operation and reason.
+    pub fn new(op: &'static str, reason: &'static str) -> Self {
+        Self { op, reason }
+    }
+}
+
+impl From<UnsupportedStreamOp> for io::Error {
+    fn from(value: UnsupportedStreamOp) -> Self {
+        io::Error::new(io::ErrorKind::Unsupported, value)
+    }
+}
+
 /// Trait for a runtime that can create and accept connections
 /// over network sockets.
 ///
@@ -164,7 +209,7 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 #[async_trait]
 pub trait NetStreamProvider<ADDR = net::SocketAddr>: Clone + Send + Sync + 'static {
     /// The type for the connections returned by [`Self::connect()`].
-    type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
+    type Stream: AsyncRead + AsyncWrite + StreamOps + Send + Sync + Unpin + 'static;
     /// The type for the listeners returned by [`Self::listen()`].
     type Listener: NetStreamListener<ADDR, Stream = Self::Stream> + Send + Sync + Unpin + 'static;
 
@@ -187,7 +232,7 @@ pub trait NetStreamProvider<ADDR = net::SocketAddr>: Clone + Send + Sync + 'stat
 /// use `incoming` to convert this object into a [`stream::Stream`].
 pub trait NetStreamListener<ADDR = net::SocketAddr> {
     /// The type of connections returned by [`Self::incoming()`].
-    type Stream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
+    type Stream: AsyncRead + AsyncWrite + StreamOps + Send + Sync + Unpin + 'static;
 
     /// The type of [`stream::Stream`] returned by [`Self::incoming()`].
     type Incoming: stream::Stream<Item = IoResult<(Self::Stream, ADDR)>>
