@@ -1,4 +1,4 @@
-//! An error type for the `tor-keys` crate.
+//! An error type for the `tor-key-forge` crate.
 
 use crate::ssh::SshKeyAlgorithm;
 
