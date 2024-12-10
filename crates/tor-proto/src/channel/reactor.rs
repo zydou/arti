@@ -725,9 +725,9 @@ pub(crate) mod test {
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
-            format!("{}", e),
-            "Channel protocol violation: Relay cell on pending circuit before CREATED* received"
-        );
+                format!("{}", e),
+                "Channel protocol violation: Relay cell on pending circuit before CREATED* received"
+            );
 
             // If a relay cell is sent on a non-existent channel, that's an error.
             input
