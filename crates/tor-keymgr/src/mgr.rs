@@ -13,7 +13,7 @@ use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage};
 use tor_key_forge::{
-    EncodableItem, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
+    ItemType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
 };
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
@@ -353,7 +353,7 @@ impl KeyMgr {
     /// Returns the `<K as ToEncodableKey>::Key` representation of the key.
     ///
     /// See [`KeyMgr::get`] for more details.
-    fn get_from_store_raw<'a, K: EncodableItem>(
+    fn get_from_store_raw<'a, K: ItemType>(
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeystoreItemType,
@@ -451,7 +451,7 @@ impl KeyMgr {
 
         let Some(cert) = self.get_from_store_raw::<C::ParsedCert>(
             &cert_spec,
-            &C::ParsedCert::item_type(),
+            &<C::ParsedCert as ItemType>::item_type(),
             self.all_stores(),
         )?
         else {
@@ -635,7 +635,7 @@ impl KeyMgr {
     {
         let cert = cert.to_encodable_cert();
         let store = self.select_keystore(&selector)?;
-        let cert_type = C::EncodableCert::item_type();
+        let cert_type = <C::EncodableCert as ItemType>::item_type();
 
         let () = store.insert(&cert, cert_spec, &cert_type)?;
         Ok(())
@@ -720,7 +720,7 @@ mod tests {
         }
     }
 
-    impl EncodableItem for TestItem {
+    impl ItemType for TestItem {
         fn item_type() -> KeystoreItemType
         where
             Self: Sized,
@@ -728,7 +728,9 @@ mod tests {
             // Dummy value
             KeyType::Ed25519Keypair.into()
         }
+    }
 
+    impl EncodableItem for TestItem {
         fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             Ok(self.item.clone())
         }
@@ -747,14 +749,16 @@ mod tests {
         }
     }
 
-    impl EncodableItem for TestPublicKey {
+    impl ItemType for TestPublicKey {
         fn item_type() -> KeystoreItemType
         where
             Self: Sized,
         {
             KeyType::Ed25519PublicKey.into()
         }
+    }
 
+    impl EncodableItem for TestPublicKey {
         fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             Ok(self.key.clone())
         }
@@ -843,7 +847,7 @@ mod tests {
                         .read()
                         .unwrap()
                         .get(&(key_spec.arti_path().unwrap(), item_type.clone()))
-                        .map(|k| Box::new(k.clone()) as Box<dyn EncodableItem>))
+                        .map(|k| Box::new(k.clone()) as Box<dyn ItemType>))
                 }
 
                 fn insert(

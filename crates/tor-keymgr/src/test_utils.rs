@@ -180,7 +180,7 @@ mod specifier {
 #[cfg(test)]
 mod key {
     use crate::EncodableItem;
-    use tor_key_forge::{KeystoreItem, KeystoreItemType};
+    use tor_key_forge::{ItemType, KeystoreItem, KeystoreItemType};
 
     /// A dummy key.
     ///
@@ -189,14 +189,16 @@ mod key {
     /// Panics if its `EncodableItem` implementation is called.
     pub(crate) struct DummyKey;
 
-    impl EncodableItem for DummyKey {
+    impl ItemType for DummyKey {
         fn item_type() -> KeystoreItemType
         where
             Self: Sized,
         {
             todo!()
         }
+    }
 
+    impl EncodableItem for DummyKey {
         fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             todo!()
         }

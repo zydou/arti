@@ -164,7 +164,7 @@ mod tests {
 
     // some helper methods
 
-    fn key() -> ErasedKey {
+    fn key() -> Box<dyn EncodableItem> {
         let mut rng = testing_rng();
         let keypair = ed25519::Keypair::generate(&mut rng);
         Box::new(keypair)
