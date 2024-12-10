@@ -34,7 +34,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
+use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails, CloseInfo};
 use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
@@ -99,11 +99,7 @@ pub struct Reactor<S: SleepProvider> {
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
     /// finally dropped.
-    ///
-    /// It is a sender for Void because we never actually want to send anything here;
-    /// we only want to generate canceled events.
-    #[allow(dead_code)] // the only purpose of this field is to be dropped.
-    pub(super) reactor_closed_tx: oneshot_broadcast::Sender<void::Void>,
+    pub(super) reactor_closed_tx: oneshot_broadcast::Sender<Result<CloseInfo>>,
     /// A receiver for cells to be sent on this reactor's sink.
     ///
     /// `Channel` objects have a sender that can send cells here.
@@ -182,6 +178,9 @@ impl<S: SleepProvider> Reactor<S> {
             }
         };
         debug!("{}: Reactor stopped: {:?}", &self, result);
+        // Inform any waiters that the channel has closed.
+        let close_msg = result.as_ref().map_err(Clone::clone).map(|()| CloseInfo);
+        self.reactor_closed_tx.send(close_msg);
         result
     }
 

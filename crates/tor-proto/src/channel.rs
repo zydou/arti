@@ -73,7 +73,7 @@ use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use safelog::sensitive as sv;
-use std::future::IntoFuture;
+use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
@@ -193,7 +193,7 @@ pub struct Channel {
     ///
     /// Awaiting will return a `CancelledError` event when the reactor is dropped.
     /// Read to decide if operations may succeed, and is returned by `wait_for_close`.
-    reactor_closed_rx: oneshot_broadcast::Receiver<void::Void>,
+    reactor_closed_rx: oneshot_broadcast::Receiver<Result<CloseInfo>>,
 
     /// A unique identifier for this channel.
     unique_id: UniqId,
@@ -296,7 +296,7 @@ pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
     cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
     /// A receiver used to check if the channel is closed.
-    reactor_closed_rx: oneshot_broadcast::Receiver<void::Void>,
+    reactor_closed_rx: oneshot_broadcast::Receiver<Result<CloseInfo>>,
     /// Unique ID for this channel. For logging.
     unique_id: UniqId,
 }
@@ -716,12 +716,19 @@ impl Channel {
     /// Return a future that will resolve once this channel has closed.
     ///
     /// Note that this method does not _cause_ the channel to shut down on its own.
-    ///
-    /// TODO: Perhaps this should return some kind of status indication instead
-    /// of just ().
     #[cfg(feature = "experimental-api")]
-    pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
-        self.reactor_closed_rx.clone().into_future().map(|_| ())
+    pub fn wait_for_close(
+        &self,
+    ) -> impl Future<Output = StdResult<CloseInfo, ClosedUnexpectedly>> + Send + Sync + 'static
+    {
+        self.reactor_closed_rx
+            .clone()
+            .into_future()
+            .map(|recv| match recv {
+                Ok(Ok(info)) => Ok(info),
+                Ok(Err(e)) => Err(ClosedUnexpectedly::ReactorError(e)),
+                Err(oneshot_broadcast::SenderDropped) => Err(ClosedUnexpectedly::ReactorDropped),
+            })
     }
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
@@ -804,6 +811,28 @@ impl HasRelayIds for Channel {
     ) -> Option<tor_linkspec::RelayIdRef<'_>> {
         self.peer_id.identity(key_type)
     }
+}
+
+/// The status of a channel which was closed successfully.
+///
+/// **Note:** This doesn't have any associated data,
+/// but may be expanded in the future.
+// I can't think of any info we'd want to return to waiters,
+// but this type leaves the possibility open without requiring any backwards-incompatible changes.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct CloseInfo;
+
+/// The status of a channel which closed unexpectedly.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ClosedUnexpectedly {
+    /// The channel reactor was dropped or panicked before completing.
+    #[error("channel reactor was dropped or panicked before completing")]
+    ReactorDropped,
+    /// The channel reactor had an internal error.
+    #[error("channel reactor had an internal error")]
+    ReactorError(Error),
 }
 
 /// Make some fake channel details (for testing only!)
