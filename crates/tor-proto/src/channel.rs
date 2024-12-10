@@ -68,10 +68,12 @@ use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
 use crate::memquota::{ChannelAccount, CircuitAccount, SpecificAccount as _};
 use crate::util::err::ChannelClosed;
+use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use safelog::sensitive as sv;
+use std::future::IntoFuture;
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
@@ -106,7 +108,6 @@ use oneshot_fused_workaround as oneshot;
 use educe::Educe;
 use futures::{FutureExt as _, Sink};
 use std::result::Result as StdResult;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -188,6 +189,12 @@ pub struct Channel {
     /// A channel used to send cells to the Reactor.
     cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
 
+    /// A receiver that indicates whether the channel is closed.
+    ///
+    /// Awaiting will return a `CancelledError` event when the reactor is dropped.
+    /// Read to decide if operations may succeed, and is returned by `wait_for_close`.
+    reactor_closed_rx: oneshot_broadcast::Receiver<void::Void>,
+
     /// A unique identifier for this channel.
     unique_id: UniqId,
     /// Validated identity and address information for this peer.
@@ -209,18 +216,6 @@ pub struct Channel {
 /// `control` can't be here because we rely on it getting dropped when the last user goes away.
 #[derive(Debug)]
 pub(crate) struct ChannelDetails {
-    /// If true, this channel is closed.
-    ///
-    /// Set by the reactor when it exits.
-    /// Read from the Channel and from the Reactor to decide if operations may succeed.
-    closed: AtomicBool,
-    /// A receiver that will get a Cancelled event when the reactor is finally
-    /// dropped.
-    ///
-    /// Triggered by the reactor when it is dropped.
-    /// Read by the Channel, to implement `wait_for_close()`.
-    #[cfg_attr(not(feature = "experimental-api"), allow(dead_code))]
-    reactor_closed_rx: futures::future::Shared<oneshot::Receiver<void::Void>>,
     /// Since when the channel became unused.
     ///
     /// If calling `time_since_update` returns None,
@@ -300,10 +295,10 @@ use PaddingControlState as PCS;
 pub(crate) struct ChannelSender {
     /// MPSC sender to send cells.
     cell_tx: mq_queue::Sender<AnyChanCell, mq_queue::MpscSpec>,
+    /// A receiver used to check if the channel is closed.
+    reactor_closed_rx: oneshot_broadcast::Receiver<void::Void>,
     /// Unique ID for this channel. For logging.
     unique_id: UniqId,
-    /// Details shared with reactor and channel.
-    details: Arc<ChannelDetails>,
 }
 
 impl ChannelSender {
@@ -347,7 +342,7 @@ impl Sink<AnyChanCell> for ChannelSender {
 
     fn start_send(self: Pin<&mut Self>, cell: AnyChanCell) -> Result<()> {
         let this = self.get_mut();
-        if this.details.closed.load(Ordering::SeqCst) {
+        if this.reactor_closed_rx.is_ready() {
             return Err(ChannelClosed.into());
         }
         this.check_cell(&cell)?;
@@ -465,18 +460,14 @@ impl Channel {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (cell_tx, cell_rx) = mq_queue::MpscSpec::new(CHANNEL_BUFFER_SIZE)
             .new_mq(dyn_time.clone(), memquota.as_raw_account())?;
-        let closed = AtomicBool::new(false);
         let unused_since = AtomicOptTimestamp::new();
         unused_since.update();
 
         let mutable = MutableDetails::default();
-        let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
-        let reactor_closed_rx = reactor_closed_rx.shared();
+        let (reactor_closed_tx, reactor_closed_rx) = oneshot_broadcast::channel();
 
         let details = ChannelDetails {
-            closed,
             unused_since,
-            reactor_closed_rx,
             memquota,
         };
         let details = Arc::new(details);
@@ -484,6 +475,7 @@ impl Channel {
         let channel = Arc::new(Channel {
             control: control_tx,
             cell_tx,
+            reactor_closed_rx,
             unique_id,
             peer_id,
             clock_skew,
@@ -638,7 +630,7 @@ impl Channel {
 
     /// Return true if this channel is closed and therefore unusable.
     pub fn is_closing(&self) -> bool {
-        self.details.closed.load(Ordering::SeqCst)
+        self.reactor_closed_rx.is_ready()
     }
 
     /// If the channel is not in use, return the amount of time
@@ -656,8 +648,8 @@ impl Channel {
     pub(crate) fn sender(&self) -> ChannelSender {
         ChannelSender {
             cell_tx: self.cell_tx.clone(),
+            reactor_closed_rx: self.reactor_closed_rx.clone(),
             unique_id: self.unique_id,
-            details: Arc::clone(&self.details),
         }
     }
 
@@ -729,7 +721,7 @@ impl Channel {
     /// of just ().
     #[cfg(feature = "experimental-api")]
     pub fn wait_for_close(&self) -> impl futures::Future<Output = ()> + Send + Sync + 'static {
-        self.details.reactor_closed_rx.clone().map(|_| ())
+        self.reactor_closed_rx.clone().into_future().map(|_| ())
     }
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
@@ -755,9 +747,13 @@ impl Channel {
             .build()
             .expect("Couldn't construct peer id");
 
+        // This will make rx trigger immediately.
+        let (_tx, rx) = oneshot_broadcast::channel();
+
         let channel = Channel {
             control,
             cell_tx: fake_mpsc().0,
+            reactor_closed_rx: rx,
             unique_id,
             peer_id,
             clock_skew: ClockSkew::None,
@@ -814,11 +810,8 @@ impl HasRelayIds for Channel {
 #[cfg(any(test, feature = "testing"))]
 fn fake_channel_details() -> Arc<ChannelDetails> {
     let unused_since = AtomicOptTimestamp::new();
-    let (_tx, rx) = oneshot::channel(); // This will make rx trigger immediately.
 
     Arc::new(ChannelDetails {
-        closed: AtomicBool::new(false),
-        reactor_closed_rx: rx.shared(),
         unused_since,
         memquota: crate::util::fake_mq(),
     })
@@ -854,9 +847,12 @@ pub(crate) mod test {
             .rsa_identity([10_u8; 20].into())
             .build()
             .expect("Couldn't construct peer id");
+        // This will make rx trigger immediately.
+        let (_tx, rx) = oneshot_broadcast::channel();
         Channel {
             control: mpsc::unbounded().0,
             cell_tx: fake_mpsc().0,
+            reactor_closed_rx: rx,
             unique_id,
             peer_id,
             clock_skew: ClockSkew::None,

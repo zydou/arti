@@ -6298,6 +6298,7 @@ dependencies = [
  "rand_core",
  "regex",
  "safelog",
+ "slotmap-careful",
  "statrs",
  "subtle",
  "thiserror 2.0.3",

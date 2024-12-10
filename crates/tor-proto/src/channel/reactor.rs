@@ -10,7 +10,8 @@ use super::circmap::{CircEnt, CircMap};
 use super::OpenChanCellS2C;
 use crate::channel::OpenChanMsgS2C;
 use crate::circuit::halfcirc::HalfCirc;
-use crate::util::err::{ChannelClosed, ReactorError};
+use crate::util::err::ReactorError;
+use crate::util::oneshot_broadcast;
 use crate::{Error, Result};
 use tor_async_utils::SinkPrepareExt as _;
 use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
@@ -31,7 +32,6 @@ use tor_error::internal;
 
 use std::fmt;
 use std::pin::Pin;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
@@ -103,7 +103,7 @@ pub struct Reactor<S: SleepProvider> {
     /// It is a sender for Void because we never actually want to send anything here;
     /// we only want to generate canceled events.
     #[allow(dead_code)] // the only purpose of this field is to be dropped.
-    pub(super) reactor_closed_tx: oneshot::Sender<void::Void>,
+    pub(super) reactor_closed_tx: oneshot_broadcast::Sender<void::Void>,
     /// A receiver for cells to be sent on this reactor's sink.
     ///
     /// `Channel` objects have a sender that can send cells here.
@@ -173,9 +173,6 @@ impl<S: SleepProvider> Reactor<S> {
     /// Once this function returns, the channel is dead, and can't be
     /// used again.
     pub async fn run(mut self) -> Result<()> {
-        if self.details.closed.load(Ordering::SeqCst) {
-            return Err(ChannelClosed.into());
-        }
         trace!("{}: Running reactor", &self);
         let result: Result<()> = loop {
             match self.run_once().await {
@@ -185,12 +182,10 @@ impl<S: SleepProvider> Reactor<S> {
             }
         };
         debug!("{}: Reactor stopped: {:?}", &self, result);
-        self.details.closed.store(true, Ordering::SeqCst);
         result
     }
 
-    /// Helper for run(): handles only one action, and doesn't mark
-    /// the channel closed on finish.
+    /// Helper for run(): handles only one action.
     async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
         select! {
 
@@ -852,6 +847,32 @@ pub(crate) mod test {
                 format!("{}", e),
                 "Channel protocol violation: Destroy for nonexistent circuit"
             );
+        });
+    }
+
+    #[test]
+    fn closing_if_reactor_dropped() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, reactor, _output, _input) = new_reactor(rt);
+
+            assert!(!chan.is_closing());
+            drop(reactor);
+            assert!(chan.is_closing());
+        });
+    }
+
+    #[test]
+    fn closing_if_reactor_shutdown() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, reactor, _output, _input) = new_reactor(rt);
+
+            assert!(!chan.is_closing());
+            chan.terminate();
+            assert!(!chan.is_closing());
+
+            let r = reactor.run().await;
+            assert!(r.is_ok());
+            assert!(chan.is_closing());
         });
     }
 }
