@@ -9,99 +9,118 @@ Related spec docs:
 * [Onion service proof-of-work: Scheme v1, Equi-X and Blake2b][pow-v1]
 * [HS PoW Common protocol][pow-common]
 
-## Seed rotation
+## What this code is intended to do
 
-### Conceptual overview
+* We need some code to keep track of seeds for each TP
+* There needs to be some kind of periodic timer to update those seeds
+* The information about the current seed for each TP that we are publishing needs to get to the
+  publisher
+* When processing requests, we need to access various pieces of state (including some that are
+  fundamentally global per-onion-service) in order to filter out invalid PoW solves:
+  * Used nonces datastructure
+  * Verifier for the correct seed (implies that access to the verifier should be keyed on `SeedHead`
+    since that's all we have access to when processing a request, we don't know the TP)
+  * Total effort value, which must somehow be updated upon successful requets
+* At some point after we have verified the solve, the code dequeuing requests in order to send them
+  to the backend that generates responses needs to be able to see the effort associated with that
+  request.
 
-* Seeds are unique to a given time period (TP) — that is, two different TPs must never have the same seed.
-  * This is because the client uses `KP_hs_blinded_id` (which is per-TP) as a input to the PoW function, but the only key that the client gives us to check the solution is the first 4 bytes of the seed. Thus, we must have some way of ensuring that we're using the correct `KP_hs_blinded_id` when checking the PoW solve. We could try multiple if one of them fails, but that would make executing a DoS attack easier, and seems like not the best solution.
-  * We make the choice to have the expiration time of the seeds be the same for all of the TPs, to simplify the logic. The constraint could be relaxed if there's a good reason to do so.
+## General background
+
+* Seeds are unique to a given time period (TP) — that is, two different TPs must never have the same
+  seed.
+  * This is because the client uses `KP_hs_blinded_id` (which is per-TP) as a input to the PoW
+    function, but the only key that the client gives us to check the solution is the first 4 bytes
+    of the seed. Thus, we must have some way of ensuring that we're using the correct
+    `KP_hs_blinded_id` when checking the PoW solve. We could try multiple if one of them fails, but
+    that would make executing a DoS attack easier, and seems like not the best solution.
+  * We make the choice to have the expiration time of the seeds be the same for all of the TPs, to
+    simplify the logic. However, this could create a problem of linkability between HsDescs for
+    different time periods for the same service, so we should consider whether that is a problem and
+    fix it if it might be before stabilizing PoW.
 * Seeds are rotated every "update period" (115 - 120 minutes long).
-  * When there's a new TP, we generate a new seed for that TP, but use the same expiration time as we do for all the seeds.
-* We need to ensure that in the set of seeds that are the current or previous seed in all TPs that we still have active descriptors for, the seed heads (first 4 bytes of the seed) are all unique. This ensures that when we receive a introduction request, we can know both what seed and TP are being used.
+  * When there's a new TP, we generate a new seed for that TP, but use the same expiration time as
+    we do for all the seeds.
+* We need to ensure that in the set of seeds that are the current or previous seed in all TPs that
+  we still have active descriptors for, the seed heads (first 4 bytes of the seed) are all unique.
+  This ensures that when we receive a introduction request, we can know both what seed and TP are
+  being used.
 
-### Code modifications
+## Proposed PoW module
 
-(Current draft MR: [!2657][2657])
+I am describing a version of this where the `PowManager` doesn't have a separate update loop, and
+piggybacks of the update loop in `IptManager`. However, the version where `PowManager` has its own
+update loop is just a small change if we decide that's better.
 
-* We will make a new `PowState` struct that will contain:
-  * The various seeds, as a `HashMap<TimePeriod, (Seed, Option<Seed>)>` or similar. The first `Seed` is the current one, the second `Option<Seed>` is the previously used seed.
-  * The expiration time of the current seed.
-  * `PowState` will contain more than just this as described in the next section.
-* The `IptManager`'s `State` will contain the `PowState`
-* We need to decide how to communicate the seeds to the publisher. Here are some options:
-  1. Have the publisher be the thing that owns the `PowState` instead of the `IptManager`, and get it via a method on `PowState`. I initially had this design but decided to move the `PowState` to the `IptManager` after discussion with Diziet.
-  2. Have the publisher have a `Arc<Mutex<PowState>>`, and call a method on it to get the seed for a given TP
-    * This method will take a list of TPs that the publisher gets from `NetDir::hs_all_time_periods`, and will also be responsible for cleaning up old seeds that are not in that set.
-  3. Communicate via `IptSet`, by adding a `HashMap<TimePeriod, Option<PowParams>>`. That hashmap will be updated in `IptManager::idempotently_progress_things_now`, using `NetDir::hs_all_time_periods` to ensure we generate PowParams for all relevant time periods. This has the downside that there could be a race where a new period is entered after the `IptSet` was updated but before it was published, and we would need to figure out how to handle that. The `PowParams` are in a `Option`al in order to be able to distinguish that from PoW being disabled.
-
-In case 1, the `IptManager` would likely need to end up with a `Arc<Mutex<PowState>>` or similar (in order to facilitate the checking of PoW seeds), so option 1 and 2 end up being basically the same, with both the publisher and `IptManager` having a `Arc<Mutex<PowState>>`.
-
-I will proceed describing a design using option 2, having the publisher and `IptManager` both have a `Arc<Mutex<PowState>>`, since that seems like the simplest and least brittle design to me.
-
-The actual rotation of the seeds and updating of the expiry time will happen in `IptManager::idempotently_progress_things_now`. It could happen in a lot of places, but `IptManager` has convenient infrastructure for doing so and is a perfectly reasonable place to do it.
-
-## Checking solves
-
-### Conceptual overview
-
-* When we receive a INTRODUCE2 request, we want to verify that the `SeedHead` is one that we expect (either the current or previous seed for a TP that we are expecting). Figuring out this seed head will also tell us what TP the solve is for.
-* We update our list of previously used nonces for that `SeedHead`, rejecting the request if it is using a previously-used nonce.
-* We check the PoW solve, accepting the request if it is valid, and rejecting it if not.
-* If the request was valid, we update our bookkeeping about the total effort we've seen.
-
-### Code modifications
-
-* We create a `IptPowInstance` struct as follows:
+This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
-/// Data structure used by each IPT to verify PoW solves in incoming requests.
-///
-/// This largely communicates with [`PowState`], but is separate from that so
-/// that each IPT can have its own `Verifier` instances without any locking.
-struct IptPowInstance {
-    /// A [`Verifier`] instance for every currently valid [`SeedHead`].
-    verifiers: HashMap<SeedHead, Verifier>,
-    /// A channel on which we receive new [`Seed`]s (from [`PowState`]), to be
-    /// added to `verifiers`, as well as information about old seeds that have
-    /// expired and must be removed.
-    seed_updates_rx: mpsc::Receiver<SeedUpdate>,
-    /// A channel on which we send information about the [`Effort`] that was
-    /// set for valid requests.
-    valid_efforts_tx: mpsc::Sender<Effort>,
-    /// Information about which [`Nonce`]s have been seen so far.
-    // TODO: Replace with something based on ReplayLog
+pub(crate) struct PowManager {
+    seeds: postage::watch::Sender<HashMap<TimePeriod, ArrayVec<Seed, 2>>>,
+    expiration_time: SystemTime,
     used_nonces: Arc<Mutex<HashSet<(SeedHead, Nonce)>>>,
+    total_effort: Arc<Mutex<Effort>>,
+    // this will also have:
+    // * REND_HANDLED
+    // * HAD_QUEUE
+    // * MAX_TRIMMED_EFFORT
+    // As per https://spec.torproject.org/hspow-spec/common-protocol.html#service-effort-periodic
 }
 
-/// Information sent from [`PowState`] to [`IptPowInstance`] about a new
-/// [`Seed`], as well as about old seeds that have expired and should no longer
-/// be accepted.
-///
-/// These are bundled into a single update, because when we generate a new seed
-/// we ensure it doesn't collide with a previous seed, but we don't check about
-/// seeds prior to that. Thus, we want to make sure that the expiration and
-/// addition of a new seed happen atomically.
-struct SeedUpdate {
-    /// The new [`Seed`] to start accepting.
-    new_seed: Seed,
-    /// The [`TimePeriod`] which this new [`Seed`] is associated with.
-    time_period: TimePeriod,
-    /// A [`Seed`] that should be expired. This is not the "previous" seed (which
-    /// we still want to accept requests with), but the one before that.
-    expire_old_seed: Option<SeedHead>,
+// type that can be serialized / deserialized to disk
+// we may just want to implement the serde traits on the PowManager directly instead, if that's easy
+pub(crate) struct PowManagerRecord {
+    // seeds
+    // expiration time
+    // total effort
+    // used_nonces are not in here but will in the future be persisted via ReplayLog
+}
+
+// Both the IptManager and the Reactor will have a Arc<Mutex<PowManager>>
+impl PowManager {
+    // Called from IptManager::new
+    pub(crate) fn new() -> Self;
+
+    // Called from tor-hsservice/src/ipt_mgr/persist.rs
+    pub(crate) fn to_record(&self) -> PowManagerRecord;
+    pub(crate) fn from_record(record: PowManagerRecord) -> Self;
+
+    // Called from IptManager::idempotently_progress_things_now
+    // Would be called in our update loop instead of there, if we took that path
+    pub(crate) fn rotate_seeds_if_expiring(&mut self, now: TrackingNow);
+
+    // Called from IptManager::idempotently_progress_things_now
+    pub(crate) fn make_ipt_pow_instance(&self) -> IptPowInstance;
+
+    // Called from publisher Reactor::upload_for_time_period
+    pub(crate) fn get_pow_params(&self, time_period: TimePeriod) -> PowParams;
+}
+
+// Each RendRequestContext will have one of these
+pub(crate) struct IptPowInstance {
+    verifiers: HashMap<SeedHead, Verifier>,
+    seeds_rx: postage::watch::Receiver<HashMap<TimePeriod, ArrayVec<Seed, 2>>>,
+    used_nonces: Arc<Mutex<HashSet<(SeedHead, Nonce)>>>,
+    total_effort: Arc<Mutex<Effort>>,
+}
+
+impl IptPowInstance {
+    // This is called from IptMsgHandler::handle_msg
+    pub(crate) fn check_solve(solve: ProofOfWorkV1) -> Result<(), PowSolveError>;
+}
+
+pub(crate) enum PowSolveError {
+    InvalidSeedHead,
+    NonceAlreadyUsed,
+    InvalidSolve,
+    // maybe some more detailed stuff.
+    // or maybe we don't want to provide detail
 }
 ```
 
-* Each `RendRequestContext` has a `IptPowInstance` object
-  * These `IptPowInstance` objects are created by calling `PowState::new_ipt_pow_instance`.
-* To `PowState`, we add:
-  * A `Vec<mpsc::Sender<SeedUpdate>>`, to which we will send notices when we update the valid seeds
-  * A `Vec<mpsc::Receiver<Effort>>`, which we will use to update bookkeeping.
-  * A `Effort` "`total_effort`", as described as "`TOTAL_EFFORT`" in the [PoW common protocol][pow-common].
-  * Other bookeeping required for the control loop algorithm described in the [PoW common protocol][pow-common] (these currently do exist in [!2657][2657], but I'm not describing them here as this document does not describe the control loop yet)
-* In `IptMsgHandler::handle_msg`, the `IptPowInstance` is used to check the PoW solve, as described in the "conceptual overview" above.
+## Remaining questions
+
+* How should the priority queue of accepted requests work? `Arc<Mutex<BinaryHeap>>`? Something else?
 
 [pow-v1]: https://spec.torproject.org/hspow-spec/v1-equix.html
 [pow-common]: https://spec.torproject.org/hspow-spec/common-protocol.html
-[2657]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2657
