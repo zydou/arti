@@ -59,9 +59,9 @@ pub use traits::{
     ToEncodableKey,
 };
 
-// Note: we use EncodedEd25519Cert in our public API here,
-// so let's reexport it for convenience...
-pub use tor_cert::EncodedEd25519Cert;
+// Note: we use various tor-cert types in our public API,
+// so let's reexport them for convenience...
+pub use tor_cert::{Ed25519Cert, EncodedEd25519Cert, KeyUnknownCert};
 
 // Needed to export our derive_deftly macros.
 #[doc(hidden)]
