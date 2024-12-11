@@ -228,7 +228,7 @@ pub struct ArtiConfig {
     #[cfg(feature = "rpc")]
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
-    rpc: RpcConfig,
+    pub(crate) rpc: RpcConfig,
 
     /// Information on system resources used by Arti.
     ///
