@@ -22,6 +22,11 @@
 
  * dircache.
    (Also needed for Arti Relay; collaborate with that team)
+    - store information (eg descriptors, consensuses) locally
+    - serve over BEGIN_DIR
+    - serve over HTTP
+    - Download information as needed; see also
+      https://spec.torproject.org/dir-spec/downloading-from-other-auths.html
 
  * reachability tester and relay status history
    - test relays' reachability
