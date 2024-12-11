@@ -9,10 +9,6 @@ use ssh_key::{
     Algorithm, AlgorithmName,
 };
 use tor_error::internal;
-use tor_hscrypto::pk::{
-    HsBlindIdKey, HsBlindIdKeypair, HsClientDescEncKeypair, HsDescSigningKeypair, HsIdKey,
-    HsIdKeypair, HsIntroPtSessionIdKeypair, HsSvcNtorKeypair,
-};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use crate::certs::CertData;
@@ -309,113 +305,5 @@ impl EncodableItem for tor_cert::EncodedEd25519Cert {
 
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         Ok(CertData::TorEd25519Cert(self.clone()).into())
-    }
-}
-
-// TODO: These need to be put into the tor-hscrypto crate and using the deftly macro for key
-// wrappers. We lack curve25519 support for such macro and so for now we move this code from
-// tor-keymgr as it is.
-
-impl ToEncodableKey for HsClientDescEncKeypair {
-    type Key = curve25519::StaticKeypair;
-    type KeyPair = HsClientDescEncKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        HsClientDescEncKeypair::new(key.public.into(), key.secret.into())
-    }
-}
-
-impl ToEncodableKey for HsBlindIdKeypair {
-    type Key = ed25519::ExpandedKeypair;
-    type KeyPair = HsBlindIdKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        HsBlindIdKeypair::from(key)
-    }
-}
-
-impl ToEncodableKey for HsBlindIdKey {
-    type Key = ed25519::PublicKey;
-    type KeyPair = HsBlindIdKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        HsBlindIdKey::from(key)
-    }
-}
-
-impl ToEncodableKey for HsIdKeypair {
-    type Key = ed25519::ExpandedKeypair;
-    type KeyPair = HsIdKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        HsIdKeypair::from(key)
-    }
-}
-
-impl ToEncodableKey for HsIdKey {
-    type Key = ed25519::PublicKey;
-    type KeyPair = HsIdKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        HsIdKey::from(key)
-    }
-}
-
-impl ToEncodableKey for HsDescSigningKeypair {
-    type Key = ed25519::Keypair;
-    type KeyPair = HsDescSigningKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        HsDescSigningKeypair::from(key)
-    }
-}
-
-impl ToEncodableKey for HsIntroPtSessionIdKeypair {
-    type Key = ed25519::Keypair;
-    type KeyPair = HsIntroPtSessionIdKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        key.into()
-    }
-}
-
-impl ToEncodableKey for HsSvcNtorKeypair {
-    type Key = curve25519::StaticKeypair;
-    type KeyPair = HsSvcNtorKeypair;
-
-    fn to_encodable_key(self) -> Self::Key {
-        self.into()
-    }
-
-    fn from_encodable_key(key: Self::Key) -> Self {
-        key.into()
     }
 }

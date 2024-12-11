@@ -56,6 +56,7 @@ thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.25.0" }
 tor-bytes = { version = "0.25.0", path = "../tor-bytes" }
 tor-error = { version = "0.25.0", path = "../tor-error" }
+tor-key-forge = { version = "0.25.0", path = "../tor-key-forge" }
 tor-llcrypto = { version = "0.25.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
 tor-memquota = { version = "0.25.0", path = "../tor-memquota", default-features = false, optional = true }
 tor-units = { path = "../tor-units", version = "0.25.0" }
