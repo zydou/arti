@@ -124,8 +124,11 @@ where
 ///
 /// `K` represents the (Rust) type of the subject key.
 pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
-    /// The low-level type this can be converted to/from.
-    type Cert: EncodableItem + 'static;
+    /// The low-level type this can be converted from.
+    type ParsedCert: EncodableItem + 'static;
+
+    /// The low-level type this can be converted to.
+    type EncodableCert: EncodableItem + 'static;
 
     /// The (Rust) type of the signing key.
     type SigningKey: ToEncodableKey;
@@ -144,13 +147,13 @@ pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
     ///   * the subject key or signing key in the certificate do not match
     ///      the subject and signing keys specified in `cert_spec`
     fn validate(
-        cert: Self::Cert,
+        cert: Self::ParsedCert,
         subject: &K,
         signed_with: &Self::SigningKey,
     ) -> StdResult<Self, InvalidCertError>;
 
     /// Convert this cert to a type that implements [`EncodableItem`].
-    fn to_encodable_cert(self) -> Self::Cert;
+    fn to_encodable_cert(self) -> Self::EncodableCert;
 }
 
 /// The error type returned by [`ToEncodableCert::validate`].

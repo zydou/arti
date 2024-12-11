@@ -449,9 +449,9 @@ impl KeyMgr {
             ArtiPath::from_path_and_denotators(subject_key_arti_path, &spec.cert_denotators())
                 .map_err(into_bad_api_usage!("invalid certificate specifier"))?;
 
-        let Some(cert) = self.get_from_store_raw::<C::Cert>(
+        let Some(cert) = self.get_from_store_raw::<C::ParsedCert>(
             &cert_spec,
-            &C::Cert::item_type(),
+            &C::ParsedCert::item_type(),
             self.all_stores(),
         )?
         else {
@@ -522,9 +522,9 @@ impl KeyMgr {
             ArtiPath::from_path_and_denotators(subject_key_arti_path, &spec.cert_denotators())
                 .map_err(into_bad_api_usage!("invalid certificate specifier"))?;
 
-        let maybe_cert = self.get_from_store_raw::<C::Cert>(
+        let maybe_cert = self.get_from_store_raw::<C::ParsedCert>(
             &cert_specifier,
-            &C::Cert::item_type(),
+            &C::ParsedCert::item_type(),
             self.all_stores(),
         )?;
 
@@ -635,7 +635,7 @@ impl KeyMgr {
     {
         let cert = cert.to_encodable_cert();
         let store = self.select_keystore(&selector)?;
-        let cert_type = C::Cert::item_type();
+        let cert_type = C::EncodableCert::item_type();
 
         let () = store.insert(&cert, cert_spec, &cert_type)?;
         Ok(())
@@ -774,11 +774,12 @@ mod tests {
     }
 
     impl ToEncodableCert<TestItem> for AlwaysValidCert {
-        type Cert = TestItem;
+        type ParsedCert = TestItem;
+        type EncodableCert = TestItem;
         type SigningKey = TestItem;
 
         fn validate(
-            cert: Self::Cert,
+            cert: Self::ParsedCert,
             _subject: &TestItem,
             _signed_with: &Self::SigningKey,
         ) -> StdResult<Self, InvalidCertError> {
@@ -787,7 +788,7 @@ mod tests {
         }
 
         /// Convert this cert to a type that implements [`EncodableKey`].
-        fn to_encodable_cert(self) -> Self::Cert {
+        fn to_encodable_cert(self) -> Self::EncodableCert {
             self.0
         }
     }
