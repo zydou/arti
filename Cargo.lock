@@ -6398,6 +6398,7 @@ version = "0.25.0"
 dependencies = [
  "assert_matches",
  "cfg-if",
+ "derive_builder_fork_arti",
  "derive_more",
  "fs-mistrust",
  "rand",

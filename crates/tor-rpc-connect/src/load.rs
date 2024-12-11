@@ -148,9 +148,10 @@ fn load_dirent(
 }
 
 /// Configured options for a single file within a directory.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_builder::Builder)]
 pub struct LoadOptions {
     /// If true, do not try to read the file.
+    #[builder(default)]
     disable: bool,
 }
 
