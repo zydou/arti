@@ -62,7 +62,11 @@ pub(crate) struct PowManager {
 
     expiration_time: Mutex<SystemTime>,
 
+    // For the initial implementation
     used_nonces: Mutex<HashSet<(SeedHead, Nonce)>>,
+
+    // For the final implementation
+    used_nonces: Mutex<ReplayLog<replay::ProofOfWork>>,
 
     total_effort: Mutex<Effort>,
 
@@ -86,11 +90,13 @@ pub(crate) struct PowManagerRecord {
 impl PowManager {
     // Called from IptManager::new
     // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
-    pub(crate) fn new() -> (Self, mpsc::Sender, RendQueueReceiver);
+    pub(crate) fn new(replay_log_dir: InstanceRawSubdir) -> (Self, mpsc::Sender, RendQueueReceiver);
 
-    // Called from tor-hsservice/src/ipt_mgr/persist.rs
+    // Both called from tor-hsservice/src/ipt_mgr/persist.rs
     pub(crate) fn to_record(&self) -> PowManagerRecord;
-    pub(crate) fn from_record(record: PowManagerRecord) -> Self;
+    // Upon loading from disk, we will delete stale replay logs from replay_log_dir,
+    // using read_directory / parse_log_leafname / remove_file
+    pub(crate) fn from_record(record: PowManagerRecord, replay_log_dir: InstanceRawSubdir) -> Self;
 
     // Called from IptManager::idempotently_progress_things_now
     // Would be called in our update loop instead of there, if we took that path
@@ -123,6 +129,26 @@ pub(crate) struct RendQueueReceiver {
 
 impl Stream<RendRequest> for RendQueueReceiver;
 ```
+
+## Making `ReplayLog` generic
+
+Make `ReplayLog` generic over types that implement the `ReplayLogType` trait:
+
+```rust
+trait ReplayLogType {
+    type Name; // IptLocalId, Seed
+    type Message; // Introduce2, SolutionByteArray
+
+    fn format_filename(name: Name) -> String;
+    fn hash_message(message: Message) -> H;
+    fn parse_log_leafname(leaf: &OsStr) -> Result<(Name, &str), Cow<'static, str>>;
+}
+
+struct IptReplayLog;
+struct ProofOfWorkReplayLog;
+```
+
+Replace `IptLocalId` and `Introduce2` in `ReplayLog<T>` with `T::Name` and `T::message`
 
 [pow-v1]: https://spec.torproject.org/hspow-spec/v1-equix.html
 [pow-common]: https://spec.torproject.org/hspow-spec/common-protocol.html
