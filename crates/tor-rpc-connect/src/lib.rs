@@ -250,7 +250,6 @@ auth = { cookie = { path = "${ARTI_LOCAL_DATA}/rpc/arti_rpc_cookie" } }
 /// Default connect point for a system-wide Arti instance.
 ///
 /// This is `None` if, on this platform, there is no such default connect point.
-#[cfg(unix)]
 pub const SYSTEM_DEFAULT_CONNECT_POINT: Option<&str> = {
     cfg_if::cfg_if! {
         if #[cfg(unix)] {
