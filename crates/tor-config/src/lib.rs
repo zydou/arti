@@ -44,6 +44,8 @@
 
 pub mod cmdline;
 mod err;
+#[macro_use]
+pub mod extend_builder;
 pub mod file_watcher;
 mod flatten;
 pub mod list_builder;
