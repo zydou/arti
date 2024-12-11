@@ -125,7 +125,7 @@ maint-check-cbindgen:
   image: rustlang/rust:nightly
   script:
     - ./maint/common/apt-install python3-toml
-    - ./maint/common/via-cargo-install-in-ci cbindgen
+    - ./maint/common/via-cargo-install-in-ci cbindgen --version 0.27.0
     - ./maint/cbindgen --check
 
 # non-blocking for now, see
