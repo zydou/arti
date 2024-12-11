@@ -61,6 +61,7 @@ signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "2"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.26.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.26.0", default-features = false }
 tor-config = { path = "../tor-config", version = "0.26.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.26.0" }
 tor-error = { path = "../tor-error", version = "0.26.0", features = ["tracing"] }

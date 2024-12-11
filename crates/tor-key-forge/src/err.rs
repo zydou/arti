@@ -10,6 +10,10 @@ pub enum Error {
     #[error("Unsupported key algorithm {0}")]
     UnsupportedKeyAlgorithm(SshKeyAlgorithm),
 
+    /// Failed to parse certificate.
+    #[error("Failed to parse certificate")]
+    CertParse(tor_bytes::Error),
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
