@@ -20,7 +20,8 @@
 
 ## principal components
 
- * dircache
+ * dircache.
+   (Also needed for Arti Relay; collaborate with that team)
 
  * reachability tester and relay status history
    - test relays' reachability
