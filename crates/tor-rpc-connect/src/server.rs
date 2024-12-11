@@ -11,7 +11,7 @@ use tor_rtcompat::NetStreamProvider;
 /// A listener and associated authentication at which an RPC server can watch for connections.
 #[non_exhaustive]
 pub struct Listener {
-    /// The listerer on which conections will arrive.
+    /// The listener on which connections will arrive.
     pub listener: tor_rtcompat::general::Listener,
     /// The authentication to require from incoming connections.
     pub auth: RpcAuth,
