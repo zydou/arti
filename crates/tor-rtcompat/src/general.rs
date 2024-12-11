@@ -11,6 +11,8 @@ use tor_general_addr::unix;
 use crate::{NetStreamListener, NetStreamProvider, StreamOps};
 use tor_general_addr::general;
 
+pub use general::{AddrParseError, SocketAddr};
+
 /// Helper trait to allow us to create a type-erased stream.
 ///
 /// (Rust doesn't allow "dyn AsyncRead + AsyncWrite")
