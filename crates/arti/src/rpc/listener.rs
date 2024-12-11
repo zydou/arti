@@ -1,15 +1,31 @@
 //! Configure and activate RPC listeners from connect points.
 
-use std::collections::BTreeMap;
+use anyhow::Context;
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::Path,
+    str::FromStr as _,
+    sync::Arc,
+};
 
 use derive_builder::Builder;
 use derive_deftly::Deftly;
+use fs_mistrust::{anon_home::PathExt as _, Mistrust};
 use serde::{Deserialize, Serialize};
+use tor_basic_utils::PathExt as _;
 use tor_config::{
     define_map_builder, derive_deftly_template_ExtendBuilder, impl_standard_builder,
     ConfigBuildError,
 };
-use tor_config_path::CfgPath;
+use tor_config_path::{CfgPath, CfgPathResolver};
+use tor_error::internal;
+use tor_rpc_connect::{
+    auth::RpcAuth,
+    load::{LoadOptions, LoadOptionsBuilder},
+    server::Guard,
+    ParsedConnectPoint,
+};
+use tor_rtcompat::{general, Runtime};
 
 define_map_builder! {
     /// Builder for a map of RpcListenerConfig.
@@ -121,6 +137,204 @@ struct OverrideConfig {
     enable: bool,
 }
 impl_standard_builder! { OverrideConfig }
+
+impl OverrideConfig {
+    /// Return a [`LoadOptions`] corresponding to this OverrideConfig.
+    ///
+    /// The `LoadOptions` will contain a subset of our own options,
+    /// set in order to make [`ParsedConnectPoint::load_dir`] behaved as configured here.
+    fn load_options(&self) -> LoadOptions {
+        LoadOptionsBuilder::default()
+            .disable(!self.enable)
+            .build()
+            .expect("Somehow constructed an invalid LoadOptions")
+    }
+}
+
+/// Configuration information used to initialize RPC connections.
+///
+/// This information is derived from the configuration on the connect point,
+/// and from the connect point itself.
+#[derive(Clone, Debug)]
+pub(super) struct RpcConnInfo {
+    /// A human-readable name for the source of this RPC connection.
+    ///
+    /// We try to make this unique, but it might not be, depending on filesystem UTF-8 issues.
+    pub(super) name: String,
+    /// The authentication we require for this RPC connection.
+    pub(super) auth: RpcAuth,
+}
+
+impl RpcConnInfo {
+    /// Initialize a new `RpcConnInfo`.
+    ///
+    /// Uses `config_key` (the name of the relevant section within our TOML config)
+    /// and `filename` (a filename within a connect point directory)
+    /// to name the connect point.
+    ///
+    /// Uses `auth` and `overrides` as settings to initialize new connections.
+    #[allow(clippy::unnecessary_wraps)]
+    fn new(
+        config_key: &str,
+        filename: Option<&Path>,
+        auth: RpcAuth,
+        overrides: Option<&BTreeMap<String, OverrideConfig>>,
+    ) -> anyhow::Result<Self> {
+        let name = match filename {
+            Some(p) => format!("{} ({})", config_key, p.display_lossy()),
+            None => config_key.to_string(),
+        };
+
+        if let (Some(fname), Some(overrides)) = (filename, overrides) {
+            // TODO RPC: We'll want to look at options here soon, once there are some.
+            // We'll use them to configure permissions and so forth.
+            let _ignore = fname
+                .to_str()
+                .and_then(|fname_as_str| overrides.get(fname_as_str));
+        }
+
+        Ok(Self { name, auth })
+    }
+}
+
+impl RpcListenerConfig {
+    /// Load every connect point from this file or directory,
+    /// and bind to them.
+    ///
+    /// On success, returns a list of bound sockets,
+    /// along with information about how to treat incoming connections on those sockets,
+    /// and a guard object that must not be dropped until we are no longer listening on the socket.
+    pub(super) async fn bind<R: Runtime>(
+        &self,
+        runtime: &R,
+        config_key: &str,
+        resolver: &CfgPathResolver,
+        mistrust: &Mistrust,
+    ) -> anyhow::Result<Vec<(general::Listener, Arc<RpcConnInfo>, Guard)>> {
+        if !self.enable {
+            return Ok(vec![]);
+        }
+
+        if let Some(file) = &self.file {
+            let file = file.path(resolver)?;
+            let ctx = |action| {
+                format!(
+                    "Can't {} RPC connect point from {}",
+                    action,
+                    file.anonymize_home()
+                )
+            };
+            let conn_pt = ParsedConnectPoint::load_file(file.as_ref(), mistrust)
+                .with_context(|| ctx("load"))?
+                .resolve(resolver)
+                .with_context(|| ctx("resolve"))?;
+            let tor_rpc_connect::server::Listener {
+                listener,
+                auth,
+                guard,
+                ..
+            } = conn_pt
+                .bind(runtime, mistrust)
+                .await
+                .with_context(|| ctx("bind to"))?;
+            return Ok(vec![(
+                listener,
+                Arc::new(RpcConnInfo::new(config_key, None, auth, None)?),
+                guard,
+            )]);
+        }
+
+        if let Some(dir) = &self.dir {
+            let dir = dir.path(resolver)?;
+            let load_options: HashMap<std::path::PathBuf, LoadOptions> = self
+                .overrides
+                .iter()
+                .map(|(s, or)| (s.into(), or.load_options()))
+                .collect();
+            let mut listeners = Vec::new();
+            let dir_contents = ParsedConnectPoint::load_dir(dir.as_ref(), mistrust, &load_options)
+                .with_context(|| {
+                    format!(
+                        "Can't read RPC connect point directory at {}",
+                        dir.anonymize_home()
+                    )
+                })?;
+            for (path, conn_pt_result) in dir_contents {
+                let ctx = |action| {
+                    format!(
+                        "Can't {} RPC connect point {} from dir {}",
+                        action,
+                        path.display_lossy(),
+                        dir.anonymize_home()
+                    )
+                };
+                let conn_pt = conn_pt_result
+                    .with_context(|| ctx("load"))?
+                    .resolve(resolver)
+                    .with_context(|| ctx("resolve"))?;
+
+                let tor_rpc_connect::server::Listener {
+                    listener,
+                    auth,
+                    guard,
+                    ..
+                } = conn_pt
+                    .bind(runtime, mistrust)
+                    .await
+                    .with_context(|| ctx("bind to"))?;
+                listeners.push((
+                    listener,
+                    Arc::new(RpcConnInfo::new(
+                        config_key,
+                        Some(path.as_ref()),
+                        auth,
+                        Some(&self.overrides),
+                    )?),
+                    guard,
+                ));
+            }
+
+            return Ok(listeners);
+        }
+
+        Err(internal!("Constructed RpcListenerConfig had neither 'dir' nor 'file' set.").into())
+    }
+}
+
+/// As [`RpcListenerConfig`], but bind directly to a verbatim connect point given as a string.
+pub(super) async fn bind_string<R: Runtime>(
+    connpt: &str,
+    index: usize,
+    runtime: &R,
+    resolver: &CfgPathResolver,
+    mistrust: &Mistrust,
+) -> anyhow::Result<(general::Listener, Arc<RpcConnInfo>, Guard)> {
+    let ctx = |action| format!("Can't {action} RPC connect point from rpc.listen_default.#{index}");
+
+    let conn_pt = ParsedConnectPoint::from_str(connpt)
+        .with_context(|| ctx("parse"))?
+        .resolve(resolver)
+        .with_context(|| ctx("resolve"))?;
+    let tor_rpc_connect::server::Listener {
+        listener,
+        auth,
+        guard,
+        ..
+    } = conn_pt
+        .bind(runtime, mistrust)
+        .await
+        .with_context(|| ctx("bind to"))?;
+    Ok((
+        listener,
+        Arc::new(RpcConnInfo::new(
+            "<default>",
+            Some(format!("#{index}").as_ref()),
+            auth,
+            None,
+        )?),
+        guard,
+    ))
+}
 
 #[cfg(test)]
 mod test {}

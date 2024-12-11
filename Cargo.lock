@@ -235,6 +235,7 @@ dependencies = [
  "tokio-util",
  "toml",
  "tor-async-utils",
+ "tor-basic-utils",
  "tor-config",
  "tor-config-path",
  "tor-error",

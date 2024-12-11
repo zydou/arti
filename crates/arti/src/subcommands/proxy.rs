@@ -4,6 +4,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::ArgMatches;
+#[allow(unused)]
+use tor_config_path::CfgPathResolver;
 use tracing::{info, warn};
 
 use arti_client::TorClientConfig;
@@ -86,28 +88,11 @@ async fn run_proxy<R: Runtime>(
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
 
-    #[cfg(feature = "rpc")]
-    let rpc_path = {
-        if let Some(path) = &arti_config.rpc().rpc_listen {
-            let path = path.path(client_config.as_ref())?;
-            let parent = path
-                .parent()
-                .ok_or(anyhow::anyhow!("No parent directory for rpc_listen path?"))?;
-            client_config
-                .fs_mistrust()
-                .verifier()
-                .make_secure_dir(parent)?;
-            // It's just a unix thing; if we leave this sitting around, binding to it won't
-            // work right.  There is probably a better solution.
-            if path.try_exists()? {
-                std::fs::remove_file(&path)?;
-            }
-
-            Some(path)
-        } else {
-            None
-        }
-    };
+    // TODO RPC: We may instead want to provide a way to get these items out of TorClient.
+    #[allow(unused)]
+    let fs_mistrust = client_config.fs_mistrust().clone();
+    #[allow(unused)]
+    let path_resolver: CfgPathResolver = AsRef::<CfgPathResolver>::as_ref(&client_config).clone();
 
     let client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)
@@ -144,18 +129,16 @@ async fn run_proxy<R: Runtime>(
         weak_modules,
     )?;
 
-    #[cfg(all(feature = "rpc", feature = "tokio"))]
+    #[cfg(feature = "rpc")]
     let rpc_data = {
-        // TODO RPC This code doesn't really belong here; it's just an example.
-        if let Some(listen_path) = rpc_path {
-            let (rpc_state, rpc_state_sender) = rpc::RpcVisibleArtiState::new();
-            // TODO Conceivably this listener belongs on a renamed "proxy" list.
-            let rpc_mgr =
-                rpc::launch_rpc_listener(&runtime, listen_path, client.clone(), rpc_state)?;
-            Some((rpc_mgr, rpc_state_sender))
-        } else {
-            None
-        }
+        rpc::launch_rpc_mgr(
+            &runtime,
+            &arti_config.rpc,
+            &path_resolver,
+            &fs_mistrust,
+            client.clone(),
+        )
+        .await?
     };
 
     let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
@@ -168,7 +151,7 @@ async fn run_proxy<R: Runtime>(
                 runtime,
                 client,
                 socks_listen,
-                #[cfg(all(feature = "rpc", feature = "tokio"))]
+                #[cfg(feature = "rpc")]
                 rpc_data,
             )
             .await;

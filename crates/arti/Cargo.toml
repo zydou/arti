@@ -149,6 +149,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 toml = "0.8.8"
 tor-async-utils = { path = "../tor-async-utils", version = "0.25.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.25.0" }
 tor-config = { path = "../tor-config", version = "0.25.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.25.0" }
 tor-error = { path = "../tor-error", version = "0.25.0", default-features = false, features = ["tracing"] }

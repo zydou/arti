@@ -3,16 +3,19 @@
 use anyhow::Result;
 use arti_rpcserver::RpcMgr;
 use derive_builder::Builder;
-use futures::task::SpawnExt;
+use fs_mistrust::Mistrust;
+use futures::{stream::StreamExt, task::SpawnExt, AsyncReadExt};
 use listener::{RpcListenerMap, RpcListenerMapBuilder};
 use serde::{Deserialize, Serialize};
 use session::ArtiRpcSession;
-use std::{path::Path, sync::Arc};
+use std::{io::Result as IoResult, sync::Arc};
 use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError};
-use tor_config_path::CfgPath;
+use tor_config_path::CfgPathResolver;
+use tor_rpc_connect::auth::RpcAuth;
+use tracing::debug;
 
 use arti_client::TorClient;
-use tor_rtcompat::Runtime;
+use tor_rtcompat::{general, NetStreamListener as _, Runtime};
 
 pub(crate) mod conntarget;
 pub(crate) mod listener;
@@ -20,21 +23,6 @@ mod proxyinfo;
 mod session;
 
 pub(crate) use session::{RpcStateSender, RpcVisibleArtiState};
-
-cfg_if::cfg_if! {
-    if #[cfg(all(feature="tokio", not(target_os="windows")))] {
-        use tokio_crate::net::UnixListener ;
-        use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-    } else if #[cfg(all(feature="async-std", not(target_os="windows")))] {
-        use async_std::os::unix::net::UnixListener;
-    } else if #[cfg(target_os="windows")] {
-        compile_error!("Sorry, no windows support for RPC yet.");
-        // TODO RPC: Tokio has a named pipe API; AsyncStd should let us construct
-        // one via FromRawHandle.
-    } else {
-        compile_error!("You need to have tokio or async-std.");
-    }
-}
 
 /// Configuration for Arti's RPC subsystem.
 ///
@@ -45,9 +33,9 @@ cfg_if::cfg_if! {
 #[builder_struct_attr(non_exhaustive)]
 #[non_exhaustive]
 pub struct RpcConfig {
-    /// Location to listen for incoming RPC connections.
-    #[builder(default = "default_rpc_path()")]
-    pub(crate) rpc_listen: Option<CfgPath>,
+    /// If true, then the RPC subsystem is enabled and will listen for connections.
+    #[builder(default = "false")] // TODO RPC make this true once we are stable.
+    enable: bool,
 
     /// A set of named locations in which to find connect files.
     #[builder(sub_builder)]
@@ -78,31 +66,74 @@ fn listen_defaults_defaults() -> Vec<String> {
     vec![tor_rpc_connect::USER_DEFAULT_CONNECT_POINT.to_string()]
 }
 
-/// Return the default value for our configuration path.
-#[allow(clippy::unnecessary_wraps)]
-fn default_rpc_path() -> Option<CfgPath> {
-    let s = if cfg!(target_os = "windows") {
-        r"\\.\pipe\arti\SOCKET"
-    } else {
-        "~/.local/run/arti/SOCKET"
-    };
-    Some(CfgPath::new(s.to_string()))
+/// Information about an incoming connection.
+///
+/// Yielded in a stream from our RPC listeners.
+type IncomingConn = (
+    general::Stream,
+    general::SocketAddr,
+    Arc<listener::RpcConnInfo>,
+);
+
+/// Bind to all configured RPC listeners in `cfg`.
+///
+/// On success, return a stream of `IncomingConn`.
+async fn launch_all_listeners<R: Runtime>(
+    runtime: &R,
+    cfg: &RpcConfig,
+    resolver: &CfgPathResolver,
+    mistrust: &Mistrust,
+) -> anyhow::Result<(
+    impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin,
+    Vec<tor_rpc_connect::server::Guard>,
+)> {
+    let mut listeners = Vec::new();
+    let mut guards = Vec::new();
+    for (name, listener_cfg) in cfg.listen.iter() {
+        for (lis, info, guard) in listener_cfg
+            .bind(runtime, name.as_str(), resolver, mistrust)
+            .await?
+        {
+            listeners.push((lis, info));
+            guards.push(guard);
+        }
+    }
+    if listeners.is_empty() {
+        for (idx, connpt) in cfg.listen_default.iter().enumerate() {
+            let (lis, info, guard) =
+                listener::bind_string(connpt, idx + 1, runtime, resolver, mistrust).await?;
+            listeners.push((lis, info));
+            guards.push(guard);
+        }
+    }
+
+    let streams = listeners.into_iter().map(|(listener, info)| {
+        listener
+            .incoming()
+            .map(move |accept_result| match accept_result {
+                Ok((netstream, addr)) => Ok((netstream, addr, Arc::clone(&info))),
+                Err(e) => Err(e),
+            })
+    });
+
+    Ok((futures::stream::select_all(streams), guards))
 }
 
-/// Run an RPC listener task to accept incoming connections at the Unix
-/// socket address of `path`.
-pub(crate) fn launch_rpc_listener<R: Runtime>(
+/// Create an RPC manager, bind to connect points, and open a listener task to accept incoming
+/// RPC connections.
+pub(crate) async fn launch_rpc_mgr<R: Runtime>(
     runtime: &R,
-    path: impl AsRef<Path>,
+    cfg: &RpcConfig,
+    resolver: &CfgPathResolver,
+    mistrust: &Mistrust,
     client: TorClient<R>,
-    rpc_state: Arc<RpcVisibleArtiState>,
-) -> Result<Arc<RpcMgr>> {
-    // TODO RPC: there should be an error return instead.
+) -> Result<Option<(Arc<RpcMgr>, RpcStateSender)>> {
+    if !cfg.enable {
+        return Ok(None);
+    }
+    let (rpc_state, rpc_state_sender) = RpcVisibleArtiState::new();
 
-    // TODO RPC: Maybe the UnixListener functionality belongs in tor-rtcompat?
-    // But I certainly don't want to make breaking changes there if we can help
-    // it.
-    let listener = UnixListener::bind(path)?;
+    // TODO RPC: there should be an error return instead.
     let rpc_mgr = RpcMgr::new(move |auth| ArtiRpcSession::new(auth, &client, &rpc_state))?;
     // Register methods. Needed since TorClient is generic.
     //
@@ -113,32 +144,45 @@ pub(crate) fn launch_rpc_listener<R: Runtime>(
     let rt_clone = runtime.clone();
     let rpc_mgr_clone = rpc_mgr.clone();
 
+    let (incoming, guards) = launch_all_listeners(runtime, cfg, resolver, mistrust).await?;
+
     // TODO: Using spawn in this way makes it hard to report whether we
     // succeeded or not. This is something we should fix when we refactor
     // our service-launching code.
-    runtime.spawn(async {
-        let result = run_rpc_listener(rt_clone, listener, rpc_mgr_clone).await;
+    runtime.spawn(async move {
+        let result = run_rpc_listener(rt_clone, incoming, rpc_mgr_clone).await;
         if let Err(e) = result {
             tracing::warn!("RPC manager quit with an error: {}", e);
         }
+        drop(guards);
     })?;
-    Ok(rpc_mgr)
+    Ok(Some((rpc_mgr, rpc_state_sender)))
 }
 
 /// Backend function to implement an RPC listener: runs in a loop.
 async fn run_rpc_listener<R: Runtime>(
     runtime: R,
-    listener: UnixListener,
+    mut incoming: impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin,
     rpc_mgr: Arc<RpcMgr>,
 ) -> Result<()> {
-    loop {
-        let (stream, _addr) = listener.accept().await?;
+    while let Some((stream, _addr, info)) = incoming.next().await.transpose()? {
         // TODO RPC: Perhaps we should have rpcmgr hold the client reference?
-        let connection = rpc_mgr.new_connection();
-        let (input, output) = stream.into_split();
+        // TODO RPC: We'll need to pass info (or part of it?) to rpc_mgr.
+        debug!("Received incoming RPC connection from {}", &info.name);
 
-        #[cfg(feature = "tokio")]
-        let (input, output) = (input.compat(), output.compat_write());
+        match info.auth {
+            RpcAuth::None => {
+                // "None" auth works trivially; there's nothing to do.
+            }
+            _ => {
+                // TODO RPC: implement cookie auth, and reject other auth types earlier.
+                debug!("Dropping RPC connection; auth type is not supported");
+                continue;
+            }
+        }
+
+        let connection = rpc_mgr.new_connection();
+        let (input, output) = stream.split();
 
         runtime.spawn(async {
             let result = connection.run(input, output).await;
@@ -147,6 +191,7 @@ async fn run_rpc_listener<R: Runtime>(
             }
         })?;
     }
+    Ok(())
 }
 
 #[cfg(test)]
