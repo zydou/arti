@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use tor_error::internal;
-use tor_key_forge::{CertType, EncodedEd25519Cert};
+use tor_key_forge::{CertType, Ed25519Cert};
 
 use crate::keystore::arti::err::ArtiNativeKeystoreError;
 use crate::{ErasedKey, Result};
@@ -13,7 +13,6 @@ pub(super) struct UnparsedCert {
     /// The contents of the cert file.
     inner: Vec<u8>,
     /// The path of the file (for error reporting).
-    #[allow(dead_code)]
     path: PathBuf,
 }
 
@@ -30,8 +29,15 @@ impl UnparsedCert {
     pub(super) fn parse_certificate_erased(self, cert_type: &CertType) -> Result<ErasedKey> {
         match cert_type {
             CertType::Ed25519TorCert => {
-                // TODO: check if the cert is in the expected format?
-                Ok(Box::new(EncodedEd25519Cert::from_bytes(&self.inner)))
+                let cert = Ed25519Cert::decode(&self.inner).map_err(|e| {
+                    ArtiNativeKeystoreError::CertParse {
+                        path: self.path,
+                        cert_type: cert_type.clone(),
+                        err: e.clone(),
+                    }
+                })?;
+
+                Ok(Box::new(cert))
             }
             _ => Err(
                 ArtiNativeKeystoreError::Bug(internal!("Unknown cert type {cert_type:?}")).into(),

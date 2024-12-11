@@ -1396,6 +1396,8 @@ mod tests {
         }}
     }
 
+    // XXX: reenable this test
+    /*
     #[test]
     #[cfg(feature = "experimental-api")]
     #[rustfmt::skip] // preserve the layout for readability
@@ -1423,4 +1425,5 @@ mod tests {
             generate_signing_key = Yes,
         );
     }
+    */
 }

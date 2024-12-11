@@ -36,6 +36,7 @@ impl EncodedEd25519Cert {
     //
     // TODO: this should return a Result and parse `cert` to ensure
     // it has the right format.
+    // XXX remove
     #[cfg(feature = "experimental-api")]
     pub fn from_bytes(cert: &[u8]) -> Self {
         Self(cert.into())
