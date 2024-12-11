@@ -137,7 +137,7 @@ Make `ReplayLog` generic over types that implement the `ReplayLogType` trait:
 ```rust
 trait ReplayLogType {
     type Name; // IptLocalId, Seed
-    type Message; // Introduce2, SolutionByteArray
+    type Message; // Introduce2, Nonce
 
     fn format_filename(name: Name) -> String;
     fn hash_message(message: Message) -> H;
