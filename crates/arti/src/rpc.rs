@@ -2,9 +2,13 @@
 
 use anyhow::Result;
 use arti_rpcserver::RpcMgr;
+use derive_builder::Builder;
 use futures::task::SpawnExt;
+use serde::{Deserialize, Serialize};
 use session::ArtiRpcSession;
 use std::{path::Path, sync::Arc};
+use tor_config::ConfigBuildError;
+use tor_config_path::CfgPath;
 
 use arti_client::TorClient;
 use tor_rtcompat::Runtime;
@@ -28,6 +32,31 @@ cfg_if::cfg_if! {
     } else {
         compile_error!("You need to have tokio or async-std.");
     }
+}
+
+/// Configuration for Arti's RPC subsystem.
+///
+/// You cannot change this section on a running Arti client.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[builder_struct_attr(non_exhaustive)]
+#[non_exhaustive]
+pub struct RpcConfig {
+    /// Location to listen for incoming RPC connections.
+    #[builder(default = "default_rpc_path()")]
+    pub(crate) rpc_listen: Option<CfgPath>,
+}
+
+/// Return the default value for our configuration path.
+#[allow(clippy::unnecessary_wraps)]
+fn default_rpc_path() -> Option<CfgPath> {
+    let s = if cfg!(target_os = "windows") {
+        r"\\.\pipe\arti\SOCKET"
+    } else {
+        "~/.local/run/arti/SOCKET"
+    };
+    Some(CfgPath::new(s.to_string()))
 }
 
 /// Run an RPC listener task to accept incoming connections at the Unix
