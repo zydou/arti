@@ -4,16 +4,18 @@ use anyhow::Result;
 use arti_rpcserver::RpcMgr;
 use derive_builder::Builder;
 use futures::task::SpawnExt;
+use listener::{RpcListenerMap, RpcListenerMapBuilder};
 use serde::{Deserialize, Serialize};
 use session::ArtiRpcSession;
 use std::{path::Path, sync::Arc};
-use tor_config::ConfigBuildError;
+use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError};
 use tor_config_path::CfgPath;
 
 use arti_client::TorClient;
 use tor_rtcompat::Runtime;
 
 pub(crate) mod conntarget;
+pub(crate) mod listener;
 mod proxyinfo;
 mod session;
 
@@ -46,6 +48,34 @@ pub struct RpcConfig {
     /// Location to listen for incoming RPC connections.
     #[builder(default = "default_rpc_path()")]
     pub(crate) rpc_listen: Option<CfgPath>,
+
+    /// A set of named locations in which to find connect files.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    listen: RpcListenerMap,
+
+    /// A list of default connect points to bind if none are found under `listen`.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    listen_default: ListenDefaults,
+}
+impl_standard_builder! { RpcConfig }
+
+/// Type alias to enable sub_builder to work.
+type ListenDefaults = Vec<String>;
+
+define_list_builder_helper! {
+    pub struct ListenDefaultsBuilder {
+        values: [String],
+    }
+    built: Vec<String> = values;
+    default = listen_defaults_defaults();
+    item_build: |item| Ok(item.clone());
+}
+
+/// Return default values for `RpcConfig.listen_default`
+fn listen_defaults_defaults() -> Vec<String> {
+    vec![tor_rpc_connect::USER_DEFAULT_CONNECT_POINT.to_string()]
 }
 
 /// Return the default value for our configuration path.

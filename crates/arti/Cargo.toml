@@ -104,7 +104,7 @@ experimental = [
     "tor-hsservice/experimental",
     "ctor-keystore",
 ]
-rpc = ["arti-rpcserver", "tor-rpcbase", "derive-deftly", "__is_experimental"]
+rpc = ["arti-rpcserver", "tor-rpcbase", "tor-rpc-connect", "derive-deftly", "__is_experimental"]
 
 restricted-discovery = ["tor-hsservice/restricted-discovery", "__is_experimental"]
 hsc = ["onion-service-client", "experimental-api", "keymgr", "__is_experimental", "dialoguer"]
@@ -155,6 +155,7 @@ tor-error = { path = "../tor-error", version = "0.25.0", default-features = fals
 tor-hsrproxy = { path = "../tor-hsrproxy", version = "0.25.0", optional = true }
 tor-hsservice = { path = "../tor-hsservice", version = "0.25.0", optional = true }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.25.0", optional = true }
+tor-rpc-connect = { path = "../tor-rpc-connect", version = "0.25.0", optional = true, features = ["rpc-server"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.25.0", default-features = false }
 tor-socksproto = { path = "../tor-socksproto", version = "0.25.0" }
 tracing = "0.1.36"

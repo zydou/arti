@@ -241,6 +241,7 @@ dependencies = [
  "tor-hsrproxy",
  "tor-hsservice",
  "tor-memquota",
+ "tor-rpc-connect",
  "tor-rpcbase",
  "tor-rtcompat",
  "tor-rtmock",
