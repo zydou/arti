@@ -56,10 +56,16 @@ This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
 pub(crate) struct PowManager {
-    seeds: postage::watch::Sender<HashMap<TimePeriod, ArrayVec<Seed, 2>>>,
-    expiration_time: SystemTime,
-    used_nonces: Arc<Mutex<HashSet<(SeedHead, Nonce)>>>,
-    total_effort: Arc<Mutex<Effort>>,
+    // TODO: perhaps this could all go in the same datastructure
+    seeds: RwLock<HashMap<TimePeriod, ArrayVec<Seed, 2>>>,
+    verifiers: RwLock<HashMap<SeedHead, Verifier>>,
+
+    expiration_time: Mutex<SystemTime>,
+
+    used_nonces: Mutex<HashSet<(SeedHead, Nonce)>>,
+
+    total_effort: Mutex<Effort>,
+
     // this will also have:
     // * REND_HANDLED
     // * HAD_QUEUE
@@ -79,7 +85,8 @@ pub(crate) struct PowManagerRecord {
 // Both the IptManager and the Reactor will have a Arc<Mutex<PowManager>>
 impl PowManager {
     // Called from IptManager::new
-    pub(crate) fn new() -> Self;
+    // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
+    pub(crate) fn new() -> (Self, mpsc::Sender, RendQueueReceiver);
 
     // Called from tor-hsservice/src/ipt_mgr/persist.rs
     pub(crate) fn to_record(&self) -> PowManagerRecord;
@@ -89,23 +96,10 @@ impl PowManager {
     // Would be called in our update loop instead of there, if we took that path
     pub(crate) fn rotate_seeds_if_expiring(&mut self, now: TrackingNow);
 
-    // Called from IptManager::idempotently_progress_things_now
-    pub(crate) fn make_ipt_pow_instance(&self) -> IptPowInstance;
-
     // Called from publisher Reactor::upload_for_time_period
     pub(crate) fn get_pow_params(&self, time_period: TimePeriod) -> PowParams;
-}
 
-// Each RendRequestContext will have one of these
-pub(crate) struct IptPowInstance {
-    verifiers: HashMap<SeedHead, Verifier>,
-    seeds_rx: postage::watch::Receiver<HashMap<TimePeriod, ArrayVec<Seed, 2>>>,
-    used_nonces: Arc<Mutex<HashSet<(SeedHead, Nonce)>>>,
-    total_effort: Arc<Mutex<Effort>>,
-}
-
-impl IptPowInstance {
-    // This is called from IptMsgHandler::handle_msg
+    // This is called from RendQueueSender
     pub(crate) fn check_solve(solve: ProofOfWorkV1) -> Result<(), PowSolveError>;
 }
 
@@ -116,11 +110,19 @@ pub(crate) enum PowSolveError {
     // maybe some more detailed stuff.
     // or maybe we don't want to provide detail
 }
+
+// If PoW is not compiled in, this will be a dummy that is just a mpsc::Receiver
+pub(crate) struct RendQueueReceiver {
+    rx: mpsc::Receiver,
+
+    // This may be something different / more complicated
+    queue: BinaryHeap<RendRequest>,
+
+    pow_manager: Arc<PowManager>,
+}
+
+impl Stream<RendRequest> for RendQueueReceiver;
 ```
-
-## Remaining questions
-
-* How should the priority queue of accepted requests work? `Arc<Mutex<BinaryHeap>>`? Something else?
 
 [pow-v1]: https://spec.torproject.org/hspow-spec/v1-equix.html
 [pow-common]: https://spec.torproject.org/hspow-spec/common-protocol.html
