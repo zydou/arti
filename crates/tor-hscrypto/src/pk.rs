@@ -11,6 +11,7 @@ use digest::Digest;
 use itertools::{chain, Itertools};
 use thiserror::Error;
 use tor_basic_utils::{impl_debug_hex, StrExt as _};
+use tor_key_forge::ToEncodableKey;
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::ed25519::{Ed25519PublicKey, Signer};
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
@@ -637,6 +638,116 @@ pub struct HsSvcDescEncKeypair {
     pub public: HsSvcDescEncKey,
     /// The secret part of the key.
     pub secret: HsSvcDescEncSecretKey,
+}
+
+// TODO: let the define_ed25519_keypair/define_curve25519_keypair macros
+// auto-generate these impls.
+//
+// For some of the keys here, this currently cannot be done
+// because the macro doesn't support generating expanded ed25519 keys.
+
+impl ToEncodableKey for HsClientDescEncKeypair {
+    type Key = curve25519::StaticKeypair;
+    type KeyPair = HsClientDescEncKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsClientDescEncKeypair::new(key.public.into(), key.secret.into())
+    }
+}
+
+impl ToEncodableKey for HsBlindIdKeypair {
+    type Key = ed25519::ExpandedKeypair;
+    type KeyPair = HsBlindIdKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsBlindIdKeypair::from(key)
+    }
+}
+
+impl ToEncodableKey for HsBlindIdKey {
+    type Key = ed25519::PublicKey;
+    type KeyPair = HsBlindIdKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsBlindIdKey::from(key)
+    }
+}
+
+impl ToEncodableKey for HsIdKeypair {
+    type Key = ed25519::ExpandedKeypair;
+    type KeyPair = HsIdKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsIdKeypair::from(key)
+    }
+}
+
+impl ToEncodableKey for HsIdKey {
+    type Key = ed25519::PublicKey;
+    type KeyPair = HsIdKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsIdKey::from(key)
+    }
+}
+
+impl ToEncodableKey for HsDescSigningKeypair {
+    type Key = ed25519::Keypair;
+    type KeyPair = HsDescSigningKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        HsDescSigningKeypair::from(key)
+    }
+}
+
+impl ToEncodableKey for HsIntroPtSessionIdKeypair {
+    type Key = ed25519::Keypair;
+    type KeyPair = HsIntroPtSessionIdKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        key.into()
+    }
+}
+
+impl ToEncodableKey for HsSvcNtorKeypair {
+    type Key = curve25519::StaticKeypair;
+    type KeyPair = HsSvcNtorKeypair;
+
+    fn to_encodable_key(self) -> Self::Key {
+        self.into()
+    }
+
+    fn from_encodable_key(key: Self::Key) -> Self {
+        key.into()
+    }
 }
 
 #[cfg(test)]

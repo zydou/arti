@@ -15,7 +15,6 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 full = [
     "tor-error/full",
-    "tor-hscrypto/full",
     "tor-llcrypto/full",
 ]
 
@@ -33,7 +32,6 @@ ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "2"
 tor-cert = { path = "../tor-cert", version = "0.25.0", features = ["encode", "experimental-api"] }
 tor-error = { version = "0.25.0", path = "../tor-error" }
-tor-hscrypto = { path = "../tor-hscrypto", version = "0.25.0" }
 tor-llcrypto = { version = "0.25.0", path = "../tor-llcrypto" }
 
 [dev-dependencies]

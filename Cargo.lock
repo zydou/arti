@@ -5885,6 +5885,7 @@ dependencies = [
  "tor-basic-utils",
  "tor-bytes",
  "tor-error",
+ "tor-key-forge",
  "tor-llcrypto",
  "tor-memquota",
  "tor-units",
@@ -6000,7 +6001,6 @@ dependencies = [
  "tor-basic-utils",
  "tor-cert",
  "tor-error",
- "tor-hscrypto",
  "tor-llcrypto",
 ]
 
