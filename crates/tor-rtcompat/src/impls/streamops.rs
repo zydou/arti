@@ -35,7 +35,7 @@ pub(crate) fn set_tcp_notsent_lowat<S: AsRawFd>(sock: &S, notsent_lowat: u32) ->
 ///
 /// Only implemented on Linux. Returns an error on all other platforms.
 #[cfg(not(target_os = "linux"))]
-pub(crate) fn set_tcp_notsent_lowat<S>(sock: &S, notsent_lowat: u32) -> io::Result<()> {
+pub(crate) fn set_tcp_notsent_lowat<S>(_sock: &S, _notsent_lowat: u32) -> io::Result<()> {
     Err(UnsupportedStreamOp::new(
         "set_tcp_notsent_lowat",
         "unsupported on non-linux platforms",
