@@ -68,7 +68,7 @@ pub(crate) struct PowManager {
     used_nonces: Mutex<HashSet<(SeedHead, Nonce)>>,
 
     // For the final implementation
-    used_nonces: Mutex<ReplayLog<replay::ProofOfWork>>,
+    used_nonces: RwLock<HashMap<SeedHead, Mutex<ReplayLog<replay::ProofOfWork>>>>,
 
     total_effort: Mutex<Effort>,
 
