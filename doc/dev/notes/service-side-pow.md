@@ -91,7 +91,7 @@ pub(crate) struct PowManagerRecord {
 impl PowManager {
     // Called from IptManager::new
     // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
-    pub(crate) fn new(replay_log_dir: InstanceRawSubdir) -> (Self, mpsc::Sender, RendQueueReceiver);
+    pub(crate) fn new(pow_replay_log_dir: InstanceRawSubdir) -> (Self, mpsc::Sender, RendQueueReceiver);
 
     // Both called from tor-hsservice/src/ipt_mgr/persist.rs
     pub(crate) fn to_record(&self) -> PowManagerRecord;
