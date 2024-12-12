@@ -9,6 +9,12 @@ use tor_llcrypto::pk::ed25519::{self, Ed25519Identity};
 
 use crate::pk::{RelayIdentityKeypair, RelayLinkSigningKeypair, RelaySigningKeypair};
 
+// TODO: maybe we can eventually unify the 2 `gen_*_cert` functions
+// into a single one taking a `K: HasCertType` generic param and returning `Result<K>`.
+// That way, we could call `K::cert_type()` to get the cert type,
+// making it impossible for the `gen_*_cert function to accidentally use
+// a different cert type than the validation function.
+
 /// Generate the relay signing certificate from the given relay identity keypair and the relay
 /// signing keypair.
 pub fn gen_signing_cert(
@@ -17,7 +23,7 @@ pub fn gen_signing_cert(
     expiry: SystemTime,
 ) -> Result<RelayLinkSigningKeyCert, CertEncodeError> {
     Ed25519Cert::constructor()
-        .cert_type(CertType::IDENTITY_V_SIGNING)
+        .cert_type(RelayLinkSigningKeyCert::cert_type())
         .expiration(expiry)
         .signing_key(kp_relay_id.to_ed25519_id())
         .cert_key(CertifiedKey::Ed25519(kp_relaysign_id.to_ed25519_id()))
@@ -33,7 +39,7 @@ pub fn gen_link_cert(
     expiry: SystemTime,
 ) -> Result<RelayLinkSigningKeyCert, CertEncodeError> {
     Ed25519Cert::constructor()
-        .cert_type(CertType::SIGNING_V_LINK_AUTH)
+        .cert_type(RelayLinkSigningKeyCert::cert_type())
         .expiration(expiry)
         .signing_key(kp_relaysign_id.to_ed25519_id())
         .cert_key(CertifiedKey::Ed25519(kp_link_id.to_ed25519_id()))
