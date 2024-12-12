@@ -152,7 +152,16 @@ struct IptReplayLog;
 struct ProofOfWorkReplayLog;
 ```
 
-Replace `IptLocalId` and `Introduce2` in `ReplayLog<T>` with `T::Name` and `T::message`
+Replace `IptLocalId` and `Introduce2` in `ReplayLog<T>` with `T::Name` and `T::message`.
+
+It would also be good to add a method to `ReplayLog` to delete old log files:
+
+```rust
+// Not sure what the error type should be
+fn cleanup_log_files(&self, exempt: Vec<Self::Name>) -> Result<(), _>;
+```
+
+That way, the `PowManager` code does not need to keep any details about the log directory.
 
 [pow-v1]: https://spec.torproject.org/hspow-spec/v1-equix.html
 [pow-common]: https://spec.torproject.org/hspow-spec/common-protocol.html
