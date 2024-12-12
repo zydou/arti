@@ -666,8 +666,9 @@ mod tests {
     use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cert::CertifiedKey;
+    use tor_cert::Ed25519Cert;
     use tor_key_forge::{
-        CertData, Ed25519Cert, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
+        CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
     };
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
 

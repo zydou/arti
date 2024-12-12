@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use tor_error::internal;
-use tor_key_forge::{CertType, Ed25519Cert};
+use tor_key_forge::{CertType, ParsedEd25519Cert};
 
 use crate::keystore::arti::err::ArtiNativeKeystoreError;
 use crate::{ErasedKey, Result};
@@ -29,7 +29,7 @@ impl UnparsedCert {
     pub(super) fn parse_certificate_erased(self, cert_type: &CertType) -> Result<ErasedKey> {
         match cert_type {
             CertType::Ed25519TorCert => {
-                let cert = Ed25519Cert::decode(&self.inner).map_err(|e| {
+                let cert = ParsedEd25519Cert::decode(self.inner).map_err(|e| {
                     ArtiNativeKeystoreError::CertParse {
                         path: self.path,
                         cert_type: cert_type.clone(),

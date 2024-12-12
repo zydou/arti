@@ -376,9 +376,9 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};
     use tempfile::{tempdir, TempDir};
-    use tor_cert::CertifiedKey;
+    use tor_cert::{CertifiedKey, Ed25519Cert};
     use tor_checkable::{SelfSigned, Timebound};
-    use tor_key_forge::{CertType, Ed25519Cert, KeyType, KeyUnknownCert};
+    use tor_key_forge::{CertType, KeyType, ParsedEd25519Cert};
     use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
 
     #[cfg(unix)]
@@ -726,28 +726,28 @@ mod tests {
             .get(&cert_spec, &CertType::Ed25519TorCert.into())
             .unwrap()
             .unwrap();
-        let Ok(found_cert) = erased_cert.downcast::<KeyUnknownCert>() else {
+        let Ok(found_cert) = erased_cert.downcast::<ParsedEd25519Cert>() else {
             panic!("failed to downcast cert to KewUnknownCert")
         };
 
         let found_cert = found_cert
-            .should_have_signing_key()
+            .should_be_signed_with(&signing_key.public_key().into())
             .unwrap()
             .dangerously_assume_wellsigned()
             .dangerously_assume_timely();
 
         assert_eq!(
-            found_cert.cert_type(),
+            found_cert.as_ref().cert_type(),
             tor_cert::CertType::IDENTITY_V_SIGNING
         );
-        assert_eq!(found_cert.expiry(), cert_exp);
+        assert_eq!(found_cert.as_ref().expiry(), cert_exp);
         assert_eq!(
-            found_cert.signing_key(),
+            found_cert.as_ref().signing_key(),
             Some(&signing_key.public_key().into())
         );
         assert_eq!(
-            found_cert.subject_key().as_ed25519(),
-            Some(&subject_key.public_key().into())
+            found_cert.subject_key().unwrap(),
+            &subject_key.public_key().into()
         );
     }
 }
