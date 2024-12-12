@@ -101,6 +101,7 @@ impl PowManager {
 
     // Called from IptManager::idempotently_progress_things_now
     // Would be called in our update loop instead of there, if we took that path
+    // This will also handle deleting old ReplayLog files.
     pub(crate) fn rotate_seeds_if_expiring(&mut self, now: TrackingNow);
 
     // Called from publisher Reactor::upload_for_time_period
