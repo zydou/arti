@@ -163,7 +163,25 @@ pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum InvalidCertError {
-    // TODO
+    /// An error caused by a key certificate with an invalid signature.
+    #[error("Invalid signature")]
+    CertSignature(#[from] tor_cert::CertError),
+
+    /// An error caused by an untimely key certificate.
+    #[error("Certificate is expired or not yet valid")]
+    TimeValidity(#[from] tor_checkable::TimeValidityError),
+
+    /// A key certificate with an unexpected subject key algorithm.
+    #[error("Unexpected subject key algorithm")]
+    InvalidSubjectKeyAlgorithm,
+
+    /// An error caused by a key certificate with an unexpected subject key.
+    #[error("Certificate certifies the wrong key")]
+    SubjectKeyMismatch,
+
+    /// An error caused by a key certificate with an unexpected `CertType`.
+    #[error("Unexpected cert type")]
+    CertType(tor_cert::CertType),
 }
 
 impl Keygen for curve25519::StaticKeypair {
