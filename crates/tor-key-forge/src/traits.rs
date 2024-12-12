@@ -342,6 +342,15 @@ impl ItemType for crate::EncodedEd25519Cert {
     }
 }
 
+impl ItemType for crate::ParsedEd25519Cert {
+    fn item_type() -> KeystoreItemType
+    where
+        Self: Sized,
+    {
+        CertType::Ed25519TorCert.into()
+    }
+}
+
 impl EncodableItem for crate::EncodedEd25519Cert {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         Ok(CertData::TorEd25519Cert(self.clone()).into())
