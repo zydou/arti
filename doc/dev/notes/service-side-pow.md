@@ -55,12 +55,14 @@ update loop is just a small change if we decide that's better.
 This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
-pub(crate) struct PowManager {
-    // TODO: perhaps this could all go in the same datastructure
-    seeds: RwLock<HashMap<TimePeriod, ArrayVec<Seed, 2>>>,
-    verifiers: RwLock<HashMap<SeedHead, Verifier>>,
+struct PowVerifiers {
+    seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
+    verifiers: HashMap<SeedHead, Verifier>,
+}
 
-    expiration_time: Mutex<SystemTime>,
+pub(crate) struct PowManager {
+    verifiers: RwLock<PowVerifiers>,
+    next_expiration_time: Mutex<SystemTime>,
 
     // For the initial implementation
     used_nonces: Mutex<HashSet<(SeedHead, Nonce)>>,
