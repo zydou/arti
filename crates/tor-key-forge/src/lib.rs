@@ -50,7 +50,7 @@ mod macros;
 mod ssh;
 mod traits;
 
-pub use certs::CertData;
+pub use certs::{CertData, ParsedEd25519Cert, ValidatedEd25519Cert};
 pub use err::Error;
 pub use key_type::{CertType, KeyType, KeystoreItemType};
 pub use ssh::{SshKeyAlgorithm, SshKeyData};
