@@ -35,3 +35,43 @@ pub fn gen_link_cert(
         .cert_key(CertifiedKey::Ed25519(kp_link_id.to_ed25519_id()))
         .encode_and_sign(kp_relaysign_id)
 }
+
+/// Certificate for the medium-term relay signing key (`K_relaysign_ed`).
+///
+/// This is an ed25519 certificate encoded in Tor's
+/// [certificate format](https://spec.torproject.org/cert-spec.html#ed-certs)
+/// with [`CERT_KEY_TYPE`](https://spec.torproject.org/cert-spec.html#list-key-types)
+/// set to `ed25519` (`01`),
+/// and the [`CERT_TYPE`](https://spec.torproject.org/cert-spec.html#list-cert-types)
+/// set to `IDENTITY_V_SIGNING` (`04`).
+///
+/// The signing key is the relay identity key (`K_relayid_ed`)`).
+#[derive(Debug, Clone, PartialEq, derive_more::From)]
+pub struct RelaySigningKeyCert(EncodedEd25519Cert);
+
+impl RelaySigningKeyCert {
+    /// Return the `CertType` of this cert.
+    fn cert_type() -> CertType {
+        CertType::IDENTITY_V_SIGNING
+    }
+}
+
+/// Certificate for the short-term signing keypair for link authentication.
+///
+/// This is an ed25519 certificate encoded in Tor's
+/// [certificate format](https://spec.torproject.org/cert-spec.html#ed-certs)
+/// with [`CERT_KEY_TYPE`](https://spec.torproject.org/cert-spec.html#list-key-types)
+/// set to `ed25519` (`01`),
+/// and the [`CERT_TYPE`](https://spec.torproject.org/cert-spec.html#list-cert-types)
+/// set to `SIGNING_V_LINK_AUTH` (`06`).
+///
+/// The signing key is the relay identity key (`K_relayid_ed`)`).
+#[derive(Debug, Clone, PartialEq, derive_more::From)]
+pub struct RelayLinkSigningKeyCert(EncodedEd25519Cert);
+
+impl RelayLinkSigningKeyCert {
+    /// Return the `CertType` of this cert.
+    fn cert_type() -> CertType {
+        CertType::SIGNING_V_LINK_AUTH
+    }
+}

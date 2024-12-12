@@ -47,4 +47,4 @@ pub mod certs;
 pub mod pk;
 
 // Pleasant re-export.
-pub use certs::{gen_link_cert, gen_signing_cert};
+pub use certs::{gen_link_cert, gen_signing_cert, RelayLinkSigningKeyCert, RelaySigningKeyCert};
