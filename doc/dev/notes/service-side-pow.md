@@ -58,11 +58,11 @@ This `pow` module exists in the `tor-hsservice` crate:
 struct PowVerifiers {
     seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
     verifiers: HashMap<SeedHead, Verifier>,
+    next_expiration_time: SystemTime,
 }
 
 pub(crate) struct PowManager {
     verifiers: RwLock<PowVerifiers>,
-    next_expiration_time: Mutex<SystemTime>,
 
     // For the initial implementation
     used_nonces: Mutex<HashSet<(SeedHead, Nonce)>>,
