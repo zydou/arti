@@ -3,6 +3,9 @@
 use std::time::SystemTime;
 
 use tor_cert::{CertEncodeError, CertType, CertifiedKey, Ed25519Cert, EncodedEd25519Cert};
+use tor_checkable::{SelfSigned, Timebound};
+use tor_key_forge::{InvalidCertError, ParsedEd25519Cert, ToEncodableCert};
+use tor_llcrypto::pk::ed25519::{self, Ed25519Identity};
 
 use crate::pk::{RelayIdentityKeypair, RelayLinkSigningKeypair, RelaySigningKeypair};
 
@@ -74,4 +77,91 @@ impl RelayLinkSigningKeyCert {
     fn cert_type() -> CertType {
         CertType::SIGNING_V_LINK_AUTH
     }
+}
+
+impl ToEncodableCert<RelaySigningKeypair> for RelaySigningKeyCert {
+    type ParsedCert = ParsedEd25519Cert;
+    type EncodableCert = EncodedEd25519Cert;
+    type SigningKey = RelayIdentityKeypair;
+
+    fn validate(
+        cert: Self::ParsedCert,
+        subject: &RelaySigningKeypair,
+        signed_with: &Self::SigningKey,
+    ) -> Result<Self, InvalidCertError> {
+        // TODO: take the time/time provider as an arg?
+        let now = SystemTime::now();
+        validate_ed25519_cert(
+            cert,
+            &subject.public().into(),
+            &signed_with.public().into(),
+            Self::cert_type(),
+            &now,
+        )
+        .map(RelaySigningKeyCert::from)
+    }
+
+    fn to_encodable_cert(self) -> Self::EncodableCert {
+        self.0
+    }
+}
+
+impl ToEncodableCert<RelayLinkSigningKeypair> for RelayLinkSigningKeyCert {
+    type ParsedCert = ParsedEd25519Cert;
+    type EncodableCert = EncodedEd25519Cert;
+    type SigningKey = RelaySigningKeypair;
+
+    fn validate(
+        cert: Self::ParsedCert,
+        subject: &RelayLinkSigningKeypair,
+        signed_with: &Self::SigningKey,
+    ) -> Result<Self, InvalidCertError> {
+        // TODO: take the time/time provider as an arg?
+        let now = SystemTime::now();
+        validate_ed25519_cert(
+            cert,
+            &subject.public().into(),
+            &signed_with.public().into(),
+            Self::cert_type(),
+            &now,
+        )
+        .map(RelayLinkSigningKeyCert::from)
+    }
+
+    fn to_encodable_cert(self) -> Self::EncodableCert {
+        self.0
+    }
+}
+
+/// Validate the specified `cert`, checking that
+///    * its [`CertType`] is `cert_type, and
+///    * its subject key is `subject`, and
+///    * it is signed with the `signed_with` key, and
+///    * it is timely (it is not expired or not yet valid at the specified `ts`)
+fn validate_ed25519_cert(
+    cert: ParsedEd25519Cert,
+    subject: &ed25519::PublicKey,
+    signed_with: &ed25519::PublicKey,
+    cert_type: CertType,
+    ts: &SystemTime,
+) -> Result<EncodedEd25519Cert, InvalidCertError> {
+    let cert = cert
+        .should_be_signed_with(&Ed25519Identity::from(signed_with))?
+        .check_signature()?;
+
+    let cert = cert.check_valid_at(ts)?;
+    let subject = Ed25519Identity::from(subject);
+
+    if subject != *cert.subject_key()? {
+        return Err(InvalidCertError::SubjectKeyMismatch);
+    }
+
+    let actual_cert_type = cert.as_ref().cert_type();
+    if actual_cert_type != cert_type {
+        return Err(InvalidCertError::CertType(actual_cert_type));
+    }
+
+    // TODO: validate the extensions?
+
+    Ok(cert.into_encoded())
 }

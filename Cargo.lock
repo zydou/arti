@@ -6358,9 +6358,11 @@ dependencies = [
  "derive_more",
  "humantime",
  "tor-cert",
+ "tor-checkable",
  "tor-error",
  "tor-key-forge",
  "tor-keymgr",
+ "tor-llcrypto",
  "tor-persist",
 ]
 
