@@ -106,7 +106,7 @@ impl PowManager {
     pub(crate) fn get_pow_params(&self, time_period: TimePeriod) -> PowParams;
 
     // This is called from RendQueueSender
-    pub(crate) fn check_solve(solve: ProofOfWorkV1) -> Result<(), PowSolveError>;
+    fn check_solve(solve: ProofOfWorkV1) -> Result<(), PowSolveError>;
 }
 
 pub(crate) enum PowSolveError {
