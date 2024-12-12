@@ -324,15 +324,6 @@ impl EncodableItem for ed25519::ExpandedKeypair {
     }
 }
 
-impl ItemType for crate::KeyUnknownCert {
-    fn item_type() -> KeystoreItemType
-    where
-        Self: Sized,
-    {
-        CertType::Ed25519TorCert.into()
-    }
-}
-
 impl ItemType for crate::EncodedEd25519Cert {
     fn item_type() -> KeystoreItemType
     where
