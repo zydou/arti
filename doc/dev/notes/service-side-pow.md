@@ -79,6 +79,7 @@ pub(crate) struct PowManager {
 
 // type that can be serialized / deserialized to disk
 // we may just want to implement the serde traits on the PowManager directly instead, if that's easy
+// This will be a member of StateRecord in tor-hsservice/src/ipt_mgr/persist.rs
 pub(crate) struct PowManagerRecord {
     // seeds
     // expiration time
