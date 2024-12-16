@@ -1342,6 +1342,7 @@ mod test {
     use super::*;
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
+    use crate::congestion::sendme;
     use crate::crypto::cell::RelayCellBody;
     #[cfg(feature = "ntor_v3")]
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
