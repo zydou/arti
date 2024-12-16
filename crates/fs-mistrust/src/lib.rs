@@ -251,7 +251,7 @@ impl MistrustBuilder {
     /// Configure this [`MistrustBuilder`] to become disabled based on the
     /// environment variable `var`.
     ///
-    /// (If the variable is "false", "no", or "0", it will be treated as
+    /// (If the variable is "false", "no", "never", "n", "0", or "", it will be treated as
     /// false; other values are treated as true.)
     ///
     /// If `var` is not set, then we'll look at
@@ -279,7 +279,7 @@ impl MistrustBuilder {
     /// Configure this [`MistrustBuilder`] to become disabled based on the
     /// environment variable `$FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS` only,
     ///
-    /// (If the variable is "false", "no", "0", or "", it will be treated as
+    /// (If the variable is "false", "no", "never", "n", "0", or "", it will be treated as
     /// false; other values are treated as true.)
     ///
     /// This is the default.
