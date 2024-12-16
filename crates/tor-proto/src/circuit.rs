@@ -46,7 +46,6 @@ mod handshake;
 mod msghandler;
 mod path;
 pub(crate) mod reactor;
-pub(crate) mod sendme;
 mod streammap;
 mod unique_id;
 
