@@ -25,9 +25,9 @@ use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::handshake::{BoxedClientLayer, HandshakeRole};
 use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
-    sendme, streammap, CircParameters, CircuitRxReceiver, Create2Wrap, CreateFastWrap,
-    CreateHandshakeWrap,
+    streammap, CircParameters, CircuitRxReceiver, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
 };
+use crate::congestion::{sendme, CongestionControl};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
@@ -69,10 +69,9 @@ use std::task::{Context, Poll};
 
 use crate::channel::{Channel, ChannelSender};
 use crate::circuit::path;
-#[cfg(test)]
-use crate::circuit::sendme::CircTag;
-use crate::circuit::sendme::StreamSendWindow;
 use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
+#[cfg(test)]
+use crate::congestion::sendme::CircTag;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use derive_deftly::Deftly;
@@ -318,7 +317,7 @@ pub(super) enum CtrlMsg {
     #[cfg(test)]
     QuerySendWindow {
         hop: HopNum,
-        done: ReactorResultChannel<(u16, Vec<CircTag>)>,
+        done: ReactorResultChannel<(u32, Vec<CircTag>)>,
     },
     /// (tests only) Send a raw relay cell with send_relay_cell().
     #[cfg(test)]
@@ -336,10 +335,10 @@ pub(super) struct CircHop {
     /// reactor needs it for every incoming cell on a stream, whereas
     /// the circuit only needs it when allocating new streams.
     map: streammap::StreamMap,
-    /// Window used to say how many cells we can receive.
-    recvwindow: sendme::CircRecvWindow,
-    /// Window used to say how many cells we can send.
-    sendwindow: sendme::CircSendWindow,
+    /// Congestion control object.
+    ///
+    /// This object is also in charge of handling circuit level SENDME logic for this hop.
+    ccontrol: CongestionControl,
     /// Decodes relay cells received from this hop.
     inbound: RelayCellDecoder,
 }
@@ -355,11 +354,10 @@ enum CellStatus {
 
 impl CircHop {
     /// Create a new hop.
-    pub(super) fn new(format: RelayCellFormat, initial_window: u16) -> Self {
+    pub(super) fn new(format: RelayCellFormat, params: &CircParameters) -> Self {
         CircHop {
             map: streammap::StreamMap::new(),
-            recvwindow: sendme::CircRecvWindow::new(1000),
-            sendwindow: sendme::CircSendWindow::new(initial_window),
+            ccontrol: CongestionControl::new(&params.ccontrol),
             inbound: RelayCellDecoder::new(format),
         }
     }
@@ -908,7 +906,7 @@ impl Reactor {
                     // an END message in the channel).
                     break;
                 }
-                if self.hops[i].sendwindow.window() == 0 {
+                if !self.hops[i].ccontrol.can_send() {
                     // We can't send anything on this hop that counts towards SENDME windows.
                     //
                     // In theory we could send messages that don't count towards
@@ -1269,7 +1267,7 @@ impl Reactor {
         binding: Option<CircuitBinding>,
         params: &CircParameters,
     ) {
-        let hop = crate::circuit::reactor::CircHop::new(format, 1000);
+        let hop = crate::circuit::reactor::CircHop::new(format, params);
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
@@ -1371,11 +1369,11 @@ impl Reactor {
     fn handle_sendme(&mut self, hopnum: HopNum, msg: Sendme) -> Result<CellStatus> {
         // No need to call "shutdown" on errors in this function;
         // it's called from the reactor task and errors will propagate there.
-        let hop = self
+        let _hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto(format!("Couldn't find hop {}", hopnum.display())))?;
 
-        let auth: Option<[u8; 20]> = match msg.into_tag() {
+        let _auth: Option<[u8; 20]> = match msg.into_tag() {
             Some(v) => {
                 if let Ok(tag) = <[u8; 20]>::try_from(v) {
                     Some(tag)
@@ -1389,7 +1387,8 @@ impl Reactor {
                 return Err(Error::CircProto("missing tag on circuit sendme".into()));
             }
         };
-        hop.sendwindow.put(auth)?;
+        // TODO: Update the CC object that we received a SENDME. We require congestion signals
+        // taken from the reactor state. We'll do this in its own commit.
         Ok(CellStatus::Continue)
     }
 
@@ -1472,10 +1471,10 @@ impl Reactor {
         } else {
             AnyChanMsg::Relay(msg)
         };
-        // If the cell counted towards our sendme window, decrement
-        // that window, and maybe remember the authentication tag.
+        // The cell counted for congestion control, inform our algorithm of such and pass down the
+        // tag for authenticated SENDMEs.
         if c_t_w {
-            circhop.sendwindow.take(tag)?;
+            circhop.ccontrol.note_data_sent(tag)?;
         }
         self.send_msg_direct(cx, msg)
     }
@@ -1692,7 +1691,7 @@ impl Reactor {
             #[cfg(test)]
             CtrlMsg::QuerySendWindow { hop, done } => {
                 let _ = done.send(if let Some(hop) = self.hop_mut(hop) {
-                    Ok(hop.sendwindow.window_and_expected_tags())
+                    Ok(hop.ccontrol.send_window_and_expected_tags())
                 } else {
                     Err(Error::from(internal!(
                         "received QuerySendWindow for unknown hop {}",
@@ -1722,7 +1721,7 @@ impl Reactor {
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::from(internal!("No such hop {}", hopnum.display())))?;
-        let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
+        let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
         let r = hop.map.add_ent(sender, rx, send_window, cmd_checker)?;
         let cell = AnyRelayMsgOuter::new(Some(r), message);
         self.send_relay_cell(cx, hopnum, false, cell)?;
@@ -1828,10 +1827,10 @@ impl Reactor {
         // Decrement the circuit sendme windows, and see if we need to
         // send a sendme cell.
         let send_circ_sendme = if c_t_w {
-            let hop = self
-                .hop_mut(hopnum)
-                .ok_or_else(|| Error::CircProto("Sendme from nonexistent hop".into()))?;
-            hop.recvwindow.take()?
+            self.hop_mut(hopnum)
+                .ok_or_else(|| Error::CircProto("Sendme from nonexistent hop".into()))?
+                .ccontrol
+                .note_data_received()?
         } else {
             false
         };
@@ -1844,6 +1843,7 @@ impl Reactor {
             let sendme = Sendme::new_tag(tag);
             let cell = AnyRelayMsgOuter::new(None, sendme.into());
             self.send_relay_cell(cx, hopnum, false, cell)?;
+            // Inform congestion control of the SENDME we are sending. This is a circuit level one.
             self.hop_mut(hopnum)
                 .ok_or_else(|| {
                     Error::from(internal!(
@@ -1851,8 +1851,8 @@ impl Reactor {
                         hopnum
                     ))
                 })?
-                .recvwindow
-                .put()?;
+                .ccontrol
+                .note_sendme_sent()?;
         }
 
         let (mut msgs, incomplete) = decode_res.into_parts();
@@ -2075,7 +2075,7 @@ impl Reactor {
         let (msg_tx, msg_rx) = MpscSpec::new(super::CIRCUIT_BUFFER_SIZE)
             .new_mq(time_prov, memquota.as_raw_account())?;
 
-        let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
+        let send_window = sendme::StreamSendWindow::new(SEND_WINDOW_INIT);
         let cmd_checker = DataCmdChecker::new_connected();
         hop.map
             .add_ent_with_id(sender, msg_rx, send_window, stream_id, cmd_checker)?;

@@ -3,7 +3,7 @@
 //! A half-closed stream is one that we've sent an END on, but where
 //! we might still receive some cells.
 
-use crate::circuit::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
+use crate::congestion::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
 use crate::{Error, Result};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
@@ -87,7 +87,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::{
-        circuit::sendme::{StreamRecvWindow, StreamSendWindow},
+        congestion::sendme::{StreamRecvWindow, StreamSendWindow},
         stream::DataCmdChecker,
     };
     use rand::{CryptoRng, Rng};
@@ -112,7 +112,7 @@ mod test {
         let mut rng = testing_rng();
 
         let mut sendw = StreamSendWindow::new(101);
-        sendw.take(&())?; // Make sure that it will accept one sendme.
+        sendw.take()?; // Make sure that it will accept one sendme.
 
         let mut hs = HalfStream::new(
             StreamSendFlowControl::new_window_based(sendw),

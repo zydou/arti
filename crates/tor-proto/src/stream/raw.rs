@@ -1,11 +1,11 @@
 //! Declare the lowest level of stream: a stream that operates on raw
 //! cells.
 
-use crate::circuit::{sendme, StreamTarget};
+use crate::circuit::StreamTarget;
+use crate::congestion::sendme;
 use crate::{Error, Result};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
 
-use crate::circuit::sendme::StreamRecvWindow;
 use crate::circuit::StreamMpscReceiver;
 use futures::stream::StreamExt;
 
@@ -28,7 +28,7 @@ pub struct StreamReader {
     /// actually reads things, meaning we don't ask for more data until it's actually needed (as
     /// opposed to having the reactor assume we're always reading, and potentially overwhelm itself
     /// with having to buffer data).
-    pub(crate) recv_window: StreamRecvWindow,
+    pub(crate) recv_window: sendme::StreamRecvWindow,
     /// Whether or not this stream has ended.
     pub(crate) ended: bool,
 }
@@ -52,7 +52,7 @@ impl StreamReader {
 
         if sendme::cell_counts_towards_windows(&msg) && self.recv_window.take()? {
             self.target.send_sendme()?;
-            self.recv_window.put()?;
+            self.recv_window.put();
         }
 
         Ok(msg)

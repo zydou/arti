@@ -87,7 +87,7 @@ use {
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
-use crate::circuit::sendme::StreamRecvWindow;
+use crate::congestion::sendme::StreamRecvWindow;
 use futures::{FutureExt as _, SinkExt as _};
 use std::net::IpAddr;
 use std::pin::Pin;
