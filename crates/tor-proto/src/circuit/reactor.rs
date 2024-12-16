@@ -27,7 +27,7 @@ use crate::circuit::unique_id::UniqId;
 use crate::circuit::{
     streammap, CircParameters, CircuitRxReceiver, Create2Wrap, CreateFastWrap, CreateHandshakeWrap,
 };
-use crate::congestion::{sendme, CongestionControl};
+use crate::congestion::{sendme, CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
@@ -980,6 +980,14 @@ impl Reactor {
         Ok(())
     }
 
+    /// Return the congestion signals for this reactor. This is used by congestion control module.
+    fn congestion_signals(&mut self, cx: &mut Context<'_>) -> CongestionSignals {
+        CongestionSignals::new(
+            self.chan_sender.poll_ready_unpin_bool(cx).unwrap_or(false),
+            self.chan_sender.n_queued(),
+        )
+    }
+
     /// Wait for a [`CtrlMsg::Create`] to come along to set up the circuit.
     ///
     /// Returns an error if an unexpected `CtrlMsg` is received.
@@ -1298,7 +1306,7 @@ impl Reactor {
                 .map_err(|e| Error::from_bytes_err(e, "sendme message"))?
                 .into_msg();
 
-            return self.handle_sendme(hopnum, sendme);
+            return self.handle_sendme(cx, hopnum, sendme);
         }
         if msg.cmd() == RelayCmd::TRUNCATED {
             let truncated = msg
@@ -1366,17 +1374,23 @@ impl Reactor {
     }
 
     /// Handle a RELAY_SENDME cell on this circuit with stream ID 0.
-    fn handle_sendme(&mut self, hopnum: HopNum, msg: Sendme) -> Result<CellStatus> {
+    fn handle_sendme(
+        &mut self,
+        cx: &mut Context<'_>,
+        hopnum: HopNum,
+        msg: Sendme,
+    ) -> Result<CellStatus> {
+        let signals = self.congestion_signals(cx);
         // No need to call "shutdown" on errors in this function;
         // it's called from the reactor task and errors will propagate there.
-        let _hop = self
+        let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto(format!("Couldn't find hop {}", hopnum.display())))?;
 
-        let _auth: Option<[u8; 20]> = match msg.into_tag() {
+        let tag = match msg.into_tag() {
             Some(v) => {
                 if let Ok(tag) = <[u8; 20]>::try_from(v) {
-                    Some(tag)
+                    tag.into()
                 } else {
                     return Err(Error::CircProto("malformed tag on circuit sendme".into()));
                 }
@@ -1387,8 +1401,8 @@ impl Reactor {
                 return Err(Error::CircProto("missing tag on circuit sendme".into()));
             }
         };
-        // TODO: Update the CC object that we received a SENDME. We require congestion signals
-        // taken from the reactor state. We'll do this in its own commit.
+        // Update the CC object that we received a SENDME along with possible congestion signals.
+        hop.ccontrol.note_sendme_received(tag, signals)?;
         Ok(CellStatus::Continue)
     }
 

@@ -94,6 +94,11 @@ impl<T, S: Sink<T>> SometimesUnboundedSink<T, S> {
         }
     }
 
+    /// Return the number of T queued in this sink.
+    pub(crate) fn n_queued(&self) -> usize {
+        self.buf.len()
+    }
+
     /// Hand `item` to the inner Sink if possible, or queue it otherwise
     ///
     /// Like a `poll_...` method in that it takes a `Context`.
