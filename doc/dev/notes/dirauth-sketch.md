@@ -6,6 +6,7 @@
  * exchange server submissions with other dirauths
    (acting as a full normal dircache is one way to do this,
    but perhaps a more limited form of dircache is sufficient).
+ * participate in the shared random protocol
  * perform some reachability tests for candidate relays
    - includes tracking reachability over time
      (and thus computing Stable and Guard flags)
