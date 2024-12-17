@@ -138,6 +138,15 @@ impl SocketAddr {
             }
         }
     }
+
+    /// If this address has an associated filesystem path,
+    /// return that path.
+    pub fn as_pathname(&self) -> Option<&Path> {
+        match self {
+            SocketAddr::Inet(_) => None,
+            SocketAddr::Unix(socket_addr) => socket_addr.as_pathname(),
+        }
+    }
 }
 
 /// Lossy display for a [`SocketAddr`].
