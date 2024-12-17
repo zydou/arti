@@ -55,6 +55,11 @@ pub(crate) enum Disable {
 /// None.
 #[allow(clippy::match_like_matches_macro)]
 fn from_env_var_value(input: std::result::Result<String, VarError>) -> Option<Status> {
+    // WARNING: This behaviour of the environment variable parsing/evaluation is considered
+    // stable and should not be modified unless necessary.
+    // This behaviour is part of the public interface of applications which use fs-mistrust,
+    // so changing the behaviour of this function may result in a breaking change for applications.
+
     let mut s = match input {
         Ok(s) => s,
         Err(VarError::NotPresent) => return None,
@@ -128,6 +133,12 @@ mod test {
         assert_eq!(
             from_env_var_value(Err(VarError::NotUnicode("".into()))),
             Some(Status::DisableChecks)
+        );
+
+        // see https://gitlab.torproject.org/tpo/core/arti/-/issues/1782
+        assert_eq!(
+            from_env_var_value(Ok("false ".to_string())),
+            Some(Status::DisableChecks),
         );
     }
 }

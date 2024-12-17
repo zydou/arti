@@ -107,6 +107,31 @@ pub use user::{TrustedGroup, TrustedUser};
 ///  
 /// See the [crate documentation](crate) for more information.
 ///
+/// # Environment variables
+///
+/// The [`Mistrust`] can be configured to consider an environment variable.
+/// See [`MistrustBuilder::controlled_by_default_env_var`] and similar methods.
+///
+/// Names that seem to say "don't disable" are treated as "false". Any
+/// other value is treated as "true".  (That is, we err on the side of
+/// assuming that if you set a disable variable, you meant to disable.)
+///
+/// If the `Mistrust` is configured to use an environment variable,
+/// this environment variable typically becomes part of the application's public interface,
+/// so this library commits to a stable behaviour for parsing these variables.
+/// Specifically the following case-insensitive strings are considered "false":
+/// "false", "no", "never", "n", "0", "".
+///
+/// Examples using the default environment variable:
+///
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="false"` — checks enabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="NO"` — checks enabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS=0` — checks enabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS=` — checks enabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="false "` — checks disabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="true"` — checks disabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="asdf"` — checks disabled
+///
 /// # TODO
 ///
 /// *  support more kinds of trust configuration, including more trusted users,
@@ -251,8 +276,8 @@ impl MistrustBuilder {
     /// Configure this [`MistrustBuilder`] to become disabled based on the
     /// environment variable `var`.
     ///
-    /// (If the variable is "false", "no", "never", "n", "0", or "", it will be treated as
-    /// false; other values are treated as true.)
+    /// See [`Mistrust`](Mistrust#environment-variables) for details about
+    /// the handling of the environment variable.
     ///
     /// If `var` is not set, then we'll look at
     /// `$FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS`.
@@ -263,6 +288,9 @@ impl MistrustBuilder {
 
     /// Like `controlled_by_env_var`, but do not override any previously set
     /// environment settings.
+    ///
+    /// See [`Mistrust`](Mistrust#environment-variables) for details about
+    /// the handling of the environment variable.
     ///
     /// (The `arti-client` wants this, so that it can inform a caller-supplied
     /// `MistrustBuilder` about its Arti-specific env var, but only if the
@@ -279,8 +307,8 @@ impl MistrustBuilder {
     /// Configure this [`MistrustBuilder`] to become disabled based on the
     /// environment variable `$FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS` only,
     ///
-    /// (If the variable is "false", "no", "never", "n", "0", or "", it will be treated as
-    /// false; other values are treated as true.)
+    /// See [`Mistrust`](Mistrust#environment-variables) for details about
+    /// the handling of the environment variable.
     ///
     /// This is the default.
     pub fn controlled_by_default_env_var(&mut self) -> &mut Self {
