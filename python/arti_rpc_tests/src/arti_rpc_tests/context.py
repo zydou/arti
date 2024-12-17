@@ -42,11 +42,32 @@ class TestContext:
         cache_dir = path.joinpath("cache")
         state_dir = path.joinpath("state")
         socket_path = path.joinpath("arti_rpc.socket")
+        connpt_path = path.joinpath("arti_connpt.toml")
         socks_port = 15986  # "chosen by fair dice roll. guaranteed to be random."
+
+        with open(connpt_path, "w") as f:
+            f.write(
+                f"""
+[connect]
+socket = "unix:{socket_path}"
+auth = "none"
+"""
+            )
 
         configuration = {
             "rpc": {
-                "rpc_listen": str(socket_path),
+                "enable": True,
+                "listen": {
+                    "user-default": {
+                        "enable": False,
+                    },
+                    "system-default": {
+                        "enable": False,
+                    },
+                    "test-point": {
+                        "file": str(connpt_path),
+                    },
+                },
             },
             "storage": {
                 "cache_dir": str(cache_dir),
@@ -62,6 +83,7 @@ class TestContext:
         self.arti_binary = arti_binary
         self.conf_file = conf_file
         self.socket_path = socket_path
+        self.connpt_path = connpt_path
         self.arti_process = None
 
     def launch_arti(self):
@@ -79,13 +101,8 @@ class TestContext:
         """
         Open an RPC connection to Arti.
         """
-        connect_string = f"""
-[connect]
-socket = "unix:{self.socket_path}"
-auth = "none"
-"""
         bld = arti_rpc.ArtiRpcConnBuilder()
-        bld.prepend_literal_connect_point(connect_string)
+        bld.prepend_literal_path(str(self.connpt_path))
         return bld.connect()
 
     def arti_process_is_running(self) -> bool:
