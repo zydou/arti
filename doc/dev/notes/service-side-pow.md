@@ -57,7 +57,7 @@ This `pow` module exists in the `tor-hsservice` crate:
 ```rust
 pub(crate) struct PowManager(RwLock<State>)
 
-pub(crate) struct State {
+struct State {
     seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
 
     verifiers: HashMap<SeedHead, Verifier>,
