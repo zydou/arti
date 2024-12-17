@@ -1,5 +1,7 @@
 //! Server operations for working with connect points.
 
+use std::{io, path::PathBuf};
+
 use crate::{
     auth::{Cookie, RpcAuth},
     ConnectError, ResolvedConnectPoint,
@@ -15,6 +17,33 @@ pub struct Listener {
     pub listener: tor_rtcompat::general::Listener,
     /// The authentication to require from incoming connections.
     pub auth: RpcAuth,
+    /// An object we must hold for as long as we're listening on this socket.
+    pub guard: Guard,
+}
+
+/// An object to control shutdown for a listener.  We should drop it only when we're no longer
+/// listening on the socket.
+//
+// TODO It might be neat to combine this with the stream of requests from listener,
+// so that we can't accidentally drop one prematurely.
+pub struct Guard {
+    /// A handle to a file that should be deleted when this is dropped.
+    #[allow(unused)]
+    rm_guard: Option<UnlinkOnDrop>,
+    /// A handle to a lockfile on disk.
+    //
+    // (Note that this field is ordered after rm_guard:
+    // rust guarantees that fields are dropped in order.)
+    #[allow(unused)]
+    lock_guard: Option<fslock_guard::LockFileGuard>,
+}
+
+/// Object that unlinks a file when it is dropped.
+struct UnlinkOnDrop(PathBuf);
+impl Drop for UnlinkOnDrop {
+    fn drop(&mut self) {
+        let _ignore = std::fs::remove_file(&self.0);
+    }
 }
 
 impl ResolvedConnectPoint {
@@ -47,10 +76,40 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
     where
         R: NetStreamProvider<general::SocketAddr, Listener = tor_rtcompat::general::Listener>,
     {
-        if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref())? {
+        if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref()) {
             // TODO RPC: Revisit this and other uses of make_directory; do we really want to do so?
             mistrust.make_directory(sock_parent_dir)?;
         }
+
+        let guard = if let Some(socket_path) = self.socket.as_ref().as_pathname() {
+            // This socket has a representation in the filesystem.
+            // We need to grab an associated lock to make sure that we don't grab the
+            // same socket from two different processes...
+            let lock_path = {
+                let mut p = socket_path.to_owned();
+                p.as_mut_os_string().push(".lock");
+                p
+            };
+            let lock_guard = Some(fslock_guard::LockFileGuard::lock(lock_path)?);
+            // ... and we need to remove the socket, or we won't be able to bind to it.
+            match std::fs::remove_file(socket_path) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(other) => return Err(other.into()),
+            }
+
+            let rm_guard = Some(UnlinkOnDrop(socket_path.to_owned()));
+            Guard {
+                rm_guard,
+                lock_guard,
+            }
+        } else {
+            Guard {
+                rm_guard: None,
+                lock_guard: None,
+            }
+        };
+
         let listener = runtime.listen(self.socket.as_ref()).await?;
 
         // We try to bind to the listener before we (maybe) create the cookie file,
@@ -64,6 +123,10 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
             crate::connpt::Auth::Unrecognized {} => return Err(ConnectError::UnsupportedAuthType),
         };
 
-        Ok(Listener { listener, auth })
+        Ok(Listener {
+            listener,
+            auth,
+            guard,
+        })
     }
 }

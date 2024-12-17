@@ -6401,6 +6401,7 @@ dependencies = [
  "derive_builder_fork_arti",
  "derive_more",
  "fs-mistrust",
+ "fslock-guard",
  "rand",
  "safelog",
  "serde",

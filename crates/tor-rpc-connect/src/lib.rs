@@ -206,25 +206,10 @@ impl crate::HasClientErrorAction for ConnectError {
         }
     }
 }
-
 #[cfg(any(feature = "rpc-client", feature = "rpc-server"))]
 /// Given a `general::SocketAddr`, try to return the path of its parent directory (if any).
-fn socket_parent_path(
-    addr: &tor_general_addr::general::SocketAddr,
-) -> Result<Option<&std::path::Path>, ConnectError> {
-    use tor_general_addr::general::SocketAddr::Unix;
-    let Unix(address) = addr else {
-        // Only unix addresses have paths.
-        //
-        // TODO: Maybe we should have an as_pathname() for general::SocketAddr?
-        return Ok(None);
-    };
-
-    let dirpath = address
-        .as_pathname()
-        .and_then(|p| p.parent())
-        .ok_or(ConnectError::InvalidUnixAddress)?;
-    Ok(Some(dirpath))
+fn socket_parent_path(addr: &tor_general_addr::general::SocketAddr) -> Option<&std::path::Path> {
+    addr.as_pathname().and_then(|p| p.parent())
 }
 
 /// Default connect point for a user-owned Arti instance.
