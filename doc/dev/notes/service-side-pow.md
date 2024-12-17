@@ -55,20 +55,16 @@ update loop is just a small change if we decide that's better.
 This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
-struct PowVerifiers {
+pub(crate) struct PowManager(RwLock<State>)
+
+pub(crate) struct State {
     seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
+
     verifiers: HashMap<SeedHead, Verifier>,
+
     next_expiration_time: SystemTime,
-}
 
-pub(crate) struct PowManager {
-    verifiers: RwLock<PowVerifiers>,
-
-    // For the initial implementation
-    used_nonces: Mutex<HashSet<(SeedHead, Nonce)>>,
-
-    // For the final implementation
-    used_nonces: RwLock<HashMap<SeedHead, Mutex<ReplayLog<replay::ProofOfWork>>>>,
+    used_nonces: HashMap<SeedHead, Mutex<ReplayLog<replay::ProofOfWork>>>,
 
     total_effort: Mutex<Effort>,
 
@@ -133,6 +129,56 @@ pub(crate) struct RendQueueReceiver {
 
 impl Stream<RendRequest> for RendQueueReceiver;
 ```
+
+## Threads and locking
+
+We expect to have one (or possibly more, on powerful machines) PoW verification thread per IPT.
+
+From the PoW verification threads, the following tasks must be performed:
+
+* Checking PoW solves (requires a `&Verifier` for a given `SeedHead`)
+* Updating used nonces (requires a `&mut ReplayLog`)
+* Updating total effort (requires `&mut Effort`)
+
+From the update loop, the following tasks must be performed:
+
+* Updating the list of which `Verifier` instances are valid (requires `&mut` on the datastructure
+  containing `Verifier`s)
+* Updating the list of which `ReplayLog`s are valid (requires `&mut` on the datastructure
+  containing `ReplayLog`s)
+* Resetting total effort (requires `&mut Effort`)
+
+The updating of `Effort` and of any particular `ReplayLog` are fundamentally synchronous operations
+that must block. However, the checking of PoW solves only needs to block when the list of valid
+`Verifier`s is being updated.
+
+This can be accomplished by the proposed design, where:
+
+* Everything that needs to be updated upon seed rotation is behind a `RwLock`.
+  This allows concurrency between the verifier threads, while still letting us block to update the
+  list of which `Verifier`s and `ReplayLog`s are valid.
+* `ReplayLog`s will each be in a `Mutex`, allowing verification threads to exclusively update them
+  when needed, without blocking unnecessarily.
+* `Effort` is in a `Mutex` on its own, allowing verification threads to exclusively update it
+  without blocking unnecessarily.
+
+Essentially, this design is:
+
+* Put everything behind a `RwLock`
+* Put the things within that lock that need to be updated by verification threads behind `Mutex`es.
+
+### Alternatives
+
+* Put entire `PowManager` in a single `Mutex`
+  * This would force PoW verification to be limited by a global lock (which would be unacceptably
+    slow), unless we implemented some separate mechanism for each verification thread to only lock
+    the mutex to obtain a `Arc<Verifier>`, which would force us to implement some other method to
+    invalidate those on expiry. While that's definitely doable (for instance, by using a
+    `TimerangeBound<Verifier>`), it seems more complex than using a `RwLock`.
+  * This would also force updating the `ReplayLog` and updating the `Effort` to block each other,
+    which, while only a small slowdown, would be better avoided.
+* Put entire `HashMap<SeedHead, ReplayLog>` in a `Mutex`
+  * This would probably work fine, it just reduces concurrency without benefit.
 
 ## Making `ReplayLog` generic
 
