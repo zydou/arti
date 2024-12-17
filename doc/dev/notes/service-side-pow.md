@@ -162,6 +162,10 @@ This can be accomplished by the proposed design, where:
 * `Effort` is in a `Mutex` on its own, allowing verification threads to exclusively update it
   without blocking unnecessarily.
 
+Verification threads should only hold a lock on a single `Mutex` at a time. That will likely look
+like taking a lock on a `ReplayLog`, updating it, releasing it, then taking a lock on `Effort`,
+updating it, and releasing it.
+
 Essentially, this design is:
 
 * Put everything behind a `RwLock`
