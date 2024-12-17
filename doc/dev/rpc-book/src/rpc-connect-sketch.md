@@ -543,7 +543,7 @@ file = "/etc/arti-rpc/arti-rpc-connect.toml"
 [rpc.listen."a-directory"]
 dir = "/home/arti-rpc/rpc-connect.d/"
 # Override configuration options on individual members
-override = { "experimental.toml" : { "enable" : false } }
+file_options = { "experimental.toml" : { "enable" : false } }
 ```
 
 > These sections are given names so that the user

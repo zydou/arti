@@ -81,26 +81,25 @@ pub(crate) struct RpcListenerConfig {
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
     #[deftly(extend_builder(sub_builder))]
-    // XXXX rename this field, I think.
-    overrides: OverrideMap,
+    file_options: FileOptionsMap,
 }
 impl_standard_builder! { RpcListenerConfig: !Deserialize !Default }
 
 impl RpcListenerConfigBuilder {
     /// Return an error if this builder isn't valid.
     fn validate(&self) -> Result<(), ConfigBuildError> {
-        match (&self.file, &self.dir, self.overrides.is_empty()) {
-            // If "file" is present, dir and overrides must be absent.
+        match (&self.file, &self.dir, self.file_options.is_empty()) {
+            // If "file" is present, dir and file_options must be absent.
             (Some(_), None, true) => Ok(()),
-            // If "dir" is present, file must be absent and overrides can be whatever.
+            // If "dir" is present, file must be absent and file_options can be whatever.
             (None, Some(_), _) => Ok(()),
             // Otherwise, there's an error.
             (None, None, _) => Err(ConfigBuildError::MissingField {
                 field: "{file or dir}".into(),
             }),
             (_, _, _) => Err(ConfigBuildError::Inconsistent {
-                fields: vec!["file".into(), "dir".into(), "overrides".into()],
-                problem: "'file' is mutually exclusive with 'dir' and 'overrides'".into(),
+                fields: vec!["file".into(), "dir".into(), "file_options".into()],
+                problem: "'file' is mutually exclusive with 'dir' and 'file_options'".into(),
             }),
         }
     }
@@ -108,8 +107,8 @@ impl RpcListenerConfigBuilder {
 
 define_map_builder! {
     /// Builder for the `OverrideMap` within an `RpcListenerConfig`.
-    struct OverrideMapBuilder =>
-    type OverrideMap = BTreeMap<String, OverrideConfig>;
+    struct FileOptionsMapBuilder =>
+    type FileOptionsMap = BTreeMap<String, ConnectPointOptions>;
 }
 
 /// Configuration for overriding a single item in a connect point directory.
@@ -131,14 +130,14 @@ define_map_builder! {
 #[derive_deftly(ExtendBuilder)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
-struct OverrideConfig {
+struct ConnectPointOptions {
     /// Used to explicitly disable an entry in a connect point directory.
     #[builder(default = "true")]
     enable: bool,
 }
-impl_standard_builder! { OverrideConfig }
+impl_standard_builder! { ConnectPointOptions }
 
-impl OverrideConfig {
+impl ConnectPointOptions {
     /// Return a [`LoadOptions`] corresponding to this OverrideConfig.
     ///
     /// The `LoadOptions` will contain a subset of our own options,
@@ -172,25 +171,25 @@ impl RpcConnInfo {
     /// and `filename` (a filename within a connect point directory)
     /// to name the connect point.
     ///
-    /// Uses `auth` and `overrides` as settings to initialize new connections.
+    /// Uses `auth` and `file_options` as settings to initialize new connections.
     #[allow(clippy::unnecessary_wraps)]
     fn new(
         config_key: &str,
         filename: Option<&Path>,
         auth: RpcAuth,
-        overrides: Option<&BTreeMap<String, OverrideConfig>>,
+        file_options: Option<&BTreeMap<String, ConnectPointOptions>>,
     ) -> anyhow::Result<Self> {
         let name = match filename {
             Some(p) => format!("{} ({})", config_key, p.display_lossy()),
             None => config_key.to_string(),
         };
 
-        if let (Some(fname), Some(overrides)) = (filename, overrides) {
+        if let (Some(fname), Some(file_options)) = (filename, file_options) {
             // TODO RPC: We'll want to look at options here soon, once there are some.
             // We'll use them to configure permissions and so forth.
             let _ignore = fname
                 .to_str()
-                .and_then(|fname_as_str| overrides.get(fname_as_str));
+                .and_then(|fname_as_str| file_options.get(fname_as_str));
         }
 
         Ok(Self { name, auth })
@@ -247,7 +246,7 @@ impl RpcListenerConfig {
         if let Some(dir) = &self.dir {
             let dir = dir.path(resolver)?;
             let load_options: HashMap<std::path::PathBuf, LoadOptions> = self
-                .overrides
+                .file_options
                 .iter()
                 .map(|(s, or)| (s.into(), or.load_options()))
                 .collect();
@@ -288,7 +287,7 @@ impl RpcListenerConfig {
                         config_key,
                         Some(path.as_ref()),
                         auth,
-                        Some(&self.overrides),
+                        Some(&self.file_options),
                     )?),
                     guard,
                 ));
