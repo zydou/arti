@@ -7,6 +7,7 @@ use std::{
     str::FromStr as _,
     sync::Arc,
 };
+use tracing::debug;
 
 use derive_builder::Builder;
 use derive_deftly::Deftly;
@@ -242,6 +243,10 @@ impl RpcListenerConfig {
 
         if let Some(file) = &self.file {
             let file = file.path(resolver)?;
+            debug!(
+                "Binding to RPC connect point from {}",
+                file.anonymize_home()
+            );
             let ctx = |action| {
                 format!(
                     "Can't {} RPC connect point from {}",
@@ -276,6 +281,7 @@ impl RpcListenerConfig {
 
         if let Some(dir) = &self.dir {
             let dir = dir.path(resolver)?;
+            debug!("Reading RPC connect directory at {}", dir.anonymize_home());
             let load_options: HashMap<std::path::PathBuf, LoadOptions> = self
                 .file_options
                 .iter()
@@ -290,6 +296,7 @@ impl RpcListenerConfig {
                     )
                 })?;
             for (path, conn_pt_result) in dir_contents {
+                debug!("Binding to connect point from {}", path.display_lossy());
                 let ctx = |action| {
                     format!(
                         "Can't {} RPC connect point {} from dir {}",

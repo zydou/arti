@@ -12,7 +12,7 @@ use std::{io::Result as IoResult, sync::Arc};
 use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError};
 use tor_config_path::CfgPathResolver;
 use tor_rpc_connect::auth::RpcAuth;
-use tracing::debug;
+use tracing::{debug, info};
 
 use arti_client::TorClient;
 use tor_rtcompat::{general, NetStreamListener as _, Runtime};
@@ -94,6 +94,13 @@ async fn launch_all_listeners<R: Runtime>(
             .bind(runtime, name.as_str(), resolver, mistrust)
             .await?
         {
+            debug!(
+                "Listening at {} for {}",
+                lis.local_addr()
+                    .expect("general::listener without address?")
+                    .display_lossy(),
+                info.name,
+            );
             listeners.push((lis, info));
             guards.push(guard);
         }
@@ -102,9 +109,19 @@ async fn launch_all_listeners<R: Runtime>(
         for (idx, connpt) in cfg.listen_default.iter().enumerate() {
             let (lis, info, guard) =
                 listener::bind_string(connpt, idx + 1, runtime, resolver, mistrust).await?;
+            debug!(
+                "Listening at {} for {}",
+                lis.local_addr()
+                    .expect("general::listener without address?")
+                    .display_lossy(),
+                info.name,
+            );
             listeners.push((lis, info));
             guards.push(guard);
         }
+    }
+    if listeners.is_empty() {
+        info!("No RPC listeners configured.");
     }
 
     let streams = listeners.into_iter().map(|(listener, info)| {
