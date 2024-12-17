@@ -22,6 +22,8 @@
 ///
 ///     MapAttributes
 ///     pub type MapName = ContainerType<KeyType, ValueType>;
+///
+///     defaults: defaults_func(); // <--- this line is optional
 /// }
 /// ```
 ///
@@ -32,6 +34,9 @@
 ///   (such sa doc comments, `#derive`, and so on);
 /// * The `pub`s may be replaced with any visibility;
 /// * and `KeyType` and `ValueType` may be replaced with any appropriate types.
+///    * `ValueType` must have a corresponding `ValueTypeBuilder`.
+///    * `ValueTypeBuilder` must implement
+///      [`ExtendBuilder`](crate::extend_builder::ExtendBuilder).
 ///
 /// Given this syntax, this macro will define "MapType" as an alias for
 /// `Container<KeyType,ValueType>`,
@@ -45,6 +50,13 @@
 ///
 /// (Note that in order to work as a sub-builder within our configuration system,
 /// "BuilderName" should be the same as "MapName" concatenated with "Builder.")
+///
+/// The `defaults_func()`, if provided, must be
+/// a function returning `ContainerType<KeyType, ValueType>`.
+/// The values returned by `default_func()` map are used to implement
+/// `Default` and `Deserialize` for `BuilderName`,
+/// extending from the defaults with `ExtendStrategy::ReplaceLists`.
+/// If no `defaults_func` is given, `ContainerType::default()` is used.
 ///
 /// # Example
 ///
@@ -82,11 +94,14 @@
 /// We use this macro, instead of using a Map directly in our configuration object,
 /// so that we can have a separate Builder type with a reasonable build() implementation.
 ///
-/// XXXX Describe default behavior here once we have it implemented.
-///
 /// We don't support complicated keys; instead we require that the keys implement Deserialize.
 /// If we ever need to support keys with their own builders,
 /// we'll have to define a new macro.
+///
+/// We use `ExtendBuilder` to implement Deserialize with defaults,
+/// so that the provided configuration options can override
+/// only those parts of the default configuration tree
+/// that they actually replace.
 #[macro_export]
 macro_rules! define_map_builder {
     {
@@ -94,14 +109,15 @@ macro_rules! define_map_builder {
         $b_v:vis struct $btype:ident =>
         $(#[ $m:meta ])*
         $v:vis type $maptype:ident = $coltype:ident < $keytype:ty , $valtype: ty >;
+        $( defaults: $defaults:expr; )?
     } =>
     {paste::paste!{
         $(#[ $m ])*
         $v type $maptype = $coltype < $keytype , $valtype > ;
 
         $(#[ $b_m ])*
-        #[derive(Clone,Debug,$crate::deps::serde::Deserialize, $crate::deps::serde::Serialize, $crate::deps::educe::Educe)]
-        #[educe(Deref, DerefMut, Default)]
+        #[derive(Clone,Debug,$crate::deps::serde::Serialize, $crate::deps::educe::Educe)]
+        #[educe(Deref, DerefMut)]
         #[serde(transparent)]
         $b_v struct $btype( $coltype < $keytype, [<$valtype Builder>] > );
 
@@ -113,12 +129,54 @@ macro_rules! define_map_builder {
                     .collect()
             }
         }
-    }}
+        $(
+            // This section is expanded when we have a defaults_fn().
+            impl ::std::default::Default for $btype {
+                fn default() -> Self {
+                    Self($defaults)
+                }
+            }
+            impl<'de> $crate::deps::serde::Deserialize<'de> for $btype {
+                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                where
+                    D: $crate::deps::serde::Deserializer<'de> {
+                        let deserialized = $coltype::<$keytype, [<$valtype Builder>]>::deserialize(deserializer)?;
+                        let mut defaults = $btype::default();
+                        $crate::extend_builder::ExtendBuilder::extend_from(
+                            &mut defaults,
+                            Self(deserialized),
+                            $crate::extend_builder::ExtendStrategy::ReplaceLists);
+                        Ok(defaults)
+                    }
+            }
+        )?
+        $crate::define_map_builder!{@if_empty { $($defaults)? } {
+            // This section is expanded when we don't have a defaults_fn().
+            impl ::std::default::Default for $btype {
+                fn default() -> Self {
+                    Self(Default::default())
+                }
+            }
+            // We can't conditionally derive() here, since Rust doesn't like macros that expand to
+            // attributes.
+            impl<'de> $crate::deps::serde::Deserialize<'de> for $btype {
+                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                where
+                    D: $crate::deps::serde::Deserializer<'de> {
+                    Ok(Self($coltype::deserialize(deserializer)?))
+                }
+            }
+        }}
+        impl $crate::extend_builder::ExtendBuilder for $btype
+        {
+            fn extend_from(&mut self, other: Self, strategy: $crate::extend_builder::ExtendStrategy) {
+                $crate::extend_builder::ExtendBuilder::extend_from(&mut self.0, other.0, strategy);
+            }
+        }
+    }};
+    {@if_empty {} {$($x:tt)*}} => {$($x)*};
+    {@if_empty {$($y:tt)*} {$($x:tt)*}} => {};
 }
-// XXXX: Need a way to make an initial value for serde and for Default.
-// Options:
-//   - Use our "stacked config" logic for serde, and duplicate the default in Default.
-//   - Define a fancy Deserialize that works by updating our default.
 
 #[cfg(test)]
 mod test {
@@ -138,6 +196,7 @@ mod test {
 
     use crate::ConfigBuildError;
     use derive_builder::Builder;
+    use derive_deftly::Deftly;
     use serde::{Deserialize, Serialize};
     use std::collections::BTreeMap;
 
@@ -150,7 +209,8 @@ mod test {
         things: ThingMap,
     }
 
-    #[derive(Clone, Debug, Eq, PartialEq, Builder)]
+    #[derive(Clone, Debug, Eq, PartialEq, Builder, Deftly)]
+    #[derive_deftly(ExtendBuilder)]
     #[builder(derive(Deserialize, Serialize, Debug))]
     #[builder(build_fn(error = "ConfigBuildError"))]
     struct Inner {
@@ -211,5 +271,68 @@ fun = true
                 explosive: false
             }
         );
+    }
+
+    define_map_builder! {
+        struct ThingMap2Builder =>
+        type ThingMap2 = BTreeMap<String, Inner>;
+        defaults: thingmap2_default();
+    }
+    fn thingmap2_default() -> BTreeMap<String, InnerBuilder> {
+        let mut map = BTreeMap::new();
+        {
+            let mut bld = InnerBuilder::default();
+            bld.fun(true);
+            map.insert("x".to_string(), bld);
+        }
+        {
+            let mut bld = InnerBuilder::default();
+            bld.explosive(true);
+            map.insert("y".to_string(), bld);
+        }
+        map
+    }
+    #[test]
+    fn with_defaults() {
+        let mut tm2 = ThingMap2Builder::default();
+        tm2.get_mut("x").unwrap().explosive(true);
+        let mut bld = InnerBuilder::default();
+        bld.fun(true);
+        tm2.insert("zz".into(), bld);
+        let built = tm2.build().unwrap();
+
+        assert_eq!(
+            built.get("x").unwrap(),
+            &Inner {
+                fun: true,
+                explosive: true
+            }
+        );
+        assert_eq!(
+            built.get("y").unwrap(),
+            &Inner {
+                fun: false,
+                explosive: true
+            }
+        );
+        assert_eq!(
+            built.get("zz").unwrap(),
+            &Inner {
+                fun: true,
+                explosive: false
+            }
+        );
+
+        let tm2: ThingMap2Builder = toml::from_str(
+            r#"
+            [x]
+            explosive = true
+            [zz]
+            fun = true
+            "#,
+        )
+        .unwrap();
+        let built2 = tm2.build().unwrap();
+        assert_eq!(built, built2);
     }
 }
