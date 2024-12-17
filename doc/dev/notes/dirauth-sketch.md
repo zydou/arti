@@ -45,6 +45,9 @@
 
  * vote calculator
 
+ * component for generating K\_dirauth\_sign\_* and signing it with
+   KS\_dirauth\_id\_*, capable of running offline.
+
 The latter two don't need to be always-online.
 We'll to separate them out so that they can (likely in the future)
 use a static data dump, or a restricted protocol,
