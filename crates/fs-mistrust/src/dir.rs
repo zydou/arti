@@ -3,14 +3,11 @@
 
 use std::{
     fs::{File, Metadata, OpenOptions},
-    io::{self, Read, Write},
+    io,
     path::{Path, PathBuf},
 };
 
 use crate::{walk::PathType, Error, Mistrust, Result, Verifier};
-
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::OpenOptionsExt;
 
 /// A directory whose access properties we have verified, along with accessor
 /// functions to access members of that directory.
@@ -100,38 +97,7 @@ impl CheckedDir {
     /// always create it with mode `600`, regardless of any mode options set in
     /// `options`.
     pub fn open<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<File> {
-        let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckParent)?;
-
-        #[allow(unused_mut)]
-        let mut options = options.clone();
-
-        #[cfg(target_family = "unix")]
-        {
-            // By default, create all files mode 600, no matter what
-            // OpenOptions said.
-
-            // TODO: Give some way to override this to 640 or 0644 if you
-            //    really want to.
-            options.mode(0o600);
-            // Don't follow symlinks out of the secured directory.
-            options.custom_flags(libc::O_NOFOLLOW);
-        }
-
-        let file = options
-            .open(&path)
-            .map_err(|e| Error::io(e, &path, "open file"))?;
-        let meta = file.metadata().map_err(|e| Error::inspecting(e, &path))?;
-
-        if let Some(error) = self
-            .verifier()
-            .check_one(path.as_path(), PathType::Content, &meta)
-            .into_iter()
-            .next()
-        {
-            Err(error)
-        } else {
-            Ok(file)
-        }
+        self.file_access().open(path, options)
     }
 
     /// List the contents of a directory within this [`CheckedDir`].
@@ -193,12 +159,7 @@ impl CheckedDir {
     /// if it has any components that could take us outside of this directory,
     /// or if its contents are not UTF-8.
     pub fn read_to_string<P: AsRef<Path>>(&self, path: P) -> Result<String> {
-        let path = path.as_ref();
-        let mut file = self.open(path, OpenOptions::new().read(true))?;
-        let mut result = String::new();
-        file.read_to_string(&mut result)
-            .map_err(|e| Error::io(e, path, "read file"))?;
-        Ok(result)
+        self.file_access().read_to_string(path)
     }
 
     /// Read the contents of the file at `path` within this directory, as a
@@ -208,12 +169,7 @@ impl CheckedDir {
     /// or if it has any components that could take us outside of this
     /// directory.
     pub fn read<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>> {
-        let path = path.as_ref();
-        let mut file = self.open(path, OpenOptions::new().read(true))?;
-        let mut result = Vec::new();
-        file.read_to_end(&mut result)
-            .map_err(|e| Error::io(e, path, "read file"))?;
-        Ok(result)
+        self.file_access().read(path)
     }
 
     /// Store `contents` into the file located at `path` within this directory.
@@ -237,26 +193,7 @@ impl CheckedDir {
         path: P,
         contents: C,
     ) -> Result<()> {
-        let path = path.as_ref();
-        self.check_path(path)?;
-
-        let tmp_name = path.with_extension("tmp");
-        let mut tmp_file = self.open(
-            &tmp_name,
-            OpenOptions::new().create(true).truncate(true).write(true),
-        )?;
-
-        // Write the data.
-        tmp_file
-            .write_all(contents.as_ref())
-            .map_err(|e| Error::io(e, &tmp_name, "write to file"))?;
-        // Flush and close.
-        drop(tmp_file);
-
-        // Replace the old file.
-        std::fs::rename(self.location.join(tmp_name), self.location.join(path))
-            .map_err(|e| Error::io(e, path, "replace file"))?;
-        Ok(())
+        self.file_access().write_and_replace(path, contents)
     }
 
     /// Return the [`Metadata`] of the file located at `path`.
