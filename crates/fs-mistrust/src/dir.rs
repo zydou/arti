@@ -95,12 +95,7 @@ impl CheckedDir {
     /// always create it with mode `600`, regardless of any mode options set in
     /// `options`.
     pub fn open<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<File> {
-        let path = path.as_ref();
-        self.check_path(path)?;
-        let path = self.location.join(path);
-        if let Some(parent) = path.parent() {
-            self.verifier().check(parent)?;
-        }
+        let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckParent)?;
 
         #[allow(unused_mut)]
         let mut options = options.clone();
@@ -143,10 +138,7 @@ impl CheckedDir {
     /// The return value is an iterator as returned by [`std::fs::ReadDir`].  We
     /// _do not_ check any properties of the elements of this iterator.
     pub fn read_directory<P: AsRef<Path>>(&self, path: P) -> Result<std::fs::ReadDir> {
-        let path = path.as_ref();
-        self.check_path(path)?;
-        let path = self.location.join(path);
-        self.verifier().check(&path)?;
+        let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckPath)?;
 
         std::fs::read_dir(&path).map_err(|e| Error::io(e, path, "read directory"))
     }
@@ -159,17 +151,12 @@ impl CheckedDir {
     /// unmodifiable by any untrusted user, but we do not check any permissions
     /// on the file itself, since those are irrelevant to removing it.
     pub fn remove_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let path = path.as_ref();
-        self.check_path(path)?;
-        let path = self.location.join(path);
         // We insist that the ownership and permissions on everything up to and
         // including the _parent_ of the path that we are removing have to be
         // correct.  (If it were otherwise, we could be tricked into removing
         // the wrong thing.)  But we don't care about the permissions on file we
         // are removing.
-        if let Some(parent) = path.parent() {
-            self.verifier().check(parent)?;
-        }
+        let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckParent)?;
 
         std::fs::remove_file(&path).map_err(|e| Error::io(e, path, "remove file"))
     }
@@ -282,12 +269,7 @@ impl CheckedDir {
     ///
     /// [^1]: the permissions are incorrect if the path is readable or writable by untrusted users
     pub fn metadata<P: AsRef<Path>>(&self, path: P) -> Result<Metadata> {
-        let path = path.as_ref();
-        self.check_path(path)?;
-        let path = self.location.join(path);
-        if let Some(parent) = path.parent() {
-            self.verifier().check(parent)?;
-        }
+        let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckParent)?;
 
         let meta = path
             .symlink_metadata()
@@ -348,6 +330,34 @@ impl CheckedDir {
 
         Ok(())
     }
+
+    /// Check whether `p` is a valid relative path within this directory,
+    /// verify its permissions or the permissions of its parent, depending on `check_type`,
+    /// and return an absolute path for `p`.
+    pub(crate) fn verified_full_path(
+        &self,
+        p: &Path,
+        check_type: FullPathCheck,
+    ) -> Result<PathBuf> {
+        self.check_path(p)?;
+        let full_path = self.location.join(p);
+        let to_verify: &Path = match check_type {
+            FullPathCheck::CheckPath => full_path.as_ref(),
+            FullPathCheck::CheckParent => full_path.parent().unwrap_or_else(|| full_path.as_ref()),
+        };
+        self.verifier().check(to_verify)?;
+
+        Ok(full_path)
+    }
+}
+
+/// Type argument for [`CheckedDir::verified_full_path`].
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum FullPathCheck {
+    /// Check all elements of the path, including the final element.
+    CheckPath,
+    /// Check all elements of the path, not including the final element.
+    CheckParent,
 }
 
 #[cfg(test)]
