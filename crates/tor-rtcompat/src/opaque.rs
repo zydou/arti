@@ -16,6 +16,17 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
+    impl $crate::traits::SpawnBlocking for $t {
+        #[inline]
+        fn spawn_blocking<F, T>(&self, f: F) -> impl std::future::Future<Output = T>
+        where
+            F: FnOnce() -> T + Send + 'static,
+            T: Send + 'static,
+        {
+            self.$member.spawn_blocking(f)
+        }
+    }
+
     impl $crate::traits::BlockOn for $t {
         #[inline]
         fn block_on<F: futures::Future>(&self, future: F) -> F::Output {

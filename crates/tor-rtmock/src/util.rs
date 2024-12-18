@@ -28,6 +28,15 @@ define_derive_deftly! {
         }
     }
 
+    impl <$tgens> SpawnBlocking for $ttype {
+        fn spawn_blocking<F, T>(&self, f: F) -> impl std::future::Future<Output = T>
+        where
+            F: FnOnce() -> T + Send + 'static,
+            T: Send + 'static {
+            self.$fname.spawn_blocking(f)
+        }
+    }
+
     impl <$tgens> BlockOn for $ttype {
         fn block_on<F: Future>(&self, future: F) -> F::Output {
             self.$fname.block_on(future)
@@ -152,7 +161,7 @@ pub(crate) mod impl_runtime_prelude {
     pub(crate) use std::time::{Duration, Instant, SystemTime};
     pub(crate) use tor_rtcompat::{
         unimpl::FakeListener, unimpl::FakeStream, BlockOn, CoarseInstant, CoarseTimeProvider,
-        NetStreamProvider, Runtime, SleepProvider, TlsProvider, UdpProvider,
+        NetStreamProvider, Runtime, SleepProvider, SpawnBlocking, TlsProvider, UdpProvider,
     };
 }
 

@@ -68,7 +68,8 @@ pub mod unix;
 use std::io;
 pub use traits::{
     BlockOn, CertifiedConn, CoarseTimeProvider, NetStreamListener, NetStreamProvider, Runtime,
-    SleepProvider, StreamOps, TlsProvider, UdpProvider, UdpSocket, UnsupportedStreamOp,
+    SleepProvider, SpawnBlocking, StreamOps, TlsProvider, UdpProvider, UdpSocket,
+    UnsupportedStreamOp,
 };
 
 pub use coarse_time::{CoarseDuration, CoarseInstant, RealCoarseTimeProvider};

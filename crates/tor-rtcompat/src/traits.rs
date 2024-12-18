@@ -50,6 +50,7 @@ pub trait Runtime:
     Sync
     + Send
     + Spawn
+    + SpawnBlocking
     + BlockOn
     + Clone
     + SleepProvider
@@ -67,6 +68,7 @@ impl<T> Runtime for T where
     T: Sync
         + Send
         + Spawn
+        + SpawnBlocking
         + BlockOn
         + Clone
         + SleepProvider
@@ -150,6 +152,15 @@ pub trait CoarseTimeProvider: Clone + Send + Sync + 'static {
 pub trait BlockOn: Clone + Send + Sync + 'static {
     /// Run `future` until it is ready, and return its output.
     fn block_on<F: Future>(&self, future: F) -> F::Output;
+}
+
+/// Trait to run a task on a threadpool for CPU-bound tasks
+pub trait SpawnBlocking: Clone + Send + Sync + 'static {
+    /// Spawn a task on a threadpool specifically for CPU-bound tasks.
+    fn spawn_blocking<F, T>(&self, f: F) -> impl Future<Output = T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static;
 }
 
 /// Trait providing additional operations on network sockets.
