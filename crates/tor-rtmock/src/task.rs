@@ -23,6 +23,11 @@ use itertools::{chain, izip};
 use slotmap_careful::DenseSlotMap;
 use std::backtrace::Backtrace;
 use strum::EnumIter;
+
+// NB: when using traced_test, the trace! and error! output here is generally suppressed
+// in tests of other crates.  To see it, you can write something like this
+// (in the dev-dependencies of the crate whose tests you're running):
+//    tracing-test = { version = "0.2.4", features = ["no-env-filter"] }
 use tracing::trace;
 
 use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
