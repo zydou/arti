@@ -328,6 +328,8 @@ impl CheckedDir {
 
     /// Helper: Make sure that the path `p` is a relative path that can be
     /// guaranteed to stay within this directory.
+    ///
+    /// (Specifically, we reject absolute paths, ".." items, and Windows path prefixes.)
     fn check_path(&self, p: &Path) -> Result<()> {
         use std::path::Component;
         // This check should be redundant, but let's be certain.
