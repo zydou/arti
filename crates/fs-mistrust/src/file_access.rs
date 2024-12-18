@@ -1,7 +1,5 @@
 //! Functionality for opening files while verifying their permissions.
 
-#![allow(missing_docs, clippy::missing_docs_in_private_items, dead_code)]
-
 use std::{
     borrow::Cow,
     fs::{File, OpenOptions},
@@ -29,13 +27,18 @@ pub struct FileAccess<'a> {
 /// XXXX This is an enum because we plan to allow having a Mistrust here instead;
 /// XXXX we should add that support or flatten this enum.
 pub(crate) enum Inner<'a> {
+    /// A CheckedDir backing this FileAccess.
     CheckedDir(&'a CheckedDir),
 }
 
 impl<'a> FileAccess<'a> {
+    /// Create a new `FileAccess` to access files within CheckedDir,
+    /// using default options.
     pub(crate) fn from_checked_dir(checked_dir: &'a CheckedDir) -> Self {
         Self::from_inner(Inner::CheckedDir(checked_dir))
     }
+    /// Create a new `FileAccess` from `inner`,
+    /// using default options.
     fn from_inner(inner: Inner<'a>) -> Self {
         Self { inner }
     }
@@ -62,11 +65,10 @@ impl<'a> FileAccess<'a> {
         })
     }
 
-    // XXXX correct this documentation.
-    /// Open a file within this CheckedDir, using a set of [`OpenOptions`].
+    /// Open a file relative to this `FileAccess`, using a set of [`OpenOptions`].
     ///
-    /// `path` must be a relative path to the new directory, containing no `..`
-    /// components.  We check, but do not create, the file's parent directories.
+    /// `path` must be a path to the new file, obeying the constraints of this `FileAccess`.
+    /// We check, but do not create, the file's parent directories.
     /// We check the file's permissions after opening it.  If the file already
     /// exists, it must not be a symlink.
     ///
@@ -108,12 +110,11 @@ impl<'a> FileAccess<'a> {
         }
     }
 
-    // XXXX correct this documentation.
-    /// Read the contents of the file at `path` within this directory, as a
+    /// Read the contents of the file at `path` relative to this `FileAccess`, as a
     /// String, if possible.
     ///
     /// Return an error if `path` is absent, if its permissions are incorrect,
-    /// if it has any components that could take us outside of this directory,
+    /// if it does not obey the constraints of this `FileAccess`,
     /// or if its contents are not UTF-8.
     pub fn read_to_string<P: AsRef<Path>>(&self, path: P) -> Result<String> {
         let path = path.as_ref();
@@ -124,13 +125,11 @@ impl<'a> FileAccess<'a> {
         Ok(result)
     }
 
-    // XXXX correct this documentation.
-    /// Read the contents of the file at `path` within this directory, as a
+    /// Read the contents of the file at `path` relative to this `FileAccess`, as a
     /// vector of bytes, if possible.
     ///
     /// Return an error if `path` is absent, if its permissions are incorrect,
-    /// or if it has any components that could take us outside of this
-    /// directory.
+    /// or if it does not obey the constraints of this `FileAccess`.
     pub fn read<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>> {
         let path = path.as_ref();
         let mut file = self.open(path, OpenOptions::new().read(true))?;
@@ -140,8 +139,7 @@ impl<'a> FileAccess<'a> {
         Ok(result)
     }
 
-    // XXXX correct this documentation.
-    /// Store `contents` into the file located at `path` within this directory.
+    /// Store `contents` into the file located at `path` relative to this `FileAccess`.
     ///
     /// We won't write to `path` directly: instead, we'll write to a temporary
     /// file in the same directory as `path`, and then replace `path` with that
