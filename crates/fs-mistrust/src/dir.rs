@@ -84,6 +84,11 @@ impl CheckedDir {
         self.verifier().secure_dir(self.location.join(path))
     }
 
+    /// Create a new [`FileAccess`](crate::FileAccess) for reading or writing files within this directory.
+    pub fn file_access(&self) -> crate::FileAccess<'_> {
+        crate::FileAccess::from_checked_dir(self)
+    }
+
     /// Open a file within this CheckedDir, using a set of [`OpenOptions`].
     ///
     /// `path` must be a relative path to the new directory, containing no `..`

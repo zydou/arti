@@ -60,6 +60,7 @@
 mod dir;
 mod disable;
 mod err;
+mod file_access;
 mod imp;
 #[cfg(all(
     target_family = "unix",
@@ -85,6 +86,7 @@ use std::{
 pub use dir::CheckedDir;
 pub use disable::GLOBAL_DISABLE_VAR;
 pub use err::{format_access_bits, Error};
+pub use file_access::FileAccess;
 
 /// A result type as returned by this crate
 pub type Result<T> = std::result::Result<T, Error>;
