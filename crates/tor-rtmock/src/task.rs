@@ -403,14 +403,22 @@ impl BlockOn for MockExecutor {
 
         {
             pin_mut!(fut);
-            self.data
+            let main_id = self
+                .data
                 .lock()
                 .insert_task("main".into(), TaskFutureInfo::Main);
+            trace!("MockExecutor {main_id:?} is task for block_on");
             self.execute_to_completion(fut);
         }
 
         #[allow(clippy::let_and_return)] // clarity
         let value = value.take().unwrap_or_else(|| {
+            // eprintln can be captured by libtest, but the debug_dump goes to io::stderr.
+            // use the latter, so that the debug dump is prefixed by this message.
+            let _: io::Result<()> = writeln!(io::stderr(), "all futures blocked, crashing...");
+            // write to tracing too, so the tracing log is clear about when we crashed
+            error!("all futures blocked, crashing...");
+
             let mut data = self.data.lock();
             data.debug_dump();
             panic!(
