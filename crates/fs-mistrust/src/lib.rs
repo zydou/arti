@@ -125,10 +125,11 @@ pub use user::{TrustedGroup, TrustedUser};
 /// Examples using the default environment variable:
 ///
 /// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="false"` — checks enabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS=" false "` — checks enabled
 /// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="NO"` — checks enabled
 /// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS=0` — checks enabled
 /// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS=` — checks enabled
-/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="false "` — checks disabled
+/// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS=" "` — checks enabled
 /// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="true"` — checks disabled
 /// - `FS_MISTRUST_DISABLE_PERMISSIONS_CHECKS="asdf"` — checks disabled
 ///

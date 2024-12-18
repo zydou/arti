@@ -67,7 +67,9 @@ fn from_env_var_value(input: std::result::Result<String, VarError>) -> Option<St
     };
 
     s.make_ascii_lowercase();
-    match s.as_ref() {
+    let s = s.trim();
+
+    match s {
         "" => None,
         "0" | "no" | "never" | "false" | "n" => Some(Status::CheckPermissions),
         _ => Some(Status::DisableChecks),
@@ -128,6 +130,7 @@ mod test {
         }
 
         assert_eq!(from_env_var_value(Ok("".into())), None);
+        assert_eq!(from_env_var_value(Ok(" ".into())), None);
 
         assert_eq!(from_env_var_value(Err(VarError::NotPresent)), None);
         assert_eq!(
@@ -137,8 +140,8 @@ mod test {
 
         // see https://gitlab.torproject.org/tpo/core/arti/-/issues/1782
         assert_eq!(
-            from_env_var_value(Ok("false ".to_string())),
-            Some(Status::DisableChecks),
+            from_env_var_value(Ok(" false ".to_string())),
+            Some(Status::CheckPermissions),
         );
     }
 }
