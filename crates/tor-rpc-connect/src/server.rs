@@ -83,8 +83,16 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
 
         let guard = if let Some(socket_path) = self.socket.as_ref().as_pathname() {
             // This socket has a representation in the filesystem.
-            // We need to grab an associated lock to make sure that we don't grab the
-            // same socket from two different processes...
+            // We need an associated lock to make sure that we don't delete the socket
+            // while it is in use.
+            //
+            // (We can't just rely on getting an EADDRINUSE when we bind the socket,
+            // since unix sockets give that error unconditionally if the file exists,
+            // whether anybody has bound to it or not.
+            // We can't just check whether the socket file exists,
+            // since it might be a stale socket left over from a process that has crashed.
+            // We can't lock the socket file itself,
+            // since we need to delete it before we can bind to it.)
             let lock_path = {
                 let mut p = socket_path.to_owned();
                 p.as_mut_os_string().push(".lock");
@@ -94,7 +102,8 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
                 fslock_guard::LockFileGuard::try_lock(lock_path)?
                     .ok_or(ConnectError::AlreadyLocked)?,
             );
-            // ... and we need to remove the socket, or we won't be able to bind to it.
+            // Now that we have the lock, we know that nobody else is listening on this socket.
+            // Now we just remove any stale socket file before we bind.)
             match std::fs::remove_file(socket_path) {
                 Ok(()) => {}
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {}
