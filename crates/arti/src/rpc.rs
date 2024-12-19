@@ -230,6 +230,8 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use listener::{ConnectPointOptionsBuilder, RpcListenerSetConfigBuilder};
+    use tor_config_path::CfgPath;
     use tor_rpc_connect::ParsedConnectPoint;
 
     use super::*;
@@ -251,5 +253,92 @@ mod test {
         for string in listen_defaults_defaults() {
             let _parsed: ParsedConnectPoint = string.parse().unwrap();
         }
+    }
+
+    #[test]
+    fn parsing_and_building() {
+        fn build(s: &str) -> Result<RpcConfig, anyhow::Error> {
+            let b: RpcConfigBuilder = toml::from_str(s)?;
+            Ok(b.build()?)
+        }
+
+        let mut user_defaults_builder = RpcListenerSetConfigBuilder::default();
+        user_defaults_builder.listener_options().enable(true);
+        user_defaults_builder.dir(CfgPath::new("${ARTI_LOCAL_DATA}/rpc/connect.d".to_string()));
+        let mut system_defaults_builder = RpcListenerSetConfigBuilder::default();
+        system_defaults_builder.listener_options().enable(false);
+        system_defaults_builder.dir(CfgPath::new("/etc/arti-rpc/connect.d".to_string()));
+
+        // Make sure that an empty configuration gets us the defaults.
+        let defaults = build("").unwrap();
+        assert_eq!(
+            defaults,
+            RpcConfig {
+                enable: false,
+                listen: vec![
+                    (
+                        "user-default".to_string(),
+                        user_defaults_builder.build().unwrap()
+                    ),
+                    (
+                        "system-default".to_string(),
+                        system_defaults_builder.build().unwrap()
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+                listen_default: listen_defaults_defaults()
+            }
+        );
+
+        // Make sure that overriding specific options works as expected.
+        let altered = build(
+            r#"
+[listen."user-default"]
+enable = false
+[listen."system-default"]
+dir = "/usr/local/etc/arti-rpc/connect.d"
+file_options = { "tmp.toml" = { "enable" = false } }
+[listen."my-connpt"]
+file = "/home/dante/.paradiso/connpt.toml"
+"#,
+        )
+        .unwrap();
+        let mut altered_user_defaults = user_defaults_builder.clone();
+        altered_user_defaults.listener_options().enable(false);
+        let mut altered_system_defaults = system_defaults_builder.clone();
+        altered_system_defaults.dir(CfgPath::new(
+            "/usr/local/etc/arti-rpc/connect.d".to_string(),
+        ));
+        let mut opt = ConnectPointOptionsBuilder::default();
+        opt.enable(false);
+        altered_system_defaults
+            .file_options()
+            .insert("tmp.toml".to_string(), opt);
+        let mut my_connpt = RpcListenerSetConfigBuilder::default();
+        my_connpt.file(CfgPath::new(
+            "/home/dante/.paradiso/connpt.toml".to_string(),
+        ));
+
+        assert_eq!(
+            altered,
+            RpcConfig {
+                enable: false,
+                listen: vec![
+                    (
+                        "user-default".to_string(),
+                        altered_user_defaults.build().unwrap()
+                    ),
+                    (
+                        "system-default".to_string(),
+                        altered_system_defaults.build().unwrap()
+                    ),
+                    ("my-connpt".to_string(), my_connpt.build().unwrap()),
+                ]
+                .into_iter()
+                .collect(),
+                listen_default: listen_defaults_defaults()
+            }
+        );
     }
 }

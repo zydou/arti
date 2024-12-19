@@ -132,7 +132,7 @@ impl RpcListenerSetConfigBuilder {
 define_map_builder! {
     /// Builder for the `FileOptionsMap` within an `RpcListenerSetConfig`.
     #[derive(Eq, PartialEq)]
-    struct FileOptionsMapBuilder =>
+    pub(super) struct FileOptionsMapBuilder =>
     type FileOptionsMap = BTreeMap<String, ConnectPointOptions>;
 }
 
