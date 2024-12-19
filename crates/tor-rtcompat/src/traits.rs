@@ -157,6 +157,12 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 /// Trait to run a task on a threadpool for CPU-bound tasks
 pub trait SpawnBlocking: Clone + Send + Sync + 'static {
     /// Spawn a task on a threadpool specifically for CPU-bound tasks.
+    ///
+    /// See the docs for the underlying implementations in [tokio][tokio-threadpool] and
+    /// [async-std][async-std-threadpool].
+    ///
+    /// [tokio-threadpool]: https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html
+    /// [async-std-threadpool]: https://docs.rs/async-std/latest/async_std/task/fn.spawn_blocking.html
     fn spawn_blocking<F, T>(&self, f: F) -> impl Future<Output = T>
     where
         F: FnOnce() -> T + Send + 'static,
