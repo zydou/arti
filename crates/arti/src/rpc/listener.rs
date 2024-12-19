@@ -28,15 +28,15 @@ use tor_rpc_connect::{
 use tor_rtcompat::{general, Runtime};
 
 define_map_builder! {
-    /// Builder for a map of RpcListenerConfig.
+    /// Builder for a map of RpcListenerSetConfig.
     pub(crate) struct RpcListenerMapBuilder =>
-    pub(crate) type RpcListenerMap = BTreeMap<String, RpcListenerConfig>;
+    pub(crate) type RpcListenerMap = BTreeMap<String, RpcListenerSetConfig>;
 
     defaults: listener_map_defaults();
 }
 
 /// Return defaults for RpcListenerMapBuilder.
-fn listener_map_defaults() -> BTreeMap<String, RpcListenerConfigBuilder> {
+fn listener_map_defaults() -> BTreeMap<String, RpcListenerSetConfigBuilder> {
     toml::from_str(
         r#"
         ["user-default"]
@@ -53,11 +53,14 @@ fn listener_map_defaults() -> BTreeMap<String, RpcListenerConfigBuilder> {
 
 /// Configuration for a single source of connect points
 /// to use when configuring Arti as an RPC server.
+///
+/// This can configure either a connect point from a single toml file,
+/// or a set of connect points from a directory of toml files.
 #[derive(Debug, Clone, Deftly, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[derive_deftly(ExtendBuilder)]
-pub(crate) struct RpcListenerConfig {
+pub(crate) struct RpcListenerSetConfig {
     /// An builder to determine default connect point options.
     ///
     /// If `file` is set, this builder is used directly
@@ -104,9 +107,9 @@ pub(crate) struct RpcListenerConfig {
     #[deftly(extend_builder(sub_builder))]
     file_options: FileOptionsMapBuilder,
 }
-impl_standard_builder! { RpcListenerConfig: !Deserialize !Default }
+impl_standard_builder! { RpcListenerSetConfig: !Deserialize !Default }
 
-impl RpcListenerConfigBuilder {
+impl RpcListenerSetConfigBuilder {
     /// Return an error if this builder isn't valid.
     fn validate(&self) -> Result<(), ConfigBuildError> {
         match (&self.file, &self.dir, self.file_options.is_empty()) {
@@ -127,7 +130,7 @@ impl RpcListenerConfigBuilder {
 }
 
 define_map_builder! {
-    /// Builder for the `FileOptionsMap` within an `RpcListenerConfig`.
+    /// Builder for the `FileOptionsMap` within an `RpcListenerSetConfig`.
     #[derive(Eq, PartialEq)]
     struct FileOptionsMapBuilder =>
     type FileOptionsMap = BTreeMap<String, ConnectPointOptions>;
@@ -137,14 +140,14 @@ define_map_builder! {
 ///
 /// This structure's corresponding builder appears at two points
 /// in our configuration tree:
-/// Once at the `RpcListenerConfig` level,
+/// Once at the `RpcListenerSetConfig` level,
 /// and once (for directories only!) under the `file_options` map.
 ///
 /// When loading a connect point from an explicitly specified file,
-/// we look at the `ConnectPointOptionsBuilder` under the `RpcListenerConfig` only.
+/// we look at the `ConnectPointOptionsBuilder` under the `RpcListenerSetConfig` only.
 ///
 /// When loading a connect point from a file within a specified directory,
-/// we use the `ConnectPointOptionsBuilder` under the `RpcListenerConfig`
+/// we use the `ConnectPointOptionsBuilder` under the `RpcListenerSetConfig`
 /// as a set of defaults,
 /// and we extend those defaults from any entry we find in the `file_options` map
 /// corresponding to the connect point's filename.
@@ -215,7 +218,7 @@ impl RpcConnInfo {
     }
 }
 
-impl RpcListenerConfig {
+impl RpcListenerSetConfig {
     /// Load every enabled connect point from this file or directory,
     /// and bind to them.
     ///
@@ -230,7 +233,7 @@ impl RpcListenerConfig {
         mistrust: &Mistrust,
     ) -> anyhow::Result<Vec<(general::Listener, Arc<RpcConnInfo>, ListenerGuard)>> {
         if !self.listener_options.is_enabled() {
-            // We stop immediately if we're disabled at the RpcListenerConfig level,
+            // We stop immediately if we're disabled at the RpcListenerSetConfig level,
             // and load nothing.
             return Ok(vec![]);
         }
@@ -349,11 +352,11 @@ impl RpcListenerConfig {
             return Ok(listeners);
         }
 
-        Err(internal!("Constructed RpcListenerConfig had neither 'dir' nor 'file' set.").into())
+        Err(internal!("Constructed RpcListenerSetConfig had neither 'dir' nor 'file' set.").into())
     }
 }
 
-/// As [`RpcListenerConfig`], but bind directly to a verbatim connect point given as a string.
+/// As [`RpcListenerSetConfig`], but bind directly to a verbatim connect point given as a string.
 ///
 /// Uses `index` to describe which default entry this connect point came from;
 /// `index` should be a human-readable 1-based index.
