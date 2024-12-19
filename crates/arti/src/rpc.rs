@@ -85,7 +85,7 @@ async fn launch_all_listeners<R: Runtime>(
     mistrust: &Mistrust,
 ) -> anyhow::Result<(
     impl futures::Stream<Item = IoResult<IncomingConn>> + Unpin,
-    Vec<tor_rpc_connect::server::Guard>,
+    Vec<tor_rpc_connect::server::ListenerGuard>,
 )> {
     let mut listeners = Vec::new();
     let mut guards = Vec::new();

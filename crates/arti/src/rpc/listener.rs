@@ -23,7 +23,7 @@ use tor_error::internal;
 use tor_rpc_connect::{
     auth::RpcAuth,
     load::{LoadOptions, LoadOptionsBuilder},
-    server::Guard,
+    server::ListenerGuard,
     ParsedConnectPoint,
 };
 use tor_rtcompat::{general, Runtime};
@@ -236,7 +236,7 @@ impl RpcListenerConfig {
         config_key: &str,
         resolver: &CfgPathResolver,
         mistrust: &Mistrust,
-    ) -> anyhow::Result<Vec<(general::Listener, Arc<RpcConnInfo>, Guard)>> {
+    ) -> anyhow::Result<Vec<(general::Listener, Arc<RpcConnInfo>, ListenerGuard)>> {
         if !self.listener_options.is_enabled() {
             return Ok(vec![]);
         }
@@ -360,7 +360,7 @@ pub(super) async fn bind_string<R: Runtime>(
     runtime: &R,
     resolver: &CfgPathResolver,
     mistrust: &Mistrust,
-) -> anyhow::Result<(general::Listener, Arc<RpcConnInfo>, Guard)> {
+) -> anyhow::Result<(general::Listener, Arc<RpcConnInfo>, ListenerGuard)> {
     let ctx = |action| format!("Can't {action} RPC connect point from rpc.listen_default.#{index}");
 
     let conn_pt = ParsedConnectPoint::from_str(connpt)

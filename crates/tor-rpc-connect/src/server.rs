@@ -18,7 +18,7 @@ pub struct Listener {
     /// The authentication to require from incoming connections.
     pub auth: RpcAuth,
     /// An object we must hold for as long as we're listening on this socket.
-    pub guard: Guard,
+    pub guard: ListenerGuard,
 }
 
 /// An object to control shutdown for a listener.  We should drop it only when we're no longer
@@ -26,7 +26,7 @@ pub struct Listener {
 //
 // TODO It might be neat to combine this with the stream of requests from listener,
 // so that we can't accidentally drop one prematurely.
-pub struct Guard {
+pub struct ListenerGuard {
     /// A handle to a file that should be deleted when this is dropped.
     #[allow(unused)]
     rm_guard: Option<UnlinkOnDrop>,
@@ -111,12 +111,12 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
             }
 
             let rm_guard = Some(UnlinkOnDrop(socket_path.to_owned()));
-            Guard {
+            ListenerGuard {
                 rm_guard,
                 lock_guard,
             }
         } else {
-            Guard {
+            ListenerGuard {
                 rm_guard: None,
                 lock_guard: None,
             }
