@@ -12,6 +12,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
+use futures::future::Map;
 use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
@@ -24,7 +25,7 @@ use std::backtrace::Backtrace;
 use strum::EnumIter;
 use tracing::trace;
 
-use oneshot_fused_workaround as oneshot;
+use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
 use tor_rtcompat::{BlockOn, SpawnBlocking};
 
@@ -346,7 +347,9 @@ impl Spawn for MockExecutor {
 }
 
 impl SpawnBlocking for MockExecutor {
-    fn spawn_blocking<F, T>(&self, f: F) -> impl Future<Output = T>
+    type Handle<T: Send + 'static> = Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
+
+    fn spawn_blocking<F, T>(&self, f: F) -> Self::Handle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
@@ -360,7 +363,7 @@ impl SpawnBlocking for MockExecutor {
                 Err(_) => panic!("Failed to send future's output, did future panic?"),
             }
         });
-        rx.map(|m| m.expect("Failed to receive future's output"))
+        rx.map(Box::new(|m| m.expect("Failed to receive future's output")))
     }
 }
 

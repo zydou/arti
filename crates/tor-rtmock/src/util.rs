@@ -29,7 +29,9 @@ define_derive_deftly! {
     }
 
     impl <$tgens> SpawnBlocking for $ttype {
-        fn spawn_blocking<F, T>(&self, f: F) -> impl std::future::Future<Output = T>
+        type Handle<T: Send + 'static> = <$ftype as SpawnBlocking>::Handle<T>;
+
+        fn spawn_blocking<F, T>(&self, f: F) -> <$ftype as SpawnBlocking>::Handle<T>
         where
             F: FnOnce() -> T + Send + 'static,
             T: Send + 'static {

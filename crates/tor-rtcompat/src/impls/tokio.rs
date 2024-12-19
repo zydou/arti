@@ -332,8 +332,10 @@ impl BlockOn for TokioRuntimeHandle {
 }
 
 impl SpawnBlocking for TokioRuntimeHandle {
+    type Handle<T: Send + 'static> = async_executors::BlockingHandle<T>;
+
     #[track_caller]
-    fn spawn_blocking<F, T>(&self, f: F) -> impl Future<Output = T>
+    fn spawn_blocking<F, T>(&self, f: F) -> async_executors::BlockingHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,

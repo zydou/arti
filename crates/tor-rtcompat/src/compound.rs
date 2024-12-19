@@ -104,9 +104,11 @@ where
     TlsR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
 {
+    type Handle<T: Send + 'static> = SpawnR::Handle<T>;
+
     #[inline]
     #[track_caller]
-    fn spawn_blocking<F, T>(&self, f: F) -> impl std::future::Future<Output = T>
+    fn spawn_blocking<F, T>(&self, f: F) -> SpawnR::Handle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,

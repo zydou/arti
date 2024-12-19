@@ -17,8 +17,10 @@ macro_rules! implement_opaque_runtime {
     }
 
     impl $crate::traits::SpawnBlocking for $t {
+        type Handle<T: Send + 'static> = <$mty as $crate::traits::SpawnBlocking>::Handle<T>;
+
         #[inline]
-        fn spawn_blocking<F, T>(&self, f: F) -> impl std::future::Future<Output = T>
+        fn spawn_blocking<F, T>(&self, f: F) -> <$mty as $crate::traits::SpawnBlocking>::Handle<T>
         where
             F: FnOnce() -> T + Send + 'static,
             T: Send + 'static,
