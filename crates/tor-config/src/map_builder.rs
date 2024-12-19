@@ -66,27 +66,82 @@
 /// # use std::collections::BTreeMap;
 /// # use tor_config::{ConfigBuildError, define_map_builder, derive_deftly_template_ExtendBuilder};
 /// # use serde::{Serialize, Deserialize};
-/// #[derive(Clone, Debug, Builder)]
-/// #[builder(build_fn(error = "ConfigBuildError"))]
-/// #[builder(derive(Debug, Serialize, Deserialize))]
-/// pub struct StampCollectionConfig {
-///     #[builder(sub_builder)]
-///     stamps: StampMap
-/// }
-///
-/// define_map_builder! {
-///     pub struct StampMapBuilder =>
-///     pub type StampMap = BTreeMap<String, StampConfig>;
-/// }
-///
-/// #[derive(Clone, Debug, Builder, Deftly)]
+/// # use tor_config::extend_builder::{ExtendBuilder,ExtendStrategy};
+/// #[derive(Clone, Debug, Builder, Deftly, Eq, PartialEq)]
 /// #[derive_deftly(ExtendBuilder)]
 /// #[builder(build_fn(error = "ConfigBuildError"))]
 /// #[builder(derive(Debug, Serialize, Deserialize))]
-/// pub struct StampConfig {
-///     description: String,
-///     year: u32,
+/// pub struct ConnectionsConfig {
+///     #[builder(sub_builder)]
+///     #[deftly(extend_builder(sub_builder))]
+///     conns: ConnectionMap
 /// }
+///
+/// define_map_builder! {
+///     pub struct ConnectionMapBuilder =>
+///     pub type ConnectionMap = BTreeMap<String, ConnConfig>;
+/// }
+///
+/// #[derive(Clone, Debug, Builder, Deftly, Eq, PartialEq)]
+/// #[derive_deftly(ExtendBuilder)]
+/// #[builder(build_fn(error = "ConfigBuildError"))]
+/// #[builder(derive(Debug, Serialize, Deserialize))]
+/// pub struct ConnConfig {
+///     #[builder(default="true")]
+///     enabled: bool,
+///     port: u16,
+/// }
+///
+/// let defaults: ConnectionsConfigBuilder = toml::from_str(r#"
+/// [conns."socks"]
+/// enabled = true
+/// port = 9150
+///
+/// [conns."http"]
+/// enabled = false
+/// port = 1234
+///
+/// [conns."wombat"]
+/// port = 5050
+/// "#).unwrap();
+/// let user_settings: ConnectionsConfigBuilder = toml::from_str(r#"
+/// [conns."http"]
+/// enabled = false
+/// [conns."quokka"]
+/// enabled = true
+/// port = 9999
+/// "#).unwrap();
+///
+/// let mut cfg = defaults.clone();
+/// cfg.extend_from(user_settings, ExtendStrategy::ReplaceLists);
+/// let cfg = cfg.build().unwrap();
+/// assert_eq!(cfg, ConnectionsConfig {
+///     conns: vec![
+///         ("http".into(), ConnConfig { enabled: false, port: 1234}),
+///         ("quokka".into(), ConnConfig { enabled: true, port: 9999}),
+///         ("socks".into(), ConnConfig { enabled: true, port: 9150}),
+///         ("wombat".into(), ConnConfig { enabled: true, port: 5050}),
+///     ].into_iter().collect(),
+/// });
+/// ```
+///
+/// In the example above, the `derive_map_builder` macro expands to something like:
+///
+/// ```ignore
+/// pub type ConnectionMap = BTreeMap<String, ConnConfig>;
+///
+/// #[derive(Clone,Debug,Serialize,Educe)]
+/// #[educe(Deref,DerefMut)]
+/// pub struct ConnectionMapBuilder(BTreeMap<String, ConnConfigBuilder);
+///
+/// impl ConnectionMapBuilder {
+///     fn build(&self) -> Result<ConnectionMap, ConfigBuildError> {
+///         ...
+///     }
+/// }
+/// impl Default for ConnectionMapBuilder { ... }
+/// impl Deserialize for ConnectionMapBuilder { ... }
+/// impl ExtendBuilder for ConnectionMapBuilder { ... }
 /// ```
 ///
 /// # Notes and rationale
