@@ -7,6 +7,10 @@ use std::collections::BTreeMap;
 pub trait ExtendBuilder {
     /// Consume `other`, and merge its contents into `self`.
     ///
+    /// Generally, whenever a field is set in `other`,
+    /// it should replace any corresponding field in `self`.
+    /// Unset fields in `other` should have no effect.
+    ///
     /// We use this trait to implement map-style configuration options
     /// that need to have defaults.
     /// Rather than simply replacing the maps wholesale
