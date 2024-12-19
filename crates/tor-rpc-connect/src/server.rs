@@ -90,7 +90,10 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
                 p.as_mut_os_string().push(".lock");
                 p
             };
-            let lock_guard = Some(fslock_guard::LockFileGuard::lock(lock_path)?);
+            let lock_guard = Some(
+                fslock_guard::LockFileGuard::try_lock(lock_path)?
+                    .ok_or(ConnectError::AlreadyLocked)?,
+            );
             // ... and we need to remove the socket, or we won't be able to bind to it.
             match std::fs::remove_file(socket_path) {
                 Ok(()) => {}

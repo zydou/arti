@@ -184,6 +184,10 @@ pub enum ConnectError {
     /// Unable to access the location of a Unix address.
     #[error("Unix address access")]
     UnixAddressAccess(#[from] fs_mistrust::Error),
+    /// Another process was holding a lock for this connect point,
+    /// so we couldn't bind to it.
+    #[error("Could not acquire lock: Another process is listening on this connect point")]
+    AlreadyLocked,
 }
 
 impl From<io::Error> for ConnectError {
@@ -203,6 +207,7 @@ impl crate::HasClientErrorAction for ConnectError {
             E::UnsupportedAuthType => A::Decline,
             E::InvalidUnixAddress => A::Decline,
             E::UnixAddressAccess(err) => err.client_action(),
+            E::AlreadyLocked => A::Abort, // (This one can't actually occur for clients.)
         }
     }
 }
