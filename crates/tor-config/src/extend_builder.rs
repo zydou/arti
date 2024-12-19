@@ -175,4 +175,210 @@ mod test {
             }
         );
     }
+
+    #[derive(Clone, Debug, derive_builder::Builder, Eq, PartialEq, Deftly)]
+    #[builder(derive(Debug, Eq, PartialEq))]
+    #[derive_deftly(ExtendBuilder)]
+    struct DAndS {
+        simple: Option<u32>,
+        #[builder(default = "Some(123)")]
+        dflt: Option<u32>,
+        #[builder(setter(strip_option))]
+        strip: Option<u32>,
+        #[builder(setter(strip_option), default = "Some(456)")]
+        strip_dflt: Option<u32>,
+    }
+    // For reference, the above will crate code something like the example below.
+    // (This may help the tests make more sense)
+    /*
+    #[derive(Default)]
+    struct DAndSBuilder {
+        simple: Option<Option<u32>>,
+        dflt: Option<Option<u32>>,
+        strip: Option<Option<u32>>,
+        strip_dflt: Option<Option<u32>>,
+    }
+    #[allow(unused)]
+    impl DAndSBuilder {
+        fn simple(&mut self, val: Option<u32>) -> &mut Self {
+            self.simple = Some(val);
+            self
+        }
+        fn dflt(&mut self, val: Option<u32>) -> &mut Self {
+            self.dflt = Some(val);
+            self
+        }
+        fn strip(&mut self, val: u32) -> &mut Self {
+            self.strip = Some(Some(val));
+            self
+        }
+        fn strip_dflt(&mut self, val: u32) -> &mut Self {
+            self.strip = Some(Some(val));
+            self
+        }
+        fn build(&self) -> Result<DAndS, DAndSBuilderError> {
+            Ok(DAndS {
+                simple: self
+                    .simple
+                    .ok_or(DAndSBuilderError::UninitializedField("simple"))?,
+                dflt: self.simple.unwrap_or(Some(123)),
+                strip: self
+                    .strip
+                    .ok_or(DAndSBuilderError::UninitializedField("strip"))?,
+                strip_dflt: self.simple.unwrap_or(Some(456)),
+            })
+        }
+    }
+    */
+
+    #[test]
+    // Demonstrate "default" and "strip_option" behavior without Extend.
+    fn default_and_strip_noextend() {
+        // Didn't set non-default options; this will fail.
+        assert!(DAndSBuilder::default().build().is_err());
+        assert!(DAndSBuilder::default().simple(Some(7)).build().is_err());
+        assert!(DAndSBuilder::default().strip(7).build().is_err());
+
+        // We can get away with setting only the non-defaulting options.
+        let v = DAndSBuilder::default()
+            .simple(Some(7))
+            .strip(77)
+            .build()
+            .unwrap();
+        assert_eq!(
+            v,
+            DAndS {
+                simple: Some(7),
+                dflt: Some(123),
+                strip: Some(77),
+                strip_dflt: Some(456)
+            }
+        );
+
+        // But we _can_ also set the defaulting options.
+        let v = DAndSBuilder::default()
+            .simple(Some(7))
+            .strip(77)
+            .dflt(Some(777))
+            .strip_dflt(7777)
+            .build()
+            .unwrap();
+        assert_eq!(
+            v,
+            DAndS {
+                simple: Some(7),
+                dflt: Some(777),
+                strip: Some(77),
+                strip_dflt: Some(7777)
+            }
+        );
+
+        // Now inspect the state of an uninitialized builder, and verify that it works as expected.
+        //
+        // Notably, everything is an Option<Option<...>> for this builder:
+        // `strip_option` only affects the behavior of the setter function,
+        // and `default` only affects the behavior of the build function.
+        // Neither affects the representation..
+        let mut bld = DAndSBuilder::default();
+        assert_eq!(
+            bld,
+            DAndSBuilder {
+                simple: None,
+                dflt: None,
+                strip: None,
+                strip_dflt: None
+            }
+        );
+        bld.simple(Some(7))
+            .strip(77)
+            .dflt(Some(777))
+            .strip_dflt(7777);
+        assert_eq!(
+            bld,
+            DAndSBuilder {
+                simple: Some(Some(7)),
+                dflt: Some(Some(777)),
+                strip: Some(Some(77)),
+                strip_dflt: Some(Some(7777)),
+            }
+        );
+    }
+
+    #[test]
+    fn default_and_strip_extending() {
+        fn combine_and_build(
+            b1: &DAndSBuilder,
+            b2: &DAndSBuilder,
+        ) -> Result<DAndS, DAndSBuilderError> {
+            let mut b = b1.clone();
+            b.extend_from(b2.clone(), ExtendStrategy::ReplaceLists);
+            b.build()
+        }
+
+        // We fail if neither builder sets some non-defaulting option.
+        let dflt_builder = DAndSBuilder::default();
+        assert!(combine_and_build(&dflt_builder, &dflt_builder).is_err());
+        let mut simple_only = DAndSBuilder::default();
+        simple_only.simple(Some(7));
+        let mut strip_only = DAndSBuilder::default();
+        strip_only.strip(77);
+        assert!(combine_and_build(&dflt_builder, &simple_only).is_err());
+        assert!(combine_and_build(&dflt_builder, &strip_only).is_err());
+        assert!(combine_and_build(&simple_only, &dflt_builder).is_err());
+        assert!(combine_and_build(&strip_only, &dflt_builder).is_err());
+        assert!(combine_and_build(&strip_only, &strip_only).is_err());
+        assert!(combine_and_build(&simple_only, &simple_only).is_err());
+
+        // But if every non-defaulting option is set in some builder, we succeed.
+        let v1 = combine_and_build(&strip_only, &simple_only).unwrap();
+        let v2 = combine_and_build(&simple_only, &strip_only).unwrap();
+        assert_eq!(v1, v2);
+        assert_eq!(
+            v1,
+            DAndS {
+                simple: Some(7),
+                dflt: Some(123),
+                strip: Some(77),
+                strip_dflt: Some(456)
+            }
+        );
+
+        // For every option, in every case: when a.extend(b) happens,
+        // a set option overrides a non-set option.
+        let mut all_set_1 = DAndSBuilder::default();
+        all_set_1
+            .simple(Some(1))
+            .strip(11)
+            .dflt(Some(111))
+            .strip_dflt(1111);
+        let v1 = combine_and_build(&all_set_1, &dflt_builder).unwrap();
+        let v2 = combine_and_build(&dflt_builder, &all_set_1).unwrap();
+        let expected_all_1s = DAndS {
+            simple: Some(1),
+            dflt: Some(111),
+            strip: Some(11),
+            strip_dflt: Some(1111),
+        };
+        assert_eq!(v1, expected_all_1s);
+        assert_eq!(v2, expected_all_1s);
+
+        // For every option, in every case: If the option is set in both cases,
+        // the extended-from option overrides the previous one.
+        let mut all_set_2 = DAndSBuilder::default();
+        all_set_2
+            .simple(Some(2))
+            .strip(22)
+            .dflt(Some(222))
+            .strip_dflt(2222);
+        let v1 = combine_and_build(&all_set_2, &all_set_1).unwrap();
+        let v2 = combine_and_build(&all_set_1, &all_set_2).unwrap();
+        let expected_all_2s = DAndS {
+            simple: Some(2),
+            dflt: Some(222),
+            strip: Some(22),
+            strip_dflt: Some(2222),
+        };
+        assert_eq!(v1, expected_all_1s); // since all_set_1 came last.
+        assert_eq!(v2, expected_all_2s); // since all_set_2 came last.
+    }
 }
