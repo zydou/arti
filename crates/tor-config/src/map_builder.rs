@@ -195,6 +195,9 @@ macro_rules! define_map_builder {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
                     D: $crate::deps::serde::Deserializer<'de> {
+                        // To deserialize into this type, we create a builder holding the defaults,
+                        // and we create a builder holding the values from the deserializer.
+                        // We then use ExtendBuilder to extend the defaults with the deserialized values.
                         let deserialized = $coltype::<$keytype, [<$valtype Builder>]>::deserialize(deserializer)?;
                         let mut defaults = $btype::default();
                         $crate::extend_builder::ExtendBuilder::extend_from(
