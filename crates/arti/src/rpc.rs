@@ -229,6 +229,10 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use tor_rpc_connect::ParsedConnectPoint;
+
+    use super::*;
+
     #[test]
     fn rpc_method_names() {
         // We run this from a nice high level module, to ensure that as many method names as
@@ -239,5 +243,12 @@ mod test {
             eprintln!("Bad method name {m:?}: {err}");
         }
         assert!(problems.is_empty());
+    }
+
+    #[test]
+    fn parse_listener_defaults() {
+        for string in listen_defaults_defaults() {
+            let _parsed: ParsedConnectPoint = string.parse().unwrap();
+        }
     }
 }
