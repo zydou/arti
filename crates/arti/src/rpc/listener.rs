@@ -282,6 +282,8 @@ impl RpcListenerConfig {
         if let Some(dir) = &self.dir {
             let dir = dir.path(resolver)?;
             debug!("Reading RPC connect directory at {}", dir.anonymize_home());
+            // Make a map of instructions from our `file_options` telling
+            // `ParsedConnectPoint::load_dir` about any filenames that might need special handling.
             let load_options: HashMap<std::path::PathBuf, LoadOptions> = self
                 .file_options
                 .iter()
