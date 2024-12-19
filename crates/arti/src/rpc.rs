@@ -107,8 +107,9 @@ async fn launch_all_listeners<R: Runtime>(
     }
     if listeners.is_empty() {
         for (idx, connpt) in cfg.listen_default.iter().enumerate() {
+            let display_index = idx + 1; // One-indexed values are more human-readable.
             let (lis, info, guard) =
-                listener::bind_string(connpt, idx + 1, runtime, resolver, mistrust).await?;
+                listener::bind_string(connpt, display_index, runtime, resolver, mistrust).await?;
             debug!(
                 "Listening at {} for {}",
                 lis.local_addr()

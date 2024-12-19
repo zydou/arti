@@ -354,6 +354,9 @@ impl RpcListenerConfig {
 }
 
 /// As [`RpcListenerConfig`], but bind directly to a verbatim connect point given as a string.
+///
+/// Uses `index` to describe which default entry this connect point came from;
+/// `index` should be a human-readable 1-based index.
 pub(super) async fn bind_string<R: Runtime>(
     connpt: &str,
     index: usize,
