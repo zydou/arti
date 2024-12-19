@@ -156,7 +156,11 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
 
 /// Trait to run a task on a threadpool for CPU-bound tasks
 pub trait SpawnBlocking: Clone + Send + Sync + 'static {
-    /// Spawn a task on a threadpool specifically for CPU-bound tasks.
+    /// Spawn a task on a threadpool specifically for blocking tasks.
+    ///
+    /// Note that this is not the best long-term solution for CPU bound tasks, and is better for
+    /// IO-bound tasks. However, until we complete #1784, this is probably a somewhat reasonable
+    /// place to put CPU-bound tasks.
     ///
     /// See the docs for the underlying implementations in [tokio][tokio-threadpool] and
     /// [async-std][async-std-threadpool].
