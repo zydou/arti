@@ -340,7 +340,7 @@ impl Data {
 
 impl Spawn for MockExecutor {
     fn spawn_obj(&self, future: TaskFuture) -> Result<(), SpawnError> {
-        self.spawn_internal("".into(), future);
+        self.spawn_internal("spawn_obj".into(), future);
         Ok(())
     }
 }
@@ -354,7 +354,7 @@ impl SpawnBlocking for MockExecutor {
         // For the mock executor, everything goes on the same threadpool.
         // If we need something more complex in the future, we can change this.
         let (tx, rx) = oneshot::channel();
-        self.spawn_identified("".to_string(), async move {
+        self.spawn_identified("spawn_blocking".to_string(), async move {
             match tx.send(f()) {
                 Ok(()) => (),
                 Err(_) => panic!("Failed to send future's output, did future panic?"),
