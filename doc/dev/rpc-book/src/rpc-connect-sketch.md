@@ -543,7 +543,7 @@ file = "/etc/arti-rpc/arti-rpc-connect.toml"
 [rpc.listen."a-directory"]
 dir = "/home/arti-rpc/rpc-connect.d/"
 # Override configuration options on individual members
-override = { "experimental.toml" : { "enable" : false } }
+file_options = { "experimental.toml" : { "enable" : false } }
 ```
 
 > These sections are given names so that the user
@@ -583,7 +583,7 @@ The RPC server behaves as follows.
    treating all errors as fatal.
    (It does not attempt to load or validate connect files
    whose entries are disabled.)
-3. If a fatal error did not occur,
+3. If an error did not occur,
    but no connect points were bound,
    the server uses the connect points in `rpc.listen-default`,
    treating all errors as fatal.

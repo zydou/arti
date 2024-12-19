@@ -65,7 +65,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
             // This is unreachable, but harmless:
             Auth::Unrecognized {} => return Err(ConnectError::UnsupportedAuthType),
         };
-        if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref())? {
+        if let Some(sock_parent_dir) = crate::socket_parent_path(self.socket.as_ref()) {
             mistrust.check_directory(sock_parent_dir)?;
         }
         // TODO: we currently use try_clone() to get separate reader and writer instances.

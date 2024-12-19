@@ -25,14 +25,16 @@ full = [
 default = []
 
 rpc-client = []
-rpc-server = ["rand", "tor-rtcompat"]
+rpc-server = ["fslock-guard", "rand", "tor-rtcompat"]
 
 [dependencies]
 # NOTE: This crate is a dependency of our RPC client library;
 # Try to avoid introducing big unconditional dependencies!
 cfg-if = "1.0.0"
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 fs-mistrust = { path = "../fs-mistrust", version = "0.8.2" }
+fslock-guard = { path = "../fslock-guard", version = "0.2.1", optional = true }
 rand = { version = "0.8", optional = true }
 safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }

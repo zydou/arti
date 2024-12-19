@@ -184,6 +184,10 @@ pub enum ConnectError {
     /// Unable to access the location of a Unix address.
     #[error("Unix address access")]
     UnixAddressAccess(#[from] fs_mistrust::Error),
+    /// Another process was holding a lock for this connect point,
+    /// so we couldn't bind to it.
+    #[error("Could not acquire lock: Another process is listening on this connect point")]
+    AlreadyLocked,
 }
 
 impl From<io::Error> for ConnectError {
@@ -203,28 +207,14 @@ impl crate::HasClientErrorAction for ConnectError {
             E::UnsupportedAuthType => A::Decline,
             E::InvalidUnixAddress => A::Decline,
             E::UnixAddressAccess(err) => err.client_action(),
+            E::AlreadyLocked => A::Abort, // (This one can't actually occur for clients.)
         }
     }
 }
-
 #[cfg(any(feature = "rpc-client", feature = "rpc-server"))]
 /// Given a `general::SocketAddr`, try to return the path of its parent directory (if any).
-fn socket_parent_path(
-    addr: &tor_general_addr::general::SocketAddr,
-) -> Result<Option<&std::path::Path>, ConnectError> {
-    use tor_general_addr::general::SocketAddr::Unix;
-    let Unix(address) = addr else {
-        // Only unix addresses have paths.
-        //
-        // TODO: Maybe we should have an as_pathname() for general::SocketAddr?
-        return Ok(None);
-    };
-
-    let dirpath = address
-        .as_pathname()
-        .and_then(|p| p.parent())
-        .ok_or(ConnectError::InvalidUnixAddress)?;
-    Ok(Some(dirpath))
+fn socket_parent_path(addr: &tor_general_addr::general::SocketAddr) -> Option<&std::path::Path> {
+    addr.as_pathname().and_then(|p| p.parent())
 }
 
 /// Default connect point for a user-owned Arti instance.

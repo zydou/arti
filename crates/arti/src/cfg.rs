@@ -13,13 +13,14 @@ use crate::onion_proxy::{
 };
 #[cfg(not(feature = "onion-service-service"))]
 use crate::onion_proxy_disabled::{OnionServiceProxyConfigMap, OnionServiceProxyConfigMapBuilder};
+#[cfg(feature = "rpc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rpc")))]
+pub use crate::rpc::{RpcConfig, RpcConfigBuilder};
 use arti_client::TorClientConfig;
 #[cfg(feature = "onion-service-service")]
 use tor_config::define_list_builder_accessors;
 use tor_config::resolve_alternative_specs;
 pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
-#[cfg(feature = "rpc")]
-use tor_config_path::CfgPath;
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
@@ -190,33 +191,6 @@ fn default_max_files() -> u64 {
     16384
 }
 
-/// Configuration for Arti's RPC subsystem.
-///
-/// You cannot change this section on a running Arti client.
-#[cfg(feature = "rpc")]
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Debug, Serialize, Deserialize))]
-#[builder_struct_attr(non_exhaustive)]
-#[non_exhaustive]
-pub struct RpcConfig {
-    /// Location to listen for incoming RPC connections.
-    #[builder(default = "default_rpc_path()")]
-    pub(crate) rpc_listen: Option<CfgPath>,
-}
-
-/// Return the default value for our configuration path.
-#[cfg(feature = "rpc")]
-#[allow(clippy::unnecessary_wraps)]
-fn default_rpc_path() -> Option<CfgPath> {
-    let s = if cfg!(target_os = "windows") {
-        r"\\.\pipe\arti\SOCKET"
-    } else {
-        "~/.local/run/arti/SOCKET"
-    };
-    Some(CfgPath::new(s.to_string()))
-}
-
 /// Structure to hold Arti's configuration options, whether from a
 /// configuration file or the command line.
 //
@@ -254,7 +228,7 @@ pub struct ArtiConfig {
     #[cfg(feature = "rpc")]
     #[builder(sub_builder(fn_name = "build"))]
     #[builder_field_attr(serde(default))]
-    rpc: RpcConfig,
+    pub(crate) rpc: RpcConfig,
 
     /// Information on system resources used by Arti.
     ///
@@ -366,6 +340,7 @@ mod test {
     use std::iter;
     use std::time::Duration;
     use tor_config::load::{ConfigResolveError, ResolutionResults};
+    use tor_config_path::CfgPath;
 
     #[allow(unused_imports)] // depends on features
     use tor_error::ErrorReport as _;

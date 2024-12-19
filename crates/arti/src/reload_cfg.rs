@@ -248,6 +248,10 @@ impl ReconfigurableModule for Application {
         if config.logging() != original.logging() {
             warn!("Can't (yet) reconfigure logging settings while arti is running.");
         }
+        #[cfg(feature = "rpc")]
+        if config.rpc != original.rpc {
+            warn!("Can't (yet) change RPC settings while arti is running.");
+        }
         if config.application().permit_debugging && !original.application().permit_debugging {
             warn!("Cannot disable application hardening when it has already been enabled.");
         }

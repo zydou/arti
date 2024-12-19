@@ -44,11 +44,14 @@
 
 pub mod cmdline;
 mod err;
+#[macro_use]
+pub mod extend_builder;
 pub mod file_watcher;
 mod flatten;
 pub mod list_builder;
 mod listen;
 pub mod load;
+pub mod map_builder;
 mod misc;
 pub mod mistrust;
 mod mut_cfg;
