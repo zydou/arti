@@ -3,7 +3,6 @@
 use anyhow::Context;
 use std::{
     collections::{BTreeMap, HashMap},
-    path::Path,
     str::FromStr as _,
     sync::Arc,
 };
@@ -198,25 +197,18 @@ pub(super) struct RpcConnInfo {
 impl RpcConnInfo {
     /// Initialize a new `RpcConnInfo`.
     ///
-    /// Uses `config_key` (the name of the relevant section within our TOML config)
-    /// and `filename` (a filename within a connect point directory)
-    /// to name the connect point.
+    /// Uses `display_name`
+    /// to name the connect point for human-readable logs.
     ///
     /// Uses `auth` and `options` as settings to initialize new connections.
     #[allow(clippy::unnecessary_wraps)]
     fn new(
-        config_key: &str,
-        filename: Option<&Path>,
+        display_name: String,
         auth: RpcAuth,
         options: ConnectPointOptions,
     ) -> anyhow::Result<Self> {
-        let name = match filename {
-            Some(p) => format!("{} ({})", config_key, p.display_lossy()),
-            None => config_key.to_string(),
-        };
-
         Ok(Self {
-            name,
+            name: display_name,
             auth,
             options,
         })
@@ -274,7 +266,11 @@ impl RpcListenerConfig {
                 .with_context(|| ctx("bind to"))?;
             return Ok(vec![(
                 listener,
-                Arc::new(RpcConnInfo::new(config_key, None, auth, options)?),
+                Arc::new(RpcConnInfo::new(
+                    format!("rpc.listen.\"{}\"", config_key),
+                    auth,
+                    options,
+                )?),
                 guard,
             )]);
         }
@@ -337,8 +333,7 @@ impl RpcListenerConfig {
                 listeners.push((
                     listener,
                     Arc::new(RpcConnInfo::new(
-                        config_key,
-                        Some(path.as_ref()),
+                        format!("rpc.listen.\"{}\" ({})", config_key, path.display_lossy()),
                         auth,
                         options,
                     )?),
@@ -382,8 +377,7 @@ pub(super) async fn bind_string<R: Runtime>(
     Ok((
         listener,
         Arc::new(RpcConnInfo::new(
-            "<default>",
-            Some(format!("#{index}").as_ref()),
+            format!("rpc.listen_default[(#{})]", index),
             auth,
             ConnectPointOptions::default(),
         )?),
