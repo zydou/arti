@@ -94,6 +94,7 @@ async fn launch_all_listeners<R: Runtime>(
             .bind(runtime, name.as_str(), resolver, mistrust)
             .await?
         {
+            // (Note that `bind` only returns enabled listeners, so we don't need to check here.
             debug!(
                 "Listening at {} for {}",
                 lis.local_addr()

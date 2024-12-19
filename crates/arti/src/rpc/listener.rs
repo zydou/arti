@@ -216,7 +216,7 @@ impl RpcConnInfo {
 }
 
 impl RpcListenerConfig {
-    /// Load every connect point from this file or directory,
+    /// Load every enabled connect point from this file or directory,
     /// and bind to them.
     ///
     /// On success, returns a list of bound sockets,
@@ -230,6 +230,8 @@ impl RpcListenerConfig {
         mistrust: &Mistrust,
     ) -> anyhow::Result<Vec<(general::Listener, Arc<RpcConnInfo>, ListenerGuard)>> {
         if !self.listener_options.is_enabled() {
+            // We stop immediately if we're disabled at the RpcListenerConfig level,
+            // and load nothing.
             return Ok(vec![]);
         }
 
@@ -280,6 +282,9 @@ impl RpcListenerConfig {
             debug!("Reading RPC connect directory at {}", dir.anonymize_home());
             // Make a map of instructions from our `file_options` telling
             // `ParsedConnectPoint::load_dir` about any filenames that might need special handling.
+            //
+            // (This is where we we disable any connect point whose `file_options` ConnectPointOptions
+            // tells us it's disabled.)
             let load_options: HashMap<std::path::PathBuf, LoadOptions> = self
                 .file_options
                 .iter()
