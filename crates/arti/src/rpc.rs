@@ -42,7 +42,8 @@ pub struct RpcConfig {
     #[builder_field_attr(serde(default))]
     listen: RpcListenerMap,
 
-    /// A list of default connect points to bind if none are found under `listen`.
+    /// A list of default connect points to bind
+    /// if no enabled connect points are found under `listen`.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     listen_default: ListenDefaults,
