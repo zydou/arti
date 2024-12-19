@@ -20,6 +20,9 @@ use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result};
 pub struct FileAccess<'a> {
     /// Validator object that we use for checking file permissions.
     pub(crate) inner: Inner<'a>,
+    /// If set, we create files with this mode.
+    #[cfg(unix)]
+    create_with_mode: Option<u32>,
 }
 
 /// Inner object for checking file permissions.
@@ -40,7 +43,11 @@ impl<'a> FileAccess<'a> {
     /// Create a new `FileAccess` from `inner`,
     /// using default options.
     fn from_inner(inner: Inner<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            #[cfg(unix)]
+            create_with_mode: None,
+        }
     }
     /// Check path constraints on `path` and verify its permissions
     /// (or the permissions of its parent) according to `check_type`
@@ -65,6 +72,20 @@ impl<'a> FileAccess<'a> {
         })
     }
 
+    /// Configure this FileAccess: when used to crate a file,
+    /// that file will be created with the provided unix permissions.
+    ///
+    /// (This only has an effect on unix, and has the effect of
+    /// giving a newly created file mode 0644.  If this option
+    /// is not set, newly created files have mode 0600.)
+    pub fn create_with_mode(&mut self, mode: u32) -> &mut Self {
+        #[cfg(unix)]
+        {
+            self.create_with_mode = Some(mode);
+        }
+        self
+    }
+
     /// Open a file relative to this `FileAccess`, using a set of [`OpenOptions`].
     ///
     /// `path` must be a path to the new file, obeying the constraints of this `FileAccess`.
@@ -73,22 +94,19 @@ impl<'a> FileAccess<'a> {
     /// exists, it must not be a symlink.
     ///
     /// If the file is created (and this is a unix-like operating system), we
-    /// always create it with mode `600`, regardless of any mode options set in
-    /// `options`.
+    /// always create it with a mode based on [`create_with_mode()`](Self::create_with_mode),
+    /// regardless of any mode set in `options`.
+    /// If `create_with_mode()` wasn't called, we create the file with mode 600.
     pub fn open<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<File> {
         let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckParent)?;
 
         #[allow(unused_mut)]
         let mut options = options.clone();
 
-        #[cfg(target_family = "unix")]
+        #[cfg(unix)]
         {
-            // By default, create all files mode 600, no matter what
-            // OpenOptions said.
-
-            // TODO: Give some way to override this to 640 or 0644 if you
-            //    really want to.
-            options.mode(0o600);
+            let create_mode = self.create_with_mode.unwrap_or(0o600);
+            options.mode(create_mode);
             // Don't follow symlinks out of the secured directory.
             options.custom_flags(libc::O_NOFOLLOW);
         }
@@ -187,5 +205,94 @@ impl<'a> FileAccess<'a> {
         )
         .map_err(|e| Error::io(e, path, "replace file"))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use std::{fs, os::linux::fs::MetadataExt};
+
+    use super::*;
+    use crate::{testing::Dir, Mistrust};
+
+    #[test]
+    fn create_public_in_checked_dir() {
+        let d = Dir::new();
+        d.dir("a");
+
+        d.chmod("a", 0o700);
+
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
+        let checked = m.verifier().secure_dir(d.path("a")).unwrap();
+
+        {
+            let mut f = checked
+                .file_access()
+                .open(
+                    "private-1.txt",
+                    OpenOptions::new().write(true).create_new(true),
+                )
+                .unwrap();
+            f.write_all(b"Hello world\n").unwrap();
+
+            checked
+                .file_access()
+                .write_and_replace("private-2.txt", b"Hello world 2\n")
+                .unwrap();
+        }
+        {
+            let mut f = checked
+                .file_access()
+                .create_with_mode(0o640)
+                .open(
+                    "public-1.txt",
+                    OpenOptions::new().write(true).create_new(true),
+                )
+                .unwrap();
+            f.write_all(b"Hello wider world\n").unwrap();
+
+            checked
+                .file_access()
+                .create_with_mode(0o644)
+                .write_and_replace("public-2.txt", b"Hello wider world 2")
+                .unwrap();
+        }
+
+        #[cfg(target_family = "unix")]
+        {
+            assert_eq!(
+                fs::metadata(d.path("a/private-1.txt")).unwrap().st_mode() & 0o7777,
+                0o600
+            );
+            assert_eq!(
+                fs::metadata(d.path("a/private-2.txt")).unwrap().st_mode() & 0o7777,
+                0o600
+            );
+            assert_eq!(
+                fs::metadata(d.path("a/public-1.txt")).unwrap().st_mode() & 0o7777,
+                0o640
+            );
+            assert_eq!(
+                fs::metadata(d.path("a/public-2.txt")).unwrap().st_mode() & 0o7777,
+                0o644
+            );
+        }
     }
 }
