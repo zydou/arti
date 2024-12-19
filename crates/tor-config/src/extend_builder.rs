@@ -68,9 +68,28 @@ define_derive_deftly! {
     ///
     /// This template is only sensible when used alongside `#[derive(Builder)]`.
     ///
+    /// The provided `extend_from` function will behave as:
+    ///  * For every non-`sub_builder` field,
+    ///    if there is a value set in `other`,
+    ///    replace the value in `self` (if any) with that value.
+    ///    (Otherwise, leave the value in `self` as it is).
+    ///  * For every `sub_builder` field,
+    ///    recursively use `extend_from` to extend that builder
+    ///    from the corresponding builder in `other`.
+    ///
+    /// # Interaction with `sub_builder`.
+    ///
     /// When a field in the struct is tagged with `#[builder(sub_builder)]`,
     /// you must also tag the same field with `#[deftly(extend_builder(sub_builder))]`;
     /// otherwise, compilation will fail.
+    ///
+    /// # Interaction with `strip_option` and `default`.
+    ///
+    /// **The flags have no special effect on the `ExtendBuilder`, and will work fine.**
+    ///
+    /// (See comments in the code for details about why, and what this means.
+    /// Remember, `builder(default)` is applied when `build()` is called,
+    /// and does not automatically cause an un-set option to count as set.)
     export ExtendBuilder for struct, expect items:
 
     impl $crate::extend_builder::ExtendBuilder for $<$ttype Builder> {
@@ -81,6 +100,20 @@ define_derive_deftly! {
                 ${if fmeta(extend_builder(sub_builder)) {
                     $crate::extend_builder::ExtendBuilder::extend_from(&mut self.$fname, other.$fname, strategy);
                 } else {
+                    // Note that we do not need any special handling here for `strip_option` or
+                    // `default`.
+                    //
+                    // Recall that:
+                    // * `strip_option` only takes effect in a setter method,
+                    //   and causes the setter to wrap an additional Some() around its argument.
+                    // * `default` takes effect in the build method,
+                    //   and controls that method's behavior when.
+                    //
+                    // In both cases, when the built object has a field of type `T`,
+                    // the builder will have a corresponding field of type `Option<T>`,
+                    // and will represent an un-set field with `None`.
+                    // Therefore, since these flags don't effect the representation of a set or un-set field,
+                    // our `extend_from` function doesn't need to know about them.
                     if let Some(other_val) = other.$fname {
                         self.$fname = Some(other_val);
                     }
