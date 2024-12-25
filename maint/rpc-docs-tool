@@ -6,7 +6,7 @@ Script to generate a document about Arti RPC objects and methods.
 - Extracts a list of methods and objects by running Arti RPC.
 - Extracts markdown documentation by running nightly rustdoc to get JSON output.
 
-- Outpus markdown or html.
+- Outputs markdown or html.
 
 Requires rustdoc nightly, for json support.
 May require specific versions of rustdoc nightly,
@@ -343,7 +343,7 @@ class RpcUniverse:
         return s
 
     def output_types(self):
-        """Reutrn a set of every known type that can be output from an RPC method"""
+        """Return a set of every known type that can be output from an RPC method"""
         return set(minfo["output_type"] for minfo in self.methods.values())
 
     def update_types(self):

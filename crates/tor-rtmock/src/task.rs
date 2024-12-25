@@ -194,9 +194,9 @@ enum TaskState {
 struct ActualWaker {
     /// Executor state
     ///
-    /// The Waker musn't to hold a strong reference to the executor,
+    /// The Waker mustn't to hold a strong reference to the executor,
     /// since typically a task holds a future that holds a Waker,
-    /// and the exeuctor holds the task - so that would be a cycle.
+    /// and the executor holds the task - so that would be a cycle.
     data: Weak<Mutex<Data>>,
 
     /// Which task this is

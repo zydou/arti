@@ -25,7 +25,7 @@ type KeyIdent = (ArtiPath, KeystoreItemType);
 /// system may do so for reasons outside of this library's control. Some
 /// examples are swapping RAM to disk, generating core dumps, invoking
 /// suspend-to-disk power management, etc. This key store does not attempt to
-/// prevent this operating system behvaiour.
+/// prevent this operating system behaviour.
 pub struct ArtiEphemeralKeystore {
     /// Identifier hard-coded to 'ephemeral'
     id: KeystoreId,

@@ -196,11 +196,11 @@ impl<'b, O, P: ReadPrecision> Finished<'b, O, P> {
 
     /// Return the output, and the following already-read data as a `Vec`
     ///
-    /// The `Vec` is quite likely to have a considerably larger capacity than contnets.
+    /// The `Vec` is quite likely to have a considerably larger capacity than contents.
     /// (Its capacity is usually the original buffer size, when the `Buffer` was created.)
     ///
     /// The `Buffer` should not be discarded after calling this;
-    /// it will not be useable.
+    /// it will not be usable.
     //
     // Ideally, this would *consume* the Buffer.  But that would mean that
     // `step` would have to take and return the buffer,

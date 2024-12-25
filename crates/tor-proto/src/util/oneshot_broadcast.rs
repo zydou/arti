@@ -68,7 +68,7 @@ pub(crate) struct Receiver<T> {
 ///
 /// When the wakers Mutex is released at (C), a release-store operation is performed by the Mutex,
 /// which means that the message set at (A) will be seen by all future acquire-load operations by
-/// that same Mutex. More specifically, after (C) has occured and when the same mutex is acquired at
+/// that same Mutex. More specifically, after (C) has occurred and when the same mutex is acquired at
 /// (D), the message set at (A) is guaranteed to be visible at (E). This means that after the wakers
 /// are taken at (B), no future wakers will be added at (F) and no waker will be "lost".
 #[derive(Debug)]

@@ -161,7 +161,7 @@ impl CoarseTimeProvider for RealCoarseTimeProvider {
     }
 }
 
-#[cfg(not(miri))] // TODO coarse_time substracts with overflow!
+#[cfg(not(miri))] // TODO coarse_time subtracts with overflow!
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

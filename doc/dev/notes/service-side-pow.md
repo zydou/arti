@@ -20,7 +20,7 @@ Related spec docs:
   * Used nonces datastructure
   * Verifier for the correct seed (implies that access to the verifier should be keyed on `SeedHead`
     since that's all we have access to when processing a request, we don't know the TP)
-  * Total effort value, which must somehow be updated upon successful requets
+  * Total effort value, which must somehow be updated upon successful requests
 * At some point after we have verified the solve, the code dequeuing requests in order to send them
   to the backend that generates responses needs to be able to see the effort associated with that
   request.

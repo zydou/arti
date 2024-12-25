@@ -27,7 +27,7 @@ impl PowParamSet {
     ///
     pub(super) fn from_items(items: &[Item<'_, HsInnerKwd>]) -> Result<Self> {
         // Parse each one individually,
-        // verifing each time we don't have a duplicated enum discriminant.
+        // verifying each time we don't have a duplicated enum discriminant.
         let mut inner = Vec::new();
         let mut schemes_seen: HashSet<Discriminant<PowParams>> = HashSet::new();
         for item in items {
