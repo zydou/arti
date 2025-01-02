@@ -1174,4 +1174,38 @@ mod test {
             }
         });
     }
+
+    #[cfg(not(miri))] // MockRuntime uses SystemTime.  XXXX use MockExecutor instead
+    #[test]
+    fn drop_reentrancy() {
+        // Check that dropping a completed task future is done *outside* the data lock.
+        // Involves a contrived future whose Drop impl reenters the executor.
+        //
+        // If `_fut_drop_late = fut` in execute_until_first_stall (the main loop)
+        // is replaced with `drop(fut)` (dropping the future at the wrong moment),
+        // we do indeed get deadlock, so this test case is working.
+
+        struct ReentersOnDrop {
+            runtime: MockRuntime,
+        }
+        impl Future for ReentersOnDrop {
+            type Output = ();
+            fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<()> {
+                Poll::Ready(())
+            }
+        }
+        impl Drop for ReentersOnDrop {
+            fn drop(&mut self) {
+                self.runtime
+                    .spawn_identified("dummy", futures::future::ready(()));
+            }
+        }
+
+        MockRuntime::test_with_various(|runtime| async move {
+            runtime.spawn_identified("trapper", {
+                let runtime = runtime.clone();
+                ReentersOnDrop { runtime }
+            });
+        });
+    }
 }
