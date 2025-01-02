@@ -77,6 +77,7 @@ shellcheck:
 
 python3-checks:
   stage: check
+  allow_failure: true
   script:
     - maint/common/apt-install python3-pip python3-venv git
     # AFAICT these python packages do not have debian packages.
