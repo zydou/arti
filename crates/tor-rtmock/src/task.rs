@@ -551,6 +551,7 @@ impl MockExecutor {
             };
 
             // Deal with the returned `Poll`
+            let _fut_drop_late;
             {
                 let mut data = self.data.lock();
                 let task = data
@@ -575,6 +576,11 @@ impl MockExecutor {
                         // It might be in `awake`, but that's allowed to contain stale tasks,
                         // so we *don't* need to scan that list and remove it.
                         data.tasks.remove(id);
+                        // It is important that we don't drop `fut` until we have released
+                        // the data lock, since it is an external type and might try to reenter
+                        // us (eg by calling spawn).  If we do that here, we risk deadlock.
+                        // So, move `fut` to a variable with scope outside the block with `data`.
+                        _fut_drop_late = fut;
                     }
                 }
             }
@@ -1062,6 +1068,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::MockRuntime;
     use futures::channel::mpsc;
     use futures::{SinkExt as _, StreamExt as _};
 
