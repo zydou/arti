@@ -28,7 +28,7 @@ use strum::EnumIter;
 // in tests of other crates.  To see it, you can write something like this
 // (in the dev-dependencies of the crate whose tests you're running):
 //    tracing-test = { version = "0.2.4", features = ["no-env-filter"] }
-use tracing::trace;
+use tracing::{error, trace};
 
 use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
@@ -385,16 +385,22 @@ impl BlockOn for MockExecutor {
     ///    but instead waits for something.
     ///
     /// * The `MockExecutor` is reentered.  (Eg, `block_on` is reentered.)
-    fn block_on<F>(&self, fut: F) -> F::Output
+    fn block_on<F>(&self, input_fut: F) -> F::Output
     where
         F: Future,
     {
         let mut value: Option<F::Output> = None;
-        let fut = {
+
+        // Box this just so that we can conveniently control precisely when it's dropped.
+        // (We could do this with Option and Pin::set but that seems clumsier.)
+        let mut input_fut = Box::pin(input_fut);
+
+        let run_store_fut = {
             let value = &mut value;
-            async move {
+            let input_fut = &mut input_fut;
+            async {
                 trace!("MockExecutor block_on future...");
-                let t = fut.await;
+                let t = input_fut.await;
                 trace!("MockExecutor block_on future returned...");
                 *value = Some(t);
                 trace!("MockExecutor block_on future exiting.");
@@ -402,13 +408,14 @@ impl BlockOn for MockExecutor {
         };
 
         {
-            pin_mut!(fut);
+            pin_mut!(run_store_fut);
+
             let main_id = self
                 .data
                 .lock()
                 .insert_task("main".into(), TaskFutureInfo::Main);
             trace!("MockExecutor {main_id:?} is task for block_on");
-            self.execute_to_completion(fut);
+            self.execute_to_completion(run_store_fut);
         }
 
         #[allow(clippy::let_and_return)] // clarity
@@ -419,8 +426,26 @@ impl BlockOn for MockExecutor {
             // write to tracing too, so the tracing log is clear about when we crashed
             error!("all futures blocked, crashing...");
 
-            let mut data = self.data.lock();
-            data.debug_dump();
+            // Sequencing here is subtle.
+            //
+            // We should do the dump before dropping the input future, because the input
+            // future is likely to own things that, when dropped, wake up other tasks,
+            // rendering the dump inaccurate.
+            //
+            // But also, dropping the input future may well drop a ProgressUntilStalledFuture
+            // which then reenters us.  More generally, we mustn't call user code
+            // with the lock held.
+            //
+            // And, we mustn't panic with the data lock held.
+            //
+            // If value was Some, then this closure is dropped without being called,
+            // which drops the future after it has yielded the value, which is correct.
+            {
+                let mut data = self.data.lock();
+                data.debug_dump();
+            }
+            drop(input_fut);
+
             panic!(
                 r"
 all futures blocked. waiting for the real world? or deadlocked (waiting for each other) ?
