@@ -107,7 +107,7 @@ criterion = "0.5.1"
 hex = "0.4"
 hex-literal = "0.4"
 humantime = "2"
-itertools = "0.13.0"
+itertools = "0.14.0"
 regex = { version = "1", default-features = false, features = ["std"] }
 statrs = "0.17.1"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }

@@ -19,7 +19,7 @@ derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 futures = "0.3.14"
 humantime = "2"
-itertools = "0.13.0"
+itertools = "0.14.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 pin-project = "1"
 priority-queue = "2.0.3"

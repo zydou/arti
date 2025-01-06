@@ -41,7 +41,7 @@ cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 fs-mistrust = { version = "0.8.2", path = "../fs-mistrust" }
 futures = "0.3.14"
-itertools = "0.13.0"
+itertools = "0.14.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "2"

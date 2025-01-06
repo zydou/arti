@@ -53,7 +53,7 @@ fs-mistrust = { path = "../fs-mistrust", version = "0.8.2", features = ["serde",
 glob-match = "0.2.1"
 humantime = "2"
 inventory = "0.3.13"
-itertools = "0.13.0"
+itertools = "0.14.0"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "2"

@@ -79,7 +79,7 @@ futures = "0.3.14"
 growable-bloom-filter = "2.0.1"
 hex = "0.4"
 humantime = "2"
-itertools = "0.13.0"
+itertools = "0.14.0"
 k12 = "0.3.0"
 once_cell = "1"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
