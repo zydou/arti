@@ -88,7 +88,7 @@ pub(crate) struct PersistFile {
     file: BufWriter<File>,
     /// Whether we had a possible partial write
     ///
-    /// See the comment inside [`ReplayLog::check_inner`].
+    /// See the comment inside [`ReplayLog::check_for_replay`].
     /// `Ok` means all is well.
     /// `Err` means we may have written partial data to the actual file,
     /// and need to make sure we're back at a record boundary.
@@ -223,14 +223,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
     /// Otherwise, return `Ok(())`.
     pub(crate) fn check_for_replay(&mut self, message: &T::Message) -> Result<(), ReplayError> {
         let h = T::message_bytes(message);
-        self.check_inner(&h)
-    }
-
-    /// Implementation helper: test whether we have already seen `h`.
-    ///
-    /// Return values are as for `check_for_replay`
-    fn check_inner(&mut self, h: &[u8; MESSAGE_LEN]) -> Result<(), ReplayError> {
-        self.seen.test_and_add(h)?;
+        self.seen.test_and_add(&h)?;
         if let Some(f) = self.file.as_mut() {
             (|| {
                 // If write_all fails, it might have written part of the data;
