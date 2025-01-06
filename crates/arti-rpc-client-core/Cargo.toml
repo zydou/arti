@@ -42,7 +42,7 @@ socketpair = "0.19"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.25.0" }
 
 [features]
-full = ["ffi", "caret/full", "tor-socksproto/full", "tor-error/full"]
+full = ["ffi", "caret/full", "tor-socksproto/full", "tor-error/full", "fs-mistrust/full", "tor-config-path/full", "tor-rpc-connect/full"]
 ffi = ["paste"]
 
 [package.metadata.docs.rs]

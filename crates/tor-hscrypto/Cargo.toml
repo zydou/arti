@@ -29,7 +29,7 @@ full = [
     "tor-units/full",
     "tor-error/full",
     "equix?/full",
-    "tor-memquota?/full",
+    "tor-memquota?/full", "tor-key-forge/full",
 ]
 
 experimental = [
