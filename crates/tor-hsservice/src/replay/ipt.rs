@@ -33,7 +33,7 @@ impl ReplayLogType for IptReplayLogType {
         // (Ancient versions of onion services used a malleable encryption
         // format here, which made replay detection even harder.
         // Fortunately, we don't have that problem in the current protocol)
-        hash(message.encrypted_body()).0
+        hash(message.encrypted_body())
     }
 
     fn parse_log_leafname(leaf: &OsStr) -> Result<(IptLocalId, &str), Cow<'static, str>> {
@@ -68,20 +68,17 @@ mod hash {
     /// this is okay.
     pub(super) const HASH_LEN: usize = 16;
 
-    /// The hash of an input.
-    pub(super) struct H(pub(super) [u8; HASH_LEN]);
-
     /// Compute a hash from a given bytestring.
-    pub(super) fn hash(s: &[u8]) -> H {
+    pub(super) fn hash(s: &[u8]) -> [u8; HASH_LEN] {
         // I'm choosing kangaroo-twelve for its speed. This doesn't affect
         // compatibility, so it's okay to use something a bit odd, since we can
         // change it later if we want.
         use digest::{ExtendableOutput, Update};
         use k12::KangarooTwelve;
         let mut d = KangarooTwelve::default();
-        let mut output = H([0; HASH_LEN]);
+        let mut output = [0; HASH_LEN];
         d.update(s);
-        d.finalize_xof_into(&mut output.0);
+        d.finalize_xof_into(&mut output);
         output
     }
 
@@ -94,8 +91,8 @@ mod hash {
             let a = hash(b"123");
             let b = hash(b"123");
             let c = hash(b"1234");
-            assert_eq!(a.0, b.0);
-            assert_ne!(a.0, c.0);
+            assert_eq!(a, b);
+            assert_ne!(a, c);
         }
     }
 }
