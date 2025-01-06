@@ -28,7 +28,7 @@ compiler = ["dep:dynasmrt", "dep:hex"]
 [dependencies]
 arrayvec = "0.7.3"
 blake2 = "0.10.6"
-dynasmrt = { version = "2.0.0", optional = true }
+dynasmrt = { version = "3.0.1", optional = true }
 fixed-capacity-vec = "1.0"
 hex = { version = "0.4.3", optional = true }
 rand_core = "0.6.4"

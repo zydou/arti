@@ -25,11 +25,6 @@ IGNORE=(
     # We do not use (yet) do any private-key rsa operations in arti:
     # we only use it to verify signatures.
     --ignore RUSTSEC-2023-0071
-    # proc-macro-error is unmaintained.
-    #
-    # Ignoring while we are waiting for upstream to switch to the suggested
-    # alternative: https://github.com/CensoredUsername/dynasm-rs/pull/100
-    --ignore RUSTSEC-2024-0370
     # instant is unmaintained.
     #
     # This was fixed upstream in
@@ -145,5 +140,10 @@ OBSOLETE_IGNORE=(
     #
     # Eventual resolution: Migrated to slotmap-careful; see #1282
     --ignore RUSTSEC-2024-0014
+
+    # proc-macro-error is unmaintained.
+    #
+    # Resolution: We migrated to dynasmrt 3, which doesn't use it.
+    --ignore RUSTSEC-2024-0370
 )
 _="${OBSOLETE_IGNORE[0]}"
