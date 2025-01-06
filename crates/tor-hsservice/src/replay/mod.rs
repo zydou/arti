@@ -43,7 +43,7 @@ pub(crate) type IptReplayLog = ReplayLog<ipt::IptReplayLogType>;
 
 /// The length of the [`ReplayLogType::MAGIC`] constant.
 ///
-/// TODO: If Rust's const generic support was better we wouldn't need this at all.
+// TODO: If Rust's const generic support was better we wouldn't need this at all.
 const MAGIC_LEN: usize = 32;
 
 /// The length of the message that we store on disk, in bytes.
@@ -51,7 +51,7 @@ const MAGIC_LEN: usize = 32;
 /// If the message is longer than this, then we will need to hash or truncate it before storing it
 /// to disk.
 ///
-/// TODO: Once const generics are good, this should be a associated constant for ReplayLogType.
+// TODO: Once const generics are good, this should be a associated constant for ReplayLogType.
 pub(crate) const MESSAGE_LEN: usize = 16;
 
 /// A trait to represent a set of types that ReplayLog can be used with.
