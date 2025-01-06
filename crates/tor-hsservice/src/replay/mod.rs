@@ -115,6 +115,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
             replay_log_type: PhantomData,
         }
     }
+
     /// Create a ReplayLog backed by the file at a given path.
     ///
     /// If the file already exists, load its contents and append any new
