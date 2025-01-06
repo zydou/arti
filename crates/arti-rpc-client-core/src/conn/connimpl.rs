@@ -269,7 +269,7 @@ impl Receiver {
     ) -> Result<ValidatedResponse, ProtoError> {
         // Here in wait_on_message_for_impl, we do the the actual work
         // of waiting for the message.
-        let state = self.state.lock().expect("posioned");
+        let state = self.state.lock().expect("poisoned");
         let (result, mut state, should_alert) = self.wait_on_message_for_impl(state, id);
 
         // Great; we have a message or a fatal error.  All we need to do now

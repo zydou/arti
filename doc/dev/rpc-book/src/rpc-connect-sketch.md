@@ -158,7 +158,7 @@ Thus we are able to guarantee:
  - All path-separating characters (`;` on windows, `:` elsewhere)
    *must* be escaped when URL-encoding.
    (RPC client implementations *must* operate by first splitting the
-   string on the path-seprating character, and then by decoding
+   string on the path-separating character, and then by decoding
    the individual entries.)
 
 The default search path is:
@@ -360,9 +360,9 @@ or if it is a relative `unix:` path,
 then the connection attempt is *declined*.
 
 
-Currently recognized `auth` memebers are in one of these forms:
+Currently recognized `auth` members are in one of these forms:
   - The string `"none"`.
-  - A TCP coookie authentication object.
+  - A TCP cookie authentication object.
 Each is explained below.
 If the `auth` member is in some other unsupported format,
 the connection attempt is *declined*.
@@ -703,7 +703,7 @@ to supply RPC connect points.
 > since (per the Android security model)
 > those other apps MUST NOT completely trust the Tor provider app.
 >
-> Allowing the Tor servce to supply the connect point
+> Allowing the Tor service to supply the connect point
 > might allow the Tor service to completely take over the client app.
 > While the Tor service can inevitably, by its nature,
 > subvert client apps' use of Tor,
@@ -718,7 +718,7 @@ to supply RPC connect points.
 
 How do applications behave if they want to spin up an owned copy of Arti?
 (That is, one that exits when they exit.)
-Is that a special API for that?)
+Is that a special API for that?
 
 What does the cookie authentication look like?
 (See [arti#1521] for one sketch.)

@@ -131,7 +131,7 @@ async fn watch_client_status<R: Runtime>(
 /// Returned ObjectID is a handle for a new `TorClient`,
 /// which is isolated from other `TorClients`:
 /// any streams created with the new `TorClient` will not share circuits
-/// with streams crated with any other `TorClient`.
+/// with streams created with any other `TorClient`.
 #[derive(Deftly, Debug, Serialize, Deserialize)]
 #[derive_deftly(rpc::DynMethod)]
 #[deftly(rpc(method_name = "arti:new_isolated_client"))]

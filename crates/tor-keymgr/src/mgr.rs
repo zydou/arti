@@ -687,7 +687,7 @@ mod tests {
     /// The corresponding fake public key type.
     #[derive(Clone, Debug)]
     struct TestPublicKey {
-        /// The undelying key.
+        /// The underlying key.
         key: KeystoreItem,
     }
 

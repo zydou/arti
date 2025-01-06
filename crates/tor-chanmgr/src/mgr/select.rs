@@ -401,7 +401,7 @@ mod test {
 
     #[test]
     fn best_channel_many() {
-        // some misc channels (as we make `choose_best_channel` more complex, hopefull we can add
+        // some misc channels (as we make `choose_best_channel` more complex, hopeful we can add
         // more channels here)
         let channels = [
             ChannelState::Open(open_channel(FakeChannel {

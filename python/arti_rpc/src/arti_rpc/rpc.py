@@ -105,7 +105,7 @@ def _into_json_str(o: Union[str, dict]) -> str:
 
 class _BuildEntType(Enum):
     """
-    Value to indiate the kind of an RPC connect point search path entry.
+    Value to indicate the kind of an RPC connect point search path entry.
 
     Returned by ArtiRpcResponse.kind().
     """
@@ -571,7 +571,7 @@ class ArtiRpcObject(_RpcBase):
 
 class ArtiRpcResponseKind(Enum):
     """
-    Value to indiate the type of a response to an RPC request.
+    Value to indicate the type of a response to an RPC request.
 
     Returned by ArtiRpcResponse.kind().
     """

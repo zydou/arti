@@ -331,7 +331,7 @@ impl ArtiKeystoreConfigBuilder {
         }
 
         let () = match self.primary.kind {
-            // only enabled OR kind may be set, and when keymgr is not enabeld they must be false|disabled
+            // only enabled OR kind may be set, and when keymgr is not enabled they must be false|disabled
             None | Some(EoA::Auto) => Ok(()),
             _ => Err(ConfigBuildError::Inconsistent {
                 fields: ["enabled", "kind"].map(Into::into).into_iter().collect(),

@@ -294,7 +294,7 @@ We continue reading from the stream, but we stop writing to it.
 7. But reading from `input` means having to respond to the received cell,
    e.g. by sending a circuit-level SENDME.
    The other end won't receive our "response" though,
-   because our "response" cells will get queueud
+   because our "response" cells will get queued
    until our KIST Socket says it's ok to write some more
 
 However, when KIST-limiting kicks in, we don't expect to actually receive

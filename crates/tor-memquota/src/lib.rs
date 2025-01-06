@@ -167,7 +167,7 @@
 //!
 //! In the case of sufficiently bad account errors,
 //! a Participant, or a whole Account, or the whole MemoryQuotaTracker,
-//! may become unuseable,
+//! may become unusable,
 //! in which case methods will return errors with kind [`tor_error::ErrorKind::Internal`].
 //
 // TODO MEMQUOTA: We ought to account for the fixed overhead of each stream, circuit, and

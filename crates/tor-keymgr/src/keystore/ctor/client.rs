@@ -193,7 +193,7 @@ impl CTorClientKeystore {
 /// format.
 ///
 /// TODO: we might want to move this to tor-hscrypto at some point,
-/// but for now, we don't actually *need* to expose this publically.
+/// but for now, we don't actually *need* to expose this publicly.
 fn parse_client_keypair(
     key: impl AsRef<str>,
 ) -> StdResult<(HsId, HsClientDescEncKeypair), MalformedClientKeyError> {

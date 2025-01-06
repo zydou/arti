@@ -9,7 +9,7 @@ use super::intro_payload::IntroPayloadExtType;
 use caret::caret_int;
 use tor_bytes::{EncodeResult, Reader, Result, Writer};
 
-/// Extention to provide a proof of work for denial of service mitigation
+/// Extension to provide a proof of work for denial of service mitigation
 ///
 /// Documented at <https://spec.torproject.org/rend-spec/introduction-protocol.html#INTRO1_POW_EXT>
 ///

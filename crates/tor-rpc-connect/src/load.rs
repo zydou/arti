@@ -159,7 +159,7 @@ pub struct LoadOptions {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum LoadError {
-    /// We couldn't accesss the path.
+    /// We couldn't access the path.
     ///
     /// This can happen if permissions are wrong,
     /// the file doesn't exist, we encounter an IO error, or something similar.

@@ -326,7 +326,7 @@ fn interpret_socks_auth(auth: &SocksAuth) -> Result<AuthInterpretation> {
             return Ok(Uname::Legacy);
         };
         if remainder.is_empty() {
-            return Err(anyhow!("Exteneded SOCKS information without format code."));
+            return Err(anyhow!("Extended SOCKS information without format code."));
         }
         // TODO MSRV 1.80: use split_at_checked instead.
         // This won't panic since we checked for an empty string above.
