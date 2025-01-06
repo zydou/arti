@@ -43,6 +43,11 @@ pub(crate) struct ReplayLog<T> {
 /// A [`ReplayLog`] for [`Introduce2`](tor_cell::relaycell::msg::Introduce2) messages.
 pub(crate) type IptReplayLog = ReplayLog<ipt::IptReplayLogType>;
 
+/// The length of the [`ReplayLogType::MAGIC`] constant.
+///
+/// TODO: If Rust's const generic support was better we wouldn't need this at all.
+const MAGIC_LEN: usize = 32;
+
 /// A trait to represent a set of types that ReplayLog can be used with.
 pub(crate) trait ReplayLogType {
     // TODO: It would be nice to encode the directory name as a associated constant here, rather
@@ -53,6 +58,10 @@ pub(crate) trait ReplayLogType {
 
     /// The time of the messages that we are ensuring the uniqueness of.
     type Message;
+
+    /// A magic string that we put at the start of each log file, to make sure that
+    /// we don't confuse this file format with others.
+    const MAGIC: &'static [u8; MAGIC_LEN];
 
     /// Convert [`Self::Name`] to a [`String`]
     fn format_filename(name: &Self::Name) -> String;
@@ -88,10 +97,6 @@ pub(crate) struct PersistFile {
     #[allow(dead_code)] // Held just so we unlock on drop
     lock: Arc<LockFileGuard>,
 }
-
-/// A magic string that we put at the start of each log file, to make sure that
-/// we don't confuse this file format with others.
-const MAGIC: &[u8; 32] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
 
 /// Replay log files are `<IPTLOCALID>.bin`
 const REPLAY_LOG_SUFFIX: &str = ".bin";
@@ -152,11 +157,11 @@ impl<T: ReplayLogType> ReplayLog<T> {
         // read it.
         let file_len = file.metadata()?.len();
         if file_len == 0 {
-            file.write_all(MAGIC)?;
+            file.write_all(T::MAGIC)?;
         } else {
-            let mut m = [0_u8; MAGIC.len()];
+            let mut m = [0_u8; MAGIC_LEN];
             file.read_exact(&mut m)?;
-            if &m != MAGIC {
+            if &m != T::MAGIC {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     LogContentError::UnrecognizedFormat,
@@ -200,7 +205,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
     /// `current_len` should have come from `file.metadata()`.
     // If the file's length is not an even multiple of HASH_LEN after the MAGIC, truncate it.
     fn truncate_to_multiple(file: &mut File, current_len: u64) -> io::Result<()> {
-        let excess = (current_len - MAGIC.len() as u64) % (HASH_LEN as u64);
+        let excess = (current_len - T::MAGIC.len() as u64) % (HASH_LEN as u64);
         if excess != 0 {
             file.set_len(current_len - excess)?;
         }
@@ -498,7 +503,7 @@ mod test {
             let path = dir.join(format!("hss/allium/iptreplay/{}.bin", IptLocalId::dummy(1)));
             let file = OpenOptions::new().write(true).open(path).unwrap();
             // Make sure that the file has the length we expect.
-            let expected_len = MAGIC.len() + HASH_LEN * group_1.len();
+            let expected_len = MAGIC_LEN + HASH_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
             file.set_len((expected_len - 7) as u64).unwrap();
         });
@@ -683,8 +688,8 @@ mod test {
             };
 
             // Number of hashes we can write to the file before failure occurs
-            const CAN_DO: usize = (ALLOW + BUF - MAGIC.len()) / HASH_LEN;
-            dbg!(MAGIC.len(), HASH_LEN, BUF, ALLOW, CAN_DO);
+            const CAN_DO: usize = (ALLOW + BUF - MAGIC_LEN) / HASH_LEN;
+            dbg!(MAGIC_LEN, HASH_LEN, BUF, ALLOW, CAN_DO);
 
             // Record of the hashes that IptReplayLog tells us were OK and not replays;
             // ie, which it therefore ought to have recorded.

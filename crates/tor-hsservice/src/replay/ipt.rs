@@ -1,6 +1,6 @@
 //! Code for a replay log for [`Introduce2`] messages.
 
-use super::{ReplayLogType, REPLAY_LOG_SUFFIX};
+use super::{ReplayLogType, MAGIC_LEN, REPLAY_LOG_SUFFIX};
 use crate::internal_prelude::*;
 use tor_cell::relaycell::msg::Introduce2;
 
@@ -10,6 +10,10 @@ pub(crate) struct IptReplayLogType;
 impl ReplayLogType for IptReplayLogType {
     type Name = IptLocalId;
     type Message = Introduce2;
+
+    // It would be better to specifically say that this is a IPT replay log here, but for backwards
+    // compatability we should keep this as-is.
+    const MAGIC: &'static [u8; MAGIC_LEN] = b"<tor hss replay Kangaroo12>\n\0\0\0\0";
 
     fn format_filename(name: &IptLocalId) -> String {
         format!("{name}{REPLAY_LOG_SUFFIX}")
