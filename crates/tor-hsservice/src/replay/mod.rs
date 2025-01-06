@@ -180,10 +180,10 @@ impl<T: ReplayLogType> ReplayLog<T> {
         let mut seen = data::Filter::new();
         let mut r = BufReader::new(file);
         loop {
-            let mut h = [0_u8; MESSAGE_LEN];
-            match r.read_exact(&mut h) {
+            let mut msg = [0_u8; MESSAGE_LEN];
+            match r.read_exact(&mut msg) {
                 Ok(()) => {
-                    let _ = seen.test_and_add(&h); // ignore error.
+                    let _ = seen.test_and_add(&msg); // ignore error.
                 }
                 Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
                 Err(e) => return Err(e),
@@ -217,7 +217,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
         Ok(())
     }
 
-    /// Test whether we have already seen `introduce`.
+    /// Test whether we have already seen `message`.
     ///
     /// If we have seen it, return `Err(ReplayError::AlreadySeen)`.  (Since this
     /// is a probabilistic data structure, there is a chance of returning this
@@ -312,11 +312,11 @@ mod data {
             Filter(GrowableBloom::new(desired_error_prob, est_insertions))
         }
 
-        /// Try to add `h` to this filter if it isn't already there.
+        /// Try to add `msg` to this filter if it isn't already there.
         ///
         /// Return Ok(()) or Err(AlreadySeen).
-        pub(super) fn test_and_add(&mut self, h: &[u8; MESSAGE_LEN]) -> Result<(), ReplayError> {
-            if self.0.insert(&h[..]) {
+        pub(super) fn test_and_add(&mut self, msg: &[u8; MESSAGE_LEN]) -> Result<(), ReplayError> {
+            if self.0.insert(&msg[..]) {
                 Ok(())
             } else {
                 Err(ReplayError::AlreadySeen)
@@ -651,18 +651,18 @@ mod test {
                 other => panic!("expected EFBUG, got {other:?}"),
             };
 
-            // Generate a distinct Hash given a phase and a counter
+            // Generate a distinct message given a phase and a counter
             #[allow(clippy::identity_op)]
-            let mk_h = |phase: u8, i: usize| {
+            let mk_msg = |phase: u8, i: usize| {
                 let i = u32::try_from(i).unwrap();
-                let mut h = [0_u8; MESSAGE_LEN];
-                h[0] = phase;
-                h[1] = phase;
-                h[4] = (i >> 24) as _;
-                h[5] = (i >> 16) as _;
-                h[6] = (i >> 8) as _;
-                h[7] = (i >> 0) as _;
-                h
+                let mut msg = [0_u8; MESSAGE_LEN];
+                msg[0] = phase;
+                msg[1] = phase;
+                msg[4] = (i >> 24) as _;
+                msg[5] = (i >> 16) as _;
+                msg[6] = (i >> 8) as _;
+                msg[7] = (i >> 0) as _;
+                msg
             };
 
             // Number of hashes we can write to the file before failure occurs
@@ -676,7 +676,7 @@ mod test {
             set_ulimit(ALLOW);
 
             for i in 0..CAN_DO {
-                let h = mk_h(b'y', i);
+                let h = mk_msg(b'y', i);
                 rl.check_for_replay(&h).unwrap();
                 gave_ok.push(h);
             }
@@ -689,7 +689,7 @@ mod test {
 
             for i in 0..2 {
                 eprintln!("expecting EFBIG {i}");
-                demand_efbig(rl.check_for_replay(&mk_h(b'n', i)).unwrap_err());
+                demand_efbig(rl.check_for_replay(&mk_msg(b'n', i)).unwrap_err());
                 let md = fs::metadata(&path).unwrap();
                 assert_eq!(md.len(), u64::try_from(ALLOW).unwrap());
             }
@@ -700,7 +700,7 @@ mod test {
             // Now we should be able to recover.  We write two more hashes.
             for i in 0..2 {
                 eprintln!("recovering {i}");
-                let h = mk_h(b'r', i);
+                let h = mk_msg(b'r', i);
                 rl.check_for_replay(&h).unwrap();
                 gave_ok.push(h);
             }
@@ -715,8 +715,8 @@ mod test {
             // claimed to have written, is indeed recorded.
 
             let mut rl = TestReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
-            for h in &gave_ok {
-                match rl.check_for_replay(h) {
+            for msg in &gave_ok {
+                match rl.check_for_replay(msg) {
                     Err(ReplayError::AlreadySeen) => {}
                     other => panic!("expected AlreadySeen, got {other:?}"),
                 }
