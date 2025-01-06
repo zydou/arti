@@ -1,6 +1,9 @@
 //! Code for a replay log for [`Introduce2`] messages.
 
-use super::{ReplayLogType, MAGIC_LEN, REPLAY_LOG_SUFFIX};
+use super::{
+    hash::{hash, HASH_LEN},
+    ReplayLogType, MAGIC_LEN, REPLAY_LOG_SUFFIX,
+};
 use crate::internal_prelude::*;
 use tor_cell::relaycell::msg::Introduce2;
 
@@ -19,7 +22,7 @@ impl ReplayLogType for IptReplayLogType {
         format!("{name}{REPLAY_LOG_SUFFIX}")
     }
 
-    fn message_bytes(message: &Introduce2) -> Vec<u8> {
+    fn message_bytes(message: &Introduce2) -> [u8; HASH_LEN] {
         // This line here is really subtle!  The decision of _what object_
         // to check for replays is critical to making sure that the
         // introduction point cannot do replays by modifying small parts of
@@ -32,7 +35,7 @@ impl ReplayLogType for IptReplayLogType {
         // (Ancient versions of onion services used a malleable encryption
         // format here, which made replay detection even harder.
         // Fortunately, we don't have that problem in the current protocol)
-        message.encrypted_body().to_vec()
+        hash(message.encrypted_body()).0
     }
 
     fn parse_log_leafname(leaf: &OsStr) -> Result<(IptLocalId, &str), Cow<'static, str>> {

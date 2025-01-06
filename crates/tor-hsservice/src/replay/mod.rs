@@ -16,7 +16,7 @@ mod ipt;
 
 use crate::internal_prelude::*;
 
-use hash::{hash, H, HASH_LEN};
+use hash::HASH_LEN;
 
 /// A probabilistic data structure to record fingerprints of observed Introduce2
 /// messages.
@@ -66,12 +66,8 @@ pub(crate) trait ReplayLogType {
     /// Convert [`Self::Name`] to a [`String`]
     fn format_filename(name: &Self::Name) -> String;
 
-    /// Convert [`Self::Message`] to bytes, which will then be hashed
-    ///
-    /// TODO: The hashing should be done internally here, since only some types need to be hashed.
-    /// However, our current tests reach into the implementation, so this change will be done in a
-    /// followup commit for clarity.
-    fn message_bytes(message: &Self::Message) -> Vec<u8>;
+    /// Convert [`Self::Message`] to bytes that will be stored in the log.
+    fn message_bytes(message: &Self::Message) -> [u8; HASH_LEN];
 
     /// Parse a filename into [`Self::Name`].
     fn parse_log_leafname(leaf: &OsStr) -> Result<(Self::Name, &str), Cow<'static, str>>;
@@ -178,7 +174,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
             let mut h = [0_u8; HASH_LEN];
             match r.read_exact(&mut h) {
                 Ok(()) => {
-                    let _ = seen.test_and_add(&H(h)); // ignore error.
+                    let _ = seen.test_and_add(&h); // ignore error.
                 }
                 Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
                 Err(e) => return Err(e),
@@ -220,14 +216,14 @@ impl<T: ReplayLogType> ReplayLog<T> {
     ///
     /// Otherwise, return `Ok(())`.
     pub(crate) fn check_for_replay(&mut self, message: &T::Message) -> Result<(), ReplayError> {
-        let h = hash(&T::message_bytes(message));
+        let h = T::message_bytes(message);
         self.check_inner(&h)
     }
 
     /// Implementation helper: test whether we have already seen `h`.
     ///
     /// Return values are as for `check_for_replay`
-    fn check_inner(&mut self, h: &H) -> Result<(), ReplayError> {
+    fn check_inner(&mut self, h: &[u8; HASH_LEN]) -> Result<(), ReplayError> {
         self.seen.test_and_add(h)?;
         if let Some(f) = self.file.as_mut() {
             (|| {
@@ -259,7 +255,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
                 }
                 f.needs_resynch = Err(());
 
-                f.file.write_all(&h.0[..])?;
+                f.file.write_all(&h[..])?;
 
                 f.needs_resynch = Ok(());
 
@@ -337,7 +333,7 @@ mod hash {
 ///
 /// We isolate this code to make it easier to replace.
 mod data {
-    use super::ReplayError;
+    use super::{hash::HASH_LEN, ReplayError};
     use growable_bloom_filter::GrowableBloom;
 
     /// A probabilistic membership filter.
@@ -353,11 +349,12 @@ mod data {
             let est_insertions = 100_000;
             Filter(GrowableBloom::new(desired_error_prob, est_insertions))
         }
+
         /// Try to add `h` to this filter if it isn't already there.
         ///
         /// Return Ok(()) or Err(AlreadySeen).
-        pub(super) fn test_and_add(&mut self, h: &super::H) -> Result<(), ReplayError> {
-            if self.0.insert(&h.0[..]) {
+        pub(super) fn test_and_add(&mut self, h: &[u8; HASH_LEN]) -> Result<(), ReplayError> {
+            if self.0.insert(&h[..]) {
                 Ok(())
             } else {
                 Err(ReplayError::AlreadySeen)
@@ -404,6 +401,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use super::hash::*;
     use super::*;
     use crate::test::mk_state_instance;
     use rand::Rng;
@@ -423,8 +421,8 @@ mod test {
             format!("{name}{REPLAY_LOG_SUFFIX}")
         }
 
-        fn message_bytes(message: &[u8; HASH_LEN]) -> Vec<u8> {
-            message.to_vec()
+        fn message_bytes(message: &[u8; HASH_LEN]) -> [u8; HASH_LEN] {
+            message.clone()
         }
 
         fn parse_log_leafname(leaf: &OsStr) -> Result<(IptLocalId, &str), Cow<'static, str>> {
