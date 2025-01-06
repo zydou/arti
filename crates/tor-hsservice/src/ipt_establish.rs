@@ -230,7 +230,7 @@ pub(crate) struct IptParameters {
     ///
     /// We use this to record the requests that we see, and to prevent replays.
     #[educe(Debug(ignore))]
-    pub(crate) replay_log: ReplayLog,
+    pub(crate) replay_log: IptReplayLog,
     /// A set of identifiers for the Relay that we intend to use as the
     /// introduction point.
     ///
@@ -616,7 +616,7 @@ struct Reactor<R: Runtime> {
     ///
     /// Has to be an async mutex since it's locked for a long time,
     /// so we mustn't block the async executor thread on it.
-    replay_log: Arc<futures::lock::Mutex<ReplayLog>>,
+    replay_log: Arc<futures::lock::Mutex<IptReplayLog>>,
 }
 
 /// An open session with a single introduction point.
@@ -765,7 +765,7 @@ impl<R: Runtime> Reactor<R> {
         let (established_tx, established_rx) = oneshot::channel();
 
         // In theory there ought to be only one IptMsgHandler in existence at any one time,
-        // for any one IptLocalId (ie for any one ReplayLog).  However, the teardown
+        // for any one IptLocalId (ie for any one IptReplayLog).  However, the teardown
         // arrangements are (i) complicated (so might have bugs) and (ii) asynchronous
         // (so we need to synchronise).  Therefore:
         //
@@ -844,7 +844,7 @@ struct IptMsgHandler {
     lid: IptLocalId,
 
     /// A replay log used to detect replayed introduction requests.
-    replay_log: futures::lock::OwnedMutexGuard<ReplayLog>,
+    replay_log: futures::lock::OwnedMutexGuard<IptReplayLog>,
 }
 
 impl tor_proto::circuit::MsgHandler for IptMsgHandler {

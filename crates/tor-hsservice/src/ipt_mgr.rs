@@ -465,7 +465,7 @@ impl Ipt {
         };
 
         // TODO #1186 Support ephemeral services (without persistent replay log)
-        let replay_log = ReplayLog::new_logged(&imm.replay_log_dir, &lid)?;
+        let replay_log = IptReplayLog::new_logged(&imm.replay_log_dir, &lid)?;
 
         let params = IptParameters {
             replay_log,
@@ -1384,7 +1384,7 @@ impl<R: Runtime, M: Mockable<R>> IptManager<R, M> {
             let ent = ent.map_err(handle_rl_err("read dir", replay_logs))?;
             let leaf = ent.file_name();
             // Try to identify this replay logfile (including its IptLocalId)
-            match ReplayLog::parse_log_leafname(&leaf) {
+            match IptReplayLog::parse_log_leafname(&leaf) {
                 Ok((lid, _)) if all_ipts.contains(&lid) => continue,
                 Ok((_lid, leaf)) => trace!("deleting replay log for old IPT: {leaf}"),
                 Err(bad) => info!(
