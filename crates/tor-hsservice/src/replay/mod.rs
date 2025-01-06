@@ -100,7 +100,9 @@ pub(crate) struct PersistFile {
     lock: Arc<LockFileGuard>,
 }
 
-/// Replay log files are `<IPTLOCALID>.bin`
+/// Replay log files have a `.bin` suffix.
+///
+/// The name of the file is determined by [`ReplayLogType::format_filename`].
 const REPLAY_LOG_SUFFIX: &str = ".bin";
 
 impl<T: ReplayLogType> ReplayLog<T> {
