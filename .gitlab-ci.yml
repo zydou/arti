@@ -83,10 +83,13 @@ python3-checks:
     # AFAICT these python packages do not have debian packages.
     #
     # (`black` does have a debian package, but we need the latest version.)
+    #
+    # (NOTE: We have specific versions of some tools pinned here to avoid
+    # breakage; we should update them periodically.)
     - |
       python3 -m venv lint
       source lint/bin/activate
-      pip3 install marko tomli_w types-toml types-PyYAML types-beautifulsoup4 types-requests black flake8 mypy
+      pip3 install marko tomli_w types-toml types-PyYAML types-beautifulsoup4 types-requests black==24.4.2 flake8==6.1.0 mypy==1.14.0
       ./maint/python-lints
 
 maint-checks:

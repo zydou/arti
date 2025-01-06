@@ -28,31 +28,31 @@ import sys
 class ArtiRpcStr(Structure):
     """FFI type: String returned by the RPC protocol."""
 
-    _fields_: list = []
+    _fields_ = []
 
 
 class ArtiRpcConnBuilder(Structure):
     """FFI type: Builder for constructing RPC connections."""
 
-    _fields_: list = []
+    _fields_ = []
 
 
 class ArtiRpcConn(Structure):
     """FFI type: Connection to Arti via the RPC protocol."""
 
-    _fields_: list = []
+    _fields_ = []
 
 
 class ArtiRpcError(Structure):
     """FFI type: Error from the RPC library."""
 
-    _fields_: list = []
+    _fields_ = []
 
 
 class ArtiRpcHandle(Structure):
     """FFI type: Handle to an open RPC request."""
 
-    _fields_: list = []
+    _fields_ = []
 
 
 ArtiRpcResponseType = c_int
