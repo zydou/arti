@@ -109,7 +109,7 @@ hex-literal = "0.4"
 humantime = "2"
 itertools = "0.14.0"
 regex = { version = "1", default-features = false, features = ["std"] }
-statrs = "0.17.1"
+statrs = "0.18.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.25.0", features = ["tokio", "native-tls"] }
 [package.metadata.docs.rs]
