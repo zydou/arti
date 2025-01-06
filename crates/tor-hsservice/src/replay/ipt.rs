@@ -1,10 +1,8 @@
 //! Code for a replay log for [`Introduce2`] messages.
 
-use super::{
-    hash::{hash, HASH_LEN},
-    ReplayLogType, MAGIC_LEN, REPLAY_LOG_SUFFIX,
-};
+use super::{ReplayLogType, MAGIC_LEN, REPLAY_LOG_SUFFIX};
 use crate::internal_prelude::*;
+use hash::{hash, HASH_LEN};
 use tor_cell::relaycell::msg::Introduce2;
 
 /// A [`ReplayLogType`] to indicate using [`Introduce2`] messages with [`IptLocalId`] names.
@@ -45,5 +43,59 @@ impl ReplayLogType for IptReplayLogType {
             .parse()
             .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
         Ok((lid, leaf))
+    }
+}
+
+/// Implementation code for pre-hashing our inputs.
+///
+/// We do this because we don't actually want to record the entirety of each
+/// encrypted introduction request.
+///
+/// We aren't terribly concerned about collision resistance: accidental
+/// collision don't matter, since we are okay with a false-positive rate.
+/// Intentional collisions are also okay, since the only impact of generating
+/// one would be that you could make an introduce2 message _of your own_ get
+/// rejected.
+///
+/// The impact of preimages is also not so bad. If somebody can reconstruct the
+/// original message, they still get an encrypted object, and need the
+/// `KP_hss_ntor` key to do anything with it. A second preimage attack just
+/// gives another message we won't accept.
+mod hash {
+    /// Length of the internal hash.
+    ///
+    /// We only keep 128 bits; see note above in the module documentation about why
+    /// this is okay.
+    pub(super) const HASH_LEN: usize = 16;
+
+    /// The hash of an input.
+    pub(super) struct H(pub(super) [u8; HASH_LEN]);
+
+    /// Compute a hash from a given bytestring.
+    pub(super) fn hash(s: &[u8]) -> H {
+        // I'm choosing kangaroo-twelve for its speed. This doesn't affect
+        // compatibility, so it's okay to use something a bit odd, since we can
+        // change it later if we want.
+        use digest::{ExtendableOutput, Update};
+        use k12::KangarooTwelve;
+        let mut d = KangarooTwelve::default();
+        let mut output = H([0; HASH_LEN]);
+        d.update(s);
+        d.finalize_xof_into(&mut output.0);
+        output
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn hash_basics() {
+            let a = hash(b"123");
+            let b = hash(b"123");
+            let c = hash(b"1234");
+            assert_eq!(a.0, b.0);
+            assert_ne!(a.0, c.0);
+        }
     }
 }

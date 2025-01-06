@@ -16,8 +16,6 @@ mod ipt;
 
 use crate::internal_prelude::*;
 
-use hash::HASH_LEN;
-
 /// A probabilistic data structure to record fingerprints of observed Introduce2
 /// messages.
 ///
@@ -48,6 +46,14 @@ pub(crate) type IptReplayLog = ReplayLog<ipt::IptReplayLogType>;
 /// TODO: If Rust's const generic support was better we wouldn't need this at all.
 const MAGIC_LEN: usize = 32;
 
+/// The length of the message that we store on disk, in bytes.
+///
+/// If the message is longer than this, then we will need to hash or truncate it before storing it
+/// to disk.
+///
+/// TODO: Once const generics are good, this should be a associated constant for ReplayLogType.
+pub(crate) const MESSAGE_LEN: usize = 16;
+
 /// A trait to represent a set of types that ReplayLog can be used with.
 pub(crate) trait ReplayLogType {
     // TODO: It would be nice to encode the directory name as a associated constant here, rather
@@ -67,7 +73,7 @@ pub(crate) trait ReplayLogType {
     fn format_filename(name: &Self::Name) -> String;
 
     /// Convert [`Self::Message`] to bytes that will be stored in the log.
-    fn message_bytes(message: &Self::Message) -> [u8; HASH_LEN];
+    fn message_bytes(message: &Self::Message) -> [u8; MESSAGE_LEN];
 
     /// Parse a filename into [`Self::Name`].
     fn parse_log_leafname(leaf: &OsStr) -> Result<(Self::Name, &str), Cow<'static, str>>;
@@ -171,7 +177,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
         let mut seen = data::Filter::new();
         let mut r = BufReader::new(file);
         loop {
-            let mut h = [0_u8; HASH_LEN];
+            let mut h = [0_u8; MESSAGE_LEN];
             match r.read_exact(&mut h) {
                 Ok(()) => {
                     let _ = seen.test_and_add(&h); // ignore error.
@@ -199,9 +205,9 @@ impl<T: ReplayLogType> ReplayLog<T> {
     /// Truncate `file` to contain a whole number of records
     ///
     /// `current_len` should have come from `file.metadata()`.
-    // If the file's length is not an even multiple of HASH_LEN after the MAGIC, truncate it.
+    // If the file's length is not an even multiple of MESSAGE_LEN after the MAGIC, truncate it.
     fn truncate_to_multiple(file: &mut File, current_len: u64) -> io::Result<()> {
-        let excess = (current_len - T::MAGIC.len() as u64) % (HASH_LEN as u64);
+        let excess = (current_len - T::MAGIC.len() as u64) % (MESSAGE_LEN as u64);
         if excess != 0 {
             file.set_len(current_len - excess)?;
         }
@@ -223,7 +229,7 @@ impl<T: ReplayLogType> ReplayLog<T> {
     /// Implementation helper: test whether we have already seen `h`.
     ///
     /// Return values are as for `check_for_replay`
-    fn check_inner(&mut self, h: &[u8; HASH_LEN]) -> Result<(), ReplayError> {
+    fn check_inner(&mut self, h: &[u8; MESSAGE_LEN]) -> Result<(), ReplayError> {
         self.seen.test_and_add(h)?;
         if let Some(f) = self.file.as_mut() {
             (|| {
@@ -287,53 +293,13 @@ impl<T: ReplayLogType> ReplayLog<T> {
     }
 }
 
-/// Implementation code for pre-hashing our inputs.
-///
-/// We do this because we don't actually want to record the entirety of each
-/// encrypted introduction request.
-///
-/// We aren't terribly concerned about collision resistance: accidental
-/// collision don't matter, since we are okay with a false-positive rate.
-/// Intentional collisions are also okay, since the only impact of generating
-/// one would be that you could make an introduce2 message _of your own_ get
-/// rejected.
-///
-/// The impact of preimages is also not so bad. If somebody can reconstruct the
-/// original message, they still get an encrypted object, and need the
-/// `KP_hss_ntor` key to do anything with it. A second preimage attack just
-/// gives another message we won't accept.
-mod hash {
-    /// Length of the internal hash.
-    ///
-    /// We only keep 128 bits; see note above in the module documentation about why
-    /// this is okay.
-    pub(super) const HASH_LEN: usize = 16;
-
-    /// The hash of an input.
-    pub(super) struct H(pub(super) [u8; HASH_LEN]);
-
-    /// Compute a hash from a given bytestring.
-    pub(super) fn hash(s: &[u8]) -> H {
-        // I'm choosing kangaroo-twelve for its speed. This doesn't affect
-        // compatibility, so it's okay to use something a bit odd, since we can
-        // change it later if we want.
-        use digest::{ExtendableOutput, Update};
-        use k12::KangarooTwelve;
-        let mut d = KangarooTwelve::default();
-        let mut output = H([0; HASH_LEN]);
-        d.update(s);
-        d.finalize_xof_into(&mut output.0);
-        output
-    }
-}
-
 /// Wrapper around a fast-ish data structure for detecting replays with some
 /// false positive rate.  Bloom filters, cuckoo filters, and xorf filters are all
 /// an option here.  You could even use a HashSet.
 ///
 /// We isolate this code to make it easier to replace.
 mod data {
-    use super::{hash::HASH_LEN, ReplayError};
+    use super::{ReplayError, MESSAGE_LEN};
     use growable_bloom_filter::GrowableBloom;
 
     /// A probabilistic membership filter.
@@ -353,7 +319,7 @@ mod data {
         /// Try to add `h` to this filter if it isn't already there.
         ///
         /// Return Ok(()) or Err(AlreadySeen).
-        pub(super) fn test_and_add(&mut self, h: &[u8; HASH_LEN]) -> Result<(), ReplayError> {
+        pub(super) fn test_and_add(&mut self, h: &[u8; MESSAGE_LEN]) -> Result<(), ReplayError> {
             if self.0.insert(&h[..]) {
                 Ok(())
             } else {
@@ -401,7 +367,6 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use super::hash::*;
     use super::*;
     use crate::test::mk_state_instance;
     use rand::Rng;
@@ -413,7 +378,7 @@ mod test {
 
     impl ReplayLogType for TestReplayLogType {
         type Name = IptLocalId;
-        type Message = [u8; HASH_LEN];
+        type Message = [u8; MESSAGE_LEN];
 
         const MAGIC: &'static [u8; MAGIC_LEN] = b"<tor test replay>\n\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
@@ -421,7 +386,7 @@ mod test {
             format!("{name}{REPLAY_LOG_SUFFIX}")
         }
 
-        fn message_bytes(message: &[u8; HASH_LEN]) -> [u8; HASH_LEN] {
+        fn message_bytes(message: &[u8; MESSAGE_LEN]) -> [u8; MESSAGE_LEN] {
             message.clone()
         }
 
@@ -435,17 +400,8 @@ mod test {
         }
     }
 
-    fn rand_msg<R: Rng>(rng: &mut R) -> [u8; HASH_LEN] {
+    fn rand_msg<R: Rng>(rng: &mut R) -> [u8; MESSAGE_LEN] {
         rng.gen()
-    }
-
-    #[test]
-    fn hash_basics() {
-        let a = hash(b"123");
-        let b = hash(b"123");
-        let c = hash(b"1234");
-        assert_eq!(a.0, b.0);
-        assert_ne!(a.0, c.0);
     }
 
     /// Basic tests on an ephemeral IptReplayLog.
@@ -529,7 +485,7 @@ mod test {
             let path = dir.join(format!("hss/allium/iptreplay/{}.bin", IptLocalId::dummy(1)));
             let file = OpenOptions::new().write(true).open(path).unwrap();
             // Make sure that the file has the length we expect.
-            let expected_len = MAGIC_LEN + HASH_LEN * group_1.len();
+            let expected_len = MAGIC_LEN + MESSAGE_LEN * group_1.len();
             assert_eq!(expected_len as u64, file.metadata().unwrap().len());
             file.set_len((expected_len - 7) as u64).unwrap();
         });
@@ -703,19 +659,19 @@ mod test {
             #[allow(clippy::identity_op)]
             let mk_h = |phase: u8, i: usize| {
                 let i = u32::try_from(i).unwrap();
-                let mut h = [0_u8; HASH_LEN];
+                let mut h = [0_u8; MESSAGE_LEN];
                 h[0] = phase;
                 h[1] = phase;
                 h[4] = (i >> 24) as _;
                 h[5] = (i >> 16) as _;
                 h[6] = (i >> 8) as _;
                 h[7] = (i >> 0) as _;
-                H(h)
+                h
             };
 
             // Number of hashes we can write to the file before failure occurs
-            const CAN_DO: usize = (ALLOW + BUF - MAGIC_LEN) / HASH_LEN;
-            dbg!(MAGIC_LEN, HASH_LEN, BUF, ALLOW, CAN_DO);
+            const CAN_DO: usize = (ALLOW + BUF - MAGIC_LEN) / MESSAGE_LEN;
+            dbg!(MAGIC_LEN, MESSAGE_LEN, BUF, ALLOW, CAN_DO);
 
             // Record of the hashes that TestReplayLog tells us were OK and not replays;
             // ie, which it therefore ought to have recorded.
@@ -725,7 +681,7 @@ mod test {
 
             for i in 0..CAN_DO {
                 let h = mk_h(b'y', i);
-                rl.check_for_replay(&h.0).unwrap();
+                rl.check_for_replay(&h).unwrap();
                 gave_ok.push(h);
             }
 
@@ -737,7 +693,7 @@ mod test {
 
             for i in 0..2 {
                 eprintln!("expecting EFBIG {i}");
-                demand_efbig(rl.check_for_replay(&mk_h(b'n', i).0).unwrap_err());
+                demand_efbig(rl.check_for_replay(&mk_h(b'n', i)).unwrap_err());
                 let md = fs::metadata(&path).unwrap();
                 assert_eq!(md.len(), u64::try_from(ALLOW).unwrap());
             }
@@ -749,7 +705,7 @@ mod test {
             for i in 0..2 {
                 eprintln!("recovering {i}");
                 let h = mk_h(b'r', i);
-                rl.check_for_replay(&h.0).unwrap();
+                rl.check_for_replay(&h).unwrap();
                 gave_ok.push(h);
             }
 
@@ -764,7 +720,7 @@ mod test {
 
             let mut rl = TestReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
             for h in &gave_ok {
-                match rl.check_for_replay(&h.0) {
+                match rl.check_for_replay(h) {
                     Err(ReplayError::AlreadySeen) => {}
                     other => panic!("expected AlreadySeen, got {other:?}"),
                 }
