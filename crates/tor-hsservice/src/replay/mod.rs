@@ -409,8 +409,36 @@ mod test {
     use rand::Rng;
     use test_temp_dir::{test_temp_dir, TestTempDir, TestTempDirGuard};
 
-    fn rand_h<R: Rng>(rng: &mut R) -> H {
-        H(rng.gen())
+    struct TestReplayLogType;
+
+    type TestReplayLog = ReplayLog<TestReplayLogType>;
+
+    impl ReplayLogType for TestReplayLogType {
+        type Name = IptLocalId;
+        type Message = [u8; HASH_LEN];
+
+        const MAGIC: &'static [u8; MAGIC_LEN] = b"<tor test replay>\n\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+
+        fn format_filename(name: &IptLocalId) -> String {
+            format!("{name}{REPLAY_LOG_SUFFIX}")
+        }
+
+        fn message_bytes(message: &[u8; HASH_LEN]) -> Vec<u8> {
+            message.to_vec()
+        }
+
+        fn parse_log_leafname(leaf: &OsStr) -> Result<(IptLocalId, &str), Cow<'static, str>> {
+            let leaf = leaf.to_str().ok_or("not proper unicode")?;
+            let lid = leaf.strip_suffix(REPLAY_LOG_SUFFIX).ok_or("not *.bin")?;
+            let lid: IptLocalId = lid
+                .parse()
+                .map_err(|e: crate::InvalidIptLocalId| e.to_string())?;
+            Ok((lid, leaf))
+        }
+    }
+
+    fn rand_msg<R: Rng>(rng: &mut R) -> [u8; HASH_LEN] {
+        rng.gen()
     }
 
     #[test]
@@ -426,31 +454,31 @@ mod test {
     #[test]
     fn simple_usage() {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
-        let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
-        let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
+        let group_1: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
+        let group_2: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
 
-        let mut log = IptReplayLog::new_ephemeral();
+        let mut log = TestReplayLog::new_ephemeral();
         // Add everything in group 1.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         // Make sure that everything in group 1 is still there.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_err());
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_err());
         }
         // Make sure that group 2 is detected as not-there.
-        for h in &group_2 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_2 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
     }
 
     const TEST_TEMP_SUBDIR: &str = "replaylog";
 
-    fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<IptReplayLog> {
+    fn create_logged(dir: &TestTempDir) -> TestTempDirGuard<TestReplayLog> {
         dir.subdir_used_by(TEST_TEMP_SUBDIR, |dir| {
             let inst = mk_state_instance(&dir, "allium");
             let raw = inst.raw_subdir("iptreplay").unwrap();
-            IptReplayLog::new_logged(&raw, &IptLocalId::dummy(1)).unwrap()
+            TestReplayLog::new_logged(&raw, &IptLocalId::dummy(1)).unwrap()
         })
     }
 
@@ -458,30 +486,30 @@ mod test {
     #[test]
     fn logging_basics() {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
-        let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
-        let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
+        let group_1: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
+        let group_2: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
 
         let dir = test_temp_dir!();
         let mut log = create_logged(&dir);
         // Add everything in group 1, then close and reload.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         let mut log = create_logged(&dir);
         // Make sure everything in group 1 is still there.
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_err());
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_err());
         }
         // Now add everything in group 2, then close and reload.
-        for h in &group_2 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_2 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
-        for h in group_1.iter().chain(group_2.iter()) {
-            assert!(log.check_inner(h).is_err());
+        for msg in group_1.iter().chain(group_2.iter()) {
+            assert!(log.check_for_replay(msg).is_err());
         }
     }
 
@@ -489,13 +517,13 @@ mod test {
     #[test]
     fn test_truncated() {
         let mut rng = tor_basic_utils::test_rng::testing_rng();
-        let group_1: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
-        let group_2: Vec<_> = (0..=100).map(|_| rand_h(&mut rng)).collect();
+        let group_1: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
+        let group_2: Vec<_> = (0..=100).map(|_| rand_msg(&mut rng)).collect();
 
         let dir = test_temp_dir!();
         let mut log = create_logged(&dir);
-        for h in &group_1 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_1 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         // Truncate the file by 7 bytes.
@@ -510,23 +538,23 @@ mod test {
         // Now, reload the log. We should be able to recover every non-truncated
         // item...
         let mut log = create_logged(&dir);
-        for h in &group_1[..group_1.len() - 1] {
-            assert!(log.check_inner(h).is_err());
+        for msg in &group_1[..group_1.len() - 1] {
+            assert!(log.check_for_replay(msg).is_err());
         }
         // But not the last one, which we truncated.  (Checking will add it, though.)
         assert!(
-            log.check_inner(&group_1[group_1.len() - 1]).is_ok(),
+            log.check_for_replay(&group_1[group_1.len() - 1]).is_ok(),
             "False positive"
         );
         // Now add everything in group 2, then close and reload.
-        for h in &group_2 {
-            assert!(log.check_inner(h).is_ok(), "False positive");
+        for msg in &group_2 {
+            assert!(log.check_for_replay(msg).is_ok(), "False positive");
         }
         drop(log);
         let mut log = create_logged(&dir);
         // Make sure that groups 1 and 2 are still there.
-        for h in group_1.iter().chain(group_2.iter()) {
-            assert!(log.check_inner(h).is_err());
+        for msg in group_1.iter().chain(group_2.iter()) {
+            assert!(log.check_for_replay(msg).is_err());
         }
     }
 
@@ -648,7 +676,7 @@ mod test {
             let path = dir.join("test.log");
             let lock = LockFileGuard::lock(dir.join("dummy.lock")).unwrap();
             let lock = Arc::new(lock);
-            let mut rl = IptReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
+            let mut rl = TestReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
 
             const BUF: usize = 8192; // BufWriter default; if that changes, test will break
 
@@ -691,7 +719,7 @@ mod test {
             const CAN_DO: usize = (ALLOW + BUF - MAGIC_LEN) / HASH_LEN;
             dbg!(MAGIC_LEN, HASH_LEN, BUF, ALLOW, CAN_DO);
 
-            // Record of the hashes that IptReplayLog tells us were OK and not replays;
+            // Record of the hashes that TestReplayLog tells us were OK and not replays;
             // ie, which it therefore ought to have recorded.
             let mut gave_ok = Vec::new();
 
@@ -699,7 +727,7 @@ mod test {
 
             for i in 0..CAN_DO {
                 let h = mk_h(b'y', i);
-                rl.check_inner(&h).unwrap();
+                rl.check_for_replay(&h.0).unwrap();
                 gave_ok.push(h);
             }
 
@@ -711,7 +739,7 @@ mod test {
 
             for i in 0..2 {
                 eprintln!("expecting EFBIG {i}");
-                demand_efbig(rl.check_inner(&mk_h(b'n', i)).unwrap_err());
+                demand_efbig(rl.check_for_replay(&mk_h(b'n', i).0).unwrap_err());
                 let md = fs::metadata(&path).unwrap();
                 assert_eq!(md.len(), u64::try_from(ALLOW).unwrap());
             }
@@ -723,7 +751,7 @@ mod test {
             for i in 0..2 {
                 eprintln!("recovering {i}");
                 let h = mk_h(b'r', i);
-                rl.check_inner(&h).unwrap();
+                rl.check_for_replay(&h.0).unwrap();
                 gave_ok.push(h);
             }
 
@@ -736,9 +764,9 @@ mod test {
             // We can then check that everything the earlier IptReplayLog
             // claimed to have written, is indeed recorded.
 
-            let mut rl = IptReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
+            let mut rl = TestReplayLog::new_logged_inner(&path, lock.clone()).unwrap();
             for h in &gave_ok {
-                match rl.check_inner(h) {
+                match rl.check_for_replay(&h.0) {
                     Err(ReplayError::AlreadySeen) => {}
                     other => panic!("expected AlreadySeen, got {other:?}"),
                 }
