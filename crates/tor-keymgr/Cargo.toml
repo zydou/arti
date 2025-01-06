@@ -32,7 +32,8 @@ full = [
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["ephemeral-keystore", "ctor-keystore", "testing"]
+experimental = ["ephemeral-keystore", "ctor-keystore", "testing", "experimental-api"]
+
 experimental-api = ["__is_experimental"]
 ephemeral-keystore = ["__is_experimental"]
 ctor-keystore = ["data-encoding", "__is_experimental"]

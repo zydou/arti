@@ -53,7 +53,7 @@ full = [
     "tor-hsrproxy?/full",
     "tor-hsservice?/full",
     "tor-async-utils/full",
-    "tor-config-path/full",
+    "tor-config-path/full", "tor-basic-utils/full", "tor-rpc-connect?/full",
 ]
 
 async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "signal-hook", "signal-hook-async-std"]
