@@ -4,16 +4,16 @@ Upstream-Contact: The Tor Project, Inc.
 Source: https://gitlab.torproject.org/tpo/core/arti
 
 Files:     *
-Copyright: 2019-2024 The Tor Project, Inc.
+Copyright: 2019-2025 The Tor Project, Inc.
 License:   Apache-2.0 or MIT
 
 Files:     crates/equix/*
            crates/hashx/*
-Copyright: 2023-2024 The Tor Project, Inc.
+Copyright: 2023-2025 The Tor Project, Inc.
 License:   LGPL-3.0-only
 
 Files:     debian/*
-Copyright: 2024 NoisyCoil <noisycoil@tutanota.com>
+Copyright: 2024-2025 NoisyCoil <noisycoil@tutanota.com>
 License:   Apache-2.0 or MIT
 
 License: Apache-2.0
