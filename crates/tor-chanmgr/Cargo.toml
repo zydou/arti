@@ -74,7 +74,7 @@ void = "1"
 float_eq = "1.0.0"
 futures-await-test = "0.3.0"
 hex-literal = "0.4"
-itertools = "0.13.0"
+itertools = "0.14.0"
 tor-cell = { path = "../tor-cell", version = "0.25.0", features = ["testing"] }
 tor-netdir = { path = "../tor-netdir", version = "0.25.0", features = ["testing"] }
 tor-proto = { path = "../tor-proto", version = "0.25.0", features = ["testing"] }

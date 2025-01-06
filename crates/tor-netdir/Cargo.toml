@@ -52,7 +52,7 @@ digest = { version = "0.10.0", optional = true }
 futures = "0.3.14"
 hex = { version = "0.4", optional = true }
 humantime = "2"
-itertools = "0.13.0"
+itertools = "0.14.0"
 num_enum = "0.7"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"], optional = true }
 rand = "0.8"

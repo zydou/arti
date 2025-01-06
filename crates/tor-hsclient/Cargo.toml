@@ -54,7 +54,7 @@ derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"
 either = "1"
 futures = "0.3.14"
-itertools = "0.13.0"
+itertools = "0.14.0"
 oneshot-fused-workaround = { path = "../oneshot-fused-workaround", version = "0.2.0" }
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
