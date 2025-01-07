@@ -40,6 +40,7 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+#![deny(clippy::mod_module_files)]
 #![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
 #![allow(clippy::uninlined_format_args)]
 #![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
