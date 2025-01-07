@@ -1,6 +1,6 @@
 [package]
 name = "test-temp-dir"
-version = "0.3.0"
+version = "0.3.1"
 # TODO make this 1.x.  Let's say, do this in December 2024 or January 2025
 authors = ["The Tor Project, Inc.", "Ian Jackson <iwj@torproject.org>"]
 edition = "2021"

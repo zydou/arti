@@ -1,6 +1,6 @@
 [package]
 name = "fslock-guard"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
