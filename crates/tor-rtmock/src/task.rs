@@ -12,6 +12,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
+use futures::future::Map;
 use futures::pin_mut;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::FutureExt as _;
@@ -24,9 +25,9 @@ use std::backtrace::Backtrace;
 use strum::EnumIter;
 use tracing::trace;
 
-use oneshot_fused_workaround as oneshot;
+use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
-use tor_rtcompat::BlockOn;
+use tor_rtcompat::{BlockOn, SpawnBlocking};
 
 use Poll::*;
 use TaskState::*;
@@ -340,8 +341,29 @@ impl Data {
 
 impl Spawn for MockExecutor {
     fn spawn_obj(&self, future: TaskFuture) -> Result<(), SpawnError> {
-        self.spawn_internal("".into(), future);
+        self.spawn_internal("spawn_obj".into(), future);
         Ok(())
+    }
+}
+
+impl SpawnBlocking for MockExecutor {
+    type Handle<T: Send + 'static> = Map<Receiver<T>, Box<dyn FnOnce(Result<T, Canceled>) -> T>>;
+
+    fn spawn_blocking<F, T>(&self, f: F) -> Self::Handle<T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        // For the mock executor, everything goes on the same threadpool.
+        // If we need something more complex in the future, we can change this.
+        let (tx, rx) = oneshot::channel();
+        self.spawn_identified("spawn_blocking".to_string(), async move {
+            match tx.send(f()) {
+                Ok(()) => (),
+                Err(_) => panic!("Failed to send future's output, did future panic?"),
+            }
+        });
+        rx.map(Box::new(|m| m.expect("Failed to receive future's output")))
     }
 }
 
@@ -1094,6 +1116,23 @@ mod test {
                 eprintln!("finishing...");
                 runtime.progress_until_stalled().await;
                 eprintln!("finished.");
+            }
+        });
+    }
+
+    #[cfg_attr(not(miri), traced_test)]
+    #[test]
+    fn spawn_blocking() {
+        let runtime = MockExecutor::default();
+
+        runtime.block_on({
+            let runtime = runtime.clone();
+            async move {
+                let task_1 = runtime.spawn_blocking(|| 42);
+                let task_2 = runtime.spawn_blocking(|| 99);
+
+                assert_eq!(task_2.await, 99);
+                assert_eq!(task_1.await, 42);
             }
         });
     }

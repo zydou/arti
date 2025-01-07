@@ -216,3 +216,15 @@ impl BlockOn for async_executors::AsyncStd {
         async_executors::AsyncStd::block_on(f)
     }
 }
+
+impl SpawnBlocking for async_executors::AsyncStd {
+    type Handle<T: Send + 'static> = async_executors::BlockingHandle<T>;
+
+    fn spawn_blocking<F, T>(&self, f: F) -> async_executors::BlockingHandle<T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        async_executors::SpawnBlocking::spawn_blocking(&self, f)
+    }
+}
