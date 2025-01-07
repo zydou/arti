@@ -1,6 +1,6 @@
 [package]
 name = "tor-units"
-version = "0.25.0"
+version = "0.26.0"
 authors = ["Dennis Jackson <git@dennisjj.co.uk>"]
 edition = "2021"
 rust-version = "1.77"
@@ -16,7 +16,7 @@ categories = ["rust-patterns"]
 derive-deftly = { version = "0.14.2", optional = true }
 derive_more = { version = "1.0.0", features = ["full"] }
 thiserror = "2"
-tor-memquota = { version = "0.25.0", path = "../tor-memquota", default-features = false, optional = true }
+tor-memquota = { version = "0.26.0", path = "../tor-memquota", default-features = false, optional = true }
 
 [dev-dependencies]
 float-cmp = "0.10.0"

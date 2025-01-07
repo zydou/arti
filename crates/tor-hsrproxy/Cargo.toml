@@ -1,6 +1,6 @@
 [package]
 name = "tor-hsrproxy"
-version = "0.25.0"
+version = "0.26.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -47,14 +47,14 @@ safelog = { version = "0.4.2", path = "../safelog" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
 thiserror = "2"
-tor-async-utils = { version = "0.25.0", path = "../tor-async-utils" }
-tor-cell = { version = "0.25.0", path = "../tor-cell" }
-tor-config = { version = "0.25.0", path = "../tor-config" }
-tor-error = { version = "0.25.0", path = "../tor-error" }
-tor-hsservice = { path = "../tor-hsservice", version = "0.25.0" }
-tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.25.0" }
-tor-proto = { version = "0.25.0", path = "../tor-proto", features = ["hs-service"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.25.0" }
+tor-async-utils = { version = "0.26.0", path = "../tor-async-utils" }
+tor-cell = { version = "0.26.0", path = "../tor-cell" }
+tor-config = { version = "0.26.0", path = "../tor-config" }
+tor-error = { version = "0.26.0", path = "../tor-error" }
+tor-hsservice = { path = "../tor-hsservice", version = "0.26.0" }
+tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.26.0" }
+tor-proto = { version = "0.26.0", path = "../tor-proto", features = ["hs-service"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.26.0" }
 tracing = "0.1.36"
 void = "1"
 

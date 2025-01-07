@@ -1,6 +1,6 @@
 [package]
 name = "safelog"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
