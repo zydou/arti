@@ -1068,9 +1068,9 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
-    use crate::MockRuntime;
     use futures::channel::mpsc;
     use futures::{SinkExt as _, StreamExt as _};
+    use strum::IntoEnumIterator;
 
     #[cfg(not(miri))] // trace! asks for the time, which miri doesn't support
     use tracing_test::traced_test;
@@ -1182,7 +1182,7 @@ mod test {
         });
     }
 
-    #[cfg(not(miri))] // MockRuntime uses SystemTime.  XXXX use MockExecutor instead
+    #[cfg_attr(not(miri), traced_test)]
     #[test]
     fn drop_reentrancy() {
         // Check that dropping a completed task future is done *outside* the data lock.
@@ -1193,7 +1193,7 @@ mod test {
         // we do indeed get deadlock, so this test case is working.
 
         struct ReentersOnDrop {
-            runtime: MockRuntime,
+            runtime: MockExecutor,
         }
         impl Future for ReentersOnDrop {
             type Output = ();
@@ -1208,11 +1208,17 @@ mod test {
             }
         }
 
-        MockRuntime::test_with_various(|runtime| async move {
-            runtime.spawn_identified("trapper", {
-                let runtime = runtime.clone();
-                ReentersOnDrop { runtime }
+        // This duplicates the part of the logic in MockRuntime::test_with_various which
+        // relates to MockExecutor, because we don't have a MockRuntime::builder.
+        // The only parameter to MockExecutor is its scheduling policy, so this seems fine.
+        for scheduling in SchedulingPolicy::iter() {
+            let runtime = MockExecutor::with_scheduling(scheduling);
+            runtime.block_on(async {
+                runtime.spawn_identified("trapper", {
+                    let runtime = runtime.clone();
+                    ReentersOnDrop { runtime }
+                });
             });
-        });
+        }
     }
 }
