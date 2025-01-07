@@ -154,7 +154,7 @@ pub trait BlockOn: Clone + Send + Sync + 'static {
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
 
-/// Trait to run a task on a threadpool for CPU-bound tasks
+/// Trait to run a task on a threadpool for blocking tasks
 pub trait SpawnBlocking: Clone + Send + Sync + 'static {
     /// The type of handle used to await the result of the task.
     type Handle<T: Send + 'static>: Future<Output = T>;
