@@ -3,6 +3,7 @@
 #2 WARNING: This file MUST be sorted.
 Alexander Færøy
 Alexander Hansen Færøy
+Clara Engler
 David Goulet
 Gaba
 gabi-250
@@ -14,4 +15,5 @@ Nick Mathewson
 opara
 Steven Engler
 Tor CI Release
+wesleyac
 Wesley Aptekar-Cassels

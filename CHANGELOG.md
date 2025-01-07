@@ -3,6 +3,141 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.3.2 — 7 January 2025
+
+Arti 1.3.2 continues development on RPC,
+and includes preparatory work for relay support and
+service-side onion service denial-of-service resistance.
+
+### Breaking changes in lower-level crates
+
+- In `tor-rtcompat`, stream types now implement a `StreamOps` trait
+  to provide additional operations.
+  Currently, the only supported operation is `set_tcp_notsent_lowat`,
+  which will be used in our [KIST] implementation.
+  ([#1769], [!2660], [!2673])
+- In `tor-key-forge`, the `Error` type no longer implements `HasKind`:
+  the correct behavior for this error depends on higher-level context.
+  ([!2664])
+- In `tor-keymgr`, the `EncodeableKey` trait has been replaced with
+  a `EncodeableItem` trait. ([!2635])
+- In `tor-keymgr`, the `KeyType::Unknown` variant has been removed.
+  ([!2635])
+
+### Onion service development
+
+- Design for integration of proof-of-work into Arti's service-side
+  onion-service implementation. ([!2663])
+
+### Relay development
+
+- The key-manager code can now store certificates as well as keys.
+  ([#1617], [!2644])
+
+### Directory authority development
+
+- Design for the necessary behaviors and pieces of
+  a directory authority implementation.
+  ([!2635])
+
+### RPC development
+
+- Initial implementation for RPC connect points,
+  which will provide a mechanism for applications to discover where
+  Arti is running, and connect to it securely.
+  This implementation is now working, but not yet fully conformant
+  to its specification.
+  ([!2655], [!2667], [!2676])
+
+### Documentation
+
+- Clarifications to release instructions about communications surrounding
+  releases.
+  ([!2614])
+- Update copyright statements to 2025.
+  ([!2658], [!2687])
+
+### Infrastructure
+
+- New "exclude" feature in our `fixup-features` tool,
+  to avoid crates that we don't publish.
+  ([#1766], [!2652])
+- Use internally maintained images in our CI instructions,
+  to reduce pulls from dockerhub.
+  ([!2656])
+- Pin Python CI tasks to specific tool versions,
+  to avoid surprising breakage.
+  ([!2683])
+
+### Cleanups, minor features, and bugfixes
+
+- Suppress the new [`clippy::needless_lifetimes`] warning;
+  it affects a large amount of code, and isn't a clear readability benefit.
+  ([64cc3f2ed3eea0b7c5cc])
+- Resolve new Clippy warnings introduced in Rust 1.83.
+  ([#1765], [!2654])
+- Deny the [`clippy::mod_module_files`] lint, for style consistency.
+  ([!2689])
+- Consolidate logic for close detection on Channels.
+  ([!2645])
+- Label the output of our `cbindgen` script with the version of cbindgen,
+  to help detect incompatibility.
+  ([!2662])
+- Remove dependency from `tor-key-forge` onto `tor-hscrypto`.
+  ([#1778], [!2668])
+- In `fs-mistrust`, improve environment-variable handling,
+  document stability guarantees.
+  ([!2674], [!2677])
+- Miscellaneous typo fixes.
+  ([!2680])
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including
+Dimitris Apostolou.
+Also, our deep thanks to
+[Zcash Community Grants],
+the [Bureau of Democracy, Human Rights and Labor],
+and our [other sponsors]
+for funding the development of Arti!
+
+[!2614]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2614
+[!2635]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2635
+[!2644]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2644
+[!2645]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2645
+[!2652]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2652
+[!2654]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2654
+[!2655]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2655
+[!2656]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2656
+[!2658]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2658
+[!2660]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2660
+[!2662]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2662
+[!2663]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2663
+[!2664]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2664
+[!2667]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2667
+[!2668]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2668
+[!2673]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2673
+[!2674]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2674
+[!2676]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2676
+[!2677]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2677
+[!2680]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2680
+[!2683]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2683
+[!2687]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2687
+[!2689]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2689
+[#1617]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1617
+[#1765]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1765
+[#1766]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1766
+[#1769]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1769
+[#1778]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1778
+[64cc3f2ed3eea0b7c5cc]: https://gitlab.torproject.org/tpo/core/arti/-/commit/64cc3f2ed3eea0b7c5cc89ae07cbdadfdc1646fb
+[Bureau of Democracy, Human Rights and Labor]: https://www.state.gov/bureaus-offices/under-secretary-for-civilian-security-democracy-and-human-rights/bureau-of-democracy-human-rights-and-labor/
+[KIST]: https://blog.torproject.org/kist-and-tell-tors-new-traffic-scheduling-feature/
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`clippy::mod_module_files`]: https://rust-lang.github.io/rust-clippy/master/index.html#mod_module_files
+[`clippy::needless_lifetimes`]: https://rust-lang.github.io/rust-clippy/master/index.html#needless_lifetimes
+[other sponsors]: https://www.torproject.org/about/sponsors/
+
+
 
 # Arti 1.3.1 - 2 December 2024
 
