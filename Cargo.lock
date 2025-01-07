@@ -280,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -343,7 +343,7 @@ version = "0.17.0"
 
 [[package]]
 name = "arti-relay"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpc-client-core"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "caret",
  "cfg-if",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "arti-rpcserver"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "arti-client",
  "async-trait",
@@ -1045,7 +1045,7 @@ checksum = "325918d6fe32f23b19878fe4b34794ae41fc19ddbe53b10571a4874d44ffd39b"
 
 [[package]]
 name = "caret"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "cast"
@@ -1910,7 +1910,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "equix"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "arrayvec",
  "hashx",
@@ -2134,7 +2134,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "derive_builder_fork_arti",
  "dirs",
@@ -2171,7 +2171,7 @@ dependencies = [
 
 [[package]]
 name = "fslock-guard"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "fslock-arti-fork",
  "test-temp-dir",
@@ -2453,7 +2453,7 @@ dependencies = [
 
 [[package]]
 name = "hashx"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -3490,7 +3490,7 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "oneshot-fused-workaround"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "futures",
 ]
@@ -4139,7 +4139,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "retry-error"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -4361,7 +4361,7 @@ dependencies = [
 
 [[package]]
 name = "safelog"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "derive_more",
  "educe",
@@ -4794,7 +4794,7 @@ dependencies = [
 
 [[package]]
 name = "slotmap-careful"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "paste",
  "serde",
@@ -5075,7 +5075,7 @@ dependencies = [
 
 [[package]]
 name = "test-temp-dir"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -5329,7 +5329,7 @@ dependencies = [
 
 [[package]]
 name = "tor-async-utils"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive-deftly",
  "educe",
@@ -5348,7 +5348,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive_more",
  "educe",
@@ -5368,7 +5368,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "bytes",
  "derive-deftly",
@@ -5385,7 +5385,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "bitflags 2.6.0",
@@ -5414,7 +5414,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "base64ct",
  "caret",
@@ -5432,7 +5432,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -5469,7 +5469,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "humantime",
  "signature",
@@ -5479,7 +5479,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -5530,7 +5530,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "cfg-if",
@@ -5566,7 +5566,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config-path"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "assert_matches",
  "derive_builder_fork_arti",
@@ -5596,7 +5596,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "digest",
  "hex",
@@ -5606,7 +5606,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "async-compression",
  "base64ct",
@@ -5634,7 +5634,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5693,7 +5693,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -5724,7 +5724,7 @@ dependencies = [
 
 [[package]]
 name = "tor-general-addr"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "arbitrary",
  "assert_matches",
@@ -5735,7 +5735,7 @@ dependencies = [
 
 [[package]]
 name = "tor-geoip"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive_more",
  "once_cell",
@@ -5745,7 +5745,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "base64ct",
@@ -5792,7 +5792,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsclient"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "async-trait",
  "derive-deftly",
@@ -5839,7 +5839,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hscrypto"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "arrayvec",
  "blake2",
@@ -5872,7 +5872,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsrproxy"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive-deftly",
  "derive_builder_fork_arti",
@@ -5899,7 +5899,7 @@ dependencies = [
 
 [[package]]
 name = "tor-hsservice"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -5965,7 +5965,7 @@ dependencies = [
 
 [[package]]
 name = "tor-key-forge"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -5983,7 +5983,7 @@ dependencies = [
 
 [[package]]
 name = "tor-keymgr"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "arrayvec",
@@ -6021,7 +6021,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "base64ct",
  "by_address",
@@ -6048,7 +6048,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "aes",
  "base64ct",
@@ -6087,7 +6087,7 @@ dependencies = [
 
 [[package]]
 name = "tor-log-ratelim"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "futures",
  "humantime",
@@ -6101,7 +6101,7 @@ dependencies = [
 
 [[package]]
 name = "tor-memquota"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -6133,7 +6133,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "async-trait",
  "bitflags 2.6.0",
@@ -6169,7 +6169,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -6216,7 +6216,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -6248,7 +6248,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "asynchronous-codec",
  "bitvec",
@@ -6306,7 +6306,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "caret",
  "thiserror 2.0.9",
@@ -6314,7 +6314,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6343,7 +6343,7 @@ dependencies = [
 
 [[package]]
 name = "tor-relay-crypto"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive-deftly",
  "derive_more",
@@ -6357,7 +6357,7 @@ dependencies = [
 
 [[package]]
 name = "tor-relay-selection"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "once_cell",
  "rand",
@@ -6371,7 +6371,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rpc-connect"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "assert_matches",
  "cfg-if",
@@ -6396,7 +6396,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rpcbase"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "assert-impl",
  "derive-deftly",
@@ -6420,7 +6420,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "arbitrary",
  "assert_matches",
@@ -6452,7 +6452,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "async-trait",
@@ -6481,7 +6481,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "amplify",
  "anyhow",
@@ -6499,7 +6499,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "derive-deftly",
  "derive_more",

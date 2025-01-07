@@ -1,6 +1,6 @@
 [package]
 name = "tor-log-ratelim"
-version = "0.25.0"
+version = "0.26.0"
 authors = ["The Tor Project, Inc."]
 edition = "2021"
 rust-version = "1.77"
@@ -22,8 +22,8 @@ futures = "0.3.14"
 humantime = "2"
 once_cell = "1.18"
 thiserror = "2"
-tor-error = { path = "../tor-error", version = "0.25.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.25.0" }
+tor-error = { path = "../tor-error", version = "0.26.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.26.0" }
 tracing = "0.1.36"
 weak-table = "0.3.0"
 

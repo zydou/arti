@@ -1,6 +1,6 @@
 [package]
 name = "tor-hscrypto"
-version = "0.25.0"
+version = "0.26.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -53,13 +53,13 @@ safelog = { path = "../safelog", version = "0.4.2" }
 signature = "2"
 subtle = "2"
 thiserror = "2"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.25.0" }
-tor-bytes = { version = "0.25.0", path = "../tor-bytes" }
-tor-error = { version = "0.25.0", path = "../tor-error" }
-tor-key-forge = { version = "0.25.0", path = "../tor-key-forge" }
-tor-llcrypto = { version = "0.25.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
-tor-memquota = { version = "0.25.0", path = "../tor-memquota", default-features = false, optional = true }
-tor-units = { path = "../tor-units", version = "0.25.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.26.0" }
+tor-bytes = { version = "0.26.0", path = "../tor-bytes" }
+tor-error = { version = "0.26.0", path = "../tor-error" }
+tor-key-forge = { version = "0.26.0", path = "../tor-key-forge" }
+tor-llcrypto = { version = "0.26.0", path = "../tor-llcrypto", features = ["hsv3-client", "hsv3-service"] }
+tor-memquota = { version = "0.26.0", path = "../tor-memquota", default-features = false, optional = true }
+tor-units = { path = "../tor-units", version = "0.26.0" }
 void = "1"
 zeroize = { version = "1", optional = true }
 
@@ -67,7 +67,7 @@ zeroize = { version = "1", optional = true }
 hex = "0.4"
 hex-literal = "0.4"
 humantime = "2"
-tor-basic-utils = { version = "0.25.0", path = "../tor-basic-utils" }
+tor-basic-utils = { version = "0.26.0", path = "../tor-basic-utils" }
 
 [[test]]
 name = "pow_v1_vectors"

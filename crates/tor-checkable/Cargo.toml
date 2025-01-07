@@ -1,6 +1,6 @@
 [package]
 name = "tor-checkable"
-version = "0.25.0"
+version = "0.26.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.77"
@@ -21,7 +21,7 @@ __is_experimental = []
 humantime = "2"
 signature = "2"
 thiserror = "2"
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.25.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.26.0" }
 [package.metadata.docs.rs]
 all-features = true
 [dev-dependencies]
