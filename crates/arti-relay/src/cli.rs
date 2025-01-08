@@ -10,6 +10,23 @@ pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) command: Commands,
 
+    #[clap(flatten)]
+    pub(crate) global: GlobalArgs,
+}
+
+/// Main subcommands.
+#[derive(Clone, Debug, Subcommand)]
+pub(crate) enum Commands {
+    /// Run the relay.
+    Run(RunArgs),
+    /// Print build information.
+    BuildInfo,
+}
+
+/// Global arguments for all commands.
+// NOTE: `global = true` should be set for each field
+#[derive(Clone, Debug, Args)]
+pub(crate) struct GlobalArgs {
     /// Override the log level from the configuration.
     #[arg(long, short, global = true)]
     #[arg(value_name = "LEVEL")]
@@ -30,15 +47,6 @@ pub(crate) struct Cli {
     #[arg(value_name = "FILE")]
     #[clap(default_values_t = default_config_files().into_iter().map(CliOsString))]
     pub(crate) config: Vec<CliOsString>,
-}
-
-/// Main subcommands.
-#[derive(Clone, Debug, Subcommand)]
-pub(crate) enum Commands {
-    /// Run the relay.
-    Run(RunArgs),
-    /// Print build information.
-    BuildInfo,
 }
 
 /// Arguments when running an Arti relay.
@@ -97,27 +105,27 @@ mod test {
         Cli::parse_from(["arti-relay", "run"]);
 
         let cli = Cli::parse_from(["arti-relay", "--log-level", "warn", "run"]);
-        assert_eq!(cli.log_level, LogLevel::Warn);
+        assert_eq!(cli.global.log_level, LogLevel::Warn);
         let cli = Cli::parse_from(["arti-relay", "run", "--log-level", "warn"]);
-        assert_eq!(cli.log_level, LogLevel::Warn);
+        assert_eq!(cli.global.log_level, LogLevel::Warn);
 
         let cli = Cli::parse_from(["arti-relay", "--disable-fs-permission-checks", "run"]);
-        assert!(cli.disable_fs_permission_checks);
+        assert!(cli.global.disable_fs_permission_checks);
         let cli = Cli::parse_from(["arti-relay", "run", "--disable-fs-permission-checks"]);
-        assert!(cli.disable_fs_permission_checks);
+        assert!(cli.global.disable_fs_permission_checks);
     }
 
     #[test]
     fn clap_bug() {
         let cli = Cli::parse_from(["arti-relay", "-o", "foo=1", "run"]);
-        assert_eq!(cli.options, vec!["foo=1"]);
+        assert_eq!(cli.global.options, vec!["foo=1"]);
 
         let cli = Cli::parse_from(["arti-relay", "-o", "foo=1", "-o", "bar=2", "run"]);
-        assert_eq!(cli.options, vec!["foo=1", "bar=2"]);
+        assert_eq!(cli.global.options, vec!["foo=1", "bar=2"]);
 
         // this is https://github.com/clap-rs/clap/issues/3938
         // TODO: this is a footgun, and we should consider alternatives to clap's 'global' args
         let cli = Cli::parse_from(["arti-relay", "-o", "foo=1", "run", "-o", "bar=2"]);
-        assert_eq!(cli.options, vec!["bar=2"]);
+        assert_eq!(cli.global.options, vec!["bar=2"]);
     }
 }
