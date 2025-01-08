@@ -34,7 +34,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails, CloseInfo};
+use crate::channel::{codec::CodecError, kist::KistParams, padding, params::*, unique_id, ChannelDetails, CloseInfo};
 use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
@@ -89,6 +89,12 @@ pub enum CtrlMsg {
     /// These updates are done via a control message to avoid adding additional branches to the
     /// main reactor `select!`.
     ConfigUpdate(Arc<ChannelPaddingInstructionsUpdates>),
+    /// Enable/disable/reconfigure KIST.
+    ///
+    /// Like in the case of `ConfigUpdate`,
+    /// the sender of these messages is responsible for the optimisation of
+    /// ensuring that "no-change" messages are elided.
+    KistConfigUpdate(KistParams),
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -307,6 +313,7 @@ impl<S: SleepProvider> Reactor<S> {
                     self.special_outgoing.padding_negotiate = Some(padding_negotiate.clone());
                 }
             }
+            CtrlMsg::KistConfigUpdate(kist) => todo!("kist"), // XXX
         }
         Ok(())
     }
