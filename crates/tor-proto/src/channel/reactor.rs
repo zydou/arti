@@ -28,7 +28,7 @@ use futures::stream::Stream;
 use futures::Sink;
 use futures::StreamExt as _;
 use futures::{select, select_biased};
-use tor_error::internal;
+use tor_error::{error_report, internal};
 
 use std::fmt;
 use std::pin::Pin;
@@ -122,6 +122,8 @@ pub struct Reactor<S: SleepProvider> {
     ///
     /// This should also be backed by a TLS connection if you want it to be secure.
     pub(super) output: BoxedChannelSink,
+    /// A handler for setting stream options on the underlying stream.
+    pub(super) streamops: BoxedChannelStreamOps,
     /// Timer tracking when to generate channel padding
     pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
     /// Outgoing cells introduced at the channel reactor
@@ -315,7 +317,7 @@ impl<S: SleepProvider> Reactor<S> {
                     self.special_outgoing.padding_negotiate = Some(padding_negotiate.clone());
                 }
             }
-            CtrlMsg::KistConfigUpdate(kist) => todo!("kist"), // XXX
+            CtrlMsg::KistConfigUpdate(kist) => self.apply_kist_params(&kist),
         }
         Ok(())
     }
@@ -470,6 +472,34 @@ impl<S: SleepProvider> Reactor<S> {
         } else {
             // Mark this channel as in use
             self.details.unused_since.clear();
+        }
+    }
+
+    /// Use the new KIST parameters.
+    #[cfg(target_os = "linux")]
+    fn apply_kist_params(&self, params: &KistParams) {
+        use super::kist::KistMode;
+
+        let set_tcp_notsent_lowat = |v: u32| {
+            if let Err(e) = self.streamops.set_tcp_notsent_lowat(v) {
+                // This is bad, but not fatal: not setting the KIST options
+                // comes with a performance penalty, but we don't have to crash.
+                error_report!(e, "Failed to set KIST socket options");
+            }
+        };
+
+        match params.kist_enabled() {
+            KistMode::TcpNotSentLowat => set_tcp_notsent_lowat(params.tcp_notsent_lowat()),
+            KistMode::Disabled => set_tcp_notsent_lowat(u32::MAX),
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn apply_kist_params(&self, params: &KistParams) {
+        use super::kist::KistMode;
+
+        if params.kist_enabled() != KistMode::Disabled {
+            tracing::warn!("KIST not currently supported on non-linux platforms");
         }
     }
 }

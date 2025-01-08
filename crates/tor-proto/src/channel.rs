@@ -498,6 +498,7 @@ impl Channel {
             reactor_closed_tx,
             input: futures::StreamExt::fuse(stream),
             output: sink,
+            streamops,
             circs: circmap,
             circ_unique_id_ctx: CircUniqIdContext::new(),
             link_protocol,
