@@ -14,7 +14,6 @@ use tor_units::Percentage;
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct FixedWindowParams {
     /// Circuit window starting point. From the "circwindow" param.
-    #[builder(default = "1000")]
     pub circ_window_start: u16,
     /// Circuit window minimum value.
     #[builder(default = "100", setter(skip))]
@@ -23,7 +22,7 @@ pub struct FixedWindowParams {
     #[builder(default = "1000", setter(skip))]
     pub circ_window_max: u16,
 }
-impl_standard_builder! { FixedWindowParams: !Deserialize }
+impl_standard_builder! { FixedWindowParams: !Deserialize + !Default }
 
 /// Vegas queuing parameters taken from the consensus only which are different depending if the
 /// circuit is an onion service one, an exit or used for SBWS.
@@ -94,13 +93,6 @@ pub enum Algorithm {
     Vegas(VegasParams),
 }
 
-impl Default for Algorithm {
-    fn default() -> Self {
-        // NOTE: Once FlowCtrl=1 is set network wide, we should switch this to Vegas.
-        Self::FixedWindow(FixedWindowParams::default())
-    }
-}
-
 /// The round trip estimator parameters taken from consensus and used to estimate the round trip
 /// time on a circuit.
 #[non_exhaustive]
@@ -166,7 +158,6 @@ impl_standard_builder! { CongestionWindowParams: !Deserialize }
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct CongestionControlParams {
     /// The congestion control algorithm to use.
-    #[builder(default)]
     pub alg: Algorithm,
     /// Congestion window parameters.
     #[builder(default)]
@@ -175,4 +166,4 @@ pub struct CongestionControlParams {
     #[builder(default)]
     pub rtt_params: RoundTripEstimatorParams,
 }
-impl_standard_builder! { CongestionControlParams: !Deserialize }
+impl_standard_builder! { CongestionControlParams: !Deserialize + !Default }

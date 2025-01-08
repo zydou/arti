@@ -248,7 +248,7 @@ impl std::default::Default for CircParameters {
     fn default() -> Self {
         Self {
             extend_by_ed25519_id: true,
-            ccontrol: CongestionControlParams::default(),
+            ccontrol: crate::congestion::test_utils::params::build_cc_fixed_params(),
         }
     }
 }

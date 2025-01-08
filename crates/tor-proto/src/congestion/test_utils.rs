@@ -20,9 +20,23 @@ pub(crate) mod params {
     use tor_units::Percentage;
 
     use crate::ccparams::{
-        CongestionWindowParams, CongestionWindowParamsBuilder, RoundTripEstimatorParams,
+        Algorithm, CongestionControlParams, CongestionControlParamsBuilder, CongestionWindowParams,
+        CongestionWindowParamsBuilder, FixedWindowParamsBuilder, RoundTripEstimatorParams,
         RoundTripEstimatorParamsBuilder,
     };
+
+    pub(crate) fn build_cc_fixed_params() -> CongestionControlParams {
+        let params = FixedWindowParamsBuilder::default()
+            .circ_window_start(1000)
+            .build()
+            .expect("Unable to build fixed window params");
+        CongestionControlParamsBuilder::default()
+            .rtt_params(build_rtt_params())
+            .cwnd_params(build_cwnd_params())
+            .alg(Algorithm::FixedWindow(params))
+            .build()
+            .expect("Unable to build CC params")
+    }
 
     // Build the round trip estimator parameters. with good enough values for tests.
     pub(crate) fn build_rtt_params() -> RoundTripEstimatorParams {
