@@ -6443,6 +6443,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "async_executors",
+ "asynchronous-codec",
  "coarsetime",
  "derive_more",
  "dyn-clone",

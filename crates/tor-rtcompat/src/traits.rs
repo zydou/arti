@@ -1,5 +1,6 @@
 //! Declarations for traits that we need our runtimes to implement.
 use async_trait::async_trait;
+use asynchronous_codec::Framed;
 use futures::stream;
 use futures::task::Spawn;
 use futures::{AsyncRead, AsyncWrite, Future};
@@ -211,6 +212,18 @@ pub struct UnsupportedStreamOpsHandle;
 impl StreamOps for UnsupportedStreamOpsHandle {
     fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
         Box::new(*self)
+    }
+}
+
+impl<T: StreamOps, C> StreamOps for Framed<T, C> {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        let inner: &T = self;
+        inner.set_tcp_notsent_lowat(notsent_lowat)
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        let inner: &T = self;
+        inner.new_handle()
     }
 }
 
