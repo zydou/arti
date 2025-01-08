@@ -2,7 +2,7 @@
 #![allow(clippy::missing_docs_in_private_items)] // required for pin_project(enum)
 
 use futures::Stream;
-use tor_rtcompat::{NetStreamListener, NetStreamProvider, SleepProvider, StreamOps};
+use tor_rtcompat::{NetStreamListener, NetStreamProvider, SleepProvider, StreamOps, UnsupportedStreamOpsHandle};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -225,6 +225,13 @@ impl<S: StreamOps> StreamOps for BreakableTcpStream<S> {
         match self {
             BreakableTcpStream::Broken => Ok(()),
             BreakableTcpStream::Present(s) => s.set_tcp_notsent_lowat(notsent_lowat),
+        }
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        match self {
+            BreakableTcpStream::Broken => Box::new(UnsupportedStreamOpsHandle::default()),
+            BreakableTcpStream::Present(s) => s.new_handle(),
         }
     }
 }
