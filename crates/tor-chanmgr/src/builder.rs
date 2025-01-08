@@ -10,6 +10,7 @@ use crate::{event::ChanMgrEventSender, Error};
 use std::time::Duration;
 use tor_error::internal;
 use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
+use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::ChannelAccount;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
@@ -252,6 +253,9 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
         updates: Arc<ChannelPaddingInstructionsUpdates>,
     ) -> tor_proto::Result<()> {
         tor_proto::channel::Channel::reparameterize(self, updates)
+    }
+    fn reparameterize_kist(&self, kist_params: KistParams) -> tor_proto::Result<()> {
+        tor_proto::channel::Channel::reparameterize_kist(self, kist_params)
     }
     fn engage_padding_activities(&self) {
         tor_proto::channel::Channel::engage_padding_activities(self);

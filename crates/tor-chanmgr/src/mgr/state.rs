@@ -864,6 +864,9 @@ mod test {
             *self.params_update.lock().unwrap() = Some(update);
             Ok(())
         }
+        fn reparameterize_kist(&self, _kist_params: KistParams) -> tor_proto::Result<()> {
+            Ok(())
+        }
         fn engage_padding_activities(&self) {}
     }
     impl tor_linkspec::HasRelayIds for FakeChannel {
