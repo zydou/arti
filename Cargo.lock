@@ -353,6 +353,7 @@ dependencies = [
  "fs-mistrust",
  "once_cell",
  "rand",
+ "safelog",
  "serde",
  "strum",
  "thiserror 2.0.9",

@@ -14,6 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 full = [
     "fs-mistrust/full",
+    "safelog/full",
     "tor-chanmgr/full",
     "tor-config/full",
     "tor-error/full",
@@ -36,6 +37,7 @@ directories = "5"
 fs-mistrust = { path = "../fs-mistrust", version = "0.8.2", features = ["serde"] }
 once_cell = "1"
 rand = "0.8.5"
+safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "2"

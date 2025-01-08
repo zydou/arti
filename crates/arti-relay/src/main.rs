@@ -9,13 +9,25 @@ mod err;
 mod relay;
 
 use clap::Parser;
+use safelog::with_safe_logging_suppressed;
 
 use crate::config::{base_resolver, TorRelayConfig};
 use crate::relay::TorRelay;
 
-fn main() -> anyhow::Result<()> {
+fn main() {
+    // Will exit if '--help' used or there's a parse error.
     let cli = cli::Cli::parse();
 
+    if let Err(e) = main_main(cli) {
+        // TODO: Use arti_client's `HintableError` here (see `arti::main`)?
+        // TODO: Why do we suppress safe logging, and squash the anyhow result into a single line?
+        // TODO: Do we want to log the error?
+        with_safe_logging_suppressed(|| tor_error::report_and_exit(e))
+    }
+}
+
+/// The real main without the error formatting.
+fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
     // use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
     // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
     let runtime = tor_rtcompat::PreferredRuntime::create()?;
