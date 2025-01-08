@@ -330,7 +330,7 @@ pub(crate) mod test {
     use super::*;
     use crate::congestion::{
         params::VegasParamsBuilder,
-        test::{new_cwnd, new_rtt_estimator},
+        test_utils::{new_cwnd, new_rtt_estimator},
     };
 
     /// The test vector parameters. They have the exact same name as in C-tor in order to help

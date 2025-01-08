@@ -233,8 +233,9 @@ impl RoundtripTimeEstimator {
 mod test {
     use std::time::{Duration, Instant};
 
+    use crate::congestion::test_utils::{new_cwnd, new_rtt_estimator};
+
     use super::*;
-    use crate::congestion::test::{new_cwnd, new_rtt_estimator};
 
     #[derive(Debug)]
     struct RttTestSample {

@@ -18,6 +18,9 @@
 //! Futhermore, as we receive and emit SENDMEs, it also has entry point for those two events in
 //! order to update the state.
 
+#[cfg(any(test, feature = "testing"))]
+pub(crate) mod test_utils;
+
 /// Fixed window algorithm
 mod fixed;
 /// Round trip estimator module.
@@ -364,49 +367,8 @@ impl CongestionControl {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
-    use tor_units::Percentage;
-
-    use super::{
-        params::{
-            CongestionWindowParams, CongestionWindowParamsBuilder, RoundTripEstimatorParams,
-            RoundTripEstimatorParamsBuilder,
-        },
-        rtt::RoundtripTimeEstimator,
-        CongestionWindow,
-    };
-
-    pub(crate) fn new_rtt_estimator() -> RoundtripTimeEstimator {
-        RoundtripTimeEstimator::new(&build_rtt_params())
-    }
-
-    pub(crate) fn new_cwnd() -> CongestionWindow {
-        CongestionWindow::new(&build_cwnd_params())
-    }
-
-    fn build_rtt_params() -> RoundTripEstimatorParams {
-        RoundTripEstimatorParamsBuilder::default()
-            .ewma_cwnd_pct(Percentage::new(50))
-            .ewma_max(10)
-            .ewma_ss_max(2)
-            .rtt_reset_pct(Percentage::new(100))
-            .build()
-            .expect("Unable to build RTT parameters")
-    }
-
-    fn build_cwnd_params() -> CongestionWindowParams {
-        // Values taken from the prop324.
-        CongestionWindowParamsBuilder::default()
-            .cwnd_init(124)
-            .cwnd_inc_pct_ss(Percentage::new(100))
-            .cwnd_inc(1)
-            .cwnd_inc_rate(31)
-            .cwnd_min(124)
-            .cwnd_max(u32::MAX)
-            .sendme_inc(31)
-            .build()
-            .expect("Unable to build congestion window parameters")
-    }
+mod test {
+    use crate::congestion::test_utils::new_cwnd;
 
     #[test]
     fn test_cwnd() {
