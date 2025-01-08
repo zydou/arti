@@ -56,6 +56,10 @@ pub(crate) struct TorRelayConfig {
 }
 impl_standard_builder! { TorRelayConfig }
 
+impl tor_config::load::TopLevel for TorRelayConfig {
+    type Builder = TorRelayConfigBuilder;
+}
+
 #[allow(unused)] // TODO RELAY remove
 impl TorRelayConfigBuilder {
     /// Returns a `TorRelayConfigBuilder` using the specified state and cache directories.
