@@ -21,8 +21,6 @@ macro_rules! fs_disable_permission_checks_env_name {
 
 /// The name of the environment variable that provides a default value for the
 /// '--disable_fs_permission_checks' cli option.
-// XXX use this
-#[allow(dead_code)]
 pub(crate) const FS_DISABLE_PERMISSION_CHECKS_ENV_NAME: &str =
     fs_disable_permission_checks_env_name!();
 
@@ -130,8 +128,6 @@ impl GlobalArgs {
     /// You may also want to set a [`Mistrust`](fs_mistrust::Mistrust)
     /// and any additional configuration option overrides
     /// using [`push_option`](ConfigurationSources::push_option).
-    // XXX use this
-    #[allow(dead_code)]
     pub(crate) fn config(&self) -> Result<ConfigurationSources, CfgPathError> {
         // Use `try_from_cmdline` to be consistent with Arti.
         let mut cfg_sources = ConfigurationSources::try_from_cmdline(

@@ -8,9 +8,12 @@ mod config;
 mod err;
 mod relay;
 
+use anyhow::Context;
 use clap::Parser;
 use safelog::with_safe_logging_suppressed;
+use tor_rtcompat::{PreferredRuntime, Runtime};
 
+use crate::cli::FS_DISABLE_PERMISSION_CHECKS_ENV_NAME;
 use crate::config::{base_resolver, TorRelayConfig};
 use crate::relay::TorRelay;
 
@@ -28,10 +31,6 @@ fn main() {
 
 /// The real main without the error formatting.
 fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
-    // use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
-    // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
-    let runtime = tor_rtcompat::PreferredRuntime::create()?;
-
     match cli.command {
         cli::Commands::BuildInfo => {
             println!("Version: {}", env!("CARGO_PKG_VERSION"));
@@ -44,12 +43,51 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
             println!("Target triple: {}", env!("BUILD_TARGET"));
             println!("Host triple: {}", env!("BUILD_HOST"));
         }
-        cli::Commands::Run(_args) => {
-            let config = TorRelayConfig::default();
-            let path_resolver = base_resolver();
-            let _relay = TorRelay::new(runtime, &config, path_resolver)?;
-        }
+        cli::Commands::Run(args) => start_relay(args, cli.global)?,
     }
 
     Ok(())
+}
+
+/// Initialize and start the relay.
+fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Result<()> {
+    let runtime = init_runtime().context("Failed to initialize the runtime")?;
+
+    let mut cfg_sources = global_args
+        .config()
+        .context("Failed to get configuration sources")?;
+
+    // A Mistrust object to use for loading our configuration.
+    // Elsewhere, we use the value _from_ the configuration.
+    let cfg_mistrust = if global_args.disable_fs_permission_checks {
+        fs_mistrust::Mistrust::new_dangerously_trust_everyone()
+    } else {
+        fs_mistrust::MistrustBuilder::default()
+            .controlled_by_env_var_if_not_set(FS_DISABLE_PERMISSION_CHECKS_ENV_NAME)
+            .build()
+            .expect("default fs-mistrust should be buildable")
+    };
+
+    cfg_sources.set_mistrust(cfg_mistrust);
+
+    let cfg = cfg_sources
+        .load()
+        .context("Failed to load configuration sources")?;
+    let config =
+        tor_config::resolve::<TorRelayConfig>(cfg).context("Failed to resolve configuration")?;
+
+    let path_resolver = base_resolver();
+    let _relay =
+        TorRelay::new(runtime, &config, path_resolver).context("Failed to initialize relay")?;
+
+    Ok(())
+}
+
+/// Initialize a runtime.
+///
+/// Any commands that need a runtime should call this so that we use a consistent runtime.
+fn init_runtime() -> std::io::Result<impl Runtime> {
+    // Use the tokio runtime from tor_rtcompat unless we later find a reason to use tokio directly;
+    // see https://gitlab.torproject.org/tpo/core/arti/-/work_items/1744
+    PreferredRuntime::create()
 }
