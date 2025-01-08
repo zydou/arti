@@ -62,7 +62,7 @@ fn default_config_files() -> Vec<OsString> {
 }
 
 /// Log levels allowed by the cli.
-#[derive(Clone, Debug, Eq, PartialEq, ValueEnum)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub(crate) enum LogLevel {
     Error,
     Warn,
@@ -79,6 +79,18 @@ impl std::fmt::Display for LogLevel {
             Self::Info => write!(f, "info"),
             Self::Debug => write!(f, "debug"),
             Self::Trace => write!(f, "trace"),
+        }
+    }
+}
+
+impl From<LogLevel> for tracing::metadata::Level {
+    fn from(x: LogLevel) -> Self {
+        match x {
+            LogLevel::Error => Self::ERROR,
+            LogLevel::Warn => Self::WARN,
+            LogLevel::Info => Self::INFO,
+            LogLevel::Debug => Self::DEBUG,
+            LogLevel::Trace => Self::TRACE,
         }
     }
 }
