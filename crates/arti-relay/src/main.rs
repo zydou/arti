@@ -3,7 +3,6 @@
 //! NOTE: This binary is still highly experimental as in in active development, not stable and
 //! without any type of guarantee of running or even working.
 
-mod builder;
 mod cli;
 mod config;
 mod err;
@@ -11,6 +10,7 @@ mod relay;
 
 use clap::Parser;
 
+use crate::config::TorRelayConfig;
 use crate::relay::TorRelay;
 
 fn main() -> anyhow::Result<()> {
@@ -33,7 +33,8 @@ fn main() -> anyhow::Result<()> {
             println!("Host triple: {}", env!("BUILD_HOST"));
         }
         cli::Commands::Run(_args) => {
-            let _relay = TorRelay::with_runtime(runtime).create()?;
+            let config = TorRelayConfig::default();
+            let _relay = TorRelay::new(runtime, &config)?;
         }
     }
 
