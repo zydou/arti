@@ -47,10 +47,6 @@ impl CongestionControlAlgorithm for FixedWindow {
         None
     }
 
-    /// Called when a SENDME cell is received.
-    ///
-    /// An error is returned if there is a protocol violation with regards to flow or congestion
-    /// control.
     fn sendme_received(
         &mut self,
         _state: &mut State,
@@ -60,24 +56,15 @@ impl CongestionControlAlgorithm for FixedWindow {
         self.sendwindow.put()
     }
 
-    /// Called when a SENDME cell is sent.
     fn sendme_sent(&mut self) -> Result<()> {
         self.recvwindow.put();
         Ok(())
     }
 
-    /// Called when a DATA cell is received.
-    ///
-    /// Returns true iff a SENDME should be sent false otherwise. An error is returned if there is
-    /// a protocol violation with regards to flow or congestion control.
     fn data_received(&mut self) -> Result<bool> {
         self.recvwindow.take()
     }
 
-    /// Called when a DATA cell is sent.
-    ///
-    /// An error is returned if there is a protocol violation with regards to flow or congestion
-    /// control.
     fn data_sent(&mut self) -> Result<()> {
         self.sendwindow.take()
     }
