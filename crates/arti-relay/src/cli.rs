@@ -30,8 +30,7 @@ pub(crate) struct GlobalArgs {
     /// Override the log level from the configuration.
     #[arg(long, short, global = true)]
     #[arg(value_name = "LEVEL")]
-    #[clap(default_value_t = LogLevel::Info)]
-    pub(crate) log_level: LogLevel,
+    pub(crate) log_level: Option<LogLevel>,
 
     /// Don't check permissions on the files we use.
     #[arg(long, global = true)]
@@ -105,9 +104,9 @@ mod test {
         Cli::parse_from(["arti-relay", "run"]);
 
         let cli = Cli::parse_from(["arti-relay", "--log-level", "warn", "run"]);
-        assert_eq!(cli.global.log_level, LogLevel::Warn);
+        assert_eq!(cli.global.log_level, Some(LogLevel::Warn));
         let cli = Cli::parse_from(["arti-relay", "run", "--log-level", "warn"]);
-        assert_eq!(cli.global.log_level, LogLevel::Warn);
+        assert_eq!(cli.global.log_level, Some(LogLevel::Warn));
 
         let cli = Cli::parse_from(["arti-relay", "--disable-fs-permission-checks", "run"]);
         assert!(cli.global.disable_fs_permission_checks);
