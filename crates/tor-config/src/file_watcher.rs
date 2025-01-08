@@ -411,6 +411,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use notify::event::ModifyKind;
     use test_temp_dir::{test_temp_dir, TestTempDir};
 
     /// Write `data` to file `name` within `dir`.
@@ -438,8 +439,7 @@ mod test {
 
     #[test]
     fn notify_event_handler() {
-        // The EventKind doesn't matter, the handler doesn't use it.
-        let mut event = notify::Event::new(notify::EventKind::Any);
+        let mut event = notify::Event::new(notify::EventKind::Modify(ModifyKind::Any));
 
         let mut watching_dirs = Default::default();
         assert_eq!(handle_event(Ok(event.clone()), &watching_dirs), None);
@@ -487,7 +487,8 @@ mod test {
         );
 
         // Watch some other files
-        let event = notify::Event::new(notify::EventKind::Any).add_path("/a/b/c/d".into());
+        let event = notify::Event::new(notify::EventKind::Modify(ModifyKind::Any))
+            .add_path("/a/b/c/d".into());
         let watching_dirs = [(
             "/a/b/c/".into(),
             HashSet::from([DirEventFilter::MatchesPath("/a/b/c/d".into())]),
