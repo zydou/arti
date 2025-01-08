@@ -17,6 +17,7 @@ use tor_config::PaddingLevel;
 use tor_error::{error_report, internal, into_internal};
 use tor_linkspec::{HasRelayIds, ListByRelayIds, RelayIds};
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
+use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::channel::ChannelPaddingInstructionsUpdates;
@@ -71,6 +72,9 @@ struct Inner<C: AbstractChannelFactory> {
     /// Updated via `MgrState::set_dormancy` and hence `MgrState::reconfigure_general`,
     /// which then uses it to calculate how to reconfigure the channels.
     dormancy: Dormancy,
+
+    /// KIST parameters
+    kist_params: KistParams,
 }
 
 /// The state of a channel (or channel build attempt) within a map.
@@ -262,6 +266,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         netparams: &NetParameters,
     ) -> Self {
         let mut channels_params = ChannelPaddingInstructions::default();
+        let kist_params = KistParams::from(netparams);
         let netparams = NetParamsExtract::from(netparams);
         let update = parameterize(&mut channels_params, &config, dormancy, &netparams)
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
@@ -273,6 +278,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
                 channels: ListByRelayIds::new(),
                 config,
                 channels_params,
+                kist_params,
                 dormancy,
             }),
         }
@@ -499,10 +505,11 @@ impl<C: AbstractChannelFactory> MgrState<C> {
 
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
-        let netdir = {
+        let (netdir, new_kist_params) = {
             let extract = NetParamsExtract::from((*netparams).as_ref());
+            let kist_params = KistParams::from((*netparams).as_ref());
             drop(netparams);
-            extract
+            (extract, kist_params)
         };
 
         let mut inner = self
@@ -525,20 +532,39 @@ impl<C: AbstractChannelFactory> MgrState<C> {
             &netdir,
         )?;
 
-        let update = if let Some(u) = update {
-            u
+        let update = update.map(Arc::new);
+
+        let kist_params = if new_kist_params != inner.kist_params {
+            // The KIST params have changed: remember their value,
+            // and reparameterize_kist()
+            inner.kist_params = new_kist_params;
+            Some(new_kist_params)
         } else {
-            return Ok(());
+            // If the new KIST params are identical to the previous ones,
+            // we don't need to call reparameterize_kist()
+            None
         };
-        let update = Arc::new(update);
+
+        if update.is_none() && kist_params.is_none() {
+            // Return early, nothing to reconfigure
+            return Ok(());
+        }
 
         for channel in inner.channels.values() {
             let channel = match channel {
                 CS::Open(OpenEntry { channel, .. }) => channel,
                 CS::Building(_) => continue,
             };
-            // Ignore error (which simply means the channel is closed or gone)
-            let _ = channel.reparameterize(update.clone());
+
+            if let Some(ref update) = update {
+                // Ignore error (which simply means the channel is closed or gone)
+                let _ = channel.reparameterize(Arc::clone(update));
+            }
+
+            if let Some(kist) = kist_params {
+                // Ignore error (which simply means the channel is closed or gone)
+                let _ = channel.reparameterize_kist(kist);
+            }
         }
         Ok(())
     }
