@@ -240,6 +240,11 @@ inspired by JSON-RPC (and its predecessors).
 Messages are sent one at a time in each direction,
 in an ordered stream.
 
+Before the application sends any requests,
+Arti sends a single ["banner"](#banner) message
+to indicate that it is correctly initialized,
+and likely to understand the client.
+
 The application's messages are called "requests".
 Every request is directed to a single RPC Object.
 
@@ -276,6 +281,27 @@ we may define other encodings/framings in the future.
 > The message stream may not contain NUL (zero-valued) bytes.
 > This is not an additional requirement;
 > it is a consequence of the JSON data format.
+
+### Banner message {#banner}
+
+The banner message is a JSON object containing
+the key "arti_rpc", with any JSON value.
+
+> Valid banners include `{"arti_rpc":True}`,
+> and `{"other-info": 7, "arti_rpc":"Hello world"}`.
+
+As noted above, Arti sends a banner upon
+accepting the application's connection,
+to indicate that it is initialized and running.
+
+Applications MUST NOT send any requests before receiving a banner.
+
+> One purpose of the banner message is to avoid race conditions
+> between when the RPC server has bound its ports,
+> and when it has initialized any necessary files on disk.
+> Since the server won't send a banner until it is fully initialized,
+> the client can safely read other files from disk only when
+> the banner is received.
 
 ### Request and response types
 
