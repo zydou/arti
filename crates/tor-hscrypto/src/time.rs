@@ -18,7 +18,7 @@ use tor_units::IntegerMinutes;
 ///
 /// These time periods are used to derive a different `BlindedOnionIdKey` during
 /// each period from each `OnionIdKey`.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct TimePeriod {
     /// Index of the time periods that have passed since the unix epoch.
     pub(crate) interval_num: u64,

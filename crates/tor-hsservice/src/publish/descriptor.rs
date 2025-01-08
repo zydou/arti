@@ -13,8 +13,9 @@ use tor_llcrypto::rng::EntropicRng;
 /// Note: `blind_id_kp` is the blinded hidden service signing keypair used to sign descriptor
 /// signing keys (KP_hs_blind_id, KS_hs_blind_id).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng>(
+pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng, R: Runtime>(
     keymgr: &Arc<KeyMgr>,
+    pow_manager: &Arc<PowManager<R>>,
     config: &Arc<OnionServiceConfigPublisherView>,
     authorized_clients: Option<&RestrictedDiscoveryKeys>,
     ipt_set: &IptSet,
@@ -115,8 +116,10 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
         "failed to sign the descriptor signing key"
     ))?;
 
-    let desc = HsDescBuilder::default()
-        .blinded_id(&(&blind_id_kp).into())
+    let blind_id_kp = (&blind_id_kp).into();
+
+    let mut desc = HsDescBuilder::default()
+        .blinded_id(&blind_id_kp)
         .hs_desc_sign(hs_desc_sign.as_ref())
         .hs_desc_sign_cert(desc_signing_key_cert)
         .create2_formats(CREATE2_FORMATS)
@@ -128,7 +131,16 @@ pub(super) fn build_sign<Rng: RngCore + CryptoRng, KeyRng: RngCore + EntropicRng
         .lifetime(((ipt_set.lifetime.as_secs() / 60) as u16).into())
         .revision_counter(revision_counter)
         .subcredential(subcredential)
-        .auth_clients(auth_clients.as_deref())
+        .auth_clients(auth_clients.as_deref());
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "hs-pow-full")] {
+            let pow_params = pow_manager.get_pow_params(period);
+            desc = desc.pow_params(Some(&pow_params));
+        }
+    }
+
+    let desc = desc
         .build_sign(rng)
         .map_err(|e| into_internal!("failed to build descriptor")(e))?;
 

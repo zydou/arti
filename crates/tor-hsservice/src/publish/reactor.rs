@@ -182,6 +182,9 @@ pub(super) struct Reactor<R: Runtime, M: Mockable> {
     shutdown_tx: broadcast::Sender<Void>,
     /// Path resolver for configuration files.
     path_resolver: Arc<CfgPathResolver>,
+    /// Queue on which we receive messages from the [`PowManager`] telling us that a seed has
+    /// rotated and thus we need to republish the descriptor for a particular time period.
+    update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
 }
 
 /// The immutable, shared state of the descriptor publisher reactor.
@@ -199,6 +202,8 @@ struct Immutable<R: Runtime, M: Mockable> {
     keymgr: Arc<KeyMgr>,
     /// A sender for updating the status of the onion service.
     status_tx: PublisherStatusSender,
+    /// Proof-of-work state.
+    pow_manager: Arc<PowManager<R>>,
 }
 
 impl<R: Runtime, M: Mockable> Immutable<R, M> {
@@ -551,6 +556,8 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
         status_tx: PublisherStatusSender,
         keymgr: Arc<KeyMgr>,
         path_resolver: Arc<CfgPathResolver>,
+        pow_manager: Arc<PowManager<R>>,
+        update_from_pow_manager_rx: mpsc::Receiver<TimePeriod>,
     ) -> Self {
         /// The maximum size of the upload completion notifier channel.
         ///
@@ -581,6 +588,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             nickname,
             keymgr,
             status_tx,
+            pow_manager,
         };
 
         let inner = Inner {
@@ -607,6 +615,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
             upload_task_complete_tx,
             shutdown_tx,
             path_resolver,
+            update_from_pow_manager_rx,
         }
     }
 
@@ -797,6 +806,14 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
                     self.update_publish_status_unless_waiting(PublishStatus::Idle).await?;
                     self.upload_all().await?;
                 }
+            }
+            update_tp_pow_seed = self.update_from_pow_manager_rx.next().fuse() => {
+                debug!("Update PoW seed for TP!");
+                let Some(time_period) = update_tp_pow_seed else {
+                    return Ok(ShutdownStatus::Terminate);
+                };
+                self.mark_dirty(&time_period);
+                self.upload_all().await?;
             }
         }
 
@@ -1543,6 +1560,7 @@ impl<R: Runtime, M: Mockable> Reactor<R, M> {
 
                             build_sign(
                                 &imm.keymgr,
+                                &imm.pow_manager,
                                 &config,
                                 authorized_clients.as_deref(),
                                 ipts,
