@@ -348,16 +348,6 @@ impl CongestionControl {
 
         Ok(())
     }
-
-    /// For testing: get a copy of the current send window, and the
-    /// expected incoming tags.
-    #[cfg(test)]
-    pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<CircTag>) {
-        (
-            self.algorithm.send_window(),
-            self.sendme_validator.expected_tags(),
-        )
-    }
 }
 
 #[cfg(test)]
@@ -377,6 +367,20 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use crate::congestion::test_utils::new_cwnd;
+
+    use super::sendme::CircTag;
+    use super::CongestionControl;
+
+    impl CongestionControl {
+        /// For testing: get a copy of the current send window, and the
+        /// expected incoming tags.
+        pub(crate) fn send_window_and_expected_tags(&self) -> (u32, Vec<CircTag>) {
+            (
+                self.algorithm.send_window(),
+                self.sendme_validator.expected_tags(),
+            )
+        }
+    }
 
     #[test]
     fn test_cwnd() {
