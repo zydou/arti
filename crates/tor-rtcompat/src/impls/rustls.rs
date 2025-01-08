@@ -1,6 +1,7 @@
 //! Implementation for using Rustls with a runtime.
 
 use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
+use crate::StreamOps;
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
@@ -50,6 +51,16 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
         session
             .export_keying_material(Vec::with_capacity(len), label, context)
             .map_err(|e| IoError::new(io::ErrorKind::InvalidData, e))
+    }
+}
+
+impl<S: StreamOps> StreamOps for futures_rustls::client::TlsStream<S> {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        self.get_ref().0.set_tcp_notsent_lowat(notsent_lowat)
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        self.get_ref().0.new_handle()
     }
 }
 
