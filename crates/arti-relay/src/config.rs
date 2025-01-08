@@ -4,7 +4,6 @@
 //! implementation, more configurations will show up.
 
 use std::borrow::Cow;
-use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
 use derive_builder::Builder;
@@ -102,10 +101,6 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 /// Most users will create a TorRelayConfig by running
 /// [`TorRelayConfig::default`].
 ///
-/// If you need to override the locations where Arti stores its
-/// information, you can make a TorRelayConfig with
-/// [`TorRelayConfigBuilder::from_directories`].
-///
 /// Finally, you can get fine-grained control over the members of a
 /// TorRelayConfig using [`TorRelayConfigBuilder`].
 #[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
@@ -144,28 +139,6 @@ impl_standard_builder! { TorRelayConfig }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
-}
-
-#[allow(unused)] // TODO RELAY remove
-impl TorRelayConfigBuilder {
-    /// Returns a `TorRelayConfigBuilder` using the specified state and cache directories.
-    ///
-    /// All other configuration options are set to their defaults, except `storage.keystore.path`,
-    /// which is derived from the specified state directory.
-    pub(crate) fn from_directories<P, Q>(state_dir: P, cache_dir: Q) -> Self
-    where
-        P: AsRef<Path>,
-        Q: AsRef<Path>,
-    {
-        let mut builder = Self::default();
-
-        builder
-            .storage()
-            .cache_dir(CfgPath::new_literal(cache_dir.as_ref()))
-            .state_dir(CfgPath::new_literal(state_dir.as_ref()));
-
-        builder
-    }
 }
 
 /// Helper to add overrides to a default collection.
