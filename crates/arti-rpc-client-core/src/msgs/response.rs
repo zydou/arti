@@ -86,6 +86,11 @@ impl UnparsedResponse {
         };
         Ok(ValidatedResponse { msg, meta })
     }
+
+    /// Return the inner `str` for this unparsed message.
+    pub(crate) fn as_str(&self) -> &str {
+        self.msg.as_str()
+    }
 }
 
 impl ValidatedResponse {

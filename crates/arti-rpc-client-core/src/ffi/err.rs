@@ -301,6 +301,7 @@ impl IntoFfiError for crate::ConnectError {
         match self {
             E::CannotConnect(e) => e.status(),
             E::AuthenticationRejected(_) => F::BadAuth,
+            E::InvalidBanner => F::PeerProtocolViolation,
             E::BadMessage(_) => F::PeerProtocolViolation,
             E::ProtoError(e) => e.status(),
             E::BadEnvironment | E::RelativeConnectFile | E::CannotResolvePath(_) => {

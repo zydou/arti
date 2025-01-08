@@ -14,7 +14,7 @@ use derive_deftly::Deftly;
 use futures::{
     channel::mpsc,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Sink, SinkExt as _, StreamExt,
+    AsyncWriteExt as _, FutureExt, Sink, SinkExt as _, StreamExt,
 };
 use rpc::dispatch::BoxedUpdateSink;
 use serde_json::error::Category as JsonErrorCategory;
@@ -248,12 +248,22 @@ impl Connection {
     pub async fn run<IN, OUT>(
         self: Arc<Self>,
         input: IN,
-        output: OUT,
+        mut output: OUT,
     ) -> Result<(), ConnectionError>
     where
         IN: futures::AsyncRead + Send + Sync + Unpin + 'static,
         OUT: futures::AsyncWrite + Send + Sync + Unpin + 'static,
     {
+        /// Banner line to send, indicating that Arti is ready to receive requests.
+        ///
+        /// The key in this json object is mandatory; the value can be anything.
+        const BANNER: &[u8] = b"{\"arti_rpc\":{}}\n";
+
+        output
+            .write_all(BANNER)
+            .await
+            .map_err(|e| ConnectionError::WriteFailed(Arc::new(e)))?;
+
         let write = Box::pin(asynchronous_codec::FramedWrite::new(
             output,
             crate::codecs::JsonLinesEncoder::<BoxedResponse>::default(),
