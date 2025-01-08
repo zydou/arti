@@ -14,7 +14,7 @@
 //! To launch a channel:
 //!
 //!  * Create a TLS connection as an object that implements AsyncRead +
-//!    AsyncWrite, and pass it to a [ChannelBuilder].  This will
+//!    AsyncWrite + StreamOps, and pass it to a [ChannelBuilder].  This will
 //!    yield an [handshake::OutboundClientHandshake] that represents
 //!    the state of the handshake.
 //!  * Call [handshake::OutboundClientHandshake::connect] on the result
@@ -85,7 +85,7 @@ use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
-use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider, StreamOps};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
@@ -427,7 +427,7 @@ impl ChannelBuilder {
         memquota: ChannelAccount,
     ) -> OutboundClientHandshake<T, S>
     where
-        T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
         handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov, memquota)

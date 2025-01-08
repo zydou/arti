@@ -398,12 +398,12 @@ pub trait TlsConnector<S> {
 /// See the [`TlsConnector`] documentation for a discussion of the Tor-specific
 /// limitations of this trait: If you are implementing something other than Tor,
 /// this is **not** the functionality you want.
-pub trait TlsProvider<S>: Clone + Send + Sync + 'static {
+pub trait TlsProvider<S: StreamOps>: Clone + Send + Sync + 'static {
     /// The Connector object that this provider can return.
     type Connector: TlsConnector<S, Conn = Self::TlsStream> + Send + Sync + Unpin;
 
     /// The type of the stream returned by that connector.
-    type TlsStream: AsyncRead + AsyncWrite + CertifiedConn + Unpin + Send + 'static;
+    type TlsStream: AsyncRead + AsyncWrite + StreamOps + CertifiedConn + Unpin + Send + 'static;
 
     /// Return a TLS connector for use with this runtime.
     fn tls_connector(&self) -> Self::Connector;

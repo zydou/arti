@@ -75,7 +75,7 @@ pub struct RustlsConnector<S> {
 #[async_trait]
 impl<S> TlsConnector<S> for RustlsConnector<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Conn = futures_rustls::client::TlsStream<S>;
 
@@ -89,7 +89,7 @@ where
 
 impl<S> TlsProvider<S> for RustlsProvider
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Connector = RustlsConnector<S>;
 

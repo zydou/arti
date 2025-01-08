@@ -125,6 +125,7 @@ pub(crate) mod test {
     use hex_literal::hex;
     use std::pin::Pin;
     use tor_cell::chancell::msg::AnyChanMsg;
+    use tor_rtcompat::StreamOps;
 
     use super::{futures_codec, ChannelCodec};
     use tor_cell::chancell::{msg, AnyChanCell, ChanCmd, ChanMsg, CircId};
@@ -162,6 +163,8 @@ pub(crate) mod test {
             Pin::new(&mut self.outbuf).poll_close(cx)
         }
     }
+
+    impl StreamOps for MsgBuf {}
 
     impl MsgBuf {
         pub(crate) fn new<T: Into<Vec<u8>>>(output: T) -> Self {

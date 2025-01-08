@@ -70,7 +70,7 @@ pub struct NativeTlsConnector<S> {
 #[async_trait]
 impl<S> TlsConnector<S> for NativeTlsConnector<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Conn = async_native_tls::TlsStream<S>;
 
@@ -86,7 +86,7 @@ where
 
 impl<S> TlsProvider<S> for NativeTlsProvider
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Connector = NativeTlsConnector<S>;
 
