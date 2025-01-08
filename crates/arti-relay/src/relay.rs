@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use tor_chanmgr::Dormancy;
+use tor_config_path::CfgPathResolver;
 use tor_error::internal;
 use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
@@ -23,6 +24,9 @@ pub struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     #[allow(unused)] // TODO RELAY remove
     runtime: R,
+    /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
+    #[allow(unused)] // TODO RELAY remove
+    path_resolver: CfgPathResolver,
     /// Channel manager, used by circuits etc.,
     #[allow(unused)] // TODO RELAY remove
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
@@ -33,8 +37,12 @@ pub struct TorRelay<R: Runtime> {
 
 impl<R: Runtime> TorRelay<R> {
     /// Create a new Tor relay with the given [runtime][tor_rtcompat] and configuration.
-    pub fn new(runtime: R, config: &TorRelayConfig) -> Result<Self, ErrorDetail> {
-        let keymgr = Self::create_keymgr(config)?;
+    pub fn new(
+        runtime: R,
+        config: &TorRelayConfig,
+        path_resolver: CfgPathResolver,
+    ) -> Result<Self, ErrorDetail> {
+        let keymgr = Self::create_keymgr(config, &path_resolver)?;
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &config.channel,
@@ -42,17 +50,20 @@ impl<R: Runtime> TorRelay<R> {
             &NetParameters::from_map(&config.override_net_params),
             ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
         ));
+
         Ok(Self {
             runtime,
+            path_resolver,
             chanmgr,
             keymgr,
         })
     }
 
-    fn create_keymgr(config: &TorRelayConfig) -> Result<Arc<KeyMgr>, ErrorDetail> {
-        let key_store_dir = config
-            .storage
-            .keystore_dir(&crate::config::base_resolver())?;
+    fn create_keymgr(
+        config: &TorRelayConfig,
+        path_resolver: &CfgPathResolver,
+    ) -> Result<Arc<KeyMgr>, ErrorDetail> {
+        let key_store_dir = config.storage.keystore_dir(path_resolver)?;
         let permissions = config.storage.permissions();
 
         // Store for the short-term keys that we don't need to keep on disk. The store identifier

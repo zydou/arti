@@ -10,7 +10,7 @@ mod relay;
 
 use clap::Parser;
 
-use crate::config::TorRelayConfig;
+use crate::config::{base_resolver, TorRelayConfig};
 use crate::relay::TorRelay;
 
 fn main() -> anyhow::Result<()> {
@@ -34,7 +34,8 @@ fn main() -> anyhow::Result<()> {
         }
         cli::Commands::Run(_args) => {
             let config = TorRelayConfig::default();
-            let _relay = TorRelay::new(runtime, &config)?;
+            let path_resolver = base_resolver();
+            let _relay = TorRelay::new(runtime, &config, path_resolver)?;
         }
     }
 
