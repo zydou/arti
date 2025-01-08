@@ -8,13 +8,18 @@ mod config;
 mod err;
 mod relay;
 
+use std::io::IsTerminal as _;
+
 use anyhow::Context;
 use clap::Parser;
 use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::{PreferredRuntime, Runtime};
+use tracing_subscriber::filter::EnvFilter;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::FmtSubscriber;
 
 use crate::cli::FS_DISABLE_PERMISSION_CHECKS_ENV_NAME;
-use crate::config::{base_resolver, TorRelayConfig};
+use crate::config::{base_resolver, TorRelayConfig, DEFAULT_LOG_LEVEL};
 use crate::relay::TorRelay;
 
 fn main() {
@@ -31,6 +36,28 @@ fn main() {
 
 /// The real main without the error formatting.
 fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
+    // Register a basic stderr logger until we have enough info to configure the main logger.
+    // Unlike arti, we enable timestamps for this pre-config logger.
+    // TODO: Consider using timestamps with reduced-granularity (see `LogPrecision`).
+    let level: tracing::metadata::Level = cli
+        .global
+        .log_level
+        .map(Into::into)
+        .unwrap_or(DEFAULT_LOG_LEVEL);
+    let filter = EnvFilter::builder()
+        .with_default_directive(level.into())
+        .parse("")
+        .expect("empty filter directive should be trivially parsable");
+    FmtSubscriber::builder()
+        .with_env_filter(filter)
+        .with_ansi(std::io::stderr().is_terminal())
+        .with_writer(|| {
+            eprint!("arti-relay: ");
+            std::io::stderr()
+        })
+        .finish()
+        .init();
+
     match cli.command {
         cli::Commands::BuildInfo => {
             println!("Version: {}", env!("CARGO_PKG_VERSION"));
@@ -76,10 +103,40 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
     let config =
         tor_config::resolve::<TorRelayConfig>(cfg).context("Failed to resolve configuration")?;
 
-    let path_resolver = base_resolver();
-    let _relay =
-        TorRelay::new(runtime, &config, path_resolver).context("Failed to initialize relay")?;
+    // TODO: Configure a proper logger, not just a simple stderr logger.
+    // TODO: We may want this to be the global logger, but if we use arti's `setup_logging` in the
+    // future, it returns a `LogGuards` which we'd have no way of holding on to until the
+    // application exits (see https://gitlab.torproject.org/tpo/core/arti/-/issues/1791).
+    let filter = EnvFilter::builder()
+        .parse(&config.logging.console)
+        .with_context(|| {
+            format!(
+                "Failed to parse console logging directive {:?}",
+                config.logging.console,
+            )
+        })?;
+    let logger = tracing_subscriber::FmtSubscriber::builder()
+        .with_env_filter(filter)
+        .with_ansi(std::io::stderr().is_terminal())
+        .with_writer(|| {
+            eprint!("arti-relay: ");
+            std::io::stderr()
+        })
+        .finish();
+    let logger = tracing::Dispatch::new(logger);
 
+    tracing::dispatcher::with_default(&logger, || {
+        let path_resolver = base_resolver();
+        let relay =
+            TorRelay::new(runtime, &config, path_resolver).context("Failed to initialize relay")?;
+        run_relay(relay)
+    })?;
+
+    Ok(())
+}
+
+/// Run the relay.
+fn run_relay<R: Runtime>(_relay: TorRelay<R>) -> anyhow::Result<()> {
     Ok(())
 }
 
