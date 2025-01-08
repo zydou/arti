@@ -4,7 +4,6 @@ use std::cmp::{max, min};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
-use tor_units::Percentage;
 
 use super::params::RoundTripEstimatorParams;
 use super::{CongestionWindow, State};
@@ -27,38 +26,6 @@ impl HasKind for Error {
         use Error as E;
         match self {
             E::MismatchedEstimationCall => ErrorKind::TorProtocolViolation,
-        }
-    }
-}
-
-/// The subset of `NetParameters` required for RTT estimation, after type conversion.
-#[derive(Clone, Debug)]
-#[allow(dead_code)]
-struct RttParameters {
-    /// The "N" parameter in N-EWMA smoothing of RTT and/or bandwidth estimation, specified as a
-    /// percentage of the number of SENDME acks in a congestion window.
-    ///
-    /// A percentage over 100% indicates smoothing with more than one congestion window's worth
-    /// of SENDMEs.
-    ewma_n_by_sendme_acks: Percentage<u32>,
-    /// The maximum value of the "N" parameter in N-EWMA smoothing of RTT and/or bandwidth
-    /// estimation.
-    ewma_n_max: u32,
-    /// The maximum value of the "N" parameter in N-EWMA smoothing of RTT and/or bandwidth
-    /// estimation in slow start.
-    ewma_n_max_ss: u32,
-    /// Percentage of the current RTT to use when resetting the minimum RTT for a circuit. (RTT is
-    /// reset when the cwnd hits cwnd_min).
-    rtt_reset_pct: Percentage<u32>,
-}
-
-impl From<&RoundTripEstimatorParams> for RttParameters {
-    fn from(p: &RoundTripEstimatorParams) -> Self {
-        Self {
-            ewma_n_by_sendme_acks: p.ewma_cwnd_pct,
-            ewma_n_max: p.ewma_max,
-            ewma_n_max_ss: p.ewma_ss_max,
-            rtt_reset_pct: p.rtt_reset_pct,
         }
     }
 }
@@ -86,8 +53,9 @@ pub(crate) struct RoundtripTimeEstimator {
     /// The maximum observed value of `last_rtt`.
     max_rtt: Duration,
     /// The network parameters we're using.
-    params: RttParameters,
-    /// A reference to a shared boolean for storing clock stall data.
+    params: RoundTripEstimatorParams,
+    /// A reference to a shared boolean for storing if the clock is stalled or not.
+    /// Spec: CLOCK_HEURISTICS from prop324. See is_clock_stalled() for the implementation.
     clock_stalled: AtomicBool,
 }
 
@@ -102,7 +70,7 @@ impl RoundtripTimeEstimator {
             ewma_rtt: Default::default(),
             min_rtt: Duration::ZERO,
             max_rtt: Default::default(),
-            params: params.into(),
+            params: params.clone(),
             clock_stalled: AtomicBool::default(),
         }
     }
@@ -215,11 +183,11 @@ impl RoundtripTimeEstimator {
 
         // This is the "N" for N-EWMA.
         let ewma_n = u64::from(if state.in_slow_start() {
-            self.params.ewma_n_max_ss
+            self.params.ewma_ss_max
         } else {
             min(
-                (cwnd.update_rate(state) * (self.params.ewma_n_by_sendme_acks.as_percent())) / 100,
-                self.params.ewma_n_max,
+                (cwnd.update_rate(state) * (self.params.ewma_cwnd_pct.as_percent())) / 100,
+                self.params.ewma_max,
             )
         });
         let ewma_n = max(ewma_n, 2);
