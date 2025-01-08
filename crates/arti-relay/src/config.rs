@@ -19,6 +19,19 @@ use tor_config::{impl_standard_builder, mistrust::BuilderExt, ConfigBuildError};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
 
+/// Paths used for default configuration files.
+pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
+    // the base path resolver includes the 'ARTI_RELAY_CONFIG' variable
+    let resolver = base_resolver();
+    [
+        "${ARTI_RELAY_CONFIG}/arti-relay.toml",
+        "${ARTI_RELAY_CONFIG}/arti-relay.d/",
+    ]
+    .into_iter()
+    .map(|f| CfgPath::new(f.into()).path(&resolver))
+    .collect()
+}
+
 /// A [`CfgPathResolver`] with the base variables configured for a Tor relay.
 ///
 /// A relay should have a single `CfgPathResolver` that is passed around where needed to ensure that

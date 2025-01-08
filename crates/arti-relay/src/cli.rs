@@ -2,6 +2,8 @@ use std::ffi::OsString;
 
 use clap::{Args, Command, Parser, Subcommand, ValueEnum};
 
+use crate::config::default_config_paths;
+
 /// A Rust Tor relay implementation.
 #[derive(Clone, Debug, Parser)]
 #[command(author = "The Tor Project Developers")]
@@ -41,25 +43,17 @@ pub(crate) struct GlobalArgs {
     #[arg(value_name = "KEY=VALUE")]
     pub(crate) options: Vec<String>,
 
-    /// Config file(s) to read.
+    /// Config files and directories to read.
     #[arg(long, short, global = true)]
     #[arg(value_name = "FILE")]
-    #[clap(default_values_t = default_config_files().into_iter().map(CliOsString))]
+    // TODO: we don't want to unwrap here
+    #[clap(default_values_t = default_config_paths().unwrap().into_iter().map(Into::into).map(CliOsString))]
     pub(crate) config: Vec<CliOsString>,
 }
 
 /// Arguments when running an Arti relay.
 #[derive(Clone, Debug, Args)]
 pub(crate) struct RunArgs {}
-
-/// Paths used for default configuration files.
-fn default_config_files() -> Vec<OsString> {
-    // TODO: these are temporary default paths
-    vec![
-        "~/.config/arti-relay/arti-relay.toml".into(),
-        "~/.config/arti-relay/arti-relay.d/".into(),
-    ]
-}
 
 /// Log levels allowed by the cli.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]

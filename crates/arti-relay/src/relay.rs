@@ -78,7 +78,9 @@ impl<R: Runtime> TorRelay<R> {
     }
 
     fn create_keymgr(config: &TorRelayConfig) -> Result<Arc<KeyMgr>, ErrorDetail> {
-        let key_store_dir = config.storage.keystore_dir()?;
+        let key_store_dir = config
+            .storage
+            .keystore_dir(&crate::config::base_resolver())?;
         let permissions = config.storage.permissions();
 
         // Store for the short-term keys that we don't need to keep on disk. The store identifier
