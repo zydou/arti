@@ -18,7 +18,7 @@ use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg::AnyChanMsg, AnyChanCell, CircId};
 use tor_memquota::mq_queue;
-use tor_rtcompat::SleepProvider;
+use tor_rtcompat::{SleepProvider, StreamOps};
 
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
@@ -45,6 +45,8 @@ pub(super) type BoxedChannelStream = Box<
 /// A boxed trait object that can sink `ChanCell`s.
 pub(super) type BoxedChannelSink =
     Box<dyn Sink<AnyChanCell, Error = CodecError> + Send + Unpin + 'static>;
+/// A boxed trait object that can provide additional `StreamOps` on a `BoxedChannelStream`.
+pub(super) type BoxedChannelStreamOps = Box<dyn StreamOps + Send + Unpin + 'static>;
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
@@ -476,7 +478,7 @@ pub(crate) mod test {
     use futures::task::SpawnExt;
     use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
-    use tor_rtcompat::Runtime;
+    use tor_rtcompat::{Runtime, UnsupportedStreamOpsHandle};
 
     type CodecResult = std::result::Result<OpenChanCellS2C, CodecError>;
 
@@ -501,10 +503,12 @@ pub(crate) mod test {
             trace!("got sink error: {:?}", e);
             CodecError::DecCell(tor_cell::Error::ChanProto("dummy message".into()))
         });
+        let stream_ops = UnsupportedStreamOpsHandle::default();
         let (chan, reactor) = crate::channel::Channel::new(
             link_protocol,
             Box::new(send1),
             Box::new(recv2),
+            Box::new(stream_ops),
             unique_id,
             dummy_target,
             crate::ClockSkew::None,

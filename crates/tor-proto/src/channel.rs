@@ -73,6 +73,7 @@ use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
+use reactor::BoxedChannelStreamOps;
 use safelog::sensitive as sv;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
@@ -445,6 +446,7 @@ impl Channel {
         link_protocol: u16,
         sink: BoxedChannelSink,
         stream: BoxedChannelStream,
+        streamops: BoxedChannelStreamOps,
         unique_id: UniqId,
         peer_id: OwnedChanTarget,
         clock_skew: ClockSkew,

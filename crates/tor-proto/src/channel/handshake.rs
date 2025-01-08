@@ -636,6 +636,13 @@ impl<
             self.unique_id, self.ed25519_id, self.rsa_id
         );
 
+        // Grab a new handle on which we can apply StreamOps (needed for KIST).
+        // On Unix platforms, this handle is a wrapper over the fd of the socket.
+        //
+        // Note: this is necessary because after `StreamExit::split()`,
+        // we no longer have access to the underlying stream
+        // or its StreamOps implementation.
+        let stream_ops = self.tls.new_handle();
         let (tls_sink, tls_stream) = self.tls.split();
 
         let mut peer_builder = OwnedChanTargetBuilder::default();
@@ -655,6 +662,7 @@ impl<
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
+            stream_ops,
             self.unique_id,
             peer_id,
             self.clock_skew,
