@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, Command, Parser, Subcommand, ValueEnum};
 
 /// A Rust Tor relay implementation.
 #[derive(Clone, Debug, Parser)]
@@ -127,5 +127,20 @@ mod test {
         // TODO: this is a footgun, and we should consider alternatives to clap's 'global' args
         let cli = Cli::parse_from(["arti-relay", "-o", "foo=1", "run", "-o", "bar=2"]);
         assert_eq!(cli.global.options, vec!["bar=2"]);
+    }
+
+    #[test]
+    fn global_args_are_global() {
+        let cmd = Command::new("test");
+        let cmd = GlobalArgs::augment_args(cmd);
+
+        // check that each argument in `GlobalArgs` has "global" set
+        for arg in cmd.get_arguments() {
+            assert!(
+                arg.is_global_set(),
+                "'global' must be set for {:?}",
+                arg.get_long()
+            );
+        }
     }
 }
