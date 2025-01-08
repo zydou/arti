@@ -21,17 +21,11 @@
 #[cfg(any(test, feature = "testing"))]
 pub(crate) mod test_utils;
 
-/// Fixed window algorithm
 mod fixed;
-/// Round trip estimator module.
-mod rtt;
-/// Sendme module used for SENDME validation.
-pub(crate) mod sendme;
-/// Vegas algorithm
-mod vegas;
-
-/// Congestion control parameters exposed to the circuit manager so they can be set per circuit.
 pub mod params;
+mod rtt;
+pub(crate) mod sendme;
+mod vegas;
 
 use std::time::Instant;
 
