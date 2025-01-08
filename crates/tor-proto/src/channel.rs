@@ -121,6 +121,8 @@ use crate::channel::unique_id::CircUniqIdContext;
 pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
+use kist::KistParams;
+
 restricted_msg! {
     /// A channel message that we allow to be sent from a server to a client on
     /// an open channel.
@@ -623,6 +625,13 @@ impl Channel {
 
         drop(mutable); // release the lock now: lock span covers the send, ensuring ordering
         Ok(())
+    }
+
+    /// Update the KIST parameters.
+    ///
+    /// Returns `Err` if the channel is closed.
+    pub fn reparameterize_kist(&self, kist_params: KistParams) -> Result<()> {
+        Ok(self.send_control(CtrlMsg::KistConfigUpdate(kist_params))?)
     }
 
     /// Return an error if this channel is somehow mismatched with the
