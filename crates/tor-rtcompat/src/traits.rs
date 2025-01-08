@@ -192,6 +192,26 @@ pub trait StreamOps {
         }
         .into())
     }
+
+    /// Return a new handle that implements [`StreamOps`],
+    /// and that can be used independently of `self`.
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        Box::new(UnsupportedStreamOpsHandle)
+    }
+}
+
+/// A [`StreamOps`] handle that always returns an error.
+///
+/// Returned from [`StreamOps::new_handle`] for types and platforms
+/// that do not support `StreamOps`.
+#[derive(Copy, Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct UnsupportedStreamOpsHandle;
+
+impl StreamOps for UnsupportedStreamOpsHandle {
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        Box::new(*self)
+    }
 }
 
 /// Error: Tried to perform a [`StreamOps`] operation on an unsupported stream type

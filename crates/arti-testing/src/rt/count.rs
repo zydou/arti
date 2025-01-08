@@ -141,6 +141,10 @@ impl<S: StreamOps> StreamOps for Counting<S> {
     fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
         self.inner.set_tcp_notsent_lowat(notsent_lowat)
     }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        self.inner.new_handle()
+    }
 }
 
 impl<S: NetStreamListener + Send + Sync> NetStreamListener for Counting<S> {

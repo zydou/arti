@@ -81,4 +81,7 @@ impl StreamOps for FakeStream {
     fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
         void::unreachable(self.0)
     }
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        void::unreachable(self.0)
+    }
 }

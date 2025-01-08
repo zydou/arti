@@ -52,6 +52,10 @@ impl StreamOps for Stream {
     fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
         self.0.set_tcp_notsent_lowat(notsent_lowat)
     }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        self.0.new_handle()
+    }
 }
 
 /// The type of the result from an [`IncomingStreams`].
