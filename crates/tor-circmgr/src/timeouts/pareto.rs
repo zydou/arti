@@ -586,6 +586,8 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
                 true
             };
 
+        tracing::trace!(%hop, ?delay, %have_seen_recent_activity, "Circuit timeout");
+
         if hop > 0 && have_seen_recent_activity {
             self.history.add_success(false);
             if self.history.n_recent_timeouts() > self.p.reset_after_timeouts {
