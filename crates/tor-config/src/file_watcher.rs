@@ -15,7 +15,7 @@ use tor_rtcompat::Runtime;
 
 use amplify::Getters;
 use futures::lock::Mutex;
-use notify::Watcher;
+use notify::{EventKind, Watcher};
 use postage::watch;
 
 use futures::{SinkExt as _, Stream, StreamExt as _};
@@ -299,6 +299,7 @@ fn handle_event(
 
     // filter events we don't want and map to event code
     match event {
+        Ok(event) if ignore_event_kind(&event.kind) => None,
         Ok(event) => {
             if event.need_rescan() {
                 Some(Event::Rescan)
@@ -316,6 +317,17 @@ fn handle_event(
             }
         }
     }
+}
+
+/// Check whether this is a kind of [`notify::Event`] that we want to ignore.
+///
+/// Returns `true` for
+///   * events that trigger on non-mutating file accesses
+///   * catch-all events (used by `notify` for unsupported/unknown events)
+///   * "other" meta-events
+fn ignore_event_kind(kind: &EventKind) -> bool {
+    use EventKind::*;
+    matches!(kind, Access(_) | Any | Other)
 }
 
 /// The sender half of a watch channel used by a [`FileWatcher`] for sending [`Event`]s.
