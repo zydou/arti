@@ -34,7 +34,9 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, kist::KistParams, padding, params::*, unique_id, ChannelDetails, CloseInfo};
+use crate::channel::{
+    codec::CodecError, kist::KistParams, padding, params::*, unique_id, ChannelDetails, CloseInfo,
+};
 use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
