@@ -112,22 +112,6 @@ impl Vegas {
             is_blocked_on_chan: false,
         }
     }
-
-    /// Set the number of inflight cell.
-    #[cfg(test)]
-    pub(crate) fn set_inflight(&mut self, v: u32) {
-        self.num_inflight = v;
-    }
-    /// Return the state of the blocked on chan flag.
-    #[cfg(test)]
-    fn is_blocked_on_chan(&self) -> bool {
-        self.is_blocked_on_chan
-    }
-    /// Set the state of the blocked on chan flag.
-    #[cfg(test)]
-    fn set_is_blocked_on_chan(&mut self, v: bool) {
-        self.is_blocked_on_chan = v;
-    }
 }
 
 impl CongestionControlAlgorithm for Vegas {
@@ -346,6 +330,21 @@ pub(crate) mod test {
         params::VegasParamsBuilder,
         test_utils::{new_cwnd, new_rtt_estimator},
     };
+
+    impl Vegas {
+        /// Set the number of inflight cell.
+        pub(crate) fn set_inflight(&mut self, v: u32) {
+            self.num_inflight = v;
+        }
+        /// Return the state of the blocked on chan flag.
+        fn is_blocked_on_chan(&self) -> bool {
+            self.is_blocked_on_chan
+        }
+        /// Set the state of the blocked on chan flag.
+        fn set_is_blocked_on_chan(&mut self, v: bool) {
+            self.is_blocked_on_chan = v;
+        }
+    }
 
     /// The test vector parameters. They have the exact same name as in C-tor in order to help
     /// matching them and avoid confusion.
