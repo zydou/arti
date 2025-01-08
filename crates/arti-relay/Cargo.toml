@@ -32,7 +32,9 @@ anyhow = "1.0.23"
 clap = { version = "4.3.24", features = ["string", "wrap_help", "derive"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
+directories = "5"
 fs-mistrust = { path = "../fs-mistrust", version = "0.8.2", features = ["serde"] }
+once_cell = "1"
 rand = "0.8.5"
 serde = { version = "1.0.103", features = ["derive"] }
 strum = { version = "0.26.3", features = ["derive"] }
