@@ -6259,6 +6259,7 @@ dependencies = [
 name = "tor-proto"
 version = "0.26.0"
 dependencies = [
+ "amplify",
  "asynchronous-codec",
  "bitvec",
  "bytes",
@@ -6303,6 +6304,7 @@ dependencies = [
  "tor-llcrypto",
  "tor-log-ratelim",
  "tor-memquota",
+ "tor-netdir",
  "tor-rtcompat",
  "tor-rtmock",
  "tor-units",

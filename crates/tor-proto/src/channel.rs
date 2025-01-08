@@ -58,6 +58,7 @@ pub const CHANNEL_BUFFER_SIZE: usize = 128;
 mod circmap;
 mod codec;
 mod handshake;
+pub mod kist;
 pub mod padding;
 pub mod params;
 mod reactor;

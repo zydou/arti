@@ -56,6 +56,7 @@ bench = ["__is_experimental"]
 __is_experimental = []
 
 [dependencies]
+amplify = { version = "4", default-features = false, features = ["derive"] }
 asynchronous-codec = "0.7.0"
 bitvec = "1.0.1"
 bytes = "1"
@@ -92,6 +93,7 @@ tor-linkspec = { path = "../tor-linkspec", version = "0.26.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.26.0", features = ["memquota-memcost"] }
 tor-log-ratelim = { path = "../tor-log-ratelim", version = "0.26.0" }
 tor-memquota = { version = "0.26.0", path = "../tor-memquota", default-features = false }
+tor-netdir = { path = "../tor-netdir", version = "0.26.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.26.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.26.0" }
 tor-units = { path = "../tor-units", version = "0.26.0", features = ["memquota-memcost"] }
