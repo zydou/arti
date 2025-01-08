@@ -18,6 +18,8 @@ use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 use tor_config::{impl_standard_builder, mistrust::BuilderExt, ConfigBuildError};
 use tor_config_path::{CfgPath, CfgPathError, CfgPathResolver};
 use tor_keymgr::config::{ArtiKeystoreConfig, ArtiKeystoreConfigBuilder};
+use tracing::metadata::Level;
+use tracing_subscriber::filter::EnvFilter;
 
 /// Paths used for default configuration files.
 pub(crate) fn default_config_paths() -> Result<Vec<PathBuf>, CfgPathError> {
@@ -111,6 +113,11 @@ fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[non_exhaustive]
 pub(crate) struct TorRelayConfig {
+    /// Logging configuration
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) logging: LoggingConfig,
+
     /// Directories for storing information on disk
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
@@ -166,6 +173,39 @@ fn default_extend<T: Default + Extend<X>, X>(to_add: impl IntoIterator<Item = X>
     let mut collection = T::default();
     collection.extend(to_add);
     collection
+}
+
+/// Default log level.
+pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::INFO;
+
+/// Logging configuration options.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct LoggingConfig {
+    /// Filtering directives that determine tracing levels as described at
+    /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr-for-Targets>
+    ///
+    /// You can override this setting with the `-l`, `--log-level` command line parameter.
+    ///
+    /// Example: "info,tor_proto::channel=trace"
+    #[builder(default = "DEFAULT_LOG_LEVEL.to_string()", setter(into))]
+    pub(crate) console: String,
+}
+
+impl LoggingConfigBuilder {
+    fn validate(&self) -> Result<(), ConfigBuildError> {
+        if let Some(console) = &self.console {
+            EnvFilter::builder()
+                .parse(console)
+                .map_err(|e| ConfigBuildError::Invalid {
+                    field: "console".to_string(),
+                    problem: e.to_string(),
+                })?;
+        }
+        Ok(())
+    }
 }
 
 /// Configuration for where information should be stored on disk.
