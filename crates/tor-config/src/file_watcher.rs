@@ -413,7 +413,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use notify::event::ModifyKind;
+    use notify::event::{AccessKind, ModifyKind};
     use test_temp_dir::{test_temp_dir, TestTempDir};
 
     /// Write `data` to file `name` within `dir`.
@@ -436,6 +436,18 @@ mod test {
         // The write might trigger more than one event
         while let Some(ev) = rx.try_recv() {
             assert_eq!(ev, Event::FileChanged);
+        }
+    }
+
+    /// Set the `EventKind` of `event` to an uninteresting `EventKind`
+    /// and assert that it is ignored by `handle_event`.
+    fn assert_ignored(event: &notify::Event, watching: &HashMap<PathBuf, HashSet<DirEventFilter>>) {
+        for kind in [EventKind::Access(AccessKind::Any), EventKind::Other] {
+            let ignored_event = event.clone().set_kind(kind);
+            assert_eq!(handle_event(Ok(ignored_event.clone()), watching), None);
+            // ...but if the rescan flag is set, the event is *not* ignored
+            let event = ignored_event.set_flag(notify::event::Flag::Rescan);
+            assert_eq!(handle_event(Ok(event), watching), Some(Event::Rescan));
         }
     }
 
@@ -473,6 +485,9 @@ mod test {
             Some(Event::FileChanged)
         );
 
+        // The same event, but with an irrelevant kind, gets ignored:
+        assert_ignored(&event, &watching_dirs);
+
         // Watch some files within /foo/bar
         watching_dirs.insert(
             "/foo/bar".into(),
@@ -480,13 +495,16 @@ mod test {
         );
 
         assert_eq!(
-            handle_event(Ok(event), &watching_dirs),
+            handle_event(Ok(event.clone()), &watching_dirs),
             Some(Event::FileChanged)
         );
         assert_eq!(
             handle_event(Ok(rescan_event()), &watching_dirs),
             Some(Event::Rescan)
         );
+
+        // The same event, but with an irrelevant kind, gets ignored:
+        assert_ignored(&event, &watching_dirs);
 
         // Watch some other files
         let event = notify::Event::new(notify::EventKind::Modify(ModifyKind::Any))
@@ -543,7 +561,7 @@ mod test {
             drop(watcher);
             // The write might trigger more than one event
             while let Some(ev) = rx.next().await {
-                assert_eq!(ev, Event::FileChanged);
+                assert_eq!(ev.clone(), Event::FileChanged);
             }
         });
     }
