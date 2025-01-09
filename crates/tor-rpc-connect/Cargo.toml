@@ -20,26 +20,30 @@ full = [
     "tor-basic-utils/full",
     "tor-config-path/full",
     "tor-general-addr/full",
-    "tor-rtcompat?/full", "fslock-guard?/full",
+    "tor-rtcompat?/full",
+    "fslock-guard?/full",
 ]
 default = []
 
 rpc-client = []
-rpc-server = ["fslock-guard", "rand", "tor-rtcompat"]
+rpc-server = ["fslock-guard", "tor-rtcompat"]
 
 [dependencies]
 # NOTE: This crate is a dependency of our RPC client library;
 # Try to avoid introducing big unconditional dependencies!
+base16ct = { version = "0.2", features = ["alloc"] }
 cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 fs-mistrust = { path = "../fs-mistrust", version = "0.8.2" }
 fslock-guard = { path = "../fslock-guard", version = "0.2.1", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.8" }
 safelog = { path = "../safelog", version = "0.4.2" }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_with = "3.0.0"
+subtle = "2.6"
 thiserror = "2"
+tiny-keccak = { version = "2.0.2", features = ["tuple_hash"] }
 toml = "0.8.8"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.26.0" }
 tor-config-path = { path = "../tor-config-path", version = "0.26.0", features = ["address"] }
@@ -50,4 +54,5 @@ zeroize = "1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
+hex-literal = "0.4"
 tempfile = "3.10"
