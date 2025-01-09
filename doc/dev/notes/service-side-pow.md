@@ -58,6 +58,10 @@ impl Clone for PowManager;
 struct State<R> {
     runtime: R,
 
+    keymgr: Arc<KeyMgr>,
+
+    nickname: HsNickname,
+
     // Used to tell Publisher that it should re-upload descriptors due to seed rotation.
     // We could have this be a queue where we send just the TimePeriod that we want to update, but
     // it's simpler to just update them all and accept some spurious updates.
@@ -96,6 +100,8 @@ impl<R: Runtime> PowManager<R> {
     // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
     pub(crate) fn new(
         runtime: R,
+        keymgr: Arc<KeyMgr>,
+        nickname: HsNickname,
         publisher_update_tx: watch::Sender<()>,
         pow_replay_log_dir: InstanceRawSubdir
     ) -> (Self, mpsc::Sender, RendQueueReceiver);
