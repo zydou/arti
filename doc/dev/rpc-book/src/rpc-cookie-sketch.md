@@ -96,7 +96,7 @@ The client and server know this value from the cookie file:
    and verifies that its value matches the one
    provided by the server.  If it does not match, it aborts the protocol.
    If it does match, the client computes
-   `client_mac = MAC(cookie, "Client", socket_canonincal, server_nonce)`,
+   `client_mac = MAC(cookie, "Client", socket_canonical, server_nonce)`,
    and sends `client_mac` to the server.
 
 5. The server computes `client_mac`, and verifies that its value matches the one
