@@ -1,6 +1,7 @@
 //! Authentication for RpcConn.
 
 use serde::{Deserialize, Serialize};
+use tor_rpc_connect::auth::cookie::{Cookie, CookieAuthMac, CookieAuthNonce};
 
 use crate::msgs::{request::Request, ObjectId};
 
@@ -12,11 +13,37 @@ struct AuthParams<'a> {
     /// The authentication scheme we are using.
     scheme: &'a str,
 }
-/// Response to an `auth:authenticate` request.
+/// Response to an `auth:authenticate` or `auth:cookie_continue` request.
 #[derive(Deserialize, Debug)]
 struct Authenticated {
     /// A session object that we use to access the rest of Arti's functionality.
     session: ObjectId,
+}
+
+/// Arguments to an `auth:cookie_begin` request.
+#[derive(Serialize, Debug)]
+struct CookieBeginParams {
+    /// Client-selected nonce; used while the server is proving knowledge of the cookie.
+    client_nonce: CookieAuthNonce,
+}
+
+#[derive(Deserialize, Debug)]
+struct CookieBeginReply {
+    /// Temporary ID to use while authenticating.
+    cookie_auth: ObjectId,
+    /// Address that the server thinks it's listening on.
+    server_addr: String,
+    /// MAC returned by the server to prove knowledge of the cookie.
+    server_mac: CookieAuthMac,
+    /// Server-selected nonce to use while we prove knowledge of the cookie.
+    server_nonce: CookieAuthNonce,
+}
+
+/// Arguments to an `auth:cookie_begin` request.
+#[derive(Serialize, Debug)]
+struct CookieContinueParams {
+    /// Make to prove our knowledge of the cookie.
+    client_mac: CookieAuthMac,
 }
 
 impl RpcConn {
@@ -37,6 +64,46 @@ impl RpcConn {
             },
         );
         let authenticated: Authenticated = self.execute_internal_ok(&r.encode()?)?;
+
+        Ok(authenticated.session)
+    }
+
+    /// Try to negotiate "cookie" authentication, using the provided cookie and server address.
+    pub(crate) fn authenticate_cookie(
+        &self,
+        cookie: &Cookie,
+        server_addr: &str,
+    ) -> Result<ObjectId, ConnectError> {
+        let client_nonce = CookieAuthNonce::new(&mut rand::thread_rng());
+
+        let cookie_begin: Request<CookieBeginParams> = Request::new(
+            ObjectId::connection_id(),
+            "auth:cookie_begin",
+            CookieBeginParams {
+                client_nonce: client_nonce.clone(),
+            },
+        );
+        let reply: CookieBeginReply = self.execute_internal_ok(&cookie_begin.encode()?)?;
+
+        if server_addr != reply.server_addr {
+            return Err(ConnectError::ServerAddressMismatch {
+                ours: server_addr.into(),
+                theirs: reply.server_addr,
+            });
+        }
+
+        let expected_server_mac = cookie.server_mac(&client_nonce, server_addr);
+        if reply.server_mac != expected_server_mac {
+            return Err(ConnectError::CookieMismatch);
+        }
+
+        let client_mac = cookie.client_mac(&reply.server_nonce, server_addr);
+        let cookie_continue = Request::new(
+            reply.cookie_auth,
+            "auth:cookie_continue",
+            CookieContinueParams { client_mac },
+        );
+        let authenticated: Authenticated = self.execute_internal_ok(&cookie_continue.encode()?)?;
 
         Ok(authenticated.session)
     }

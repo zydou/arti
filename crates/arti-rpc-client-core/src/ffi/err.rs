@@ -310,6 +310,9 @@ impl IntoFfiError for crate::ConnectError {
             E::CannotParse(_) | E::CannotResolveConnectPoint(_) => F::ConnectPointNotUsable,
             E::AllAttemptsDeclined => F::AllConnectAttemptsFailed,
             E::AuthenticationNotSupported => F::NotSupported,
+            E::ServerAddressMismatch { .. } => F::ConnectPointNotUsable,
+            E::CookieMismatch => F::ConnectPointNotUsable,
+            E::LoadCookie(_) => F::ConnectPointNotUsable,
         }
     }
 
