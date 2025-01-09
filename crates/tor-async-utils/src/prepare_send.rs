@@ -533,7 +533,8 @@ mod test {
                 let msg = msg.unwrap();
                 assert_eq!(msg, v);
                 let () = sendable.send(msg).unwrap();
-                assert_eq!(*sunk.lock().unwrap(), &[]); // It's still buffered
+                let expect: &[u8] = &[];
+                assert_eq!(*sunk.lock().unwrap(), expect); // It's still buffered
             }
             select_biased! {
                 _ = unfold.prepare_send_from(futures::future::pending::<()>()) => panic!(),
