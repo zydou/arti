@@ -42,10 +42,11 @@ class TestContext:
         cache_dir = path.joinpath("cache")
         state_dir = path.joinpath("state")
         socket_path = path.joinpath("arti_rpc.socket")
-        connpt_path = path.joinpath("arti_connpt.toml")
+        unix_connpt_path = path.joinpath("arti_unix_connpt.toml")
         socks_port = 15986  # "chosen by fair dice roll. guaranteed to be random."
+        rpc_port = 18929
 
-        with open(connpt_path, "w") as f:
+        with open(unix_connpt_path, "w") as f:
             f.write(
                 f"""
 [connect]
@@ -65,7 +66,7 @@ auth = "none"
                         "enable": False,
                     },
                     "test-point": {
-                        "file": str(connpt_path),
+                        "file": str(unix_connpt_path),
                     },
                 },
             },
@@ -83,7 +84,7 @@ auth = "none"
         self.arti_binary = arti_binary
         self.conf_file = conf_file
         self.socket_path = socket_path
-        self.connpt_path = connpt_path
+        self.unix_connpt_path = unix_connpt_path
         self.arti_process = None
 
     def launch_arti(self):
@@ -102,7 +103,7 @@ auth = "none"
         Open an RPC connection to Arti.
         """
         bld = arti_rpc.ArtiRpcConnBuilder()
-        bld.prepend_literal_path(str(self.connpt_path))
+        bld.prepend_literal_path(str(self.unix_connpt_path))
         return bld.connect()
 
     def arti_process_is_running(self) -> bool:
