@@ -3,6 +3,7 @@
 //! All of these values are taken from the consensus. And so the details of these values can be
 //! found in section 6.5.1. of proposal 324.
 
+use caret::caret_int;
 use derive_builder::Builder;
 
 use tor_config::{impl_standard_builder, ConfigBuildError};
@@ -91,6 +92,19 @@ pub enum Algorithm {
     FixedWindow(FixedWindowParams),
     /// Vegas algorithm.
     Vegas(VegasParams),
+}
+
+caret_int! {
+    /// Congestion control algorithm types defined by numerical values. See "cc_alg" in proposal
+    /// 324 section 6.5.1 for the supported values.
+    ///
+    /// This is a i32 so it is the same type as the consensus supported value type.
+    pub struct AlgorithmType(i32) {
+        /// Fixed window algorithm.
+        FIXED_WINDOW = 0,
+        /// Vegas algorithm.
+        VEGAS = 2,
+    }
 }
 
 /// The round trip estimator parameters taken from consensus and used to estimate the round trip

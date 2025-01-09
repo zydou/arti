@@ -16,7 +16,7 @@ use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
-use tor_proto::ccparams;
+use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_units::Percentage;
@@ -556,8 +556,8 @@ impl From<&TargetCircUsage> for CircuitType {
 
 /// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus.
 pub fn circparameters_from_netparameters(inp: &NetParameters, ct: &CircuitType) -> CircParameters {
-    let cc_alg = match inp.cc_alg.get() {
-        2 => {
+    let cc_alg = match inp.cc_alg.get().into() {
+        AlgorithmType::VEGAS => {
             let vegas_queue_params: ccparams::VegasQueueParams = match ct {
                 CircuitType::Exit | CircuitType::OnionSingleService => (
                     inp.cc_vegas_alpha_exit.into(),
@@ -589,7 +589,7 @@ pub fn circparameters_from_netparameters(inp: &NetParameters, ct: &CircuitType) 
             )
         }
         // Unrecognized, fallback to fixed window as in SENDME v0.
-        _ => ccparams::Algorithm::FixedWindow(
+        AlgorithmType::FIXED_WINDOW | _ => ccparams::Algorithm::FixedWindow(
             ccparams::FixedWindowParamsBuilder::default()
                 .circ_window_start(inp.circuit_window.get() as u16)
                 .build()

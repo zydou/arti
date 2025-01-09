@@ -6256,6 +6256,7 @@ dependencies = [
  "asynchronous-codec",
  "bitvec",
  "bytes",
+ "caret",
  "cipher",
  "coarsetime",
  "cpu-time",
