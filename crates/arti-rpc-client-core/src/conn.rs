@@ -414,6 +414,12 @@ pub enum ConnectError {
     /// IO error while connecting to Arti.
     #[error("Unable to make a connection: {0}")]
     CannotConnect(#[from] tor_rpc_connect::ConnectError),
+    /// Opened a connection, but didn't get a banner message.
+    ///
+    /// (This isn't a `BadMessage`, since it is likelier to represent something that isn't
+    /// pretending to be Arti at all than it is to be a malfunctioning Arti.)
+    #[error("Did not receive expected banner message upon connecting")]
+    InvalidBanner,
     /// All attempted connect points were declined, and none were aborted.
     #[error("All connect points were declined (or there were none)")]
     AllAttemptsDeclined,
@@ -445,6 +451,7 @@ impl HasClientErrorAction for ConnectError {
             E::CannotResolvePath(_) => A::Abort,
             E::CannotResolveConnectPoint(e) => e.client_action(),
             E::CannotConnect(e) => e.client_action(),
+            E::InvalidBanner => A::Decline,
             E::RelativeConnectFile => A::Abort,
             E::AuthenticationRejected(_) => A::Decline,
             // TODO RPC: Is this correct?  This error can also occur when

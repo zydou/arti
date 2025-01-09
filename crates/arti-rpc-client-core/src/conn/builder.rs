@@ -1,6 +1,11 @@
 //! Functionality to connect to an RPC server.
 
-use std::{collections::HashMap, io, path::PathBuf, str::FromStr as _};
+use std::{
+    collections::HashMap,
+    io::{self},
+    path::PathBuf,
+    str::FromStr as _,
+};
 
 use fs_mistrust::Mistrust;
 use tor_config_path::{CfgPath, CfgPathResolver};
@@ -10,7 +15,7 @@ use tor_rpc_connect::{
     ClientErrorAction, HasClientErrorAction, ParsedConnectPoint,
 };
 
-use crate::{conn::ConnectError, llconn, RpcConn};
+use crate::{conn::ConnectError, llconn, msgs::response::UnparsedResponse, RpcConn};
 
 /// An error occurred while trying to construct or manipulate an [`RpcConnBuilder`].
 #[derive(Clone, Debug, thiserror::Error)]
@@ -179,10 +184,14 @@ fn try_connect(
         // TODO RPC: Implement cookie auth.
         _ => return Err(ConnectError::AuthenticationNotSupported),
     }
-    let mut conn = RpcConn::new(
-        llconn::Reader::new(io::BufReader::new(reader)),
-        llconn::Writer::new(writer),
-    );
+    let mut reader = llconn::Reader::new(io::BufReader::new(reader));
+    let banner = reader
+        .read_msg()
+        .map_err(|e| ConnectError::CannotConnect(e.into()))?
+        .ok_or(ConnectError::InvalidBanner)?;
+    check_banner(&banner)?;
+
+    let mut conn = RpcConn::new(reader, llconn::Writer::new(writer));
 
     // TODO RPC: remove this "scheme name" from the protocol?
     // This will get refactored when we do cookie auth.
@@ -190,6 +199,19 @@ fn try_connect(
     conn.session = Some(session_id);
 
     Ok(conn)
+}
+
+/// Return Ok if `msg` is a banner indicating the correct protocol.
+fn check_banner(msg: &UnparsedResponse) -> Result<(), ConnectError> {
+    /// Structure to indicate that this is indeed an Arti RPC connection.
+    #[derive(serde::Deserialize)]
+    struct Banner {
+        /// Ignored value
+        #[allow(dead_code)]
+        arti_rpc: serde_json::Value,
+    }
+    let _: Banner = serde_json::from_str(msg.as_str()).map_err(|_| ConnectError::InvalidBanner)?;
+    Ok(())
 }
 
 impl SearchEntry {
