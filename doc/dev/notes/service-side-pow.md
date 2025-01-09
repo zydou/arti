@@ -106,7 +106,7 @@ impl<R: Runtime> PowManager<R> {
         pow_replay_log_dir: InstanceRawSubdir
     ) -> (Self, mpsc::Sender, RendQueueReceiver);
 
-    // Both called from tor-hsservice/src/ipt_mgr/persist.rs
+    // Called from OnionService::launch, likely using a abstraction like ipt_mgr/persist.rs does
     pub(crate) fn to_record(&self) -> PowManagerRecord;
     // Upon loading from disk, we will delete stale replay logs from replay_log_dir,
     // using read_directory / parse_log_leafname / remove_file
