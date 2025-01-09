@@ -63,7 +63,7 @@ struct CookieBeginReply {
 #[derive_deftly(rpc::Object)]
 struct CookieAuthInProgress {
     /// The cookie we're using to check the client's authentication.
-    cookie: Cookie, // TODO: Maybe make this an Arc?XXXX
+    cookie: Arc<Cookie>,
     /// The RPC manager we'll use, if successful, to create a session.
     mgr: Weak<RpcMgr>,
     /// The nonce that we sent to the client.
@@ -105,7 +105,7 @@ async fn cookie_begin(
             secret,
             server_address,
             ..
-        } => (secret.clone(), server_address.clone()),
+        } => (Arc::clone(secret), server_address.clone()),
         _ => return Err(AuthenticationFailure::IncorrectMethod.into()),
     };
     let mut rng = rand::thread_rng();

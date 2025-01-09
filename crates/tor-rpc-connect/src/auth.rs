@@ -1,5 +1,7 @@
 //! Representations for types of required RPC connections.
 
+use std::sync::Arc;
+
 pub mod cookie;
 
 /// A type of authentication required on an RPC connection.
@@ -11,7 +13,7 @@ pub enum RpcAuth {
     /// RPC cookie authentication is expected on the connection.
     Cookie {
         /// A secret cookie value to use for authentication.
-        secret: cookie::Cookie,
+        secret: Arc<cookie::Cookie>,
         /// The address that the server is listening on,
         /// encoded as a string.
         server_address: String,
