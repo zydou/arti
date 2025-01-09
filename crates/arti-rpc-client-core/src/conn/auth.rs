@@ -92,12 +92,13 @@ impl RpcConn {
             });
         }
 
-        let expected_server_mac = cookie.server_mac(&client_nonce, server_addr);
+        let expected_server_mac =
+            cookie.server_mac(&client_nonce, &reply.server_nonce, server_addr);
         if reply.server_mac != expected_server_mac {
             return Err(ConnectError::CookieMismatch);
         }
 
-        let client_mac = cookie.client_mac(&reply.server_nonce, server_addr);
+        let client_mac = cookie.client_mac(&client_nonce, &reply.server_nonce, server_addr);
         let cookie_continue = Request::new(
             reply.cookie_auth,
             "auth:cookie_continue",

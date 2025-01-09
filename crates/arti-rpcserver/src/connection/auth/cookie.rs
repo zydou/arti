@@ -66,6 +66,8 @@ struct CookieAuthInProgress {
     cookie: Arc<Cookie>,
     /// The RPC manager we'll use, if successful, to create a session.
     mgr: Weak<RpcMgr>,
+    /// The nonce that the client sent us.
+    client_nonce: CookieAuthNonce,
     /// The nonce that we sent to the client.
     ///
     /// If this is None, then the client already authenticated once, and this object
@@ -112,11 +114,12 @@ async fn cookie_begin(
 
     let server_nonce = CookieAuthNonce::new(&mut rng);
 
-    let server_mac = cookie.server_mac(&method.client_nonce, server_addr.as_str());
+    let server_mac = cookie.server_mac(&method.client_nonce, &server_nonce, server_addr.as_str());
 
     let auth_in_progress = Arc::new(CookieAuthInProgress {
         cookie,
         mgr: unauth.mgr.clone(),
+        client_nonce: method.client_nonce,
         server_nonce: Mutex::new(Some(server_nonce.clone())),
         server_addr: server_addr.clone(),
     });
@@ -146,9 +149,11 @@ async fn cookie_continue(
         return Err(AuthenticationFailure::CookieNonceReused.into());
     };
 
-    let expected_client_mac = in_progress
-        .cookie
-        .client_mac(&server_nonce, &in_progress.server_addr);
+    let expected_client_mac = in_progress.cookie.client_mac(
+        &in_progress.client_nonce,
+        &server_nonce,
+        &in_progress.server_addr,
+    );
 
     if expected_client_mac != method.client_mac {
         return Err(AuthenticationFailure::IncorrectAuthentication.into());

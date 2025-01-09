@@ -114,6 +114,7 @@ impl Cookie {
     pub fn server_mac(
         &self,
         client_nonce: &CookieAuthNonce,
+        server_nonce: &CookieAuthNonce,
         socket_canonical: &str,
     ) -> CookieAuthMac {
         // `server_mac = MAC(cookie, "Server", socket_canonical, client_nonce)`
@@ -121,12 +122,14 @@ impl Cookie {
         mac.update(b"Server");
         mac.update(socket_canonical.as_bytes());
         mac.update(&**client_nonce.0);
+        mac.update(&**server_nonce.0);
         CookieAuthMac::finalize_from(mac)
     }
 
     /// Compute the "client_mac" value as in the RPC cookie authentication protocol.
     pub fn client_mac(
         &self,
+        client_nonce: &CookieAuthNonce,
         server_nonce: &CookieAuthNonce,
         socket_canonical: &str,
     ) -> CookieAuthMac {
@@ -134,6 +137,7 @@ impl Cookie {
         let mut mac = self.new_mac();
         mac.update(b"Client");
         mac.update(socket_canonical.as_bytes());
+        mac.update(&**client_nonce.0);
         mac.update(&**server_nonce.0);
         CookieAuthMac::finalize_from(mac)
     }
@@ -339,8 +343,8 @@ mod test {
         let server_nonce = CookieAuthNonce::new(&mut rng);
         let cookie = Cookie::new(&mut rng);
 
-        let smac = cookie.server_mac(&client_nonce, addr);
-        let cmac = cookie.client_mac(&server_nonce, addr);
+        let smac = cookie.server_mac(&client_nonce, &server_nonce, addr);
+        let cmac = cookie.client_mac(&client_nonce, &server_nonce, addr);
 
         // `server_mac = MAC(cookie, "Server", socket_canonical, client_nonce)`
         let smac_expected = tuplehash(
@@ -350,6 +354,7 @@ mod test {
                 b"Server",
                 addr.as_bytes(),
                 &**client_nonce.0,
+                &**server_nonce.0,
             ],
         );
         // `client_mac = MAC(cookie, "Client", socket_canonical, server_nonce)`
@@ -359,6 +364,7 @@ mod test {
                 &**cookie.value,
                 b"Client",
                 addr.as_bytes(),
+                &**client_nonce.0,
                 &**server_nonce.0,
             ],
         );
