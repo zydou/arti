@@ -4,6 +4,7 @@ use safelog::Sensitive;
 use std::{
     fs, io,
     path::{Path, PathBuf},
+    str::FromStr,
     sync::Arc,
 };
 use subtle::ConstantTimeEq as _;
@@ -205,7 +206,7 @@ pub enum HexError {
 }
 
 /// A random nonce used during cookie authentication protocol.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde_with::SerializeDisplay, serde_with::DeserializeFromStr)]
 pub struct CookieAuthNonce(Sensitive<Zeroizing<[u8; 32]>>);
 impl CookieAuthNonce {
     /// Create a new random nonce.
@@ -227,9 +228,20 @@ impl CookieAuthNonce {
         Ok(nonce)
     }
 }
+impl std::fmt::Display for CookieAuthNonce {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_hex())
+    }
+}
+impl FromStr for CookieAuthNonce {
+    type Err = HexError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_hex(s)
+    }
+}
 
 /// A MAC derived during the cookie authentication protocol.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde_with::SerializeDisplay, serde_with::DeserializeFromStr)]
 pub struct CookieAuthMac(Sensitive<Zeroizing<[u8; 32]>>);
 impl CookieAuthMac {
     /// Construct a MAC by finalizing the provided hasher.
@@ -250,6 +262,17 @@ impl CookieAuthMac {
         let mut mac = Self(Default::default());
         base16ct::mixed::decode(s, mac.0.as_mut()).map_err(|_| HexError::InvalidHex)?;
         Ok(mac)
+    }
+}
+impl std::fmt::Display for CookieAuthMac {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_hex())
+    }
+}
+impl FromStr for CookieAuthMac {
+    type Err = HexError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_hex(s)
     }
 }
 impl PartialEq for CookieAuthMac {

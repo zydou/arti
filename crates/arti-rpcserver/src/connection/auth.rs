@@ -11,6 +11,7 @@ use derive_deftly::Deftly;
 use tor_rpcbase as rpc;
 use tor_rpcbase::templates::*;
 
+mod cookie;
 mod inherent;
 
 /// Information about how an RPC session has been authenticated.
@@ -91,4 +92,20 @@ enum AuthenticationFailure {
     /// The authentication method wasn't one we support.
     #[error("Tried to use unexpected authentication method")]
     IncorrectMethod,
+    /// Tried to reuse a cookie authentication object
+    #[error("Tried to re-authenticate with a cookie authentication object")]
+    CookieNonceReused,
+    /// Tried to provide a secret, MAC, or other object that wasn't correct.
+    #[error("Incorrect authentication value")]
+    IncorrectAuthentication,
+    /// RPC system is shutting down; can't authenticate
+    #[error("Shutting down; can't authenticate")]
+    ShuttingDown,
+}
+
+/// A successful response from an authenticate method.
+#[derive(Debug, serde::Serialize)]
+struct AuthenticateReply {
+    /// An handle for a `Session` object.
+    session: rpc::ObjectId,
 }

@@ -2,7 +2,7 @@
 //! authorized.
 use std::sync::Arc;
 
-use super::{AuthenticationFailure, AuthenticationScheme, RpcAuthentication};
+use super::{AuthenticateReply, AuthenticationFailure, AuthenticationScheme, RpcAuthentication};
 use crate::Connection;
 use derive_deftly::Deftly;
 use tor_rpc_connect::auth::RpcAuth;
@@ -28,13 +28,6 @@ struct Authenticate {
     ///
     /// TODO RPC: The only supported one for now is "inherent:unix_path" // TODO RPC RENAME XXXX?
     scheme: AuthenticationScheme,
-}
-
-/// A reply from the `Authenticate` method.
-#[derive(Debug, serde::Serialize)]
-struct AuthenticateReply {
-    /// An handle for a `Session` object.
-    session: rpc::ObjectId,
 }
 
 impl rpc::RpcMethod for Authenticate {
