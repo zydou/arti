@@ -10,6 +10,7 @@ from arti_rpc import (
     ArtiRpcConnBuilder,
 )
 
+import sys
 import tempfile
 import os
 import urllib.parse
@@ -266,3 +267,16 @@ def connect_nobuilder(context):
         os.environ["ARTI_RPC_CONNECT_PATH"] = fn_w
         c = ArtiRpcConn()
         assert c is not None
+
+
+@arti_test
+def connect_unix(context):
+    # Make sure that if we're on unix, unix connect points work.
+
+    if sys.platform in ["win32", "cygwin"]:
+        return  # Skipped.
+
+    bld = ArtiRpcConnBuilder()
+    bld.prepend_literal_connect_point(connpt_abort())
+    bld.prepend_literal_connect_point(connpt_unix(context))
+    assert_builder_connects(bld)
