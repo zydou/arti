@@ -55,7 +55,9 @@ update loop is just a small change if we decide that's better.
 This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
-pub(crate) struct PowManager(RwLock<State>)
+pub(crate) struct PowManager(Arc<RwLock<State>>)
+
+impl Clone for PowManager;
 
 struct State {
     seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
