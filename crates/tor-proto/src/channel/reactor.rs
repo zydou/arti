@@ -34,7 +34,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
+use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails, CloseInfo};
 use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
@@ -99,11 +99,7 @@ pub struct Reactor<S: SleepProvider> {
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// A oneshot sender that is used to alert other tasks when this reactor is
     /// finally dropped.
-    ///
-    /// It is a sender for Void because we never actually want to send anything here;
-    /// we only want to generate canceled events.
-    #[allow(dead_code)] // the only purpose of this field is to be dropped.
-    pub(super) reactor_closed_tx: oneshot_broadcast::Sender<void::Void>,
+    pub(super) reactor_closed_tx: oneshot_broadcast::Sender<Result<CloseInfo>>,
     /// A receiver for cells to be sent on this reactor's sink.
     ///
     /// `Channel` objects have a sender that can send cells here.
@@ -182,6 +178,9 @@ impl<S: SleepProvider> Reactor<S> {
             }
         };
         debug!("{}: Reactor stopped: {:?}", &self, result);
+        // Inform any waiters that the channel has closed.
+        let close_msg = result.as_ref().map_err(Clone::clone).map(|()| CloseInfo);
+        self.reactor_closed_tx.send(close_msg);
         result
     }
 
@@ -468,13 +467,14 @@ impl<S: SleepProvider> Reactor<S> {
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::channel::UniqId;
+    use crate::channel::{ClosedUnexpectedly, UniqId};
     use crate::circuit::CircParameters;
     use crate::fake_mpsc;
     use crate::util::fake_mq;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
+    use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
     use tor_rtcompat::Runtime;
 
@@ -597,7 +597,6 @@ pub(crate) mod test {
         use tor_rtcompat::SleepProvider;
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use tor_cell::chancell::msg;
             let (chan, mut reactor, mut output, mut input) = new_reactor(rt.clone());
 
             let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
@@ -648,7 +647,6 @@ pub(crate) mod test {
     #[test]
     fn bad_cells() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            use tor_cell::chancell::msg;
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
             // shouldn't get created2 cells for nonexistent circuits
@@ -687,7 +685,6 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use crate::circuit::celltypes::ClientCircChanMsg;
             use oneshot_fused_workaround as oneshot;
-            use tor_cell::chancell::msg;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
@@ -728,9 +725,9 @@ pub(crate) mod test {
                 .unwrap();
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
-            format!("{}", e),
-            "Channel protocol violation: Relay cell on pending circuit before CREATED* received"
-        );
+                format!("{}", e),
+                "Channel protocol violation: Relay cell on pending circuit before CREATED* received"
+            );
 
             // If a relay cell is sent on a non-existent channel, that's an error.
             input
@@ -776,7 +773,6 @@ pub(crate) mod test {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use crate::circuit::celltypes::*;
             use oneshot_fused_workaround as oneshot;
-            use tor_cell::chancell::msg;
 
             let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
@@ -858,6 +854,11 @@ pub(crate) mod test {
             assert!(!chan.is_closing());
             drop(reactor);
             assert!(chan.is_closing());
+
+            assert!(matches!(
+                chan.wait_for_close().await,
+                Err(ClosedUnexpectedly::ReactorDropped),
+            ));
         });
     }
 
@@ -873,6 +874,34 @@ pub(crate) mod test {
             let r = reactor.run().await;
             assert!(r.is_ok());
             assert!(chan.is_closing());
+
+            assert!(chan.wait_for_close().await.is_ok());
+        });
+    }
+
+    #[test]
+    fn reactor_error_wait_for_close() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, reactor, _output, mut input) = new_reactor(rt);
+
+            // force an error by sending created2 cell for nonexistent circuit
+            let created2_cell = msg::Created2::new(*b"hihi").into();
+            input
+                .send(Ok(OpenChanCellS2C::new(CircId::new(7), created2_cell)))
+                .await
+                .unwrap();
+
+            // `reactor.run()` should return an error
+            let run_error = reactor.run().await.unwrap_err();
+
+            // `chan.wait_for_close()` should return the same error
+            let Err(ClosedUnexpectedly::ReactorError(wait_error)) = chan.wait_for_close().await
+            else {
+                panic!("Expected a 'ReactorError'");
+            };
+
+            // `Error` doesn't implement `PartialEq`, so best we can do is to compare the strings
+            assert_eq!(run_error.to_string(), wait_error.to_string());
         });
     }
 }
