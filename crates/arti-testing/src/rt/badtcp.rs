@@ -2,7 +2,9 @@
 #![allow(clippy::missing_docs_in_private_items)] // required for pin_project(enum)
 
 use futures::Stream;
-use tor_rtcompat::{NetStreamListener, NetStreamProvider, SleepProvider, StreamOps, UnsupportedStreamOpsHandle};
+use tor_rtcompat::{
+    NetStreamListener, NetStreamProvider, SleepProvider, StreamOps, UnsupportedStreamOpsHandle,
+};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
