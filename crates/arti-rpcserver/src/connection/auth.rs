@@ -11,63 +11,6 @@ use derive_deftly::Deftly;
 use tor_rpcbase as rpc;
 use tor_rpcbase::templates::*;
 
-/*
-    TODO RPC: This is disabled because the design isn't really useful.
-    If we're going to provide something here, it should probably
-    contain a list of protocol elements/aspects, and it should be designed
-    to enable compatibility, with a clear view of what applications are
-    supposed to do about it.
-
-/// Declare the get_rpc_protocol method.
-mod get_rpc_protocol {
-    use super::Connection;
-    use std::sync::Arc;
-    use tor_rpcbase as rpc;
-
-    /// Method to inquire about the RPC protocol.
-    #[derive(Debug, serde::Deserialize)]
-    struct GetRpcProtocol {}
-
-    /// Reply to the [`GetRpcProtocol`] method
-    #[derive(Debug, serde::Serialize)]
-    struct GetProtocolReply {
-        /// The version of the RPC protocol that this server speaks.
-        // TODO RPC: Should this be a list?
-        version: RpcProtocolId,
-    }
-
-    /// Identifier for a version of this RPC meta-protocol.
-    #[derive(Debug, Copy, Clone, serde::Serialize)]
-    enum RpcProtocolId {
-        /// Alpha version of the protocol.  Things might break between here and the
-        /// stable protocol.
-        ///
-        /// TODO RPC: Change this to v0.
-        #[serde(rename = "alpha")]
-        Alpha,
-    }
-    rpc::decl_method! {"auth:get_rpc_protocol" => GetRpcProtocol}
-    impl rpc::Method for GetRpcProtocol {
-        type Output = GetProtocolReply;
-        type Update = rpc::NoUpdates;
-    }
-
-    /// Describe which version of the RPC protocol our connection implements.
-    async fn conn_get_rpc_protocol(
-        _conn: Arc<Connection>,
-        _method: Box<GetRpcProtocol>,
-        _ctx: Box<dyn rpc::Context>,
-    ) -> Result<GetProtocolReply, rpc::RpcError> {
-        Ok(GetProtocolReply {
-            version: RpcProtocolId::Alpha,
-        })
-    }
-    rpc::static_rpc_invoke_fn! {
-        conn_get_rpc_protocol(Connection, GetRpcProtocol);
-    }
-}
-*/
-
 /// Information about how an RPC session has been authenticated.
 ///
 /// Currently, this isn't actually used for anything, since there's only one way
