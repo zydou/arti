@@ -33,15 +33,6 @@ IGNORE=(
     #
     # Ignoring while we are waiting for the notify version bump
     --ignore RUSTSEC-2024-0384
-    # idns 0.5.0 and earlier is used by hickory-proto:
-    # https://github.com/hickory-dns/hickory-dns/issues/2661
-    #
-    # These versions have bugs in handling some punycode labels
-    # that can cause unequal labels to look like the same labels.
-    #
-    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/1773
-    # for our internal tracking.
-    --ignore RUSTSEC-2024-0421
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
@@ -145,5 +136,15 @@ OBSOLETE_IGNORE=(
     #
     # Resolution: We migrated to dynasmrt 3, which doesn't use it.
     --ignore RUSTSEC-2024-0370
+
+    # idns 0.5.0 and earlier had bugs in handling some punycode labels
+    # that can cause unequal labels to look like the same labels.
+    #
+    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/1773
+    # for our internal tracking.
+    #
+    # Resolution: Upgraded to versions of hickory that don't need
+    # these versions of idns.
+    --ignore RUSTSEC-2024-0421
 )
 _="${OBSOLETE_IGNORE[0]}"
