@@ -34,10 +34,6 @@ Related spec docs:
     of the seed. Thus, we must have some way of ensuring that we're using the correct
     `KP_hs_blinded_id` when checking the PoW solve. We could try multiple if one of them fails, but
     that would make executing a DoS attack easier, and seems like not the best solution.
-  * We make the choice to have the expiration time of the seeds be the same for all of the TPs, to
-    simplify the logic. However, this could create a problem of linkability between HsDescs for
-    different time periods for the same service, so we should consider whether that is a problem and
-    fix it if it might be before stabilizing PoW.
 * Seeds are rotated every "update period" (115 - 120 minutes long).
   * When there's a new TP, we generate a new seed for that TP, but use the same expiration time as
     we do for all the seeds.
@@ -67,11 +63,9 @@ struct State<R> {
     // it's simpler to just update them all and accept some spurious updates.
     publisher_update_tx: watch::Sender<()>,
 
-    seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
+    seeds: HashMap<TimePeriod, SeedsForTimePeriod>,
 
     verifiers: HashMap<SeedHead, Verifier>,
-
-    next_expiration_time: SystemTime,
 
     used_nonces: HashMap<SeedHead, Mutex<ReplayLog<replay::ProofOfWork>>>,
 
@@ -82,6 +76,11 @@ struct State<R> {
     // * HAD_QUEUE
     // * MAX_TRIMMED_EFFORT
     // As per https://spec.torproject.org/hspow-spec/common-protocol.html#service-effort-periodic
+}
+
+struct SeedsForTimePeriod {
+    seeds: ArrayVec<Seed, 2>,
+    expiration: SystemTime,
 }
 
 // type that can be serialized / deserialized to disk
