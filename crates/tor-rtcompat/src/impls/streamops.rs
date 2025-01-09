@@ -1,4 +1,4 @@
-//! Helpers for implementing [`StreamOps`](crate::StreamOps).
+//! Helpers for implementing [`StreamOps`].
 
 use std::io;
 
