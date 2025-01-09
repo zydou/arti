@@ -48,18 +48,21 @@ Related spec docs:
 
 ## Proposed PoW module
 
-I am describing a version of this where the `PowManager` doesn't have a separate update loop, and
-piggybacks of the update loop in `IptManager`. However, the version where `PowManager` has its own
-update loop is just a small change if we decide that's better.
-
 This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
-pub(crate) struct PowManager(Arc<RwLock<State>>)
+pub(crate) struct PowManager<R>(Arc<RwLock<State<R>>>)
 
 impl Clone for PowManager;
 
-struct State {
+struct State<R> {
+    runtime: R,
+
+    // Used to tell Publisher that it should re-upload descriptors due to seed rotation.
+    // We could have this be a queue where we send just the TimePeriod that we want to update, but
+    // it's simpler to just update them all and accept some spurious updates.
+    publisher_update_tx: watch::Sender<()>,
+
     seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
 
     verifiers: HashMap<SeedHead, Verifier>,
@@ -87,11 +90,15 @@ pub(crate) struct PowManagerRecord {
     // used_nonces are not in here but will in the future be persisted via ReplayLog
 }
 
-// Both the IptManager and the Reactor will have a Arc<Mutex<PowManager>>
-impl PowManager {
-    // Called from IptManager::new
+// The Reactor will have a PowManager, and ForLaunch will be extended to call PowManager.launch
+impl<R: Runtime> PowManager<R> {
+    // Called from OnionService::launch
     // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
-    pub(crate) fn new(pow_replay_log_dir: InstanceRawSubdir) -> (Self, mpsc::Sender, RendQueueReceiver);
+    pub(crate) fn new(
+        runtime: R,
+        publisher_update_tx: watch::Sender<()>,
+        pow_replay_log_dir: InstanceRawSubdir
+    ) -> (Self, mpsc::Sender, RendQueueReceiver);
 
     // Both called from tor-hsservice/src/ipt_mgr/persist.rs
     pub(crate) fn to_record(&self) -> PowManagerRecord;
@@ -99,10 +106,8 @@ impl PowManager {
     // using read_directory / parse_log_leafname / remove_file
     pub(crate) fn from_record(record: PowManagerRecord, replay_log_dir: InstanceRawSubdir) -> Self;
 
-    // Called from IptManager::idempotently_progress_things_now
-    // Would be called in our update loop instead of there, if we took that path
-    // This will also handle deleting old ReplayLog files.
-    pub(crate) fn rotate_seeds_if_expiring(&mut self, now: TrackingNow);
+    // Called from ForLaunch::launch. Is responsible for rotating seeds.
+    pub(crate) fn launch(self) -> Result<(), StartupError>;
 
     // Called from publisher Reactor::upload_for_time_period
     pub(crate) fn get_pow_params(&self, time_period: TimePeriod) -> PowParams;
