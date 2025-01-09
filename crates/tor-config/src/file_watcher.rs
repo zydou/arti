@@ -299,10 +299,12 @@ fn handle_event(
 
     // filter events we don't want and map to event code
     match event {
-        Ok(event) if event.need_rescan() => Some(Event::Rescan),
-        Ok(event) if ignore_event_kind(&event.kind) => None,
         Ok(event) => {
-            if event.paths.iter().any(watching) {
+            if event.need_rescan() {
+                Some(Event::Rescan)
+            } else if ignore_event_kind(&event.kind) {
+                None
+            } else if event.paths.iter().any(watching) {
                 Some(Event::FileChanged)
             } else {
                 None
