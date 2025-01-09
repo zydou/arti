@@ -3,7 +3,7 @@
 use std::{io, path::PathBuf};
 
 use crate::{
-    auth::{Cookie, RpcAuth},
+    auth::{cookie::Cookie, RpcAuth},
     ConnectError, ResolvedConnectPoint,
 };
 use fs_mistrust::Mistrust;
