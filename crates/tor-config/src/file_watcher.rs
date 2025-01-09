@@ -15,7 +15,7 @@ use tor_rtcompat::Runtime;
 
 use amplify::Getters;
 use futures::lock::Mutex;
-use notify::Watcher;
+use notify::{EventKind, Watcher};
 use postage::watch;
 
 use futures::{SinkExt as _, Stream, StreamExt as _};
@@ -302,6 +302,8 @@ fn handle_event(
         Ok(event) => {
             if event.need_rescan() {
                 Some(Event::Rescan)
+            } else if ignore_event_kind(&event.kind) {
+                None
             } else if event.paths.iter().any(watching) {
                 Some(Event::FileChanged)
             } else {
@@ -316,6 +318,17 @@ fn handle_event(
             }
         }
     }
+}
+
+/// Check whether this is a kind of [`notify::Event`] that we want to ignore.
+///
+/// Returns `true` for
+///   * events that trigger on non-mutating file accesses
+///   * catch-all events (used by `notify` for unsupported/unknown events)
+///   * "other" meta-events
+fn ignore_event_kind(kind: &EventKind) -> bool {
+    use EventKind::*;
+    matches!(kind, Access(_) | Any | Other)
 }
 
 /// The sender half of a watch channel used by a [`FileWatcher`] for sending [`Event`]s.
@@ -400,6 +413,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use notify::event::{AccessKind, ModifyKind};
     use test_temp_dir::{test_temp_dir, TestTempDir};
 
     /// Write `data` to file `name` within `dir`.
@@ -425,10 +439,21 @@ mod test {
         }
     }
 
+    /// Set the `EventKind` of `event` to an uninteresting `EventKind`
+    /// and assert that it is ignored by `handle_event`.
+    fn assert_ignored(event: &notify::Event, watching: &HashMap<PathBuf, HashSet<DirEventFilter>>) {
+        for kind in [EventKind::Access(AccessKind::Any), EventKind::Other] {
+            let ignored_event = event.clone().set_kind(kind);
+            assert_eq!(handle_event(Ok(ignored_event.clone()), watching), None);
+            // ...but if the rescan flag is set, the event is *not* ignored
+            let event = ignored_event.set_flag(notify::event::Flag::Rescan);
+            assert_eq!(handle_event(Ok(event), watching), Some(Event::Rescan));
+        }
+    }
+
     #[test]
     fn notify_event_handler() {
-        // The EventKind doesn't matter, the handler doesn't use it.
-        let mut event = notify::Event::new(notify::EventKind::Any);
+        let mut event = notify::Event::new(notify::EventKind::Modify(ModifyKind::Any));
 
         let mut watching_dirs = Default::default();
         assert_eq!(handle_event(Ok(event.clone()), &watching_dirs), None);
@@ -460,6 +485,9 @@ mod test {
             Some(Event::FileChanged)
         );
 
+        // The same event, but with an irrelevant kind, gets ignored:
+        assert_ignored(&event, &watching_dirs);
+
         // Watch some files within /foo/bar
         watching_dirs.insert(
             "/foo/bar".into(),
@@ -467,7 +495,7 @@ mod test {
         );
 
         assert_eq!(
-            handle_event(Ok(event), &watching_dirs),
+            handle_event(Ok(event.clone()), &watching_dirs),
             Some(Event::FileChanged)
         );
         assert_eq!(
@@ -475,8 +503,12 @@ mod test {
             Some(Event::Rescan)
         );
 
+        // The same event, but with an irrelevant kind, gets ignored:
+        assert_ignored(&event, &watching_dirs);
+
         // Watch some other files
-        let event = notify::Event::new(notify::EventKind::Any).add_path("/a/b/c/d".into());
+        let event = notify::Event::new(notify::EventKind::Modify(ModifyKind::Any))
+            .add_path("/a/b/c/d".into());
         let watching_dirs = [(
             "/a/b/c/".into(),
             HashSet::from([DirEventFilter::MatchesPath("/a/b/c/d".into())]),
@@ -529,7 +561,7 @@ mod test {
             drop(watcher);
             // The write might trigger more than one event
             while let Some(ev) = rx.next().await {
-                assert_eq!(ev, Event::FileChanged);
+                assert_eq!(ev.clone(), Event::FileChanged);
             }
         });
     }
