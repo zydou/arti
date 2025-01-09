@@ -190,7 +190,7 @@ fn try_connect(
 
     // TODO RPC: remove this "scheme name" from the protocol?
     let session_id = match auth {
-        RpcAuth::None => conn.authenticate_inherent("inherent:unix_path")?,
+        RpcAuth::Inherent => conn.authenticate_inherent("auth:inherent")?,
         RpcAuth::Cookie {
             secret,
             server_address,

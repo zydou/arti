@@ -29,9 +29,9 @@ pub struct RpcAuthentication {}
 /// Arti process know you have permissions to use or administer it?"
 #[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 enum AuthenticationScheme {
-    /// Inherent authority based on the ability to access an AF_UNIX address.
-    #[serde(rename = "inherent:unix_path")] // TODO RPC RENAME XXXX?
-    InherentUnixPath,
+    /// Inherent authority based on the ability to open the connection to this address.
+    #[serde(rename = "auth:inherent")]
+    Inherent,
 
     /// Negotiation based on mutual proof of ability to read a file from disk.
     #[serde(rename = "auth:cookie")]
@@ -74,7 +74,7 @@ async fn conn_authquery(
 ) -> Result<SupportedAuth, rpc::RpcError> {
     use tor_rpc_connect::auth::RpcAuth;
     let schemes = match &conn.require_auth {
-        RpcAuth::None => vec![AuthenticationScheme::InherentUnixPath],
+        RpcAuth::Inherent => vec![AuthenticationScheme::Inherent],
         RpcAuth::Cookie { .. } | RpcAuth::UnloadedCookie { .. } => {
             vec![AuthenticationScheme::Cookie]
         }

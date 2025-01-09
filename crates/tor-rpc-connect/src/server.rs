@@ -127,7 +127,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
         // We try to bind to the listener before we (maybe) create the cookie file,
         // so that if we encounter an `EADDRINUSE` we won't overwrite the old cookie file.
         let auth = match &self.auth {
-            crate::connpt::Auth::None => RpcAuth::None,
+            crate::connpt::Auth::None => RpcAuth::Inherent,
             crate::connpt::Auth::Cookie { path } => RpcAuth::Cookie {
                 secret: Arc::new(Cookie::create(
                     path.as_path(),

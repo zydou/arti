@@ -52,7 +52,7 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
         use crate::connpt::Auth;
         use tor_general_addr::general::SocketAddr as SA;
         let auth = match &self.auth {
-            Auth::None => RpcAuth::None,
+            Auth::None => RpcAuth::Inherent,
             Auth::Cookie { path } => {
                 let canonical_addr = self.socket_canonical.as_ref().unwrap_or(&self.socket);
                 RpcAuth::UnloadedCookie {

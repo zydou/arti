@@ -8,8 +8,9 @@ pub mod cookie;
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum RpcAuth {
-    /// No authentication is expected on the connection.
-    None,
+    /// No authentication is expected on the connection:
+    /// just being able to make the connection proves that the client is authorized.
+    Inherent,
     /// RPC cookie authentication is expected on the connection.
     Cookie {
         /// A secret cookie value to use for authentication.

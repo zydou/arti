@@ -14,19 +14,23 @@ use tor_rpcbase::templates::*;
 /// After connecting to Arti, clients use this method to create a Session,
 /// which they then use to access other functionality.
 ///
-/// For now, only the `inherent:unix_path` method is supported;
-/// other methods will be implemented in the future.
+/// This method supports simple authentication schemes,
+/// where only a single pass is necessary to open a session.
+/// For now, only the `auth:inherent` scheme is supported here;
+/// other schemes will be implemented in the future.
+///
+/// See also the `auth:begin_cookie` method.
 ///
 /// You typically won't need to invoke this method yourself;
 /// instead, your RPC library (such as `arti-rpc-client-core`)
 /// should handle it for you.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "auth:authenticate"))] // TODO RPC RENAME XXXX?
+#[deftly(rpc(method_name = "auth:authenticate"))]
 struct Authenticate {
     /// The authentication scheme as enumerated in the spec.
     ///
-    /// TODO RPC: The only supported one for now is "inherent:unix_path" // TODO RPC RENAME XXXX?
+    /// The only supported one for now is "auth:inherent"
     scheme: AuthenticationScheme,
 }
 
@@ -55,7 +59,7 @@ async fn authenticate_connection(
         // For now, we only support AF_UNIX connections, and we assume that if
         // you have permission to open such a connection to us, you have
         // permission to use Arti. We will refine this later on!
-        (AuthenticationScheme::InherentUnixPath, RpcAuth::None) => {}
+        (AuthenticationScheme::Inherent, RpcAuth::Inherent) => {}
         (_, _) => return Err(AuthenticationFailure::IncorrectMethod.into()),
     }
 

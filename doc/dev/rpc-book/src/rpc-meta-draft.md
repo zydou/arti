@@ -899,7 +899,7 @@ auth:query
 : Ask Arti which authentication schemes are acceptable.
 
 auth:authenticate
-: Try to authenticate using one of the provided authentication
+: Try to authenticate using a simple authentication
   methods.
 
 > At present (Sep 2024)
@@ -907,22 +907,20 @@ auth:authenticate
 
 > TODO: Provide more information about these in greater detail.
 
-Three recognized authentication schemes are:
+The recognized authentication schemes are:
 
-inherent:unix_path
+auth:inherent
 : Attempt to authenticate based on the fact that the application
   has opened a connection to a given named socket,
   which shouldn't be possible unless it is running on behalf
   of an authorized user.
 
-fs:cookie
+auth:cookie
 : Attempt to authenticate based on the application's ability
   to read a small cookie from the filesystem,
   which shouldn't be possible unless it is running on behalf
   of an authorized user.
-
-> At present (Sep 2024)
-> only `inherent:unix_path` is implemented.
+  (See [cookie authentication](./rpc-cookie-sketch.md).)
 
 > TODO Maybe add a "this is a TLS session and I presented a good certificate"
 > type?
@@ -1114,8 +1112,8 @@ Here is an example session:
 >>> {"id": "abc", "obj": "connection", "method": "auth:get_rpc_protocol", "params": {}}
 <<< {"id":"abc","result":{"version":"alpha"}}
 >>> {"id": "abc", "obj": "connection", "method": "auth:query", "params": {}}
-<<< {"id":"abc","result":{"schemes":["inherent:unix_path"]}}
->>> {"id": 3, "obj": "connection", "method": "auth:authenticate", "params": {"scheme": "inherent:unix_path"}}
+<<< {"id":"abc","result":{"schemes":["auth:inherent"]}}
+>>> {"id": 3, "obj": "connection", "method": "auth:authenticate", "params": {"scheme": "auth:inherent"}}
 <<< {"id":3,"result":{"session":"2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au"}}
 >>> {"id": 4, "obj": "2yFi5qrMD9LbIWLmqswP0iTenRlVM_Au", "method": "arti:x-echo", "params": {"msg": "Hello World"}}
 <<< {"id":4,"result":{"msg":"Hello World"}}
