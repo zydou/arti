@@ -2,9 +2,10 @@
 //! authorized.
 use std::sync::Arc;
 
-use super::{AuthenticationScheme, RpcAuthentication};
+use super::{AuthenticationFailure, AuthenticationScheme, RpcAuthentication};
 use crate::Connection;
 use derive_deftly::Deftly;
+use tor_rpc_connect::auth::RpcAuth;
 use tor_rpcbase as rpc;
 use tor_rpcbase::templates::*;
 
@@ -21,11 +22,11 @@ use tor_rpcbase::templates::*;
 /// should handle it for you.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
-#[deftly(rpc(method_name = "auth:authenticate"))]
+#[deftly(rpc(method_name = "auth:authenticate"))] // TODO RPC RENAME XXXX?
 struct Authenticate {
     /// The authentication scheme as enumerated in the spec.
     ///
-    /// TODO RPC: The only supported one for now is "inherent:unix_path"
+    /// TODO RPC: The only supported one for now is "inherent:unix_path" // TODO RPC RENAME XXXX?
     scheme: AuthenticationScheme,
 }
 
@@ -57,11 +58,12 @@ async fn authenticate_connection(
     method: Box<Authenticate>,
     ctx: Arc<dyn rpc::Context>,
 ) -> Result<AuthenticateReply, rpc::RpcError> {
-    match method.scheme {
+    match (method.scheme, &unauth.require_auth) {
         // For now, we only support AF_UNIX connections, and we assume that if
         // you have permission to open such a connection to us, you have
         // permission to use Arti. We will refine this later on!
-        AuthenticationScheme::InherentUnixPath => {}
+        (AuthenticationScheme::InherentUnixPath, RpcAuth::None) => {}
+        (_, _) => return Err(AuthenticationFailure::IncorrectMethod.into()),
     }
 
     let auth = RpcAuthentication {};

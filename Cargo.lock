@@ -425,6 +425,7 @@ dependencies = [
  "tor-error",
  "tor-llcrypto",
  "tor-proto",
+ "tor-rpc-connect",
  "tor-rpcbase",
  "tor-rtcompat",
  "tracing",

@@ -26,13 +26,15 @@ pub struct RpcAuthentication {}
 ///
 /// Conceptually, an authentication scheme answers the question "How can the
 /// Arti process know you have permissions to use or administer it?"
-///
-/// TODO RPC: The only supported one for now is "inherent:unix_path"
 #[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 enum AuthenticationScheme {
     /// Inherent authority based on the ability to access an AF_UNIX address.
-    #[serde(rename = "inherent:unix_path")]
+    #[serde(rename = "inherent:unix_path")] // TODO RPC RENAME XXXX?
     InherentUnixPath,
+
+    /// Negotiation based on mutual proof of ability to read a file from disk.
+    #[serde(rename = "auth:cookie")]
+    Cookie,
 }
 
 /// Ask which authentication methods are supported.
@@ -65,14 +67,19 @@ impl rpc::RpcMethod for AuthQuery {
 }
 /// Implement `auth:AuthQuery` on a connection.
 async fn conn_authquery(
-    _conn: Arc<Connection>,
+    conn: Arc<Connection>,
     _query: Box<AuthQuery>,
     _ctx: Arc<dyn rpc::Context>,
 ) -> Result<SupportedAuth, rpc::RpcError> {
-    // Right now, every connection supports the same scheme.
-    Ok(SupportedAuth {
-        schemes: vec![AuthenticationScheme::InherentUnixPath],
-    })
+    use tor_rpc_connect::auth::RpcAuth;
+    let schemes = match &conn.require_auth {
+        RpcAuth::None => vec![AuthenticationScheme::InherentUnixPath],
+        RpcAuth::Cookie { .. } | RpcAuth::UnloadedCookie { .. } => {
+            vec![AuthenticationScheme::Cookie]
+        }
+        _ => vec![],
+    };
+    Ok(SupportedAuth { schemes })
 }
 rpc::static_rpc_invoke_fn! {
     conn_authquery;

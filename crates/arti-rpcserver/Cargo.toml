@@ -22,7 +22,9 @@ full = [
     "tor-bytes/full",
     "tor-llcrypto/full",
     "tor-proto/full",
-    "describe-methods", "oneshot-fused-workaround/full", "slotmap-careful/full",
+    "describe-methods",
+    "oneshot-fused-workaround/full",
+    "slotmap-careful/full",
 ]
 describe-methods = ["tor-rpcbase/describe-methods"]
 
@@ -49,6 +51,7 @@ tor-bytes = { path = "../tor-bytes", version = "0.26.0" }
 tor-error = { path = "../tor-error", version = "0.26.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.26.0" }
 tor-proto = { path = "../tor-proto", version = "0.26.0", features = ["stream-ctrl"] }
+tor-rpc-connect = { path = "../tor-rpc-connect", version = "0.26.0" }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.26.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.26.0" }
 tracing = "0.1.36"
