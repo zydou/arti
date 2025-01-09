@@ -8,7 +8,7 @@ use std::os::unix::net::UnixStream;
 use fs_mistrust::Mistrust;
 
 use crate::{
-    auth::{cookie::Cookie, RpcAuth},
+    auth::{cookie::CookieLocation, RpcAuth},
     ConnectError, ResolvedConnectPoint,
 };
 
@@ -55,10 +55,11 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
             Auth::None => RpcAuth::None,
             Auth::Cookie { path } => {
                 let canonical_addr = self.socket_canonical.as_ref().unwrap_or(&self.socket);
-                RpcAuth::Cookie {
-                    // TODO RPC: We may want to _defer_ this load operations until the RPC connect
-                    // has been accepted, to ensure that we can't read a partial cookie.
-                    secret: Cookie::load(path.as_path(), mistrust)?,
+                RpcAuth::UnloadedCookie {
+                    secret_location: CookieLocation {
+                        path: path.clone(),
+                        mistrust: mistrust.clone(),
+                    },
                     server_address: canonical_addr.as_str().to_string(),
                 }
             }

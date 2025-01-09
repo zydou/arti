@@ -16,4 +16,13 @@ pub enum RpcAuth {
         /// encoded as a string.
         server_address: String,
     },
+    /// RPC cookie authentication is expected on this connection;
+    /// the cookie should be loaded from disk immediately before using it.
+    UnloadedCookie {
+        /// The location on disk at which to load a secret cookie.
+        secret_location: cookie::CookieLocation,
+        /// The address that the server is listening on,
+        /// encoded as a string.
+        server_address: String,
+    },
 }

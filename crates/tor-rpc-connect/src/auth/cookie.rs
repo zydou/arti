@@ -1,7 +1,11 @@
 //! Support for cookie authentication within the RPC protocol.
 use fs_mistrust::Mistrust;
 use safelog::Sensitive;
-use std::{fs, io, path::Path, sync::Arc};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use zeroize::Zeroizing;
 
 /// A secret cookie value, used in RPC authentication.
@@ -125,6 +129,23 @@ impl crate::HasClientErrorAction for CookieAccessError {
             // to ensure that it never reads a partially written cookie file.
             E::FileFormat => A::Decline,
         }
+    }
+}
+
+/// The location of a cookie on disk, and the rules to access it.
+#[derive(Debug, Clone)]
+pub struct CookieLocation {
+    /// Where the cookie is on disk.
+    pub(crate) path: PathBuf,
+    /// The mistrust we should use when loading it.
+    pub(crate) mistrust: Mistrust,
+}
+
+impl CookieLocation {
+    #[cfg(feature = "rpc-client")]
+    /// Try to read the cookie at this location.
+    pub fn load(&self) -> Result<Cookie, CookieAccessError> {
+        Cookie::load(self.path.as_ref(), &self.mistrust)
     }
 }
 
