@@ -37,6 +37,18 @@ auth = "none"
 """
 
 
+def connpt_tcp(context):
+    """
+    Return a connect point that uses a TCP connection
+    and cookie authentication to connect to arti.
+    """
+    return f"""
+[connect]
+socket = "inet:127.0.0.1:{context.rpc_port}"
+auth = {{ cookie = {{ path = "{context.cookie_path}" }} }}
+"""
+
+
 def connpt_working(context):
     """
     Return a connect point that should work for connecting to the
@@ -45,7 +57,7 @@ def connpt_working(context):
     (Prefer this function to `connpt_unix()`, so that once we have
     something that works on windows, we can make our tests pass there too.)
     """
-    return connpt_unix(context)
+    return connpt_tcp(context)
 
 
 class Tempdir:
