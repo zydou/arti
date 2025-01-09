@@ -12,7 +12,9 @@ use super::MockNetRuntime;
 use crate::util::mpsc_channel;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
-use tor_rtcompat::{CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, StreamOps, TlsProvider};
+use tor_rtcompat::{
+    CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, StreamOps, TlsProvider,
+};
 use tor_rtcompat::{UdpProvider, UdpSocket};
 
 use async_trait::async_trait;
