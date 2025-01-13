@@ -14,10 +14,14 @@ use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result, Verif
 
 /// Helper object for accessing a file on disk while checking the necessary permissions.
 ///
-/// A `FileAccess` wraps a reference to a [`CheckedDir`] or a [`Verifier`]
-/// but allows configuring the rules for accessing the files it opens.
+/// You can use a `FileAccess` when you want to read or write a file,
+/// while making sure that the file obeys the permissions rules of
+/// an associated [`CheckedDir`] or [`Verifier`].
 ///
-/// When we refer to a path "obeying the constraints" of this `FileAccess`,
+/// `FileAccess` is a separate type from `CheckedDir` and `Verifier`
+/// so that you you can set options to control the behavior of how how files are opened.
+///
+/// Note: When we refer to a path "obeying the constraints" of this `FileAccess`,
 /// we mean:
 /// * If the `FileAccess` wraps a `CheckedDir`, the requirement that it is a relative path
 ///   containing no ".." elements,
