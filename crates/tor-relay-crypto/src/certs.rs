@@ -169,7 +169,5 @@ fn validate_ed25519_cert(
         return Err(InvalidCertError::CertType(actual_cert_type));
     }
 
-    // TODO: validate the extensions?
-
     Ok(cert.into_encoded())
 }
