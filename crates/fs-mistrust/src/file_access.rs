@@ -110,16 +110,37 @@ impl<'a> FileAccess<'a> {
     ///
     /// `path` must be a path to the new file, obeying the constraints of this `FileAccess`.
     /// We check, but do not create, the file's parent directories.
-    /// We check the file's permissions after opening it.  If the file already
-    /// exists, it must not be a symlink.
+    /// We check the file's permissions after opening it.  
+    ///
+    /// If the file already exists, and this `FileAccess` is based on a `CheckedDir,
+    /// the file must not be a symlink.
     ///
     /// If the file is created (and this is a unix-like operating system), we
     /// always create it with a mode based on [`create_with_mode()`](Self::create_with_mode),
     /// regardless of any mode set in `options`.
     /// If `create_with_mode()` wasn't called, we create the file with mode 600.
     pub fn open<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<File> {
-        // XXXX: This isn't quite right for the verifier case.
-        let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckParent)?;
+        let follow_links = matches!(&self.inner, Inner::Verifier(_));
+
+        // If we're following links, then we want to look at the whole path,
+        // since the final element might be a link.  If so, we need to look at
+        // where it is linking to, and validate that as well.
+        let check_type = if follow_links {
+            FullPathCheck::CheckPath
+        } else {
+            FullPathCheck::CheckParent
+        };
+
+        let path = match self.verified_full_path(path.as_ref(), check_type) {
+            Ok(path) => path.into(),
+            // We tolerate a not-found error if we're following links:
+            // - If the final element of the path is what wasn't found, then we might create it
+            //   ourselves when we open it.
+            // - If an earlier element of the path wasn't found, we will get a second NotFound error
+            //   when we try to open the file, which is okay.
+            Err(Error::NotFound(_)) if follow_links => self.location_unverified(path.as_ref())?,
+            Err(e) => return Err(e),
+        };
 
         #[allow(unused_mut)]
         let mut options = options.clone();
@@ -128,18 +149,22 @@ impl<'a> FileAccess<'a> {
         {
             let create_mode = self.create_with_mode.unwrap_or(0o600);
             options.mode(create_mode);
-            // Don't follow symlinks out of the secured directory.
-            options.custom_flags(libc::O_NOFOLLOW);
+            // Don't follow symlinks out of a secure directory.
+            if !follow_links {
+                options.custom_flags(libc::O_NOFOLLOW);
+            }
         }
 
         let file = options
             .open(&path)
-            .map_err(|e| Error::io(e, &path, "open file"))?;
-        let meta = file.metadata().map_err(|e| Error::inspecting(e, &path))?;
+            .map_err(|e| Error::io(e, path.as_ref(), "open file"))?;
+        let meta = file
+            .metadata()
+            .map_err(|e| Error::inspecting(e, path.as_ref()))?;
 
         if let Some(error) = self
             .verifier()
-            .check_one(path.as_path(), PathType::Content, &meta)
+            .check_one(path.as_ref(), PathType::Content, &meta)
             .into_iter()
             .next()
         {
@@ -203,6 +228,10 @@ impl<'a> FileAccess<'a> {
         let final_path = self.verified_full_path(path, FullPathCheck::CheckParent)?;
 
         let tmp_name = path.with_extension("tmp");
+        // We remove the temporary file before opening it, if it's present: otherwise it _might_ be
+        // a symlink to somewhere silly.
+        let _ignore = std::fs::remove_file(&tmp_name);
+
         // TODO: The parent directory  verification performed by "open" here is redundant with that done in
         // `verified_full_path` above.
         let mut tmp_file = self.open(
@@ -315,5 +344,65 @@ mod test {
                 0o644
             );
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn open_symlinks() {
+        use crate::testing::LinkType;
+        let d = Dir::new();
+        d.dir("a");
+        d.dir("a/b");
+        d.dir("a/c");
+        d.file("a/c/file1.txt");
+        d.link_rel(LinkType::File, "../c/file1.txt", "a/b/present");
+        d.link_rel(LinkType::File, "../c/file2.txt", "a/b/absent");
+        d.chmod("a", 0o700);
+        d.chmod("a/b", 0o700);
+        d.chmod("a/c", 0o700);
+        d.chmod("a/c/file1.txt", 0o600);
+
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
+
+        // Try reading
+        let contents = m.file_access().read(d.path("a/b/present")).unwrap();
+        assert_eq!(
+            &contents[..],
+            &b"This space is intentionally left blank"[..]
+        );
+        let error = m.file_access().read(d.path("a/b/absent")).unwrap_err();
+        assert!(matches!(error, Error::NotFound(_)));
+
+        // Try writing.
+        {
+            let mut f = m
+                .file_access()
+                .open(
+                    d.path("a/b/present"),
+                    OpenOptions::new().write(true).truncate(true),
+                )
+                .unwrap();
+            f.write_all(b"This is extremely serious!").unwrap();
+        }
+        let contents = m.file_access().read(d.path("a/b/present")).unwrap();
+        assert_eq!(&contents[..], &b"This is extremely serious!"[..]);
+
+        let contents = m.file_access().read(d.path("a/c/file1.txt")).unwrap();
+        assert_eq!(&contents[..], &b"This is extremely serious!"[..]);
+        {
+            let mut f = m
+                .file_access()
+                .open(
+                    d.path("a/b/absent"),
+                    OpenOptions::new().create(true).write(true),
+                )
+                .unwrap();
+            f.write_all(b"This is extremely silly!").unwrap();
+        }
+        let contents = m.file_access().read(d.path("a/c/file2.txt")).unwrap();
+        assert_eq!(&contents[..], &b"This is extremely silly!"[..]);
     }
 }
