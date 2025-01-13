@@ -13,7 +13,7 @@ variables:
   FF_TIMESTAMPS: "true"
   # Pinned CI image for must Rust tests
   # Using "amd64/" single-arch variant to work around https://gitlab.torproject.org/tpo/tpa/team/-/issues/41621.
-  RECENT_RUST_IMAGE: "amd64/rust:1.79.0-bookworm"
+  RECENT_RUST_IMAGE: "amd64/rust:1.83.0-bookworm"
   # Pinned chutney version.
   # TODO: Consider unpinning once chutney's CI is running arti's CI.
   # Alternatively if we decide to keep this, consider to actually start managing
