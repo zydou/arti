@@ -349,8 +349,11 @@ dependencies = [
  "clap",
  "derive_builder_fork_arti",
  "derive_more",
+ "directories",
  "fs-mistrust",
+ "once_cell",
  "rand",
+ "safelog",
  "serde",
  "strum",
  "thiserror 2.0.9",
@@ -366,6 +369,7 @@ dependencies = [
  "tor-relay-crypto",
  "tor-rtcompat",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

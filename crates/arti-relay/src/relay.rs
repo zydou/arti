@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use tor_chanmgr::Dormancy;
+use tor_config_path::CfgPathResolver;
 use tor_error::internal;
 use tor_keymgr::{
     ArtiEphemeralKeystore, ArtiNativeKeystore, KeyMgr, KeyMgrBuilder, KeystoreSelector,
@@ -11,10 +12,11 @@ use tor_memquota::ArcMemoryQuotaTrackerExt as _;
 use tor_netdir::params::NetParameters;
 use tor_proto::memquota::ToplevelAccount;
 use tor_relay_crypto::pk::{RelayIdentityKeypair, RelayIdentityKeypairSpecifier};
-use tor_rtcompat::{PreferredRuntime, Runtime};
+use tor_rtcompat::Runtime;
 use tracing::info;
 
-use crate::{builder::TorRelayBuilder, config::TorRelayConfig, err::ErrorDetail};
+use crate::config::TorRelayConfig;
+use crate::err::ErrorDetail;
 
 /// Represent an active Relay on the Tor network.
 #[derive(Clone)]
@@ -22,6 +24,9 @@ pub struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     #[allow(unused)] // TODO RELAY remove
     runtime: R,
+    /// Path resolver for expanding variables in [`CfgPath`](tor_config_path::CfgPath)s.
+    #[allow(unused)] // TODO RELAY remove
+    path_resolver: CfgPathResolver,
     /// Channel manager, used by circuits etc.,
     #[allow(unused)] // TODO RELAY remove
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
@@ -30,39 +35,14 @@ pub struct TorRelay<R: Runtime> {
     keymgr: Arc<KeyMgr>,
 }
 
-#[allow(unused)] // TODO: Remove me when used.
-impl TorRelay<PreferredRuntime> {
-    /// Return a new builder for creating a TorRelay object.
-    ///
-    /// # Panics
-    ///
-    /// If Tokio is being used (the default), panics if created outside the context of a currently
-    /// running Tokio runtime. See the documentation for `tokio::runtime::Handle::current` for
-    /// more information.
-    ///
-    /// If using `async-std`, either take care to ensure Arti is not compiled with Tokio support,
-    /// or manually create an `async-std` runtime using [`tor_rtcompat`] and use it with
-    /// [`TorRelay::with_runtime`].
-    pub fn builder() -> TorRelayBuilder<PreferredRuntime> {
-        let runtime = PreferredRuntime::current().expect(
-            "TorRelay could not get an asynchronous runtime; are you running in the right context?",
-        );
-        TorRelayBuilder::new(runtime)
-    }
-}
-
-#[allow(unused)] // TODO: Remove me when used.
 impl<R: Runtime> TorRelay<R> {
-    /// Return a new builder for creating TorRelay objects, with a custom provided [`Runtime`].
-    ///
-    /// See the [`tor_rtcompat`] crate for more information on custom runtimes.
-    pub fn with_runtime(runtime: R) -> TorRelayBuilder<R> {
-        TorRelayBuilder::new(runtime)
-    }
-
-    /// Return a TorRelay object.
-    pub(crate) fn create_inner(runtime: R, config: &TorRelayConfig) -> Result<Self, ErrorDetail> {
-        let keymgr = Self::create_keymgr(config)?;
+    /// Create a new Tor relay with the given [runtime][tor_rtcompat] and configuration.
+    pub fn new(
+        runtime: R,
+        config: &TorRelayConfig,
+        path_resolver: CfgPathResolver,
+    ) -> Result<Self, ErrorDetail> {
+        let keymgr = Self::create_keymgr(config, &path_resolver)?;
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
             runtime.clone(),
             &config.channel,
@@ -70,15 +50,20 @@ impl<R: Runtime> TorRelay<R> {
             &NetParameters::from_map(&config.override_net_params),
             ToplevelAccount::new_noop(), // TODO RELAY get mq from TorRelay
         ));
+
         Ok(Self {
             runtime,
+            path_resolver,
             chanmgr,
             keymgr,
         })
     }
 
-    fn create_keymgr(config: &TorRelayConfig) -> Result<Arc<KeyMgr>, ErrorDetail> {
-        let key_store_dir = config.storage.keystore_dir()?;
+    fn create_keymgr(
+        config: &TorRelayConfig,
+        path_resolver: &CfgPathResolver,
+    ) -> Result<Arc<KeyMgr>, ErrorDetail> {
+        let key_store_dir = config.storage.keystore_dir(path_resolver)?;
         let permissions = config.storage.permissions();
 
         // Store for the short-term keys that we don't need to keep on disk. The store identifier
