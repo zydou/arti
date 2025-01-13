@@ -49,8 +49,6 @@ This `pow` module exists in the `tor-hsservice` crate:
 ```rust
 pub(crate) struct PowManager<R>(RwLock<State<R>>)
 
-impl Clone for PowManager;
-
 struct State<R> {
     runtime: R,
 
