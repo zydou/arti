@@ -72,7 +72,7 @@ fn main() {
         // TODO: Use arti_client's `HintableError` here (see `arti::main`)?
         // TODO: Why do we suppress safe logging, and squash the anyhow result into a single line?
         // TODO: Do we want to log the error?
-        with_safe_logging_suppressed(|| tor_error::report_and_exit(e))
+        with_safe_logging_suppressed(|| tor_error::report_and_exit::<_, ()>(e));
     }
 }
 
@@ -90,6 +90,7 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
         .with_default_directive(level.into())
         .parse("")
         .expect("empty filter directive should be trivially parsable");
+    #[allow(clippy::print_stderr)]
     FmtSubscriber::builder()
         .with_env_filter(filter)
         .with_ansi(std::io::stderr().is_terminal())
@@ -101,6 +102,7 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
         .init();
 
     match cli.command {
+        #[allow(clippy::print_stdout)]
         cli::Commands::BuildInfo => {
             println!("Version: {}", env!("CARGO_PKG_VERSION"));
             // these are set by our build script
@@ -119,6 +121,8 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
 }
 
 /// Initialize and start the relay.
+// Pass by value so that we don't need to clone fields, which keeps the code simpler.
+#[allow(clippy::needless_pass_by_value)]
 fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Result<()> {
     let runtime = init_runtime().context("Failed to initialize the runtime")?;
 
@@ -160,6 +164,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
                 config.logging.console,
             )
         })?;
+    #[allow(clippy::print_stderr)]
     let logger = tracing_subscriber::FmtSubscriber::builder()
         .with_env_filter(filter)
         .with_ansi(std::io::stderr().is_terminal())
@@ -181,6 +186,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
 }
 
 /// Run the relay.
+#[allow(clippy::unnecessary_wraps)] // TODO: not implemented yet; remove me
 fn run_relay<R: Runtime>(_relay: TorRelay<R>) -> anyhow::Result<()> {
     Ok(())
 }

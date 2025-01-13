@@ -20,7 +20,7 @@ use crate::err::ErrorDetail;
 
 /// Represent an active Relay on the Tor network.
 #[derive(Clone)]
-pub struct TorRelay<R: Runtime> {
+pub(crate) struct TorRelay<R: Runtime> {
     /// Asynchronous runtime object.
     #[allow(unused)] // TODO RELAY remove
     runtime: R,
@@ -37,7 +37,7 @@ pub struct TorRelay<R: Runtime> {
 
 impl<R: Runtime> TorRelay<R> {
     /// Create a new Tor relay with the given [runtime][tor_rtcompat] and configuration.
-    pub fn new(
+    pub(crate) fn new(
         runtime: R,
         config: &TorRelayConfig,
         path_resolver: CfgPathResolver,
@@ -59,6 +59,7 @@ impl<R: Runtime> TorRelay<R> {
         })
     }
 
+    /// Create the [key manager](KeyMgr).
     fn create_keymgr(
         config: &TorRelayConfig,
         path_resolver: &CfgPathResolver,
@@ -87,6 +88,7 @@ impl<R: Runtime> TorRelay<R> {
         Ok(keymgr)
     }
 
+    /// Generate the relay keys.
     fn try_generate_keys(keymgr: &KeyMgr) -> Result<(), ErrorDetail> {
         let mut rng = rand::thread_rng();
 

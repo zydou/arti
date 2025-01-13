@@ -1,3 +1,7 @@
+//! The command-line interface.
+//!
+//! See [`Cli`].
+
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -21,9 +25,13 @@ static DEFAULT_CONFIG_PATHS: Lazy<Result<Vec<PathBuf>, CfgPathError>> =
 #[command(version)]
 #[command(defer = cli_cmd_post_processing)]
 pub(crate) struct Cli {
+    /// Sub-commands.
     #[command(subcommand)]
     pub(crate) command: Commands,
 
+    /// Global arguments available for all sub-commands.
+    ///
+    /// These arguments may be specified before or after the subcommand argument.
     #[clap(flatten)]
     pub(crate) global: GlobalArgs,
 }
@@ -32,6 +40,7 @@ pub(crate) struct Cli {
 ///
 /// We use this to append the default config paths to the help text.
 fn cli_cmd_post_processing(cli: Command) -> Command {
+    /// Append the paths to the help text.
     fn fmt_help(help: Option<&str>, paths: &[PathBuf]) -> String {
         let help = help.map(|x| format!("{x}\n\n")).unwrap_or("".to_string());
         let paths: Vec<_> = paths
@@ -40,6 +49,8 @@ fn cli_cmd_post_processing(cli: Command) -> Command {
             .collect();
         let paths = paths.join("\n");
 
+        /// TODO MSRV: remove this comment once MSRV is >= 1.84:
+        /// https://github.com/rust-lang/rust-clippy/issues/13802
         const DESC: &str =
             "If no paths are provided, the following config paths will be used if they exist:";
         format!("{help}{DESC}\n\n{paths}")
@@ -141,10 +152,20 @@ pub(crate) struct RunArgs {}
 /// Log levels allowed by the cli.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub(crate) enum LogLevel {
+    /// See [`tracing::Level::ERROR`].
+    #[value(help = None)]
     Error,
+    /// See [`tracing::Level::WARN`].
+    #[value(help = None)]
     Warn,
+    /// See [`tracing::Level::INFO`].
+    #[value(help = None)]
     Info,
+    /// See [`tracing::Level::DEBUG`].
+    #[value(help = None)]
     Debug,
+    /// See [`tracing::Level::TRACE`].
+    #[value(help = None)]
     Trace,
 }
 

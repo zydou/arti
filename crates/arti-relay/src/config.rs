@@ -156,7 +156,7 @@ pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::INFO;
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
-pub struct LoggingConfig {
+pub(crate) struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr-for-Targets>
     ///
@@ -168,6 +168,7 @@ pub struct LoggingConfig {
 }
 
 impl LoggingConfigBuilder {
+    /// Validate the options provided to the builder.
     fn validate(&self) -> Result<(), ConfigBuildError> {
         if let Some(console) = &self.console {
             EnvFilter::builder()
