@@ -47,7 +47,7 @@ Related spec docs:
 This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
-pub(crate) struct PowManager<R>(Arc<RwLock<State<R>>>)
+pub(crate) struct PowManager<R>(RwLock<State<R>>)
 
 impl Clone for PowManager;
 
@@ -103,7 +103,7 @@ impl<R: Runtime> PowManager<R> {
         nickname: HsNickname,
         publisher_update_tx: watch::Sender<()>,
         pow_replay_log_dir: InstanceRawSubdir
-    ) -> (Self, mpsc::Sender, RendQueueReceiver);
+    ) -> (Arc<Self>, mpsc::Sender, RendQueueReceiver);
 
     // Called from OnionService::launch, likely using a abstraction like ipt_mgr/persist.rs does
     pub(crate) fn to_record(&self) -> PowManagerRecord;
@@ -112,10 +112,10 @@ impl<R: Runtime> PowManager<R> {
     pub(crate) fn from_record(record: PowManagerRecord, replay_log_dir: InstanceRawSubdir) -> Self;
 
     // Called from ForLaunch::launch. Is responsible for rotating seeds.
-    pub(crate) fn launch(self) -> Result<(), StartupError>;
+    pub(crate) fn launch(self: &Arc<Self>) -> Result<(), StartupError>;
 
     // Called from publisher Reactor::upload_for_time_period
-    pub(crate) fn get_pow_params(&self, time_period: TimePeriod) -> PowParams;
+    pub(crate) fn get_pow_params(self: &Arc<Self>, time_period: TimePeriod) -> PowParams;
 
     // This is called from RendQueueSender
     fn check_solve(solve: ProofOfWorkV1) -> Result<(), PowSolveError>;
