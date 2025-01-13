@@ -517,7 +517,7 @@ pub(crate) mod test {
     use futures::task::SpawnExt;
     use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
-    use tor_rtcompat::{Runtime, NoOpStreamOpsHandle};
+    use tor_rtcompat::{NoOpStreamOpsHandle, Runtime};
 
     type CodecResult = std::result::Result<OpenChanCellS2C, CodecError>;
 

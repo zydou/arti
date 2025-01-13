@@ -3,7 +3,7 @@
 
 use futures::Stream;
 use tor_rtcompat::{
-    NetStreamListener, NetStreamProvider, SleepProvider, StreamOps, NoOpStreamOpsHandle,
+    NetStreamListener, NetStreamProvider, NoOpStreamOpsHandle, SleepProvider, StreamOps,
 };
 
 use anyhow::anyhow;
