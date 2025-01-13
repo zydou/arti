@@ -9,21 +9,6 @@ use tor_config_path::CfgPathError;
 
 use crate::config::default_config_paths;
 
-/// This macro exists only so that we can use the string literal in a `concat!` macro call.
-/// You should generally use [`FS_DISABLE_PERMISSION_CHECKS_ENV_NAME`] instead.
-macro_rules! fs_disable_permission_checks_env_name {
-    () => {
-        // TODO: this uses the environment variable "ARTI_FS_DISABLE_PERMISSION_CHECKS";
-        // is this fine, or do we want an arti-relay-specific variable?
-        "ARTI_FS_DISABLE_PERMISSION_CHECKS"
-    };
-}
-
-/// The name of the environment variable that provides a default value for the
-/// '--disable_fs_permission_checks' cli option.
-pub(crate) const FS_DISABLE_PERMISSION_CHECKS_ENV_NAME: &str =
-    fs_disable_permission_checks_env_name!();
-
 /// A cached copy of the default config paths.
 ///
 /// We cache the values to ensure they are consistent between the help text and the values used.
@@ -96,15 +81,6 @@ pub(crate) struct GlobalArgs {
     pub(crate) log_level: Option<LogLevel>,
 
     /// Don't check permissions on the files we use.
-    // clap has built-in support for environment variable defaults,
-    // but fs-mistrust has its own environment variable evaluation rules
-    // (see `fs_mistrust::Mistrust`).
-    #[arg(long_help = concat!(
-        "Don't check permissions on the files we use\n\n",
-        "Overrides the '",
-        fs_disable_permission_checks_env_name!(),
-        "' environment variable and any configuration files if set.",
-    ))]
     #[arg(long, global = true)]
     pub(crate) disable_fs_permission_checks: bool,
 

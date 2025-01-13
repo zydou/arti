@@ -18,7 +18,6 @@ use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::FmtSubscriber;
 
-use crate::cli::FS_DISABLE_PERMISSION_CHECKS_ENV_NAME;
 use crate::config::{base_resolver, TorRelayConfig, DEFAULT_LOG_LEVEL};
 use crate::relay::TorRelay;
 
@@ -90,7 +89,10 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
         fs_mistrust::Mistrust::new_dangerously_trust_everyone()
     } else {
         fs_mistrust::MistrustBuilder::default()
-            .controlled_by_env_var_if_not_set(FS_DISABLE_PERMISSION_CHECKS_ENV_NAME)
+            // By default, a `Mistrust` checks an environment variable.
+            // We do not (at the moment) want this behaviour for relays:
+            // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/2699#note_3147502
+            .ignore_environment()
             .build()
             .expect("default fs-mistrust should be buildable")
     };
