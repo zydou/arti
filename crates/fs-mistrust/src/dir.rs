@@ -609,7 +609,7 @@ mod test {
 
     #[test]
     #[cfg(target_family = "unix")]
-    fn metadata_symlink() {
+    fn access_symlink() {
         use crate::testing::LinkType;
 
         let d = Dir::new();
@@ -633,6 +633,15 @@ mod test {
         let e = sd.metadata("f1-link").unwrap_err();
         assert!(
             matches!(e, Error::Io { ref err, .. } if err.to_string().contains("is a symlink")),
+            "{e:?}"
+        );
+
+        // Open returns an error if called on a symlink.
+        let e = sd
+            .open("f1-link", OpenOptions::new().read(true))
+            .unwrap_err();
+        assert!(
+            matches!(e, Error::Io { ref err, .. } if err.to_string().contains("symbolic")), // Error is ELOOP.
             "{e:?}"
         );
     }
