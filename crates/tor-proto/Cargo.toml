@@ -60,6 +60,7 @@ amplify = { version = "4", default-features = false, features = ["derive"] }
 asynchronous-codec = "0.7.0"
 bitvec = "1.0.1"
 bytes = "1"
+caret = { path = "../caret", version = "0.5.0" }
 cipher = { version = "0.4.1", features = ["zeroize"] }
 coarsetime = "0.1.20"
 derive-deftly = "0.14.2"

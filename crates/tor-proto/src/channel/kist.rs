@@ -1,5 +1,6 @@
 //! KIST-related parameters.
 
+use caret::caret_int;
 use tor_netdir::params::NetParameters;
 use tor_units::BoundedInt32;
 
@@ -51,10 +52,20 @@ impl KistMode {
     /// Used for converting [`kist_enabled`](NetParameters::kist_enabled)
     /// to a corresponding `KistMode`.
     pub(crate) fn from_net_parameter(val: BoundedInt32<0, 1>) -> Self {
-        match val.get() {
-            0 => KistMode::Disabled,
-            1 => KistMode::TcpNotSentLowat,
+        match val.get().into() {
+            KistType::DISABLED => KistMode::Disabled,
+            KistType::TCP_NOTSENT_LOWAT => KistMode::TcpNotSentLowat,
             _ => unreachable!("BoundedInt32 was not bounded?!"),
         }
+    }
+}
+
+caret_int! {
+    /// KIST flavor, defined by a numerical value read from the consensus.
+    struct KistType(i32) {
+        /// KIST disabled
+        DISABLED = 0,
+        /// KIST using TCP_NOTSENT_LOWAT.
+        TCP_NOTSENT_LOWAT = 1,
     }
 }
