@@ -148,10 +148,13 @@ define_derive_deftly! {
     /// Implementing EncodableItem, ToEncodableKey and Keygen allows this wrapper key to be stored
     /// in a keystore.
 
-    impl $crate::EncodableItem for $ttype {
+    impl $crate::ItemType for $ttype {
         fn item_type() -> $crate::KeystoreItemType {
             $crate::KeyType::Ed25519Keypair.into()
         }
+    }
+
+    impl $crate::EncodableItem for $ttype {
         fn as_keystore_item(&self) -> $crate::Result<$crate::KeystoreItem> {
             self.$KP_NAME.as_keystore_item()
         }
@@ -295,10 +298,13 @@ define_derive_deftly! {
     /// Implementing EncodableItem, ToEncodableKey and Keygen allows this wrapper key to be stored
     /// in a keystore.
 
-    impl $crate::EncodableItem for $ttype {
+    impl $crate::ItemType for $ttype {
         fn item_type() -> $crate::KeystoreItemType {
             $crate::KeyType::X25519StaticKeypair.into()
         }
+    }
+
+    impl $crate::EncodableItem for $ttype {
         fn as_keystore_item(&self) -> $crate::Result<$crate::KeystoreItem> {
             self.$KP_NAME.as_keystore_item()
         }

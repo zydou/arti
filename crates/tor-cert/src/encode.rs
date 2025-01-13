@@ -33,11 +33,17 @@ impl Ed25519Cert {
 
 impl EncodedEd25519Cert {
     /// Create an `EncodedEd25519Cert` from a byte slice.
-    //
-    // TODO: this should return a Result and parse `cert` to ensure
-    // it has the right format.
+    ///
+    /// **Important**: generally you should not use this function.
+    /// Instead, prefer using [`Ed25519CertConstructor::encode_and_sign`]
+    /// to encode certificates.
+    ///
+    /// This function should only be used if `cert`
+    /// is known to be the byte representation of a valid `EncodedEd25519Cert`
+    /// (for example, after parsing the byte slice using [`Ed25519Cert::decode`],
+    /// and validating its signature and timeliness).
     #[cfg(feature = "experimental-api")]
-    pub fn from_bytes(cert: &[u8]) -> Self {
+    pub fn dangerously_from_bytes(cert: &[u8]) -> Self {
         Self(cert.into())
     }
 }

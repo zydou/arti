@@ -13,7 +13,7 @@ use std::iter;
 use std::result::Result as StdResult;
 use tor_error::{bad_api_usage, internal, into_bad_api_usage};
 use tor_key_forge::{
-    EncodableItem, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
+    ItemType, Keygen, KeygenRng, KeystoreItemType, ToEncodableCert, ToEncodableKey,
 };
 
 /// A key manager that acts as a frontend to a primary [`Keystore`](crate::Keystore) and
@@ -353,7 +353,7 @@ impl KeyMgr {
     /// Returns the `<K as ToEncodableKey>::Key` representation of the key.
     ///
     /// See [`KeyMgr::get`] for more details.
-    fn get_from_store_raw<'a, K: EncodableItem>(
+    fn get_from_store_raw<'a, K: ItemType>(
         &self,
         key_spec: &dyn KeySpecifier,
         key_type: &KeystoreItemType,
@@ -449,9 +449,9 @@ impl KeyMgr {
             ArtiPath::from_path_and_denotators(subject_key_arti_path, &spec.cert_denotators())
                 .map_err(into_bad_api_usage!("invalid certificate specifier"))?;
 
-        let Some(cert) = self.get_from_store_raw::<C::Cert>(
+        let Some(cert) = self.get_from_store_raw::<C::ParsedCert>(
             &cert_spec,
-            &C::Cert::item_type(),
+            &<C::ParsedCert as ItemType>::item_type(),
             self.all_stores(),
         )?
         else {
@@ -460,8 +460,7 @@ impl KeyMgr {
 
         // Finally, get the signing key and validate the cert
         let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
-        let cert = C::from_encodable_cert(cert);
-        cert.validate(&key, &signed_with)?;
+        let cert = C::validate(cert, &key, &signed_with)?;
 
         Ok(Some((key, cert)))
     }
@@ -523,9 +522,9 @@ impl KeyMgr {
             ArtiPath::from_path_and_denotators(subject_key_arti_path, &spec.cert_denotators())
                 .map_err(into_bad_api_usage!("invalid certificate specifier"))?;
 
-        let maybe_cert = self.get_from_store_raw::<C::Cert>(
+        let maybe_cert = self.get_from_store_raw::<C::ParsedCert>(
             &cert_specifier,
-            &C::Cert::item_type(),
+            &C::ParsedCert::item_type(),
             self.all_stores(),
         )?;
 
@@ -546,7 +545,7 @@ impl KeyMgr {
 
         let signed_with = self.get_cert_signing_key::<K, C>(spec)?;
         let cert = match maybe_cert {
-            Some(cert) => C::from_encodable_cert(cert),
+            Some(cert) => C::validate(cert, &subject_key, &signed_with)?,
             None => {
                 let cert = make_certificate(&subject_key, &signed_with);
 
@@ -556,7 +555,6 @@ impl KeyMgr {
             }
         };
 
-        cert.validate(&subject_key, &signed_with)?;
         Ok((subject_key, cert))
     }
 
@@ -637,7 +635,7 @@ impl KeyMgr {
     {
         let cert = cert.to_encodable_cert();
         let store = self.select_keystore(&selector)?;
-        let cert_type = C::Cert::item_type();
+        let cert_type = <C::EncodableCert as ItemType>::item_type();
 
         let () = store.insert(&cert, cert_spec, &cert_type)?;
         Ok(())
@@ -665,11 +663,14 @@ mod tests {
     use std::result::Result as StdResult;
     use std::str::FromStr;
     use std::sync::RwLock;
+    use std::time::{Duration, SystemTime};
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_cert::CertifiedKey;
+    use tor_cert::Ed25519Cert;
     use tor_key_forge::{
         CertData, EncodableItem, ErasedKey, InvalidCertError, KeyType, KeystoreItem,
     };
-    use tor_llcrypto::pk::ed25519;
+    use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
 
     /// The type of "key" stored in the test key stores.
     #[derive(Clone, Debug)]
@@ -722,7 +723,7 @@ mod tests {
         }
     }
 
-    impl EncodableItem for TestItem {
+    impl ItemType for TestItem {
         fn item_type() -> KeystoreItemType
         where
             Self: Sized,
@@ -730,7 +731,9 @@ mod tests {
             // Dummy value
             KeyType::Ed25519Keypair.into()
         }
+    }
 
+    impl EncodableItem for TestItem {
         fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             Ok(self.item.clone())
         }
@@ -749,14 +752,16 @@ mod tests {
         }
     }
 
-    impl EncodableItem for TestPublicKey {
+    impl ItemType for TestPublicKey {
         fn item_type() -> KeystoreItemType
         where
             Self: Sized,
         {
             KeyType::Ed25519PublicKey.into()
         }
+    }
 
+    impl EncodableItem for TestPublicKey {
         fn as_keystore_item(&self) -> tor_key_forge::Result<KeystoreItem> {
             Ok(self.key.clone())
         }
@@ -776,29 +781,22 @@ mod tests {
     }
 
     impl ToEncodableCert<TestItem> for AlwaysValidCert {
-        type Cert = TestItem;
+        type ParsedCert = TestItem;
+        type EncodableCert = TestItem;
         type SigningKey = TestItem;
 
         fn validate(
-            &self,
+            cert: Self::ParsedCert,
             _subject: &TestItem,
             _signed_with: &Self::SigningKey,
-        ) -> StdResult<(), InvalidCertError> {
+        ) -> StdResult<Self, InvalidCertError> {
             // AlwaysValidCert is always valid
-            Ok(())
+            Ok(Self(cert))
         }
 
         /// Convert this cert to a type that implements [`EncodableKey`].
-        fn to_encodable_cert(self) -> Self::Cert {
+        fn to_encodable_cert(self) -> Self::EncodableCert {
             self.0
-        }
-
-        /// Convert an [`EncodableKey`] to another cert type.
-        fn from_encodable_cert(cert: Self::Cert) -> Self
-        where
-            Self: Sized,
-        {
-            Self(cert)
         }
     }
 
@@ -852,7 +850,7 @@ mod tests {
                         .read()
                         .unwrap()
                         .get(&(key_spec.arti_path().unwrap(), item_type.clone()))
-                        .map(|k| Box::new(k.clone()) as Box<dyn EncodableItem>))
+                        .map(|k| Box::new(k.clone()) as Box<dyn ItemType>))
                 }
 
                 fn insert(
@@ -1350,9 +1348,21 @@ mod tests {
                     subject_key.meta, signed_with.meta
                 );
 
-
-                let dummy_tor_cert = tor_key_forge::EncodedEd25519Cert::from_bytes(&[]);
-                let test_cert = CertData::TorEd25519Cert(dummy_tor_cert);
+                // Note: this is not really a cert for `subject_key` signed with the `signed_with`
+                // key!. The two are `TestItem`s and not keys, so we can't really generate a real
+                // cert from them. We can, however, pretend we did, for testing purposes.
+                // Eventually we might want to rewrite these tests to use real items
+                // (like the `ArtiNativeKeystore` tests)
+                let mut rng = rand::thread_rng();
+                let keypair = ed25519::Keypair::generate(&mut rng);
+                let encoded_cert = Ed25519Cert::constructor()
+                    .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
+                    .expiration(SystemTime::now() + Duration::from_secs(180))
+                    .signing_key(keypair.public_key().into())
+                    .cert_key(CertifiedKey::Ed25519(keypair.public_key().into()))
+                    .encode_and_sign(&keypair)
+                    .unwrap();
+                let test_cert = CertData::TorEd25519Cert(encoded_cert);
                 AlwaysValidCert(TestItem {
                     item: KeystoreItem::Cert(test_cert),
                     meta,

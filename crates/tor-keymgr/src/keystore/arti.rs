@@ -374,9 +374,12 @@ mod tests {
     use std::cmp::Ordering;
     use std::fs;
     use std::path::PathBuf;
+    use std::time::{Duration, SystemTime};
     use tempfile::{tempdir, TempDir};
-    use tor_key_forge::{CertType, EncodedEd25519Cert, KeyType};
-    use tor_llcrypto::pk::ed25519;
+    use tor_cert::{CertifiedKey, Ed25519Cert};
+    use tor_checkable::{SelfSigned, Timebound};
+    use tor_key_forge::{CertType, KeyType, ParsedEd25519Cert};
+    use tor_llcrypto::pk::ed25519::{self, Ed25519PublicKey as _};
 
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
@@ -697,27 +700,54 @@ mod tests {
     fn certs() {
         let (key_store, _keystore_dir) = init_keystore(false);
 
-        // TODO: currently, you're allowed to build a cert out of an arbitrary byte slice
-        // (including empty ones).
-        //
-        // We should implement a proper parser for tor ed25519 certs in the near future
-        // (and reject any files that don't parse).
-        const DUMMY_CERT: &[u8] = b"not really a cert...";
-        let cert = EncodedEd25519Cert::from_bytes(DUMMY_CERT);
+        let mut rng = rand::thread_rng();
+        let subject_key = ed25519::Keypair::generate(&mut rng);
+        let signing_key = ed25519::Keypair::generate(&mut rng);
+
+        // Note: the cert constructor rounds the expiration forward to the nearest hour
+        // after the epoch.
+        let cert_exp = SystemTime::UNIX_EPOCH + Duration::from_secs(60 * 60);
+
+        let encoded_cert = Ed25519Cert::constructor()
+            .cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
+            .expiration(cert_exp)
+            .signing_key(signing_key.public_key().into())
+            .cert_key(CertifiedKey::Ed25519(subject_key.public_key().into()))
+            .encode_and_sign(&signing_key)
+            .unwrap();
+
         // The specifier doesn't really matter.
         let cert_spec = TestSpecifier::default();
         assert!(key_store
-            .insert(&cert, &cert_spec, &CertType::Ed25519TorCert.into())
+            .insert(&encoded_cert, &cert_spec, &CertType::Ed25519TorCert.into())
             .is_ok());
 
         let erased_cert = key_store
             .get(&cert_spec, &CertType::Ed25519TorCert.into())
             .unwrap()
             .unwrap();
-        let Ok(found_cert) = erased_cert.downcast::<EncodedEd25519Cert>() else {
-            panic!("failed to downcast cert to EncodedEd25519Cert")
+        let Ok(found_cert) = erased_cert.downcast::<ParsedEd25519Cert>() else {
+            panic!("failed to downcast cert to KewUnknownCert")
         };
 
-        assert_eq!(cert, *found_cert);
+        let found_cert = found_cert
+            .should_be_signed_with(&signing_key.public_key().into())
+            .unwrap()
+            .dangerously_assume_wellsigned()
+            .dangerously_assume_timely();
+
+        assert_eq!(
+            found_cert.as_ref().cert_type(),
+            tor_cert::CertType::IDENTITY_V_SIGNING
+        );
+        assert_eq!(found_cert.as_ref().expiry(), cert_exp);
+        assert_eq!(
+            found_cert.as_ref().signing_key(),
+            Some(&signing_key.public_key().into())
+        );
+        assert_eq!(
+            found_cert.subject_key().unwrap(),
+            &subject_key.public_key().into()
+        );
     }
 }

@@ -33,22 +33,25 @@ pub trait Keygen {
         Self: Sized;
 }
 
+/// A trait for getting the type of an item.
+pub trait ItemType: Downcast {
+    /// The type of the key.
+    fn item_type() -> KeystoreItemType
+    where
+        Self: Sized;
+}
+impl_downcast!(ItemType);
+
 /// A key that can be serialized to, and deserialized from.
 //
 // When adding a new `EncodableItem` impl, you must also update
 // [`SshKeyData::into_erased`](crate::SshKeyData::into_erased) to
 // return the corresponding concrete type implementing `EncodableItem`
 // (as a `dyn EncodableItem`).
-pub trait EncodableItem: Downcast {
-    /// The type of the key.
-    fn item_type() -> KeystoreItemType
-    where
-        Self: Sized;
-
+pub trait EncodableItem: ItemType + Downcast {
     /// Return the key as a [`KeystoreItem`].
     fn as_keystore_item(&self) -> Result<KeystoreItem>;
 }
-
 impl_downcast!(EncodableItem);
 
 /// A public key, keypair, or key certificate.
@@ -124,8 +127,11 @@ where
 ///
 /// `K` represents the (Rust) type of the subject key.
 pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
-    /// The low-level type this can be converted to/from.
-    type Cert: EncodableItem + 'static;
+    /// The low-level type this can be converted from.
+    type ParsedCert: ItemType + 'static;
+
+    /// The low-level type this can be converted to.
+    type EncodableCert: EncodableItem + 'static;
 
     /// The (Rust) type of the signing key.
     type SigningKey: ToEncodableKey;
@@ -144,25 +150,38 @@ pub trait ToEncodableCert<K: ToEncodableKey>: Clone {
     ///   * the subject key or signing key in the certificate do not match
     ///      the subject and signing keys specified in `cert_spec`
     fn validate(
-        &self,
+        cert: Self::ParsedCert,
         subject: &K,
         signed_with: &Self::SigningKey,
-    ) -> StdResult<(), InvalidCertError>;
+    ) -> StdResult<Self, InvalidCertError>;
 
     /// Convert this cert to a type that implements [`EncodableItem`].
-    fn to_encodable_cert(self) -> Self::Cert;
-
-    /// Convert an [`EncodableItem`] to another cert type.
-    fn from_encodable_cert(cert: Self::Cert) -> Self
-    where
-        Self: Sized;
+    fn to_encodable_cert(self) -> Self::EncodableCert;
 }
 
 /// The error type returned by [`ToEncodableCert::validate`].
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum InvalidCertError {
-    // TODO
+    /// An error caused by a key certificate with an invalid signature.
+    #[error("Invalid signature")]
+    CertSignature(#[from] tor_cert::CertError),
+
+    /// An error caused by an untimely key certificate.
+    #[error("Certificate is expired or not yet valid")]
+    TimeValidity(#[from] tor_checkable::TimeValidityError),
+
+    /// A key certificate with an unexpected subject key algorithm.
+    #[error("Unexpected subject key algorithm")]
+    InvalidSubjectKeyAlgorithm,
+
+    /// An error caused by a key certificate with an unexpected subject key.
+    #[error("Certificate certifies the wrong key")]
+    SubjectKeyMismatch,
+
+    /// An error caused by a key certificate with an unexpected `CertType`.
+    #[error("Unexpected cert type")]
+    CertType(tor_cert::CertType),
 }
 
 impl Keygen for curve25519::StaticKeypair {
@@ -177,14 +196,16 @@ impl Keygen for curve25519::StaticKeypair {
     }
 }
 
-impl EncodableItem for curve25519::StaticKeypair {
+impl ItemType for curve25519::StaticKeypair {
     fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
         KeyType::X25519StaticKeypair.into()
     }
+}
 
+impl EncodableItem for curve25519::StaticKeypair {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
@@ -199,14 +220,16 @@ impl EncodableItem for curve25519::StaticKeypair {
     }
 }
 
-impl EncodableItem for curve25519::PublicKey {
+impl ItemType for curve25519::PublicKey {
     fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
         KeyType::X25519PublicKey.into()
     }
+}
 
+impl EncodableItem for curve25519::PublicKey {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let algorithm_name = AlgorithmName::new(X25519_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
@@ -227,14 +250,16 @@ impl Keygen for ed25519::Keypair {
     }
 }
 
-impl EncodableItem for ed25519::Keypair {
+impl ItemType for ed25519::Keypair {
     fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
         KeyType::Ed25519Keypair.into()
     }
+}
 
+impl EncodableItem for ed25519::Keypair {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let keypair = Ed25519Keypair {
             public: Ed25519PublicKey(self.verifying_key().to_bytes()),
@@ -245,14 +270,16 @@ impl EncodableItem for ed25519::Keypair {
     }
 }
 
-impl EncodableItem for ed25519::PublicKey {
+impl ItemType for ed25519::PublicKey {
     fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
         KeyType::Ed25519PublicKey.into()
     }
+}
 
+impl EncodableItem for ed25519::PublicKey {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let key_data = Ed25519PublicKey(self.to_bytes());
 
@@ -272,14 +299,16 @@ impl Keygen for ed25519::ExpandedKeypair {
     }
 }
 
-impl EncodableItem for ed25519::ExpandedKeypair {
+impl ItemType for ed25519::ExpandedKeypair {
     fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
         KeyType::Ed25519ExpandedKeypair.into()
     }
+}
 
+impl EncodableItem for ed25519::ExpandedKeypair {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         let algorithm_name = AlgorithmName::new(ED25519_EXPANDED_ALGORITHM_NAME)
             .map_err(|_| internal!("invalid algorithm name"))?;
@@ -295,14 +324,25 @@ impl EncodableItem for ed25519::ExpandedKeypair {
     }
 }
 
-impl EncodableItem for tor_cert::EncodedEd25519Cert {
+impl ItemType for crate::EncodedEd25519Cert {
     fn item_type() -> KeystoreItemType
     where
         Self: Sized,
     {
         CertType::Ed25519TorCert.into()
     }
+}
 
+impl ItemType for crate::ParsedEd25519Cert {
+    fn item_type() -> KeystoreItemType
+    where
+        Self: Sized,
+    {
+        CertType::Ed25519TorCert.into()
+    }
+}
+
+impl EncodableItem for crate::EncodedEd25519Cert {
     fn as_keystore_item(&self) -> Result<KeystoreItem> {
         Ok(CertData::TorEd25519Cert(self.clone()).into())
     }

@@ -3,7 +3,7 @@
 use crate::keystore::fs_utils::FilesystemError;
 use crate::{ArtiPathSyntaxError, KeystoreError, UnknownKeyTypeError};
 use tor_error::{ErrorKind, HasKind};
-use tor_key_forge::{KeyType, SshKeyAlgorithm};
+use tor_key_forge::{CertType, KeyType, SshKeyAlgorithm};
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -53,6 +53,18 @@ pub(crate) enum ArtiNativeKeystoreError {
         found_key_algo: SshKeyAlgorithm,
     },
 
+    /// Failed to parse an OpenSSH key
+    #[error("Failed to parse cert with type {cert_type:?}")]
+    CertParse {
+        /// The path of the malformed key.
+        path: PathBuf,
+        /// The type of cert we were trying to fetch.
+        cert_type: CertType,
+        /// The underlying error.
+        #[source]
+        err: tor_bytes::Error,
+    },
+
     /// An internal error.
     #[error("Internal error")]
     Bug(#[from] tor_error::Bug),
@@ -89,7 +101,7 @@ impl HasKind for ArtiNativeKeystoreError {
             KE::Filesystem(e) => e.kind(),
             KE::MalformedPath { .. } => ErrorKind::KeystoreAccessFailed,
             KE::UnknownKeyType(_) => ErrorKind::KeystoreAccessFailed,
-            KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } => {
+            KE::SshKeyParse { .. } | KE::UnexpectedSshKeyType { .. } | KE::CertParse { .. } => {
                 ErrorKind::KeystoreCorrupted
             }
             KE::Bug(e) => e.kind(),

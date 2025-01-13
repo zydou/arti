@@ -30,7 +30,9 @@ rand = "0.8"
 signature = "2"
 ssh-key = { version = "0.6.1", features = ["std"] }
 thiserror = "2"
+tor-bytes = { path = "../tor-bytes", version = "0.26.0", default-features = false }
 tor-cert = { path = "../tor-cert", version = "0.26.0", features = ["encode", "experimental-api"] }
+tor-checkable = { path = "../tor-checkable", version = "0.26.0" }
 tor-error = { version = "0.26.0", path = "../tor-error" }
 tor-llcrypto = { version = "0.26.0", path = "../tor-llcrypto" }
 
