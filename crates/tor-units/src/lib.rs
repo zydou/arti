@@ -112,6 +112,20 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
         BoundedInt32 { value }
     }
 
+    /// Return the lower bound value of this bounded i32.
+    ///
+    /// This always return [`Self::LOWER`].
+    pub const fn lower(&self) -> i32 {
+        LOWER
+    }
+
+    /// Return the lower bound value of this bounded i32.
+    ///
+    /// This always return [`Self::LOWER`].
+    pub const fn upper(&self) -> i32 {
+        UPPER
+    }
+
     /// Return the underlying i32 value.
     ///
     /// This value will always be between [`Self::LOWER`] and [`Self::UPPER`],
