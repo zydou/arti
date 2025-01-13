@@ -537,7 +537,7 @@ impl<'a> Verifier<'a> {
 
     /// Check whether the file or directory at `path` conforms to the
     /// requirements of this `Verifier` and the [`Mistrust`] that created it.
-    pub fn check<P: AsRef<Path>>(self, path: P) -> Result<()> {
+    pub fn check<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
 
         // This is the powerhouse of our verifier code:
@@ -575,7 +575,7 @@ impl<'a> Verifier<'a> {
     ///  * there was a problem when creating the directory
     ///  * after creating the directory, we found that it had a permissions or
     ///    ownership problem.
-    pub fn make_directory<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
+    pub fn make_directory<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.enforce_type = Type::Dir;
 
         let path = path.as_ref();
