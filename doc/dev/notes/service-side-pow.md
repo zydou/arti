@@ -93,23 +93,35 @@ pub(crate) struct PowManagerRecord {
     // used_nonces are not in here but will in the future be persisted via ReplayLog
 }
 
+impl PowManagerRecord {
+    pub(crate) fn to_record(&self) -> PowManagerRecord;
+    pub(crate) fn from_record<R: Runtime>(
+        runtime: R,
+        record: PowManagerRecord,
+        keymgr: Arc<KeyMgr>,
+        nickname: HsNickname,
+        publisher_update_tx: watch::Sender<()>,
+        pow_replay_log_dir: InstanceRawSubdir
+        storage_handle: StorageHandle<PowManagerRecord>,
+    ) -> PowManager;
+}
+
 // The Reactor will have a PowManager, and ForLaunch will be extended to call PowManager.launch
 impl<R: Runtime> PowManager<R> {
     // Called from OnionService::launch
+    //
     // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
+    //
+    // Loads state from disk or creates a fresh PowManager if no state exists.
+    // Upon loading from disk, we will delete stale replay logs from replay_log_dir.
     pub(crate) fn new(
         runtime: R,
         keymgr: Arc<KeyMgr>,
         nickname: HsNickname,
         publisher_update_tx: watch::Sender<()>,
-        pow_replay_log_dir: InstanceRawSubdir
+        pow_replay_log_dir: InstanceRawSubdir,
+        storage_handle: StorageHandle<PowManagerRecord>,
     ) -> (Arc<Self>, mpsc::Sender, RendQueueReceiver);
-
-    // Called from OnionService::launch, likely using a abstraction like ipt_mgr/persist.rs does
-    pub(crate) fn to_record(&self) -> PowManagerRecord;
-    // Upon loading from disk, we will delete stale replay logs from replay_log_dir,
-    // using read_directory / parse_log_leafname / remove_file
-    pub(crate) fn from_record(record: PowManagerRecord, replay_log_dir: InstanceRawSubdir) -> Self;
 
     // Called from ForLaunch::launch. Is responsible for rotating seeds.
     pub(crate) fn launch(self: &Arc<Self>) -> Result<(), StartupError>;
