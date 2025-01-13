@@ -456,9 +456,21 @@ impl Mistrust {
     pub(crate) fn is_disabled(&self) -> bool {
         self.status.disabled()
     }
+
+    /// Create a new [`FileAccess`] for reading or writing files
+    /// while enforcing the rules of this `Mistrust`.
+    pub fn file_access(&self) -> FileAccess<'_> {
+        self.verifier().file_access()
+    }
 }
 
 impl<'a> Verifier<'a> {
+    /// Create a new [`FileAccess`] for reading or writing files
+    /// while enforcing the rules of this `Verifier`.
+    pub fn file_access(self) -> FileAccess<'a> {
+        FileAccess::from_verifier(self)
+    }
+
     /// Configure this `Verifier` to require that all paths it checks be
     /// files (not directories).
     pub fn require_file(mut self) -> Self {

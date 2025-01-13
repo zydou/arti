@@ -7,16 +7,22 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt as _;
+
+use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result, Verifier};
 
 /// Helper object for accessing a file on disk while checking the necessary permissions.
 ///
-/// A `FileAccess` wraps a reference to a [`CheckedDir`],
+/// A `FileAccess` wraps a reference to a [`CheckedDir`] or a [`Verifier`]
 /// but allows configuring the rules for accessing the files it opens.
 ///
 /// When we refer to a path "obeying the constraints" of this `FileAccess`,
-/// we mean the requirement that it is a relative path containing no ".." elements,
-/// or other elements that would take it outside the `CheckedDir`.
+/// we mean:
+/// * If the `FileAccess` wraps a `CheckedDir`, the requirement that it is a relative path
+///   containing no ".." elements,
+///   or other elements that would take it outside the `CheckedDir`.
+/// * If the `FileAccess` wraps a `Verifier`, there are no requirements.
 pub struct FileAccess<'a> {
     /// Validator object that we use for checking file permissions.
     pub(crate) inner: Inner<'a>,
@@ -26,12 +32,11 @@ pub struct FileAccess<'a> {
 }
 
 /// Inner object for checking file permissions.
-///
-/// XXXX This is an enum because we plan to allow having a Mistrust here instead;
-/// XXXX we should add that support or flatten this enum.
 pub(crate) enum Inner<'a> {
     /// A CheckedDir backing this FileAccess.
     CheckedDir(&'a CheckedDir),
+    /// A Verifier backing this FileAccess.
+    Verifier(Verifier<'a>),
 }
 
 impl<'a> FileAccess<'a> {
@@ -39,6 +44,11 @@ impl<'a> FileAccess<'a> {
     /// using default options.
     pub(crate) fn from_checked_dir(checked_dir: &'a CheckedDir) -> Self {
         Self::from_inner(Inner::CheckedDir(checked_dir))
+    }
+    /// Create a new `FileAccess` to access files anywhere on the filesystem,
+    /// using default options.
+    pub(crate) fn from_verifier(verifier: Verifier<'a>) -> Self {
+        Self::from_inner(Inner::Verifier(verifier))
     }
     /// Create a new `FileAccess` from `inner`,
     /// using default options.
@@ -52,14 +62,23 @@ impl<'a> FileAccess<'a> {
     /// Check path constraints on `path` and verify its permissions
     /// (or the permissions of its parent) according to `check_type`
     fn verified_full_path(&self, path: &Path, check_type: FullPathCheck) -> Result<PathBuf> {
-        match self.inner {
+        match &self.inner {
             Inner::CheckedDir(cd) => cd.verified_full_path(path, check_type),
+            Inner::Verifier(v) => {
+                let to_verify = match check_type {
+                    FullPathCheck::CheckPath => path,
+                    FullPathCheck::CheckParent => path.parent().unwrap_or(path),
+                };
+                v.check(to_verify)?;
+                Ok(path.into())
+            }
         }
     }
     /// Return a `Verifier` to use for checking permissions.
     fn verifier(&self) -> crate::Verifier {
-        match self.inner {
+        match &self.inner {
             Inner::CheckedDir(cd) => cd.verifier(),
+            Inner::Verifier(v) => v.clone(),
         }
     }
     /// Return the location of `path` relative to this verifier.
@@ -69,6 +88,7 @@ impl<'a> FileAccess<'a> {
     fn location_unverified<'b>(&self, path: &'b Path) -> Result<Cow<'b, Path>> {
         Ok(match self.inner {
             Inner::CheckedDir(cd) => cd.join(path)?.into(),
+            Inner::Verifier(_) => path.into(),
         })
     }
 
@@ -98,6 +118,7 @@ impl<'a> FileAccess<'a> {
     /// regardless of any mode set in `options`.
     /// If `create_with_mode()` wasn't called, we create the file with mode 600.
     pub fn open<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<File> {
+        // XXXX: This isn't quite right for the verifier case.
         let path = self.verified_full_path(path.as_ref(), FullPathCheck::CheckParent)?;
 
         #[allow(unused_mut)]
