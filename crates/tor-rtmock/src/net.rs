@@ -566,7 +566,7 @@ impl StreamOps for MockTlsStream {
     }
 
     fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
-        Box::new(tor_rtcompat::UnsupportedStreamOpsHandle::default())
+        Box::new(tor_rtcompat::NoOpStreamOpsHandle::default())
     }
 }
 

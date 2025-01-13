@@ -197,7 +197,7 @@ pub trait StreamOps {
     /// Return a new handle that implements [`StreamOps`],
     /// and that can be used independently of `self`.
     fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
-        Box::new(UnsupportedStreamOpsHandle)
+        Box::new(NoOpStreamOpsHandle)
     }
 }
 
@@ -207,9 +207,9 @@ pub trait StreamOps {
 /// that do not support `StreamOps`.
 #[derive(Copy, Clone, Debug, Default)]
 #[non_exhaustive]
-pub struct UnsupportedStreamOpsHandle;
+pub struct NoOpStreamOpsHandle;
 
-impl StreamOps for UnsupportedStreamOpsHandle {
+impl StreamOps for NoOpStreamOpsHandle {
     fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
         Box::new(*self)
     }

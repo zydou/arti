@@ -517,7 +517,7 @@ pub(crate) mod test {
     use futures::task::SpawnExt;
     use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
-    use tor_rtcompat::{Runtime, UnsupportedStreamOpsHandle};
+    use tor_rtcompat::{Runtime, NoOpStreamOpsHandle};
 
     type CodecResult = std::result::Result<OpenChanCellS2C, CodecError>;
 
@@ -542,7 +542,7 @@ pub(crate) mod test {
             trace!("got sink error: {:?}", e);
             CodecError::DecCell(tor_cell::Error::ChanProto("dummy message".into()))
         });
-        let stream_ops = UnsupportedStreamOpsHandle::default();
+        let stream_ops = NoOpStreamOpsHandle::default();
         let (chan, reactor) = crate::channel::Channel::new(
             link_protocol,
             Box::new(send1),

@@ -3,7 +3,7 @@
 
 use futures::Stream;
 use tor_rtcompat::{
-    NetStreamListener, NetStreamProvider, SleepProvider, StreamOps, UnsupportedStreamOpsHandle,
+    NetStreamListener, NetStreamProvider, SleepProvider, StreamOps, NoOpStreamOpsHandle,
 };
 
 use anyhow::anyhow;
@@ -232,7 +232,7 @@ impl<S: StreamOps> StreamOps for BreakableTcpStream<S> {
 
     fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
         match self {
-            BreakableTcpStream::Broken => Box::new(UnsupportedStreamOpsHandle::default()),
+            BreakableTcpStream::Broken => Box::new(NoOpStreamOpsHandle::default()),
             BreakableTcpStream::Present(s) => s.new_handle(),
         }
     }
