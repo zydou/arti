@@ -5439,6 +5439,7 @@ name = "tor-chanmgr"
 version = "0.26.0"
 dependencies = [
  "async-trait",
+ "caret",
  "derive_builder_fork_arti",
  "derive_more",
  "educe",
@@ -6263,7 +6264,6 @@ dependencies = [
  "asynchronous-codec",
  "bitvec",
  "bytes",
- "caret",
  "cipher",
  "coarsetime",
  "cpu-time",
@@ -6305,7 +6305,6 @@ dependencies = [
  "tor-llcrypto",
  "tor-log-ratelim",
  "tor-memquota",
- "tor-netdir",
  "tor-rtcompat",
  "tor-rtmock",
  "tor-units",

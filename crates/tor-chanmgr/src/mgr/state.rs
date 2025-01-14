@@ -17,7 +17,7 @@ use tor_config::PaddingLevel;
 use tor_error::{error_report, internal, into_internal};
 use tor_linkspec::{HasRelayIds, ListByRelayIds, RelayIds};
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
-use tor_proto::channel::kist::KistParams;
+use tor_proto::channel::kist::{KistMode, KistParams};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::channel::ChannelPaddingInstructionsUpdates;
@@ -200,16 +200,52 @@ struct NetParamsExtract {
     /// are `nf_ito_{low,high}{,_reduced` from `NetParameters`.
     // TODO we could use some enum or IndexVec or something to make this less `0` and `1`
     nf_ito: [[NfIto; 2]; 2],
+
+    /// The KIST parameters.
+    kist: KistParams,
 }
 
 impl From<&NetParameters> for NetParamsExtract {
     fn from(p: &NetParameters) -> Self {
+        let kist_enabled = kist_mode_from_net_parameter(p.kist_enabled);
+        // NOTE: in theory, this cast shouldn't be needed
+        // (kist_tcp_notsent_lowat is supposed to be a u32, not an i32).
+        // In practice, however, the type conversion is needed
+        // because consensus params are i32s.
+        //
+        // See the `NetParamaters::kist_tcp_notsent_lowat docs for more details.
+        let tcp_notsent_lowat = u32::from(p.kist_tcp_notsent_lowat);
+        let kist = KistParams::new(kist_enabled, tcp_notsent_lowat);
+
         NetParamsExtract {
             nf_ito: [
                 [p.nf_ito_low, p.nf_ito_high],
                 [p.nf_ito_low_reduced, p.nf_ito_high_reduced],
             ],
+            kist,
         }
+    }
+}
+
+/// Build a `KistMode` from [`NetParameters`].
+///
+/// Used for converting [`kist_enabled`](NetParameters::kist_enabled)
+/// to a corresponding `KistMode`.
+fn kist_mode_from_net_parameter(val: BoundedInt32<0, 1>) -> KistMode {
+    caret::caret_int! {
+        /// KIST flavor, defined by a numerical value read from the consensus.
+        struct KistType(i32) {
+            /// KIST disabled
+            DISABLED = 0,
+            /// KIST using TCP_NOTSENT_LOWAT.
+            TCP_NOTSENT_LOWAT = 1,
+        }
+    }
+
+    match val.get().into() {
+        KistType::DISABLED => KistMode::Disabled,
+        KistType::TCP_NOTSENT_LOWAT => KistMode::TcpNotSentLowat,
+        _ => unreachable!("BoundedInt32 was not bounded?!"),
     }
 }
 
@@ -269,8 +305,8 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         netparams: &NetParameters,
     ) -> Self {
         let mut channels_params = ChannelPaddingInstructions::default();
-        let kist_params = KistParams::from(netparams);
         let netparams = NetParamsExtract::from(netparams);
+        let kist_params = netparams.kist;
         let update = parameterize(&mut channels_params, &config, dormancy, &netparams)
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
         let _: Option<_> = update; // there are no channels yet, that would need to be told
@@ -508,11 +544,10 @@ impl<C: AbstractChannelFactory> MgrState<C> {
 
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
-        let (netdir, new_kist_params) = {
+        let netdir = {
             let extract = NetParamsExtract::from((*netparams).as_ref());
-            let kist_params = KistParams::from((*netparams).as_ref());
             drop(netparams);
-            (extract, kist_params)
+            extract
         };
 
         let mut inner = self
@@ -537,6 +572,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
 
         let update = update.map(Arc::new);
 
+        let new_kist_params = netdir.kist;
         let kist_params = if new_kist_params != inner.kist_params {
             // The KIST params have changed: remember their value,
             // and reparameterize_kist()

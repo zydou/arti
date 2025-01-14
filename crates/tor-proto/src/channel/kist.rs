@@ -1,9 +1,5 @@
 //! KIST-related parameters.
 
-use caret::caret_int;
-use tor_netdir::params::NetParameters;
-use tor_units::BoundedInt32;
-
 /// A set of parameters derived from the consensus document,
 /// controlling the KIST behavior of channels.
 #[derive(Debug, Clone, Copy, PartialEq, amplify::Getters)]
@@ -20,17 +16,12 @@ pub struct KistParams {
     tcp_notsent_lowat: u32,
 }
 
-impl From<&NetParameters> for KistParams {
-    fn from(p: &NetParameters) -> Self {
-        KistParams {
-            kist_enabled: KistMode::from_net_parameter(p.kist_enabled),
-            // NOTE: in theory, this cast shouldn't be needed
-            // (kist_tcp_notsent_lowat is supposed to be a u32, not an i32).
-            // In practice, however, the type conversion is needed
-            // because consensus params are i32s.
-            //
-            // See the `NetParamaters::kist_tcp_notsent_lowat docs for more details.
-            tcp_notsent_lowat: u32::from(p.kist_tcp_notsent_lowat),
+impl KistParams {
+    /// Create a new `KistParams` from the given `KistMode` and options.
+    pub fn new(kist_enabled: KistMode, tcp_notsent_lowat: u32) -> Self {
+        Self {
+            kist_enabled,
+            tcp_notsent_lowat,
         }
     }
 }
@@ -44,28 +35,4 @@ pub enum KistMode {
     TcpNotSentLowat = 1,
     /// KIST is disabled.
     Disabled = 0,
-}
-
-impl KistMode {
-    /// Build a `KistMode` from [`NetParameters`].
-    ///
-    /// Used for converting [`kist_enabled`](NetParameters::kist_enabled)
-    /// to a corresponding `KistMode`.
-    pub(crate) fn from_net_parameter(val: BoundedInt32<0, 1>) -> Self {
-        match val.get().into() {
-            KistType::DISABLED => KistMode::Disabled,
-            KistType::TCP_NOTSENT_LOWAT => KistMode::TcpNotSentLowat,
-            _ => unreachable!("BoundedInt32 was not bounded?!"),
-        }
-    }
-}
-
-caret_int! {
-    /// KIST flavor, defined by a numerical value read from the consensus.
-    struct KistType(i32) {
-        /// KIST disabled
-        DISABLED = 0,
-        /// KIST using TCP_NOTSENT_LOWAT.
-        TCP_NOTSENT_LOWAT = 1,
-    }
 }
