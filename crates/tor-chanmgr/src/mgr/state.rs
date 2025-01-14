@@ -193,7 +193,8 @@ type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_B
 ///     before we obtain the lock on `inner` (which we need to actually handle the update,
 ///     because we need to combine information from the config with that from the netdir).
 ///
-///  2. Rather than four separate named fields for the padding options, it has arrays, so that it is easy to
+///  2. Rather than four separate named fields for the padding options,
+///     it has arrays, so that it is easy to
 ///     select the values without error-prone recapitulation of field names.
 #[derive(Debug, Clone)]
 struct NetParamsExtract {
