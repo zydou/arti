@@ -43,6 +43,15 @@ pub(crate) struct MgrState<C: AbstractChannelFactory> {
     inner: std::sync::Mutex<Inner<C>>,
 }
 
+/// Parameters for channels that we create, and that all existing channels are using
+struct ChannelParams {
+    /// Channel padding instructions
+    padding: ChannelPaddingInstructions,
+
+    /// KIST parameters
+    kist: KistParams,
+}
+
 /// A map from channel id to channel state, plus necessary auxiliary state - inside lock
 struct Inner<C: AbstractChannelFactory> {
     /// The channel factory type that we store.
@@ -61,7 +70,7 @@ struct Inner<C: AbstractChannelFactory> {
     ///
     /// (Must be protected by the same lock as `channels`, or a channel might be
     /// created using being-replaced parameters, but not get an update.)
-    channels_params: ChannelPaddingInstructions,
+    channels_params: ChannelParams,
 
     /// The configuration (from the config file or API caller)
     config: ChannelConfig,
@@ -72,9 +81,6 @@ struct Inner<C: AbstractChannelFactory> {
     /// Updated via `MgrState::set_dormancy` and hence `MgrState::reconfigure_general`,
     /// which then uses it to calculate how to reconfigure the channels.
     dormancy: Dormancy,
-
-    /// KIST parameters
-    kist_params: KistParams,
 }
 
 /// The state of a channel (or channel build attempt) within a map.
@@ -304,12 +310,17 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         dormancy: Dormancy,
         netparams: &NetParameters,
     ) -> Self {
-        let mut channels_params = ChannelPaddingInstructions::default();
+        let mut padding_params = ChannelPaddingInstructions::default();
         let netparams = NetParamsExtract::from(netparams);
         let kist_params = netparams.kist;
-        let update = parameterize(&mut channels_params, &config, dormancy, &netparams)
+        let update = parameterize(&mut padding_params, &config, dormancy, &netparams)
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
         let _: Option<_> = update; // there are no channels yet, that would need to be told
+
+        let channels_params = ChannelParams {
+            padding: padding_params,
+            kist: kist_params,
+        };
 
         MgrState {
             inner: std::sync::Mutex::new(Inner {
@@ -317,7 +328,6 @@ impl<C: AbstractChannelFactory> MgrState<C> {
                 channels: ListByRelayIds::new(),
                 config,
                 channels_params,
-                kist_params,
                 dormancy,
             }),
         }
@@ -506,7 +516,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         // manager lock acquisition span as the one where we insert the
         // channel into the table so it will receive updates.  I.e.,
         // here.
-        let update = inner.channels_params.initial_update();
+        let update = inner.channels_params.padding.initial_update();
         if let Some(update) = update {
             channel
                 .reparameterize(update.into())
@@ -564,7 +574,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         }
 
         let update = parameterize(
-            &mut inner.channels_params,
+            &mut inner.channels_params.padding,
             &inner.config,
             inner.dormancy,
             &netdir,
@@ -573,10 +583,10 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         let update = update.map(Arc::new);
 
         let new_kist_params = netdir.kist;
-        let kist_params = if new_kist_params != inner.kist_params {
+        let kist_params = if new_kist_params != inner.channels_params.kist {
             // The KIST params have changed: remember their value,
             // and reparameterize_kist()
-            inner.kist_params = new_kist_params;
+            inner.channels_params.kist = new_kist_params;
             Some(new_kist_params)
         } else {
             // If the new KIST params are identical to the previous ones,
@@ -1026,6 +1036,7 @@ mod test {
             .lock()
             .unwrap()
             .channels_params
+            .padding
             .start_update()
             .padding_parameters(
                 PaddingParametersBuilder::default()
