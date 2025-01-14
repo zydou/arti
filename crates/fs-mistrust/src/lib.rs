@@ -60,6 +60,7 @@
 mod dir;
 mod disable;
 mod err;
+mod file_access;
 mod imp;
 #[cfg(all(
     target_family = "unix",
@@ -85,6 +86,7 @@ use std::{
 pub use dir::CheckedDir;
 pub use disable::GLOBAL_DISABLE_VAR;
 pub use err::{format_access_bits, Error};
+pub use file_access::FileAccess;
 
 /// A result type as returned by this crate
 pub type Result<T> = std::result::Result<T, Error>;
@@ -454,9 +456,21 @@ impl Mistrust {
     pub(crate) fn is_disabled(&self) -> bool {
         self.status.disabled()
     }
+
+    /// Create a new [`FileAccess`] for reading or writing files
+    /// while enforcing the rules of this `Mistrust`.
+    pub fn file_access(&self) -> FileAccess<'_> {
+        self.verifier().file_access()
+    }
 }
 
 impl<'a> Verifier<'a> {
+    /// Create a new [`FileAccess`] for reading or writing files
+    /// while enforcing the rules of this `Verifier`.
+    pub fn file_access(self) -> FileAccess<'a> {
+        FileAccess::from_verifier(self)
+    }
+
     /// Configure this `Verifier` to require that all paths it checks be
     /// files (not directories).
     pub fn require_file(mut self) -> Self {
@@ -535,7 +549,7 @@ impl<'a> Verifier<'a> {
 
     /// Check whether the file or directory at `path` conforms to the
     /// requirements of this `Verifier` and the [`Mistrust`] that created it.
-    pub fn check<P: AsRef<Path>>(self, path: P) -> Result<()> {
+    pub fn check<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
 
         // This is the powerhouse of our verifier code:
@@ -573,7 +587,7 @@ impl<'a> Verifier<'a> {
     ///  * there was a problem when creating the directory
     ///  * after creating the directory, we found that it had a permissions or
     ///    ownership problem.
-    pub fn make_directory<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
+    pub fn make_directory<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         self.enforce_type = Type::Dir;
 
         let path = path.as_ref();
