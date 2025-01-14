@@ -19,7 +19,7 @@ use crate::{dir::FullPathCheck, walk::PathType, CheckedDir, Error, Result, Verif
 /// an associated [`CheckedDir`] or [`Verifier`].
 ///
 /// `FileAccess` is a separate type from `CheckedDir` and `Verifier`
-/// so that you you can set options to control the behavior of how how files are opened.
+/// so that you can set options to control the behavior of how files are opened.
 ///
 /// Note: When we refer to a path "obeying the constraints" of this `FileAccess`,
 /// we mean:
@@ -96,12 +96,10 @@ impl<'a> FileAccess<'a> {
         })
     }
 
-    /// Configure this FileAccess: when used to crate a file,
+    /// Configure this FileAccess: when used to create a file,
     /// that file will be created with the provided unix permissions.
     ///
-    /// (This only has an effect on unix, and has the effect of
-    /// giving a newly created file mode 0644.  If this option
-    /// is not set, newly created files have mode 0600.)
+    /// If this option is not set, newly created files have mode 0600.
     pub fn create_with_mode(&mut self, mode: u32) -> &mut Self {
         #[cfg(unix)]
         {
