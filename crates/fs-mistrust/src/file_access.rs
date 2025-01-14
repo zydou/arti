@@ -33,6 +33,8 @@ pub struct FileAccess<'a> {
     /// If set, we create files with this mode.
     #[cfg(unix)]
     create_with_mode: Option<u32>,
+    /// If set, we follow final-position symlinks in provided paths.
+    follow_final_links: bool,
 }
 
 /// Inner object for checking file permissions.
@@ -61,6 +63,7 @@ impl<'a> FileAccess<'a> {
             inner,
             #[cfg(unix)]
             create_with_mode: None,
+            follow_final_links: false,
         }
     }
     /// Check path constraints on `path` and verify its permissions
@@ -108,21 +111,34 @@ impl<'a> FileAccess<'a> {
         self
     }
 
+    /// Configure this FileAccess: if the file to be accessed is a symlink,
+    /// and this is set to true, we will follow that symlink when creating or reading the file.
+    ///
+    /// By default, this option is false.
+    ///
+    /// Note that if you use this option with a `CheckedDir`,
+    /// it can read or write a file outside of the `CheckedDir`,
+    /// which might not be what you wanted.
+    ///
+    /// This option does not affect the handling of links that are _not_
+    /// in the final position of the path.
+    pub fn follow_final_links(&mut self, follow: bool) -> &mut Self {
+        self.follow_final_links = follow;
+        self
+    }
+
     /// Open a file relative to this `FileAccess`, using a set of [`OpenOptions`].
     ///
     /// `path` must be a path to the new file, obeying the constraints of this `FileAccess`.
     /// We check, but do not create, the file's parent directories.
-    /// We check the file's permissions after opening it.  
-    ///
-    /// If the file already exists, and this `FileAccess` is based on a `CheckedDir,
-    /// the file must not be a symlink.
+    /// We check the file's permissions after opening it.
     ///
     /// If the file is created (and this is a unix-like operating system), we
     /// always create it with a mode based on [`create_with_mode()`](Self::create_with_mode),
     /// regardless of any mode set in `options`.
     /// If `create_with_mode()` wasn't called, we create the file with mode 600.
     pub fn open<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<File> {
-        let follow_links = matches!(&self.inner, Inner::Verifier(_));
+        let follow_links = self.follow_final_links;
 
         // If we're following links, then we want to look at the whole path,
         // since the final element might be a link.  If so, we need to look at
@@ -370,18 +386,27 @@ mod test {
             .unwrap();
 
         // Try reading
-        let contents = m.file_access().read(d.path("a/b/present")).unwrap();
+        let contents = m
+            .file_access()
+            .follow_final_links(true)
+            .read(d.path("a/b/present"))
+            .unwrap();
         assert_eq!(
             &contents[..],
             &b"This space is intentionally left blank"[..]
         );
-        let error = m.file_access().read(d.path("a/b/absent")).unwrap_err();
+        let error = m
+            .file_access()
+            .follow_final_links(true)
+            .read(d.path("a/b/absent"))
+            .unwrap_err();
         assert!(matches!(error, Error::NotFound(_)));
 
         // Try writing.
         {
             let mut f = m
                 .file_access()
+                .follow_final_links(true)
                 .open(
                     d.path("a/b/present"),
                     OpenOptions::new().write(true).truncate(true),
@@ -389,7 +414,11 @@ mod test {
                 .unwrap();
             f.write_all(b"This is extremely serious!").unwrap();
         }
-        let contents = m.file_access().read(d.path("a/b/present")).unwrap();
+        let contents = m
+            .file_access()
+            .follow_final_links(true)
+            .read(d.path("a/b/present"))
+            .unwrap();
         assert_eq!(&contents[..], &b"This is extremely serious!"[..]);
 
         let contents = m.file_access().read(d.path("a/c/file1.txt")).unwrap();
@@ -397,6 +426,7 @@ mod test {
         {
             let mut f = m
                 .file_access()
+                .follow_final_links(true)
                 .open(
                     d.path("a/b/absent"),
                     OpenOptions::new().create(true).write(true),
