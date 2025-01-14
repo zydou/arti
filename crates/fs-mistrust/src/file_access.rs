@@ -103,7 +103,7 @@ impl<'a> FileAccess<'a> {
     /// that file will be created with the provided unix permissions.
     ///
     /// If this option is not set, newly created files have mode 0600.
-    pub fn create_with_mode(&mut self, mode: u32) -> &mut Self {
+    pub fn create_with_mode(mut self, mode: u32) -> Self {
         #[cfg(unix)]
         {
             self.create_with_mode = Some(mode);
@@ -122,7 +122,7 @@ impl<'a> FileAccess<'a> {
     ///
     /// This option does not affect the handling of links that are _not_
     /// in the final position of the path.
-    pub fn follow_final_links(&mut self, follow: bool) -> &mut Self {
+    pub fn follow_final_links(mut self, follow: bool) -> Self {
         self.follow_final_links = follow;
         self
     }
@@ -137,7 +137,16 @@ impl<'a> FileAccess<'a> {
     /// always create it with a mode based on [`create_with_mode()`](Self::create_with_mode),
     /// regardless of any mode set in `options`.
     /// If `create_with_mode()` wasn't called, we create the file with mode 600.
-    pub fn open<P: AsRef<Path>>(&self, path: P, options: &OpenOptions) -> Result<File> {
+    //
+    // Note: This function, and others, take ownership of `self`, to prevent people from storing and
+    // reusing FileAccess objects.  We're avoiding that because we don't want people confusing
+    // FileAccess objects created with CheckedDir and Verifier.
+    pub fn open<P: AsRef<Path>>(self, path: P, options: &OpenOptions) -> Result<File> {
+        self.open_internal(path.as_ref(), options)
+    }
+
+    /// As `open`, but take `self` by reference.  For internal use.
+    fn open_internal(&self, path: &Path, options: &OpenOptions) -> Result<File> {
         let follow_links = self.follow_final_links;
 
         // If we're following links, then we want to look at the whole path,
@@ -198,7 +207,7 @@ impl<'a> FileAccess<'a> {
     /// Return an error if `path` is absent, if its permissions are incorrect,
     /// if it does not obey the constraints of this `FileAccess`,
     /// or if its contents are not UTF-8.
-    pub fn read_to_string<P: AsRef<Path>>(&self, path: P) -> Result<String> {
+    pub fn read_to_string<P: AsRef<Path>>(self, path: P) -> Result<String> {
         let path = path.as_ref();
         let mut file = self.open(path, OpenOptions::new().read(true))?;
         let mut result = String::new();
@@ -212,7 +221,7 @@ impl<'a> FileAccess<'a> {
     ///
     /// Return an error if `path` is absent, if its permissions are incorrect,
     /// or if it does not obey the constraints of this `FileAccess`.
-    pub fn read<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>> {
+    pub fn read<P: AsRef<Path>>(self, path: P) -> Result<Vec<u8>> {
         let path = path.as_ref();
         let mut file = self.open(path, OpenOptions::new().read(true))?;
         let mut result = Vec::new();
@@ -238,7 +247,7 @@ impl<'a> FileAccess<'a> {
     /// processes are writing to the same file at the same time: it is the
     /// programmer's responsibility to use appropriate locking to avoid this.
     pub fn write_and_replace<P: AsRef<Path>, C: AsRef<[u8]>>(
-        &self,
+        self,
         path: P,
         contents: C,
     ) -> Result<()> {
@@ -252,7 +261,7 @@ impl<'a> FileAccess<'a> {
 
         // TODO: The parent directory  verification performed by "open" here is redundant with that done in
         // `verified_full_path` above.
-        let mut tmp_file = self.open(
+        let mut tmp_file = self.open_internal(
             &tmp_name,
             OpenOptions::new().create(true).truncate(true).write(true),
         )?;
