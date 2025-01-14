@@ -3,6 +3,49 @@
 //! NOTE: This binary is still highly experimental as in in active development, not stable and
 //! without any type of guarantee of running or even working.
 
+// @@ begin lint list maintained by maint/add_warning @@
+#![allow(renamed_and_removed_lints)] // @@REMOVE_WHEN(ci_arti_stable)
+#![allow(unknown_lints)] // @@REMOVE_WHEN(ci_arti_nightly)
+#![warn(missing_docs)]
+#![warn(noop_method_call)]
+#![warn(unreachable_pub)]
+#![warn(clippy::all)]
+#![deny(clippy::await_holding_lock)]
+#![deny(clippy::cargo_common_metadata)]
+#![deny(clippy::cast_lossless)]
+#![deny(clippy::checked_conversions)]
+#![warn(clippy::cognitive_complexity)]
+#![deny(clippy::debug_assert_with_mut_call)]
+#![deny(clippy::exhaustive_enums)]
+#![deny(clippy::exhaustive_structs)]
+#![deny(clippy::expl_impl_clone_on_copy)]
+#![deny(clippy::fallible_impl_from)]
+#![deny(clippy::implicit_clone)]
+#![deny(clippy::large_stack_arrays)]
+#![warn(clippy::manual_ok_or)]
+#![deny(clippy::missing_docs_in_private_items)]
+#![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
+#![deny(clippy::print_stderr)]
+#![deny(clippy::print_stdout)]
+#![warn(clippy::rc_buffer)]
+#![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
+#![warn(clippy::trait_duplication_in_bounds)]
+#![deny(clippy::unchecked_duration_subtraction)]
+#![deny(clippy::unnecessary_wraps)]
+#![warn(clippy::unseparated_literal_suffix)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::mod_module_files)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
+#![allow(clippy::result_large_err)] // temporary workaround for arti#587
+#![allow(clippy::needless_raw_string_hashes)] // complained-about code is fine, often best
+#![allow(clippy::needless_lifetimes)] // See arti#1765
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
+
 mod cli;
 mod config;
 mod err;
@@ -29,7 +72,7 @@ fn main() {
         // TODO: Use arti_client's `HintableError` here (see `arti::main`)?
         // TODO: Why do we suppress safe logging, and squash the anyhow result into a single line?
         // TODO: Do we want to log the error?
-        with_safe_logging_suppressed(|| tor_error::report_and_exit(e))
+        with_safe_logging_suppressed(|| tor_error::report_and_exit::<_, ()>(e));
     }
 }
 
@@ -47,6 +90,7 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
         .with_default_directive(level.into())
         .parse("")
         .expect("empty filter directive should be trivially parsable");
+    #[allow(clippy::print_stderr)]
     FmtSubscriber::builder()
         .with_env_filter(filter)
         .with_ansi(std::io::stderr().is_terminal())
@@ -58,6 +102,7 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
         .init();
 
     match cli.command {
+        #[allow(clippy::print_stdout)]
         cli::Commands::BuildInfo => {
             println!("Version: {}", env!("CARGO_PKG_VERSION"));
             // these are set by our build script
@@ -76,6 +121,8 @@ fn main_main(cli: cli::Cli) -> anyhow::Result<()> {
 }
 
 /// Initialize and start the relay.
+// Pass by value so that we don't need to clone fields, which keeps the code simpler.
+#[allow(clippy::needless_pass_by_value)]
 fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Result<()> {
     let runtime = init_runtime().context("Failed to initialize the runtime")?;
 
@@ -117,6 +164,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
                 config.logging.console,
             )
         })?;
+    #[allow(clippy::print_stderr)]
     let logger = tracing_subscriber::FmtSubscriber::builder()
         .with_env_filter(filter)
         .with_ansi(std::io::stderr().is_terminal())
@@ -138,6 +186,7 @@ fn start_relay(_args: cli::RunArgs, global_args: cli::GlobalArgs) -> anyhow::Res
 }
 
 /// Run the relay.
+#[allow(clippy::unnecessary_wraps)] // TODO: not implemented yet; remove me
 fn run_relay<R: Runtime>(_relay: TorRelay<R>) -> anyhow::Result<()> {
     Ok(())
 }

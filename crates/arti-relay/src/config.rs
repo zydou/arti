@@ -156,7 +156,7 @@ pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::INFO;
 #[builder(build_fn(error = "ConfigBuildError", validate = "Self::validate"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
-pub struct LoggingConfig {
+pub(crate) struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr-for-Targets>
     ///
@@ -168,6 +168,7 @@ pub struct LoggingConfig {
 }
 
 impl LoggingConfigBuilder {
+    /// Validate the options provided to the builder.
     fn validate(&self) -> Result<(), ConfigBuildError> {
         if let Some(console) = &self.console {
             EnvFilter::builder()
@@ -270,6 +271,20 @@ fn default_state_dir() -> CfgPath {
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::mixed_attributes_style)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    #![allow(clippy::useless_vec)]
+    #![allow(clippy::needless_pass_by_value)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use super::*;
 
     #[test]
