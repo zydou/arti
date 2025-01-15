@@ -79,8 +79,11 @@ struct CookieAuthInProgress {
     client_nonce: CookieAuthNonce,
     /// The nonce that we sent to the client.
     ///
-    /// If this is None, then the client already authenticated once, and this object
-    /// can no longer be used.
+    /// If this is None, then the client already authenticated (or failed to authenticate) using
+    /// this object once, and this object can no longer be used.
+    ///
+    /// (It is okay in our protocol for the client to authenticate more than once on the same
+    /// connection, but we want to ensure that we use a fresh nonce each time.)
     server_nonce: Mutex<Option<CookieAuthNonce>>,
     /// The address that we believe we're listening on.
     server_addr: String,
