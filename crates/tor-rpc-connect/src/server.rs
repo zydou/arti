@@ -1,9 +1,9 @@
 //! Server operations for working with connect points.
 
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, sync::Arc};
 
 use crate::{
-    auth::{Cookie, RpcAuth},
+    auth::{cookie::Cookie, RpcAuth, RpcCookieSource},
     ConnectError, ResolvedConnectPoint,
 };
 use fs_mistrust::Mistrust;
@@ -127,9 +127,13 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
         // We try to bind to the listener before we (maybe) create the cookie file,
         // so that if we encounter an `EADDRINUSE` we won't overwrite the old cookie file.
         let auth = match &self.auth {
-            crate::connpt::Auth::None => RpcAuth::None,
+            crate::connpt::Auth::None => RpcAuth::Inherent,
             crate::connpt::Auth::Cookie { path } => RpcAuth::Cookie {
-                secret: Cookie::create(path.as_path(), &mut rand::thread_rng(), mistrust)?,
+                secret: RpcCookieSource::Loaded(Arc::new(Cookie::create(
+                    path.as_path(),
+                    &mut rand::thread_rng(),
+                    mistrust,
+                )?)),
                 server_address: self.socket.as_str().to_owned(),
             },
             crate::connpt::Auth::Unrecognized {} => return Err(ConnectError::UnsupportedAuthType),

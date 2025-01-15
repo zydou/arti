@@ -22,7 +22,9 @@ full = [
     "tor-bytes/full",
     "tor-llcrypto/full",
     "tor-proto/full",
-    "describe-methods", "oneshot-fused-workaround/full", "slotmap-careful/full",
+    "describe-methods",
+    "oneshot-fused-workaround/full",
+    "slotmap-careful/full",
 ]
 describe-methods = ["tor-rpcbase/describe-methods"]
 
@@ -43,12 +45,13 @@ serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
 slotmap-careful = { path = "../slotmap-careful", version = "0.2.2" }
 thiserror = "2"
-tiny-keccak = { version = "2", features = ["kmac"] }
+tiny-keccak = { version = "2.0.2", features = ["kmac"] }
 tor-async-utils = { path = "../tor-async-utils", version = "0.26.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.26.0" }
 tor-error = { path = "../tor-error", version = "0.26.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.26.0" }
 tor-proto = { path = "../tor-proto", version = "0.26.0", features = ["stream-ctrl"] }
+tor-rpc-connect = { path = "../tor-rpc-connect", version = "0.26.0" }
 tor-rpcbase = { path = "../tor-rpcbase", version = "0.26.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.26.0" }
 tracing = "0.1.36"

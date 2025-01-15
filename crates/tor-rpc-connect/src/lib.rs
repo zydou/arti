@@ -172,7 +172,7 @@ pub enum ConnectError {
     ExplicitAbort,
     /// We couldn't load the cookie file for cookie authentication.
     #[error("Unable to load cookie file")]
-    LoadCookie(#[from] auth::CookieAccessError),
+    LoadCookie(#[from] auth::cookie::CookieAccessError),
     /// We were told to connect to a socket type that we don't support.
     #[error("Unsupported socket type")]
     UnsupportedSocketType,

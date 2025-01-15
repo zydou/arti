@@ -179,11 +179,6 @@ fn try_connect(
         auth,
         ..
     } = parsed.resolve(resolver)?.connect(mistrust)?;
-    match auth {
-        RpcAuth::None => {}
-        // TODO RPC: Implement cookie auth.
-        _ => return Err(ConnectError::AuthenticationNotSupported),
-    }
     let mut reader = llconn::Reader::new(io::BufReader::new(reader));
     let banner = reader
         .read_msg()
@@ -194,8 +189,14 @@ fn try_connect(
     let mut conn = RpcConn::new(reader, llconn::Writer::new(writer));
 
     // TODO RPC: remove this "scheme name" from the protocol?
-    // This will get refactored when we do cookie auth.
-    let session_id = conn.authenticate_inherent("inherent:unix_path")?;
+    let session_id = match auth {
+        RpcAuth::Inherent => conn.authenticate_inherent("auth:inherent")?,
+        RpcAuth::Cookie {
+            secret,
+            server_address,
+        } => conn.authenticate_cookie(secret.load()?.as_ref(), &server_address)?,
+        _ => return Err(ConnectError::AuthenticationNotSupported),
+    };
     conn.session = Some(session_id);
 
     Ok(conn)

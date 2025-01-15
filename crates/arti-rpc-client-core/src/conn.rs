@@ -24,7 +24,7 @@ pub use builder::{BuilderError, RpcConnBuilder};
 pub use connimpl::RpcConn;
 use serde::{de::DeserializeOwned, Deserialize};
 pub use stream::StreamError;
-use tor_rpc_connect::HasClientErrorAction;
+use tor_rpc_connect::{auth::cookie::CookieAccessError, HasClientErrorAction};
 
 /// A handle to an open request.
 ///
@@ -439,6 +439,21 @@ pub enum ConnectError {
     /// A protocol error occurred during negotiations.
     #[error("Error while negotiating with Arti: {0}")]
     ProtoError(#[from] ProtoError),
+    /// The server thinks it is listening on an address where we don't expect to find it.
+    /// This can be misconfiguration or an attempted MITM attack.
+    #[error("We connected to the server at {ours}, but it thinks it's listening at {theirs}")]
+    ServerAddressMismatch {
+        /// The address we think the server has
+        ours: String,
+        /// The address that the server says it has.
+        theirs: String,
+    },
+    /// The server tried to prove knowledge of a cookie file, but its proof was incorrect.
+    #[error("Server's cookie MAC was not as expected.")]
+    CookieMismatch,
+    /// We were unable to access the configured cookie file.
+    #[error("Unable to load secret cookie value")]
+    LoadCookie(#[from] CookieAccessError),
 }
 
 impl HasClientErrorAction for ConnectError {
@@ -460,6 +475,9 @@ impl HasClientErrorAction for ConnectError {
             E::ProtoError(e) => e.client_action(),
             E::AllAttemptsDeclined => A::Abort,
             E::AuthenticationNotSupported => A::Decline,
+            E::ServerAddressMismatch { .. } => A::Abort,
+            E::CookieMismatch => A::Abort,
+            E::LoadCookie(e) => e.client_action(),
         }
     }
 }

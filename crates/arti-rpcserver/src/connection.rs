@@ -78,6 +78,9 @@ pub struct Connection {
 
     /// A reference to the manager associated with this session.
     mgr: Weak<RpcMgr>,
+
+    /// The authentication type that's required in order to get a session.
+    require_auth: tor_rpc_connect::auth::RpcAuth,
 }
 
 /// The inner, lock-protected part of an RPC connection.
@@ -152,6 +155,7 @@ impl Connection {
         dispatch_table: Arc<RwLock<rpc::DispatchTable>>,
         global_id_mac_key: MacKey,
         mgr: Weak<RpcMgr>,
+        require_auth: tor_rpc_connect::auth::RpcAuth,
     ) -> Arc<Self> {
         Arc::new_cyclic(|this_connection| Self {
             inner: Mutex::new(Inner {
@@ -163,6 +167,7 @@ impl Connection {
             connection_id,
             global_id_mac_key,
             mgr,
+            require_auth,
         })
     }
 

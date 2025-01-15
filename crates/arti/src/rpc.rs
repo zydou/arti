@@ -11,7 +11,6 @@ use session::ArtiRpcSession;
 use std::{io::Result as IoResult, sync::Arc};
 use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError};
 use tor_config_path::CfgPathResolver;
-use tor_rpc_connect::auth::RpcAuth;
 use tracing::{debug, info};
 
 use arti_client::TorClient;
@@ -190,18 +189,7 @@ async fn run_rpc_listener<R: Runtime>(
         // TODO RPC: We'll need to pass info (or part of it?) to rpc_mgr.
         debug!("Received incoming RPC connection from {}", &info.name);
 
-        match info.auth {
-            RpcAuth::None => {
-                // "None" auth works trivially; there's nothing to do.
-            }
-            _ => {
-                // TODO RPC: implement cookie auth, and reject other auth types earlier.
-                debug!("Dropping RPC connection; auth type is not supported");
-                continue;
-            }
-        }
-
-        let connection = rpc_mgr.new_connection();
+        let connection = rpc_mgr.new_connection(info.auth.clone());
         let (input, output) = stream.split();
 
         runtime.spawn(async {

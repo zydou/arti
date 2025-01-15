@@ -42,10 +42,13 @@ class TestContext:
         cache_dir = path.joinpath("cache")
         state_dir = path.joinpath("state")
         socket_path = path.joinpath("arti_rpc.socket")
-        connpt_path = path.joinpath("arti_connpt.toml")
+        unix_connpt_path = path.joinpath("arti_unix_connpt.toml")
+        tcp_connpt_path = path.joinpath("arti_tcp_connpt.toml")
+        cookie_path = path.joinpath("rpc_cookie.secret")
         socks_port = 15986  # "chosen by fair dice roll. guaranteed to be random."
+        rpc_port = 18929
 
-        with open(connpt_path, "w") as f:
+        with open(unix_connpt_path, "w") as f:
             f.write(
                 f"""
 [connect]
@@ -53,6 +56,17 @@ socket = "unix:{socket_path}"
 auth = "none"
 """
             )
+
+        with open(tcp_connpt_path, "w") as f:
+            f.write(
+                f"""
+[connect]
+socket = "inet:127.0.0.1:{rpc_port}"
+auth = {{ cookie = {{ path = "{cookie_path}" }} }}
+"""
+            )
+
+        is_windows = sys.platform in ["win32", "cygwin"]
 
         configuration = {
             "rpc": {
@@ -64,8 +78,12 @@ auth = "none"
                     "system-default": {
                         "enable": False,
                     },
-                    "test-point": {
-                        "file": str(connpt_path),
+                    "unix-point": {
+                        "enable": not is_windows,
+                        "file": str(unix_connpt_path),
+                    },
+                    "tcp-point": {
+                        "file": str(tcp_connpt_path),
                     },
                 },
             },
@@ -83,7 +101,13 @@ auth = "none"
         self.arti_binary = arti_binary
         self.conf_file = conf_file
         self.socket_path = socket_path
-        self.connpt_path = connpt_path
+        if is_windows:
+            self.unix_connpt_path = None
+        else:
+            self.unix_connpt_path = unix_connpt_path
+        self.tcp_connpt_path = tcp_connpt_path
+        self.cookie_path = cookie_path
+        self.rpc_port = rpc_port
         self.arti_process = None
 
     def launch_arti(self):
@@ -102,7 +126,7 @@ auth = "none"
         Open an RPC connection to Arti.
         """
         bld = arti_rpc.ArtiRpcConnBuilder()
-        bld.prepend_literal_path(str(self.connpt_path))
+        bld.prepend_literal_path(str(self.tcp_connpt_path))
         return bld.connect()
 
     def arti_process_is_running(self) -> bool:

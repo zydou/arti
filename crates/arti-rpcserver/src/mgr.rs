@@ -167,13 +167,17 @@ impl RpcMgr {
     }
 
     /// Start a new session based on this RpcMgr, with a given TorClient.
-    pub fn new_connection(self: &Arc<Self>) -> Arc<Connection> {
+    pub fn new_connection(
+        self: &Arc<Self>,
+        require_auth: tor_rpc_connect::auth::RpcAuth,
+    ) -> Arc<Connection> {
         let connection_id = ConnectionId::from(rand::thread_rng().gen::<[u8; 16]>());
         let connection = Connection::new(
             connection_id,
             self.dispatch_table.clone(),
             self.global_id_mac_key.clone(),
             Arc::downgrade(self),
+            require_auth,
         );
 
         let mut inner = self.inner.lock().expect("poisoned lock");

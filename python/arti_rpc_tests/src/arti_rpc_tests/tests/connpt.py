@@ -10,6 +10,7 @@ from arti_rpc import (
     ArtiRpcConnBuilder,
 )
 
+import sys
 import tempfile
 import os
 import urllib.parse
@@ -37,6 +38,18 @@ auth = "none"
 """
 
 
+def connpt_tcp(context):
+    """
+    Return a connect point that uses a TCP connection
+    and cookie authentication to connect to arti.
+    """
+    return f"""
+[connect]
+socket = "inet:127.0.0.1:{context.rpc_port}"
+auth = {{ cookie = {{ path = "{context.cookie_path}" }} }}
+"""
+
+
 def connpt_working(context):
     """
     Return a connect point that should work for connecting to the
@@ -45,7 +58,7 @@ def connpt_working(context):
     (Prefer this function to `connpt_unix()`, so that once we have
     something that works on windows, we can make our tests pass there too.)
     """
-    return connpt_unix(context)
+    return connpt_tcp(context)
 
 
 class Tempdir:
@@ -254,3 +267,16 @@ def connect_nobuilder(context):
         os.environ["ARTI_RPC_CONNECT_PATH"] = fn_w
         c = ArtiRpcConn()
         assert c is not None
+
+
+@arti_test
+def connect_unix(context):
+    # Make sure that if we're on unix, unix connect points work.
+
+    if sys.platform in ["win32", "cygwin"]:
+        return  # Skipped.
+
+    bld = ArtiRpcConnBuilder()
+    bld.prepend_literal_connect_point(connpt_abort())
+    bld.prepend_literal_connect_point(connpt_unix(context))
+    assert_builder_connects(bld)
