@@ -1,5 +1,6 @@
 //! Declarations for traits that we need our runtimes to implement.
 use async_trait::async_trait;
+use asynchronous_codec::Framed;
 use futures::stream;
 use futures::task::Spawn;
 use futures::{AsyncRead, AsyncWrite, Future};
@@ -192,6 +193,38 @@ pub trait StreamOps {
         }
         .into())
     }
+
+    /// Return a new handle that implements [`StreamOps`],
+    /// and that can be used independently of `self`.
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        Box::new(NoOpStreamOpsHandle)
+    }
+}
+
+/// A [`StreamOps`] handle that always returns an error.
+///
+/// Returned from [`StreamOps::new_handle`] for types and platforms
+/// that do not support `StreamOps`.
+#[derive(Copy, Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct NoOpStreamOpsHandle;
+
+impl StreamOps for NoOpStreamOpsHandle {
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        Box::new(*self)
+    }
+}
+
+impl<T: StreamOps, C> StreamOps for Framed<T, C> {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        let inner: &T = self;
+        inner.set_tcp_notsent_lowat(notsent_lowat)
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        let inner: &T = self;
+        inner.new_handle()
+    }
 }
 
 /// Error: Tried to perform a [`StreamOps`] operation on an unsupported stream type
@@ -365,12 +398,12 @@ pub trait TlsConnector<S> {
 /// See the [`TlsConnector`] documentation for a discussion of the Tor-specific
 /// limitations of this trait: If you are implementing something other than Tor,
 /// this is **not** the functionality you want.
-pub trait TlsProvider<S>: Clone + Send + Sync + 'static {
+pub trait TlsProvider<S: StreamOps>: Clone + Send + Sync + 'static {
     /// The Connector object that this provider can return.
     type Connector: TlsConnector<S, Conn = Self::TlsStream> + Send + Sync + Unpin;
 
     /// The type of the stream returned by that connector.
-    type TlsStream: AsyncRead + AsyncWrite + CertifiedConn + Unpin + Send + 'static;
+    type TlsStream: AsyncRead + AsyncWrite + StreamOps + CertifiedConn + Unpin + Send + 'static;
 
     /// Return a TLS connector for use with this runtime.
     fn tls_connector(&self) -> Self::Connector;

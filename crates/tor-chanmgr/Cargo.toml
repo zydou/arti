@@ -42,6 +42,7 @@ __is_experimental = []
 
 [dependencies]
 async-trait = "0.1.54"
+caret = { path = "../caret", version = "0.5.0" }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = { version = "1.0.0", features = ["full"] }
 educe = "0.4.6"

@@ -177,6 +177,11 @@ mod net {
         fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
             impls::streamops::set_tcp_notsent_lowat(self, notsent_lowat)
         }
+
+        #[cfg(target_os = "linux")]
+        fn new_handle(&self) -> Box<dyn traits::StreamOps + Send + Unpin> {
+            Box::new(impls::streamops::TcpSockFd::from_fd(self))
+        }
     }
 
     #[cfg(unix)]

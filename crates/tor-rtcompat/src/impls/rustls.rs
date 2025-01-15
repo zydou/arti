@@ -1,6 +1,7 @@
 //! Implementation for using Rustls with a runtime.
 
 use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
+use crate::StreamOps;
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
@@ -53,6 +54,16 @@ impl<S> CertifiedConn for futures_rustls::client::TlsStream<S> {
     }
 }
 
+impl<S: StreamOps> StreamOps for futures_rustls::client::TlsStream<S> {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        self.get_ref().0.set_tcp_notsent_lowat(notsent_lowat)
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        self.get_ref().0.new_handle()
+    }
+}
+
 /// An implementation of [`TlsConnector`] built with `rustls`.
 pub struct RustlsConnector<S> {
     /// The inner connector object.
@@ -64,7 +75,7 @@ pub struct RustlsConnector<S> {
 #[async_trait]
 impl<S> TlsConnector<S> for RustlsConnector<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Conn = futures_rustls::client::TlsStream<S>;
 
@@ -78,7 +89,7 @@ where
 
 impl<S> TlsProvider<S> for RustlsProvider
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Connector = RustlsConnector<S>;
 

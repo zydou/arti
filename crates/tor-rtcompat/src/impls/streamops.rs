@@ -1,12 +1,49 @@
-//! Helpers for implementing [`StreamOps`](crate::StreamOps).
+//! Helpers for implementing [`StreamOps`].
 
 use std::io;
 
 #[cfg(target_os = "linux")]
-use {std::mem, std::os::fd::AsRawFd};
+use {
+    std::mem,
+    std::os::fd::{AsRawFd, RawFd},
+};
 
+use crate::StreamOps;
 #[cfg(not(target_os = "linux"))]
 use crate::UnsupportedStreamOp;
+
+/// A wrapper over the file descriptor of a TCP socket.
+///
+/// Returned from various [`StreamOps::new_handle`] impls.
+#[derive(Clone, Copy)]
+#[cfg(target_os = "linux")]
+pub(crate) struct TcpSockFd(RawFd);
+
+#[cfg(target_os = "linux")]
+impl AsRawFd for TcpSockFd {
+    fn as_raw_fd(&self) -> RawFd {
+        self.0
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl TcpSockFd {
+    /// Create a `TcpSockFd` out of a raw file descriptor.
+    pub(crate) fn from_fd(fd: &impl AsRawFd) -> Self {
+        Self(fd.as_raw_fd())
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl StreamOps for TcpSockFd {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> io::Result<()> {
+        set_tcp_notsent_lowat(self, notsent_lowat)
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        Box::new(*self)
+    }
+}
 
 /// Helper for implementing [`set_tcp_notsent_lowat`](crate::StreamOps::set_tcp_notsent_lowat).
 ///

@@ -13,6 +13,7 @@ pub(crate) use default::DefaultTransport;
 #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 pub use proxied::ExternalProxyPlugin;
 pub use proxied::ProxyError;
+use tor_rtcompat::StreamOps;
 
 /// A convenient API for defining transports for use in Tor and elsewhere.
 ///
@@ -34,7 +35,7 @@ pub use proxied::ProxyError;
 #[async_trait]
 pub trait TransportImplHelper {
     /// The type of the resulting stream.
-    type Stream: AsyncRead + AsyncWrite + Send + Sync + 'static;
+    type Stream: AsyncRead + AsyncWrite + StreamOps + Send + Sync + 'static;
 
     /// Implements the transport: make a TCP connection (possibly tunneled over
     /// whatever protocol) if possible.

@@ -248,6 +248,7 @@ where
     CoarseTimeR: Clone + Send + Sync + 'static,
     SpawnR: Clone + Send + Sync + 'static,
     UdpR: Clone + Send + Sync + 'static,
+    S: StreamOps,
 {
     type Connector = TlsR::Connector;
     type TlsStream = TlsR::TlsStream;

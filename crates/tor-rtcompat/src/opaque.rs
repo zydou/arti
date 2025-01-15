@@ -80,7 +80,7 @@ macro_rules! implement_opaque_runtime {
     }
 
     impl<S> $crate::traits::TlsProvider<S> for $t
-    where S: futures::AsyncRead + futures::AsyncWrite + Unpin + Send + 'static,
+    where S: futures::AsyncRead + futures::AsyncWrite + $crate::traits::StreamOps + Unpin + Send + 'static,
     {
         type Connector = <$mty as $crate::traits::TlsProvider<S>>::Connector;
         type TlsStream = <$mty as $crate::traits::TlsProvider<S>>::TlsStream;

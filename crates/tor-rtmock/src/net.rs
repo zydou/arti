@@ -12,7 +12,9 @@ use super::MockNetRuntime;
 use crate::util::mpsc_channel;
 use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
-use tor_rtcompat::{CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, TlsProvider};
+use tor_rtcompat::{
+    CertifiedConn, NetStreamListener, NetStreamProvider, Runtime, StreamOps, TlsProvider,
+};
 use tor_rtcompat::{UdpProvider, UdpSocket};
 
 use async_trait::async_trait;
@@ -552,6 +554,19 @@ impl AsyncWrite for MockTlsStream {
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         Pin::new(&mut self.stream).poll_close(cx)
+    }
+}
+
+impl StreamOps for MockTlsStream {
+    fn set_tcp_notsent_lowat(&self, _notsent_lowat: u32) -> IoResult<()> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "not supported on non-StreamOps stream!",
+        ))
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        Box::new(tor_rtcompat::NoOpStreamOpsHandle::default())
     }
 }
 

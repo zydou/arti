@@ -483,6 +483,32 @@ pub struct NetParameters {
     /// <https://spec.torproject.org/param-spec.html#vanguards>
     pub guard_hs_l3_lifetime_max: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (172800)
         from  "guard-hs-l3-lifetime-max",
+
+    /// The KIST to use by default when building inter-relay channels:
+    ///
+    /// ```text
+    ///    0: No KIST.
+    ///    1: KIST using TCP_NOTSENT_LOWAT.
+    /// ```
+    ///
+    // TODO(KIST): add this to param spec
+    // TODO(KIST): make this default to 1 (KIST with TCP_NOTSENT_LOWAT)
+    // when we're confident it behaves correctly in conjunction with cc
+    pub kist_enabled: BoundedInt32<0, 1> = (0)
+        from "kist-enabled",
+
+    /// If `kist_enabled` is `1` (KIST using TCP_NOTSENT_LOWAT),
+    /// the TCP_NOTSENT_LOWAT value to set for each channel.
+    ///
+    /// If `kist_enabled` is `0` (disabled),
+    /// the TCP_NOTSENT_LOWAT option is set to 0xFFFFFFFF (u32::MAX).
+    ///
+    // TODO(KIST): technically, this should be a u32, not an i32.
+    // However, because we're using it to limit the amount of unsent data in TCP sockets,
+    // it's unlikely we're ever going to want to set this to a high value,
+    // so an upper bound of i32::MAX is good enough for our purposes.
+    pub kist_tcp_notsent_lowat: BoundedInt32<1, {i32::MAX}> = (1)
+        from  "kist-tcp-notsent-lowat",
 }
 
 }

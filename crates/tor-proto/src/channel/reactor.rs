@@ -18,7 +18,7 @@ use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::ChanMsg;
 use tor_cell::chancell::{msg::AnyChanMsg, AnyChanCell, CircId};
 use tor_memquota::mq_queue;
-use tor_rtcompat::SleepProvider;
+use tor_rtcompat::{SleepProvider, StreamOps};
 
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
@@ -28,13 +28,15 @@ use futures::stream::Stream;
 use futures::Sink;
 use futures::StreamExt as _;
 use futures::{select, select_biased};
-use tor_error::internal;
+use tor_error::{error_report, internal};
 
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails, CloseInfo};
+use crate::channel::{
+    codec::CodecError, kist::KistParams, padding, params::*, unique_id, ChannelDetails, CloseInfo,
+};
 use crate::circuit::{celltypes::CreateResponse, CircuitRxSender};
 use tracing::{debug, trace};
 
@@ -45,6 +47,8 @@ pub(super) type BoxedChannelStream = Box<
 /// A boxed trait object that can sink `ChanCell`s.
 pub(super) type BoxedChannelSink =
     Box<dyn Sink<AnyChanCell, Error = CodecError> + Send + Unpin + 'static>;
+/// A boxed trait object that can provide additional `StreamOps` on a `BoxedChannelStream`.
+pub(super) type BoxedChannelStreamOps = Box<dyn StreamOps + Send + Unpin + 'static>;
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
@@ -87,6 +91,12 @@ pub enum CtrlMsg {
     /// These updates are done via a control message to avoid adding additional branches to the
     /// main reactor `select!`.
     ConfigUpdate(Arc<ChannelPaddingInstructionsUpdates>),
+    /// Enable/disable/reconfigure KIST.
+    ///
+    /// Like in the case of `ConfigUpdate`,
+    /// the sender of these messages is responsible for the optimisation of
+    /// ensuring that "no-change" messages are elided.
+    KistConfigUpdate(KistParams),
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -112,6 +122,8 @@ pub struct Reactor<S: SleepProvider> {
     ///
     /// This should also be backed by a TLS connection if you want it to be secure.
     pub(super) output: BoxedChannelSink,
+    /// A handler for setting stream options on the underlying stream.
+    pub(super) streamops: BoxedChannelStreamOps,
     /// Timer tracking when to generate channel padding
     pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
     /// Outgoing cells introduced at the channel reactor
@@ -305,6 +317,7 @@ impl<S: SleepProvider> Reactor<S> {
                     self.special_outgoing.padding_negotiate = Some(padding_negotiate.clone());
                 }
             }
+            CtrlMsg::KistConfigUpdate(kist) => self.apply_kist_params(&kist),
         }
         Ok(())
     }
@@ -461,6 +474,34 @@ impl<S: SleepProvider> Reactor<S> {
             self.details.unused_since.clear();
         }
     }
+
+    /// Use the new KIST parameters.
+    #[cfg(target_os = "linux")]
+    fn apply_kist_params(&self, params: &KistParams) {
+        use super::kist::KistMode;
+
+        let set_tcp_notsent_lowat = |v: u32| {
+            if let Err(e) = self.streamops.set_tcp_notsent_lowat(v) {
+                // This is bad, but not fatal: not setting the KIST options
+                // comes with a performance penalty, but we don't have to crash.
+                error_report!(e, "Failed to set KIST socket options");
+            }
+        };
+
+        match params.kist_enabled() {
+            KistMode::TcpNotSentLowat => set_tcp_notsent_lowat(params.tcp_notsent_lowat()),
+            KistMode::Disabled => set_tcp_notsent_lowat(u32::MAX),
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn apply_kist_params(&self, params: &KistParams) {
+        use super::kist::KistMode;
+
+        if params.kist_enabled() != KistMode::Disabled {
+            tracing::warn!("KIST not currently supported on non-linux platforms");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -476,7 +517,7 @@ pub(crate) mod test {
     use futures::task::SpawnExt;
     use tor_cell::chancell::msg;
     use tor_linkspec::OwnedChanTarget;
-    use tor_rtcompat::Runtime;
+    use tor_rtcompat::{NoOpStreamOpsHandle, Runtime};
 
     type CodecResult = std::result::Result<OpenChanCellS2C, CodecError>;
 
@@ -501,10 +542,12 @@ pub(crate) mod test {
             trace!("got sink error: {:?}", e);
             CodecError::DecCell(tor_cell::Error::ChanProto("dummy message".into()))
         });
+        let stream_ops = NoOpStreamOpsHandle::default();
         let (chan, reactor) = crate::channel::Channel::new(
             link_protocol,
             Box::new(send1),
             Box::new(recv2),
+            Box::new(stream_ops),
             unique_id,
             dummy_target,
             crate::ClockSkew::None,

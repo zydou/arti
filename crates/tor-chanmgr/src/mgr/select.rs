@@ -224,6 +224,7 @@ mod test {
     use tor_linkspec::RelayIds;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_llcrypto::pk::rsa::RsaIdentity;
+    use tor_proto::channel::kist::KistParams;
     use tor_proto::channel::ChannelPaddingInstructionsUpdates;
 
     #[derive(Debug)]
@@ -243,6 +244,9 @@ mod test {
             &self,
             _updates: Arc<ChannelPaddingInstructionsUpdates>,
         ) -> tor_proto::Result<()> {
+            Ok(())
+        }
+        fn reparameterize_kist(&self, _kist_params: KistParams) -> tor_proto::Result<()> {
             Ok(())
         }
         fn engage_padding_activities(&self) {}

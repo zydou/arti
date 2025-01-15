@@ -13,7 +13,7 @@ use crate::memquota::ChannelAccount;
 use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use tor_cell::chancell::{msg, ChanCmd, ChanMsg};
-use tor_rtcompat::{CoarseTimeProvider, SleepProvider};
+use tor_rtcompat::{CoarseTimeProvider, SleepProvider, StreamOps};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -36,7 +36,7 @@ static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
 /// A raw client channel on which nothing has been done.
 pub struct OutboundClientHandshake<
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Runtime handle (insofar as we need it)
@@ -62,7 +62,7 @@ pub struct OutboundClientHandshake<
 /// relay's handshake has been read, but where the certs have not
 /// been checked.
 pub struct UnverifiedChannel<
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Runtime handle (insofar as we need it)
@@ -97,7 +97,7 @@ pub struct UnverifiedChannel<
 /// handshake requires a bunch of CPU, and you might want to do it as
 /// a separate task or after a yield.
 pub struct VerifiedChannel<
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
     S: CoarseTimeProvider + SleepProvider,
 > {
     /// Runtime handle (insofar as we need it)
@@ -152,8 +152,10 @@ fn codec_err_to_handshake(err: CodecError) -> Error {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
-    OutboundClientHandshake<T, S>
+impl<
+        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+        S: CoarseTimeProvider + SleepProvider,
+    > OutboundClientHandshake<T, S>
 {
     /// Construct a new OutboundClientHandshake.
     pub(crate) fn new(
@@ -334,8 +336,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
-    UnverifiedChannel<T, S>
+impl<
+        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+        S: CoarseTimeProvider + SleepProvider,
+    > UnverifiedChannel<T, S>
 {
     /// Return the reported clock skew from this handshake.
     ///
@@ -590,8 +594,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider + SleepProvider>
-    VerifiedChannel<T, S>
+impl<
+        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
+        S: CoarseTimeProvider + SleepProvider,
+    > VerifiedChannel<T, S>
 {
     /// Send a 'Netinfo' message to the relay to finish the handshake,
     /// and create an open channel and reactor.
@@ -630,6 +636,13 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
             self.unique_id, self.ed25519_id, self.rsa_id
         );
 
+        // Grab a new handle on which we can apply StreamOps (needed for KIST).
+        // On Unix platforms, this handle is a wrapper over the fd of the socket.
+        //
+        // Note: this is necessary because after `StreamExit::split()`,
+        // we no longer have access to the underlying stream
+        // or its StreamOps implementation.
+        let stream_ops = self.tls.new_handle();
         let (tls_sink, tls_stream) = self.tls.split();
 
         let mut peer_builder = OwnedChanTargetBuilder::default();
@@ -649,6 +662,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: CoarseTimeProvider +
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
+            stream_ops,
             self.unique_id,
             peer_id,
             self.clock_skew,

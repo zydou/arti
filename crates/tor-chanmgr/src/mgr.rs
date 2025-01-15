@@ -14,6 +14,7 @@ use std::time::Duration;
 use tor_error::{error_report, internal};
 use tor_linkspec::HasRelayIds;
 use tor_netdir::params::NetParameters;
+use tor_proto::channel::kist::KistParams;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_proto::memquota::{ChannelAccount, SpecificAccount as _, ToplevelAccount};
 
@@ -42,6 +43,12 @@ pub(crate) trait AbstractChannel: HasRelayIds {
         &self,
         updates: Arc<ChannelPaddingInstructionsUpdates>,
     ) -> tor_proto::Result<()>;
+
+    /// Update the KIST parameters.
+    ///
+    /// The changed parameters may not be implemented "immediately",
+    /// but this will be done "reasonably soon".
+    fn reparameterize_kist(&self, kist_params: KistParams) -> tor_proto::Result<()>;
 
     /// Specify that this channel should do activities related to channel padding
     ///
@@ -492,6 +499,9 @@ mod test {
             _updates: Arc<ChannelPaddingInstructionsUpdates>,
         ) -> tor_proto::Result<()> {
             // *self.last_params.lock().unwrap() = Some((*updates).clone());
+            Ok(())
+        }
+        fn reparameterize_kist(&self, _kist_params: KistParams) -> tor_proto::Result<()> {
             Ok(())
         }
         fn engage_padding_activities(&self) {}

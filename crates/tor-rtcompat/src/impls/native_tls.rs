@@ -1,6 +1,6 @@
 //! Implementation for using `native_tls`
 
-use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
+use crate::traits::{CertifiedConn, StreamOps, TlsConnector, TlsProvider};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
@@ -49,6 +49,16 @@ where
     }
 }
 
+impl<S: AsyncRead + AsyncWrite + StreamOps + Unpin> StreamOps for async_native_tls::TlsStream<S> {
+    fn set_tcp_notsent_lowat(&self, notsent_lowat: u32) -> IoResult<()> {
+        self.get_ref().set_tcp_notsent_lowat(notsent_lowat)
+    }
+
+    fn new_handle(&self) -> Box<dyn StreamOps + Send + Unpin> {
+        self.get_ref().new_handle()
+    }
+}
+
 /// An implementation of [`TlsConnector`] built with `native_tls`.
 pub struct NativeTlsConnector<S> {
     /// The inner connector object.
@@ -60,7 +70,7 @@ pub struct NativeTlsConnector<S> {
 #[async_trait]
 impl<S> TlsConnector<S> for NativeTlsConnector<S>
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Conn = async_native_tls::TlsStream<S>;
 
@@ -76,7 +86,7 @@ where
 
 impl<S> TlsProvider<S> for NativeTlsProvider
 where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + StreamOps + Unpin + Send + 'static,
 {
     type Connector = NativeTlsConnector<S>;
 

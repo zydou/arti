@@ -14,7 +14,7 @@
 //! To launch a channel:
 //!
 //!  * Create a TLS connection as an object that implements AsyncRead +
-//!    AsyncWrite, and pass it to a [ChannelBuilder].  This will
+//!    AsyncWrite + StreamOps, and pass it to a [ChannelBuilder].  This will
 //!    yield an [handshake::OutboundClientHandshake] that represents
 //!    the state of the handshake.
 //!  * Call [handshake::OutboundClientHandshake::connect] on the result
@@ -58,6 +58,7 @@ pub const CHANNEL_BUFFER_SIZE: usize = 128;
 mod circmap;
 mod codec;
 mod handshake;
+pub mod kist;
 pub mod padding;
 pub mod params;
 mod reactor;
@@ -72,6 +73,7 @@ use crate::util::oneshot_broadcast;
 use crate::util::ts::AtomicOptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
+use reactor::BoxedChannelStreamOps;
 use safelog::sensitive as sv;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
@@ -84,7 +86,7 @@ use tor_cell::restricted_msg;
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_memquota::mq_queue::{self, ChannelSpec as _, MpscSpec};
-use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider};
+use tor_rtcompat::{CoarseTimeProvider, DynTimeProvider, SleepProvider, StreamOps};
 
 /// Imports that are re-exported pub if feature `testing` is enabled
 ///
@@ -118,6 +120,8 @@ use crate::channel::unique_id::CircUniqIdContext;
 #[cfg(test)]
 pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
+
+use kist::KistParams;
 
 restricted_msg! {
     /// A channel message that we allow to be sent from a server to a client on
@@ -426,7 +430,7 @@ impl ChannelBuilder {
         memquota: ChannelAccount,
     ) -> OutboundClientHandshake<T, S>
     where
-        T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        T: AsyncRead + AsyncWrite + StreamOps + Send + Unpin + 'static,
         S: CoarseTimeProvider + SleepProvider,
     {
         handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov, memquota)
@@ -444,6 +448,7 @@ impl Channel {
         link_protocol: u16,
         sink: BoxedChannelSink,
         stream: BoxedChannelStream,
+        streamops: BoxedChannelStreamOps,
         unique_id: UniqId,
         peer_id: OwnedChanTarget,
         clock_skew: ClockSkew,
@@ -493,6 +498,7 @@ impl Channel {
             reactor_closed_tx,
             input: futures::StreamExt::fuse(stream),
             output: sink,
+            streamops,
             circs: circmap,
             circ_unique_id_ctx: CircUniqIdContext::new(),
             link_protocol,
@@ -620,6 +626,13 @@ impl Channel {
 
         drop(mutable); // release the lock now: lock span covers the send, ensuring ordering
         Ok(())
+    }
+
+    /// Update the KIST parameters.
+    ///
+    /// Returns `Err` if the channel is closed.
+    pub fn reparameterize_kist(&self, kist_params: KistParams) -> Result<()> {
+        Ok(self.send_control(CtrlMsg::KistConfigUpdate(kist_params))?)
     }
 
     /// Return an error if this channel is somehow mismatched with the

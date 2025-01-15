@@ -17,6 +17,7 @@ use tor_config::PaddingLevel;
 use tor_error::{error_report, internal, into_internal};
 use tor_linkspec::{HasRelayIds, ListByRelayIds, RelayIds};
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
+use tor_proto::channel::kist::{KistMode, KistParams};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::channel::ChannelPaddingInstructionsUpdates;
@@ -42,6 +43,15 @@ pub(crate) struct MgrState<C: AbstractChannelFactory> {
     inner: std::sync::Mutex<Inner<C>>,
 }
 
+/// Parameters for channels that we create, and that all existing channels are using
+struct ChannelParams {
+    /// Channel padding instructions
+    padding: ChannelPaddingInstructions,
+
+    /// KIST parameters
+    kist: KistParams,
+}
+
 /// A map from channel id to channel state, plus necessary auxiliary state - inside lock
 struct Inner<C: AbstractChannelFactory> {
     /// The channel factory type that we store.
@@ -60,7 +70,7 @@ struct Inner<C: AbstractChannelFactory> {
     ///
     /// (Must be protected by the same lock as `channels`, or a channel might be
     /// created using being-replaced parameters, but not get an update.)
-    channels_params: ChannelPaddingInstructions,
+    channels_params: ChannelParams,
 
     /// The configuration (from the config file or API caller)
     config: ChannelConfig,
@@ -183,7 +193,8 @@ type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_B
 ///     before we obtain the lock on `inner` (which we need to actually handle the update,
 ///     because we need to combine information from the config with that from the netdir).
 ///
-///  2. Rather than four separate named fields, it has arrays, so that it is easy to
+///  2. Rather than four separate named fields for the padding options,
+///     it has arrays, so that it is easy to
 ///     select the values without error-prone recapitulation of field names.
 #[derive(Debug, Clone)]
 struct NetParamsExtract {
@@ -193,16 +204,52 @@ struct NetParamsExtract {
     /// are `nf_ito_{low,high}{,_reduced` from `NetParameters`.
     // TODO we could use some enum or IndexVec or something to make this less `0` and `1`
     nf_ito: [[NfIto; 2]; 2],
+
+    /// The KIST parameters.
+    kist: KistParams,
 }
 
 impl From<&NetParameters> for NetParamsExtract {
     fn from(p: &NetParameters) -> Self {
+        let kist_enabled = kist_mode_from_net_parameter(p.kist_enabled);
+        // NOTE: in theory, this cast shouldn't be needed
+        // (kist_tcp_notsent_lowat is supposed to be a u32, not an i32).
+        // In practice, however, the type conversion is needed
+        // because consensus params are i32s.
+        //
+        // See the `NetParamaters::kist_tcp_notsent_lowat docs for more details.
+        let tcp_notsent_lowat = u32::from(p.kist_tcp_notsent_lowat);
+        let kist = KistParams::new(kist_enabled, tcp_notsent_lowat);
+
         NetParamsExtract {
             nf_ito: [
                 [p.nf_ito_low, p.nf_ito_high],
                 [p.nf_ito_low_reduced, p.nf_ito_high_reduced],
             ],
+            kist,
         }
+    }
+}
+
+/// Build a `KistMode` from [`NetParameters`].
+///
+/// Used for converting [`kist_enabled`](NetParameters::kist_enabled)
+/// to a corresponding `KistMode`.
+fn kist_mode_from_net_parameter(val: BoundedInt32<0, 1>) -> KistMode {
+    caret::caret_int! {
+        /// KIST flavor, defined by a numerical value read from the consensus.
+        struct KistType(i32) {
+            /// KIST disabled
+            DISABLED = 0,
+            /// KIST using TCP_NOTSENT_LOWAT.
+            TCP_NOTSENT_LOWAT = 1,
+        }
+    }
+
+    match val.get().into() {
+        KistType::DISABLED => KistMode::Disabled,
+        KistType::TCP_NOTSENT_LOWAT => KistMode::TcpNotSentLowat,
+        _ => unreachable!("BoundedInt32 was not bounded?!"),
     }
 }
 
@@ -261,11 +308,17 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         dormancy: Dormancy,
         netparams: &NetParameters,
     ) -> Self {
-        let mut channels_params = ChannelPaddingInstructions::default();
+        let mut padding_params = ChannelPaddingInstructions::default();
         let netparams = NetParamsExtract::from(netparams);
-        let update = parameterize(&mut channels_params, &config, dormancy, &netparams)
+        let kist_params = netparams.kist;
+        let update = parameterize(&mut padding_params, &config, dormancy, &netparams)
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
         let _: Option<_> = update; // there are no channels yet, that would need to be told
+
+        let channels_params = ChannelParams {
+            padding: padding_params,
+            kist: kist_params,
+        };
 
         MgrState {
             inner: std::sync::Mutex::new(Inner {
@@ -461,7 +514,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         // manager lock acquisition span as the one where we insert the
         // channel into the table so it will receive updates.  I.e.,
         // here.
-        let update = inner.channels_params.initial_update();
+        let update = inner.channels_params.padding.initial_update();
         if let Some(update) = update {
             channel
                 .reparameterize(update.into())
@@ -519,26 +572,46 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         }
 
         let update = parameterize(
-            &mut inner.channels_params,
+            &mut inner.channels_params.padding,
             &inner.config,
             inner.dormancy,
             &netdir,
         )?;
 
-        let update = if let Some(u) = update {
-            u
+        let update = update.map(Arc::new);
+
+        let new_kist_params = netdir.kist;
+        let kist_params = if new_kist_params != inner.channels_params.kist {
+            // The KIST params have changed: remember their value,
+            // and reparameterize_kist()
+            inner.channels_params.kist = new_kist_params;
+            Some(new_kist_params)
         } else {
-            return Ok(());
+            // If the new KIST params are identical to the previous ones,
+            // we don't need to call reparameterize_kist()
+            None
         };
-        let update = Arc::new(update);
+
+        if update.is_none() && kist_params.is_none() {
+            // Return early, nothing to reconfigure
+            return Ok(());
+        }
 
         for channel in inner.channels.values() {
             let channel = match channel {
                 CS::Open(OpenEntry { channel, .. }) => channel,
                 CS::Building(_) => continue,
             };
-            // Ignore error (which simply means the channel is closed or gone)
-            let _ = channel.reparameterize(update.clone());
+
+            if let Some(ref update) = update {
+                // Ignore error (which simply means the channel is closed or gone)
+                let _ = channel.reparameterize(Arc::clone(update));
+            }
+
+            if let Some(kist) = kist_params {
+                // Ignore error (which simply means the channel is closed or gone)
+                let _ = channel.reparameterize_kist(kist);
+            }
         }
         Ok(())
     }
@@ -864,6 +937,9 @@ mod test {
             *self.params_update.lock().unwrap() = Some(update);
             Ok(())
         }
+        fn reparameterize_kist(&self, _kist_params: KistParams) -> tor_proto::Result<()> {
+            Ok(())
+        }
         fn engage_padding_activities(&self) {}
     }
     impl tor_linkspec::HasRelayIds for FakeChannel {
@@ -958,6 +1034,7 @@ mod test {
             .lock()
             .unwrap()
             .channels_params
+            .padding
             .start_update()
             .padding_parameters(
                 PaddingParametersBuilder::default()

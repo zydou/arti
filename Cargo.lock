@@ -5439,6 +5439,7 @@ name = "tor-chanmgr"
 version = "0.26.0"
 dependencies = [
  "async-trait",
+ "caret",
  "derive_builder_fork_arti",
  "derive_more",
  "educe",
@@ -6259,6 +6260,7 @@ dependencies = [
 name = "tor-proto"
 version = "0.26.0"
 dependencies = [
+ "amplify",
  "asynchronous-codec",
  "bitvec",
  "bytes",
@@ -6441,6 +6443,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "async_executors",
+ "asynchronous-codec",
  "coarsetime",
  "derive_more",
  "dyn-clone",
