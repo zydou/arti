@@ -899,6 +899,28 @@ impl Reactor {
             }
 
             // Check each hop for an outbound message pending.
+            let res = self.send_outbound(cx)?;
+            did_things = did_things || res;
+
+            let _ = Pin::new(&mut self.chan_sender)
+                .poll_flush(cx)
+                .map_err(|_| ChannelClosed)?;
+
+            if did_things {
+                Poll::Ready(Ok(()))
+            } else {
+                Poll::Pending
+            }
+        });
+
+        fut.await?;
+        Ok(())
+    }
+
+    /// For each hop, see if there are any outbound messages to send.
+    fn send_outbound(&mut self, cx: &mut Context<'_>) -> std::result::Result<bool, ReactorError> {
+        let mut did_things = false;
+
             for i in 0..self.hops.len() {
                 if !self.chan_sender.poll_ready_unpin_bool(cx)? {
                     // Channel isn't ready to send; we can't act on anything else.
@@ -965,19 +987,7 @@ impl Reactor {
                 did_things = true;
             }
 
-            let _ = Pin::new(&mut self.chan_sender)
-                .poll_flush(cx)
-                .map_err(|_| ChannelClosed)?;
-
-            if did_things {
-                Poll::Ready(Ok(()))
-            } else {
-                Poll::Pending
-            }
-        });
-
-        fut.await?;
-        Ok(())
+        Ok(did_things)
     }
 
     /// Return the congestion signals for this reactor. This is used by congestion control module.
