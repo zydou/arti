@@ -29,6 +29,12 @@ pub const COOKIE_LEN: usize = 32;
 /// Length of `COOKIE_PREFIX`.
 pub const COOKIE_PREFIX_LEN: usize = 32;
 
+/// Length of the MAC values we use for cookie authentication.
+const COOKIE_MAC_LEN: usize = 32;
+
+/// Length of the nonce values we use for cookie authentication.
+const COOKIE_NONCE_LEN: usize = 32;
+
 /// A value used to differentiate cookie files,
 /// and as a personalization parameter within the RPC cookie authentication protocol.
 ///
@@ -211,7 +217,7 @@ pub enum HexError {
 
 /// A random nonce used during cookie authentication protocol.
 #[derive(Clone, Debug, serde_with::SerializeDisplay, serde_with::DeserializeFromStr)]
-pub struct CookieAuthNonce(Sensitive<Zeroizing<[u8; 32]>>);
+pub struct CookieAuthNonce(Sensitive<Zeroizing<[u8; COOKIE_NONCE_LEN]>>);
 impl CookieAuthNonce {
     /// Create a new random nonce.
     pub fn new<R: rand::RngCore + rand::CryptoRng>(rng: &mut R) -> Self {
@@ -225,12 +231,12 @@ impl CookieAuthNonce {
     }
     /// Decode a nonce from a hexadecimal string.
     ///
-    /// (Case-insensitive, no leading "0x" marker.  Output must be COOKIE_LEN bytes long.)
+    /// (Case-insensitive, no leading "0x" marker.  Output must be COOKIE_NONCE_LEN bytes long.)
     pub fn from_hex(s: &str) -> Result<Self, HexError> {
         let mut nonce = Self(Default::default());
         let decoded =
             base16ct::mixed::decode(s, nonce.0.as_mut()).map_err(|_| HexError::InvalidHex)?;
-        if decoded.len() != 32 {
+        if decoded.len() != COOKIE_NONCE_LEN {
             return Err(HexError::InvalidHex);
         }
         Ok(nonce)
@@ -250,7 +256,7 @@ impl FromStr for CookieAuthNonce {
 
 /// A MAC derived during the cookie authentication protocol.
 #[derive(Clone, Debug, serde_with::SerializeDisplay, serde_with::DeserializeFromStr)]
-pub struct CookieAuthMac(Sensitive<Zeroizing<[u8; 32]>>);
+pub struct CookieAuthMac(Sensitive<Zeroizing<[u8; COOKIE_MAC_LEN]>>);
 impl CookieAuthMac {
     /// Construct a MAC by finalizing the provided hasher.
     fn finalize_from(hasher: tiny_keccak::TupleHash) -> Self {
@@ -265,12 +271,12 @@ impl CookieAuthMac {
     }
     /// Decode a MAC from a hexadecimal string.
     ///
-    /// (Case-insensitive, no leading "0x" marker.  Output must be COOKIE_LEN bytes long.)
+    /// (Case-insensitive, no leading "0x" marker.  Output must be COOKIE_MAC_LEN bytes long.)
     pub fn from_hex(s: &str) -> Result<Self, HexError> {
         let mut mac = Self(Default::default());
         let decoded =
             base16ct::mixed::decode(s, mac.0.as_mut()).map_err(|_| HexError::InvalidHex)?;
-        if decoded.len() != 32 {
+        if decoded.len() != COOKIE_MAC_LEN {
             return Err(HexError::InvalidHex);
         }
         Ok(mac)
@@ -436,7 +442,8 @@ mod test {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x12, 0x34,
             0x56, 0x78, 0xAB, 0xCD, 0xEF,
         ];
-        assert_eq!(s.len(), 64);
+        assert_eq!(s.len(), COOKIE_NONCE_LEN * 2);
+        assert_eq!(s.len(), COOKIE_MAC_LEN * 2);
         let cn = CookieAuthNonce::from_hex(s).unwrap();
         assert_eq!(**cn.0, expected);
         assert_eq!(cn.to_hex().as_str(), s);
