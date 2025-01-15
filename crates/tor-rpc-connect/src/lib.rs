@@ -228,7 +228,6 @@ socket = "unix:${ARTI_LOCAL_DATA}/rpc/arti_rpc_socket"
 auth = "none"
 "#
         } else {
-        // TODO RPC: Does this make sense as a windows default?  If so document it.
 r#"
 [connect]
 socket = "inet:127.0.0.1:9180"

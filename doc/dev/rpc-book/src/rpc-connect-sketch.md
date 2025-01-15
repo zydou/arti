@@ -195,6 +195,13 @@ The default search path is:
 > socket = "unix:/var/run/arti-rpc/arti_rpc_socket"
 > auth = "none"
 > ```
+>
+> On Windows, the USER\_DEFAULT connect point is:
+> ```
+> [connect]
+> socket = "inet:127.0.0.1:9180"
+> auth = { cookie = { path = "${ARTI_LOCAL_DATA}/rpc/arti_rpc_cookie" } }
+> ```
 
 ### Handling errors as an RPC client.
 
