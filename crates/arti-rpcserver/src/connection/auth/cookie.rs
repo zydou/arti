@@ -28,6 +28,8 @@ use super::{AuthenticateReply, AuthenticationFailure};
 /// You typically won't need to invoke this method yourself;
 /// instead, your RPC library (such as `arti-rpc-client-core`)
 /// should handle it for you.
+///
+/// See `rpc-cookie-sketch.md` for full details of this protocol.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "auth:cookie_begin"))]
@@ -45,13 +47,20 @@ impl rpc::RpcMethod for CookieBegin {
 /// An RPC server's response to an `auth:cookie_begin` request.
 #[derive(Debug, serde::Serialize)]
 struct CookieBeginReply {
-    /// An object to use for the client's subsequent `cookie_continue`.
+    /// Handle to an object to use for the client's subsequent `cookie_continue`.
     cookie_auth: rpc::ObjectId,
     /// The address that the server believes it is listening on.
+    ///
+    /// The client should verify that this is the exact string encoded
+    /// in the connect point that it's trying to use.
     server_addr: String,
     /// A MAC proving that the server knows the secret cookie.
+    ///
+    /// 32 bytes long, encoded in 64 bytes of hexadecimal.  Case-insensitive.
     server_mac: CookieAuthMac,
     /// A secret nonce chosen by the server.
+    ///
+    /// 32 bytes long, encoded in 64 bytes of hexadecimal.  Case-insensitive.
     server_nonce: CookieAuthNonce,
 }
 
@@ -82,11 +91,15 @@ struct CookieAuthInProgress {
 /// You typically won't need to invoke this method yourself;
 /// instead, your RPC library (such as `arti-rpc-client-core`)
 /// should handle it for you.
+///
+/// See `rpc-cookie-sketch.md` for full details of this protocol.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "auth:cookie_continue"))]
 struct CookieContinue {
     /// MAC to prove knowledge of the secret cookie.
+    ///
+    /// 32 bytes long, encoded in 64 bytes of hexadecimal.  Case-insensitive.
     client_mac: CookieAuthMac,
 }
 
