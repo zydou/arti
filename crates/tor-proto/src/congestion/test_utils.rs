@@ -28,6 +28,8 @@ pub(crate) mod params {
     pub(crate) fn build_cc_fixed_params() -> CongestionControlParams {
         let params = FixedWindowParamsBuilder::default()
             .circ_window_start(1000)
+            .circ_window_min(100)
+            .circ_window_max(1000)
             .build()
             .expect("Unable to build fixed window params");
         CongestionControlParamsBuilder::default()

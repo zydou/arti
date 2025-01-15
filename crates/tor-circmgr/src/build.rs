@@ -592,6 +592,8 @@ pub fn circparameters_from_netparameters(inp: &NetParameters, ct: &CircuitType) 
         AlgorithmType::FIXED_WINDOW | _ => ccparams::Algorithm::FixedWindow(
             ccparams::FixedWindowParamsBuilder::default()
                 .circ_window_start(inp.circuit_window.get() as u16)
+                .circ_window_min(inp.circuit_window.lower() as u16)
+                .circ_window_max(inp.circuit_window.upper() as u16)
                 .build()
                 .unwrap_or_default(),
         ),
