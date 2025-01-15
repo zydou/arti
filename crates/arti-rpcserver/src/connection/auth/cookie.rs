@@ -95,6 +95,11 @@ struct CookieAuthInProgress {
 /// instead, your RPC library (such as `arti-rpc-client-core`)
 /// should handle it for you.
 ///
+/// After invoking this method, the RPC library should use `rpc:release`
+/// to drop its reference to the `CookieAuthInProgress`:
+/// remember, as a rule,
+/// RPC methods other than `rpc:release` do not consume the objects they are invoked on.
+///
 /// See `rpc-cookie-sketch.md` for full details of this protocol.
 #[derive(Debug, serde::Deserialize, Deftly)]
 #[derive_deftly(DynMethod)]
