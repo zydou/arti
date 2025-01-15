@@ -14,18 +14,19 @@ use tor_rpcbase::{self as rpc, templates::*};
 
 use crate::RpcSession;
 
-/// An RPC object representing a (possibly unconstructed) DataStream.
+/// An RPC object representing a single-use client that captures a data-stream.
 ///
 /// This object is returned by the `arti:new_oneshot_client` method, and starts out with
-/// enough information to know how to create a DataStream, or to respond
+/// enough information to know how to create a `DataStream`, or to respond
 /// to some other SOCKS request.
+/// When this object is the target of a SOCKS request,
+/// it takes its target address, port, and isolation parameters from the SOCKS handshake,
+/// and launches a data stream.
+/// It then becomes interchangeable with the stream that was launched.
 ///
 /// This object is single-use: once a SOCKS request has referred to it,
 /// it cannot be used for any other SOCKS request.
-///
-/// (Alternatively, you can think of this as a single-use Client object
-/// which, because it is single use,
-/// can be treated interchangeably with the stream that it is used to construct.)
+/// (Otherwise, it could not be useable interchangeably with the `DataStream` it creates.)
 ///
 /// The ObjectID for this object can be used as the target of a SOCKS request.
 #[derive(Deftly)]
@@ -77,7 +78,7 @@ enum Inner {
 /// Error returned by an operations from OneshotClient.
 #[derive(Debug, Clone, thiserror::Error)]
 enum OneshotClientError {
-    /// Application tried to provide an identifier for an OneshotClient,
+    /// Application tried to open a stream using a OneshotClient,
     /// but that OneshotClient had already been used previously.
     #[error("Data stream object already used")]
     AlreadyUsed,
@@ -105,7 +106,7 @@ impl OneshotClient {
         }
     }
 
-    /// If this DataStream is in state Unused, replace its state with `new_state`
+    /// If this `OneshotClient` is in state Unused, replace its state with `new_state`
     /// and return the ClientConnectionTarget.  Otherwise, leave its state unchanged
     /// and return an error.
     fn take_connector(&self, new_state: Inner) -> Result<Arc<dyn rpc::Object>, OneshotClientError> {
@@ -226,7 +227,8 @@ async fn oneshot_client_resolve_ptr_with_prefs(
 /// It can be used as the target of a single SOCKS request.
 ///
 /// Once used for a SOCKS connect request,
-/// the object will become a handle for the the underlying DataStream.
+/// the object will become a handle for the the underlying DataStream
+/// that was created with the request.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Deftly)]
 #[derive_deftly(DynMethod)]
 #[deftly(rpc(method_name = "arti:new_oneshot_client"))]
@@ -246,7 +248,7 @@ fn new_oneshot_client_impl(
     ctx.register_owned(rpc_stream as _)
 }
 
-/// Implement NewStreamHandle for clients.
+/// Implement NewOneshotClient for clients.
 pub(crate) async fn new_oneshot_client_on_client<R: tor_rtcompat::Runtime>(
     client: Arc<arti_client::TorClient<R>>,
     _method: Box<NewOneshotClient>,
@@ -255,7 +257,7 @@ pub(crate) async fn new_oneshot_client_on_client<R: tor_rtcompat::Runtime>(
     Ok(new_oneshot_client_impl(client, ctx.as_ref()).into())
 }
 
-/// Implement NewStreamHandle for RpcSession.
+/// Implement NewOneshotClient for RpcSession.
 async fn new_oneshot_client_on_session(
     session: Arc<RpcSession>,
     _method: Box<NewOneshotClient>,
