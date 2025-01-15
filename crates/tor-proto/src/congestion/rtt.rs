@@ -183,11 +183,11 @@ impl RoundtripTimeEstimator {
 
         // This is the "N" for N-EWMA.
         let ewma_n = u64::from(if state.in_slow_start() {
-            self.params.ewma_ss_max
+            self.params.ewma_ss_max()
         } else {
             min(
-                (cwnd.update_rate(state) * (self.params.ewma_cwnd_pct.as_percent())) / 100,
-                self.params.ewma_max,
+                (cwnd.update_rate(state) * (self.params.ewma_cwnd_pct().as_percent())) / 100,
+                self.params.ewma_max(),
             )
         });
         let ewma_n = max(ewma_n, 2);
@@ -216,7 +216,7 @@ impl RoundtripTimeEstimator {
             // The cast is OK even if lossy, we only care about the usec level.
             let max = max(self.ewma_rtt, self.min_rtt).as_micros() as u64;
             let min = min(self.ewma_rtt, self.min_rtt).as_micros() as u64;
-            let rtt_reset_pct = u64::from(self.params.rtt_reset_pct.as_percent());
+            let rtt_reset_pct = u64::from(self.params.rtt_reset_pct().as_percent());
             self.min_rtt = Duration::from_micros(
                 (rtt_reset_pct * max / 100) + (100 - rtt_reset_pct) * min / 100,
             );

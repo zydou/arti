@@ -194,19 +194,19 @@ impl CongestionControlAlgorithm for Vegas {
         // Evaluate if the congestion window has became full or not.
         self.cwnd.eval_fullness(
             self.num_inflight,
-            self.params.cwnd_full_gap,
-            self.params.cwnd_full_min_pct.as_percent(),
+            self.params.cwnd_full_gap(),
+            self.params.cwnd_full_min_pct().as_percent(),
         );
 
         // Spec: See the pseudocode of TOR_VEGAS with RFC3742
         if state.in_slow_start() {
-            if queue_use < self.params.cell_in_queue_params.gamma && !self.is_blocked_on_chan {
+            if queue_use < self.params.cell_in_queue_params().gamma() && !self.is_blocked_on_chan {
                 // If the congestion window is not fully in use, skip any increment in slow start.
                 if self.cwnd.is_full() {
                     // This is the "Limited Slow Start" increment.
                     let inc = self
                         .cwnd
-                        .rfc3742_ss_inc(self.params.cell_in_queue_params.ss_cwnd_cap);
+                        .rfc3742_ss_inc(self.params.cell_in_queue_params().ss_cwnd_cap());
 
                     // Check if inc is less than what we would do in steady-state avoidance. Note
                     // that this is likely never to happen in practice. If so, exit slow start.
@@ -219,27 +219,31 @@ impl CongestionControlAlgorithm for Vegas {
             } else {
                 // Congestion signal: Set cwnd to gamma threshold
                 self.cwnd
-                    .set(self.bdp.get() + self.params.cell_in_queue_params.gamma);
+                    .set(self.bdp.get() + self.params.cell_in_queue_params().gamma());
                 // Exit slow start due to congestion signal.
                 *state = State::Steady;
             }
 
             // Max the window and exit slow start.
-            if self.cwnd.get() >= self.params.ss_cwnd_max {
-                self.cwnd.set(self.params.ss_cwnd_max);
+            if self.cwnd.get() >= self.params.ss_cwnd_max() {
+                self.cwnd.set(self.params.ss_cwnd_max());
                 *state = State::Steady;
             }
         } else if self.num_sendme_until_cwnd_update == 0 {
             // Once in steady state, we only update once per window.
-            if queue_use > self.params.cell_in_queue_params.delta {
+            if queue_use > self.params.cell_in_queue_params().delta() {
                 // Above delta threshold, drop cwnd down to the delta.
                 self.cwnd.set(
-                    self.bdp.get() + self.params.cell_in_queue_params.delta - self.cwnd.increment(),
+                    self.bdp.get() + self.params.cell_in_queue_params().delta()
+                        - self.cwnd.increment(),
                 );
-            } else if queue_use > self.params.cell_in_queue_params.beta || self.is_blocked_on_chan {
+            } else if queue_use > self.params.cell_in_queue_params().beta()
+                || self.is_blocked_on_chan
+            {
                 // Congestion signal: Above beta or if channel is blocked, decrement window.
                 self.cwnd.dec();
-            } else if self.cwnd.is_full() && queue_use < self.params.cell_in_queue_params.alpha {
+            } else if self.cwnd.is_full() && queue_use < self.params.cell_in_queue_params().alpha()
+            {
                 // Congestion window is full and the queue usage is below alpha, increment.
                 self.cwnd.inc();
             }
@@ -254,7 +258,7 @@ impl CongestionControlAlgorithm for Vegas {
         }
 
         // Decide if enough time has passed to reset the cwnd.
-        if self.params.cwnd_full_per_cwnd != 0 {
+        if self.params.cwnd_full_per_cwnd() != 0 {
             if self.num_sendme_per_cwnd == self.cwnd.sendme_per_cwnd() {
                 self.cwnd.reset_full();
             }

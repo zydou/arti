@@ -131,7 +131,7 @@ impl CongestionWindow {
     /// Constructor taking consensus parameters.
     fn new(params: &CongestionWindowParams) -> Self {
         Self {
-            value: params.cwnd_init,
+            value: params.cwnd_init(),
             params: params.clone(),
             is_full: false,
         }
@@ -142,7 +142,7 @@ impl CongestionWindow {
         self.value = self
             .value
             .saturating_sub(self.increment())
-            .max(self.params.cwnd_min);
+            .max(self.params.cwnd_min());
     }
 
     /// Increment the window by the increment value.
@@ -150,7 +150,7 @@ impl CongestionWindow {
         self.value = self
             .value
             .saturating_add(self.increment())
-            .min(self.params.cwnd_max);
+            .min(self.params.cwnd_max());
     }
 
     /// Return the current value.
@@ -172,7 +172,7 @@ impl CongestionWindow {
 
     /// Return minimum value of the congestion window.
     pub(crate) fn min(&self) -> u32 {
-        self.params.cwnd_min
+        self.params.cwnd_min()
     }
 
     /// Set the congestion window value with a new value.
@@ -182,12 +182,12 @@ impl CongestionWindow {
 
     /// Return the increment value.
     pub(crate) fn increment(&self) -> u32 {
-        self.params.cwnd_inc
+        self.params.cwnd_inc()
     }
 
     /// Return the rate at which we should increment the window.
     pub(crate) fn increment_rate(&self) -> u32 {
-        self.params.cwnd_inc_rate
+        self.params.cwnd_inc_rate()
     }
 
     /// Return true iff this congestion window is full.
@@ -212,7 +212,7 @@ impl CongestionWindow {
     /// Spec: prop324 rfc3742_ss_inc definition
     pub(crate) fn rfc3742_ss_inc(&mut self, ss_cap: u32) -> u32 {
         let inc = if self.get() <= ss_cap {
-            ((self.params.cwnd_inc_pct_ss.as_percent() * self.sendme_inc()) + 50) / 100
+            ((self.params.cwnd_inc_pct_ss().as_percent() * self.sendme_inc()) + 50) / 100
         } else {
             (((self.sendme_inc() * ss_cap) + self.get()) / (self.get() * 2)).max(1)
         };
@@ -234,7 +234,7 @@ impl CongestionWindow {
 
     /// Return the SENDME increment value.
     pub(crate) fn sendme_inc(&self) -> u32 {
-        self.params.sendme_inc
+        self.params.sendme_inc()
     }
 
     #[cfg(test)]
@@ -264,16 +264,16 @@ impl CongestionControl {
     pub(crate) fn new(params: &CongestionControlParams) -> Self {
         let state = State::default();
         // Use what the consensus tells us to use.
-        let algorithm: Box<dyn CongestionControlAlgorithm> = match &params.alg {
-            Algorithm::FixedWindow(p) => Box::new(fixed::FixedWindow::new(p.circ_window_start)),
+        let algorithm: Box<dyn CongestionControlAlgorithm> = match params.alg() {
+            Algorithm::FixedWindow(p) => Box::new(fixed::FixedWindow::new(p.circ_window_start())),
             Algorithm::Vegas(ref p) => {
-                let cwnd = CongestionWindow::new(&params.cwnd_params);
+                let cwnd = CongestionWindow::new(params.cwnd_params());
                 Box::new(vegas::Vegas::new(p, &state, cwnd))
             }
         };
         Self {
             algorithm,
-            rtt: RoundtripTimeEstimator::new(&params.rtt_params),
+            rtt: RoundtripTimeEstimator::new(params.rtt_params()),
             sendme_validator: SendmeValidator::new(),
             state,
         }
@@ -387,17 +387,20 @@ mod test {
         let mut cwnd = new_cwnd();
 
         // Validate the getters are coherent with initialization.
-        assert_eq!(cwnd.get(), cwnd.params().cwnd_init);
-        assert_eq!(cwnd.min(), cwnd.params().cwnd_min);
-        assert_eq!(cwnd.increment(), cwnd.params().cwnd_inc);
-        assert_eq!(cwnd.increment_rate(), cwnd.params().cwnd_inc_rate);
-        assert_eq!(cwnd.sendme_inc(), cwnd.params().sendme_inc);
+        assert_eq!(cwnd.get(), cwnd.params().cwnd_init());
+        assert_eq!(cwnd.min(), cwnd.params().cwnd_min());
+        assert_eq!(cwnd.increment(), cwnd.params().cwnd_inc());
+        assert_eq!(cwnd.increment_rate(), cwnd.params().cwnd_inc_rate());
+        assert_eq!(cwnd.sendme_inc(), cwnd.params().sendme_inc());
         assert!(!cwnd.is_full());
 
         // Validate changes.
         cwnd.inc();
-        assert_eq!(cwnd.get(), cwnd.params().cwnd_init + cwnd.params().cwnd_inc);
+        assert_eq!(
+            cwnd.get(),
+            cwnd.params().cwnd_init() + cwnd.params().cwnd_inc()
+        );
         cwnd.dec();
-        assert_eq!(cwnd.get(), cwnd.params().cwnd_init);
+        assert_eq!(cwnd.get(), cwnd.params().cwnd_init());
     }
 }
