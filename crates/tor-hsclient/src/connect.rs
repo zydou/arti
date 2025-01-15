@@ -1283,7 +1283,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 rend_pt: rend_pt.clone(),
             })?;
 
-        let params = onion_circparams_from_netparams(self.netdir.params());
+        let params = onion_circparams_from_netparams(self.netdir.params())
+            .map_err(into_internal!("Failed to build CircParameters"))?;
 
         rendezvous
             .rend_circ

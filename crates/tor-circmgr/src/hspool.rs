@@ -432,7 +432,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             .into());
         }
 
-        let params = onion_circparams_from_netparams(netdir.params());
+        let params = onion_circparams_from_netparams(netdir.params())?;
         self.extend_circ(circ, params, target).await
     }
 
@@ -639,9 +639,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         match (circuit.kind, kind) {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
-                let params = crate::build::onion_circparams_from_netparams(
-                    netdir.params(),
-                );
+                let params = crate::build::onion_circparams_from_netparams(netdir.params())?;
                 let circ_path = circuit.circ.path_ref();
 
                 // A NAIVE circuit is a 3-hop circuit.

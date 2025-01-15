@@ -343,7 +343,8 @@ impl IntroRequest {
         let circuit = circuit.ok_or_else(|| E::RendCirc(retry_err))?;
 
         // We'll need parameters to extend the virtual hop.
-        let params = onion_circparams_from_netparams(netdir.params());
+        let params = onion_circparams_from_netparams(netdir.params())
+            .map_err(into_internal!("Unable to build CircParameters"))?;
 
         // We won't need the netdir any longer; stop holding the reference.
         drop(netdir);

@@ -152,7 +152,7 @@ impl<'a> From<&'a NetDir> for DirInfo<'a> {
 }
 impl<'a> DirInfo<'a> {
     /// Return a set of circuit parameters for this DirInfo.
-    fn circ_params(&self, usage: &TargetCircUsage) -> CircParameters {
+    fn circ_params(&self, usage: &TargetCircUsage) -> Result<CircParameters> {
         use tor_netdir::params::NetParameters;
         // We use a common function for both cases here to be sure that
         // we look at the defaults from NetParameters code.
@@ -1120,7 +1120,7 @@ mod test {
         let fb = FallbackList::from([]);
         let di: DirInfo<'_> = (&fb).into();
 
-        let p1 = di.circ_params(&TargetCircUsage::Dir);
+        let p1 = di.circ_params(&TargetCircUsage::Dir).unwrap();
         assert!(!p1.extend_by_ed25519_id);
 
         // Now try with a directory and configured parameters.
@@ -1134,7 +1134,7 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params(&TargetCircUsage::Dir);
+        let p2 = di.circ_params(&TargetCircUsage::Dir).unwrap();
         assert!(p2.extend_by_ed25519_id);
 
         // Now try with a bogus circwindow value.
@@ -1148,7 +1148,7 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params(&TargetCircUsage::Dir);
+        let p2 = di.circ_params(&TargetCircUsage::Dir).unwrap();
         assert!(p2.extend_by_ed25519_id);
     }
 

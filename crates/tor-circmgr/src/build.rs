@@ -13,6 +13,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
+use tor_error::into_internal;
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
@@ -522,39 +523,7 @@ impl<R: Runtime> CircuitBuilder<R> {
     }
 }
 
-/// Enum used to tell what is the circuit type as in what this circuit will be used for.
-///
-/// This MUST only be used to inform what a circuit is about and not used as a persistent value
-/// about a circuit type or purpose or usage.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub enum CircuitType {
-    /// Exit circuit.
-    Exit,
-    /// Onion service circuit.
-    OnionService,
-    /// Onion service used with vanguard
-    OnionServiceWithVanguard,
-    /// Single onion service.
-    OnionSingleService,
-}
-
-impl From<&TargetCircUsage> for CircuitType {
-    fn from(u: &TargetCircUsage) -> Self {
-        match u {
-            TargetCircUsage::Exit { .. } => CircuitType::Exit,
-            // XXX What should happen here is that HsCircBase should likely have what type of onion
-            // service (single or not). As for Vanguard, we need a way to ask the vanguard mgr?
-            #[cfg(feature = "hs-common")]
-            TargetCircUsage::HsCircBase { .. } => CircuitType::OnionService,
-            // XXX Not sure the default here is wise... I suspect all circuit type we have should
-            // be in that enum. For instance, Congestion Control is not enabled on Dir usage.
-            _ => CircuitType::Exit,
-        }
-    }
-}
-
-// Return the congestion control Vegas algorithm using the given network parameters.
+/// Return the congestion control Vegas algorithm using the given network parameters.
 fn build_cc_vegas(
     inp: &NetParameters,
     vegas_queue_params: ccparams::VegasQueueParams,
@@ -573,7 +542,7 @@ fn build_cc_vegas(
     )
 }
 
-// Return the congestion control FixedWindow algorithm using the given network parameters.
+/// Return the congestion control FixedWindow algorithm using the given network parameters.
 fn build_cc_fixedwindow(inp: &NetParameters) -> ccparams::Algorithm {
     ccparams::Algorithm::FixedWindow(
         ccparams::FixedWindowParamsBuilder::default()
@@ -585,11 +554,11 @@ fn build_cc_fixedwindow(inp: &NetParameters) -> ccparams::Algorithm {
     )
 }
 
-// Return a new circuit parameter struct using the given network parameters and algorithm to use.
+/// Return a new circuit parameter struct using the given network parameters and algorithm to use.
 fn circparameters_from_netparameters(
     inp: &NetParameters,
     alg: ccparams::Algorithm,
-) -> CircParameters {
+) -> Result<CircParameters> {
     let cwnd_params = ccparams::CongestionWindowParamsBuilder::default()
         .cwnd_init(inp.cc_cwnd_init.into())
         .cwnd_inc_pct_ss(Percentage::new(
@@ -601,7 +570,9 @@ fn circparameters_from_netparameters(
         .cwnd_max(inp.cc_cwnd_max.into())
         .sendme_inc(inp.cc_sendme_inc.into())
         .build()
-        .expect("Unable to build CongestionWindow params from NetParams");
+        .map_err(into_internal!(
+            "Unable to build CongestionWindow params from NetParams"
+        ))?;
     let rtt_params = ccparams::RoundTripEstimatorParamsBuilder::default()
         .ewma_cwnd_pct(Percentage::new(
             inp.cc_ewma_cwnd_pct.as_percent().get() as u32
@@ -612,19 +583,24 @@ fn circparameters_from_netparameters(
             inp.cc_rtt_reset_pct.as_percent().get() as u32
         ))
         .build()
-        .expect("Unable to build RTT params from NetParams");
+        .map_err(into_internal!("Unable to build RTT params from NetParams"))?;
     let ccontrol = ccparams::CongestionControlParamsBuilder::default()
         .alg(alg)
         .cwnd_params(cwnd_params)
         .rtt_params(rtt_params)
         .build()
-        .expect("Unable to build CongestionControl params from NetParams");
-    CircParameters::new(inp.extend_by_ed25519_id.into(), ccontrol)
+        .map_err(into_internal!(
+            "Unable to build CongestionControl params from NetParams"
+        ))?;
+    Ok(CircParameters::new(
+        inp.extend_by_ed25519_id.into(),
+        ccontrol,
+    ))
 }
 
 /// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus for an exit circuit or
 /// single onion service (when implemented).
-pub fn exit_circparams_from_netparams(inp: &NetParameters) -> CircParameters {
+pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
     let alg = match inp.cc_alg.get().into() {
         AlgorithmType::VEGAS => build_cc_vegas(
             inp,
@@ -645,7 +621,7 @@ pub fn exit_circparams_from_netparams(inp: &NetParameters) -> CircParameters {
 
 /// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus for an onion circuit
 /// which also includes an onion service with Vanguard.
-pub fn onion_circparams_from_netparams(inp: &NetParameters) -> CircParameters {
+pub fn onion_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
     let alg = match inp.cc_alg.get().into() {
         AlgorithmType::VEGAS => build_cc_vegas(
             inp,
@@ -1085,8 +1061,7 @@ mod test {
         rt.allow_one_advance(advance_initial);
         let outcome = rt.spawn_join("build-owned", async move {
             let arcbuilder = Arc::new(builder);
-            let params =
-                circparameters_from_netparameters(&NetParameters::default(), &CircuitType::Exit);
+            let params = exit_circparams_from_netparams(&NetParameters::default())?;
             arcbuilder.build_owned(path, &params, gs(), usage).await
         });
 
