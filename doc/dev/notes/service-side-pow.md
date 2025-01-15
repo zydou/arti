@@ -59,6 +59,8 @@ struct State<R> {
     // Used to tell Publisher that it should re-upload descriptors due to seed rotation.
     // We could have this be a queue where we send just the TimePeriod that we want to update, but
     // it's simpler to just update them all and accept some spurious updates.
+    //
+    // Publisher will hold the other end of this as a Box<dyn Stream>.
     publisher_update_tx: watch::Sender<()>,
 
     seeds: HashMap<TimePeriod, SeedsForTimePeriod>,
