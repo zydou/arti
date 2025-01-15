@@ -41,7 +41,7 @@ pub enum RequestParseError {
 
     /// The `method` field was not the name of any recognized method.
     #[error("Request's `method` field was unrecognized")]
-    MethodNotFound,
+    NoSuchMethod,
 
     /// The parameters were of the wrong type for the method.
     #[error("Parameter types incorrect for specified method")]
@@ -65,7 +65,7 @@ impl From<RequestParseError> for RpcError {
             | E::MethodType
             | E::MetaType
             | E::MissingParams => EK::InvalidRequest,
-            E::MethodNotFound => EK::NoSuchMethod,
+            E::NoSuchMethod => EK::NoSuchMethod,
             E::ParamType => EK::InvalidMethodParameters,
         };
         RpcError::new(err.to_string(), kind)

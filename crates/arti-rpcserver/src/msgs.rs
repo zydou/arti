@@ -288,7 +288,7 @@ mod test {
             r#"{ "id": 3, "obj": "hello", "meta": { "updates": 3}, "method": "x-test:dummy", "params": {} }"#
         );
         expect_err!(
-            RPE::MethodNotFound,
+            RPE::NoSuchMethod,
             r#"{ "id": 3, "obj": "hello", "method": "arti:this-is-not-a-method", "params": {} }"#
         );
         expect_err!(
