@@ -46,7 +46,6 @@ const TUPLEHASH_CUSTOMIZATION: &[u8] = b"arti-rpc-cookie-v1";
 
 impl Cookie {
     /// Read an RPC cookie from a provided path.
-    #[cfg(feature = "rpc-client")]
     pub fn load(path: &Path, mistrust: &Mistrust) -> Result<Cookie, CookieAccessError> {
         use std::io::Read;
 
@@ -199,7 +198,6 @@ pub struct CookieLocation {
 }
 
 impl CookieLocation {
-    #[cfg(feature = "rpc-client")]
     /// Try to read the cookie at this location.
     pub fn load(&self) -> Result<Cookie, CookieAccessError> {
         Cookie::load(self.path.as_ref(), &self.mistrust)
