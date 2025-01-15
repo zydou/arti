@@ -554,50 +554,42 @@ impl From<&TargetCircUsage> for CircuitType {
     }
 }
 
-/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus.
-pub fn circparameters_from_netparameters(inp: &NetParameters, ct: &CircuitType) -> CircParameters {
-    let cc_alg = match inp.cc_alg.get().into() {
-        AlgorithmType::VEGAS => {
-            let vegas_queue_params: ccparams::VegasQueueParams = match ct {
-                CircuitType::Exit | CircuitType::OnionSingleService => (
-                    inp.cc_vegas_alpha_exit.into(),
-                    inp.cc_vegas_beta_exit.into(),
-                    inp.cc_vegas_delta_exit.into(),
-                    inp.cc_vegas_gamma_exit.into(),
-                    inp.cc_vegas_sscap_exit.into(),
-                ),
-                CircuitType::OnionService | CircuitType::OnionServiceWithVanguard => (
-                    inp.cc_vegas_alpha_onion.into(),
-                    inp.cc_vegas_beta_onion.into(),
-                    inp.cc_vegas_delta_onion.into(),
-                    inp.cc_vegas_gamma_onion.into(),
-                    inp.cc_vegas_sscap_onion.into(),
-                ),
-            }
-            .into();
-            ccparams::Algorithm::Vegas(
-                ccparams::VegasParamsBuilder::default()
-                    .cell_in_queue_params(vegas_queue_params)
-                    .ss_cwnd_max(inp.cc_ss_max.into())
-                    .cwnd_full_gap(inp.cc_cwnd_full_gap.into())
-                    .cwnd_full_min_pct(Percentage::new(
-                        inp.cc_cwnd_full_minpct.as_percent().get() as u32
-                    ))
-                    .cwnd_full_per_cwnd(inp.cc_cwnd_full_per_cwnd.into())
-                    .build()
-                    .unwrap_or_default(),
-            )
-        }
-        // Unrecognized, fallback to fixed window as in SENDME v0.
-        AlgorithmType::FIXED_WINDOW | _ => ccparams::Algorithm::FixedWindow(
-            ccparams::FixedWindowParamsBuilder::default()
-                .circ_window_start(inp.circuit_window.get() as u16)
-                .circ_window_min(inp.circuit_window.lower() as u16)
-                .circ_window_max(inp.circuit_window.upper() as u16)
-                .build()
-                .unwrap_or_default(),
-        ),
-    };
+// Return the congestion control Vegas algorithm using the given network parameters.
+fn build_cc_vegas(
+    inp: &NetParameters,
+    vegas_queue_params: ccparams::VegasQueueParams,
+) -> ccparams::Algorithm {
+    ccparams::Algorithm::Vegas(
+        ccparams::VegasParamsBuilder::default()
+            .cell_in_queue_params(vegas_queue_params)
+            .ss_cwnd_max(inp.cc_ss_max.into())
+            .cwnd_full_gap(inp.cc_cwnd_full_gap.into())
+            .cwnd_full_min_pct(Percentage::new(
+                inp.cc_cwnd_full_minpct.as_percent().get() as u32
+            ))
+            .cwnd_full_per_cwnd(inp.cc_cwnd_full_per_cwnd.into())
+            .build()
+            .expect("Unable to build Vegas params from NetParams"),
+    )
+}
+
+// Return the congestion control FixedWindow algorithm using the given network parameters.
+fn build_cc_fixedwindow(inp: &NetParameters) -> ccparams::Algorithm {
+    ccparams::Algorithm::FixedWindow(
+        ccparams::FixedWindowParamsBuilder::default()
+            .circ_window_start(inp.circuit_window.get() as u16)
+            .circ_window_min(inp.circuit_window.lower() as u16)
+            .circ_window_max(inp.circuit_window.upper() as u16)
+            .build()
+            .expect("Unable to build FixedWindow params from NetParams"),
+    )
+}
+
+// Return a new circuit parameter struct using the given network parameters and algorithm to use.
+fn circparameters_from_netparameters(
+    inp: &NetParameters,
+    alg: ccparams::Algorithm,
+) -> CircParameters {
     let cwnd_params = ccparams::CongestionWindowParamsBuilder::default()
         .cwnd_init(inp.cc_cwnd_init.into())
         .cwnd_inc_pct_ss(Percentage::new(
@@ -609,7 +601,7 @@ pub fn circparameters_from_netparameters(inp: &NetParameters, ct: &CircuitType) 
         .cwnd_max(inp.cc_cwnd_max.into())
         .sendme_inc(inp.cc_sendme_inc.into())
         .build()
-        .unwrap_or_default();
+        .expect("Unable to build CongestionWindow params from NetParams");
     let rtt_params = ccparams::RoundTripEstimatorParamsBuilder::default()
         .ewma_cwnd_pct(Percentage::new(
             inp.cc_ewma_cwnd_pct.as_percent().get() as u32
@@ -620,16 +612,57 @@ pub fn circparameters_from_netparameters(inp: &NetParameters, ct: &CircuitType) 
             inp.cc_rtt_reset_pct.as_percent().get() as u32
         ))
         .build()
-        .unwrap_or_default();
-
+        .expect("Unable to build RTT params from NetParams");
     let ccontrol = ccparams::CongestionControlParamsBuilder::default()
-        .alg(cc_alg)
+        .alg(alg)
         .cwnd_params(cwnd_params)
         .rtt_params(rtt_params)
         .build()
-        .unwrap_or_default();
+        .expect("Unable to build CongestionControl params from NetParams");
     CircParameters::new(inp.extend_by_ed25519_id.into(), ccontrol)
 }
+
+/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus for an exit circuit or
+/// single onion service (when implemented).
+pub fn exit_circparams_from_netparams(inp: &NetParameters) -> CircParameters {
+    let alg = match inp.cc_alg.get().into() {
+        AlgorithmType::VEGAS => build_cc_vegas(
+            inp,
+            (
+                inp.cc_vegas_alpha_exit.into(),
+                inp.cc_vegas_beta_exit.into(),
+                inp.cc_vegas_delta_exit.into(),
+                inp.cc_vegas_gamma_exit.into(),
+                inp.cc_vegas_sscap_exit.into(),
+            )
+                .into(),
+        ),
+        // Unrecognized, fallback to fixed window as in SENDME v0.
+        AlgorithmType::FIXED_WINDOW | _ => build_cc_fixedwindow(inp),
+    };
+    circparameters_from_netparameters(inp, alg)
+        _ => build_cc_fixedwindow(inp),
+
+/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus for an onion circuit
+/// which also includes an onion service with Vanguard.
+pub fn onion_circparams_from_netparams(inp: &NetParameters) -> CircParameters {
+    let alg = match inp.cc_alg.get().into() {
+        AlgorithmType::VEGAS => build_cc_vegas(
+            inp,
+            (
+                inp.cc_vegas_alpha_onion.into(),
+                inp.cc_vegas_beta_onion.into(),
+                inp.cc_vegas_delta_onion.into(),
+                inp.cc_vegas_gamma_onion.into(),
+                inp.cc_vegas_sscap_onion.into(),
+            )
+                .into(),
+        ),
+        // Unrecognized, fallback to fixed window as in SENDME v0.
+        AlgorithmType::FIXED_WINDOW | _ => build_cc_fixedwindow(inp),
+    };
+    circparameters_from_netparameters(inp, alg)
+        _ => build_cc_fixedwindow(inp),
 
 /// Helper function: spawn a future as a background task, and run it with
 /// two separate timeouts.

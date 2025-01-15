@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    build::{CircuitBuilder, CircuitType},
+    build::{onion_circparams_from_netparams, CircuitBuilder},
     mgr::AbstractCircBuilder,
     timeouts, AbstractCirc, CircMgr, CircMgrInner, Error, Result,
 };
@@ -432,8 +432,7 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
             .into());
         }
 
-        // TODO: Use HsCircKind and self.vanguard_mode() to derive the right CircuitType.
-        let params = crate::DirInfo::from(netdir).circ_params(&CircuitType::OnionService);
+        let params = onion_circparams_from_netparams(netdir.params());
         self.extend_circ(circ, params, target).await
     }
 
@@ -640,9 +639,8 @@ impl<B: AbstractCircBuilder<R> + 'static, R: Runtime> HsCircPoolInner<B, R> {
         match (circuit.kind, kind) {
             (HsCircStemKind::Naive, HsCircStemKind::Guarded) => {
                 debug!("Wanted GUARDED circuit, but got NAIVE; extending by 1 hop...");
-                let params = crate::build::circparameters_from_netparameters(
+                let params = crate::build::onion_circparams_from_netparams(
                     netdir.params(),
-                    &CircuitType::OnionServiceWithVanguard,
                 );
                 let circ_path = circuit.circ.path_ref();
 

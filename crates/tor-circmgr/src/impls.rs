@@ -102,7 +102,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder<R> for crate::build::CircuitBui
         let plan = Plan {
             final_spec: final_spec.clone(),
             path: (&path).try_into()?,
-            params: dir.circ_params(&usage.into()),
+            params: dir.circ_params(usage),
             guard_status,
             guard_usable,
         };

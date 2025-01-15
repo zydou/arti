@@ -46,7 +46,7 @@
 // TODO #1645 (either remove this, or decide to have it everywhere)
 #![cfg_attr(not(all(feature = "full", feature = "experimental")), allow(unused))]
 
-use build::{CircuitBuilder, CircuitType};
+use build::CircuitBuilder;
 use mgr::{AbstractCirc, AbstractCircBuilder};
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
@@ -152,14 +152,21 @@ impl<'a> From<&'a NetDir> for DirInfo<'a> {
 }
 impl<'a> DirInfo<'a> {
     /// Return a set of circuit parameters for this DirInfo.
-    fn circ_params(&self, ct: &CircuitType) -> CircParameters {
-        use crate::build::circparameters_from_netparameters;
+    fn circ_params(&self, usage: &TargetCircUsage) -> CircParameters {
         use tor_netdir::params::NetParameters;
         // We use a common function for both cases here to be sure that
         // we look at the defaults from NetParameters code.
-        match self {
-            DirInfo::Directory(d) => circparameters_from_netparameters(d.params(), ct),
-            _ => circparameters_from_netparameters(&NetParameters::default(), ct),
+        let defaults = NetParameters::default();
+        let net_params = match self {
+            DirInfo::Directory(d) => d.params(),
+            _ => &defaults,
+        };
+        match usage {
+            #[cfg(feature = "hs-common")]
+            TargetCircUsage::HsCircBase { .. } => {
+                build::onion_circparams_from_netparams(net_params)
+            }
+            _ => build::exit_circparams_from_netparams(net_params),
         }
     }
 }
@@ -1113,7 +1120,7 @@ mod test {
         let fb = FallbackList::from([]);
         let di: DirInfo<'_> = (&fb).into();
 
-        let p1 = di.circ_params(&CircuitType::Exit);
+        let p1 = di.circ_params(&TargetCircUsage::Dir);
         assert!(!p1.extend_by_ed25519_id);
 
         // Now try with a directory and configured parameters.
@@ -1127,7 +1134,7 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params(&CircuitType::Exit);
+        let p2 = di.circ_params(&TargetCircUsage::Dir);
         assert!(p2.extend_by_ed25519_id);
 
         // Now try with a bogus circwindow value.
@@ -1141,7 +1148,7 @@ mod test {
         }
         let netdir = dir.unwrap_if_sufficient().unwrap();
         let di: DirInfo<'_> = (&netdir).into();
-        let p2 = di.circ_params(&CircuitType::Exit);
+        let p2 = di.circ_params(&TargetCircUsage::Dir);
         assert!(p2.extend_by_ed25519_id);
     }
 
