@@ -74,6 +74,7 @@ impl RpcConn {
         cookie: &Cookie,
         server_addr: &str,
     ) -> Result<ObjectId, ConnectError> {
+        // This protocol is documented in `rpc-cookie-sketch.md`.
         let client_nonce = CookieAuthNonce::new(&mut rand::thread_rng());
 
         let cookie_begin: Request<CookieBeginParams> = Request::new(
