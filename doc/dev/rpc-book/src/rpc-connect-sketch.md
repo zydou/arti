@@ -355,9 +355,10 @@ The `socket` members must be in a form accepted by
 >    (Example: `unix:/var/run/arti/rpc_socket`)
 
 If the `socket` member
-has a schema prefix other than `inet:` or `unix:`,
-or if it is a relative `unix:` path,
+has a schema prefix other than `inet:` or `unix:`
 then the connection attempt is *declined*.
+If it is a relative `unix:` path,
+then the connection attempt *aborts*.
 
 
 Currently recognized `auth` members are in one of these forms:
