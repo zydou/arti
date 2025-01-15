@@ -530,6 +530,14 @@ enum UnexpectedReplyProblem {
     ErrorNotExpected,
 }
 
+/// Arguments to a request that takes no parameters.
+#[derive(serde::Serialize, Debug)]
+struct NoParameters {}
+
+/// A response with no data.
+#[derive(serde::Deserialize, Debug)]
+struct EmptyResponse {}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

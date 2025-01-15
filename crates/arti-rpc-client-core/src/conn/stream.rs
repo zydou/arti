@@ -6,9 +6,9 @@ use std::{
     sync::Arc,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-use super::{ErrorResponse, RpcConn};
+use super::{EmptyResponse, ErrorResponse, NoParameters, RpcConn};
 use crate::{msgs::request::Request, ObjectId};
 
 use tor_error::ErrorReport as _;
@@ -77,20 +77,12 @@ impl From<IoError> for StreamError {
     }
 }
 
-/// Arguments to a request that takes no parameters.
-#[derive(Serialize, Debug)]
-struct NoParameters {}
-
 /// A response with a single ID.
 #[derive(Deserialize, Debug)]
 struct SingleIdResponse {
     /// The object ID of the response.
     id: ObjectId,
 }
-
-/// A response with no data.
-#[derive(Deserialize, Debug)]
-struct EmptyResponse {}
 
 /// Representation of a single proxy, as delivered by the RPC API.
 // TODO RPC: This is duplicated from proxyinfo.rs; decide on our strategy for this stuff.
