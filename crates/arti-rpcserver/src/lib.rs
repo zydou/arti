@@ -60,6 +60,6 @@ pub use session::RpcSession;
 /// Return a list of RPC methods that will be needed to use `arti-rpcserver` with the given runtime.
 pub fn rpc_methods<R: tor_rtcompat::Runtime>() -> Vec<tor_rpcbase::dispatch::InvokerEnt> {
     tor_rpcbase::invoker_ent_list![
-        crate::stream::new_stream_handle_on_client::<R>, //
+        crate::stream::new_oneshot_client_on_client::<R>, //
     ]
 }

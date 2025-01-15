@@ -163,8 +163,11 @@ impl RpcConn {
         isolation: &str,
     ) -> Result<(ObjectId, TcpStream), StreamError> {
         let on_object = self.resolve_on_object(on_object)?;
-        let new_stream_request =
-            Request::new(on_object.clone(), "arti:new_stream_handle", NoParameters {});
+        let new_stream_request = Request::new(
+            on_object.clone(),
+            "arti:new_oneshot_client",
+            NoParameters {},
+        );
         let stream_id = self
             .execute_internal::<SingleIdResponse>(&new_stream_request.encode()?)?
             .map_err(StreamError::NewStreamRejected)?
