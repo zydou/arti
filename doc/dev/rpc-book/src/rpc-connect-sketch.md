@@ -125,7 +125,9 @@ The environment variables are as follows:
    then the attempt to connect to arti *aborts* (q.v.))
 
 The path is built as follows:
- 1. We start with the default path.
+ 1. We start with the default path,
+    removing any elements that are neither literal connect points
+    nor absolute paths.
  2. We prepend the contents of `ARTI_RPC_CONNECT_PATH`, if it is set.
  3. We prepend any elements set with `prepend_search_path`.
  4. We prepend the contents of `ARTI_RPC_CONNECT_PATH_OVERRIDE`, if it is set.
