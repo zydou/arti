@@ -636,7 +636,7 @@ code
   and its use is not recommended.
   Use `kinds` to distinguish error categories instead.
   For example, instead of comparing `code` to `-32601`,
-  recognise `RpcMethodNotFound` in `kinds`.
+  recognize `NoSuchMethod` in `kinds`.
 
 ```
 code 	message 	meaning
