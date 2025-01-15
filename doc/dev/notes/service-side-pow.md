@@ -112,6 +112,8 @@ impl<R: Runtime> PowManager<R> {
     //
     // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
     //
+    // The Box<dyn Stream<()>> is to be passed to Publisher, the other end of publisher_update_tx.
+    //
     // Loads state from disk or creates a fresh PowManager if no state exists.
     // Upon loading from disk, we will delete stale replay logs from replay_log_dir.
     pub(crate) fn new(
@@ -121,7 +123,7 @@ impl<R: Runtime> PowManager<R> {
         publisher_update_tx: watch::Sender<()>,
         pow_replay_log_dir: InstanceRawSubdir,
         storage_handle: StorageHandle<PowManagerRecord>,
-    ) -> (Arc<Self>, mpsc::Sender, RendQueueReceiver);
+    ) -> (Arc<Self>, mpsc::Sender, RendQueueReceiver, Box<dyn Stream<()>);
 
     // Called from ForLaunch::launch. Is responsible for rotating seeds.
     pub(crate) fn launch(self: &Arc<Self>) -> Result<(), StartupError>;
