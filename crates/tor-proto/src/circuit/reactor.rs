@@ -64,6 +64,7 @@ use futures::Stream;
 use futures::{Sink, StreamExt};
 use oneshot_fused_workaround as oneshot;
 
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
@@ -855,7 +856,7 @@ impl Reactor {
 
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
-    async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
+    async fn run_once(&mut self) -> StdResult<(), ReactorError> {
         if self.hops.is_empty() {
             self.wait_for_create().await?;
 
@@ -863,7 +864,7 @@ impl Reactor {
         }
 
         #[allow(clippy::cognitive_complexity)]
-        let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
+        let fut = futures::future::poll_fn(|cx| -> Poll<StdResult<_, ReactorError>> {
             let mut did_things = false;
 
             // Check whether we've got a control message pending.
@@ -1001,7 +1002,7 @@ impl Reactor {
     /// Wait for a [`CtrlMsg::Create`] to come along to set up the circuit.
     ///
     /// Returns an error if an unexpected `CtrlMsg` is received.
-    async fn wait_for_create(&mut self) -> std::result::Result<(), ReactorError> {
+    async fn wait_for_create(&mut self) -> StdResult<(), ReactorError> {
         let Some(msg) = self.control.next().await else {
             trace!("{}: reactor shutdown due to control drop", self.unique_id);
             return Err(ReactorError::Shutdown);
@@ -1044,7 +1045,7 @@ impl Reactor {
         handshake: CircuitHandshake,
         params: &CircParameters,
         done: ReactorResultChannel<()>,
-    ) -> std::result::Result<(), ReactorError> {
+    ) -> StdResult<(), ReactorError> {
         let ret = match handshake {
             CircuitHandshake::CreateFast => self.create_firsthop_fast(recv_created, params).await,
             CircuitHandshake::Ntor {
@@ -1074,7 +1075,7 @@ impl Reactor {
     }
 
     /// Handle a [`CtrlMsg::Shutdown`] message.
-    fn handle_shutdown(&self) -> std::result::Result<(), ReactorError> {
+    fn handle_shutdown(&self) -> StdResult<(), ReactorError> {
         trace!(
             "{}: reactor shutdown due to explicit request",
             self.unique_id
