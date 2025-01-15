@@ -113,6 +113,9 @@ pub enum ResolveError {
     /// (This can only happen if somebody adds new variants to `general::SocketAddr`.)
     #[error("Address type not recognized")]
     AddressTypeNotRecognized,
+    /// Unix address was a relative path.
+    #[error("Unix address was not an absolute path")]
+    UnixAddressNotAbsolute,
 }
 impl HasClientErrorAction for ResolveError {
     fn client_action(&self) -> crate::ClientErrorAction {
@@ -125,6 +128,7 @@ impl HasClientErrorAction for ResolveError {
             ResolveError::AuthNotCompatible => A::Abort,
             ResolveError::AuthNotRecognized => A::Decline,
             ResolveError::AddressTypeNotRecognized => A::Decline,
+            ResolveError::UnixAddressNotAbsolute => A::Abort,
         }
     }
 }
@@ -358,6 +362,11 @@ impl AddrWithStr<CfgAddr> {
         let AddrWithStr { string, addr } = self;
         let substituted = addr.substitutions_will_apply();
         let addr = addr.address(resolver)?;
+        if let Some(path) = addr.as_pathname() {
+            if !path.is_absolute() {
+                return Err(ResolveError::UnixAddressNotAbsolute);
+            }
+        }
         let string = if substituted {
             addr.try_to_string().ok_or(ResolveError::PathNotString)?
         } else {
