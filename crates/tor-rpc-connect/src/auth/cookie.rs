@@ -228,7 +228,11 @@ impl CookieAuthNonce {
     /// (Case-insensitive, no leading "0x" marker.  Output must be COOKIE_LEN bytes long.)
     pub fn from_hex(s: &str) -> Result<Self, HexError> {
         let mut nonce = Self(Default::default());
-        base16ct::mixed::decode(s, nonce.0.as_mut()).map_err(|_| HexError::InvalidHex)?;
+        let decoded =
+            base16ct::mixed::decode(s, nonce.0.as_mut()).map_err(|_| HexError::InvalidHex)?;
+        if decoded.len() != 32 {
+            return Err(HexError::InvalidHex);
+        }
         Ok(nonce)
     }
 }
@@ -264,7 +268,11 @@ impl CookieAuthMac {
     /// (Case-insensitive, no leading "0x" marker.  Output must be COOKIE_LEN bytes long.)
     pub fn from_hex(s: &str) -> Result<Self, HexError> {
         let mut mac = Self(Default::default());
-        base16ct::mixed::decode(s, mac.0.as_mut()).map_err(|_| HexError::InvalidHex)?;
+        let decoded =
+            base16ct::mixed::decode(s, mac.0.as_mut()).map_err(|_| HexError::InvalidHex)?;
+        if decoded.len() != 32 {
+            return Err(HexError::InvalidHex);
+        }
         Ok(mac)
     }
 }
@@ -419,5 +427,41 @@ mod test {
                  F3 9E 51 51 99 8D EC CF 97 3A DB 38 04 BB 6E 84"
             )
         );
+    }
+
+    #[test]
+    fn hex_encoding() {
+        let s = "0000000000000000000000000000000000000000000000000012345678ABCDEF";
+        let expected = [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x12, 0x34,
+            0x56, 0x78, 0xAB, 0xCD, 0xEF,
+        ];
+        assert_eq!(s.len(), 64);
+        let cn = CookieAuthNonce::from_hex(s).unwrap();
+        assert_eq!(**cn.0, expected);
+        assert_eq!(cn.to_hex().as_str(), s);
+
+        let cm = CookieAuthMac::from_hex(s).unwrap();
+        assert_eq!(**cm.0, expected);
+        assert_eq!(cm.to_hex().as_str(), s);
+
+        let s2 = s.to_ascii_lowercase();
+        let cn2 = CookieAuthNonce::from_hex(&s2).unwrap();
+        let cm2 = CookieAuthMac::from_hex(&s2).unwrap();
+        assert_eq!(cn2.0, cn.0);
+        assert_eq!(cm2, cm);
+
+        for bad in [
+            // too short
+            "12345678",
+            // bad characters
+            "0000000000000000000000000000000000000000000000000012345678XXXXXX",
+            // too long
+            "0000000000000000000000000000000000000000000000000012345678ABCDEF12345678",
+        ] {
+            dbg!(bad);
+            assert!(CookieAuthNonce::from_hex(bad).is_err());
+            assert!(CookieAuthMac::from_hex(bad).is_err());
+        }
     }
 }
