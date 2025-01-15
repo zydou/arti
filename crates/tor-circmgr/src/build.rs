@@ -614,10 +614,10 @@ pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParamet
                 .into(),
         ),
         // Unrecognized, fallback to fixed window as in SENDME v0.
-        AlgorithmType::FIXED_WINDOW | _ => build_cc_fixedwindow(inp),
+        _ => build_cc_fixedwindow(inp),
     };
     circparameters_from_netparameters(inp, alg)
-        _ => build_cc_fixedwindow(inp),
+}
 
 /// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus for an onion circuit
 /// which also includes an onion service with Vanguard.
@@ -635,10 +635,10 @@ pub fn onion_circparams_from_netparams(inp: &NetParameters) -> Result<CircParame
                 .into(),
         ),
         // Unrecognized, fallback to fixed window as in SENDME v0.
-        AlgorithmType::FIXED_WINDOW | _ => build_cc_fixedwindow(inp),
+        _ => build_cc_fixedwindow(inp),
     };
     circparameters_from_netparameters(inp, alg)
-        _ => build_cc_fixedwindow(inp),
+}
 
 /// Helper function: spawn a future as a background task, and run it with
 /// two separate timeouts.
