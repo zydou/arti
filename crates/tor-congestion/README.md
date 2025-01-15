@@ -1,0 +1,5 @@
+# tor-congestion
+
+**THIS CRATE IS OBSOLETE AND UNMAINTAINED**
+
+THIS CRATE IS HAS BEEN FOLDED INTO `tor-proto`. 

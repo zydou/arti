@@ -5592,6 +5592,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-congestion"
+version = "0.17.0"
+
+[[package]]
 name = "tor-consdiff"
 version = "0.26.0"
 dependencies = [
