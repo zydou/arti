@@ -13,19 +13,34 @@ pub enum RpcAuth {
     Inherent,
     /// RPC cookie authentication is expected on the connection.
     Cookie {
-        /// A secret cookie value to use for authentication.
-        secret: Arc<cookie::Cookie>,
+        /// A secret cookie to use for authentication.
+        secret: RpcCookieSource,
         /// The address that the server is listening on,
         /// encoded as a string.
         server_address: String,
     },
-    /// RPC cookie authentication is expected on this connection;
-    /// the cookie should be loaded from disk immediately before using it.
-    UnloadedCookie {
-        /// The location on disk at which to load a secret cookie.
-        secret_location: cookie::CookieLocation,
-        /// The address that the server is listening on,
-        /// encoded as a string.
-        server_address: String,
-    },
+}
+
+/// A way to get an RPC cookie: Either in-memory, or by loading it from disk.
+///
+/// (We defer loading cookies when running as a client,
+/// since clients should not actually load cookies from disk
+/// until they have received the server's banner message.)
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum RpcCookieSource {
+    /// A cookie that is already loaded.
+    Loaded(Arc<cookie::Cookie>),
+    /// A cookie that's stored on disk and needs to be loaded.
+    Unloaded(cookie::CookieLocation),
+}
+
+impl RpcCookieSource {
+    /// Try to load this cookie from disk, if it is not already loaded.
+    pub fn load(&self) -> Result<Arc<cookie::Cookie>, cookie::CookieAccessError> {
+        match self {
+            RpcCookieSource::Loaded(cookie) => Ok(Arc::clone(cookie)),
+            RpcCookieSource::Unloaded(cookie_location) => Ok(Arc::new(cookie_location.load()?)),
+        }
+    }
 }

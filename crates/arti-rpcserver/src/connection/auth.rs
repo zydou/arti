@@ -75,7 +75,7 @@ async fn conn_authquery(
     use tor_rpc_connect::auth::RpcAuth;
     let schemes = match &conn.require_auth {
         RpcAuth::Inherent => vec![AuthenticationScheme::Inherent],
-        RpcAuth::Cookie { .. } | RpcAuth::UnloadedCookie { .. } => {
+        RpcAuth::Cookie { .. } => {
             vec![AuthenticationScheme::Cookie]
         }
         _ => vec![],

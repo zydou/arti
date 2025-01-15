@@ -107,7 +107,16 @@ async fn cookie_begin(
             secret,
             server_address,
             ..
-        } => (Arc::clone(secret), server_address.clone()),
+        } => (
+            secret.load().map_err(|_| {
+                // This is an internal error, since server cookies are always preloaded.
+                rpc::RpcError::new(
+                    "Somehow had an unloadable cookie".into(),
+                    rpc::RpcErrorKind::InternalError,
+                )
+            })?,
+            server_address.clone(),
+        ),
         _ => return Err(AuthenticationFailure::IncorrectMethod.into()),
     };
     let mut rng = rand::thread_rng();

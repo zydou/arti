@@ -3,7 +3,7 @@
 use std::{io, path::PathBuf, sync::Arc};
 
 use crate::{
-    auth::{cookie::Cookie, RpcAuth},
+    auth::{cookie::Cookie, RpcAuth, RpcCookieSource},
     ConnectError, ResolvedConnectPoint,
 };
 use fs_mistrust::Mistrust;
@@ -129,11 +129,11 @@ impl crate::connpt::Connect<crate::connpt::Resolved> {
         let auth = match &self.auth {
             crate::connpt::Auth::None => RpcAuth::Inherent,
             crate::connpt::Auth::Cookie { path } => RpcAuth::Cookie {
-                secret: Arc::new(Cookie::create(
+                secret: RpcCookieSource::Loaded(Arc::new(Cookie::create(
                     path.as_path(),
                     &mut rand::thread_rng(),
                     mistrust,
-                )?),
+                )?)),
                 server_address: self.socket.as_str().to_owned(),
             },
             crate::connpt::Auth::Unrecognized {} => return Err(ConnectError::UnsupportedAuthType),

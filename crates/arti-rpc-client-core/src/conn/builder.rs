@@ -194,14 +194,7 @@ fn try_connect(
         RpcAuth::Cookie {
             secret,
             server_address,
-        } => conn.authenticate_cookie(&secret, &server_address)?,
-        RpcAuth::UnloadedCookie {
-            secret_location,
-            server_address,
-        } => {
-            let secret = secret_location.load()?;
-            conn.authenticate_cookie(&secret, &server_address)?
-        }
+        } => conn.authenticate_cookie(secret.load()?.as_ref(), &server_address)?,
         _ => return Err(ConnectError::AuthenticationNotSupported),
     };
     conn.session = Some(session_id);
