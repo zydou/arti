@@ -1391,6 +1391,7 @@ mod test {
     use tor_memquota::HasMemoryCost;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
+    use tracing_test::traced_test;
 
     impl PendingClientCirc {
         /// Testing only: Extract the circuit ID for this pending circuit.
@@ -1592,12 +1593,14 @@ mod test {
         assert_eq!(_circ.n_hops(), 1);
     }
 
+    #[traced_test]
     #[test]
     fn test_create_fast() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             test_create(&rt, HandshakeType::Fast).await;
         });
     }
+    #[traced_test]
     #[test]
     fn test_create_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1605,6 +1608,7 @@ mod test {
         });
     }
     #[cfg(feature = "ntor_v3")]
+    #[traced_test]
     #[test]
     fn test_create_ntor_v3() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1714,6 +1718,7 @@ mod test {
     }
 
     // Try sending a cell via send_relay_cell
+    #[traced_test]
     #[test]
     fn send_simple() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1837,6 +1842,7 @@ mod test {
         }
     }
 
+    #[traced_test]
     #[test]
     fn test_extend_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1845,6 +1851,7 @@ mod test {
     }
 
     #[cfg(feature = "ntor_v3")]
+    #[traced_test]
     #[test]
     fn test_extend_ntor_v3() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1879,6 +1886,7 @@ mod test {
         outcome.unwrap_err()
     }
 
+    #[traced_test]
     #[test]
     fn bad_extend_wronghop() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1897,6 +1905,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     fn bad_extend_wrongtype() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1914,6 +1923,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     fn bad_extend_destroy() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1926,6 +1936,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     fn bad_extend_crypto() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -1936,6 +1947,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     fn begindir() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -2071,11 +2083,13 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     fn drop_stream() {
         close_stream_helper(true);
     }
 
+    #[traced_test]
     #[test]
     fn close_stream() {
         close_stream_helper(false);
@@ -2167,6 +2181,7 @@ mod test {
         (circ, stream, sink, streamid, cells_received, rx, sink2)
     }
 
+    #[traced_test]
     #[test]
     fn accept_valid_sendme() {
         tor_rtmock::MockRuntime::test_with_various(|rt| async move {
@@ -2238,6 +2253,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     fn invalid_circ_sendme() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
@@ -2274,6 +2290,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     fn test_busy_stream_fairness() {
         // Number of streams to use.
@@ -2430,6 +2447,7 @@ mod test {
         }
     }
 
+    #[traced_test]
     #[test]
     #[cfg(feature = "hs-service")]
     fn allow_stream_requests_twice() {
@@ -2459,6 +2477,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     #[cfg(feature = "hs-service")]
     fn allow_stream_requests() {
@@ -2533,6 +2552,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     #[cfg(feature = "hs-service")]
     fn accept_stream_after_reject() {
@@ -2625,6 +2645,7 @@ mod test {
         });
     }
 
+    #[traced_test]
     #[test]
     #[cfg(feature = "hs-service")]
     fn incoming_stream_bad_hop() {

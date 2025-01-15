@@ -112,6 +112,7 @@ regex = { version = "1", default-features = false, features = ["std"] }
 statrs = "0.18.0"
 tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.26.0", features = ["tokio", "native-tls"] }
+tracing-test = "0.2.4"
 [package.metadata.docs.rs]
 all-features = true
 

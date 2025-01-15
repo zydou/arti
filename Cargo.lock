@@ -6307,6 +6307,7 @@ dependencies = [
  "tor-rtmock",
  "tor-units",
  "tracing",
+ "tracing-test",
  "typenum",
  "visibility",
  "void",

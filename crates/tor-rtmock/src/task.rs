@@ -23,7 +23,12 @@ use itertools::{chain, izip};
 use slotmap_careful::DenseSlotMap;
 use std::backtrace::Backtrace;
 use strum::EnumIter;
-use tracing::trace;
+
+// NB: when using traced_test, the trace! and error! output here is generally suppressed
+// in tests of other crates.  To see it, you can write something like this
+// (in the dev-dependencies of the crate whose tests you're running):
+//    tracing-test = { version = "0.2.4", features = ["no-env-filter"] }
+use tracing::{error, trace};
 
 use oneshot_fused_workaround::{self as oneshot, Canceled, Receiver};
 use tor_error::error_report;
@@ -380,16 +385,22 @@ impl BlockOn for MockExecutor {
     ///    but instead waits for something.
     ///
     /// * The `MockExecutor` is reentered.  (Eg, `block_on` is reentered.)
-    fn block_on<F>(&self, fut: F) -> F::Output
+    fn block_on<F>(&self, input_fut: F) -> F::Output
     where
         F: Future,
     {
         let mut value: Option<F::Output> = None;
-        let fut = {
+
+        // Box this just so that we can conveniently control precisely when it's dropped.
+        // (We could do this with Option and Pin::set but that seems clumsier.)
+        let mut input_fut = Box::pin(input_fut);
+
+        let run_store_fut = {
             let value = &mut value;
-            async move {
+            let input_fut = &mut input_fut;
+            async {
                 trace!("MockExecutor block_on future...");
-                let t = fut.await;
+                let t = input_fut.await;
                 trace!("MockExecutor block_on future returned...");
                 *value = Some(t);
                 trace!("MockExecutor block_on future exiting.");
@@ -397,17 +408,44 @@ impl BlockOn for MockExecutor {
         };
 
         {
-            pin_mut!(fut);
-            self.data
+            pin_mut!(run_store_fut);
+
+            let main_id = self
+                .data
                 .lock()
                 .insert_task("main".into(), TaskFutureInfo::Main);
-            self.execute_to_completion(fut);
+            trace!("MockExecutor {main_id:?} is task for block_on");
+            self.execute_to_completion(run_store_fut);
         }
 
         #[allow(clippy::let_and_return)] // clarity
         let value = value.take().unwrap_or_else(|| {
-            let mut data = self.data.lock();
-            data.debug_dump();
+            // eprintln can be captured by libtest, but the debug_dump goes to io::stderr.
+            // use the latter, so that the debug dump is prefixed by this message.
+            let _: io::Result<()> = writeln!(io::stderr(), "all futures blocked, crashing...");
+            // write to tracing too, so the tracing log is clear about when we crashed
+            error!("all futures blocked, crashing...");
+
+            // Sequencing here is subtle.
+            //
+            // We should do the dump before dropping the input future, because the input
+            // future is likely to own things that, when dropped, wake up other tasks,
+            // rendering the dump inaccurate.
+            //
+            // But also, dropping the input future may well drop a ProgressUntilStalledFuture
+            // which then reenters us.  More generally, we mustn't call user code
+            // with the lock held.
+            //
+            // And, we mustn't panic with the data lock held.
+            //
+            // If value was Some, then this closure is dropped without being called,
+            // which drops the future after it has yielded the value, which is correct.
+            {
+                let mut data = self.data.lock();
+                data.debug_dump();
+            }
+            drop(input_fut);
+
             panic!(
                 r"
 all futures blocked. waiting for the real world? or deadlocked (waiting for each other) ?
@@ -513,6 +551,7 @@ impl MockExecutor {
             };
 
             // Deal with the returned `Poll`
+            let _fut_drop_late;
             {
                 let mut data = self.data.lock();
                 let task = data
@@ -537,6 +576,11 @@ impl MockExecutor {
                         // It might be in `awake`, but that's allowed to contain stale tasks,
                         // so we *don't* need to scan that list and remove it.
                         data.tasks.remove(id);
+                        // It is important that we don't drop `fut` until we have released
+                        // the data lock, since it is an external type and might try to reenter
+                        // us (eg by calling spawn).  If we do that here, we risk deadlock.
+                        // So, move `fut` to a variable with scope outside the block with `data`.
+                        _fut_drop_late = fut;
                     }
                 }
             }
@@ -1026,6 +1070,7 @@ mod test {
     use super::*;
     use futures::channel::mpsc;
     use futures::{SinkExt as _, StreamExt as _};
+    use strum::IntoEnumIterator;
 
     #[cfg(not(miri))] // trace! asks for the time, which miri doesn't support
     use tracing_test::traced_test;
@@ -1135,5 +1180,45 @@ mod test {
                 assert_eq!(task_1.await, 42);
             }
         });
+    }
+
+    #[cfg_attr(not(miri), traced_test)]
+    #[test]
+    fn drop_reentrancy() {
+        // Check that dropping a completed task future is done *outside* the data lock.
+        // Involves a contrived future whose Drop impl reenters the executor.
+        //
+        // If `_fut_drop_late = fut` in execute_until_first_stall (the main loop)
+        // is replaced with `drop(fut)` (dropping the future at the wrong moment),
+        // we do indeed get deadlock, so this test case is working.
+
+        struct ReentersOnDrop {
+            runtime: MockExecutor,
+        }
+        impl Future for ReentersOnDrop {
+            type Output = ();
+            fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<()> {
+                Poll::Ready(())
+            }
+        }
+        impl Drop for ReentersOnDrop {
+            fn drop(&mut self) {
+                self.runtime
+                    .spawn_identified("dummy", futures::future::ready(()));
+            }
+        }
+
+        // This duplicates the part of the logic in MockRuntime::test_with_various which
+        // relates to MockExecutor, because we don't have a MockRuntime::builder.
+        // The only parameter to MockExecutor is its scheduling policy, so this seems fine.
+        for scheduling in SchedulingPolicy::iter() {
+            let runtime = MockExecutor::with_scheduling(scheduling);
+            runtime.block_on(async {
+                runtime.spawn_identified("trapper", {
+                    let runtime = runtime.clone();
+                    ReentersOnDrop { runtime }
+                });
+            });
+        }
     }
 }
