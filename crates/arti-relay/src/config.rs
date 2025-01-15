@@ -4,7 +4,7 @@
 //! implementation, more configurations will show up.
 
 use std::borrow::Cow;
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use derive_builder::Builder;
 use derive_more::AsRef;
@@ -118,18 +118,6 @@ pub(crate) struct TorRelayConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) storage: StorageConfig,
 
-    /// Facility to override network parameters from the values set in the
-    /// consensus.
-    #[builder(
-        sub_builder,
-        field(
-            type = "HashMap<String, i32>",
-            build = "default_extend(self.override_net_params.clone())"
-        )
-    )]
-    #[builder_field_attr(serde(default))]
-    pub(crate) override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
-
     /// Information about how to build paths through the network.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
@@ -139,13 +127,6 @@ impl_standard_builder! { TorRelayConfig }
 
 impl tor_config::load::TopLevel for TorRelayConfig {
     type Builder = TorRelayConfigBuilder;
-}
-
-/// Helper to add overrides to a default collection.
-fn default_extend<T: Default + Extend<X>, X>(to_add: impl IntoIterator<Item = X>) -> T {
-    let mut collection = T::default();
-    collection.extend(to_add);
-    collection
 }
 
 /// Default log level.
