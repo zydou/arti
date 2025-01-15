@@ -5,7 +5,7 @@ use tor_rpc_connect::auth::cookie::{Cookie, CookieAuthMac, CookieAuthNonce};
 
 use crate::msgs::{request::Request, ObjectId};
 
-use super::{ConnectError, RpcConn};
+use super::{ConnectError, EmptyResponse, NoParameters, RpcConn};
 
 /// Arguments to an `auth:authenticate` request.
 #[derive(Serialize, Debug)]
@@ -74,6 +74,7 @@ impl RpcConn {
         cookie: &Cookie,
         server_addr: &str,
     ) -> Result<ObjectId, ConnectError> {
+        // This protocol is documented in `rpc-cookie-sketch.md`.
         let client_nonce = CookieAuthNonce::new(&mut rand::thread_rng());
 
         let cookie_begin: Request<CookieBeginParams> = Request::new(
@@ -99,12 +100,17 @@ impl RpcConn {
         }
 
         let client_mac = cookie.client_mac(&client_nonce, &reply.server_nonce, server_addr);
+        let cookie_auth_obj = reply.cookie_auth.clone();
         let cookie_continue = Request::new(
-            reply.cookie_auth,
+            cookie_auth_obj.clone(),
             "auth:cookie_continue",
             CookieContinueParams { client_mac },
         );
         let authenticated: Authenticated = self.execute_internal_ok(&cookie_continue.encode()?)?;
+
+        // Drop the cookie_auth_obj: we don't need it now that we have authenticated.
+        let drop_request = Request::new(cookie_auth_obj, "rpc:release", NoParameters {});
+        let _reply: EmptyResponse = self.execute_internal_ok(&drop_request.encode()?)?;
 
         Ok(authenticated.session)
     }
