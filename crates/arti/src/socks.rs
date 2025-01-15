@@ -250,7 +250,7 @@ struct AuthInterpretation {
 /// where the Session ID is `SESSION-1`.
 ///
 /// The application sends an RPC request of the form:
-/// `{"id": 123, "obj": "SESSION-1", "method": "arti:new_stream_handle", "params": {}}`
+/// `{"id": 123, "obj": "SESSION-1", "method": "arti:new_oneshot_client", "params": {}}`
 ///
 /// It receives a reply like:
 /// `{"id": 123, "result": {"id": "STREAM-1"} }`
