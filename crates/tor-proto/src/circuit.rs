@@ -46,7 +46,6 @@ mod handshake;
 mod msghandler;
 mod path;
 pub(crate) mod reactor;
-pub(crate) mod sendme;
 mod streammap;
 mod unique_id;
 
@@ -56,6 +55,7 @@ use crate::circuit::reactor::{
     CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
 };
 pub use crate::circuit::unique_id::UniqId;
+use crate::congestion::params::CongestionControlParams;
 pub use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::HopNum;
 #[cfg(feature = "ntor_v3")]
@@ -74,7 +74,7 @@ use tor_cell::{
     relaycell::msg::{AnyRelayMsg, Begin, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::{bad_api_usage, internal, into_internal};
+use tor_error::{internal, into_internal};
 use tor_linkspec::{CircTarget, LinkSpecType, OwnedChanTarget, RelayIdType};
 
 #[cfg(feature = "hs-service")]
@@ -86,7 +86,7 @@ use {
 use futures::channel::mpsc;
 use oneshot_fused_workaround as oneshot;
 
-use crate::circuit::sendme::StreamRecvWindow;
+use crate::congestion::sendme::StreamRecvWindow;
 use futures::{FutureExt as _, SinkExt as _};
 use std::net::IpAddr;
 use std::pin::Pin;
@@ -233,57 +233,33 @@ pub struct PendingClientCirc {
 }
 
 /// Description of the network's current rules for building circuits.
+#[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct CircParameters {
-    /// Initial value to use for our outbound circuit-level windows.
-    initial_send_window: u16,
     /// Whether we should include ed25519 identities when we send
     /// EXTEND2 cells.
-    extend_by_ed25519_id: bool,
+    pub extend_by_ed25519_id: bool,
+    /// Congestion control parameters for this circuit.
+    pub ccontrol: CongestionControlParams,
 }
 
-impl Default for CircParameters {
-    fn default() -> CircParameters {
-        CircParameters {
-            initial_send_window: 1000,
+#[cfg(test)]
+impl std::default::Default for CircParameters {
+    fn default() -> Self {
+        Self {
             extend_by_ed25519_id: true,
+            ccontrol: crate::congestion::test_utils::params::build_cc_fixed_params(),
         }
     }
 }
 
 impl CircParameters {
-    /// Override the default initial send window for these parameters.
-    /// Gives an error on any value above 1000.
-    ///
-    /// You should probably not call this.
-    pub fn set_initial_send_window(&mut self, v: u16) -> Result<()> {
-        if v <= 1000 {
-            self.initial_send_window = v;
-            Ok(())
-        } else {
-            Err(Error::from(bad_api_usage!(
-                "Tried to set an initial send window over 1000"
-            )))
+    /// Constructor
+    pub fn new(extend_by_ed25519_id: bool, ccontrol: CongestionControlParams) -> Self {
+        Self {
+            extend_by_ed25519_id,
+            ccontrol,
         }
-    }
-
-    /// Return the initial send window as set in this parameter set.
-    pub fn initial_send_window(&self) -> u16 {
-        self.initial_send_window
-    }
-
-    /// Override the default decision about whether to use ed25519
-    /// identities in outgoing EXTEND2 cells.
-    ///
-    /// You should probably not call this.
-    pub fn set_extend_by_ed25519_id(&mut self, v: bool) {
-        self.extend_by_ed25519_id = v;
-    }
-
-    /// Return true if we're configured to extend by ed25519 ID; false
-    /// otherwise.
-    pub fn extend_by_ed25519_id(&self) -> bool {
-        self.extend_by_ed25519_id
     }
 }
 
@@ -653,7 +629,7 @@ impl ClientCirc {
         let mut linkspecs = target
             .linkspecs()
             .map_err(into_internal!("Could not encode linkspecs for extend_ntor"))?;
-        if !params.extend_by_ed25519_id() {
+        if !params.extend_by_ed25519_id {
             linkspecs.retain(|ls| ls.lstype() != LinkSpecType::ED25519ID);
         }
 
@@ -691,7 +667,7 @@ impl ClientCirc {
         let mut linkspecs = target
             .linkspecs()
             .map_err(into_internal!("Could not encode linkspecs for extend_ntor"))?;
-        if !params.extend_by_ed25519_id() {
+        if !params.extend_by_ed25519_id {
             linkspecs.retain(|ls| ls.lstype() != LinkSpecType::ED25519ID);
         }
 
@@ -1366,6 +1342,7 @@ mod test {
     use super::*;
     use crate::channel::OpenChanCellS2C;
     use crate::channel::{test::new_reactor, CodecError};
+    use crate::congestion::sendme;
     use crate::crypto::cell::RelayCellBody;
     #[cfg(feature = "ntor_v3")]
     use crate::crypto::handshake::ntor_v3::NtorV3Server;
@@ -2422,16 +2399,10 @@ mod test {
     fn basic_params() {
         use super::CircParameters;
         let mut p = CircParameters::default();
-        assert_eq!(p.initial_send_window(), 1000);
-        assert!(p.extend_by_ed25519_id());
+        assert!(p.extend_by_ed25519_id);
 
-        assert!(p.set_initial_send_window(500).is_ok());
-        p.set_extend_by_ed25519_id(false);
-        assert_eq!(p.initial_send_window(), 500);
-        assert!(!p.extend_by_ed25519_id());
-
-        assert!(p.set_initial_send_window(9000).is_err());
-        assert_eq!(p.initial_send_window(), 500);
+        p.extend_by_ed25519_id = false;
+        assert!(!p.extend_by_ed25519_id);
     }
 
     #[cfg(feature = "hs-service")]

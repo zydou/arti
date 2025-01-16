@@ -75,7 +75,6 @@ pub(crate) use {
     tor_async_utils::{DropNotifyWatchSender, PostageWatchSenderExt as _},
     tor_basic_utils::{impl_debug_hex, retry::RetryDelay, PathExt as _, RngExt as _},
     tor_cell::relaycell::{msg::AnyRelayMsg, RelayMsg as _},
-    tor_circmgr::build::circparameters_from_netparameters,
     tor_circmgr::hspool::{HsCircKind, HsCircPool},
     tor_config::{ConfigBuildError, Reconfigure, ReconfigureError},
     tor_dirclient::request::HsDescUploadRequest,

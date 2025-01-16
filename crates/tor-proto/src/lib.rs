@@ -53,6 +53,7 @@
 pub mod bench_utils;
 pub mod channel;
 pub mod circuit;
+mod congestion;
 mod crypto;
 pub mod memquota;
 pub mod stream;
@@ -62,6 +63,7 @@ pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
 pub use channel::params::ChannelPaddingInstructions;
+pub use congestion::params as ccparams;
 pub use crypto::cell::{HopNum, HopNumDisplay};
 
 /// A Result type for this crate.

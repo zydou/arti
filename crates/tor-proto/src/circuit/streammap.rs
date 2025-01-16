@@ -1,8 +1,8 @@
 //! Types and code for mapping StreamIDs to streams on a circuit.
 
 use crate::circuit::halfstream::HalfStream;
-use crate::circuit::sendme;
 use crate::circuit::{StreamMpscReceiver, StreamMpscSender};
+use crate::congestion::sendme;
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl};
 use crate::util::stream_poll_set::{KeyAlreadyInsertedError, StreamPollSet};
 use crate::{Error, Result};
@@ -22,7 +22,6 @@ use tor_error::{bad_api_usage, internal};
 use rand::Rng;
 
 use crate::circuit::reactor::RECV_WINDOW_INIT;
-use crate::circuit::sendme::StreamRecvWindow;
 use tracing::debug;
 
 /// Entry for an open stream
@@ -66,13 +65,13 @@ impl OpenStreamEnt {
     ///
     /// On failure, return an error: the caller should close the stream or
     /// circuit with a protocol error.
-    pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<u16> {
-        let res = self.flow_ctrl.put_for_incoming_sendme()?;
+    pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<()> {
+        self.flow_ctrl.put_for_incoming_sendme()?;
         // Wake the stream if it was blocked on flow control.
         if let Some(waker) = self.flow_ctrl_waker.take() {
             waker.wake();
         }
-        Ok(res)
+        Ok(())
     }
 
     /// Take capacity to send `msg`. If there's insufficient capacity, returns
@@ -398,7 +397,7 @@ impl StreamMap {
             // FIXME(eta): we don't copy the receive window, instead just creating a new one,
             //             so a malicious peer can send us slightly more data than they should
             //             be able to; see arti#230.
-            let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
+            let mut recv_window = sendme::StreamRecvWindow::new(RECV_WINDOW_INIT);
             recv_window.decrement_n(dropped)?;
             // TODO: would be nice to avoid new_ref.
             let half_stream = HalfStream::new(flow_ctrl, recv_window, cmd_checker);
@@ -516,7 +515,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::circuit::test::fake_mpsc;
-    use crate::{circuit::sendme::StreamSendWindow, stream::DataCmdChecker};
+    use crate::{congestion::sendme::StreamSendWindow, stream::DataCmdChecker};
 
     #[test]
     fn test_wrapping_next_stream_id() {

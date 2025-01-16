@@ -13,12 +13,14 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
-use tor_error::warn_report;
+use tor_error::into_internal;
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::params::NetParameters;
+use tor_proto::ccparams::{self, AlgorithmType};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
+use tor_units::Percentage;
 
 #[cfg(feature = "ntor_v3")]
 use {tor_linkspec::CircTarget, tor_protover::ProtoKind};
@@ -521,14 +523,124 @@ impl<R: Runtime> CircuitBuilder<R> {
     }
 }
 
-/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus.
-pub fn circparameters_from_netparameters(inp: &NetParameters) -> CircParameters {
-    let mut p = CircParameters::default();
-    if let Err(e) = p.set_initial_send_window(inp.circuit_window.get() as u16) {
-        warn_report!(e, "Invalid parameter in directory");
-    }
-    p.set_extend_by_ed25519_id(inp.extend_by_ed25519_id.into());
-    p
+/// Return the congestion control Vegas algorithm using the given network parameters.
+fn build_cc_vegas(
+    inp: &NetParameters,
+    vegas_queue_params: ccparams::VegasQueueParams,
+) -> ccparams::Algorithm {
+    ccparams::Algorithm::Vegas(
+        ccparams::VegasParamsBuilder::default()
+            .cell_in_queue_params(vegas_queue_params)
+            .ss_cwnd_max(inp.cc_ss_max.into())
+            .cwnd_full_gap(inp.cc_cwnd_full_gap.into())
+            .cwnd_full_min_pct(Percentage::new(
+                inp.cc_cwnd_full_minpct.as_percent().get() as u32
+            ))
+            .cwnd_full_per_cwnd(inp.cc_cwnd_full_per_cwnd.into())
+            .build()
+            .expect("Unable to build Vegas params from NetParams"),
+    )
+}
+
+/// Return the congestion control FixedWindow algorithm using the given network parameters.
+fn build_cc_fixedwindow(inp: &NetParameters) -> ccparams::Algorithm {
+    ccparams::Algorithm::FixedWindow(
+        ccparams::FixedWindowParamsBuilder::default()
+            .circ_window_start(inp.circuit_window.get() as u16)
+            .circ_window_min(inp.circuit_window.lower() as u16)
+            .circ_window_max(inp.circuit_window.upper() as u16)
+            .build()
+            .expect("Unable to build FixedWindow params from NetParams"),
+    )
+}
+
+/// Return a new circuit parameter struct using the given network parameters and algorithm to use.
+fn circparameters_from_netparameters(
+    inp: &NetParameters,
+    _alg: ccparams::Algorithm,
+) -> Result<CircParameters> {
+    // TODO Remove this once circuit handshake negotiation is done for CC along flow control.
+    //  Until then, we always go fixed window.
+    let alg = build_cc_fixedwindow(inp);
+    let cwnd_params = ccparams::CongestionWindowParamsBuilder::default()
+        .cwnd_init(inp.cc_cwnd_init.into())
+        .cwnd_inc_pct_ss(Percentage::new(
+            inp.cc_cwnd_inc_pct_ss.as_percent().get() as u32
+        ))
+        .cwnd_inc(inp.cc_cwnd_inc.into())
+        .cwnd_inc_rate(inp.cc_cwnd_inc_rate.into())
+        .cwnd_min(inp.cc_cwnd_min.into())
+        .cwnd_max(inp.cc_cwnd_max.into())
+        .sendme_inc(inp.cc_sendme_inc.into())
+        .build()
+        .map_err(into_internal!(
+            "Unable to build CongestionWindow params from NetParams"
+        ))?;
+    let rtt_params = ccparams::RoundTripEstimatorParamsBuilder::default()
+        .ewma_cwnd_pct(Percentage::new(
+            inp.cc_ewma_cwnd_pct.as_percent().get() as u32
+        ))
+        .ewma_max(inp.cc_ewma_max.into())
+        .ewma_ss_max(inp.cc_ewma_ss.into())
+        .rtt_reset_pct(Percentage::new(
+            inp.cc_rtt_reset_pct.as_percent().get() as u32
+        ))
+        .build()
+        .map_err(into_internal!("Unable to build RTT params from NetParams"))?;
+    let ccontrol = ccparams::CongestionControlParamsBuilder::default()
+        .alg(alg)
+        .cwnd_params(cwnd_params)
+        .rtt_params(rtt_params)
+        .build()
+        .map_err(into_internal!(
+            "Unable to build CongestionControl params from NetParams"
+        ))?;
+    Ok(CircParameters::new(
+        inp.extend_by_ed25519_id.into(),
+        ccontrol,
+    ))
+}
+
+/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus for an exit circuit or
+/// single onion service (when implemented).
+pub fn exit_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
+    let alg = match inp.cc_alg.get().into() {
+        AlgorithmType::VEGAS => build_cc_vegas(
+            inp,
+            (
+                inp.cc_vegas_alpha_exit.into(),
+                inp.cc_vegas_beta_exit.into(),
+                inp.cc_vegas_delta_exit.into(),
+                inp.cc_vegas_gamma_exit.into(),
+                inp.cc_vegas_sscap_exit.into(),
+            )
+                .into(),
+        ),
+        // Unrecognized, fallback to fixed window as in SENDME v0.
+        _ => build_cc_fixedwindow(inp),
+    };
+    circparameters_from_netparameters(inp, alg)
+}
+
+/// Extract a [`CircParameters`] from the [`NetParameters`] from a consensus for an onion circuit
+/// which also includes an onion service with Vanguard.
+pub fn onion_circparams_from_netparams(inp: &NetParameters) -> Result<CircParameters> {
+    let alg = match inp.cc_alg.get().into() {
+        AlgorithmType::VEGAS => build_cc_vegas(
+            inp,
+            (
+                inp.cc_vegas_alpha_onion.into(),
+                inp.cc_vegas_beta_onion.into(),
+                inp.cc_vegas_delta_onion.into(),
+                inp.cc_vegas_gamma_onion.into(),
+                inp.cc_vegas_sscap_onion.into(),
+            )
+                .into(),
+        ),
+        // Unrecognized, fallback to fixed window as in SENDME v0.
+        _ => build_cc_fixedwindow(inp),
+    };
+    circparameters_from_netparameters(inp, alg)
 }
 
 /// Helper function: spawn a future as a background task, and run it with
@@ -952,7 +1064,7 @@ mod test {
         rt.allow_one_advance(advance_initial);
         let outcome = rt.spawn_join("build-owned", async move {
             let arcbuilder = Arc::new(builder);
-            let params = CircParameters::default();
+            let params = exit_circparams_from_netparams(&NetParameters::default())?;
             arcbuilder.build_owned(path, &params, gs(), usage).await
         });
 

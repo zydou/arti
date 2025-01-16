@@ -2,7 +2,7 @@
 
 use tor_cell::relaycell::RelayMsg;
 
-use crate::circuit::sendme;
+use crate::congestion::sendme;
 use crate::Result;
 
 /// Private internals of [`StreamSendFlowControl`].
@@ -52,7 +52,7 @@ impl StreamSendFlowControl {
         match &mut self.e {
             StreamSendFlowControlEnum::WindowBased(w) => {
                 if sendme::cmd_counts_towards_windows(msg.cmd()) {
-                    w.take(&()).map(|_| ())
+                    w.take().map(|_| ())
                 } else {
                     // TODO: Maybe make this an error?
                     // Ideally caller would have checked this already.
@@ -69,9 +69,9 @@ impl StreamSendFlowControl {
     ///
     /// On failure, return an error: the caller should close the stream or
     /// circuit with a protocol error.
-    pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<u16> {
+    pub(crate) fn put_for_incoming_sendme(&mut self) -> Result<()> {
         match &mut self.e {
-            StreamSendFlowControlEnum::WindowBased(w) => w.put(Some(())),
+            StreamSendFlowControlEnum::WindowBased(w) => w.put(),
             // xon-based will return an error.
         }
     }

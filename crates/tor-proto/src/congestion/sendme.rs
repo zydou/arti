@@ -46,13 +46,10 @@ impl PartialEq<[u8; 20]> for CircTag {
     }
 }
 
-/// Absence of a tag, as with stream cells.
-pub(crate) type NoTag = ();
-
 /// A circuit's send window.
-pub(crate) type CircSendWindow = SendWindow<CircParams, CircTag>;
+pub(crate) type CircSendWindow = SendWindow<CircParams>;
 /// A stream's send window.
-pub(crate) type StreamSendWindow = SendWindow<StreamParams, NoTag>;
+pub(crate) type StreamSendWindow = SendWindow<StreamParams>;
 
 /// A circuit's receive window.
 pub(crate) type CircRecvWindow = RecvWindow<CircParams>;
@@ -64,17 +61,13 @@ pub(crate) type StreamRecvWindow = RecvWindow<StreamParams>;
 /// Additionally, remembers a list of tags that could be used to
 /// acknowledge the cells we have already sent, so we know it's safe
 /// to send more.
-#[derive(Debug)]
-pub(crate) struct SendWindow<P, T>
+#[derive(Clone, Debug)]
+pub(crate) struct SendWindow<P>
 where
     P: WindowParams,
-    T: PartialEq + Eq + Clone,
 {
     /// Current value for this window
     window: u16,
-    /// Tag values that incoming "SENDME" messages need to match in order
-    /// for us to send more data.
-    tags: VecDeque<T>,
     /// Marker type to tell the compiler that the P type is used.
     _dummy: std::marker::PhantomData<P>,
 }
@@ -82,13 +75,17 @@ where
 /// Helper: parametrizes a window to determine its maximum and its increment.
 pub(crate) trait WindowParams {
     /// Largest allowable value for this window.
+    #[allow(dead_code)] // TODO #1383 failure to ever use this is probably a bug
     fn maximum() -> u16;
     /// Increment for this window.
     fn increment() -> u16;
+    /// The default starting value.
+    fn start() -> u16;
 }
 
 /// Parameters used for SENDME windows on circuits: limit at 1000 cells,
 /// and each SENDME adjusts by 100.
+#[derive(Clone, Debug)]
 pub(crate) struct CircParams;
 impl WindowParams for CircParams {
     fn maximum() -> u16 {
@@ -96,6 +93,9 @@ impl WindowParams for CircParams {
     }
     fn increment() -> u16 {
         100
+    }
+    fn start() -> u16 {
+        1000
     }
 }
 
@@ -110,65 +110,44 @@ impl WindowParams for StreamParams {
     fn increment() -> u16 {
         50
     }
+    fn start() -> u16 {
+        500
+    }
 }
 
-impl<P, T> SendWindow<P, T>
+/// Object used to validate SENDMEs as in managing the authenticated tag and verifying it.
+#[derive(Clone, Debug)]
+pub(crate) struct SendmeValidator<T>
 where
-    P: WindowParams,
     T: PartialEq + Eq + Clone,
 {
-    /// Construct a new SendWindow.
-    pub(crate) fn new(window: u16) -> SendWindow<P, T> {
-        let increment = P::increment();
-        let capacity = window.div_ceil(increment);
-        SendWindow {
-            window,
-            tags: VecDeque::with_capacity(capacity as usize),
-            _dummy: std::marker::PhantomData,
+    /// Tag values that incoming "SENDME" messages need to match in order
+    /// for us to send more data.
+    tags: VecDeque<T>,
+}
+
+impl<T> SendmeValidator<T>
+where
+    T: PartialEq + Eq + Clone,
+{
+    /// Constructor
+    pub(crate) fn new() -> Self {
+        Self {
+            tags: VecDeque::new(),
         }
     }
 
-    /// Remove one item from this window (since we've sent a cell).
-    /// If the window was empty, returns an error.
-    ///
-    /// The provided tag is the one associated with the crypto layer that
-    /// originated the cell.  It will get cloned and recorded if we'll
-    /// need to check for it later.
-    ///
-    /// Return the number of cells left in the window.
-    pub(crate) fn take<U>(&mut self, tag: &U) -> Result<u16>
+    /// Record a SENDME tag for future validation once we receive it.
+    pub(crate) fn record<U>(&mut self, tag: &U)
     where
         U: Clone + Into<T>,
     {
-        if let Some(val) = self.window.checked_sub(1) {
-            self.window = val;
-            if self.window % P::increment() == 0 {
-                // We record this tag.
-                // TODO: I'm not saying that this cell in particular
-                // matches the spec, but Tor seems to like it.
-                self.tags.push_back(tag.clone().into());
-            }
-
-            Ok(val)
-        } else {
-            Err(Error::CircProto(
-                "Called SendWindow::take() on empty SendWindow".into(),
-            ))
-        }
+        self.tags.push_back(tag.clone().into());
     }
 
-    /// Handle an incoming sendme with a provided tag.
-    ///
-    /// If the tag is None, then we don't enforce tag requirements. (We can
-    /// remove this option once we no longer support getting SENDME cells
-    /// from relays without the FlowCtrl=1 protocol.)
-    ///
-    /// On success, return the number of cells left in the window.
-    ///
-    /// On failure, return None: the caller should close the stream
-    /// or circuit with a protocol error.
-    #[must_use = "didn't check whether SENDME was expected and tag was right."]
-    pub(crate) fn put<U>(&mut self, tag: Option<U>) -> Result<u16>
+    /// Validate a received tag (if any). A mismatch leads to a protocol violation and the circuit
+    /// MUST be closed.
+    pub(crate) fn validate<U>(&mut self, tag: Option<U>) -> Result<()>
     where
         T: PartialEq<U>,
     {
@@ -185,32 +164,62 @@ where
             }
         }
         self.tags.pop_front();
+        Ok(())
+    }
 
-        let v = self
+    #[cfg(test)]
+    pub(crate) fn expected_tags(&self) -> Vec<T> {
+        self.tags.iter().map(Clone::clone).collect()
+    }
+}
+
+impl<P> SendWindow<P>
+where
+    P: WindowParams,
+{
+    /// Construct a new SendWindow.
+    pub(crate) fn new(window: u16) -> SendWindow<P> {
+        SendWindow {
+            window,
+            _dummy: std::marker::PhantomData,
+        }
+    }
+
+    /// Return true iff the SENDME tag should be recorded.
+    pub(crate) fn should_record_tag(&self) -> bool {
+        self.window % P::increment() == 0
+    }
+
+    /// Remove one item from this window (since we've sent a cell).
+    /// If the window was empty, returns an error.
+    pub(crate) fn take(&mut self) -> Result<()> {
+        self.window = self.window.checked_sub(1).ok_or(Error::CircProto(
+            "Called SendWindow::take() on empty SendWindow".into(),
+        ))?;
+        Ok(())
+    }
+
+    /// Handle an incoming sendme.
+    ///
+    /// On failure, return an error: the caller must close the circuit due to a protocol violation.
+    #[must_use = "didn't check whether SENDME was expected."]
+    pub(crate) fn put(&mut self) -> Result<()> {
+        // Overflow check.
+        let new_window = self
             .window
             .checked_add(P::increment())
-            .ok_or_else(|| Error::from(internal!("Overflow on SENDME window")))?;
-
-        if v > P::maximum() {
-            // This should be unreachable, since we would have found a missing tag earlier.
-            return Err(Error::CircProto("SENDME would exceed SENDME window".into()));
+            .ok_or(Error::from(internal!("Overflow on SENDME window")))?;
+        // Make sure we never go above our maximum else this wasn't expected.
+        if new_window > P::maximum() {
+            return Err(Error::CircProto("Unexpected stream SENDME".into()));
         }
-
-        self.window = v;
-        Ok(v)
+        self.window = new_window;
+        Ok(())
     }
 
     /// Return the current send window value.
     pub(crate) fn window(&self) -> u16 {
         self.window
-    }
-
-    /// For testing: get a copy of the current send window, and the
-    /// expected incoming tags.
-    #[cfg(test)]
-    pub(crate) fn window_and_expected_tags(&self) -> (u16, Vec<T>) {
-        let tags = self.tags.iter().map(Clone::clone).collect();
-        (self.window, tags)
     }
 }
 
@@ -236,8 +245,8 @@ impl<P: WindowParams> RecvWindow<P> {
     /// Called when we've just received a cell; return true if we need to send
     /// a sendme, and false otherwise.
     ///
-    /// Returns a protocol error if we did not expect to receive a cell in the first place
-    /// (because our receive window is closed).
+    /// Returns None if we should not have sent the cell, and we just
+    /// violated the window.
     pub(crate) fn take(&mut self) -> Result<bool> {
         let v = self.window.checked_sub(1);
         if let Some(x) = v {
@@ -254,29 +263,18 @@ impl<P: WindowParams> RecvWindow<P> {
 
     /// Reduce this window by `n`; give an error if this is not possible.
     pub(crate) fn decrement_n(&mut self, n: u16) -> crate::Result<()> {
-        let v = self.window.checked_sub(n);
-        if let Some(x) = v {
-            self.window = x;
-            Ok(())
-        } else {
-            Err(crate::Error::CircProto(
-                "Received too many cells on a stream".into(),
-            ))
-        }
+        self.window = self.window.checked_sub(n).ok_or(Error::CircProto(
+            "Received too many cells on a stream".into(),
+        ))?;
+        Ok(())
     }
 
     /// Called when we've just sent a SENDME.
-    pub(crate) fn put(&mut self) -> Result<()> {
+    pub(crate) fn put(&mut self) {
         self.window = self
             .window
             .checked_add(P::increment())
             .expect("Overflow detected while attempting to increment window");
-
-        if self.window > P::maximum() {
-            Err(internal!("SENDME places window value above its maximum").into())
-        } else {
-            Ok(())
-        }
     }
 }
 
@@ -359,7 +357,7 @@ mod test {
         assert!(w.decrement_n(123).is_ok());
         assert_eq!(w.window, 327);
 
-        w.put().unwrap();
+        w.put();
         assert_eq!(w.window, 377);
 
         // failing decrement.
@@ -369,7 +367,7 @@ mod test {
         assert!(w.take().is_err());
     }
 
-    fn new_sendwindow() -> SendWindow<CircParams, &'static str> {
+    fn new_sendwindow() -> SendWindow<CircParams> {
         SendWindow::new(1000)
     }
 
@@ -377,68 +375,30 @@ mod test {
     fn sendwindow_basic() -> Result<()> {
         let mut w = new_sendwindow();
 
-        let n = w.take(&"Hello")?;
-        assert_eq!(n, 999);
+        w.take()?;
+        assert_eq!(w.window(), 999);
         for _ in 0_usize..98 {
-            w.take(&"world")?;
+            w.take()?;
         }
-        assert_eq!(w.window, 901);
-        assert_eq!(w.tags.len(), 0);
+        assert_eq!(w.window(), 901);
 
-        let n = w.take(&"and")?;
-        assert_eq!(n, 900);
-        assert_eq!(w.tags.len(), 1);
-        assert_eq!(w.tags[0], "and");
+        w.take()?;
+        assert_eq!(w.window(), 900);
 
-        let n = w.take(&"goodbye")?;
-        assert_eq!(n, 899);
-        assert_eq!(w.tags.len(), 1);
+        w.take()?;
+        assert_eq!(w.window(), 899);
 
         // Try putting a good tag.
-        let n = w.put(Some("and"));
-        assert_eq!(n?, 999);
-        assert_eq!(w.tags.len(), 0);
+        w.put()?;
+        assert_eq!(w.window(), 999);
 
         for _ in 0_usize..300 {
-            w.take(&"dreamland")?;
+            w.take()?;
         }
-        assert_eq!(w.tags.len(), 3);
 
         // Put without a tag.
-        let x: Option<&str> = None;
-        let n = w.put(x);
-        assert_eq!(n?, 799);
-        assert_eq!(w.tags.len(), 2);
-
-        Ok(())
-    }
-
-    #[test]
-    fn sendwindow_bad_put() -> Result<()> {
-        let mut w = new_sendwindow();
-        for _ in 0_usize..250 {
-            w.take(&"correct")?;
-        }
-
-        // wrong tag: won't work.
-        assert_eq!(w.window, 750);
-        let n = w.put(Some("incorrect"));
-        assert!(n.is_err());
-
-        let n = w.put(Some("correct"));
-        assert_eq!(n?, 850);
-        let n = w.put(Some("correct"));
-        assert_eq!(n?, 950);
-
-        // no tag expected: won't work.
-        let n = w.put(Some("correct"));
-        assert!(n.is_err());
-        assert_eq!(w.window, 950);
-
-        let x: Option<&str> = None;
-        let n = w.put(x);
-        assert!(n.is_err());
-        assert_eq!(w.window, 950);
+        w.put()?;
+        assert_eq!(w.window(), 799);
 
         Ok(())
     }
@@ -447,11 +407,11 @@ mod test {
     fn sendwindow_erroring() -> Result<()> {
         let mut w = new_sendwindow();
         for _ in 0_usize..1000 {
-            w.take(&"here a string")?;
+            w.take()?;
         }
-        assert_eq!(w.window, 0);
+        assert_eq!(w.window(), 0);
 
-        let ready = w.take(&"there a string");
+        let ready = w.take();
         assert!(ready.is_err());
         Ok(())
     }

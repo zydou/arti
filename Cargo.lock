@@ -5528,6 +5528,7 @@ dependencies = [
  "tor-relay-selection",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-units",
  "tracing",
  "visibility",
  "void",
@@ -5593,12 +5594,6 @@ dependencies = [
 [[package]]
 name = "tor-congestion"
 version = "0.17.0"
-dependencies = [
- "thiserror 2.0.9",
- "tor-error",
- "tor-netdir",
- "tor-units",
-]
 
 [[package]]
 name = "tor-consdiff"
@@ -6265,6 +6260,7 @@ dependencies = [
  "asynchronous-codec",
  "bitvec",
  "bytes",
+ "caret",
  "cipher",
  "coarsetime",
  "cpu-time",

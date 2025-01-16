@@ -17,6 +17,7 @@ use tor_bytes::Writeable;
 use tor_cell::relaycell::hs::intro_payload::{self, IntroduceHandshakePayload};
 use tor_cell::relaycell::hs::pow::ProofOfWork;
 use tor_cell::relaycell::msg::{AnyRelayMsg, Introduce1, Rendezvous2};
+use tor_circmgr::build::onion_circparams_from_netparams;
 use tor_error::{debug_report, warn_report, Bug};
 use tor_hscrypto::Subcredential;
 use tor_proto::circuit::handshake::hs_ntor;
@@ -29,7 +30,6 @@ use tor_cell::relaycell::hs::{
 };
 use tor_cell::relaycell::RelayMsg;
 use tor_checkable::{timed::TimerangeBound, Timebound};
-use tor_circmgr::build::circparameters_from_netparameters;
 use tor_circmgr::hspool::{HsCircKind, HsCircPool};
 use tor_circmgr::timeouts::Action as TimeoutsAction;
 use tor_dirclient::request::Requestable as _;
@@ -1283,7 +1283,8 @@ impl<'c, R: Runtime, M: MocksForConnect<R>> Context<'c, R, M> {
                 rend_pt: rend_pt.clone(),
             })?;
 
-        let params = circparameters_from_netparameters(self.netdir.params());
+        let params = onion_circparams_from_netparams(self.netdir.params())
+            .map_err(into_internal!("Failed to build CircParameters"))?;
 
         rendezvous
             .rend_circ

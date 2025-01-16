@@ -3,7 +3,7 @@
 //! A half-closed stream is one that we've sent an END on, but where
 //! we might still receive some cells.
 
-use crate::circuit::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
+use crate::congestion::sendme::{cmd_counts_towards_windows, StreamRecvWindow};
 use crate::stream::{AnyCmdChecker, StreamSendFlowControl, StreamStatus};
 use crate::{Error, Result};
 use tor_cell::relaycell::{RelayCmd, UnparsedRelayMsg};
@@ -87,7 +87,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
     use crate::{
-        circuit::sendme::{StreamRecvWindow, StreamSendWindow},
+        congestion::sendme::{StreamRecvWindow, StreamSendWindow},
         stream::DataCmdChecker,
     };
     use rand::{CryptoRng, Rng};
@@ -108,11 +108,15 @@ mod test {
     }
 
     #[test]
-    fn halfstream_sendme() -> Result<()> {
+    fn halfstream_sendme() {
         let mut rng = testing_rng();
 
-        let mut sendw = StreamSendWindow::new(101);
-        sendw.take(&())?; // Make sure that it will accept one sendme.
+        // Stream level SENDMEs are not authenticated and so the only way to make sure we were not
+        // expecting one is if the window busts its maximum.
+        //
+        // Starting the window at 450, the first SENDME will increment it to 500 (the maximum)
+        // meaning that the second SENDME will bust that and we'll noticed that it was unexpected.
+        let sendw = StreamSendWindow::new(450);
 
         let mut hs = HalfStream::new(
             StreamSendFlowControl::new_window_based(sendw),
@@ -132,9 +136,8 @@ mod test {
             .unwrap();
         assert_eq!(
             format!("{}", e),
-            "Circuit protocol violation: Received a SENDME when none was expected"
+            "Circuit protocol violation: Unexpected stream SENDME"
         );
-        Ok(())
     }
 
     fn hs_new() -> HalfStream {

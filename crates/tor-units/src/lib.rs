@@ -112,6 +112,20 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
         BoundedInt32 { value }
     }
 
+    /// Return the lower bound value of this bounded i32.
+    ///
+    /// This always return [`Self::LOWER`].
+    pub const fn lower(&self) -> i32 {
+        LOWER
+    }
+
+    /// Return the lower bound value of this bounded i32.
+    ///
+    /// This always return [`Self::LOWER`].
+    pub const fn upper(&self) -> i32 {
+        UPPER
+    }
+
     /// Return the underlying i32 value.
     ///
     /// This value will always be between [`Self::LOWER`] and [`Self::UPPER`],
@@ -214,14 +228,8 @@ impl From<BoundedInt32<0, 255>> for u8 {
     }
 }
 
-impl<const H: i32> From<BoundedInt32<0, H>> for u32 {
-    fn from(val: BoundedInt32<0, H>) -> u32 {
-        val.value as u32
-    }
-}
-
-impl<const H: i32> From<BoundedInt32<1, H>> for u32 {
-    fn from(val: BoundedInt32<1, H>) -> u32 {
+impl<const L: i32, const H: i32> From<BoundedInt32<L, H>> for u32 {
+    fn from(val: BoundedInt32<L, H>) -> u32 {
         val.value as u32
     }
 }
