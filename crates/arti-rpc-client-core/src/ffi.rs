@@ -336,6 +336,36 @@ pub unsafe extern "C" fn arti_rpc_conn_execute_with_handle(
     )
 }
 
+/// Attempt to cancel the request on `rpc_conn` with the provided `handle`.
+///
+/// Note that cancellation _will_ fail if the handle has already been cancelled,
+/// or has already succeeded or failed.
+///
+/// On success, return `ARTI_RPC_STATUS_SUCCESS`.
+///
+/// Otherwise return some other status code,
+/// and set `*error_out` (if provided) to a newly allocated error object.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn arti_rpc_conn_cancel_handle(
+    rpc_conn: *const ArtiRpcConn,
+    handle: *const ArtiRpcHandle,
+    error_out: *mut *mut ArtiRpcError,
+) -> ArtiRpcStatus {
+    ffi_body_with_err!(
+        {
+            let rpc_conn: Option<&ArtiRpcConn> [in_ptr_opt];
+            let handle: Option<&ArtiRpcHandle> [in_ptr_opt];
+            err error_out: Option<OutPtr<ArtiRpcError>>;
+        } in {
+            let rpc_conn = rpc_conn.ok_or(InvalidInput::NullPointer)?;
+            let handle = handle.ok_or(InvalidInput::NullPointer)?;
+            let id = handle.id();
+            rpc_conn.cancel(id)?;
+        }
+    )
+}
+
 /// A constant indicating that a message is a final result.
 ///
 /// After a result has been received, a handle will not return any more responses,

@@ -4,7 +4,7 @@
 //! and matching them with their responses.
 
 use std::{
-    io,
+    io::{self},
     sync::{Arc, Mutex},
 };
 
@@ -247,9 +247,25 @@ impl RpcConn {
     }
 
     /// Cancel a request by ID.
-    pub fn cancel(&self, _id: &AnyRequestId) -> Result<(), ProtoError> {
-        todo!()
+    pub fn cancel(&self, request_id: &AnyRequestId) -> Result<(), ProtoError> {
+        /// Arguments to an `rpc::cancel` request.
+        #[derive(serde::Serialize, Debug)]
+        struct CancelParams<'a> {
+            /// The request to cancel.
+            request_id: &'a AnyRequestId,
+        }
+
+        let request = crate::msgs::request::Request::new(
+            ObjectId::connection_id(),
+            "rpc:cancel",
+            CancelParams { request_id },
+        );
+        match self.execute_internal::<EmptyResponse>(&request.encode()?)? {
+            Ok(EmptyResponse {}) => Ok(()),
+            Err(_) => Err(ProtoError::RequestCompleted),
+        }
     }
+
     /// Like `execute`, but don't wait.  This lets the caller see the
     /// request ID and  maybe cancel it.
     pub fn execute_with_handle(&self, cmd: &str) -> Result<RequestHandle, ProtoError> {

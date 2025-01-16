@@ -523,6 +523,21 @@ ArtiRpcStatus arti_rpc_conn_execute_with_handle(const ArtiRpcConn *rpc_conn,
                                                 ArtiRpcError **error_out);
 
 /**
+ * Attempt to cancel the request on `rpc_conn` with the provided `handle`.
+ *
+ * Note that cancellation _will_ fail if the handle has already been cancelled,
+ * or has already succeeded or failed.
+ *
+ * On success, return `ARTI_RPC_STATUS_SUCCESS`.
+ *
+ * Otherwise return some other status code,
+ * and set `*error_out` (if provided) to a newly allocated error object.
+ */
+ArtiRpcStatus arti_rpc_conn_cancel_handle(const ArtiRpcConn *rpc_conn,
+                                          const ArtiRpcHandle *handle,
+                                          ArtiRpcError **error_out);
+
+/**
  * Wait until some response arrives on an arti_rpc_handle, or until an error occurs.
  *
  * On success, return `ARTI_RPC_STATUS_SUCCESS`; set `*response_out`, if present, to a
