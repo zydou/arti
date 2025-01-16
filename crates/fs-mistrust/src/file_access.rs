@@ -301,7 +301,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::{fs, os::unix::fs::MetadataExt};
+    use std::fs;
 
     use super::*;
     use crate::{testing::Dir, Mistrust};
@@ -354,6 +354,7 @@ mod test {
 
         #[cfg(target_family = "unix")]
         {
+            use std::os::unix::fs::MetadataExt;
             assert_eq!(
                 fs::metadata(d.path("a/private-1.txt")).unwrap().mode() & 0o7777,
                 0o600
