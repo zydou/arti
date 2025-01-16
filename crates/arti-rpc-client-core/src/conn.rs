@@ -29,6 +29,10 @@ use tor_rpc_connect::{auth::cookie::CookieAccessError, HasClientErrorAction};
 /// A handle to an open request.
 ///
 /// These handles are created with [`RpcConn::execute_with_handle`].
+///
+/// Note that dropping a RequestHandle does not cancel the associated request:
+/// it will continue running, but you won't have a way to receive updates from it.
+/// To cancel a request, use [`RpcConn::cancel`].
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub struct RequestHandle {
@@ -332,8 +336,6 @@ impl RequestHandle {
 
         Ok(AnyResponse::from_validated(validated))
     }
-    // TODO RPC: Cancel on drop.
-    // TODO RPC: way to drop without cancelling.
 
     // TODO RPC: Sketch out how we would want to do this in an async world,
     // or with poll
