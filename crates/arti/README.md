@@ -180,10 +180,15 @@ implementation with another.
    crate was originally written to run as a binary only.)
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.
+* `restricted-discovery` -- Build with experimental restricted discovery
+  support. Restricted discovery support will become non-experimental
+  once [#1795] is closed.
 
 [^1]: Remember, semantic versioning is what makes various `cargo` features
 work reliably. To be explicit, if you want `cargo update` to _only_ make
 correct changes, then you cannot enable these features.
+
+[#1795]: https://gitlab.torproject.org/tpo/core/arti/-/issues/1795
 
 ## Limitations
 
