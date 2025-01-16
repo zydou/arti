@@ -542,6 +542,9 @@ class ArtiRpcObject(_RpcBase):
         Return a helper that can be used to set meta-parameters
         on a request made with this object.
 
+        Currently recognized meta-parameters are "updates"
+        and "require": See rpc-meta-draft.md for more information.
+
         The wrapper will support `invoke` and `invoke_with_handle`,
         and will pass them any provided `params` given as an argument
         to this function as meta-request parameters.
