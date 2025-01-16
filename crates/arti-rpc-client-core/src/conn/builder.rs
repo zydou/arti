@@ -49,7 +49,17 @@ enum SearchEntry {
     /// A literal connect point entry to parse.
     Literal(String),
     /// A path to a connect file, or a directory full of connect files.
-    Path(CfgPath),
+    Path {
+        /// The path to load.
+        path: CfgPath,
+
+        /// If true, then this entry comes from a builtin default,
+        /// and relative paths should cause the connect attempt to be declined.
+        ///
+        /// Otherwise, this entry comes from the user or application,
+        /// and relative paths should cause the connect attempt to abort.
+        is_default_entry: bool,
+    },
 }
 
 impl RpcConnBuilder {
@@ -96,8 +106,10 @@ impl RpcConnBuilder {
     /// they will be expanded according to the rules of [`CfgPath`],
     /// using the variables of [`tor_config_path::arti_client_base_resolver`].
     pub fn prepend_path(&mut self, p: String) {
-        self.prepend_path_reversed
-            .push(SearchEntry::Path(CfgPath::new(p)));
+        self.prepend_path_reversed.push(SearchEntry::Path {
+            path: CfgPath::new(p),
+            is_default_entry: false,
+        });
     }
 
     /// Prepend a single literal path entry to the search path in this RpcConnBuilder.
@@ -109,8 +121,10 @@ impl RpcConnBuilder {
     ///
     /// Variables in this entry will not be expanded.
     pub fn prepend_literal_path(&mut self, p: PathBuf) {
-        self.prepend_path_reversed
-            .push(SearchEntry::Path(CfgPath::new_literal(p)));
+        self.prepend_path_reversed.push(SearchEntry::Path {
+            path: CfgPath::new_literal(p),
+            is_default_entry: false,
+        });
     }
 
     /// Return the list of default path entries that we search _after_
@@ -118,9 +132,15 @@ impl RpcConnBuilder {
     fn default_path_entries() -> Vec<SearchEntry> {
         use SearchEntry::*;
         let mut result = vec![
-            Path(CfgPath::new("${ARTI_LOCAL_DATA}/rpc/connect.d/".to_owned())),
+            Path {
+                path: CfgPath::new("${ARTI_LOCAL_DATA}/rpc/connect.d/".to_owned()),
+                is_default_entry: true,
+            },
             #[cfg(unix)]
-            Path(CfgPath::new_literal("/etc/arti-rpc/connect.d/")),
+            Path {
+                path: CfgPath::new_literal("/etc/arti-rpc/connect.d/"),
+                is_default_entry: true,
+            },
             Literal(tor_rpc_connect::USER_DEFAULT_CONNECT_POINT.to_owned()),
         ];
         if let Some(p) = tor_rpc_connect::SYSTEM_DEFAULT_CONNECT_POINT {
@@ -228,16 +248,23 @@ impl SearchEntry {
                 // It's a literal entry, so we just try to parse it.
                 ParsedConnectPoint::from_str(s).map_err(|e| ConnectError::from(LoadError::from(e))),
             ),
-            SearchEntry::Path(cfg_path) => {
+            SearchEntry::Path {
+                path,
+                is_default_entry,
+            } => {
                 // It's a path, so we need to expand it...
-                let path = match cfg_path.path(resolver) {
+                let path = match path.path(resolver) {
                     Ok(p) => p,
                     Err(e) => {
                         return ConnPtIterator::Singleton(Err(ConnectError::CannotResolvePath(e)))
                     }
                 };
                 if !path.is_absolute() {
-                    return ConnPtIterator::Singleton(Err(ConnectError::RelativeConnectFile));
+                    if *is_default_entry {
+                        return ConnPtIterator::Done;
+                    } else {
+                        return ConnPtIterator::Singleton(Err(ConnectError::RelativeConnectFile));
+                    }
                 }
                 // ..then try to load it as a directory...
                 match ParsedConnectPoint::load_dir(&path, mistrust, options) {
@@ -282,7 +309,10 @@ impl SearchEntry {
                     .map_err(|_| ConnectError::BadEnvironment)?
                     .into_owned(),
             )),
-            _ => Ok(Self::Path(CfgPath::new(s.to_owned()))),
+            _ => Ok(Self::Path {
+                path: CfgPath::new(s.to_owned()),
+                is_default_entry: false,
+            }),
         }
     }
 }
