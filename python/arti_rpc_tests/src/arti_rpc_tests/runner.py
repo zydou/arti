@@ -17,6 +17,7 @@ from arti_rpc_tests.context import TestContext
 # Should we be instead listing all the files in $(basename __file__)/tests ?
 _TEST_MODS = [
     "basic",
+    "cancel",
     "connpt",
     "connect",
     "meta_features",
