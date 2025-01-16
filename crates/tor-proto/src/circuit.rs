@@ -1366,7 +1366,7 @@ mod test {
     };
     use tor_linkspec::OwnedCircTarget;
     use tor_memquota::HasMemoryCost;
-    use tor_rtcompat::{Runtime, SleepProvider};
+    use tor_rtcompat::Runtime;
     use tracing::trace;
     use tracing_test::traced_test;
 
@@ -2233,7 +2233,7 @@ mod test {
     #[traced_test]
     #[test]
     fn invalid_circ_sendme() {
-        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
             // Same setup as accept_valid_sendme() test above but try giving
             // a sendme with the wrong tag.
 
@@ -2251,19 +2251,9 @@ mod test {
 
             let _sink = reply_with_sendme_fut.await;
 
-            let mut tries = 0;
-            // FIXME(eta): we aren't testing the error message like we used to; however, we can at least
-            //             check whether the reactor dies as a result of receiving invalid data.
-            while !circ.control.is_closed() {
-                // TODO: Don't sleep in tests.
-                rt.sleep(Duration::from_millis(100)).await;
-                tries += 1;
-                if tries > 10 {
-                    panic!("reactor continued running after invalid sendme");
-                }
-            }
-
-            // TODO: check that the circuit is shut down too
+            // Check whether the reactor dies as a result of receiving invalid data.
+            rt.advance_until_stalled().await;
+            assert!(circ.is_closing());
         });
     }
 
