@@ -62,3 +62,4 @@ zeroize = "1"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.26.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.26.0" }

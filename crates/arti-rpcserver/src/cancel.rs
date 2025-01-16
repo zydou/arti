@@ -29,10 +29,21 @@ pub(crate) struct Cancel<F> {
     fut: F,
 }
 
+/// Possible status of `Cancel` future.
+#[derive(Clone, Copy, Debug)]
+enum Status {
+    /// The future has neither finished, nor been cancelled.
+    Pending,
+    /// The future has finished; it can no longer be cancelled.
+    Finished,
+    /// The future has been cancelled; it should no longer be polled.
+    Cancelled,
+}
+
 /// Inner state shared between `Cancel` and the `CancelHandle.
 struct Inner {
-    /// True if this future has been cancelled.
-    cancelled: bool,
+    /// Current status of the future.
+    status: Status,
     /// A waker to use in telling this future that it's cancelled.
     waker: Option<Waker>,
 }
@@ -51,7 +62,7 @@ impl<F> Cancel<F> {
     /// Returns a handle to cancel the future, and the cancellable future.
     pub(crate) fn new(fut: F) -> (CancelHandle, Cancel<F>) {
         let inner = Arc::new(Mutex::new(Inner {
-            cancelled: false,
+            status: Status::Pending,
             waker: None,
         }));
         let handle = CancelHandle {
@@ -65,12 +76,17 @@ impl<F> Cancel<F> {
 impl CancelHandle {
     /// Cancel the associated future, if it has not already finished.
     #[allow(dead_code)] // TODO RPC
-    pub(crate) fn cancel(&self) {
+    pub(crate) fn cancel(&self) -> Result<(), CannotCancel> {
         let mut inner = self.inner.lock().expect("poisoned lock");
-        inner.cancelled = true;
+        match inner.status {
+            Status::Pending => inner.status = Status::Cancelled,
+            Status::Finished => return Err(CannotCancel::Finished),
+            Status::Cancelled => return Err(CannotCancel::Cancelled),
+        }
         if let Some(waker) = inner.waker.take() {
             waker.wake();
         }
+        Ok(())
     }
 }
 
@@ -79,31 +95,59 @@ impl CancelHandle {
 #[error("Future was cancelled")]
 pub(crate) struct Cancelled;
 
+/// An error returned when we cannot cancel a future.
+#[derive(thiserror::Error, Clone, Debug)]
+pub(crate) enum CannotCancel {
+    /// This future was already cancelled, and can't be cancelled again.
+    #[error("Already cancelled")]
+    Cancelled,
+
+    /// This future has already completed, and can't be cancelled.
+    #[error("Already finished")]
+    Finished,
+}
+
 impl<F: Future> Future for Cancel<F> {
     type Output = Result<F::Output, Cancelled>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        {
-            let mut inner = self.inner.lock().expect("lock poisoned");
-            if inner.cancelled {
-                return Poll::Ready(Err(Cancelled));
-            }
-            inner.waker = Some(cx.waker().clone());
-        }
         let this = self.project();
-        this.fut.poll(cx).map(Ok)
+
+        let mut inner = this.inner.lock().expect("lock poisoned");
+        match inner.status {
+            Status::Pending => {}
+            Status::Finished => {
+                // Yes, we do intentionally allow a finished future to be polled again.
+                // This does not violate our invariants.
+                // If you want to prevent this, you need to use Fuse or a similar mechanism.
+            }
+            Status::Cancelled => return Poll::Ready(Err(Cancelled)),
+        }
+        // Note that we're holding the mutex here while we poll the future.
+        // This guarantees that the future can't make _any_ progress after it has been
+        // cancelled.  If we someday decide we don't care about that, we could release the mutex
+        // while polling, and pick it up again after we're done polling.
+        match this.fut.poll(cx) {
+            Poll::Ready(val) => {
+                inner.status = Status::Finished;
+                Poll::Ready(Ok(val))
+            }
+            Poll::Pending => {
+                inner.waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
     }
 }
 
 impl<F: FusedFuture> FusedFuture for Cancel<F> {
     fn is_terminated(&self) -> bool {
-        {
-            let inner = self.inner.lock().expect("lock poisoned");
-            if inner.cancelled {
-                return true;
-            }
+        let inner = self.inner.lock().expect("lock poisoned");
+        match inner.status {
+            Status::Pending => self.fut.is_terminated(),
+            Status::Finished => true,
+            Status::Cancelled => true,
         }
-        self.fut.is_terminated()
     }
 }
 
@@ -123,9 +167,14 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    use std::{future, time::Duration};
+
     use super::*;
+    use futures::{stream::FuturesUnordered, FutureExt as _, StreamExt as _};
     use futures_await_test::async_test;
     use oneshot_fused_workaround as oneshot;
+    use tor_basic_utils::RngExt;
+    use tor_rtcompat::SleepProvider as _;
 
     #[async_test]
     async fn not_cancelled() {
@@ -139,15 +188,70 @@ mod test {
         let f = futures::future::pending::<()>();
         let (h, f) = Cancel::new(f);
         let (r, ()) = futures::join!(f, async {
-            h.cancel();
+            h.cancel().unwrap();
         });
         assert!(matches!(r, Err(Cancelled)));
 
         let (_tx, rx) = oneshot::channel::<()>();
         let (h, f) = Cancel::new(rx);
         let (r, ()) = futures::join!(f, async {
-            h.cancel();
+            h.cancel().unwrap();
         });
         assert!(matches!(r, Err(Cancelled)));
+    }
+
+    #[test]
+    fn cancelled_or_not() {
+        // This looks pretty complicated!  But really what we're doing is running a whole bunch
+        // of tasks and cancelling them almost-immediately, to make sure that every task either
+        // succeeds or fails.
+
+        tor_rtmock::MockRuntime::test_with_various(|rt| async move {
+            let rt = tor_rtmock::MockSleepRuntime::new(rt);
+
+            const N_TRIES: usize = 1024;
+            // Time is virtual here, so the interval doesn't matter.
+            const SLEEP_CEIL: Duration = Duration::from_millis(1);
+            let work_succeeded = Arc::new(Mutex::new([None; N_TRIES]));
+            let cancel_succeeded = Arc::new(Mutex::new([None; N_TRIES]));
+
+            let mut futs = FuturesUnordered::new();
+            for idx in 0..N_TRIES {
+                let work_succeeded = Arc::clone(&work_succeeded);
+                let cancel_succeeded = Arc::clone(&cancel_succeeded);
+                let rt1 = rt.clone();
+                let rt2 = rt.clone();
+                let t1 = rand::thread_rng().gen_range_infallible(..=SLEEP_CEIL);
+                let t2 = rand::thread_rng().gen_range_infallible(..=SLEEP_CEIL);
+
+                let work = future::ready(());
+                let (handle, work) = Cancel::new(work);
+                let f1 = async move {
+                    rt1.sleep(t1).await;
+                    let r = handle.cancel();
+                    cancel_succeeded.lock().unwrap()[idx] = Some(r.is_ok());
+                };
+                let f2 = async move {
+                    rt2.sleep(t2).await;
+                    let r = work.await;
+                    work_succeeded.lock().unwrap()[idx] = Some(r.is_ok());
+                };
+
+                futs.push(f1.boxed());
+                futs.push(f2.boxed());
+            }
+
+            rt.wait_for(async { while let Some(()) = futs.next().await {} })
+                .await;
+            for idx in 0..N_TRIES {
+                let ws = work_succeeded.lock().unwrap()[idx];
+                let cs = cancel_succeeded.lock().unwrap()[idx];
+                match (ws, cs) {
+                    (Some(true), Some(false)) => {}
+                    (Some(false), Some(true)) => {}
+                    _ => panic!("incorrect values {:?}", (idx, ws, cs)),
+                }
+            }
+        });
     }
 }
