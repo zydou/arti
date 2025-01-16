@@ -1,7 +1,7 @@
 //! RPC connection support, mainloop, and protocol implementation.
 
 pub(crate) mod auth;
-
+mod methods;
 use std::{
     collections::HashMap,
     io::Error as IoError,
@@ -246,6 +246,20 @@ impl Connection {
     fn register_request(&self, id: RequestId, handle: CancelHandle) {
         let mut inner = self.inner.lock().expect("lock poisoned");
         inner.inflight.insert(id, handle);
+    }
+
+    /// Try to cancel the request `id`.
+    ///
+    /// Return an error when `id` cannot be found, or cannot be cancelled.
+    /// (These cases are indistinguishable.)
+    fn cancel_request(&self, id: &RequestId) -> Result<(), RequestNotFound> {
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        if let Some(handle) = inner.inflight.remove(id) {
+            drop(inner);
+            handle.cancel().map_err(|_| RequestNotFound)
+        } else {
+            Err(RequestNotFound)
+        }
     }
 
     /// Run in a loop, decoding JSON requests from `input` and
@@ -679,6 +693,26 @@ impl From<RequestCancelled> for RpcError {
         RpcError::new(
             "Request cancelled".into(),
             rpc::RpcErrorKind::RequestCancelled,
+        )
+    }
+}
+
+/// An error given when we attempt to cancel an RPC request, but cannot.
+///
+/// Since we don't keep track of requests after they finish or are cancelled,
+/// we cannot distinguish the cases where a request has finished,
+/// where the request has been cancelled,
+/// or where the request never existed.
+/// Therefore we collapse them into a single error type.
+#[derive(thiserror::Error, Clone, Debug, serde::Serialize)]
+#[error("RPC request not found")]
+pub(crate) struct RequestNotFound;
+
+impl From<RequestNotFound> for RpcError {
+    fn from(_: RequestNotFound) -> Self {
+        RpcError::new(
+            "RPC request not found".into(),
+            rpc::RpcErrorKind::ObjectNotFound,
         )
     }
 }
