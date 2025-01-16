@@ -305,7 +305,7 @@ class ArtiRpcConn(_RpcBase):
             self._conn, msg.encode("utf-8"), byref(handle), byref(error)
         )
         self._handle_error(rv, error)
-        return ArtiRequestHandle(handle, self._rpc)
+        return ArtiRequestHandle(handle, self, self._rpc)
 
     def open_stream(
         self,
@@ -665,12 +665,19 @@ class ArtiRpcResponse:
 class ArtiRequestHandle(_RpcBase):
     """
     Handle to a pending RPC request.
+
+    NOTE: Dropping this handle does not cancel the request.
+    If you want to cancel the request on the server side,
+    use the cancel method.
     """
 
     _handle: Ptr[FfiHandle]
+    _conn: ArtiRpcConn
+    _id: str
 
-    def __init__(self, handle: Ptr[FfiHandle], rpc):
+    def __init__(self, handle: Ptr[FfiHandle], conn: ArtiRpcConn, rpc):
         _RpcBase.__init__(self, rpc)
+        self._conn = conn
         self._handle = handle
 
     def __del__(self):
@@ -696,3 +703,17 @@ class ArtiRequestHandle(_RpcBase):
         expected_kind = ArtiRpcResponseKind(responsetype.value)
         assert response_obj.kind() == expected_kind
         return response_obj
+
+    def cancel(self):
+        """
+        Attempt to cancel this request.
+
+        This can fail if the request has alrady stopped,
+        or if it stops before we have a chance to cancel it.
+        """
+        error = POINTER(arti_rpc.ffi.ArtiRpcError)()
+        rv = self._rpc.arti_rpc_conn_cancel_handle(
+            self._conn._conn, self._handle, byref(error)
+        )
+
+        self._handle_error(rv, error)
