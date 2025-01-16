@@ -301,7 +301,7 @@ mod test {
     #![allow(clippy::needless_pass_by_value)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-    use std::{fs, os::linux::fs::MetadataExt};
+    use std::{fs, os::unix::fs::MetadataExt};
 
     use super::*;
     use crate::{testing::Dir, Mistrust};
@@ -355,19 +355,19 @@ mod test {
         #[cfg(target_family = "unix")]
         {
             assert_eq!(
-                fs::metadata(d.path("a/private-1.txt")).unwrap().st_mode() & 0o7777,
+                fs::metadata(d.path("a/private-1.txt")).unwrap().mode() & 0o7777,
                 0o600
             );
             assert_eq!(
-                fs::metadata(d.path("a/private-2.txt")).unwrap().st_mode() & 0o7777,
+                fs::metadata(d.path("a/private-2.txt")).unwrap().mode() & 0o7777,
                 0o600
             );
             assert_eq!(
-                fs::metadata(d.path("a/public-1.txt")).unwrap().st_mode() & 0o7777,
+                fs::metadata(d.path("a/public-1.txt")).unwrap().mode() & 0o7777,
                 0o640
             );
             assert_eq!(
-                fs::metadata(d.path("a/public-2.txt")).unwrap().st_mode() & 0o7777,
+                fs::metadata(d.path("a/public-2.txt")).unwrap().mode() & 0o7777,
                 0o644
             );
         }
