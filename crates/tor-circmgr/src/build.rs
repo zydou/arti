@@ -557,8 +557,11 @@ fn build_cc_fixedwindow(inp: &NetParameters) -> ccparams::Algorithm {
 /// Return a new circuit parameter struct using the given network parameters and algorithm to use.
 fn circparameters_from_netparameters(
     inp: &NetParameters,
-    alg: ccparams::Algorithm,
+    _alg: ccparams::Algorithm,
 ) -> Result<CircParameters> {
+    // TODO Remove this once circuit handshake negotiation is done for CC along flow control.
+    //  Until then, we always go fixed window.
+    let alg = build_cc_fixedwindow(inp);
     let cwnd_params = ccparams::CongestionWindowParamsBuilder::default()
         .cwnd_init(inp.cc_cwnd_init.into())
         .cwnd_inc_pct_ss(Percentage::new(
