@@ -64,6 +64,7 @@ use futures::Stream;
 use futures::{Sink, StreamExt};
 use oneshot_fused_workaround as oneshot;
 
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
@@ -855,7 +856,7 @@ impl Reactor {
 
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
-    async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
+    async fn run_once(&mut self) -> StdResult<(), ReactorError> {
         if self.hops.is_empty() {
             self.wait_for_create().await?;
 
@@ -863,7 +864,7 @@ impl Reactor {
         }
 
         #[allow(clippy::cognitive_complexity)]
-        let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
+        let fut = futures::future::poll_fn(|cx| -> Poll<StdResult<_, ReactorError>> {
             let mut did_things = false;
 
             // Check whether we've got a control message pending.
@@ -899,71 +900,8 @@ impl Reactor {
             }
 
             // Check each hop for an outbound message pending.
-            for i in 0..self.hops.len() {
-                if !self.chan_sender.poll_ready_unpin_bool(cx)? {
-                    // Channel isn't ready to send; we can't act on anything else.
-                    // (Even processing an end-of-stream would end up having to buffer
-                    // an END message in the channel).
-                    break;
-                }
-                if !self.hops[i].ccontrol.can_send() {
-                    // We can't send anything on this hop that counts towards SENDME windows.
-                    //
-                    // In theory we could send messages that don't count towards
-                    // windows (like `RESOLVE`), and process end-of-stream
-                    // events (to send an `END`), but it's probably not worth
-                    // doing an O(N) iteration over flow-control-ready streams
-                    // to see if that's the case.
-                    //
-                    // This *doesn't* block outgoing flow-control messages (e.g.
-                    // SENDME), which are initiated via the control-message
-                    // channel, handled above.
-                    //
-                    // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
-                    // congestion control has "bottomed out" might not be so bad, and the
-                    // alternatives have complexity and/or performance costs.
-                    continue;
-                }
-                let hop_num = HopNum::from(i as u8);
-                // Process an outbound message from the first ready stream on
-                // this hop. The stream map implements round robin scheduling to
-                // ensure fairness across streams.
-                // TODO: Consider looping here to process multiple ready
-                // streams. Need to be careful though to balance that with
-                // continuing to service incoming and control messages.
-                let Some((sid, msg)) = self.hops[i].map.poll_ready_streams_iter(cx).next() else {
-                    // No ready streams for this hop.
-                    continue;
-                };
-                if msg.is_none() {
-                    // Sender was dropped, so close the stream, which
-                    // also removes this entry from the streams iterator.
-                    self.close_stream(
-                        cx,
-                        hop_num,
-                        sid,
-                        CloseStreamBehavior::default(),
-                        streammap::TerminateReason::StreamTargetClosed,
-                    )?;
-                    did_things = true;
-                    continue;
-                };
-                let msg = self.hops[i]
-                    .map
-                    .take_ready_msg(sid)
-                    .expect("msg disappeared");
-                debug_assert!(
-                    {
-                        let Some(StreamEntMut::Open(s)) = self.hops[i].map.get_mut(sid) else {
-                            panic!("Stream {sid} disappeared");
-                        };
-                        s.can_send(&msg)
-                    },
-                    "Stream {sid} produced a message it can't send: {msg:?}"
-                );
-                self.send_relay_cell(cx, hop_num, false, AnyRelayMsgOuter::new(Some(sid), msg))?;
-                did_things = true;
-            }
+            let res = self.send_outbound(cx)?;
+            did_things = did_things || res;
 
             let _ = Pin::new(&mut self.chan_sender)
                 .poll_flush(cx)
@@ -980,6 +918,79 @@ impl Reactor {
         Ok(())
     }
 
+    /// For each hop, see if there are any outbound messages to send.
+    fn send_outbound(&mut self, cx: &mut Context<'_>) -> std::result::Result<bool, ReactorError> {
+        let mut did_things = false;
+
+        for i in 0..self.hops.len() {
+            if !self.chan_sender.poll_ready_unpin_bool(cx)? {
+                // Channel isn't ready to send; we can't act on anything else.
+                // (Even processing an end-of-stream would end up having to buffer
+                // an END message in the channel).
+                break;
+            }
+            if !self.hops[i].ccontrol.can_send() {
+                // We can't send anything on this hop that counts towards SENDME windows.
+                //
+                // In theory we could send messages that don't count towards
+                // windows (like `RESOLVE`), and process end-of-stream
+                // events (to send an `END`), but it's probably not worth
+                // doing an O(N) iteration over flow-control-ready streams
+                // to see if that's the case.
+                //
+                // This *doesn't* block outgoing flow-control messages (e.g.
+                // SENDME), which are initiated via the control-message
+                // channel, handled above.
+                //
+                // TODO: Consider revisiting. OTOH some extra throttling when circuit-level
+                // congestion control has "bottomed out" might not be so bad, and the
+                // alternatives have complexity and/or performance costs.
+                continue;
+            }
+            let hop_num = HopNum::from(i as u8);
+            // Process an outbound message from the first ready stream on
+            // this hop. The stream map implements round robin scheduling to
+            // ensure fairness across streams.
+            // TODO: Consider looping here to process multiple ready
+            // streams. Need to be careful though to balance that with
+            // continuing to service incoming and control messages.
+            let Some((sid, msg)) = self.hops[i].map.poll_ready_streams_iter(cx).next() else {
+                // No ready streams for this hop.
+                continue;
+            };
+            if msg.is_none() {
+                // Sender was dropped, so close the stream, which
+                // also removes this entry from the streams iterator.
+                self.close_stream(
+                    cx,
+                    hop_num,
+                    sid,
+                    CloseStreamBehavior::default(),
+                    streammap::TerminateReason::StreamTargetClosed,
+                )?;
+                did_things = true;
+                continue;
+            };
+            let msg = self.hops[i]
+                .map
+                .take_ready_msg(sid)
+                .expect("msg disappeared");
+            debug_assert!(
+                {
+                    let Some(StreamEntMut::Open(s)) = self.hops[i].map.get_mut(sid) else {
+                        panic!("Stream {sid} disappeared");
+                    };
+                    s.can_send(&msg)
+                },
+                "Stream {sid} produced a message it can't send: {msg:?}"
+            );
+            self.send_relay_cell(cx, hop_num, false, AnyRelayMsgOuter::new(Some(sid), msg))?;
+            did_things = true;
+        }
+
+        Ok(did_things)
+    }
+
     /// Return the congestion signals for this reactor. This is used by congestion control module.
     fn congestion_signals(&mut self, cx: &mut Context<'_>) -> CongestionSignals {
         CongestionSignals::new(
@@ -991,7 +1002,7 @@ impl Reactor {
     /// Wait for a [`CtrlMsg::Create`] to come along to set up the circuit.
     ///
     /// Returns an error if an unexpected `CtrlMsg` is received.
-    async fn wait_for_create(&mut self) -> std::result::Result<(), ReactorError> {
+    async fn wait_for_create(&mut self) -> StdResult<(), ReactorError> {
         let Some(msg) = self.control.next().await else {
             trace!("{}: reactor shutdown due to control drop", self.unique_id);
             return Err(ReactorError::Shutdown);
@@ -1034,7 +1045,7 @@ impl Reactor {
         handshake: CircuitHandshake,
         params: &CircParameters,
         done: ReactorResultChannel<()>,
-    ) -> std::result::Result<(), ReactorError> {
+    ) -> StdResult<(), ReactorError> {
         let ret = match handshake {
             CircuitHandshake::CreateFast => self.create_firsthop_fast(recv_created, params).await,
             CircuitHandshake::Ntor {
@@ -1064,7 +1075,7 @@ impl Reactor {
     }
 
     /// Handle a [`CtrlMsg::Shutdown`] message.
-    fn handle_shutdown(&self) -> std::result::Result<(), ReactorError> {
+    fn handle_shutdown(&self) -> StdResult<(), ReactorError> {
         trace!(
             "{}: reactor shutdown due to explicit request",
             self.unique_id
@@ -1275,7 +1286,7 @@ impl Reactor {
         binding: Option<CircuitBinding>,
         params: &CircParameters,
     ) {
-        let hop = crate::circuit::reactor::CircHop::new(format, params);
+        let hop = CircHop::new(format, params);
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
