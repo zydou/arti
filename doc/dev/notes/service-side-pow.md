@@ -34,10 +34,6 @@ Related spec docs:
     of the seed. Thus, we must have some way of ensuring that we're using the correct
     `KP_hs_blinded_id` when checking the PoW solve. We could try multiple if one of them fails, but
     that would make executing a DoS attack easier, and seems like not the best solution.
-  * We make the choice to have the expiration time of the seeds be the same for all of the TPs, to
-    simplify the logic. However, this could create a problem of linkability between HsDescs for
-    different time periods for the same service, so we should consider whether that is a problem and
-    fix it if it might be before stabilizing PoW.
 * Seeds are rotated every "update period" (115 - 120 minutes long).
   * When there's a new TP, we generate a new seed for that TP, but use the same expiration time as
     we do for all the seeds.
@@ -48,21 +44,28 @@ Related spec docs:
 
 ## Proposed PoW module
 
-I am describing a version of this where the `PowManager` doesn't have a separate update loop, and
-piggybacks of the update loop in `IptManager`. However, the version where `PowManager` has its own
-update loop is just a small change if we decide that's better.
-
 This `pow` module exists in the `tor-hsservice` crate:
 
 ```rust
-pub(crate) struct PowManager(RwLock<State>)
+pub(crate) struct PowManager<R>(RwLock<State<R>>)
 
-struct State {
-    seeds: HashMap<TimePeriod, ArrayVec<Seed, 2>>,
+struct State<R> {
+    runtime: R,
+
+    keymgr: Arc<KeyMgr>,
+
+    nickname: HsNickname,
+
+    // Used to tell Publisher that it should re-upload descriptors due to seed rotation.
+    // We could have this be a queue where we send just the TimePeriod that we want to update, but
+    // it's simpler to just update them all and accept some spurious updates.
+    //
+    // Publisher will hold the other end of this as a Box<dyn Stream>.
+    publisher_update_tx: watch::Sender<()>,
+
+    seeds: HashMap<TimePeriod, SeedsForTimePeriod>,
 
     verifiers: HashMap<SeedHead, Verifier>,
-
-    next_expiration_time: SystemTime,
 
     used_nonces: HashMap<SeedHead, Mutex<ReplayLog<replay::ProofOfWork>>>,
 
@@ -75,6 +78,11 @@ struct State {
     // As per https://spec.torproject.org/hspow-spec/common-protocol.html#service-effort-periodic
 }
 
+struct SeedsForTimePeriod {
+    seeds: ArrayVec<Seed, 2>,
+    expiration: SystemTime,
+}
+
 // type that can be serialized / deserialized to disk
 // we may just want to implement the serde traits on the PowManager directly instead, if that's easy
 // This will be a member of StateRecord in tor-hsservice/src/ipt_mgr/persist.rs
@@ -85,25 +93,43 @@ pub(crate) struct PowManagerRecord {
     // used_nonces are not in here but will in the future be persisted via ReplayLog
 }
 
-// Both the IptManager and the Reactor will have a Arc<Mutex<PowManager>>
-impl PowManager {
-    // Called from IptManager::new
-    // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
-    pub(crate) fn new(pow_replay_log_dir: InstanceRawSubdir) -> (Self, mpsc::Sender, RendQueueReceiver);
-
-    // Both called from tor-hsservice/src/ipt_mgr/persist.rs
+impl PowManagerRecord {
     pub(crate) fn to_record(&self) -> PowManagerRecord;
-    // Upon loading from disk, we will delete stale replay logs from replay_log_dir,
-    // using read_directory / parse_log_leafname / remove_file
-    pub(crate) fn from_record(record: PowManagerRecord, replay_log_dir: InstanceRawSubdir) -> Self;
+    pub(crate) fn from_record<R: Runtime>(
+        runtime: R,
+        record: PowManagerRecord,
+        keymgr: Arc<KeyMgr>,
+        nickname: HsNickname,
+        publisher_update_tx: watch::Sender<()>,
+        pow_replay_log_dir: InstanceRawSubdir
+        storage_handle: StorageHandle<PowManagerRecord>,
+    ) -> PowManager;
+}
 
-    // Called from IptManager::idempotently_progress_things_now
-    // Would be called in our update loop instead of there, if we took that path
-    // This will also handle deleting old ReplayLog files.
-    pub(crate) fn rotate_seeds_if_expiring(&mut self, now: TrackingNow);
+// The Reactor will have a PowManager, and ForLaunch will be extended to call PowManager.launch
+impl<R: Runtime> PowManager<R> {
+    // Called from OnionService::launch
+    //
+    // The sender/receiver pair will replace the existing rend_req_tx / rend_req_rx in lib.rs
+    //
+    // The Box<dyn Stream<()>> is to be passed to Publisher, the other end of publisher_update_tx.
+    //
+    // Loads state from disk or creates a fresh PowManager if no state exists.
+    // Upon loading from disk, we will delete stale replay logs from replay_log_dir.
+    pub(crate) fn new(
+        runtime: R,
+        keymgr: Arc<KeyMgr>,
+        nickname: HsNickname,
+        publisher_update_tx: watch::Sender<()>,
+        pow_replay_log_dir: InstanceRawSubdir,
+        storage_handle: StorageHandle<PowManagerRecord>,
+    ) -> (Arc<Self>, mpsc::Sender, RendQueueReceiver, Box<dyn Stream<()>);
+
+    // Called from ForLaunch::launch. Is responsible for rotating seeds.
+    pub(crate) fn launch(self: &Arc<Self>) -> Result<(), StartupError>;
 
     // Called from publisher Reactor::upload_for_time_period
-    pub(crate) fn get_pow_params(&self, time_period: TimePeriod) -> PowParams;
+    pub(crate) fn get_pow_params(self: &Arc<Self>, time_period: TimePeriod) -> PowParams;
 
     // This is called from RendQueueSender
     fn check_solve(solve: ProofOfWorkV1) -> Result<(), PowSolveError>;
