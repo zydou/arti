@@ -673,9 +673,12 @@ impl rpc::Context for Connection {
 #[derive(thiserror::Error, Clone, Debug, serde::Serialize)]
 #[error("RPC request was cancelled")]
 pub(crate) struct RequestCancelled;
-impl tor_error::HasKind for RequestCancelled {
-    fn kind(&self) -> tor_error::ErrorKind {
-        // TODO RPC: Can we do better here?
-        tor_error::ErrorKind::Other
+
+impl From<RequestCancelled> for RpcError {
+    fn from(_: RequestCancelled) -> Self {
+        RpcError::new(
+            "Request cancelled".into(),
+            rpc::RpcErrorKind::RequestCancelled,
+        )
     }
 }
