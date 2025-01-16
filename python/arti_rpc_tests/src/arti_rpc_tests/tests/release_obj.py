@@ -50,6 +50,7 @@ def drop_misformed_id(context):
 @arti_test
 def drop_connection(context):
     connection = context.open_rpc_connection()
+    connection._conn_obj = None  # Prevent double-drop.
 
     # Make sure we can drop the "connection" object ID itself!
     connection.execute({"obj": "connection", "method": "rpc:release", "params": {}})

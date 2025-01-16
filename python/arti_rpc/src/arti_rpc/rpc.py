@@ -207,6 +207,7 @@ class ArtiRpcConn(_RpcBase):
 
     _conn: Optional[Ptr[FfiConn]]
     _session: ArtiRpcObject
+    _conn_object: ArtiRpcObject
 
     def __init__(self, rpc_lib=None, _conn: Optional[Ptr[FfiConn]] = None):
         """
@@ -229,6 +230,7 @@ class ArtiRpcConn(_RpcBase):
         self._conn = _conn
         s = self._rpc.arti_rpc_conn_get_session_id(self._conn).decode("utf-8")
         self._session = self.make_object(s)
+        self._conn_object = self.make_object("connection")
 
     def __del__(self):
         if self._conn is not None:
@@ -244,6 +246,15 @@ class ArtiRpcConn(_RpcBase):
         a more ergonomic interface to `execute` and `execute_with_handle`.)
         """
         return ArtiRpcObject(object_id, self)
+
+    def connection(self) -> ArtiRpcObject:
+        """
+        Return an ArtiRpcObject for this connection itself.
+
+        The connection object is used to cancel and otherwise manipulate
+        RPC requests.
+        """
+        return self._conn_object
 
     def session(self) -> ArtiRpcObject:
         """
