@@ -31,7 +31,7 @@ use crate::congestion::{sendme, CongestionControl, CongestionSignals};
 use crate::crypto::binding::CircuitBinding;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
-    OutboundClientLayer, RelayCellBody, Tor1RelayCrypto,
+    OutboundClientLayer, RelayCellBody, Tor1RelayCrypto, SENDME_TAG_LEN,
 };
 use crate::crypto::handshake::fast::CreateFastClient;
 #[cfg(feature = "ntor_v3")]
@@ -1447,6 +1447,30 @@ impl Reactor {
         Ok(())
     }
 
+    /// Encode `msg` and encrypt it, returning the resulting cell
+    /// and tag that should be expected for an authenticated SENDME sent
+    /// in response to that cell.
+    fn encode_relay_cell(
+        crypto_out: &mut OutboundClientCrypt,
+        hop: HopNum,
+        early: bool,
+        msg: AnyRelayMsgOuter,
+    ) -> Result<(AnyChanMsg, &[u8; SENDME_TAG_LEN])> {
+        let mut body: RelayCellBody = msg
+            .encode(&mut rand::thread_rng())
+            .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
+            .into();
+        let tag = crypto_out.encrypt(&mut body, hop)?;
+        let msg = Relay::from(BoxedCellBody::from(body));
+        let msg = if early {
+            AnyChanMsg::RelayEarly(msg.into())
+        } else {
+            AnyChanMsg::Relay(msg)
+        };
+
+        Ok((msg, tag))
+    }
+
     /// Encode `msg`, encrypt it, and send it to the 'hop'th hop.
     ///
     /// If there is insufficient outgoing *circuit-level* or *stream-level*
@@ -1464,6 +1488,7 @@ impl Reactor {
         let stream_id = msg.stream_id();
         let hop_num = Into::<usize>::into(hop);
         let circhop = &mut self.hops[hop_num];
+
         // We need to apply stream-level flow control *before* encoding the message.
         if c_t_w {
             if let Some(stream_id) = stream_id {
@@ -1480,19 +1505,9 @@ impl Reactor {
                 ent.take_capacity_to_send(msg.msg())?;
             }
         }
-        let mut body: RelayCellBody = msg
-            .encode(&mut rand::thread_rng())
-            .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
-            .into();
-        let tag = self.crypto_out.encrypt(&mut body, hop)?;
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let msg = Relay::from(BoxedCellBody::from(body));
-        let msg = if early {
-            AnyChanMsg::RelayEarly(msg.into())
-        } else {
-            AnyChanMsg::Relay(msg)
-        };
+        let (msg, tag) = Self::encode_relay_cell(&mut self.crypto_out, hop, early, msg)?;
         // The cell counted for congestion control, inform our algorithm of such and pass down the
         // tag for authenticated SENDMEs.
         if c_t_w {
