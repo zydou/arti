@@ -47,7 +47,7 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
-use tor_cell::relaycell::msg::{AnyRelayMsg, End, Sendme};
+use tor_cell::relaycell::msg::{AnyRelayMsg, End, Extended2, Sendme, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
     RelayCmd, StreamId, UnparsedRelayMsg,
@@ -78,8 +78,8 @@ use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use derive_deftly::Deftly;
 use safelog::sensitive as sv;
 use tor_async_utils::{SinkTrySend as _, SinkTrySendError as _};
-use tor_cell::chancell::{self, BoxedCellBody, ChanMsg};
 use tor_cell::chancell::{AnyChanCell, CircId};
+use tor_cell::chancell::{BoxedCellBody, ChanMsg};
 use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_linkspec::{EncodedLinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
@@ -550,7 +550,7 @@ where
         reactor: &mut Reactor,
     ) -> Result<MetaCellDisposition> {
         let msg = msg
-            .decode::<tor_cell::relaycell::msg::Extended2>()
+            .decode::<Extended2>()
             .map_err(|e| Error::from_bytes_err(e, "extended2 message"))?
             .into_msg();
 
@@ -1319,7 +1319,7 @@ impl Reactor {
         }
         if msg.cmd() == RelayCmd::TRUNCATED {
             let truncated = msg
-                .decode::<tor_cell::relaycell::msg::Truncated>()
+                .decode::<Truncated>()
                 .map_err(|e| Error::from_bytes_err(e, "truncated message"))?
                 .into_msg();
             let reason = truncated.reason();
@@ -1488,7 +1488,7 @@ impl Reactor {
         let tag = self.crypto_out.encrypt(&mut body, hop)?;
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).
-        let msg = chancell::msg::Relay::from(BoxedCellBody::from(body));
+        let msg = Relay::from(BoxedCellBody::from(body));
         let msg = if early {
             AnyChanMsg::RelayEarly(msg.into())
         } else {
@@ -2181,7 +2181,7 @@ impl ConversationInHandler<'_, '_, '_> {
     //
     // TODO hs: it might be nice to avoid exposing tor-cell APIs in the
     //   tor-proto interface.
-    pub fn send_message(&mut self, msg: tor_cell::relaycell::msg::AnyRelayMsg) -> Result<()> {
+    pub fn send_message(&mut self, msg: AnyRelayMsg) -> Result<()> {
         let msg = tor_cell::relaycell::AnyRelayMsgOuter::new(None, msg);
 
         self.reactor
