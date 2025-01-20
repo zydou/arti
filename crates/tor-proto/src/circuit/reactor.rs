@@ -49,8 +49,8 @@ use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
 use tor_cell::relaycell::msg::{AnyRelayMsg, End, Extend2, Extended2, Sendme, Truncated};
 use tor_cell::relaycell::{
-    AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
-    RelayCmd, StreamId, UnparsedRelayMsg,
+    AnyRelayMsgOuter, RelayCellDecoder, RelayCellDecoderResult, RelayCellFormat,
+    RelayCellFormatTrait, RelayCellFormatV0, RelayCmd, StreamId, UnparsedRelayMsg,
 };
 use tor_error::internal;
 #[cfg(feature = "hs-service")]
@@ -1829,8 +1829,12 @@ impl Reactor {
         }
     }
 
-    /// React to a Relay or RelayEarly cell.
-    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<CellStatus> {
+    /// Decode `cell`, returning its corresponding hop number, tag,
+    /// and decoded body.
+    fn decode_relay_cell(
+        &mut self,
+        cell: Relay,
+    ) -> Result<(HopNum, [u8; SENDME_TAG_LEN], RelayCellDecoderResult)> {
         let mut body = cell.into_relay_body().into();
 
         // Decrypt the cell. If it's recognized, then find the
@@ -1858,6 +1862,13 @@ impl Reactor {
             .inbound
             .decode(body.into())
             .map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
+
+        Ok((hopnum, tag, decode_res))
+    }
+
+    /// React to a Relay or RelayEarly cell.
+    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<CellStatus> {
+        let (hopnum, tag, decode_res) = self.decode_relay_cell(cell)?;
 
         let c_t_w = decode_res.cmds().any(sendme::cmd_counts_towards_windows);
 
