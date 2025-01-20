@@ -1808,7 +1808,7 @@ impl Reactor {
     /// Helper: process a cell on a channel.  Most cells get ignored
     /// or rejected; a few get delivered to circuits.
     ///
-    /// Return true if we should exit.
+    /// Return `CellStatus::CleanShutdown` if we should exit.
     fn handle_cell(&mut self, cx: &mut Context<'_>, cell: ClientCircChanMsg) -> Result<CellStatus> {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
