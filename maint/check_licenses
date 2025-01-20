@@ -9,7 +9,7 @@ set -euo pipefail
 # If a package supports multiple licenses (using OR), then we are okay
 # if it supports _any_ of these licenses.
 #
-# We don't currently do a good job of understanding AND, so
+# We don't currently do a good job of understanding AND and OR, so
 # interesting license combinations that involve AND may need to be given
 # in quotes.
 RECOGNIZED_LICENSES=(
