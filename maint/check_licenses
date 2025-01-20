@@ -59,7 +59,18 @@ NO_LICENSE=(
 # MPL, it is not unambiguous that they have applied MPL-2.0 to their
 # code.
 #
-# (See https://gitlab.torproject.org/tpo/core/arti/-/issues/845)
+# To deal with a new MPL dependency, take a look at its repository.
+# Look for the Exhibit A text (grep for "Source Code Form").
+# If it's present, fine, you can add it to this list.
+# If not, here is an example of how to proceed
+#     https://github.com/soc/option-ext/pull/4
+# After the crate upstream merges that MR, we can take that as a declaration
+# about the licence status, so you can include the crate in this list,
+# even if upstream haven't *released* the updated crate yet.
+#
+# For background, see
+#   https://gitlab.torproject.org/tpo/core/arti/-/issues/845#note_2900025
+#
 MPL_20_OK=(
     option-ext
     dynasm
