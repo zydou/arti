@@ -47,7 +47,7 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{AnyChanMsg, HandshakeType, Relay};
-use tor_cell::relaycell::msg::{AnyRelayMsg, End, Extended2, Sendme, Truncated};
+use tor_cell::relaycell::msg::{AnyRelayMsg, End, Extend2, Extended2, Sendme, Truncated};
 use tor_cell::relaycell::{
     AnyRelayMsgOuter, RelayCellDecoder, RelayCellFormat, RelayCellFormatTrait, RelayCellFormatV0,
     RelayCmd, StreamId, UnparsedRelayMsg,
@@ -494,7 +494,6 @@ where
             let mut rng = rand::thread_rng();
             let unique_id = reactor.unique_id;
 
-            use tor_cell::relaycell::msg::Extend2;
             let (state, msg) = H::client1(&mut rng, key, client_aux_data)?;
 
             let n_hops = reactor.crypto_out.n_layers();
