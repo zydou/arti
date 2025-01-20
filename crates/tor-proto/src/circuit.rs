@@ -199,7 +199,7 @@ pub struct ClientCirc {
 }
 
 /// Mutable state shared by [`ClientCirc`] and [`Reactor`].
-#[derive(Educe)]
+#[derive(Educe, Default)]
 #[educe(Debug)]
 struct MutableState {
     /// Information about this circuit's path.

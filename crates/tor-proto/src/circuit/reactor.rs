@@ -807,9 +807,7 @@ impl Reactor {
     ) {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
-        let path = Arc::new(path::Path::default());
-        let binding = Vec::new();
-        let mutable = Arc::new(Mutex::new(MutableState { path, binding }));
+        let mutable = Arc::new(Mutex::new(MutableState::default()));
 
         let (reactor_closed_tx, reactor_closed_rx) = oneshot::channel();
 
