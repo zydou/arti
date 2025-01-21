@@ -84,6 +84,7 @@ impl CancelHandle {
             Status::Cancelled => return Err(CannotCancel::Cancelled),
         }
         if let Some(waker) = inner.waker.take() {
+            drop(inner); // release lock.
             waker.wake();
         }
         Ok(())
