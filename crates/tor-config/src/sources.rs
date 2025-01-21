@@ -239,11 +239,23 @@ impl ConfigurationSources {
     }
 
     /// Sets the filesystem permission mistrust
+    ///
+    /// This value only indicates whether and how to check permissions
+    /// on the configuration file itself.
+    /// It *does not* specify whether and how to check permissions of the
+    /// paths provided within.
+    /// This is defined by the `storage.permissions.dangerously_trust_everyone` flag.
     pub fn set_mistrust(&mut self, mistrust: fs_mistrust::Mistrust) {
         self.mistrust = mistrust;
     }
 
     /// Reads the filesystem permission mistrust
+    ///
+    /// This value only indicates whether and how to check permissions
+    /// on the configuration file itself.
+    /// It *does not* specify whether and how to check permissions of the
+    /// paths provided within.
+    /// This is defined by the `storage.permissions.dangerously_trust_everyone` flag.
     pub fn mistrust(&self) -> &fs_mistrust::Mistrust {
         &self.mistrust
     }
