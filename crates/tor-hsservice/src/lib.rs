@@ -89,6 +89,8 @@ pub mod time_store_for_doctests_unstable_no_semver_guarantees {
     pub use crate::time_store::*;
 }
 
+use std::pin::Pin;
+
 use internal_prelude::*;
 
 // ---------- public exports ----------
@@ -149,8 +151,9 @@ struct SvcInner {
     status_tx: StatusSender,
 
     /// Handles that we'll take ownership of when launching the service.
+    #[allow(clippy::type_complexity)]
     unlaunched: Option<(
-        mpsc::Receiver<RendRequest>,
+        Pin<Box<dyn Stream<Item = RendRequest> + Send + Sync>>,
         Box<dyn Launchable + Send + Sync>,
     )>,
 }

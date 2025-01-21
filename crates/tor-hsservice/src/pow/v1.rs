@@ -126,7 +126,7 @@ impl<R: Runtime> PowManager<R> {
         NewPowManager {
             pow_manager,
             rend_req_tx,
-            rend_req_rx,
+            rend_req_rx: Box::pin(rend_req_rx),
             publisher_update_rx,
         }
     }

@@ -4,11 +4,11 @@
 #[cfg_attr(not(feature = "hs-pow-full"), path = "pow/v1_stub.rs")]
 pub(crate) mod v1;
 
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 
 pub(crate) use self::v1::PowManager;
 
-use futures::channel::mpsc;
+use futures::{channel::mpsc, Stream};
 use tor_async_utils::mpsc_channel_no_memquota;
 use tor_hscrypto::time::TimePeriod;
 
@@ -21,9 +21,7 @@ pub(crate) struct NewPowManager<R> {
     /// Sender for rendevous requests.
     pub(crate) rend_req_tx: mpsc::Sender<RendRequest>,
     /// Receiver for rendevous requests.
-    //
-    // TODO: Replace with Box<dyn Stream> or similar
-    pub(crate) rend_req_rx: mpsc::Receiver<RendRequest>,
+    pub(crate) rend_req_rx: Pin<Box<dyn Stream<Item = RendRequest> + Send + Sync>>,
     /// Receiver used for the publisher to hear when it needs to republish for a TP because of a
     /// seed update.
     pub(crate) publisher_update_rx: mpsc::Receiver<TimePeriod>,
