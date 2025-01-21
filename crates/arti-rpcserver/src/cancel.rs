@@ -6,7 +6,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use futures::{future::FusedFuture, Future};
+use futures::Future;
 use pin_project::pin_project;
 
 /// A cancellable future type, loosely influenced by `RemoteHandle`.
@@ -144,17 +144,6 @@ impl<F: Future> Future for Cancel<F> {
                 }
                 Poll::Pending
             }
-        }
-    }
-}
-
-impl<F: FusedFuture> FusedFuture for Cancel<F> {
-    fn is_terminated(&self) -> bool {
-        let inner = self.inner.lock().expect("lock poisoned");
-        match inner.status {
-            Status::Pending => self.fut.is_terminated(),
-            Status::Finished => true,
-            Status::Cancelled => true,
         }
     }
 }
