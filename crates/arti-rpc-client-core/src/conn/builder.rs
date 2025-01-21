@@ -226,12 +226,13 @@ fn try_connect(
 fn check_banner(msg: &UnparsedResponse) -> Result<(), ConnectError> {
     /// Structure to indicate that this is indeed an Arti RPC connection.
     #[derive(serde::Deserialize)]
-    struct Banner {
+    struct BannerMsg {
         /// Ignored value
         #[allow(dead_code)]
         arti_rpc: serde_json::Value,
     }
-    let _: Banner = serde_json::from_str(msg.as_str()).map_err(|_| ConnectError::InvalidBanner)?;
+    let _: BannerMsg =
+        serde_json::from_str(msg.as_str()).map_err(|_| ConnectError::InvalidBanner)?;
     Ok(())
 }
 

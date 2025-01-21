@@ -5,7 +5,7 @@ use tor_rpc_connect::auth::cookie::{Cookie, CookieAuthMac, CookieAuthNonce};
 
 use crate::msgs::{request::Request, ObjectId};
 
-use super::{ConnectError, EmptyResponse, NoParameters, RpcConn};
+use super::{ConnectError, EmptyReply, NoParams, RpcConn};
 
 /// Arguments to an `auth:authenticate` request.
 #[derive(Serialize, Debug)]
@@ -15,7 +15,7 @@ struct AuthParams<'a> {
 }
 /// Response to an `auth:authenticate` or `auth:cookie_continue` request.
 #[derive(Deserialize, Debug)]
-struct Authenticated {
+struct AuthenticatedReply {
     /// A session object that we use to access the rest of Arti's functionality.
     session: ObjectId,
 }
@@ -63,7 +63,7 @@ impl RpcConn {
                 scheme: scheme_name,
             },
         );
-        let authenticated: Authenticated = self.execute_internal_ok(&r.encode()?)?;
+        let authenticated: AuthenticatedReply = self.execute_internal_ok(&r.encode()?)?;
 
         Ok(authenticated.session)
     }
@@ -106,11 +106,12 @@ impl RpcConn {
             "auth:cookie_continue",
             CookieContinueParams { client_mac },
         );
-        let authenticated: Authenticated = self.execute_internal_ok(&cookie_continue.encode()?)?;
+        let authenticated: AuthenticatedReply =
+            self.execute_internal_ok(&cookie_continue.encode()?)?;
 
         // Drop the cookie_auth_obj: we don't need it now that we have authenticated.
-        let drop_request = Request::new(cookie_auth_obj, "rpc:release", NoParameters {});
-        let _reply: EmptyResponse = self.execute_internal_ok(&drop_request.encode()?)?;
+        let drop_request = Request::new(cookie_auth_obj, "rpc:release", NoParams {});
+        let _reply: EmptyReply = self.execute_internal_ok(&drop_request.encode()?)?;
 
         Ok(authenticated.session)
     }
