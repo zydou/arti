@@ -25,6 +25,11 @@ pub(crate) struct Cancel<F> {
     // make it a bit tricky to manage the Waker.
     inner: Arc<Mutex<Inner>>,
     /// The inner future.
+    ///
+    /// TODO: Possibly we should move this into `inner`,
+    /// so that we can make sure that we don't execute the future without holding the lock,
+    /// and so we can drop the future immediately when it's cancelled.
+    /// But that would take some fairly tricky type erasure, so maybe it isn't worth it?
     #[pin]
     fut: F,
 }
