@@ -8,7 +8,7 @@ use std::{
 
 use serde::Deserialize;
 
-use super::{EmptyResponse, ErrorResponse, NoParameters, RpcConn};
+use super::{EmptyReply, ErrorResponse, NoParams, RpcConn};
 use crate::{msgs::request::Request, ObjectId};
 
 use tor_error::ErrorReport as _;
@@ -79,7 +79,7 @@ impl From<IoError> for StreamError {
 
 /// A response with a single ID.
 #[derive(Deserialize, Debug)]
-struct SingleIdResponse {
+struct SingleIdReply {
     /// The object ID of the response.
     id: ObjectId,
 }
@@ -117,7 +117,7 @@ impl Proxy {
     }
 }
 
-impl ProxyInfo {
+impl ProxyInfoReply {
     /// Choose a SOCKS5 address to use from this list of proxies.
     fn find_socks_addr(&self) -> Option<SocketAddr> {
         // We choose the first usable Proxy.
@@ -128,7 +128,7 @@ impl ProxyInfo {
 /// A representation of the set of proxy addresses available from the RPC API.
 // TODO RPC: This is duplicated from proxyinfo.rs; decide on our strategy for this stuff.
 #[derive(Deserialize, Clone, Debug)]
-pub(super) struct ProxyInfo {
+pub(super) struct ProxyInfoReply {
     /// A list of the supported proxies.
     ///
     /// (So far, only SOCKS proxies are listed, but other kinds may be listed in the future.)
@@ -155,13 +155,10 @@ impl RpcConn {
         isolation: &str,
     ) -> Result<(ObjectId, TcpStream), StreamError> {
         let on_object = self.resolve_on_object(on_object)?;
-        let new_stream_request = Request::new(
-            on_object.clone(),
-            "arti:new_oneshot_client",
-            NoParameters {},
-        );
+        let new_stream_request =
+            Request::new(on_object.clone(), "arti:new_oneshot_client", NoParams {});
         let stream_id = self
-            .execute_internal::<SingleIdResponse>(&new_stream_request.encode()?)?
+            .execute_internal::<SingleIdReply>(&new_stream_request.encode()?)?
             .map_err(StreamError::NewStreamRejected)?
             .id;
 
@@ -213,9 +210,10 @@ impl RpcConn {
     fn lookup_socks_proxy_addr(&self) -> Result<SocketAddr, StreamError> {
         let session_id = self.session_id_required()?.clone();
 
-        let proxy_info_request: Request<NoParameters> =
-            Request::new(session_id, "arti:get_rpc_proxy_info", NoParameters {});
-        let proxy_info = self.execute_internal_ok::<ProxyInfo>(&proxy_info_request.encode()?)?;
+        let proxy_info_request: Request<NoParams> =
+            Request::new(session_id, "arti:get_rpc_proxy_info", NoParams {});
+        let proxy_info =
+            self.execute_internal_ok::<ProxyInfoReply>(&proxy_info_request.encode()?)?;
         let socks_proxy_addr = proxy_info.find_socks_addr().ok_or(StreamError::NoProxy)?;
 
         Ok(socks_proxy_addr)
@@ -236,9 +234,8 @@ impl RpcConn {
 
     /// Helper: Tell Arti to release `obj`.
     fn release_obj(&self, obj: ObjectId) -> Result<(), StreamError> {
-        let release_request = Request::new(obj, "rpc:release", NoParameters {});
-        let _empty_response: EmptyResponse =
-            self.execute_internal_ok(&release_request.encode()?)?;
+        let release_request = Request::new(obj, "rpc:release", NoParams {});
+        let _empty_response: EmptyReply = self.execute_internal_ok(&release_request.encode()?)?;
         Ok(())
     }
 }
@@ -320,7 +317,7 @@ mod test {
 
     #[test]
     fn unexpected_proxies() {
-        let p: ProxyInfo = serde_json::from_str(
+        let p: ProxyInfoReply = serde_json::from_str(
             r#"
                { "proxies" : [ {"listener" : {"socks5" : {"tcp_address" : "127.0.0.1:9090" }}} ] }
             "#,
@@ -336,7 +333,7 @@ mod test {
             ref other => panic!("{:?}", other),
         };
 
-        let p: ProxyInfo = serde_json::from_str(
+        let p: ProxyInfoReply = serde_json::from_str(
             r#"
                { "proxies" : [
                 {"listener" : {"hypothetical" : {"tzitzel" : "buttered" }}},

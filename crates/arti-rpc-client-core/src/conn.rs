@@ -532,11 +532,11 @@ enum UnexpectedReplyProblem {
 
 /// Arguments to a request that takes no parameters.
 #[derive(serde::Serialize, Debug)]
-struct NoParameters {}
+struct NoParams {}
 
-/// A response with no data.
+/// A reply with no data.
 #[derive(serde::Deserialize, Debug)]
-struct EmptyResponse {}
+struct EmptyReply {}
 
 #[cfg(test)]
 mod test {
