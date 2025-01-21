@@ -133,7 +133,15 @@ impl<F: Future> Future for Cancel<F> {
                 Poll::Ready(Ok(val))
             }
             Poll::Pending => {
-                inner.waker = Some(cx.waker().clone());
+                if let Some(existing_waker) = &mut inner.waker {
+                    // If we already have a waker, we use clone_from here,
+                    // since that function knows to use will_wake
+                    // to avoid a needless clone.
+                    existing_waker.clone_from(cx.waker());
+                } else {
+                    // Otherwise, we need to clone cx.waker().
+                    inner.waker = Some(cx.waker().clone());
+                }
                 Poll::Pending
             }
         }
