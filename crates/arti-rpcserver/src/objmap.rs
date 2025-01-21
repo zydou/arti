@@ -5,8 +5,6 @@
 //!
 //! TODO RPC: Add an object diagram here once the implementation settles down.
 
-#![allow(dead_code)] // TODO RPC: Remove this once the crate is stable.
-
 use std::any;
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
@@ -393,7 +391,7 @@ mod test {
 
     #[derive(Clone, Debug, Deftly)]
     #[derive_deftly(Object)]
-    struct ExampleObject(String);
+    struct ExampleObject(#[allow(unused)] String);
 
     impl ExampleObject {
         fn wrap_arc(self: Arc<Self>) -> Arc<Wrapper> {
