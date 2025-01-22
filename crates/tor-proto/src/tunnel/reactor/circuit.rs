@@ -292,6 +292,8 @@ impl Circuit {
             cell: msg,
         } = msg;
 
+        trace!("{}: sending relay cell: {:?}", self.unique_id, msg);
+
         let c_t_w = sendme::cmd_counts_towards_windows(msg.cmd());
         let stream_id = msg.stream_id();
         let hop_num = Into::<usize>::into(hop);
@@ -1322,9 +1324,8 @@ impl Circuit {
     ///
     /// Returns `None` if `hop` doesn't exist.
     pub(super) fn stream_sendme_required(&self, hop: HopNum) -> Option<bool> {
-        let _hop = self.hop(hop)?;
-        // XXX
-        todo!()
+        let hop = self.hop(hop)?;
+        Some(hop.ccontrol.allow_stream_sendme())
     }
 }
 
